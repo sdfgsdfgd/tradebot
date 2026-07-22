@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator, Sequence
 from dataclasses import replace
 from ...backtest.config import (
     ConfigBundle,
@@ -18,6 +19,46 @@ from .milestones import (
 from .support import (
     _mk_filters,
 )
+
+
+_OrbKey = tuple[str, int, str, float, float | None]
+
+
+def _orb_candidates(
+    base: ConfigBundle,
+    *,
+    risk_rewards: Sequence[float],
+) -> Iterator[tuple[_OrbKey, ConfigBundle, str]]:
+    """Yield the canonical ORB mechanics space shared by standalone and joint sweeps."""
+    for open_time, start_h, end_h in (("09:30", 9, 16), ("18:00", 18, 4)):
+        for window_mins in (15, 30, 60):
+            for target_mode in ("rr", "or_range"):
+                for rr in risk_rewards:
+                    for vol_min in (None, 1.2):
+                        cfg = replace(
+                            base,
+                            strategy=replace(
+                                base.strategy,
+                                # ORB owns its entry window; do not merge EMA-only gates.
+                                filters=_mk_filters(
+                                    entry_start_hour_et=start_h,
+                                    entry_end_hour_et=end_h,
+                                    volume_ratio_min=vol_min,
+                                    volume_ema_period=20 if vol_min is not None else None,
+                                ),
+                                orb_open_time_et=open_time,
+                                orb_window_mins=window_mins,
+                                orb_risk_reward=float(rr),
+                                orb_target_mode=target_mode,
+                            ),
+                        )
+                        key = (open_time, window_mins, target_mode, float(rr), vol_min)
+                        vol_note = "-" if vol_min is None else f"vol>={vol_min}@20"
+                        note = (
+                            f"ORB open={open_time} w={window_mins} {target_mode} rr={rr} "
+                            f"tod={start_h:02d}-{end_h:02d} ET {vol_note}"
+                        )
+                        yield key, cfg, note
 
 
 class SweepHighFrequencyAxes:
@@ -491,44 +532,24 @@ class SweepHighFrequencyAxes:
     def _sweep_orb(self) -> None:
         base = self._base_bundle(bar_size="15 mins", filters=None)
         cfg_pairs: list[tuple[ConfigBundle, str]] = [(base, "base")]
-        rr_vals = [0.618, 0.707, 0.786, 1.0, 1.272, 1.618, 2.0]
-        vol_vals = [None, 1.2]
-        window_vals = [15, 30, 60]
-        sessions: list[tuple[str, int, int]] = [
-            ("09:30", 9, 16),  # RTH open
-            ("18:00", 18, 4),  # Globex open (overnight window wraps)
-        ]
-        for open_time, start_h, end_h in sessions:
-            for window_mins in window_vals:
-                for target_mode in ("rr", "or_range"):
-                    for rr in rr_vals:
-                        for vol_min in vol_vals:
-                            f = _mk_filters(
-                                entry_start_hour_et=int(start_h),
-                                entry_end_hour_et=int(end_h),
-                                volume_ratio_min=vol_min,
-                                volume_ema_period=20 if vol_min is not None else None,
-                            )
-                            cfg = replace(
-                                base,
-                                strategy=replace(
-                                    base.strategy,
-                                    # Override (not merge) filters so ORB isn't blocked by EMA-only gates.
-                                    filters=f,
-                                    entry_signal="orb",
-                                    ema_preset=None,
-                                    entry_confirm_bars=0,
-                                    orb_open_time_et=str(open_time),
-                                    orb_window_mins=int(window_mins),
-                                    orb_risk_reward=float(rr),
-                                    orb_target_mode=str(target_mode),
-                                    spot_profit_target_pct=None,
-                                    spot_stop_loss_pct=None,
-                                ),
-                            )
-                            vol_note = "-" if vol_min is None else f"vol>={vol_min}@20"
-                            note = f"ORB open={open_time} w={window_mins} {target_mode} rr={rr} tod={start_h:02d}-{end_h:02d} ET {vol_note}"
-                            cfg_pairs.append((cfg, note))
+        orb_base = replace(
+            base,
+            strategy=replace(
+                base.strategy,
+                entry_signal="orb",
+                ema_preset=None,
+                entry_confirm_bars=0,
+                spot_profit_target_pct=None,
+                spot_stop_loss_pct=None,
+            ),
+        )
+        cfg_pairs.extend(
+            (cfg, note)
+            for _key, cfg, note in _orb_candidates(
+                orb_base,
+                risk_rewards=(0.618, 0.707, 0.786, 1.0, 1.272, 1.618, 2.0),
+            )
+        )
         rows: list[dict] = []
         if self._run_cfg_pairs_grid(
             axis_tag="orb", cfg_pairs=cfg_pairs, rows=rows, report_every=50, heartbeat_sec=20.0
@@ -571,53 +592,15 @@ class SweepHighFrequencyAxes:
             base_row["note"] = "base (orb, no regime/tick)"
             self._record_milestone(base, base_row, str(base_row["note"]))
 
-        rr_vals = [0.618, 0.707, 0.786, 0.8, 1.0, 1.272, 1.618, 2.0]
-        vol_vals = [None, 1.2]
-        window_vals = [15, 30, 60]
-        sessions: list[tuple[str, int, int]] = [
-            ("09:30", 9, 16),  # RTH open
-            ("18:00", 18, 4),  # Globex open (overnight window wraps)
-        ]
-
         # Stage 1: find the best ORB mechanics without regime/tick overlays.
         best_by_orb: dict[tuple, dict] = {}
-        for open_time, start_h, end_h in sessions:
-            for window_mins in window_vals:
-                for target_mode in ("rr", "or_range"):
-                    for rr in rr_vals:
-                        for vol_min in vol_vals:
-                            f = _mk_filters(
-                                entry_start_hour_et=int(start_h),
-                                entry_end_hour_et=int(end_h),
-                                volume_ratio_min=vol_min,
-                                volume_ema_period=20 if vol_min is not None else None,
-                            )
-                            cfg = replace(
-                                base,
-                                strategy=replace(
-                                    base.strategy,
-                                    # Override filters so ORB isn't blocked by EMA-only gates.
-                                    filters=f,
-                                    orb_open_time_et=str(open_time),
-                                    orb_window_mins=int(window_mins),
-                                    orb_risk_reward=float(rr),
-                                    orb_target_mode=str(target_mode),
-                                ),
-                            )
-                            row = self._run_cfg(
-                                cfg=cfg,
-                                bars=bars_15m,
-                            )
-                            if not row:
-                                continue
-                            orb_key = (
-                                str(open_time),
-                                int(window_mins),
-                                str(target_mode),
-                                float(rr),
-                                vol_min,
-                            )
-                            best_by_orb[orb_key] = {"row": row}
+        for key, cfg, note in _orb_candidates(
+            base,
+            risk_rewards=(0.618, 0.707, 0.786, 0.8, 1.0, 1.272, 1.618, 2.0),
+        ):
+            row = self._run_cfg(cfg=cfg, bars=bars_15m)
+            if row:
+                best_by_orb[key] = {"row": row, "cfg": cfg, "note": note}
 
         shortlisted = self._ranked_keys_by_row_scores(best_by_orb, top_pnl=8, top_pnl_dd=8)
         if not shortlisted:
@@ -693,28 +676,15 @@ class SweepHighFrequencyAxes:
         ]
 
         rows: list[dict] = []
-        for open_time, window_mins, target_mode, rr, vol_min in shortlisted:
-            start_h, end_h = 9, 16
-            if str(open_time) == "18:00":
-                start_h, end_h = 18, 4
-            f = _mk_filters(
-                entry_start_hour_et=int(start_h),
-                entry_end_hour_et=int(end_h),
-                volume_ratio_min=vol_min,
-                volume_ema_period=20 if vol_min is not None else None,
-            )
-
+        for key in shortlisted:
+            seed = best_by_orb[key]
+            seed_cfg = seed["cfg"]
             for regime_note, reg_over in regime_variants:
                 for tick_note, tick_over in tick_variants:
                     cfg = replace(
-                        base,
+                        seed_cfg,
                         strategy=replace(
-                            base.strategy,
-                            filters=f,
-                            orb_open_time_et=str(open_time),
-                            orb_window_mins=int(window_mins),
-                            orb_risk_reward=float(rr),
-                            orb_target_mode=str(target_mode),
+                            seed_cfg.strategy,
                             regime_mode=str(reg_over.get("regime_mode") or "ema"),
                             regime_bar_size=str(reg_over.get("regime_bar_size") or "15 mins"),
                             regime_ema_preset=reg_over.get("regime_ema_preset"),
@@ -739,10 +709,7 @@ class SweepHighFrequencyAxes:
                     )
                     if not row:
                         continue
-                    vol_note = "-" if vol_min is None else f"vol>={vol_min}@20"
-                    note = (
-                        f"ORB open={open_time} w={window_mins} {target_mode} rr={rr} tod={start_h:02d}-{end_h:02d} ET {vol_note} | {regime_note} | {tick_note}"
-                    )
+                    note = f"{seed['note']} | {regime_note} | {tick_note}"
                     row["note"] = note
                     self._record_milestone(cfg, row, note)
                     rows.append(row)

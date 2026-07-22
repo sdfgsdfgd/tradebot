@@ -6,6 +6,7 @@ import threading
 from types import SimpleNamespace
 
 from tradebot.backtest.data import ContractMeta
+from tradebot.research.spot_sweeps.axes_hf import _orb_candidates
 from tradebot.research.spot_sweeps.catalog import (
     _COMBO_FULL_CARTESIAN_DIM_ORDER,
     _COMBO_FULL_PAIR_DIM_VARIANT_SPECS,
@@ -127,6 +128,36 @@ def test_cfg_payload_round_trip_preserves_backtest_timeframe() -> None:
     restored, _note = decoded
     assert restored.backtest.bar_size == "15 mins"
     assert restored.backtest.use_rth is True
+
+
+def test_orb_sweeps_share_one_mechanics_space() -> None:
+    base = _bundle_base(
+        symbol="SLV",
+        start=date(2025, 1, 8),
+        end=date(2025, 1, 10),
+        bar_size="15 mins",
+        use_rth=False,
+        cache_dir=Path("db"),
+        offline=True,
+        filters=None,
+        entry_signal="orb",
+    )
+
+    candidates = list(_orb_candidates(base, risk_rewards=(1.0, 2.0)))
+
+    assert len(candidates) == 2 * 3 * 2 * 2 * 2
+    assert len({key for key, _cfg, _note in candidates}) == len(candidates)
+    first_key, first_cfg, first_note = candidates[0]
+    assert first_key == ("09:30", 15, "rr", 1.0, None)
+    assert first_cfg.strategy.filters is not None
+    assert first_cfg.strategy.filters.entry_start_hour_et == 9
+    assert first_cfg.strategy.filters.entry_end_hour_et == 16
+    assert first_note == "ORB open=09:30 w=15 rr rr=1.0 tod=09-16 ET -"
+    last_key, last_cfg, _last_note = candidates[-1]
+    assert last_key == ("18:00", 60, "or_range", 2.0, 1.2)
+    assert last_cfg.strategy.filters is not None
+    assert last_cfg.strategy.filters.entry_start_hour_et == 18
+    assert last_cfg.strategy.filters.entry_end_hour_et == 4
 
 
 def test_ranked_rows_use_stable_identity_for_metric_ties() -> None:

@@ -17,16 +17,8 @@ from .dimensions import _AXIS_DIMENSION_REGISTRY
 from .fingerprints import (
     _RUN_CFG_CACHE_ENGINE_VERSION,
 )
-from .profiles import (
-    _PERM_JOINT_PROFILE,
-)
 from .milestones import (
     _print_leaderboards,
-)
-from .risk import (
-    _risk_pack_riskoff,
-    _risk_pack_riskpanic,
-    _risk_pack_riskpop,
 )
 from .support import (
     _require_offline_cache_or_die,
@@ -114,160 +106,10 @@ class SweepCartesian:
         if combo_full_preset and combo_full_preset not in valid_combo_presets:
             raise SystemExit(f"Unknown combo_full preset: {combo_full_preset!r}")
 
-        direction_catalog_default: dict[str, dict[str, object]] = {
-            "ema=2/4 cross": {
-                "entry_signal": "ema",
-                "ema_preset": "2/4",
-                "ema_entry_mode": "cross",
-            },
-            "ema=4/9 cross": {
-                "entry_signal": "ema",
-                "ema_preset": "4/9",
-                "ema_entry_mode": "cross",
-            },
-        }
-        regime_catalog_default: dict[str, dict[str, object]] = {
-            "regime=ST(4h:7,0.5,hl2)": {
-                "regime_mode": "supertrend",
-                "regime_bar_size": "4 hours",
-                "supertrend_atr_period": 7,
-                "supertrend_multiplier": 0.5,
-                "supertrend_source": "hl2",
-            },
-            "regime=ST(1d:14,1.0,hl2)": {
-                "regime_mode": "supertrend",
-                "regime_bar_size": "1 day",
-                "supertrend_atr_period": 14,
-                "supertrend_multiplier": 1.0,
-                "supertrend_source": "hl2",
-            },
-            "regime=ST(4h:10,0.8,close)": {
-                "regime_mode": "supertrend",
-                "regime_bar_size": "4 hours",
-                "supertrend_atr_period": 10,
-                "supertrend_multiplier": 0.8,
-                "supertrend_source": "close",
-            },
-        }
-        regime2_catalog_default: dict[str, dict[str, object]] = {
-            "r2=off": {"regime2_mode": "off", "regime2_bar_size": None},
-            "r2=ST(4h:3,0.25,close)": {
-                "regime2_mode": "supertrend",
-                "regime2_bar_size": "4 hours",
-                "regime2_supertrend_atr_period": 3,
-                "regime2_supertrend_multiplier": 0.25,
-                "regime2_supertrend_source": "close",
-            },
-        }
-        exit_catalog_default: dict[str, dict[str, object]] = {
-            "exit=pct(0.015,0.03)": {
-                "spot_exit_mode": "pct",
-                "spot_profit_target_pct": 0.015,
-                "spot_stop_loss_pct": 0.03,
-                "spot_pt_atr_mult": None,
-                "spot_sl_atr_mult": None,
-            },
-            "exit=stop_only(0.03)": {
-                "spot_exit_mode": "pct",
-                "spot_profit_target_pct": None,
-                "spot_stop_loss_pct": 0.03,
-                "spot_pt_atr_mult": None,
-                "spot_sl_atr_mult": None,
-            },
-            "exit=atr(14,0.8,1.6)": {
-                "spot_exit_mode": "atr",
-                "spot_profit_target_pct": None,
-                "spot_stop_loss_pct": None,
-                "spot_atr_period": 14,
-                "spot_pt_atr_mult": 0.8,
-                "spot_sl_atr_mult": 1.6,
-            },
-        }
-        tick_catalog_default: dict[str, dict[str, object]] = {
-            "tick=off": {"tick_gate_mode": "off"},
-            "tick=raschke": {
-                "tick_gate_mode": "raschke",
-                "tick_gate_symbol": "TICK-AMEX",
-                "tick_gate_exchange": "AMEX",
-                "tick_neutral_policy": "allow",
-                "tick_direction_policy": "both",
-                "tick_band_ma_period": 10,
-                "tick_width_z_lookback": 252,
-                "tick_width_z_enter": 1.0,
-                "tick_width_z_exit": 0.5,
-                "tick_width_slope_lookback": 3,
-            },
-        }
-        shock_catalog_default: dict[str, dict[str, object]] = {
-            "shock=off": {"shock_gate_mode": "off"},
-            "shock=surf_daily": {
-                "shock_gate_mode": "surf",
-                "shock_detector": "daily_atr_pct",
-                "shock_daily_atr_period": 14,
-                "shock_daily_on_atr_pct": 13.5,
-                "shock_daily_off_atr_pct": 13.0,
-                "shock_daily_on_tr_pct": 9.0,
-                "shock_direction_source": "signal",
-                "shock_direction_lookback": 1,
-                "shock_stop_loss_pct_mult": 0.75,
-                "shock_profit_target_pct_mult": 1.0,
-            },
-            "shock=surf_atr_ratio": {
-                "shock_gate_mode": "surf",
-                "shock_detector": "atr_ratio",
-                "shock_atr_fast_period": 7,
-                "shock_atr_slow_period": 50,
-                "shock_on_ratio": 1.55,
-                "shock_off_ratio": 1.30,
-                "shock_min_atr_pct": 7.0,
-                "shock_direction_source": "signal",
-                "shock_direction_lookback": 1,
-                "shock_stop_loss_pct_mult": 0.75,
-                "shock_profit_target_pct_mult": 1.0,
-            },
-            "shock=surf_tr_ratio": {
-                "shock_gate_mode": "surf",
-                "shock_detector": "tr_ratio",
-                "shock_atr_fast_period": 7,
-                "shock_atr_slow_period": 50,
-                "shock_on_ratio": 1.55,
-                "shock_off_ratio": 1.30,
-                "shock_min_atr_pct": 7.0,
-                "shock_direction_source": "signal",
-                "shock_direction_lookback": 1,
-                "shock_stop_loss_pct_mult": 0.75,
-                "shock_profit_target_pct_mult": 1.0,
-            },
-        }
-        slope_catalog_default: dict[str, dict[str, object]] = {
-            "slope=off": {},
-            "slope>=0.01": {"ema_slope_min_pct": 0.01},
-        }
-        risk_catalog_default: dict[str, dict[str, object]] = {
-            "risk=off": {},
-            "risk=riskoff9": _risk_pack_riskoff(tr_med=9.0, lookback_days=5, mode="hygiene", cutoff_hour_et=15),
-            "risk=riskpanic9": _risk_pack_riskpanic(
-                tr_med=9.0,
-                neg_gap_ratio=0.6,
-                lookback_days=5,
-                short_factor=0.5,
-                cutoff_hour_et=15,
-            ),
-            "risk=riskpop9": _risk_pack_riskpop(
-                tr_med=9.0,
-                pos_gap_ratio=0.6,
-                lookback_days=5,
-                long_factor=1.2,
-                short_factor=0.5,
-                cutoff_hour_et=15,
-            ),
-        }
-
         def _pairs_from_registry(
             *,
             dim_name: str,
             variants_key: str,
-            fallback_catalog: dict[str, dict[str, object]],
         ) -> list[tuple[str, dict[str, object]]]:
             out: list[tuple[str, dict[str, object]]] = []
             raw_variants = dims.get(str(variants_key))
@@ -280,14 +122,9 @@ class SweepCartesian:
                     if not label or not isinstance(payload, dict):
                         continue
                     out.append((label, dict(payload)))
-            if out:
-                return out
-            fallback_rows = [
-                (str(label), dict(payload)) for label, payload in tuple(fallback_catalog.items()) if isinstance(label, str) and isinstance(payload, dict)
-            ]
-            if not fallback_rows:
+            if not out:
                 raise SystemExit(f"combo_full requires at least one {dim_name} variant.")
-            return fallback_rows
+            return out
 
         def _timing_profiles_from_registry(
             *,
@@ -310,39 +147,10 @@ class SweepCartesian:
                     out.append((str(label), strat_dict, filt_dict))
             return out
 
-        perm_catalog_default = {
-            str(note): dict(over) for note, over in tuple(_PERM_JOINT_PROFILE.get("perm_variants") or ()) if isinstance(note, str) and isinstance(over, dict)
-        }
-        tod_catalog_default = {
-            str(note): dict(over)
-            for _start_h, _end_h, note, over in tuple(_PERM_JOINT_PROFILE.get("tod_windows") or ())
-            if isinstance(note, str) and isinstance(over, dict)
-        }
-        vol_catalog_default = {
-            str(note): dict(over) for note, over in tuple(_PERM_JOINT_PROFILE.get("vol_variants") or ()) if isinstance(note, str) and isinstance(over, dict)
-        }
-        cadence_catalog_default = {
-            str(note): dict(over) for note, over in tuple(_PERM_JOINT_PROFILE.get("cadence_variants") or ()) if isinstance(note, str) and isinstance(over, dict)
-        }
-        pair_catalog_by_dim: dict[str, dict[str, dict[str, object]]] = {
-            "direction": direction_catalog_default,
-            "perm": perm_catalog_default,
-            "tod": tod_catalog_default,
-            "vol": vol_catalog_default,
-            "cadence": cadence_catalog_default,
-            "regime": regime_catalog_default,
-            "regime2": regime2_catalog_default,
-            "exit": exit_catalog_default,
-            "tick": tick_catalog_default,
-            "shock": shock_catalog_default,
-            "slope": slope_catalog_default,
-            "risk": risk_catalog_default,
-        }
         pair_variants_by_dim: dict[str, list[tuple[str, dict[str, object]]]] = {
             str(dim_name): _pairs_from_registry(
                 dim_name=str(dim_name),
                 variants_key=str(variants_key),
-                fallback_catalog=pair_catalog_by_dim[str(dim_name)],
             )
             for dim_name, variants_key in _COMBO_FULL_PAIR_DIM_VARIANT_SPECS
         }
