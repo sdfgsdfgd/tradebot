@@ -7,6 +7,7 @@ from datetime import date, datetime, timedelta
 from .config import StrategyConfig, LegConfig
 from .models import OptionLeg
 from ..engine import _trade_date, _trade_weekday
+from ..option_package import option_package_entry_intent
 
 
 @dataclass(frozen=True)
@@ -30,13 +31,41 @@ class CreditSpreadStrategy:
         right_override: str | None = None,
         legs_override: tuple[LegConfig, ...] | None = None,
     ) -> TradeSpec:
-        expiry = _expiry_from_dte(_trade_date(ts), self._cfg.dte)
         if legs_override:
-            legs = _build_legs(legs_override, spot, self._cfg.quantity)
+            selected_legs = legs_override
+            legs_path = "legs_override"
         elif self._cfg.legs:
-            legs = _build_legs(self._cfg.legs, spot, self._cfg.quantity)
+            selected_legs = self._cfg.legs
+            legs_path = "legs"
         else:
-            legs = _build_default_legs(self._cfg, spot, right_override)
+            right = (right_override or self._cfg.right).upper()
+            selected_legs = (
+                LegConfig(
+                    action="SELL",
+                    right=right,
+                    moneyness_pct=self._cfg.otm_pct,
+                    qty=1,
+                ),
+                LegConfig(
+                    action="BUY",
+                    right=right,
+                    moneyness_pct=self._cfg.otm_pct + self._cfg.width_pct,
+                    qty=1,
+                ),
+            )
+            legs_path = "default_legs"
+
+        entry_intent = option_package_entry_intent(
+            self._cfg,
+            legs=selected_legs,
+            path=legs_path,
+        )
+        expiry = _expiry_from_dte(_trade_date(ts), entry_intent.dte)
+        legs = _build_legs(
+            entry_intent.legs,
+            spot,
+            entry_intent.quantity,
+        )
         return TradeSpec(expiry=expiry, legs=legs)
 
 
@@ -64,20 +93,6 @@ def _build_legs(legs: tuple[LegConfig, ...], spot: float, quantity: int) -> list
         )
     return built
 
-
-def _build_default_legs(cfg: StrategyConfig, spot: float, right_override: str | None) -> list[OptionLeg]:
-    width = spot * (cfg.width_pct / 100.0)
-    right = (right_override or cfg.right).upper()
-    # Negative otm_pct means ITM (e.g., -1 = 1% ITM).
-    short_strike = _strike_from_moneyness(spot, right, cfg.otm_pct)
-    if right == "PUT":
-        long_strike = short_strike - width
-    else:
-        long_strike = short_strike + width
-    return [
-        OptionLeg(action="SELL", right=right, strike=short_strike, qty=cfg.quantity),
-        OptionLeg(action="BUY", right=right, strike=long_strike, qty=cfg.quantity),
-    ]
 
 
 def _strike_from_moneyness(spot: float, right: str, moneyness_pct: float) -> float:

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import asdict, dataclass
 import math
 
@@ -92,6 +92,131 @@ def normalize_option_legs(raw: object, *, path: str = "legs") -> tuple[LegConfig
     return tuple(
         normalize_option_leg(leg, path=f"{path}[{index}]")
         for index, leg in enumerate(raw, start=1)
+    )
+
+
+_MISSING_OPTION_ENTRY_FIELD = object()
+
+
+def _option_entry_source_value(
+    source: object,
+    field: str,
+    default: object,
+) -> object:
+    if isinstance(source, Mapping):
+        return source[field] if field in source else default
+    return getattr(source, field, default)
+
+
+def _option_entry_non_negative_int(value: object, *, path: str) -> int:
+    if isinstance(value, bool):
+        raise ValueError(f"{path} must be a non-negative integer")
+    if isinstance(value, int):
+        parsed = value
+    elif isinstance(value, float):
+        if not math.isfinite(value) or not value.is_integer():
+            raise ValueError(f"{path} must be a non-negative integer")
+        parsed = int(value)
+    elif isinstance(value, str):
+        cleaned = value.strip()
+        if not cleaned or not cleaned.lstrip("+-").isdigit():
+            raise ValueError(f"{path} must be a non-negative integer")
+        parsed = int(cleaned)
+    else:
+        raise ValueError(f"{path} must be a non-negative integer")
+    if parsed < 0:
+        raise ValueError(f"{path} must be a non-negative integer")
+    return parsed
+
+
+def _option_entry_min_credit(value: object, *, path: str) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        raise ValueError(f"{path} must be a finite non-negative number")
+    parsed = _option_leg_finite_float(value, path=path)
+    if parsed < 0:
+        raise ValueError(f"{path} must be a finite non-negative number")
+    return parsed
+
+
+def _option_entry_legs(raw: object, *, path: str) -> tuple[LegConfig, ...]:
+    if isinstance(raw, tuple) and all(isinstance(leg, LegConfig) for leg in raw):
+        normalized = raw
+    elif isinstance(raw, list) and all(isinstance(leg, LegConfig) for leg in raw):
+        normalized = tuple(raw)
+    elif isinstance(raw, list):
+        normalized = normalize_option_legs(raw, path=path)
+    else:
+        raise ValueError(f"{path} must be a list or tuple of option legs")
+    if not normalized:
+        raise ValueError(f"{path} must contain at least one leg")
+    return normalized
+
+
+@dataclass(frozen=True)
+class OptionPackageEntryIntent:
+    legs: tuple[LegConfig, ...]
+    dte: int
+    quantity: int
+    min_credit: float | None
+
+    def __post_init__(self) -> None:
+        if (
+            not isinstance(self.legs, tuple)
+            or not self.legs
+            or any(not isinstance(leg, LegConfig) for leg in self.legs)
+        ):
+            raise ValueError("legs must be a non-empty tuple of LegConfig")
+        object.__setattr__(
+            self,
+            "dte",
+            _option_entry_non_negative_int(self.dte, path="dte"),
+        )
+        object.__setattr__(
+            self,
+            "quantity",
+            _option_leg_positive_int(self.quantity, path="quantity"),
+        )
+        object.__setattr__(
+            self,
+            "min_credit",
+            _option_entry_min_credit(self.min_credit, path="min_credit"),
+        )
+
+
+def option_package_entry_intent(
+    source: object,
+    *,
+    legs: object = _MISSING_OPTION_ENTRY_FIELD,
+    path: str = "legs",
+) -> OptionPackageEntryIntent:
+    raw_legs = (
+        _option_entry_source_value(
+            source,
+            "legs",
+            _MISSING_OPTION_ENTRY_FIELD,
+        )
+        if legs is _MISSING_OPTION_ENTRY_FIELD
+        else legs
+    )
+    if raw_legs is _MISSING_OPTION_ENTRY_FIELD:
+        raise ValueError(f"{path} is required")
+
+    return OptionPackageEntryIntent(
+        legs=_option_entry_legs(raw_legs, path=path),
+        dte=_option_entry_non_negative_int(
+            _option_entry_source_value(source, "dte", 0),
+            path="dte",
+        ),
+        quantity=_option_leg_positive_int(
+            _option_entry_source_value(source, "quantity", 1),
+            path="quantity",
+        ),
+        min_credit=_option_entry_min_credit(
+            _option_entry_source_value(source, "min_credit", None),
+            path="min_credit",
+        ),
     )
 
 

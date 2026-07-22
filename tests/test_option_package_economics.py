@@ -517,6 +517,7 @@ def _run_xsp_capacity_builder_case(
     available_capacity=_MISSING_XSP_RESERVATION_CAPACITY,
     reserved_max_loss: float = 650.0,
     min_credit: float | None = None,
+    events: list[str] | None = None,
 ):
     from tradebot.order_reservation import (
         OrderReservationSummary,
@@ -553,6 +554,8 @@ def _run_xsp_capacity_builder_case(
     class _Client:
         @staticmethod
         async def stock_option_chain(symbol: str):
+            if events is not None:
+                events.append("stock_option_chain")
             assert symbol == "XSP"
             return underlying, SimpleNamespace(
                 expirations=["20260209"],
@@ -676,6 +679,215 @@ def _run_xsp_capacity_builder_case(
     )
 
     return harness, instance, signal_bar_ts, package_calls, capacity_calls
+
+
+def test_option_package_entry_intent_is_frozen_strict_and_source_agnostic() -> None:
+    from dataclasses import FrozenInstanceError
+
+    from tradebot import option_package
+
+    assert hasattr(option_package, "OptionPackageEntryIntent")
+    assert hasattr(option_package, "option_package_entry_intent")
+
+    intent_type = option_package.OptionPackageEntryIntent
+    project = option_package.option_package_entry_intent
+    typed_legs = (
+        option_package.LegConfig(
+            action="SELL",
+            right="PUT",
+            moneyness_pct=0.0,
+            qty=1,
+        ),
+        option_package.LegConfig(
+            action="BUY",
+            right="PUT",
+            moneyness_pct=5.0,
+            qty=1,
+            delta=-0.15,
+        ),
+    )
+    raw_legs = [
+        {
+            "action": " sell ",
+            "right": " put ",
+            "moneyness_pct": 0.0,
+            "qty": 1,
+        },
+        {
+            "action": "buy",
+            "right": "put",
+            "moneyness_pct": 5.0,
+            "qty": 1,
+            "delta": -0.15,
+        },
+    ]
+
+    typed_source = SimpleNamespace(
+        legs=typed_legs,
+        dte=0,
+        quantity=2,
+        min_credit=1.50,
+    )
+    mapping_source = {
+        "legs": raw_legs,
+        "dte": "0",
+        "quantity": "2",
+        "min_credit": "1.50",
+    }
+    expected = intent_type(
+        legs=typed_legs,
+        dte=0,
+        quantity=2,
+        min_credit=1.50,
+    )
+
+    assert project(typed_source) == expected
+    assert project(mapping_source) == expected
+    assert project(
+        {
+            "legs": [],
+            "dte": "0",
+            "quantity": "2",
+            "min_credit": "1.50",
+        },
+        legs=raw_legs,
+        path="directional_legs.up",
+    ) == expected
+
+    defaults = project({"legs": raw_legs})
+    assert defaults.dte == 0
+    assert defaults.quantity == 1
+    assert defaults.min_credit is None
+
+    with pytest.raises((FrozenInstanceError, AttributeError)):
+        defaults.quantity = 3
+
+    invalid_values = (
+        ("dte", None),
+        ("dte", True),
+        ("dte", -1),
+        ("dte", 2.5),
+        ("dte", "bad"),
+        ("quantity", None),
+        ("quantity", True),
+        ("quantity", 0),
+        ("quantity", -1),
+        ("quantity", 2.5),
+        ("quantity", "bad"),
+        ("min_credit", True),
+        ("min_credit", -0.01),
+        ("min_credit", float("nan")),
+        ("min_credit", float("inf")),
+        ("min_credit", "bad"),
+    )
+    for field, value in invalid_values:
+        invalid = dict(mapping_source)
+        invalid[field] = value
+        with pytest.raises(ValueError, match=field):
+            project(invalid)
+
+    with pytest.raises(ValueError, match="legs"):
+        project({"dte": 0, "quantity": 1, "min_credit": None})
+
+
+def test_backtest_and_live_option_entries_delegate_to_canonical_intent_before_resolution(
+    monkeypatch,
+) -> None:
+    import tradebot.backtest.strategy as backtest_strategy
+
+    from tradebot.backtest.models import OptionLeg
+    from tradebot.option_package import LegConfig
+
+    canonical_legs = (
+        LegConfig(action="SELL", right="PUT", moneyness_pct=0.0, qty=1),
+        LegConfig(action="BUY", right="PUT", moneyness_pct=5.0, qty=1),
+    )
+    projected = SimpleNamespace(
+        legs=canonical_legs,
+        dte=0,
+        quantity=2,
+        min_credit=None,
+    )
+
+    backtest_events: list[tuple] = []
+
+    def _backtest_projector(_strategy, *, legs=None, path="legs"):
+        backtest_events.append(("intent", legs, path))
+        return projected
+
+    def _record_expiry(_trade_date, dte):
+        backtest_events.append(("expiry", dte))
+        return date(2026, 2, 9)
+
+    def _record_legs(legs, _spot, quantity):
+        backtest_events.append(("legs", legs, quantity))
+        return [
+            OptionLeg(action="SELL", right="PUT", strike=100.0, qty=2),
+            OptionLeg(action="BUY", right="PUT", strike=95.0, qty=2),
+        ]
+
+    monkeypatch.setattr(
+        backtest_strategy,
+        "option_package_entry_intent",
+        _backtest_projector,
+        raising=False,
+    )
+    monkeypatch.setattr(backtest_strategy, "_expiry_from_dte", _record_expiry)
+    monkeypatch.setattr(backtest_strategy, "_build_legs", _record_legs)
+
+    cfg = SimpleNamespace(
+        dte=-99,
+        quantity=0,
+        min_credit=float("nan"),
+        legs=canonical_legs,
+        right="PUT",
+        otm_pct=0.0,
+        width_pct=5.0,
+        entry_days=(0, 1, 2, 3, 4),
+    )
+    spec = backtest_strategy.CreditSpreadStrategy(cfg).build_spec(
+        datetime(2026, 2, 9, 10, 0),
+        100.0,
+        legs_override=canonical_legs,
+    )
+
+    live_events: list[str] = []
+
+    def _live_projector(_strategy, *, legs=None, path="legs"):
+        live_events.append("intent")
+        assert path == "legs"
+        assert legs is not None
+        return projected
+
+    monkeypatch.setattr(
+        bot_order_builder_module,
+        "option_package_entry_intent",
+        _live_projector,
+        raising=False,
+    )
+    harness, _instance, _signal_bar_ts, _package_calls, _capacity_calls = (
+        _run_xsp_capacity_builder_case(
+            monkeypatch,
+            available_capacity=2200.0,
+            events=live_events,
+        )
+    )
+
+    assert {
+        "backtest_events": backtest_events,
+        "backtest_leg_qtys": [leg.qty for leg in spec.legs],
+        "live_events": live_events,
+        "live_order_quantity": harness._orders[0].quantity if harness._orders else None,
+    } == {
+        "backtest_events": [
+            ("intent", canonical_legs, "legs_override"),
+            ("expiry", 0),
+            ("legs", canonical_legs, 2),
+        ],
+        "backtest_leg_qtys": [2, 2],
+        "live_events": ["intent", "stock_option_chain"],
+        "live_order_quantity": 2,
+    }
 
 
 def test_option_builder_consumes_explicit_xsp_reservation_capacity_before_staging(
