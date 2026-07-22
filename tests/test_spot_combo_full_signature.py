@@ -16,6 +16,7 @@ from tradebot.research.spot_sweeps.catalog import (
     _COMBO_FULL_CARTESIAN_DIM_ORDER,
     _COMBO_FULL_PAIR_DIM_VARIANT_SPECS,
     _combo_full_preset_axes,
+    _combo_full_preset_freeze_dims,
 )
 from tradebot.research.spot_sweeps.fingerprints import (
     _axis_dimension_fingerprint,
@@ -107,6 +108,38 @@ def test_ema_signal_presets_have_one_canonical_catalog() -> None:
 def test_legacy_hf_scalp_axis_is_replaced_by_unified_hf_preset() -> None:
     assert "hf_scalp" not in _AXIS_CHOICES
     assert "hf_timing_sniper" in _combo_full_preset_axes()
+
+
+def test_combo_full_presets_explore_only_their_declared_dimensions() -> None:
+    expected = {
+        "full": _COMBO_FULL_CARTESIAN_DIM_ORDER,
+        "profile": ("timing_profile",),
+        "gate": ("perm", "tod", "vol", "cadence"),
+        "ema": ("direction", "perm", "tod", "vol"),
+        "tick": ("perm", "tod", "vol", "tick"),
+        "regime": ("regime", "exit"),
+        "risk": ("risk",),
+        "squeeze": ("confirm", "tod", "vol", "regime2"),
+        "tod_interaction": ("tod", "cadence"),
+        "perm_joint": ("perm", "tod", "vol", "cadence"),
+        "ema_perm_joint": ("direction", "perm", "tod", "vol"),
+        "tick_perm_joint": ("perm", "tod", "vol", "tick"),
+        "regime_atr": ("regime", "exit"),
+        "ema_regime": ("direction", "regime"),
+        "tick_ema": ("direction", "tick"),
+        "ema_atr": ("direction", "exit"),
+        "r2_atr": ("regime2", "exit"),
+        "r2_tod": ("tod", "regime2"),
+        "loosen_atr": ("exit",),
+        "risk_overlays": ("risk",),
+        "gate_matrix": ("perm", "tod", "regime2", "tick", "shock", "risk", "short_mult"),
+        "lf_shock_sniper": ("direction", "shock"),
+        "hf_timing_sniper": ("timing_profile",),
+    }
+    assert set(expected) == set(_combo_full_preset_axes())
+    for preset, active_dims in expected.items():
+        frozen = set(_combo_full_preset_freeze_dims(preset))
+        assert tuple(dim for dim in _COMBO_FULL_CARTESIAN_DIM_ORDER if dim not in frozen) == active_dims
 
 
 def test_frontier_is_runtime_pruning_not_a_report_only_axis() -> None:

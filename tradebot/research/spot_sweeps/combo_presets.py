@@ -294,7 +294,6 @@ class ComboPresetContext:
         self._set_dim_rows("vol", vol_rows)
         self._set_dim_rows("tod", tod_rows)
         self._set_dim_rows("confirm", [0, 1, 2])
-        self._set_dim_rows("short_mult", [1.0])
 
     def _preset_tod_interaction(self) -> None:
         tod_rows: list[tuple[str, dict[str, object]]] = []
@@ -320,13 +319,11 @@ class ComboPresetContext:
                 )
         self._set_dim_rows("tod", tod_rows)
         self._set_dim_rows("cadence", cadence_rows)
-        self._set_dim_rows("short_mult", [1.0])
 
     def _preset_risk_overlays(self) -> None:
         if bool(getattr(self.runtime.args, "risk_overlays_skip_pop", False)):
             filtered = [row for row in list(self.rows.get("risk") or ()) if "riskpop" not in str(row[0]).lower()]
             self._set_dim_rows("risk", filtered)
-        self._set_dim_rows("short_mult", [1.0])
 
     def _preset_gate_matrix(self) -> None:
         gate_dims = _AXIS_DIMENSION_REGISTRY.get("gate_matrix", {})
@@ -359,7 +356,6 @@ class ComboPresetContext:
 
     def _preset_ema_regime(self) -> None:
         self._set_dim_rows("direction", self._ema_direction_rows())
-        self._set_dim_rows("short_mult", [1.0])
 
     def _preset_tick_ema(self) -> None:
         self._set_dim_rows("direction", self._ema_direction_rows())
@@ -390,16 +386,13 @@ class ComboPresetContext:
             self._set_dim_rows("tick", tick_rows)
         else:
             self._set_dim_rows("tick", [("tick=off", {"tick_gate_mode": "off"})])
-        self._set_dim_rows("short_mult", [1.0])
 
     def _preset_ema_atr(self) -> None:
         self._set_dim_rows("direction", self._ema_direction_rows())
         self._set_dim_rows("exit", self._atr_exit_rows(with_close_eod=False))
-        self._set_dim_rows("short_mult", [1.0])
 
     def _preset_r2_atr(self) -> None:
         self._set_dim_rows("exit", self._atr_exit_rows(with_close_eod=False))
-        self._set_dim_rows("short_mult", [1.0])
 
     def _preset_r2_tod(self) -> None:
         tod_rows = [
@@ -409,11 +402,9 @@ class ComboPresetContext:
         ]
         if tod_rows:
             self._set_dim_rows("tod", tod_rows)
-        self._set_dim_rows("short_mult", [1.0])
 
     def _preset_loosen_atr(self) -> None:
         self._set_dim_rows("exit", self._atr_exit_rows(with_close_eod=True))
-        self._set_dim_rows("short_mult", [1.0])
 
     def _preset_lf_shock_sniper(self) -> None:
         self._set_dim_rows(
@@ -514,13 +505,10 @@ class ComboPresetContext:
                 ),
             ],
         )
-        self._set_dim_rows("short_mult", [1.0])
-
     def _preset_hf_timing_sniper(self) -> None:
         base = self.base
         hf_profiles = self.timing_profiles_loader(variants_key="hf_profile_variants")
         if not hf_profiles:
-            self._set_dim_rows("short_mult", [1.0])
             return
         base_filters_payload = _filters_payload(getattr(base.strategy, "filters", None)) or {}
         base_filter_row = ("base_filters", dict(base_filters_payload))
@@ -622,8 +610,6 @@ class ComboPresetContext:
         # only the highest-value timing/slope/velocity/branch-size pockets.
         if base_rows:
             base_rows = [base_rows[0]]
-        if not base_rows:
-            base_rows = list(hf_profiles[:1])
         if not base_rows:
             base_rows = list(hf_profiles[:1])
         timing_rows: list[tuple[str, dict[str, object], dict[str, object]]] = []
@@ -803,4 +789,3 @@ class ComboPresetContext:
                 timing_rows.append((str(custom_label), strat, filt))
         if timing_rows:
             self._set_dim_rows("timing_profile", list(timing_rows))
-        self._set_dim_rows("short_mult", [1.0])
