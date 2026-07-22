@@ -496,9 +496,6 @@ class SpotSignalEvaluator(
         self._regime2_bear_hard_release_age_bars: int | None = None
         self._clean_regime2_bear_hard_prev_was_down: bool = False
         self._clean_regime2_bear_hard_release_age_bars: int | None = None
-        self._active_regime2_bear_hard_release_age_bars: int | None = None
-        self._regime4_transition_hot: bool = False
-        self._regime4_owner: str | None = None
 
         # Validate EMA presets early for UI ergonomics.
         if entry_signal == "ema":

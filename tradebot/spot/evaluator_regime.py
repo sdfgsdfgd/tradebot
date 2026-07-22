@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from ..engines.signals import SupertrendEngine
-from .evaluator_common import BarLike
+from .evaluator_common import BarLike, SpotRegimeState
 
 
 class SpotSignalRegimeMixin:
@@ -97,6 +97,117 @@ class SpotSignalRegimeMixin:
 
         return shock, shock_dir, _atr_pct_from(self._last_shock)
 
+    def _classify_regime_state(
+        self,
+        *,
+        shock_atr_pct: float | None,
+        fast_dir: str | None,
+        fast_ready: bool,
+        hard_dir: str | None,
+        hard_ready: bool,
+        hard_release_age_bars: int | None,
+    ) -> tuple[str | None, bool]:
+        fast_dir = str(fast_dir) if fast_ready and fast_dir in ("up", "down") else None
+        hard_dir = str(hard_dir) if hard_ready and hard_dir in ("up", "down") else None
+        if hard_dir == "down":
+            if fast_dir == "up":
+                return "transition_up_hot", True
+            if fast_dir in ("down", None):
+                if (
+                    self._regime_gates.crash_atr_min is not None
+                    and shock_atr_pct is not None
+                    and float(shock_atr_pct) >= self._regime_gates.crash_atr_min
+                ):
+                    return "crash_down", False
+                return "trend_down", False
+        if fast_dir == "up":
+            transition_hot = bool(
+                self._regime_gates.transition_hot_atr_min is not None
+                and shock_atr_pct is not None
+                and float(shock_atr_pct)
+                >= self._regime_gates.transition_hot_atr_min
+            )
+            if (
+                not transition_hot
+                and self._regime_gates.transition_hot_release_age_max is not None
+                and hard_release_age_bars is not None
+                and int(hard_release_age_bars)
+                <= self._regime_gates.transition_hot_release_age_max
+            ):
+                transition_hot = True
+            return ("transition_up_hot" if transition_hot else "trend_up_clean"), transition_hot
+        if fast_dir == "down":
+            return "trend_down", False
+        return None, False
+
+    def _resolve_regime_state(
+        self,
+        *,
+        shock_atr_pct: float | None,
+        fast_dir: str | None,
+        fast_ready: bool,
+        hard_dir: str | None,
+        hard_ready: bool,
+        hard_release_age_bars: int | None,
+        clean_fast_dir: str | None = None,
+        clean_fast_ready: bool = False,
+        clean_hard_dir: str | None = None,
+        clean_hard_ready: bool = False,
+        clean_hard_release_age_bars: int | None = None,
+    ) -> SpotRegimeState:
+        label, transition_hot = self._classify_regime_state(
+            shock_atr_pct=shock_atr_pct,
+            fast_dir=fast_dir,
+            fast_ready=fast_ready,
+            hard_dir=hard_dir,
+            hard_ready=hard_ready,
+            hard_release_age_bars=hard_release_age_bars,
+        )
+        state = SpotRegimeState(
+            label=label,
+            transition_hot=transition_hot,
+            fast_dir=str(fast_dir) if fast_dir in ("up", "down") else None,
+            fast_ready=bool(fast_ready),
+            hard_dir=str(hard_dir) if hard_dir in ("up", "down") else None,
+            hard_ready=bool(hard_ready),
+            hard_release_age_bars=hard_release_age_bars,
+        )
+        if self._regime2_clean_host_enable:
+            clean_label, clean_hot = self._classify_regime_state(
+                shock_atr_pct=shock_atr_pct,
+                fast_dir=clean_fast_dir,
+                fast_ready=clean_fast_ready,
+                hard_dir=clean_hard_dir,
+                hard_ready=clean_hard_ready,
+                hard_release_age_bars=clean_hard_release_age_bars,
+            )
+            takeover_mode = self._regime2_clean_host_takeover_state
+            takeover_labels = {
+                "trend_up_clean": ("trend_up_clean",),
+                "crash_down": ("crash_down",),
+                "transition_up_hot": ("transition_up_hot",),
+                "crash_or_transition_up_hot": (
+                    "crash_down",
+                    "transition_up_hot",
+                ),
+            }
+            clean_takeover = bool(
+                clean_label in takeover_labels.get(takeover_mode, ())
+                and (takeover_mode != "trend_up_clean" or label == clean_label)
+            )
+            if clean_takeover:
+                state = SpotRegimeState(
+                    label=clean_label,
+                    owner="clean_host",
+                    transition_hot=clean_hot,
+                    fast_dir=str(clean_fast_dir) if clean_fast_dir in ("up", "down") else None,
+                    fast_ready=bool(clean_fast_ready),
+                    hard_dir=str(clean_hard_dir) if clean_hard_dir in ("up", "down") else None,
+                    hard_ready=bool(clean_hard_ready),
+                    hard_release_age_bars=clean_hard_release_age_bars,
+                )
+        return state
+
     def _advance_supertrend_state(
         self,
         *,
@@ -152,9 +263,9 @@ class SpotSignalRegimeMixin:
                 self._last_regime2 = self._regime2_engine.update(float(bar.close))
             regime2_dir = self._last_regime2.state if self._last_regime2 is not None else None
             regime2_ready = bool(self._last_regime2 and self._last_regime2.ema_ready)
-        self._active_regime2_dir = str(regime2_dir) if regime2_dir in ("up", "down") else None
-        self._active_regime2_ready = bool(regime2_ready)
-        return self._active_regime2_dir, bool(self._active_regime2_ready)
+        self._fast_regime_dir = str(regime2_dir) if regime2_dir in ("up", "down") else None
+        self._fast_regime_ready = bool(regime2_ready)
+        return self._fast_regime_dir, self._fast_regime_ready
 
     def _advance_regime2_bear_hard_state(self, *, bar: BarLike) -> tuple[str | None, bool]:
         hard_dir: str | None = None
@@ -173,9 +284,8 @@ class SpotSignalRegimeMixin:
                 idx=int(self._regime2_bear_hard_idx),
                 last_snapshot=self._last_bear_hard_supertrend,
             )
-        self._active_regime2_bear_hard_dir = str(hard_dir) if hard_dir in ("up", "down") else None
-        self._active_regime2_bear_hard_ready = bool(hard_ready)
-        return self._active_regime2_bear_hard_dir, bool(self._active_regime2_bear_hard_ready)
+        hard_dir = str(hard_dir) if hard_dir in ("up", "down") else None
+        return hard_dir, bool(hard_ready)
 
     def _advance_clean_regime2_state(self, *, bar: BarLike) -> tuple[str | None, bool]:
         clean_dir: str | None = None
@@ -194,9 +304,8 @@ class SpotSignalRegimeMixin:
                 idx=int(self._clean_regime2_idx),
                 last_snapshot=self._last_clean_supertrend2,
             )
-        self._active_clean_regime2_dir = str(clean_dir) if clean_dir in ("up", "down") else None
-        self._active_clean_regime2_ready = bool(clean_ready)
-        return self._active_clean_regime2_dir, bool(self._active_clean_regime2_ready)
+        clean_dir = str(clean_dir) if clean_dir in ("up", "down") else None
+        return clean_dir, bool(clean_ready)
 
     def _advance_clean_regime2_bear_hard_state(self, *, bar: BarLike) -> tuple[str | None, bool]:
         clean_hard_dir: str | None = None
@@ -215,11 +324,10 @@ class SpotSignalRegimeMixin:
                 idx=int(self._clean_regime2_bear_hard_idx),
                 last_snapshot=self._last_clean_bear_hard_supertrend,
             )
-        self._active_clean_regime2_bear_hard_dir = (
+        clean_hard_dir = (
             str(clean_hard_dir) if clean_hard_dir in ("up", "down") else None
         )
-        self._active_clean_regime2_bear_hard_ready = bool(clean_hard_ready)
-        return self._active_clean_regime2_bear_hard_dir, bool(self._active_clean_regime2_bear_hard_ready)
+        return clean_hard_dir, bool(clean_hard_ready)
 
     @staticmethod
     def _next_regime2_bear_hard_release_age(

@@ -5,7 +5,13 @@ import math
 
 from ..engine import annualized_ewma_vol, spot_regime_apply_matches_direction
 from ..signals import ema_next
-from .evaluator_common import BarLike, SpotSignalSnapshot, _get
+from .evaluator_common import (
+    BarLike,
+    SpotEntryCandidate,
+    SpotEntryGateContext,
+    SpotSignalSnapshot,
+    _get,
+)
 from .gates import apply_regime_gate
 
 
@@ -312,60 +318,19 @@ class SpotSignalRuntimeMixin:
             )
 
         shock, shock_dir, shock_atr_pct = self._shock_view()
-        regime4_state, regime4_transition_hot = self._classify_regime4_state(
+        regime = self._resolve_regime_state(
             shock_atr_pct=shock_atr_pct,
             fast_dir=regime2_dir,
             fast_ready=bool(regime2_ready),
             hard_dir=regime2_bear_hard_dir,
             hard_ready=bool(regime2_bear_hard_ready),
             hard_release_age_bars=self._regime2_bear_hard_release_age_bars,
+            clean_fast_dir=clean_regime2_dir,
+            clean_fast_ready=clean_regime2_ready,
+            clean_hard_dir=clean_regime2_bear_hard_dir,
+            clean_hard_ready=clean_regime2_bear_hard_ready,
+            clean_hard_release_age_bars=self._clean_regime2_bear_hard_release_age_bars,
         )
-        regime4_owner = "primary"
-        active_regime2_dir = str(regime2_dir) if regime2_dir in ("up", "down") else None
-        active_regime2_ready = bool(regime2_ready)
-        active_regime2_bear_hard_dir = (
-            str(regime2_bear_hard_dir) if regime2_bear_hard_dir in ("up", "down") else None
-        )
-        active_regime2_bear_hard_ready = bool(regime2_bear_hard_ready)
-        active_regime2_bear_hard_release_age_bars = self._regime2_bear_hard_release_age_bars
-        if self._regime2_clean_host_enable:
-            clean_regime4_state, clean_regime4_transition_hot = self._classify_regime4_state(
-                shock_atr_pct=shock_atr_pct,
-                fast_dir=clean_regime2_dir,
-                fast_ready=bool(clean_regime2_ready),
-                hard_dir=clean_regime2_bear_hard_dir,
-                hard_ready=bool(clean_regime2_bear_hard_ready),
-                hard_release_age_bars=self._clean_regime2_bear_hard_release_age_bars,
-            )
-            clean_takeover = False
-            if self._regime2_clean_host_takeover_state == "trend_up_clean":
-                clean_takeover = bool(
-                    regime4_state == "trend_up_clean" and clean_regime4_state == "trend_up_clean"
-                )
-            elif self._regime2_clean_host_takeover_state == "crash_down":
-                clean_takeover = bool(clean_regime4_state == "crash_down")
-            elif self._regime2_clean_host_takeover_state == "transition_up_hot":
-                clean_takeover = bool(clean_regime4_state == "transition_up_hot")
-            elif self._regime2_clean_host_takeover_state == "crash_or_transition_up_hot":
-                clean_takeover = bool(clean_regime4_state in ("crash_down", "transition_up_hot"))
-            if clean_takeover:
-                regime4_owner = "clean_host"
-                regime4_state = clean_regime4_state
-                regime4_transition_hot = bool(clean_regime4_transition_hot)
-                active_regime2_dir = str(clean_regime2_dir) if clean_regime2_dir in ("up", "down") else None
-                active_regime2_ready = bool(clean_regime2_ready)
-                active_regime2_bear_hard_dir = (
-                    str(clean_regime2_bear_hard_dir) if clean_regime2_bear_hard_dir in ("up", "down") else None
-                )
-                active_regime2_bear_hard_ready = bool(clean_regime2_bear_hard_ready)
-                active_regime2_bear_hard_release_age_bars = self._clean_regime2_bear_hard_release_age_bars
-        self._active_regime2_dir = active_regime2_dir
-        self._active_regime2_ready = bool(active_regime2_ready)
-        self._active_regime2_bear_hard_dir = active_regime2_bear_hard_dir
-        self._active_regime2_bear_hard_ready = bool(active_regime2_bear_hard_ready)
-        self._active_regime2_bear_hard_release_age_bars = active_regime2_bear_hard_release_age_bars
-        self._regime4_transition_hot = bool(regime4_transition_hot)
-        self._regime4_owner = str(regime4_owner)
 
         # Secondary regime2 gating.
         if self._supertrend2_engine is not None:
@@ -375,8 +340,8 @@ class SpotSignalRuntimeMixin:
             ):
                 signal = apply_regime_gate(
                     signal,
-                    regime_dir=active_regime2_dir,
-                    regime_ready=bool(active_regime2_ready),
+                    regime_dir=regime.fast_dir,
+                    regime_ready=regime.fast_ready,
                 )
         elif self._regime2_engine is not None:
             if spot_regime_apply_matches_direction(
@@ -385,8 +350,8 @@ class SpotSignalRuntimeMixin:
             ):
                 signal = apply_regime_gate(
                     signal,
-                    regime_dir=active_regime2_dir,
-                    regime_ready=bool(active_regime2_ready),
+                    regime_dir=regime.fast_dir,
+                    regime_ready=regime.fast_ready,
                 )
 
         if signal is not None and self._regime2_bear_entry_mode == "supertrend":
@@ -395,6 +360,7 @@ class SpotSignalRuntimeMixin:
                 signal=signal,
                 bar=bar,
                 close=float(close),
+                regime=regime,
             )
             if bear_entry_dir in ("up", "down"):
                 if self._dual_branch_enabled and entry_branch not in ("a", "b"):
@@ -511,83 +477,19 @@ class SpotSignalRuntimeMixin:
             self._prev_shock_drawdown_dist_on_pct = None
             self._prev_shock_drawdown_dist_on_vel_pp = None
 
-        if self._regime2_crash_blocks_long(regime4_state=regime4_state, entry_dir=entry_dir_for_entries):
-            entry_dir_for_entries = None
-            entry_branch = None
-        else:
-            # Router-aware crash sensitivity:
-            # When the *daily* router's crash window already shows meaningful damage (but Regime4
-            # is still only `trend_down`), tighten the crash ATR threshold slightly. This helps
-            # exit earlier in correction->crash sequences without globally lowering the crash
-            # threshold (which tends to overreact in gentler years).
-            if (
-                self._regime2_crash_block_longs
-                and bool(self._regime_router_cfg.enabled)
-                and bool(router_snap.ready)
-                and entry_dir_for_entries == "up"
-                and regime4_state == "trend_down"
-                and shock_dir == "down"
-                and self._active_regime2_bear_hard_dir == "down"
-                and shock_atr_pct is not None
-                and self._regime2_crash_atr_pct_min is not None
-                and router_snap.crash_maxdd is not None
-                and router_snap.crash_ret is not None
-            ):
-                # Scale off the router's own episode takeover thresholds (keeps this interpretable
-                # and avoids introducing more knobs).
-                router_dd_min = float(self._regime_router_cfg.hf_takeover_crash_maxdd_min) * 0.75
-                # Base is ~0.9; tighten to ~0.8 in damaged windows.
-                atr_min = max(0.0, float(self._regime2_crash_atr_pct_min) - 0.1)
-                if (
-                    float(router_snap.crash_maxdd) >= float(router_dd_min)
-                    and float(router_snap.crash_ret) <= 0.0
-                    and float(shock_atr_pct) >= float(atr_min)
-                ):
-                    entry_dir_for_entries = None
-                    entry_branch = None
-
-        if self._regime2_crash_prearm_blocks_long(
-            regime4_state=regime4_state,
-            entry_dir=entry_dir_for_entries,
-            entry_branch=entry_branch,
-            shock_dir=shock_dir,
-            shock_atr_pct=shock_atr_pct,
-            shock_dir_ret_sum_pct=shock_dir_ret_sum_pct,
-        ):
-            entry_dir_for_entries = None
-            entry_branch = None
-
-        if self._regime2_blocks_branch_b_long(
-            regime4_state=regime4_state,
-            entry_dir=entry_dir_for_entries,
-            entry_branch=entry_branch,
-            shock_dir=shock_dir,
-            shock_atr_pct=shock_atr_pct,
-            shock_drawdown_dist_on_vel_pp=shock_drawdown_dist_on_vel_pp,
-            bar_ts=bar.ts,
-        ):
-            entry_dir_for_entries = None
-            entry_branch = None
-
-        if self._regime2_upcorridor_blocks_branch_a_long(
-            regime4_state=regime4_state,
-            entry_dir=entry_dir_for_entries,
-            entry_branch=entry_branch,
-            shock_atr_pct=shock_atr_pct,
-        ):
-            entry_dir_for_entries = None
-            entry_branch = None
-
-        if self._continuation_confidence_blocks_long(
-            regime4_state=regime4_state,
-            entry_dir=entry_dir_for_entries,
-            entry_branch=entry_branch,
-            shock_dir=shock_dir,
-            shock_atr_pct=shock_atr_pct,
-            shock_drawdown_dist_on_vel_pp=shock_drawdown_dist_on_vel_pp,
-        ):
-            entry_dir_for_entries = None
-            entry_branch = None
+        candidate = self._apply_entry_gates(
+            SpotEntryCandidate(entry_dir_for_entries, entry_branch),
+            SpotEntryGateContext(
+                bar_ts=bar.ts,
+                regime=regime,
+                shock_dir=shock_dir,
+                shock_atr_pct=shock_atr_pct,
+                shock_dir_ret_sum_pct=shock_dir_ret_sum_pct,
+                shock_drawdown_dist_on_vel_pp=shock_drawdown_dist_on_vel_pp,
+                router=router_snap,
+            ),
+        )
+        entry_dir_for_entries, entry_branch = candidate.direction, candidate.branch
 
         if bool(shock) and shock_dir == "down":
             self._shock_dir_down_streak_bars += 1
@@ -846,22 +748,18 @@ class SpotSignalRuntimeMixin:
             shock_dir_up_streak_bars=int(self._shock_dir_up_streak_bars),
             risk=self._last_risk,
             atr=atr,
-            regime2_dir=str(self._active_regime2_dir) if self._active_regime2_dir in ("up", "down") else None,
-            regime2_ready=bool(self._active_regime2_ready),
-            regime2_bear_hard_dir=(
-                str(self._active_regime2_bear_hard_dir)
-                if self._active_regime2_bear_hard_dir in ("up", "down")
-                else None
-            ),
-            regime2_bear_hard_ready=bool(self._active_regime2_bear_hard_ready),
+            regime2_dir=regime.fast_dir,
+            regime2_ready=regime.fast_ready,
+            regime2_bear_hard_dir=regime.hard_dir,
+            regime2_bear_hard_ready=regime.hard_ready,
             regime2_bear_hard_release_age_bars=(
-                int(self._active_regime2_bear_hard_release_age_bars)
-                if self._active_regime2_bear_hard_release_age_bars is not None
+                int(regime.hard_release_age_bars)
+                if regime.hard_release_age_bars is not None
                 else None
             ),
-            regime4_state=str(regime4_state) if regime4_state is not None else None,
-            regime4_transition_hot=bool(self._regime4_transition_hot),
-            regime4_owner=str(self._regime4_owner) if self._regime4_owner is not None else None,
+            regime4_state=regime.label,
+            regime4_transition_hot=regime.transition_hot,
+            regime4_owner=regime.owner,
             or_high=self._orb_engine.or_high if self._orb_engine is not None else None,
             or_low=self._orb_engine.or_low if self._orb_engine is not None else None,
             or_ready=bool(self._orb_engine and self._orb_engine.or_ready),
@@ -941,6 +839,7 @@ class SpotSignalRuntimeMixin:
             regime_router_slow_ret=(
                 float(getattr(router_snap, "slow_ret", None)) if getattr(router_snap, "slow_ret", None) is not None else None
             ),
+            regime=regime,
         )
         self._last_signal = signal
         self._last_snapshot = snap

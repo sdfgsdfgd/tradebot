@@ -9,7 +9,13 @@ from statistics import median
 from ..engine import _trade_date as _trade_date_shared, _trade_hour_et as _trade_hour_et_shared
 from ..engines.risk import RiskOverlaySnapshot
 from ..engines.signals import EmaDecisionSnapshot, OrbDecisionEngine
-from .evaluator_common import BarLike, SpotSignalSnapshot
+from .evaluator_common import (
+    BarLike,
+    SpotEntryCandidate,
+    SpotEntryGateContext,
+    SpotRegimeState,
+    SpotSignalSnapshot,
+)
 
 
 class SpotSignalPolicyMixin:
@@ -146,7 +152,7 @@ class SpotSignalPolicyMixin:
                 if self._ratsv_branch_a_slope_vel_slow_min_pct is not None
                 else slope_vel_slow_min
             )
-            if self._active_regime2_ready and self._active_regime2_dir == "down":
+            if self._fast_regime_ready and self._fast_regime_dir == "down":
                 if self._regime2_soft_bear_branch_a_slope_med_slow_min_pct is not None:
                     slope_med_slow_min = max(
                         float(slope_med_slow_min or 0.0),
@@ -454,22 +460,26 @@ class SpotSignalPolicyMixin:
         signal: EmaDecisionSnapshot | None,
         bar: BarLike,
         close: float,
+        regime: SpotRegimeState,
     ) -> tuple[EmaDecisionSnapshot | None, str | None]:
         if (
             signal is None
             or not bool(signal.ema_ready)
             or self._bear_supertrend_engine is None
-            or not self._active_regime2_ready
-            or self._active_regime2_dir != "down"
+            or not regime.fast_ready
+            or regime.fast_dir != "down"
         ):
             return signal, None
         if self._regime2_bear_hard_mode != "off":
-            if not self._active_regime2_bear_hard_ready or self._active_regime2_bear_hard_dir != "down":
+            if not regime.hard_ready or regime.hard_dir != "down":
                 return signal, None
         if not self._regime2_bear_takeover_allowed():
             return signal, None
 
-        use_clean_host = bool(self._regime4_owner == "clean_host" and self._clean_bear_supertrend_engine is not None)
+        use_clean_host = bool(
+            regime.owner == "clean_host"
+            and self._clean_bear_supertrend_engine is not None
+        )
         bear_engine = self._clean_bear_supertrend_engine if use_clean_host else self._bear_supertrend_engine
         if bear_engine is None:
             return signal, None
@@ -556,85 +566,99 @@ class SpotSignalPolicyMixin:
             return bool(hostile or shockdown)
         return True
 
-    def _classify_regime4_state(
+    def _apply_entry_gates(
         self,
-        *,
-        shock_atr_pct: float | None,
-        fast_dir: str | None,
-        fast_ready: bool,
-        hard_dir: str | None,
-        hard_ready: bool,
-        hard_release_age_bars: int | None,
-    ) -> tuple[str | None, bool]:
-        fast_dir = str(fast_dir) if bool(fast_ready) and fast_dir in ("up", "down") else None
-        hard_dir = str(hard_dir) if bool(hard_ready) and hard_dir in ("up", "down") else None
-        if hard_dir == "down":
-            if fast_dir == "up":
-                return "transition_up_hot", True
-            if fast_dir == "down" or fast_dir is None:
-                if (
-                    self._regime2_crash_atr_pct_min is not None
-                    and shock_atr_pct is not None
-                    and float(shock_atr_pct) >= float(self._regime2_crash_atr_pct_min)
-                ):
-                    return "crash_down", False
-                return "trend_down", False
-        if fast_dir == "up":
-            transition_hot = False
-            if (
-                self._regime2_transition_hot_shock_atr_pct_min is not None
-                and shock_atr_pct is not None
-                and float(shock_atr_pct) >= float(self._regime2_transition_hot_shock_atr_pct_min)
-            ):
-                transition_hot = True
-            if (
-                not transition_hot
-                and self._regime2_transition_hot_release_max_bars is not None
-                and hard_release_age_bars is not None
-                and int(hard_release_age_bars) <= int(self._regime2_transition_hot_release_max_bars)
-            ):
-                transition_hot = True
-            return ("transition_up_hot" if transition_hot else "trend_up_clean"), bool(transition_hot)
-        if fast_dir == "down":
-            return "trend_down", False
-        return None, False
+        candidate: SpotEntryCandidate,
+        context: SpotEntryGateContext,
+    ) -> SpotEntryCandidate:
+        """Apply the ordered, independently configured entry-policy gates."""
+        for name, blocks in (
+            ("crash", self._crash_gate_blocks),
+            ("router_damage", self._router_damage_gate_blocks),
+            ("crash_prearm", self._crash_prearm_gate_blocks),
+            ("branch_b_regime", self._branch_b_regime_gate_blocks),
+            ("branch_a_upcorridor", self._branch_a_upcorridor_gate_blocks),
+            ("continuation_confidence", self._continuation_confidence_gate_blocks),
+        ):
+            if blocks(candidate, context):
+                return candidate.block(name)
+        return candidate
 
-    def _regime2_crash_blocks_long(self, *, regime4_state: str | None, entry_dir: str | None) -> bool:
-        return bool(self._regime2_crash_block_longs and regime4_state == "crash_down" and entry_dir == "up")
-
-    def _regime2_crash_prearm_blocks_long(
+    def _crash_gate_blocks(
         self,
-        *,
-        regime4_state: str | None,
-        entry_dir: str | None,
-        entry_branch: str | None,
-        shock_dir: str | None,
-        shock_atr_pct: float | None,
-        shock_dir_ret_sum_pct: float | None,
+        candidate: SpotEntryCandidate,
+        context: SpotEntryGateContext,
     ) -> bool:
-        apply_to = str(self._regime2_crash_prearm_apply_to or "off")
+        return bool(
+            self._regime_gates.crash_block_longs
+            and context.regime.label == "crash_down"
+            and candidate.direction == "up"
+        )
+
+    def _router_damage_gate_blocks(
+        self,
+        candidate: SpotEntryCandidate,
+        context: SpotEntryGateContext,
+    ) -> bool:
+        router = context.router
+        if not (
+            self._regime_gates.crash_block_longs
+            and self._regime_router_cfg.enabled
+            and bool(getattr(router, "ready", False))
+            and candidate.direction == "up"
+            and context.regime.label == "trend_down"
+            and context.shock_dir == "down"
+            and context.regime.hard_dir == "down"
+            and context.shock_atr_pct is not None
+            and self._regime_gates.crash_atr_min is not None
+            and getattr(router, "crash_maxdd", None) is not None
+            and getattr(router, "crash_ret", None) is not None
+        ):
+            return False
+        router_dd_min = float(self._regime_router_cfg.hf_takeover_crash_maxdd_min) * 0.75
+        atr_min = max(0.0, self._regime_gates.crash_atr_min - 0.1)
+        return bool(
+            float(router.crash_maxdd) >= router_dd_min
+            and float(router.crash_ret) <= 0.0
+            and float(context.shock_atr_pct) >= atr_min
+        )
+
+    def _crash_prearm_gate_blocks(
+        self,
+        candidate: SpotEntryCandidate,
+        context: SpotEntryGateContext,
+    ) -> bool:
+        policy = self._regime_gates
+        apply_to = policy.crash_prearm_scope
         if apply_to == "off":
             return False
-        if regime4_state != "trend_down" or entry_dir != "up" or shock_dir != "down":
+        if (
+            context.regime.label != "trend_down"
+            or candidate.direction != "up"
+            or context.shock_dir != "down"
+        ):
             return False
-        branch_key = str(entry_branch or "")
-        atr_pct_min = self._regime2_crash_prearm_shock_atr_pct_min
-        ret_sum_pct_max = self._regime2_crash_prearm_shock_dir_ret_sum_pct_max
+        branch_key = str(candidate.branch or "")
+        atr_pct_min = policy.crash_prearm_atr_min
+        ret_sum_pct_max = policy.crash_prearm_ret_max
         if branch_key == "a":
-            if self._regime2_crash_prearm_branch_a_shock_atr_pct_min is not None:
-                atr_pct_min = self._regime2_crash_prearm_branch_a_shock_atr_pct_min
-            if self._regime2_crash_prearm_branch_a_shock_dir_ret_sum_pct_max is not None:
-                ret_sum_pct_max = self._regime2_crash_prearm_branch_a_shock_dir_ret_sum_pct_max
+            if policy.crash_prearm_branch_a_atr_min is not None:
+                atr_pct_min = policy.crash_prearm_branch_a_atr_min
+            if policy.crash_prearm_branch_a_ret_max is not None:
+                ret_sum_pct_max = policy.crash_prearm_branch_a_ret_max
         if (
             atr_pct_min is not None
-            and (shock_atr_pct is None or float(shock_atr_pct) < float(atr_pct_min))
+            and (
+                context.shock_atr_pct is None
+                or float(context.shock_atr_pct) < float(atr_pct_min)
+            )
         ):
             return False
         if (
             ret_sum_pct_max is not None
             and (
-                shock_dir_ret_sum_pct is None
-                or float(shock_dir_ret_sum_pct) > float(ret_sum_pct_max)
+                context.shock_dir_ret_sum_pct is None
+                or float(context.shock_dir_ret_sum_pct) > float(ret_sum_pct_max)
             )
         ):
             return False
@@ -642,92 +666,74 @@ class SpotSignalPolicyMixin:
             return branch_key == "b"
         return True
 
-    def _regime2_blocks_branch_b_long(
+    def _branch_b_regime_gate_blocks(
         self,
-        *,
-        regime4_state: str | None,
-        entry_dir: str | None,
-        entry_branch: str | None,
-        shock_dir: str | None,
-        shock_atr_pct: float | None,
-        shock_drawdown_dist_on_vel_pp: float | None,
-        bar_ts: datetime,
+        candidate: SpotEntryCandidate,
+        context: SpotEntryGateContext,
     ) -> bool:
-        if not (self._dual_branch_enabled and entry_branch == "b" and entry_dir == "up"):
+        policy = self._regime_gates
+        if not (
+            self._dual_branch_enabled
+            and candidate.branch == "b"
+            and candidate.direction == "up"
+        ):
             return False
-        if regime4_state == "transition_up_hot":
-            if self._regime2_repair_block_branch_b_longs:
+        if context.regime.label == "transition_up_hot":
+            if policy.repair_branch_b_block:
                 return True
             if (
-                self._regime2_repair_branch_b_long_max_shock_atr_pct is not None
-                and shock_atr_pct is not None
-                and float(shock_atr_pct) >= float(self._regime2_repair_branch_b_long_max_shock_atr_pct)
+                policy.repair_branch_b_atr_max is not None
+                and context.shock_atr_pct is not None
+                and float(context.shock_atr_pct)
+                >= policy.repair_branch_b_atr_max
             ):
                 return True
-            if self._regime2_repair_branch_b_long_block_after_hour_et is not None:
-                hour_et = _trade_hour_et_shared(bar_ts, naive_ts_mode=self._naive_ts_mode)
-                return int(hour_et) >= int(self._regime2_repair_branch_b_long_block_after_hour_et)
+            if policy.repair_branch_b_after_hour is not None:
+                hour_et = _trade_hour_et_shared(
+                    context.bar_ts,
+                    naive_ts_mode=self._naive_ts_mode,
+                )
+                return int(hour_et) >= policy.repair_branch_b_after_hour
             return False
 
-        if shock_atr_pct is None or shock_drawdown_dist_on_vel_pp is None:
+        if (
+            context.shock_atr_pct is None
+            or context.shock_drawdown_dist_on_vel_pp is None
+        ):
             return False
-        atr_value = float(shock_atr_pct)
-        ddv_value = float(shock_drawdown_dist_on_vel_pp)
-        release_age = self._active_regime2_bear_hard_release_age_bars
+        atr_value = float(context.shock_atr_pct)
+        ddv_value = float(context.shock_drawdown_dist_on_vel_pp)
+        release_age = context.regime.hard_release_age_bars
         release_age_value = int(release_age) if release_age is not None else None
-        if regime4_state == "trend_down":
-            age_min = self._regime2_trenddown_branch_b_long_hard_up_release_age_min_bars
-            age_max = self._regime2_trenddown_branch_b_long_hard_up_release_age_max_bars
-            atr_min = self._regime2_trenddown_branch_b_long_hard_up_shock_atr_pct_min
-            atr_max = self._regime2_trenddown_branch_b_long_hard_up_shock_atr_pct_max
-            ddv_min = self._regime2_trenddown_branch_b_long_hard_up_ddv_min_pp
-            ddv_max = self._regime2_trenddown_branch_b_long_hard_up_ddv_max_pp
+        if context.regime.label == "trend_down":
             in_primary_band = bool(
-                shock_dir == "down"
-                and self._active_regime2_bear_hard_dir == "up"
-                and release_age_value is not None
-                and age_min is not None
-                and age_max is not None
-                and int(age_min) <= release_age_value < int(age_max)
-                and atr_min is not None
-                and atr_max is not None
-                and float(atr_min) <= atr_value < float(atr_max)
-                and ddv_min is not None
-                and ddv_max is not None
-                and float(ddv_min) <= ddv_value < float(ddv_max)
+                context.shock_dir == "down"
+                and context.regime.hard_dir == "up"
+                and policy.trenddown_branch_b_release_age.contains(release_age_value)
+                and policy.trenddown_branch_b_atr.contains(atr_value)
+                and policy.trenddown_branch_b_ddv.contains(ddv_value)
             )
-            recovery_atr_min = self._regime2_trenddown_branch_b_long_hard_up_recovery_shock_atr_pct_min
-            recovery_atr_max = self._regime2_trenddown_branch_b_long_hard_up_recovery_shock_atr_pct_max
-            recovery_ddv_min = self._regime2_trenddown_branch_b_long_hard_up_recovery_ddv_min_pp
-            recovery_ddv_max = self._regime2_trenddown_branch_b_long_hard_up_recovery_ddv_max_pp
             in_recovery_band = bool(
-                shock_dir == "up"
-                and self._active_regime2_bear_hard_dir == "up"
-                and release_age_value is not None
-                and age_min is not None
-                and age_max is not None
-                and int(age_min) <= release_age_value < int(age_max)
-                and recovery_atr_min is not None
-                and recovery_atr_max is not None
-                and float(recovery_atr_min) <= atr_value < float(recovery_atr_max)
-                and recovery_ddv_min is not None
-                and recovery_ddv_max is not None
-                and float(recovery_ddv_min) <= ddv_value < float(recovery_ddv_max)
+                context.shock_dir == "up"
+                and context.regime.hard_dir == "up"
+                and policy.trenddown_branch_b_release_age.contains(release_age_value)
+                and policy.trenddown_branch_b_recovery_atr.contains(atr_value)
+                and policy.trenddown_branch_b_recovery_ddv.contains(ddv_value)
             )
             return bool(in_primary_band or in_recovery_band)
-        if regime4_state != "trend_up_clean":
+        if context.regime.label != "trend_up_clean":
             return False
-        stale_min = self._regime2_upcorridor_branch_b_long_stale_release_age_min_bars
+        stale_min = policy.upcorridor_branch_b_stale_age_min
         if not (
-            shock_dir == "up"
-            and self._active_regime2_bear_hard_dir == "up"
+            context.shock_dir == "up"
+            and context.regime.hard_dir == "up"
             and release_age_value is not None
         ):
             return False
-        flat_ddv_abs_max = self._regime2_upcorridor_branch_b_long_flat_ddv_abs_max_pp
-        flat_low_atr_max = self._regime2_upcorridor_branch_b_long_flat_low_shock_atr_pct_max
-        flat_low_stale_min = self._regime2_upcorridor_branch_b_long_flat_low_stale_release_age_min_bars
-        flat_high_atr_max = self._regime2_upcorridor_branch_b_long_flat_shock_atr_pct_max
+        flat_ddv_abs_max = policy.upcorridor_branch_b_flat_ddv_abs_max
+        flat_low_atr_max = policy.upcorridor_branch_b_flat_low_atr_max
+        flat_low_stale_min = policy.upcorridor_branch_b_flat_low_stale_age_min
+        flat_high_atr_max = policy.upcorridor_branch_b_flat_atr_max
         return bool(
             flat_ddv_abs_max is not None
             and abs(ddv_value) < float(flat_ddv_abs_max)
@@ -748,93 +754,67 @@ class SpotSignalPolicyMixin:
             )
         )
 
-    def _regime2_upcorridor_blocks_branch_a_long(
+    def _branch_a_upcorridor_gate_blocks(
         self,
-        *,
-        regime4_state: str | None,
-        entry_dir: str | None,
-        entry_branch: str | None,
-        shock_atr_pct: float | None,
+        candidate: SpotEntryCandidate,
+        context: SpotEntryGateContext,
     ) -> bool:
+        policy = self._regime_gates
         if not (
             self._dual_branch_enabled
-            and regime4_state in ("transition_up_hot", "trend_up_clean")
-            and entry_branch == "a"
-            and entry_dir == "up"
+            and context.regime.label in ("transition_up_hot", "trend_up_clean")
+            and candidate.branch == "a"
+            and candidate.direction == "up"
         ):
             return False
-        if shock_atr_pct is None:
+        if context.shock_atr_pct is None:
             return False
-        atr_value = float(shock_atr_pct)
-        in_mid_band = False
-        if (
-            self._regime2_upcorridor_branch_a_long_mid_shock_atr_pct_min is not None
-            and self._regime2_upcorridor_branch_a_long_mid_shock_atr_pct_max is not None
-        ):
-            in_mid_band = (
-                float(self._regime2_upcorridor_branch_a_long_mid_shock_atr_pct_min)
-                <= atr_value
-                < float(self._regime2_upcorridor_branch_a_long_mid_shock_atr_pct_max)
-            )
+        atr_value = float(context.shock_atr_pct)
+        in_mid_band = policy.upcorridor_branch_a_mid_atr.contains(atr_value)
         in_extreme_band = (
-            self._regime2_upcorridor_branch_a_long_extreme_shock_atr_pct_min is not None
-            and atr_value >= float(self._regime2_upcorridor_branch_a_long_extreme_shock_atr_pct_min)
+            policy.upcorridor_branch_a_extreme_atr_min is not None
+            and atr_value >= policy.upcorridor_branch_a_extreme_atr_min
         )
         if not (in_mid_band or in_extreme_band):
             return False
-        release_age = self._active_regime2_bear_hard_release_age_bars
+        release_age = context.regime.hard_release_age_bars
         if release_age is None:
             return False
-        if regime4_state == "transition_up_hot":
-            fresh_max = self._regime2_upcorridor_branch_a_long_fresh_release_age_max_bars
+        if context.regime.label == "transition_up_hot":
+            fresh_max = policy.upcorridor_branch_a_fresh_age_max
             return fresh_max is not None and int(release_age) <= int(fresh_max)
-        stale_min = self._regime2_upcorridor_branch_a_long_stale_release_age_min_bars
+        stale_min = policy.upcorridor_branch_a_stale_age_min
         return stale_min is not None and int(release_age) >= int(stale_min)
 
-    def _continuation_confidence_blocks_long(
+    def _continuation_confidence_gate_blocks(
         self,
-        *,
-        regime4_state: str | None,
-        entry_dir: str | None,
-        entry_branch: str | None,
-        shock_dir: str | None,
-        shock_atr_pct: float | None,
-        shock_drawdown_dist_on_vel_pp: float | None,
+        candidate: SpotEntryCandidate,
+        context: SpotEntryGateContext,
     ) -> bool:
-        release_age = self._active_regime2_bear_hard_release_age_bars
+        policy = self._regime_gates
+        release_age = context.regime.hard_release_age_bars
         if (
-            entry_dir == "up"
-            and entry_branch == "b"
-            and regime4_state == "trend_up_clean"
-            and shock_dir == "up"
-            and self._active_regime2_bear_hard_dir == "up"
+            candidate.direction == "up"
+            and candidate.branch == "b"
+            and context.regime.label == "trend_up_clean"
+            and context.shock_dir == "up"
+            and context.regime.hard_dir == "up"
         ):
-            age_min = self._regime2_continuation_confidence_branch_b_trend_up_clean_release_age_min_bars
-            age_max = self._regime2_continuation_confidence_branch_b_trend_up_clean_release_age_max_bars
-            return bool(
-                release_age is not None
-                and age_min is not None
-                and age_max is not None
-                and int(age_min) <= int(release_age) < int(age_max)
-            )
+            return policy.continuation_branch_b_release_age.contains(release_age)
         return bool(
-            entry_dir == "up"
-            and entry_branch == "a"
-            and regime4_state == "transition_up_hot"
-            and shock_dir == "up"
-            and self._active_regime2_bear_hard_dir == "down"
+            candidate.direction == "up"
+            and candidate.branch == "a"
+            and context.regime.label == "transition_up_hot"
+            and context.shock_dir == "up"
+            and context.regime.hard_dir == "down"
             and release_age is not None
-            and self._regime2_continuation_confidence_branch_a_transition_release_age_max_bars is not None
-            and int(release_age) <= int(self._regime2_continuation_confidence_branch_a_transition_release_age_max_bars)
-            and shock_atr_pct is not None
-            and self._regime2_continuation_confidence_branch_a_transition_shock_atr_pct_min is not None
-            and self._regime2_continuation_confidence_branch_a_transition_shock_atr_pct_max is not None
-            and float(self._regime2_continuation_confidence_branch_a_transition_shock_atr_pct_min)
-            <= float(shock_atr_pct)
-            < float(self._regime2_continuation_confidence_branch_a_transition_shock_atr_pct_max)
-            and shock_drawdown_dist_on_vel_pp is not None
-            and self._regime2_continuation_confidence_branch_a_transition_ddv_max_pp is not None
-            and float(shock_drawdown_dist_on_vel_pp) <= float(self._regime2_continuation_confidence_branch_a_transition_ddv_max_pp)
+            and policy.continuation_branch_a_release_age_max is not None
+            and int(release_age) <= policy.continuation_branch_a_release_age_max
+            and policy.continuation_branch_a_atr.contains(context.shock_atr_pct)
+            and context.shock_drawdown_dist_on_vel_pp is not None
+            and policy.continuation_branch_a_ddv_max is not None
+            and float(context.shock_drawdown_dist_on_vel_pp)
+            <= policy.continuation_branch_a_ddv_max
         )
 
     def _select_dual_signal(

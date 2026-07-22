@@ -2,11 +2,83 @@ import unittest
 from datetime import date, datetime
 from types import SimpleNamespace
 
+from tradebot.spot.evaluator_common import (
+    SpotEntryCandidate,
+    SpotEntryGateContext,
+    SpotRegimeState,
+)
+from tradebot.spot.evaluator_policy import SpotSignalPolicyMixin
+from tradebot.spot.evaluator_setup import _regime_gate_policy
 from tradebot.spot.gates import flip_exit_allowed
 from tradebot.spot.policy import SpotPolicy, SpotPolicyConfigView
 
 
+class _GateRecorder(SpotSignalPolicyMixin):
+    def __init__(self, blocked_gate: str) -> None:
+        self.blocked_gate = blocked_gate
+        self.visited: list[str] = []
+
+    def _record(self, name: str) -> bool:
+        self.visited.append(name)
+        return name == self.blocked_gate
+
+    def _crash_gate_blocks(self, *_args) -> bool:
+        return self._record("crash")
+
+    def _router_damage_gate_blocks(self, *_args) -> bool:
+        return self._record("router_damage")
+
+    def _crash_prearm_gate_blocks(self, *_args) -> bool:
+        return self._record("crash_prearm")
+
+    def _branch_b_regime_gate_blocks(self, *_args) -> bool:
+        return self._record("branch_b_regime")
+
+    def _branch_a_upcorridor_gate_blocks(self, *_args) -> bool:
+        return self._record("branch_a_upcorridor")
+
+    def _continuation_confidence_gate_blocks(self, *_args) -> bool:
+        return self._record("continuation_confidence")
+
+
 class SpotPolicyKernelTests(unittest.TestCase):
+    def test_legacy_regime_keys_decode_into_semantic_gate_policy(self) -> None:
+        policy = _regime_gate_policy(
+            {
+                "regime2_crash_atr_pct_min": -1,
+                "regime2_crash_prearm_apply_to": "invalid",
+                "regime2_repair_branch_b_long_block_after_hour_et": 99,
+                "regime2_upcorridor_branch_a_long_mid_shock_atr_pct_min": 3,
+                "regime2_upcorridor_branch_a_long_mid_shock_atr_pct_max": 2,
+                "regime2_trenddown_branch_b_long_hard_up_ddv_min_pp": -2,
+                "regime2_trenddown_branch_b_long_hard_up_ddv_max_pp": -3,
+            }
+        )
+
+        self.assertIsNone(policy.crash_atr_min)
+        self.assertEqual(policy.crash_prearm_scope, "off")
+        self.assertEqual(policy.repair_branch_b_after_hour, 23)
+        self.assertEqual(policy.upcorridor_branch_a_mid_atr.minimum, 3)
+        self.assertEqual(policy.upcorridor_branch_a_mid_atr.maximum, 3)
+        self.assertEqual(policy.trenddown_branch_b_ddv.minimum, -2)
+        self.assertEqual(policy.trenddown_branch_b_ddv.maximum, -2)
+
+    def test_entry_gate_pipeline_is_ordered_and_short_circuits(self) -> None:
+        evaluator = _GateRecorder("branch_b_regime")
+        result = evaluator._apply_entry_gates(
+            SpotEntryCandidate("up", "b"),
+            SpotEntryGateContext(
+                bar_ts=datetime(2026, 7, 22),
+                regime=SpotRegimeState(label="trend_down"),
+            ),
+        )
+
+        self.assertEqual(
+            evaluator.visited,
+            ["crash", "router_damage", "crash_prearm", "branch_b_regime"],
+        )
+        self.assertEqual(result, SpotEntryCandidate(None, None, "branch_b_regime"))
+
     def test_flip_exit_allowed_enforces_canonical_hold_boundary(self) -> None:
         strategy = {
             "direction_source": "ema",
