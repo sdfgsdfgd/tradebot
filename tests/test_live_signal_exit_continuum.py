@@ -18,7 +18,7 @@ from tradebot.client import BrokerOrderPreview, IBKRClient, _session_flags
 from tradebot.config import IBKRConfig
 from tradebot.option_package import OptionPackageRisk
 from tradebot.order_admission import evaluate_order_admission
-from tradebot.spot.lifecycle import flip_exit_gate_blocked, signal_filter_checks
+from tradebot.spot.gates import flip_exit_gate_blocked, signal_filter_checks
 
 _UI_DIR = Path(__file__).resolve().parents[1] / "tradebot" / "ui"
 if "tradebot.ui" not in sys.modules:

@@ -39,11 +39,8 @@ from ..option_package import (
     option_profit_target_hit,
     option_stop_loss_hit,
 )
-from ..spot.lifecycle import (
+from ..spot.gates import (
     apply_regime_gate,
-    decide_flat_position_intent,
-    decide_open_position_intent,
-    decide_pending_next_open,
     deferred_entry_plan as lifecycle_deferred_entry_plan,
     fill_due_ts as lifecycle_fill_due_ts,
     entry_capacity_ok as lifecycle_entry_capacity_ok,
@@ -53,6 +50,7 @@ from ..spot.lifecycle import (
     next_open_entry_allowed as lifecycle_next_open_entry_allowed,
     signal_filters_ok as lifecycle_signal_filters_ok,
 )
+from ..spot.lifecycle import decide_flat_position_intent, decide_open_position_intent, decide_pending_next_open
 from ..spot.fill_modes import (
     SPOT_FILL_MODE_CLOSE,
     SPOT_FILL_MODE_NEXT_TRADABLE_BAR,

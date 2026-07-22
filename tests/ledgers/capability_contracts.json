@@ -244,6 +244,9 @@
       ],
       "owner_surface": [
         "tradebot/engines/risk.py",
+        "tradebot/spot/gates.py",
+        "tradebot/spot/graph.py",
+        "tradebot/spot/lifecycle.py",
         "tradebot/spot/policy.py"
       ],
       "oracle": [

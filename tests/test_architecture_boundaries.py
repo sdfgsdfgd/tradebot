@@ -15,7 +15,6 @@ OVERSIZED_MODULE_DEBT = {
     "tradebot/backtest/run_backtests_spot_sweeps.py",
     "tradebot/client.py",
     "tradebot/spot/graph.py",
-    "tradebot/spot/lifecycle.py",
     "tradebot/spot/policy.py",
     "tradebot/spot_engine.py",
     "tradebot/ui/app.py",

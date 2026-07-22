@@ -52,7 +52,7 @@ from ..order_reservation import (
     summarize_order_reservations,
 )
 from ..spot.graph import spot_dynamic_flip_hold_bars
-from ..spot.lifecycle import flip_exit_gate_blocked, flip_exit_hit
+from ..spot.gates import flip_exit_gate_blocked, flip_exit_hit
 from ..chart_data.cache import series_cache_service
 from ..chart_data.series import BarSeries, BarSeriesMeta
 from ..signals import (

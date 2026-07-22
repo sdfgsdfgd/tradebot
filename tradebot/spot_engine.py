@@ -36,7 +36,7 @@ from .engine import (
     spot_regime_apply_matches_direction,
 )
 from .climate_router import DailyRegimeRouterEngine, regime_router_config
-from .spot.lifecycle import apply_regime_gate
+from .spot.gates import apply_regime_gate
 from .signals import ema_next, ema_periods
 from .time_utils import NaiveTsModeInput, normalize_naive_ts_mode
 
