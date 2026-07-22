@@ -287,6 +287,7 @@ def test_option_builder_stages_native_credit_bag_through_canonical_kernel(monkey
             "entry_signal": "ema",
             "ema_preset": "9/21",
             "dte": 0,
+            "quantity": 2,
             "xsp_reservation_capacity_usd": 2200.0,
             "legs": [
                 {"action": "SELL", "right": "PUT", "moneyness_pct": 0.0, "qty": 1},
@@ -310,7 +311,7 @@ def test_option_builder_stages_native_credit_bag_through_canonical_kernel(monkey
     staged = harness._orders[0]
     assert isinstance(staged.order_contract, Bag)
     assert staged.action == "BUY"
-    assert staged.quantity == 1
+    assert staged.quantity == 2
     assert staged.limit_price == pytest.approx(-1.00)
     assert [
         (int(leg.conId), int(leg.ratio), str(leg.action), str(leg.exchange))
@@ -328,8 +329,8 @@ def test_option_builder_stages_native_credit_bag_through_canonical_kernel(monkey
         "width": 5.0,
         "debit_value": -1.0,
         "multiplier": 100.0,
-        "quantity": 1,
-        "max_loss": 400.0,
+        "quantity": 2,
+        "max_loss": 800.0,
     }
     assert len(calls) == 4
 

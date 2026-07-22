@@ -592,6 +592,11 @@ class BotOrderBuilderMixin:
             order_limit = _round_to_tick(float(desired_debit), tick)
             if not order_limit:
                 return _fail("Quote: combo price is 0 (cannot price)")
+            try:
+                package_quantity = int(strat.get("quantity", 1) or 1)
+            except (TypeError, ValueError):
+                package_quantity = 1
+            package_quantity = max(1, package_quantity)
             combo_legs: list[ComboLeg] = []
             for leg_order, (_, _, _, ticker) in zip(leg_orders, leg_quotes):
                 con_id = int(getattr(leg_order.contract, "conId", 0) or 0)
@@ -634,7 +639,7 @@ class BotOrderBuilderMixin:
                     for leg_order in leg_orders
                 ],
                 debit_value=float(desired_debit),
-                quantity=1,
+                quantity=package_quantity,
             )
 
             if (
@@ -670,7 +675,7 @@ class BotOrderBuilderMixin:
                 order_contract=bag,
                 legs=leg_orders,
                 action=order_action,
-                quantity=1,
+                quantity=package_quantity,
                 limit_price=float(order_limit),
                 created_at=_now_et(),
                 package_risk=package_risk,
