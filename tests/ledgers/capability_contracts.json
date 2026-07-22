@@ -377,7 +377,11 @@
         "tests/test_ui_quote_status_line.py"
       ],
       "owner_surface": [
-        "tradebot/ui/app.py"
+        "tradebot/ui/app.py",
+        "tradebot/ui/positions.py",
+        "tradebot/ui/position_detail/chart.py",
+        "tradebot/ui/position_detail/market.py",
+        "tradebot/ui/position_detail/orders.py"
       ],
       "oracle": [
         "all evidence assigned to operator-ui-observability passes",

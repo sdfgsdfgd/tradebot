@@ -64,7 +64,8 @@ def test_market_hud_unreal_shows_official_and_estimate() -> None:
         last=100.0,
         marketDataType=1,
     )
-    lines = screen._render_market_hud(
+    screen._market.bind(item, screen._ticker)
+    lines = screen._market.render_hud(
         panel_width=80,
         bid=99.0,
         ask=101.0,
@@ -113,7 +114,8 @@ def test_market_hud_unreal_shows_estimate_only_when_official_missing() -> None:
         last=100.0,
         marketDataType=1,
     )
-    lines = screen._render_market_hud(
+    screen._market.bind(item, screen._ticker)
+    lines = screen._market.render_hud(
         panel_width=80,
         bid=99.0,
         ask=101.0,
@@ -135,7 +137,7 @@ def test_render_execution_block_supports_fut_contracts() -> None:
     contract.conId = 753716628
     screen = PositionDetailScreen(SimpleNamespace(), _fut_item(contract), refresh_sec=0.25)
 
-    lines = screen._render_execution_block(panel_width=80)
+    lines = screen._orders.render_execution(panel_width=80)
 
     assert lines
     assert "Execution Ladder" in lines[0].plain
@@ -157,7 +159,7 @@ def test_render_execution_block_includes_custom_price_row() -> None:
     contract.conId = 750150193
     screen = PositionDetailScreen(SimpleNamespace(), _fut_item(contract), refresh_sec=0.25)
 
-    lines = screen._render_execution_block(panel_width=80)
+    lines = screen._orders.render_execution(panel_width=80)
     plain = "\n".join(line.plain for line in lines)
 
     assert "CUSTOM" in plain
@@ -169,7 +171,7 @@ def test_render_execution_block_includes_relentless_row() -> None:
     contract.conId = 750150193
     screen = PositionDetailScreen(SimpleNamespace(), _fut_item(contract), refresh_sec=0.25)
 
-    lines = screen._render_execution_block(panel_width=80)
+    lines = screen._orders.render_execution(panel_width=80)
     plain = "\n".join(line.plain for line in lines)
 
     assert "RLT       B/S" in plain
@@ -181,7 +183,7 @@ def test_render_execution_block_includes_relentless_delay_row() -> None:
     contract.conId = 750150193
     screen = PositionDetailScreen(SimpleNamespace(), _fut_item(contract), refresh_sec=0.25)
 
-    lines = screen._render_execution_block(panel_width=80)
+    lines = screen._orders.render_execution(panel_width=80)
     plain = "\n".join(line.plain for line in lines)
 
     assert "RLT ⚔ Delay" in plain
@@ -196,7 +198,7 @@ def test_submit_order_does_not_reject_fut_as_unsupported() -> None:
 
     screen._submit_order("BUY")
 
-    assert screen._exec_status != "Exec: unsupported contract"
+    assert screen._orders.status != "Exec: unsupported contract"
 
 
 def test_custom_price_input_sets_custom_exec_mode_price() -> None:
@@ -211,12 +213,12 @@ def test_custom_price_input_sets_custom_exec_mode_price() -> None:
         last=112.5,
     )
     screen._render_details = lambda *args, **kwargs: None  # type: ignore[method-assign]
-    screen._exec_selected = screen._exec_rows.index("custom")
+    screen._orders.exec_selected = screen._orders.exec_rows.index("custom")
 
     for char in "112.5":
         screen._handle_digit(char)
 
-    assert screen._selected_exec_mode() == "CUSTOM"
+    assert screen._orders.selected_mode() == "CUSTOM"
     price = screen._initial_exec_price("BUY", mode="CUSTOM")
     assert price is not None
     assert abs(float(price) - 112.5) < 1e-9
@@ -229,18 +231,18 @@ def test_qty_input_keeps_selected_exec_row_when_not_qty() -> None:
     screen = PositionDetailScreen(SimpleNamespace(), _fut_item(contract), refresh_sec=0.25)
     screen._render_details = lambda *args, **kwargs: None  # type: ignore[method-assign]
 
-    cross_idx = screen._exec_rows.index("cross")
-    screen._exec_selected = cross_idx
-    screen._exec_qty_input = ""
+    cross_idx = screen._orders.exec_rows.index("cross")
+    screen._orders.exec_selected = cross_idx
+    screen._orders.qty_input = ""
 
     screen._handle_digit("2")
     screen._handle_digit("5")
-    assert screen._exec_selected == cross_idx
-    assert screen._exec_qty == 25
+    assert screen._orders.exec_selected == cross_idx
+    assert screen._orders.qty == 25
 
     screen._handle_backspace()
-    assert screen._exec_selected == cross_idx
-    assert screen._exec_qty == 2
+    assert screen._orders.exec_selected == cross_idx
+    assert screen._orders.qty == 2
 
 
 def test_relentless_price_escalates_over_time() -> None:
@@ -302,7 +304,7 @@ def test_relentless_spread_pressure_boosts_target() -> None:
     screen = PositionDetailScreen(SimpleNamespace(), _fut_item(contract), refresh_sec=0.25)
     ticker = SimpleNamespace(contract=contract, bid=100.0, ask=103.0, last=101.5)
 
-    screen._chart.spread_samples.clear()
+    screen._market.chart.spread_samples.clear()
     baseline = screen._exec_price_for_mode(
         "RELENTLESS",
         "BUY",
@@ -316,7 +318,7 @@ def test_relentless_spread_pressure_boosts_target() -> None:
         no_progress_reprices=0,
         arrival_ref=101.5,
     )
-    screen._chart.spread_samples.extend([0.25] * 24)
+    screen._market.chart.spread_samples.extend([0.25] * 24)
     pressure = screen._exec_price_for_mode(
         "RELENTLESS",
         "BUY",
@@ -799,7 +801,7 @@ def test_orders_panel_renders_order_feed_notice() -> None:
 
     screen = PositionDetailScreen(_Client(), _fut_item(contract), refresh_sec=0.25)
     screen._detail_right = _RightPane()  # type: ignore[attr-defined]
-    screen._set_orders_notice("IB 201: bad tif", level="error")
+    screen._orders.set_notice("IB 201: bad tif", level="error")
 
     screen._render_orders_panel()
 
@@ -830,7 +832,7 @@ def test_orders_panel_wraps_long_order_feed_notice() -> None:
 
     screen = PositionDetailScreen(_Client(), _fut_item(contract), refresh_sec=0.25)
     screen._detail_right = _RightPane()  # type: ignore[attr-defined]
-    screen._set_orders_notice(
+    screen._orders.set_notice(
         "IB 201: We are unable to accept your order because this contract is not available for trading",
         level="error",
     )
@@ -854,20 +856,20 @@ def test_orders_panel_notice_replaces_previous_and_expires() -> None:
     contract.conId = 753716628
     screen = PositionDetailScreen(SimpleNamespace(), _fut_item(contract), refresh_sec=0.25)
 
-    screen._set_orders_notice("old msg", level="warn")
-    screen._set_orders_notice("new msg", level="error")
-    line = screen._orders_notice_line()
+    screen._orders.set_notice("old msg", level="warn")
+    screen._orders.set_notice("new msg", level="error")
+    line = screen._orders._notice_line()
     assert line is not None
     assert "new msg" in line.plain
     assert "old msg" not in line.plain
 
-    screen._orders_notice = (
+    screen._orders._notice = (
         monotonic() - float(screen._ORDER_PANEL_NOTICE_TTL_SEC) - 1.0,
         "error",
         "stale",
     )
-    assert screen._orders_notice_line() is None
-    assert screen._orders_notice is None
+    assert screen._orders._notice_line() is None
+    assert screen._orders._notice is None
 
 
 def test_chase_inactive_surfaces_ib_reject_in_order_feed() -> None:
@@ -904,7 +906,7 @@ def test_chase_inactive_surfaces_ib_reject_in_order_feed() -> None:
 
     asyncio.run(screen._chase_until_filled(trade, "SELL", mode="AUTO"))
 
-    line = screen._orders_notice_line()
+    line = screen._orders._notice_line()
     assert line is not None
     assert "#777 Inactive: IB 201: bad tif" in line.plain
 
@@ -943,7 +945,7 @@ def test_chase_done_after_pending_surfaces_ib_reject_in_order_feed() -> None:
 
     asyncio.run(screen._chase_until_filled(trade, "SELL", mode="AUTO"))
 
-    line = screen._orders_notice_line()
+    line = screen._orders._notice_line()
     assert line is not None
     assert "#888 Done (PendingSubmission): IB 201: bad tif" in line.plain
 
@@ -987,7 +989,7 @@ def test_chase_pending_submission_surfaces_ib_reject_without_terminal_status() -
 
     asyncio.run(screen._chase_until_filled(trade, "BUY", mode="AUTO"))
 
-    line = screen._orders_notice_line()
+    line = screen._orders._notice_line()
     assert line is not None
     assert "#991 PendingSubmission: IB 110: price does not conform to minimum increment" in line.plain
 
@@ -1173,7 +1175,7 @@ def test_relentless_delay_wraps_202_sweep_instead_of_halting_at_attempt_cap() ->
     asyncio.run(screen._chase_until_filled(trade, "BUY", mode="RELENTLESS_DELAY"))
 
     assert client.place_calls > screen._policy.delay_recover_attempts
-    notice = screen._orders_notice_line()
+    notice = screen._orders._notice_line()
     if notice is not None:
         assert "Chase halted" not in notice.plain
 
@@ -1214,9 +1216,9 @@ def test_refresh_ticker_does_not_attempt_one_shot_live_probe_for_delayed_fop() -
     asyncio.run(screen.action_refresh_ticker())
 
     assert client.live_snapshot_calls == 0
-    assert str(screen._exec_status or "") == "MD refreshed"
-    assert screen._md_probe_requested_type == 3
-    assert float(screen._md_probe_started_mono) > 0.0
+    assert str(screen._orders.status or "") == "MD refreshed"
+    assert screen._market._md_probe_requested_type == 3
+    assert float(screen._market._md_probe_started_mono) > 0.0
 
 
 def test_refresh_ticker_does_not_attempt_one_shot_live_probe_for_live_frozen_fop() -> None:
@@ -1255,9 +1257,9 @@ def test_refresh_ticker_does_not_attempt_one_shot_live_probe_for_live_frozen_fop
     asyncio.run(screen.action_refresh_ticker())
 
     assert client.live_snapshot_calls == 0
-    assert str(screen._exec_status or "") == "MD refreshed"
-    assert screen._md_probe_requested_type == 2
-    assert float(screen._md_probe_started_mono) > 0.0
+    assert str(screen._orders.status or "") == "MD refreshed"
+    assert screen._market._md_probe_requested_type == 2
+    assert float(screen._market._md_probe_started_mono) > 0.0
 
 
 def test_market_data_probe_row_shows_transition_and_expires() -> None:
@@ -1266,15 +1268,18 @@ def test_market_data_probe_row_shows_transition_and_expires() -> None:
     contract.conId = 750150193
     screen = PositionDetailScreen(SimpleNamespace(), _fut_item(contract), refresh_sec=0.25)
     screen._ticker = SimpleNamespace(contract=contract, marketDataType=1)
-    screen._md_probe_requested_type = 3
-    screen._md_probe_started_mono = monotonic()
+    screen._market.bind(screen._item, screen._ticker)
+    screen._market._md_probe_requested_type = 3
+    screen._market._md_probe_started_mono = monotonic()
 
-    row = screen._market_data_probe_row()
+    row = screen._market._market_data_probe_row()
     assert row is not None
     assert "req Delayed (3) -> now Live (1)" in row.plain
 
-    screen._md_probe_started_mono = monotonic() - (screen._MD_PROBE_BANNER_TTL_SEC + 0.5)
-    assert screen._market_data_probe_row() is None
+    screen._market._md_probe_started_mono = monotonic() - (
+        screen._market._MD_PROBE_BANNER_TTL_SEC + 0.5
+    )
+    assert screen._market._market_data_probe_row() is None
 
 
 def test_chase_pending_submission_does_not_modify_before_accept() -> None:
@@ -1399,7 +1404,7 @@ def test_order_line_shows_effective_status_hint_when_diverged() -> None:
         },
     )
 
-    line = screen._format_order_line(trade, width=160)
+    line = screen._orders._format_order_line(trade, width=160)
 
     assert "PendingSu" in line.plain
     assert "~Submitted" in line.plain
@@ -1430,7 +1435,7 @@ def test_order_line_uses_client_current_effective_status_hint() -> None:
         orderStatus=SimpleNamespace(status="PendingSubmission", filled=0.0, remaining=1.0),
     )
 
-    line = screen._format_order_line(trade, width=160)
+    line = screen._orders._format_order_line(trade, width=160)
 
     assert "PendingSu" in line.plain
     assert "~Submitted" in line.plain
@@ -1463,7 +1468,7 @@ def test_cancel_order_surfaces_cancel_not_found_error() -> None:
 
     asyncio.run(screen._cancel_order(trade))
 
-    line = screen._orders_notice_line()
+    line = screen._orders._notice_line()
     assert line is not None
     assert "Cancel #733: IB 10147: order to cancel not found" in line.plain
 
@@ -1554,9 +1559,9 @@ def test_action_cancel_order_halts_relentless_chase_repricing_before_ack() -> No
         shock_min_reprice_sec=0.1,
         hyper_min_reprice_sec=0.1,
     )
-    screen._active_panel = "orders"
-    screen._orders_rows = [trade]
-    screen._orders_selected = 0
+    screen._orders.active_panel = "orders"
+    screen._orders.rows = [trade]
+    screen._orders.selected = 0
 
     async def _run() -> tuple[int, int]:
         chase = asyncio.create_task(screen._chase_until_filled(trade, "SELL", mode="RELENTLESS"))
@@ -1612,7 +1617,7 @@ def test_chase_state_survives_order_id_transition_from_perm_id() -> None:
         contract=contract,
     )
 
-    line = screen._active_chase_line([transitioned])
+    line = screen._orders._active_chase_line([transitioned])
 
     assert "Chase #2619" in line.plain
     assert "AUTO->MID" in line.plain
@@ -1663,7 +1668,7 @@ def test_place_order_surfaces_chase_task_exception_in_order_feed() -> None:
 
     asyncio.run(_run())
 
-    line = screen._orders_notice_line()
+    line = screen._orders._notice_line()
     assert line is not None
     assert "#314 chase task error: md boom" in line.plain
 

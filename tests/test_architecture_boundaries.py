@@ -28,7 +28,6 @@ OVERSIZED_MODULE_DEBT = {
     "tradebot/ui/bot_journal.py",
     "tradebot/ui/bot_order_builder.py",
     "tradebot/ui/bot_signal_runtime.py",
-    "tradebot/ui/positions.py",
 }
 
 # Existing ownership inversions only. New inversions and stale exemptions fail.

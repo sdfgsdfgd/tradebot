@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from tradebot.ui.positions import PositionDetailScreen
+from tradebot.ui.position_detail.market import PositionMarketView
 
 
 @pytest.mark.parametrize(
@@ -18,4 +18,4 @@ from tradebot.ui.positions import PositionDetailScreen
     ],
 )
 def test_contract_header_title_displays_instrument_and_option_side(contract: object, expected: str) -> None:
-    assert PositionDetailScreen._contract_header_title(contract) == expected
+    assert PositionMarketView.contract_header_title(contract) == expected
