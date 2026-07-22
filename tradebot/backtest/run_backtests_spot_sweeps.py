@@ -49,8 +49,8 @@ from .config import (
     SpotStrategyConfig,
     SpotLegConfig,
     SyntheticConfig,
-    _parse_filters,
 )
+from .config_filters import _parse_filters
 from .spot_codec import (
     effective_filters_payload as _codec_effective_filters_payload,
     filters_from_payload as _codec_filters_from_payload,

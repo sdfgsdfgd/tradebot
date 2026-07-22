@@ -161,7 +161,10 @@
         "tests/test_effective_filters_payload.py"
       ],
       "owner_surface": [
-        "tradebot/config.py"
+        "tradebot/config.py",
+        "tradebot/backtest/config.py",
+        "tradebot/backtest/config_filters.py",
+        "tradebot/backtest/config_values.py"
       ],
       "oracle": [
         "all evidence assigned to runtime-configuration-state passes",

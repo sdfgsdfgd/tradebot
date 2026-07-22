@@ -13,8 +13,8 @@ from .config import (
     SpotLegConfig,
     SpotStrategyConfig,
     SyntheticConfig,
-    _parse_filters,
 )
+from .config_filters import _parse_filters
 from .data import ContractMeta
 
 _WDAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
