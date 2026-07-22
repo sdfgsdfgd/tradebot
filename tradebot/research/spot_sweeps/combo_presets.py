@@ -2,19 +2,25 @@
 
 from __future__ import annotations
 
+import itertools
 import os
 from dataclasses import replace
+from functools import cached_property
 
 from ...backtest.config import ConfigBundle
 from .catalog import (
     _COMBO_FULL_CARTESIAN_DIM_ORDER,
+    _COMBO_FULL_NOTE_PAIR_DIM_ORDER,
+    _COMBO_FULL_PAIR_DIM_VARIANT_SPECS,
     _combo_full_preset_axes,
     _combo_full_preset_customizer,
     _combo_full_preset_spec,
 )
 from .dimensions import _AXIS_DIMENSION_REGISTRY
+from .fingerprints import _combo_full_dimension_space_signature
 from .milestones import _filters_payload
 from .profiles import _PERM_JOINT_PROFILE
+from .support import _mk_filters
 
 
 class ComboPresetContext:
@@ -32,19 +38,127 @@ class ComboPresetContext:
         self.rows = rows
         self.timing_profiles_loader = timing_profiles_loader
 
-    @property
+    @cached_property
     def size_by_dim(self) -> dict[str, int]:
         return {
             dim_name: len(self.rows.get(dim_name) or ())
             for dim_name in _COMBO_FULL_CARTESIAN_DIM_ORDER
         }
 
-    @property
+    @cached_property
     def total(self) -> int:
         total = 1
         for size in self.size_by_dim.values():
             total *= size
         return total
+
+    @cached_property
+    def ordered_dims(self) -> tuple[str, ...]:
+        dominant = tuple(self.dims.get("dominant_dims") or ())
+        ordered = [str(name).strip() for name in dominant if str(name).strip() in self.size_by_dim]
+        ordered.extend(name for name in self.size_by_dim if name not in ordered)
+        return tuple(ordered)
+
+    @cached_property
+    def dimension_signature(self) -> str:
+        return _combo_full_dimension_space_signature(
+            ordered_dims=self.ordered_dims,
+            size_by_dim=self.size_by_dim,
+            timing_profile_variants=list(self.rows["timing_profile"]),
+            confirm_bars=[int(value) for value in self.rows["confirm"]],
+            pair_variants_by_dim={
+                dim_name: list(self.rows[dim_name])
+                for dim_name, _variants_key in _COMBO_FULL_PAIR_DIM_VARIANT_SPECS
+            },
+            short_mults=[float(value) for value in self.rows["short_mult"]],
+        )
+
+    def rank(self, indices: dict[str, int]) -> int:
+        rank = 0
+        for dim_name in self.ordered_dims:
+            rank = rank * self.size_by_dim[dim_name] + int(indices.get(dim_name, 0))
+        return rank
+
+    def indices(self, rank: int) -> dict[str, int]:
+        if rank < 0 or rank >= self.total:
+            raise ValueError(f"rank out of range: {rank} not in [0,{self.total - 1}]")
+        indices: dict[str, int] = {}
+        remainder = rank
+        for dim_name in reversed(self.ordered_dims):
+            size = self.size_by_dim[dim_name]
+            if size <= 0:
+                raise ValueError(f"invalid dimension cardinality: {dim_name}={size}")
+            indices[dim_name] = remainder % size
+            remainder //= size
+        return indices
+
+    def plan_item(
+        self,
+        indices: dict[str, int],
+        *,
+        rank: int | None = None,
+    ) -> tuple[ConfigBundle, str, dict]:
+        selected = {
+            dim_name: self.rows[dim_name][int(indices.get(dim_name, 0))]
+            for dim_name in _COMBO_FULL_CARTESIAN_DIM_ORDER
+        }
+        timing_label, timing_strategy, timing_filters = selected["timing_profile"]
+        pair_rows = {
+            dim_name: selected[dim_name]
+            for dim_name, _variants_key in _COMBO_FULL_PAIR_DIM_VARIANT_SPECS
+        }
+        pair_payloads = {dim_name: dict(row[1]) for dim_name, row in pair_rows.items()}
+
+        filter_overrides: dict[str, object] = {}
+        for dim_name in ("perm", "tod", "vol", "cadence", "shock", "slope", "risk"):
+            filter_overrides.update(pair_payloads[dim_name])
+        filter_overrides.update(timing_filters)
+
+        strategy_overrides: dict[str, object] = {}
+        for dim_name in ("direction", "regime", "regime2", "exit", "tick"):
+            strategy_overrides.update(pair_payloads[dim_name])
+        strategy_overrides.update(timing_strategy)
+        strategy_overrides.pop("entry_confirm_bars", None)
+        strategy_overrides.pop("spot_short_risk_mult", None)
+        strategy_overrides.pop("filters", None)
+
+        confirm = int(selected["confirm"])
+        short_mult = float(selected["short_mult"])
+        base = self.base
+        cfg = replace(
+            base,
+            strategy=replace(
+                base.strategy,
+                filters=_mk_filters(overrides=filter_overrides) if filter_overrides else None,
+                entry_confirm_bars=confirm,
+                spot_short_risk_mult=short_mult,
+                **strategy_overrides,
+            ),
+        )
+        normalized_indices = {
+            dim_name: int(indices.get(dim_name, 0))
+            for dim_name in _COMBO_FULL_CARTESIAN_DIM_ORDER
+        }
+        normalized_indices["_mr_rank"] = self.rank(indices) if rank is None else int(rank)
+        note = " | ".join(
+            (
+                str(timing_label),
+                str(pair_rows["direction"][0]),
+                f"c={confirm}",
+                *(str(pair_rows[dim_name][0]) for dim_name in _COMBO_FULL_NOTE_PAIR_DIM_ORDER),
+                f"short_mult={short_mult:g}",
+            )
+        )
+        return cfg, note, normalized_indices
+
+    def plan_item_from_rank(self, rank: int) -> tuple[ConfigBundle, str, dict]:
+        return self.plan_item(self.indices(rank), rank=rank)
+
+    def iter_plan(self):
+        ranges = tuple(range(self.size_by_dim[dim_name]) for dim_name in _COMBO_FULL_CARTESIAN_DIM_ORDER)
+        for raw_indices in itertools.product(*ranges):
+            indices = dict(zip(_COMBO_FULL_CARTESIAN_DIM_ORDER, raw_indices))
+            yield self.plan_item(indices)
 
     def apply(self, preset: str) -> None:
         customizers = {
@@ -72,10 +186,11 @@ class ComboPresetContext:
         if not preset:
             return
         spec = _combo_full_preset_spec(str(preset))
-        freeze_dims = tuple(spec.get("freeze_dims") or ())
-        if not freeze_dims:
+        if not spec:
             raise SystemExit(f"Unknown combo_full preset: {preset!r}")
-        self._freeze_dims(*freeze_dims)
+        freeze_dims = tuple(spec.get("freeze_dims") or ())
+        if freeze_dims:
+            self._freeze_dims(*freeze_dims)
         customizer = customizers.get(str(spec.get("customizer") or "").strip().lower())
         if callable(customizer):
             customizer()
@@ -93,7 +208,8 @@ class ComboPresetContext:
             raise SystemExit(f"combo_full preset generated empty {dim_name} variants.")
         self.rows[str(dim_name)] = list(values)
 
-    def _combo_full_base_bundle(self) -> ConfigBundle:
+    @cached_property
+    def base(self) -> ConfigBundle:
         root = self.runtime._base_bundle(bar_size=self.runtime.signal_bar_size, filters=None)
         return replace(
             root,
@@ -413,7 +529,7 @@ class ComboPresetContext:
         self._set_dim_rows("short_mult", [1.0])
 
     def _preset_hf_timing_sniper(self) -> None:
-        base = self._combo_full_base_bundle()
+        base = self.base
         hf_profiles = self.timing_profiles_loader(variants_key="hf_profile_variants")
         if not hf_profiles:
             self._set_dim_rows("short_mult", [1.0])

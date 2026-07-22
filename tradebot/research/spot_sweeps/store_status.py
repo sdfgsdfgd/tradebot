@@ -577,7 +577,7 @@ class SweepStatusStore:
             if bool(did_mutate):
                 self._stage_unresolved_summary_invalidate(
                     manifest_name=str(spec.get("key") or ""),
-                    stage_label=str(stage_key),
+                    stage_label=str(stage_label),
                     plan_signature=(str(plan_key) if has_plan_signature else ""),
                     window_signature=str(window_key),
                 )
@@ -690,7 +690,7 @@ class SweepStatusStore:
             if int(stale_pending) > 0:
                 self._status_span_manifest_set_many(
                     manifest_name=str(spec.get("key") or ""),
-                    stage_label=str(stage_key),
+                    stage_label=str(stage_label),
                     plan_signature=str(plan_key),
                     window_signature=str(window_key),
                     rows=[],
@@ -716,7 +716,7 @@ class SweepStatusStore:
         if should_rewrite:
             self._status_span_manifest_set_many(
                 manifest_name=str(spec.get("key") or ""),
-                stage_label=str(stage_key),
+                stage_label=str(stage_label),
                 plan_signature=str(plan_key),
                 window_signature=str(window_key),
                 rows=list(compacted),

@@ -282,7 +282,7 @@ class SweepFrontierStore:
         if seen_key in self.rank_dominance_manifest_applied_seen:
             return
         stamp_rows = self._rank_dominance_stamp_get_many(
-            stage_label=str(stage_key),
+            stage_label=str(stage_label),
             window_signature=str(window_key),
         )
         self.rank_dominance_manifest_applied_seen.add(seen_key)
@@ -300,7 +300,7 @@ class SweepFrontierStore:
         if not manifest_rows:
             return
         self._cartesian_rank_manifest_set_many(
-            stage_label=str(stage_key),
+            stage_label=str(stage_label),
             window_signature=str(window_key),
             rows=manifest_rows,
         )
@@ -317,16 +317,15 @@ class SweepFrontierStore:
         total_i = int(total)
         if total_i <= 0:
             return ()
-        stage_key = self._stage_cache_scope(stage_label)
         window_key = str(window_signature).strip()
         self._apply_rank_dominance_stamps_to_manifest(
-            stage_label=str(stage_key),
+            stage_label=str(stage_label),
             window_signature=str(window_key),
             total=int(total_i),
         )
         return self._status_span_manifest_unresolved_ranges(
             manifest_name="cartesian",
-            stage_label=str(stage_key),
+            stage_label=str(stage_label),
             window_signature=str(window_key),
             total=int(total_i),
         )

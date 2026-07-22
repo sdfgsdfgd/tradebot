@@ -3,17 +3,11 @@
 from __future__ import annotations
 
 import hashlib
-import itertools
 import json
-from dataclasses import replace
 from datetime import timedelta
-from ...backtest.config import (
-    ConfigBundle,
-)
 from .combo_presets import ComboPresetContext
 from .catalog import (
     _COMBO_FULL_CARTESIAN_DIM_ORDER,
-    _COMBO_FULL_NOTE_PAIR_DIM_ORDER,
     _COMBO_FULL_PAIR_DIM_VARIANT_SPECS,
     _combo_full_preset_axes,
     _combo_full_preset_key,
@@ -22,7 +16,6 @@ from .catalog import (
 from .dimensions import _AXIS_DIMENSION_REGISTRY
 from .fingerprints import (
     _RUN_CFG_CACHE_ENGINE_VERSION,
-    _combo_full_dimension_space_signature,
 )
 from .profiles import (
     _PERM_JOINT_PROFILE,
@@ -36,7 +29,6 @@ from .risk import (
     _risk_pack_riskpop,
 )
 from .support import (
-    _mk_filters,
     _require_offline_cache_or_die,
 )
 
@@ -388,23 +380,10 @@ class SweepCartesian:
         bars_sig = self._bars_cached(self.signal_bar_size)
         combo_full_preset = _combo_full_preset_key(str(getattr(self.args, "combo_full_preset", "") or ""))
         preset_context = self._combo_full_context(combo_full_preset)
-        dims = preset_context.dims
-        dim_state = preset_context.rows
-
-        timing_profile_variants = list(dim_state["timing_profile"])
-        confirm_bars = [int(v) for v in list(dim_state["confirm"])]
-        pair_variants_by_dim = {str(dim_name): list(dim_state[str(dim_name)]) for dim_name, _variants_key in _COMBO_FULL_PAIR_DIM_VARIANT_SPECS}
-        short_mults = [float(v) for v in list(dim_state["short_mult"])]
-        filter_override_dims = (
-            "perm",
-            "tod",
-            "vol",
-            "cadence",
-            "shock",
-            "slope",
-            "risk",
-        )
-        strategy_override_dims = ("direction", "regime", "regime2", "exit", "tick")
+        pair_variants_by_dim = {
+            dim_name: list(preset_context.rows[dim_name])
+            for dim_name, _variants_key in _COMBO_FULL_PAIR_DIM_VARIANT_SPECS
+        }
 
         requires_tick_daily = any(
             str((payload or {}).get("tick_gate_mode") or "off").strip().lower() != "off" for _label, payload in pair_variants_by_dim["tick"]
@@ -439,114 +418,9 @@ class SweepCartesian:
         total = preset_context.total
         if total <= 0:
             raise SystemExit("combo_full has empty Cartesian dimensions.")
-
-        dominant_dims_raw = tuple(dims.get("dominant_dims") or ())
-        dominant_dims = [str(name).strip() for name in dominant_dims_raw if str(name).strip() in size_by_dim]
-        ordered_dims = list(dominant_dims)
-        for dim_name in size_by_dim:
-            if dim_name not in ordered_dims:
-                ordered_dims.append(dim_name)
-
-        def _mixed_radix_rank(dim_indices: dict[str, int]) -> int:
-            rank = 0
-            for dim_name in ordered_dims:
-                rank = (int(rank) * int(size_by_dim[dim_name])) + int(dim_indices.get(dim_name, 0))
-            return int(rank)
-
-        def _mixed_radix_indices_from_rank(rank: int) -> dict[str, int]:
-            rank_i = int(rank)
-            if rank_i < 0 or rank_i >= int(total):
-                raise ValueError(f"rank out of range: {rank_i} not in [0,{int(total) - 1}]")
-            out: dict[str, int] = {}
-            rem = int(rank_i)
-            for dim_name in reversed(ordered_dims):
-                size_i = int(size_by_dim.get(str(dim_name), 0) or 0)
-                if size_i <= 0:
-                    raise ValueError(f"invalid dimension cardinality: {dim_name}={size_i}")
-                out[str(dim_name)] = int(rem % size_i)
-                rem //= size_i
-            return out
-
-        base = preset_context._combo_full_base_bundle()
-
-        def _combo_full_cfg_note_meta_from_dim_indices(
-            dim_indices: dict[str, int],
-            *,
-            rank_override: int | None = None,
-        ) -> tuple[ConfigBundle, str, dict]:
-            dim_index_by_name = {str(dim_name): int(dim_indices.get(str(dim_name), 0)) for dim_name in _COMBO_FULL_CARTESIAN_DIM_ORDER}
-            timing_i = int(dim_index_by_name["timing_profile"])
-            conf_i = int(dim_index_by_name["confirm"])
-            short_i = int(dim_index_by_name["short_mult"])
-            timing_label, timing_strat_over, timing_filter_over = timing_profile_variants[timing_i]
-            pair_variant_row_by_dim = {
-                str(dim_name): pair_variants_by_dim[str(dim_name)][int(dim_index_by_name[str(dim_name)])]
-                for dim_name, _variants_key in _COMBO_FULL_PAIR_DIM_VARIANT_SPECS
-            }
-            pair_label_by_dim = {str(dim_name): str(row[0]) for dim_name, row in pair_variant_row_by_dim.items()}
-            pair_overrides_by_dim = {str(dim_name): dict(row[1]) for dim_name, row in pair_variant_row_by_dim.items()}
-            confirm = int(confirm_bars[conf_i])
-            short_mult = float(short_mults[short_i])
-
-            filters_overrides: dict[str, object] = {}
-            for dim_name in filter_override_dims:
-                over = pair_overrides_by_dim.get(str(dim_name))
-                if over:
-                    filters_overrides.update(over)
-            if timing_filter_over:
-                filters_overrides.update(timing_filter_over)
-            filters_obj = _mk_filters(overrides=filters_overrides) if filters_overrides else None
-            strat = base.strategy
-            strategy_overrides: dict[str, object] = {}
-            for dim_name in strategy_override_dims:
-                over = pair_overrides_by_dim.get(str(dim_name))
-                if over:
-                    strategy_overrides.update(over)
-            if timing_strat_over:
-                strategy_overrides.update(timing_strat_over)
-            strategy_overrides.pop("entry_confirm_bars", None)
-            strategy_overrides.pop("spot_short_risk_mult", None)
-            strategy_overrides.pop("filters", None)
-            strat = replace(
-                strat,
-                filters=filters_obj,
-                entry_confirm_bars=int(confirm),
-                spot_short_risk_mult=float(short_mult),
-                **strategy_overrides,
-            )
-            cfg = replace(base, strategy=strat)
-            meta_item = {str(dim_name): int(dim_index_by_name[str(dim_name)]) for dim_name in _COMBO_FULL_CARTESIAN_DIM_ORDER}
-            meta_item["_mr_rank"] = int(_mixed_radix_rank(dim_indices)) if rank_override is None else int(rank_override)
-            note_parts = [
-                str(timing_label),
-                str(pair_label_by_dim["direction"]),
-                f"c={int(confirm)}",
-                *[str(pair_label_by_dim[str(dim_name)]) for dim_name in _COMBO_FULL_NOTE_PAIR_DIM_ORDER],
-                f"short_mult={float(short_mult):g}",
-            ]
-            note = " | ".join(note_parts)
-            return cfg, str(note), meta_item
-
-        def _combo_full_cfg_note_meta_from_rank(
-            rank: int,
-        ) -> tuple[ConfigBundle, str, dict]:
-            dim_indices = _mixed_radix_indices_from_rank(int(rank))
-            return _combo_full_cfg_note_meta_from_dim_indices(dim_indices, rank_override=int(rank))
-
-        def _iter_combo_full_cartesian_plan():
-            index_ranges = tuple(range(int(size_by_dim[str(dim_name)])) for dim_name in _COMBO_FULL_CARTESIAN_DIM_ORDER)
-            for raw_indices in itertools.product(*index_ranges):
-                dim_indices = {str(dim_name): int(idx) for dim_name, idx in zip(_COMBO_FULL_CARTESIAN_DIM_ORDER, raw_indices)}
-                yield _combo_full_cfg_note_meta_from_dim_indices(dim_indices)
-
-        combo_dim_space_sig = _combo_full_dimension_space_signature(
-            ordered_dims=tuple(ordered_dims),
-            size_by_dim=size_by_dim,
-            timing_profile_variants=timing_profile_variants,
-            confirm_bars=confirm_bars,
-            pair_variants_by_dim=pair_variants_by_dim,
-            short_mults=short_mults,
-        )
+        base = preset_context.base
+        ordered_dims = preset_context.ordered_dims
+        combo_dim_space_sig = preset_context.dimension_signature
 
         def _combo_full_worker_stage_window_signature() -> str:
             raw = {
@@ -578,7 +452,7 @@ class SweepCartesian:
                 report_every=0,
                 heartbeat_sec=30.0,
                 plan_total=int(total),
-                plan_item_from_rank=_combo_full_cfg_note_meta_from_rank,
+                plan_item_from_rank=preset_context.plan_item_from_rank,
                 rank_manifest_window_signature=_combo_full_worker_stage_window_signature(),
                 rank_batch_size=2048,
             )
@@ -633,7 +507,7 @@ class SweepCartesian:
             report_every=200,
             heartbeat_sec=30.0,
             on_row=lambda _cfg, row, _note: rows.append(row),
-            serial_plan_builder=_iter_combo_full_cartesian_plan,
+            serial_plan_builder=preset_context.iter_plan,
             parallel_payloads_builder=lambda: (
                 lambda unresolved_i, prefetched_i: self._run_parallel_stage(
                     axis_name="combo_full",
