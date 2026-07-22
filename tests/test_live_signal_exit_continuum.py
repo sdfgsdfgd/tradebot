@@ -33,7 +33,7 @@ from tradebot.ui.bot_models import _BotInstance, _BotLegOrder, _BotOrder
 from tradebot.ui.bot_order_builder import BotOrderBuilderMixin
 from tradebot.ui.bot_signal_runtime import BotSignalRuntimeMixin
 from tradebot.ui.bot import BotScreen
-import tradebot.ui.bot as bot_module
+import tradebot.ui.bot_screen.orders as bot_orders_module
 import tradebot.ui.bot_signal_runtime as bot_signal_runtime_module
 
 
@@ -2365,7 +2365,7 @@ def test_automated_xsp_admission_denies_missing_staged_risk_before_preview_or_pl
         return evaluate_order_admission(request, facts)
 
     monkeypatch.setattr(
-        bot_module,
+        bot_orders_module,
         "evaluate_order_admission",
         _recording_evaluate,
         raising=False,
@@ -2420,7 +2420,7 @@ def test_automated_xsp_admission_previews_then_places_only_when_admitted(
         return evaluate_order_admission(request, facts)
 
     monkeypatch.setattr(
-        bot_module,
+        bot_orders_module,
         "evaluate_order_admission",
         _recording_evaluate,
         raising=False,
@@ -2499,7 +2499,7 @@ def test_automated_xsp_atomic_close_previews_then_places_with_exit_intent(
         return evaluate_order_admission(request, facts)
 
     monkeypatch.setattr(
-        bot_module,
+        bot_orders_module,
         "evaluate_order_admission",
         _recording_evaluate,
         raising=False,

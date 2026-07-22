@@ -23,8 +23,8 @@ if "tradebot.ui" not in sys.modules:
     ui_pkg.__path__ = [str(_UI_DIR)]  # type: ignore[attr-defined]
     sys.modules["tradebot.ui"] = ui_pkg
 
-import tradebot.ui.bot as bot_module
 import tradebot.ui.bot_engine_runtime as bot_engine_runtime_module
+import tradebot.ui.bot_screen.orders as bot_orders_module
 import tradebot.ui.bot_order_builder as bot_order_builder_module
 from tradebot.ui.bot import BotScreen
 from tradebot.ui.bot_engine_runtime import BotEngineRuntimeMixin
@@ -127,7 +127,7 @@ def test_live_combo_reprice_consumes_canonical_package_kernel(monkeypatch) -> No
     order, tickers = _option_order_fixture()
     calls: list[list[tuple[str, int, float | None]]] = []
     monkeypatch.setattr(
-        bot_module,
+        bot_orders_module,
         "option_package_debit_value",
         _recording_kernel(calls),
     )
