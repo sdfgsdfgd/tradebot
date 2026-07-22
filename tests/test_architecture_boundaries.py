@@ -12,7 +12,6 @@ MAX_MODULE_LINES = 1_000
 OVERSIZED_MODULE_DEBT = {
     "tradebot/backtest/cache_ops_lib.py",
     "tradebot/backtest/config.py",
-    "tradebot/backtest/data.py",
     "tradebot/backtest/engine.py",
     "tradebot/backtest/run_backtests_spot_multiwindow.py",
     "tradebot/backtest/run_backtests_spot_sweeps.py",

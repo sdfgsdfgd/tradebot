@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime
 
 from tradebot.backtest.cache_ops_lib import _CacheFetchRequest, _build_fetch_batches, _fetch_single_request
-from tradebot.backtest.data import _read_cache_cached, cache_path, read_cache, write_cache
+from tradebot.backtest.cache import _read_cache_cached, cache_path, read_cache, write_cache
 from tradebot.backtest.models import Bar
 
 

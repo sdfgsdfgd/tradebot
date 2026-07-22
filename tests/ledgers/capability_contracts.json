@@ -408,6 +408,7 @@
         "tests/test_offline_cache_preflight.py"
       ],
       "owner_surface": [
+        "tradebot/backtest/cache.py",
         "tradebot/backtest/data.py"
       ],
       "oracle": [
@@ -573,7 +574,7 @@
         "README.md"
       ],
       "owner_surface": [
-        "tradebot/backtest/data.py"
+        "tradebot/backtest/cache.py"
       ],
       "oracle": [
         "a measurable pass/fail outcome exists",

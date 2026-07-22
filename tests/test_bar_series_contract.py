@@ -4,7 +4,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from tradebot.backtest.data import IBKRHistoricalData, cache_path, read_cache, write_cache
+from tradebot.backtest.cache import cache_path, read_cache, write_cache
+from tradebot.backtest.data import IBKRHistoricalData
 from tradebot.backtest.models import Bar
 from tradebot.chart_data.cache import SeriesCacheService
 from tradebot.chart_data.series import BarSeries, BarSeriesMeta

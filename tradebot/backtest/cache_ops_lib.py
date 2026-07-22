@@ -30,15 +30,15 @@ from datetime import date, datetime, time, timedelta
 from pathlib import Path
 from typing import Iterable
 
-from .data import (
+from .cache import (
     CacheFileMeta,
-    IBKRHistoricalData,
     cache_path,
     ensure_offline_cached_window,
     parse_cache_filename,
     read_cache,
     write_cache,
 )
+from .data import IBKRHistoricalData
 from .spot_context import SpotBarRequirement, spot_bar_requirements_from_strategy
 from .models import Bar
 from .trading_calendar import (

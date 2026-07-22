@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from pathlib import Path
 
-from .data import cache_path as _cache_path_for_window
+from .cache import cache_path as _cache_path_for_window
 
 
 def parse_date(value: str) -> date:
