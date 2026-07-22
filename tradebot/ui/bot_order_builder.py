@@ -592,6 +592,38 @@ class BotOrderBuilderMixin:
             order_limit = _round_to_tick(float(desired_debit), tick)
             if not order_limit:
                 return _fail("Quote: combo price is 0 (cannot price)")
+
+            if intent_clean == "enter" and order_limit < 0:
+                min_credit_raw = strat.get("min_credit")
+                if min_credit_raw is None:
+                    min_credit = float(tick)
+                else:
+                    try:
+                        min_credit = float(min_credit_raw)
+                    except (TypeError, ValueError):
+                        return _fail(
+                            f"Order: invalid minimum credit {min_credit_raw!r}",
+                            quote_payload={
+                                "min_credit_raw": min_credit_raw,
+                                "debit_value": float(order_limit),
+                                "tick": float(tick),
+                            },
+                            retry_reason="minimum_credit_invalid",
+                        )
+
+                credit = -float(order_limit)
+                if credit < min_credit:
+                    return _fail(
+                        f"Order: credit {credit:.2f} below minimum {min_credit:.2f}",
+                        quote_payload={
+                            "credit": float(credit),
+                            "min_credit": float(min_credit),
+                            "debit_value": float(order_limit),
+                            "tick": float(tick),
+                        },
+                        retry_reason="minimum_credit_not_met",
+                    )
+
             try:
                 package_quantity = int(strat.get("quantity", 1) or 1)
             except (TypeError, ValueError):

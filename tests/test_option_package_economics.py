@@ -516,6 +516,7 @@ def _run_xsp_capacity_builder_case(
     *,
     available_capacity=_MISSING_XSP_RESERVATION_CAPACITY,
     reserved_max_loss: float = 650.0,
+    min_credit: float | None = None,
 ):
     from tradebot.order_reservation import (
         OrderReservationSummary,
@@ -652,6 +653,8 @@ def _run_xsp_capacity_builder_case(
     }
     if available_capacity is not _MISSING_XSP_RESERVATION_CAPACITY:
         strategy["xsp_reservation_capacity_usd"] = available_capacity
+    if min_credit is not None:
+        strategy["min_credit"] = min_credit
 
     instance = _BotInstance(
         instance_id=1,
@@ -702,6 +705,46 @@ def test_option_builder_consumes_explicit_xsp_reservation_capacity_before_stagin
     assert instance.last_entry_bar_ts == signal_bar_ts
     assert "Created order BUY BAG XSP" in harness._status
     assert len(package_calls) == 4
+
+
+def test_option_builder_blocks_credit_below_strategy_minimum_before_capacity_or_staging(
+    monkeypatch,
+) -> None:
+    harness, instance, signal_bar_ts, package_calls, capacity_calls = (
+        _run_xsp_capacity_builder_case(
+            monkeypatch,
+            available_capacity=2200.0,
+            reserved_max_loss=650.0,
+            min_credit=1.50,
+        )
+    )
+
+    assert capacity_calls == []
+    assert harness._orders == []
+    assert instance.touched_conids == set()
+    assert instance.entries_today == 0
+    assert instance.open_direction is None
+    assert instance.last_entry_bar_ts is None
+    assert harness._status == "Order: credit 1.00 below minimum 1.50"
+    assert instance.order_trigger_last_error == "Order: credit 1.00 below minimum 1.50"
+    assert instance.order_trigger_retry_reason == "minimum_credit_not_met"
+    assert len(package_calls) == 4
+
+    assert len(harness._events) == 1
+    event = harness._events[0]
+    assert event["event"] == "ORDER_BUILD_FAILED"
+    assert event["instance"] is instance
+    assert event["order"] is None
+    assert event["reason"] == "enter"
+    data = event["data"]
+    assert data["error"] == "Order: credit 1.00 below minimum 1.50"
+    assert data["direction"] == "up"
+    assert data["signal_bar_ts"] == signal_bar_ts.isoformat()
+    assert data["retry_reason"] == "minimum_credit_not_met"
+    assert data["credit"] == pytest.approx(1.00)
+    assert data["min_credit"] == pytest.approx(1.50)
+    assert data["debit_value"] == pytest.approx(-1.00)
+    assert data["tick"] == pytest.approx(0.01)
 
 
 def test_option_builder_blocks_capacity_exceeded_before_any_staging_mutation(
