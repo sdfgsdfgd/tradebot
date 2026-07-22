@@ -303,11 +303,34 @@ class BotOrderBuilderMixin:
         direction: str | None,
         signal_bar_ts: datetime | None,
     ) -> None:
+        intent_clean = str(intent or "enter").strip().lower() or "enter"
+        if intent_clean not in ("enter", "exit", "resize"):
+            symbol = str(
+                instance.symbol
+                or (self._payload.get("symbol", "SLV") if self._payload else "SLV")
+            ).strip().upper()
+            self._status = f"Unsupported order intent: {intent_clean}"
+            self._render_status()
+            instance.order_trigger_last_error = None
+            instance.order_trigger_retry_reason = None
+            clear_order_watch = getattr(self, "_clear_order_trigger_watch", None)
+            if callable(clear_order_watch):
+                clear_order_watch(instance)
+            self._journal_write(
+                event="ORDER_SKIPPED",
+                instance=instance,
+                order=None,
+                reason=intent_clean,
+                data={
+                    "skip_reason": "intent_unsupported",
+                    "intent": intent_clean,
+                    "symbol": symbol,
+                },
+            )
+            return
+
         strat = instance.strategy or {}
         instrument = self._strategy_instrument(strat)
-        intent_clean = str(intent or "enter").strip().lower()
-        if intent_clean not in ("enter", "exit", "resize"):
-            intent_clean = "enter"
         symbol = str(
             instance.symbol or (self._payload.get("symbol", "SLV") if self._payload else "SLV")
         ).strip().upper()

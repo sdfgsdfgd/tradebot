@@ -334,6 +334,179 @@ def test_option_builder_stages_native_credit_bag_through_canonical_kernel(monkey
     assert len(calls) == 4
 
 
+@pytest.mark.parametrize("unsupported_intent", ["roll", "rescue"])
+def test_option_builder_rejects_unsupported_transition_intent_before_mutation(
+    monkeypatch,
+    unsupported_intent: str,
+) -> None:
+    monkeypatch.setattr(
+        bot_order_builder_module,
+        "_now_et",
+        lambda: datetime(2026, 2, 9, 10, 0),
+    )
+
+    underlying = Stock(symbol="XSP", exchange="SMART", currency="USD")
+    underlying.conId = 900
+
+    class _Client:
+        def __init__(self) -> None:
+            self.stock_option_chain_calls = 0
+            self.qualify_calls = 0
+            self.ensure_ticker_calls = 0
+
+        async def stock_option_chain(self, symbol: str):
+            self.stock_option_chain_calls += 1
+            assert symbol == "XSP"
+            return underlying, SimpleNamespace(
+                expirations=["20260209"],
+                strikes=[95.0, 100.0],
+                tradingClass="XSP",
+            )
+
+        async def qualify_proxy_contracts(self, *contracts):
+            self.qualify_calls += 1
+            for contract in contracts:
+                contract.conId = 1001 if float(contract.strike) == 100.0 else 1002
+                contract.minTick = 0.01
+                contract.multiplier = "100"
+            return list(contracts)
+
+        async def ensure_ticker(self, contract, *, owner: str):
+            self.ensure_ticker_calls += 1
+            assert owner == "bot"
+            if str(contract.secType).upper() == "STK":
+                return SimpleNamespace(
+                    contract=contract,
+                    bid=99.90,
+                    ask=100.10,
+                    last=100.00,
+                    minTick=0.01,
+                    marketDataType=1,
+                    marketPrice=lambda: 100.00,
+                )
+            if float(contract.strike) == 100.0:
+                bid, ask, last = 2.00, 2.20, 2.10
+            else:
+                bid, ask, last = 1.00, 1.20, 1.10
+            return SimpleNamespace(
+                contract=contract,
+                bid=bid,
+                ask=ask,
+                last=last,
+                minTick=0.01,
+                marketDataType=1,
+            )
+
+        @staticmethod
+        def proxy_error():
+            return None
+
+    class _Harness(BotOrderBuilderMixin):
+        def __init__(self) -> None:
+            self._client = _Client()
+            self._payload = None
+            self._tracked_conids: set[int] = set()
+            self._orders: list[_BotOrder] = []
+            self._events: list[tuple[str, str | None, dict[str, object]]] = []
+            self._status = ""
+            self.reservation_summary_calls = 0
+            self.add_order_calls = 0
+
+        @staticmethod
+        def _strategy_instrument(_strategy) -> str:
+            return "options"
+
+        @staticmethod
+        def _initial_exec_mode(**_kwargs) -> str:
+            return "MID"
+
+        @staticmethod
+        def _reset_daily_counters_if_needed(_instance) -> None:
+            return None
+
+        def _order_reservation_summary(self):
+            from tradebot.order_reservation import OrderReservationSummary
+
+            self.reservation_summary_calls += 1
+            return OrderReservationSummary(
+                account="DU2200",
+                active_count=0,
+                unknown_active_count=0,
+                reserved_max_loss=0.0,
+                complete=True,
+                reason="reservation_complete",
+            )
+
+        def _add_order(self, order: _BotOrder) -> None:
+            self.add_order_calls += 1
+            self._orders.append(order)
+
+        def _render_status(self) -> None:
+            return None
+
+        def _journal_write(
+            self,
+            *,
+            event: str,
+            reason: str | None = None,
+            data: dict | None = None,
+            **_kwargs,
+        ) -> None:
+            self._events.append((str(event), reason, dict(data or {})))
+
+    signal_bar_ts = datetime(2026, 2, 9, 10, 0)
+    instance = _BotInstance(
+        instance_id=1,
+        group="xsp-credit",
+        symbol="XSP",
+        strategy={
+            "instrument": "options",
+            "entry_signal": "ema",
+            "ema_preset": "9/21",
+            "dte": 0,
+            "xsp_reservation_capacity_usd": 2200.0,
+            "legs": [
+                {"action": "SELL", "right": "PUT", "moneyness_pct": 0.0, "qty": 1},
+                {"action": "BUY", "right": "PUT", "moneyness_pct": 5.0, "qty": 1},
+            ],
+        },
+        filters=None,
+    )
+    harness = _Harness()
+
+    asyncio.run(
+        harness._create_order_for_instance(
+            instance,
+            intent=unsupported_intent,
+            direction="up",
+            signal_bar_ts=signal_bar_ts,
+        )
+    )
+
+    assert harness._orders == []
+    assert harness.add_order_calls == 0
+    assert harness._client.stock_option_chain_calls == 0
+    assert harness._client.qualify_calls == 0
+    assert harness._client.ensure_ticker_calls == 0
+    assert harness.reservation_summary_calls == 0
+    assert harness._tracked_conids == set()
+    assert instance.touched_conids == set()
+    assert instance.entries_today == 0
+    assert instance.open_direction is None
+    assert instance.last_entry_bar_ts is None
+    assert harness._events == [
+        (
+            "ORDER_SKIPPED",
+            unsupported_intent,
+            {
+                "skip_reason": "intent_unsupported",
+                "intent": unsupported_intent,
+                "symbol": "XSP",
+            },
+        )
+    ]
+
+
 _MISSING_XSP_RESERVATION_CAPACITY = object()
 
 
