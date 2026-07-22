@@ -125,7 +125,7 @@
     "tests/test_regime_router_exec_bar_state_persistence.py": "backtest-simulation-accounting",
     "tests/test_spot_combo_full_signature.py": "research-optimization-calibration",
     "tests/test_spot_context_requirements.py": "signal-regime-intelligence",
-    "tests/test_spot_fast_summary_parity.py": "market-realism-parity",
+    "tests/test_spot_summary_parity.py": "market-realism-parity",
     "tests/test_spot_policy_graph.py": "policy-risk-sizing",
     "tests/test_spot_policy_kernel.py": "policy-risk-sizing",
     "tests/test_spot_scenario_runner.py": "research-optimization-calibration",
@@ -272,7 +272,7 @@
         "current proof surfaces for market-realism-parity"
       ],
       "evidence": [
-        "tests/test_spot_fast_summary_parity.py",
+        "tests/test_spot_summary_parity.py",
         "tests/test_ui_bot_live_unreal_consistency.py",
         "tests/test_ui_signal_gap_calendar.py"
       ],

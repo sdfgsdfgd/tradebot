@@ -26,6 +26,7 @@ from .time_utils import (
 
 if TYPE_CHECKING:
     from .engines.risk import RiskOverlaySnapshot
+    from .spot.graph import SpotPolicyGraph
 
 
 # region Time Helpers
@@ -616,6 +617,8 @@ def spot_calc_signed_qty_with_trace(
     regime2_ready: bool = False,
     equity_ref: float = 0.0,
     cash_ref: float | None = None,
+    policy_graph: SpotPolicyGraph | None = None,
+    policy_config: SpotPolicyConfigView | None = None,
 ) -> tuple[int, SpotDecisionTrace]:
     """Return signed share qty plus a typed spot decision trace."""
     return SpotPolicy.calc_signed_qty_with_trace(
@@ -646,6 +649,8 @@ def spot_calc_signed_qty_with_trace(
         regime2_ready=bool(regime2_ready),
         equity_ref=equity_ref,
         cash_ref=cash_ref,
+        policy_graph=policy_graph,
+        policy_config=policy_config,
     )
 
 
@@ -654,12 +659,14 @@ def spot_resolve_position_intent(
     strategy: Mapping[str, object] | object | None,
     current_qty: int,
     target_qty: int,
+    policy_config: SpotPolicyConfigView | None = None,
 ) -> SpotIntentDecision:
     """Resolve order intent needed to move from current_qty to target_qty."""
     return SpotPolicy.resolve_position_intent(
         strategy=strategy,
         current_qty=current_qty,
         target_qty=target_qty,
+        policy_config=policy_config,
     )
 
 

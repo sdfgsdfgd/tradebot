@@ -68,16 +68,15 @@ class SweepHighFrequencyAxes:
                 ),
             )
 
-        # Stage 1: stop-loss + flip-profit baseline (keep it fast-runner-friendly).
+        # Stage 1: stop-loss + flip-profit baseline.
         #
         # Note: v1 used very tight stops (sub-0.6%), which produced many 1y winners but was negative over 10y for
         # every candidate. v2 widens the stop grid + EMA presets to reduce whipsaw and improve decade stability.
         ema_presets = ["3/7", "4/9", "5/13", "8/21", "9/21", "21/50"]
         stop_only_vals = [0.0060, 0.0080, 0.0100, 0.0120, 0.0150, 0.0200]
         flip_hold_vals = [0, 2, 4]
-        # Keep stages 1-3 on the fast summary runner path (single-position, close_eod=False),
-        # then expand close_eod on a tiny shortlist at the end.
-        stage_fast_close_eod = False
+        # Keep stages 1-3 single-position, then expand close_eod on a tiny shortlist.
+        stage_close_eod = False
         expand_close_eod_vals = [False, True]
 
         base = self._base_bundle(bar_size=self.signal_bar_size, filters=None)
@@ -164,7 +163,7 @@ class SweepHighFrequencyAxes:
                                     flip_exit_only_if_profit=True,
                                     flip_exit_min_hold_bars=int(hold),
                                     flip_exit_gate_mode="off",
-                                    spot_close_eod=bool(stage_fast_close_eod),
+                                    spot_close_eod=bool(stage_close_eod),
                                     spot_short_risk_mult=0.01,
                                     filters=f,
                                     **regime_patch,
@@ -175,7 +174,7 @@ class SweepHighFrequencyAxes:
                                 continue
                             note = (
                                 f"stop+flip | EMA={ema_preset} confirm=0 | {regime_note} | {perm_note} | "
-                                f"tod=9-16 ET skip=0 cd=0 close_eod={int(stage_fast_close_eod)} | "
+                                f"tod=9-16 ET skip=0 cd=0 close_eod={int(stage_close_eod)} | "
                                 f"SL={sl:.4f} hold={hold}"
                             )
                             row["note"] = note

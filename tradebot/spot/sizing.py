@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from dataclasses import replace
 
 from .graph import SpotPolicyGraph
-from .policy_contract import SpotDecisionTrace
+from .policy_contract import SpotDecisionTrace, SpotPolicyConfigView
 
 
 class SpotSizingPolicy:
@@ -43,8 +43,10 @@ class SpotSizingPolicy:
         regime2_ready: bool = False,
         equity_ref: float = 0.0,
         cash_ref: float | None = None,
+        policy_graph: SpotPolicyGraph | None = None,
+        policy_config: SpotPolicyConfigView | None = None,
     ) -> tuple[int, SpotDecisionTrace]:
-        cfg = cls.policy_config(strategy=strategy, filters=filters)
+        cfg = policy_config or cls.policy_config(strategy=strategy, filters=filters)
 
         lot_i = max(1, int(lot or 1))
         raw_action = str(action or "BUY").strip().upper()
@@ -146,7 +148,7 @@ class SpotSizingPolicy:
             if shock_atr_pct_f > 0:
                 shock_atr_pct_clean = float(shock_atr_pct_f)
 
-        graph = SpotPolicyGraph.from_sources(strategy=strategy, filters=filters)
+        graph = policy_graph or SpotPolicyGraph.from_sources(strategy=strategy, filters=filters)
         risk_tr_ratio = None
         risk_slope_med = None
         risk_slope_vel = None

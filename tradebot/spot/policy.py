@@ -254,8 +254,9 @@ class SpotPolicy(SpotSizingPolicy):
         strategy: Mapping[str, object] | object | None,
         current_qty: int,
         target_qty: int,
+        policy_config: SpotPolicyConfigView | None = None,
     ) -> SpotIntentDecision:
-        cfg = cls.policy_config(strategy=strategy, filters=None)
+        cfg = policy_config or cls.policy_config(strategy=strategy, filters=None)
         mode = str(cfg.spot_resize_mode or "off")
 
         try:

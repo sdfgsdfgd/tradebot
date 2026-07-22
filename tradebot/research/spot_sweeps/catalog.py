@@ -16,7 +16,6 @@ class AxisSurfaceSpec:
     name: str
     include_in_axis_all: bool = False
     help_text: str = "See source."
-    fast_path: str = "yes"
     sharding_class: str = "none"
     coverage_note: str = ""
     parallel_profile_axis_all: str = "single"
@@ -33,7 +32,6 @@ _AXIS_SURFACE_SPECS: tuple[AxisSurfaceSpec, ...] = (
         "combo_full",
         False,
         "Unified tight Cartesian sweep over centralized combo dimensions.",
-        fast_path="partial",
         sharding_class="stage",
         coverage_note="unified Cartesian core (mixed-radix shard ranges)",
         dimensional_cost_source="combo_full_cartesian_tight",
@@ -47,21 +45,18 @@ _AXIS_SURFACE_SPECS: tuple[AxisSurfaceSpec, ...] = (
         "atr",
         True,
         "Core ATR exits sweep.",
-        fast_path="no",
         total_hint_mode="atr_profile",
     ),
     AxisSurfaceSpec(
         "atr_fine",
         False,
         "Fine ATR PT/SL pocket sweep.",
-        fast_path="no",
         total_hint_mode="atr_profile",
     ),
     AxisSurfaceSpec(
         "atr_ultra",
         False,
         "Ultra-fine ATR PT/SL micro-grid.",
-        fast_path="no",
         total_hint_mode="atr_profile",
     ),
     AxisSurfaceSpec("chop_joint", False, "Chop-killer joint sweep (slope x cooldown x skip-open)."),
@@ -70,7 +65,7 @@ _AXIS_SURFACE_SPECS: tuple[AxisSurfaceSpec, ...] = (
         True,
         "Fixed-percent PT/SL exits sweep with flip/close_eod semantics (non-ATR).",
     ),
-    AxisSurfaceSpec("hf_scalp", False, "HF scalp cadence sweep.", fast_path="partial"),
+    AxisSurfaceSpec("hf_scalp", False, "HF scalp cadence sweep."),
     AxisSurfaceSpec("hold", True, "Flip-exit minimum-hold-bars sweep.", total_hint_static=7),
     AxisSurfaceSpec(
         "spot_short_risk_mult",
@@ -78,13 +73,12 @@ _AXIS_SURFACE_SPECS: tuple[AxisSurfaceSpec, ...] = (
         "Short-side risk multiplier sweep.",
         total_hint_static=13,
     ),
-    AxisSurfaceSpec("orb", True, "ORB sweep (open-time, window, target semantics).", fast_path="no"),
-    AxisSurfaceSpec("orb_joint", False, "ORB x regime x TICK joint sweep.", fast_path="no"),
+    AxisSurfaceSpec("orb", True, "ORB sweep (open-time, window, target semantics)."),
+    AxisSurfaceSpec("orb_joint", False, "ORB x regime x TICK joint sweep."),
     AxisSurfaceSpec(
         "frontier",
         False,
         "Frontier sweep over shortlist dimensions.",
-        fast_path="partial",
     ),
     AxisSurfaceSpec(
         "regime",
@@ -105,7 +99,6 @@ _AXIS_SURFACE_SPECS: tuple[AxisSurfaceSpec, ...] = (
         "flip_exit",
         True,
         "Flip-exit semantics/gating sweep.",
-        fast_path="partial",
         total_hint_static=48,
     ),
     AxisSurfaceSpec("confirm", True, "Entry confirmation bars sweep.", total_hint_static=4),
@@ -139,7 +132,7 @@ _AXIS_SURFACE_SPECS: tuple[AxisSurfaceSpec, ...] = (
         total_hint_mode="shock_profile",
     ),
     AxisSurfaceSpec("loosen", True, "Loosenings sweep (single-position parity + EOD behavior)."),
-    AxisSurfaceSpec("tick", True, "Raschke-style $TICK width gate sweep.", fast_path="no"),
+    AxisSurfaceSpec("tick", True, "Raschke-style $TICK width gate sweep."),
 )
 _AXIS_CHOICES = tuple(spec.name for spec in _AXIS_SURFACE_SPECS)
 _AXIS_ALL_PLAN = tuple(spec.name for spec in _AXIS_SURFACE_SPECS if bool(spec.include_in_axis_all))
@@ -588,7 +581,6 @@ _BASE_HELP_NOTES: dict[str, str] = {
 class AxisExecutionSpec:
     include_in_axis_all: bool
     help_text: str
-    fast_path: str = "yes"
     sharding_class: str = "none"
     coverage_note: str = ""
     parallel_profile_axis_all: str = "single"
@@ -699,7 +691,6 @@ def _build_axis_execution_specs() -> dict[str, AxisExecutionSpec]:
         out[str(axis_name)] = AxisExecutionSpec(
             include_in_axis_all=bool(in_all),
             help_text=(str(surface_spec.help_text or "See source.") if isinstance(surface_spec, AxisSurfaceSpec) else str(_AXIS_HELP_TEXT_BY_NAME.get(str(axis_name)) or "See source.")),
-            fast_path=(str(surface_spec.fast_path or "yes") if isinstance(surface_spec, AxisSurfaceSpec) else "yes"),
             sharding_class=(str(surface_spec.sharding_class or "none") if isinstance(surface_spec, AxisSurfaceSpec) else "none"),
             coverage_note=(str(surface_spec.coverage_note or "") if isinstance(surface_spec, AxisSurfaceSpec) else ""),
             parallel_profile_axis_all=(str(surface_spec.parallel_profile_axis_all or "single") if isinstance(surface_spec, AxisSurfaceSpec) else "single"),
@@ -828,14 +819,13 @@ def _combo_full_preset_catalog_lines() -> list[str]:
     return lines
 
 
-def _axis_coverage_row(axis_name: str) -> tuple[str, str, str, str]:
+def _axis_coverage_row(axis_name: str) -> tuple[str, str, str]:
     axis_key = str(axis_name).strip().lower()
     spec = _AXIS_EXECUTION_SPEC_BY_NAME.get(axis_key)
     sharded = "yes" if isinstance(spec, AxisExecutionSpec) and str(spec.sharding_class) != "none" else "no"
     cached = "yes"
-    fast_path = str(spec.fast_path if isinstance(spec, AxisExecutionSpec) else "yes")
     notes = str(spec.coverage_note if isinstance(spec, AxisExecutionSpec) else "")
-    return sharded, cached, fast_path, notes
+    return sharded, cached, notes
 
 
 def _spot_sweep_coverage_map_markdown(*, generated_on: date | None = None) -> str:
@@ -845,21 +835,21 @@ def _spot_sweep_coverage_map_markdown(*, generated_on: date | None = None) -> st
         "",
         f"Generated: {generated.isoformat()}",
         "",
-        "Legend: `sharded` = stage-level worker sharding inside the axis; `cached` = run_cfg+context cache applies; `fast_path` = expected fast-summary eligibility (`yes`/`partial`/`no`).",
+        "Legend: `sharded` = stage-level worker sharding inside the axis; `cached` = run_cfg+context cache applies.",
         "",
-        "| axis | sharded | cached | fast_path | notes |",
-        "|---|---|---|---|---|",
+        "| axis | sharded | cached | notes |",
+        "|---|---|---|---|",
     ]
     for axis_name in _AXIS_CHOICES:
-        sharded, cached, fast_path, notes = _axis_coverage_row(axis_name)
-        lines.append(f"| `{axis_name}` | {sharded} | {cached} | {fast_path} | {notes} |")
+        sharded, cached, notes = _axis_coverage_row(axis_name)
+        lines.append(f"| `{axis_name}` | {sharded} | {cached} | {notes} |")
     lines.extend(
         (
             "",
             "## Notes",
             "- `combo_full` and `--axis all` additionally support axis-level subprocess orchestration.",
             "- Persistent cross-process run_cfg cache is enabled via sqlite (`spot_sweeps_run_cfg_cache.sqlite3`).",
-            "- Fast-path labels are conservative and reflect the current gate in `_can_use_fast_summary_path`.",
+            "- Engine labels describe canonical summary execution; all axes share one lifecycle implementation.",
         )
     )
     return "\n".join(lines) + "\n"

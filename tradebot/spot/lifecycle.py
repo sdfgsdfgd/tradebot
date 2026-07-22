@@ -249,8 +249,10 @@ def decide_open_position_intent(
     slope_vel_pct: float | None = None,
     slope_med_slow_pct: float | None = None,
     slope_vel_slow_pct: float | None = None,
+    policy_graph: SpotPolicyGraph | None = None,
+    policy_config: SpotPolicyConfigView | None = None,
 ) -> SpotLifecycleDecision:
-    graph = SpotPolicyGraph.from_sources(strategy=strategy, filters=None)
+    graph = policy_graph or SpotPolicyGraph.from_sources(strategy=strategy, filters=None)
     exit_pick = graph.resolve_exit_reason(
         strategy=strategy,
         open_dir=open_dir,
@@ -326,9 +328,10 @@ def decide_open_position_intent(
         strategy=strategy,
         current_qty=int(current_qty),
         target_qty=int(effective_target),
+        policy_config=policy_config,
     )
     if str(spot_intent.intent) == "resize":
-        cfg = SpotPolicyConfigView.from_sources(strategy=strategy, filters=None)
+        cfg = policy_config or SpotPolicyConfigView.from_sources(strategy=strategy, filters=None)
         cooldown = max(0, int(cfg.spot_resize_cooldown_bars))
         if cooldown > 0:
             elapsed = _bars_elapsed(last_resize_bar_ts, bar_ts, bar_size=str(bar_size))
@@ -421,6 +424,7 @@ def decide_flat_position_intent(
     slope_med_slow_pct: float | None = None,
     slope_vel_slow_pct: float | None = None,
     entry_gate_bypass: bool = False,
+    policy_graph: SpotPolicyGraph | None = None,
 ) -> SpotLifecycleDecision:
     if bool(stale_signal):
         return SpotLifecycleDecision(
@@ -549,7 +553,7 @@ def decide_flat_position_intent(
             "gate": "ENTRY_GATE_BYPASS",
         }
     else:
-        graph = SpotPolicyGraph.from_sources(strategy=strategy, filters=None)
+        graph = policy_graph or SpotPolicyGraph.from_sources(strategy=strategy, filters=None)
         entry_gate = graph.evaluate_entry_gate(
             strategy=strategy,
             bar_ts=bar_ts,

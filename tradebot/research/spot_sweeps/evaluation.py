@@ -798,8 +798,6 @@ class SweepEvaluation:
                         pack_hash, prepared_pack = _spot_prepare_summary_series_pack(
                             cfg=cfg,
                             signal_bars=bars_eff_pc,
-                            regime_bars=regime_eff_pc,
-                            regime2_bars=regime2_eff_pc,
                             tick_bars=tick_bars_pc,
                             exec_bars=exec_bars_pc,
                         )

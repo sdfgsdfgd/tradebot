@@ -147,7 +147,7 @@ def test_spot_strategy_ignores_legacy_unknown_field() -> None:
     assert int(summary.trades) >= 1
 
 
-def test_spot_next_open_entries_execute_when_fast_path_disabled() -> None:
+def test_spot_next_open_entries_execute_through_canonical_summary() -> None:
     day = date(2024, 1, 1)
     base = datetime(day.year, day.month, day.day, 14, 0, 0)
     seg1 = _bars_5m(start=base, end=base + timedelta(minutes=60), start_price=100.0, end_price=102.0)
@@ -158,8 +158,8 @@ def test_spot_next_open_entries_execute_when_fast_path_disabled() -> None:
     signal_bars = _extract_signal_bars(exec_bars, every_minutes=30)
 
     cfg = _base_cfg(day)
-    # Force the iterative summary path (disable fast path) so next-open pending fill
-    # behavior is validated under the shared lifecycle runtime.
+    # Keep a non-default filter active while proving next-open fills traverse the
+    # same canonical lifecycle used by detailed backtests.
     cfg = replace(
         cfg,
         strategy=replace(
