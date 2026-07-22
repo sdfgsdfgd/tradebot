@@ -1996,7 +1996,7 @@ class IBKRClient:
             perm_id=wanted_perm_id,
         )
 
-    async def _sync_order_snapshots(self, *, include_completed: bool) -> None:
+    async def _sync_order_snapshots(self, *, include_completed: bool) -> bool:
         requests = [
             asyncio.wait_for(
                 self._ib.reqAllOpenOrdersAsync(),
@@ -2018,7 +2018,8 @@ class IBKRClient:
                     timeout=float(_ORDER_RECONCILE_TIMEOUT_SEC),
                 )
             )
-        await asyncio.gather(*requests, return_exceptions=True)
+        results = await asyncio.gather(*requests, return_exceptions=True)
+        return any(not isinstance(result, BaseException) for result in results)
 
     async def reconcile_order_state(
         self,
@@ -2049,8 +2050,11 @@ class IBKRClient:
                 if bool(force) or (
                     now_locked - float(self._last_order_reconcile_mono)
                 ) >= float(_ORDER_RECONCILE_MIN_INTERVAL_SEC):
-                    await self._sync_order_snapshots(include_completed=bool(force))
-                    self._last_order_reconcile_mono = time.monotonic()
+                    refreshed = await self._sync_order_snapshots(
+                        include_completed=bool(force)
+                    )
+                    if refreshed:
+                        self._last_order_reconcile_mono = time.monotonic()
         if wanted_order_id <= 0 and wanted_perm_id <= 0:
             return None
         return self._order_state_for_ids(

@@ -274,6 +274,81 @@ def test_current_order_state_promotes_pending_to_submitted_when_open() -> None:
     assert str(payload.get("effective_status")) == "Submitted"
 
 
+def test_reconcile_order_state_retries_immediately_when_all_snapshot_requests_fail() -> None:
+    client = _new_client()
+    contract = Contract(secType="FUT", symbol="MNQ", exchange="CME", currency="USD")
+    contract.conId = 750150193
+    trade = SimpleNamespace(
+        order=SimpleNamespace(orderId=771, permId=88001),
+        orderStatus=SimpleNamespace(status="Submitted", filled=0.0, remaining=1.0),
+        contract=contract,
+        fills=[],
+        isDone=lambda: False,
+    )
+
+    class _FailingSnapshotIB:
+        def __init__(self) -> None:
+            self.calls: list[str] = []
+
+        @staticmethod
+        def isConnected() -> bool:
+            return True
+
+        @staticmethod
+        def trades():
+            return [trade]
+
+        @staticmethod
+        def openTrades():
+            return [trade]
+
+        @staticmethod
+        def completedTrades():
+            return []
+
+        @staticmethod
+        def fills():
+            return []
+
+        async def _fail(self, name: str):
+            self.calls.append(name)
+            raise RuntimeError(f"{name} unavailable")
+
+        async def reqAllOpenOrdersAsync(self):
+            return await self._fail("all_open")
+
+        async def reqOpenOrdersAsync(self):
+            return await self._fail("open")
+
+        async def reqExecutionsAsync(self, _execution_filter):
+            return await self._fail("executions")
+
+    fake_ib = _FailingSnapshotIB()
+    client._ib = fake_ib
+    client._last_order_reconcile_mono = 0.0
+
+    async def _run():
+        first = await client.reconcile_order_state(order_id=771, perm_id=88001)
+        second = await client.reconcile_order_state(order_id=771, perm_id=88001)
+        return first, second
+
+    first, second = asyncio.run(_run())
+
+    assert isinstance(first, dict)
+    assert isinstance(second, dict)
+    assert first.get("effective_status") == "Submitted"
+    assert second.get("effective_status") == "Submitted"
+    assert fake_ib.calls == [
+        "all_open",
+        "open",
+        "executions",
+        "all_open",
+        "open",
+        "executions",
+    ]
+    assert client._last_order_reconcile_mono == 0.0
+
+
 def test_connect_rotates_client_id_on_conflict_and_persists_pair(tmp_path) -> None:
     _ensure_event_loop()
     cfg = IBKRConfig(
