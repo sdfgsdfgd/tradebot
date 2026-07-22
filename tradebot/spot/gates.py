@@ -22,6 +22,7 @@ from .fill_modes import (
     spot_fill_mode_is_deferred,
     spot_fill_mode_is_next_tradable,
 )
+from .graph_core import spot_dynamic_flip_hold_bars
 from .policy import SpotPolicy
 from .policy_contract import SpotPolicyConfigView
 
@@ -590,6 +591,44 @@ def flip_exit_hit(
     if open_dir == "up":
         return state == "down"
     return state == "up"
+
+
+def flip_exit_allowed(
+    *,
+    strategy: Mapping[str, object] | object,
+    open_dir: str | None,
+    entry_time: datetime,
+    current_time: datetime,
+    bar_size: str,
+    signal: object | None,
+    tr_ratio: float | None = None,
+    shock_atr_vel_pct: float | None = None,
+    tr_median_pct: float | None = None,
+) -> bool:
+    """Apply the shared signal-flip and minimum-hold policy."""
+    if str(_get(strategy, "direction_source", "")) != "ema":
+        return False
+    if not flip_exit_hit(
+        exit_on_signal_flip=bool(_get(strategy, "exit_on_signal_flip", False)),
+        open_dir=open_dir,
+        signal=signal,
+        flip_exit_mode_raw=str(_get(strategy, "flip_exit_mode", "") or ""),
+        ema_entry_mode_raw=str(_get(strategy, "ema_entry_mode", "") or ""),
+    ):
+        return False
+    hold_bars, _ = spot_dynamic_flip_hold_bars(
+        strategy=strategy,
+        tr_ratio=tr_ratio,
+        shock_atr_vel_pct=shock_atr_vel_pct,
+        tr_median_pct=tr_median_pct,
+    )
+    bar_def = parse_bar_size(bar_size)
+    if hold_bars <= 0:
+        return True
+    if bar_def is None or bar_def.duration <= timedelta(0):
+        return False
+    held_bars = int((current_time - entry_time).total_seconds() // bar_def.duration.total_seconds())
+    return held_bars >= hold_bars
 
 
 def _normalize_shock_gate_mode(filters: Mapping[str, object] | object | None) -> str:

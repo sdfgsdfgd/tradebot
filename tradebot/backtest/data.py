@@ -9,6 +9,7 @@ from pathlib import Path
 from ib_insync import IB, ContFuture, Index, Stock, util
 from zoneinfo import ZoneInfo
 
+from .config import ConfigBundle
 from .models import Bar
 from ..chart_data.series import BarSeries, BarSeriesMeta
 from ..config import load_config
@@ -101,6 +102,30 @@ class ContractMeta:
     exchange: str
     multiplier: float
     min_tick: float
+
+
+def load_backtest_series(
+    *,
+    data: "IBKRHistoricalData",
+    cfg: ConfigBundle,
+    symbol: str,
+    exchange: str | None,
+    start: datetime,
+    end: datetime,
+    bar_size: str,
+    use_rth: bool,
+) -> BarSeries[Bar]:
+    """Load the canonical cached or live series selected by backtest policy."""
+    loader = data.load_cached_bar_series if bool(cfg.backtest.offline) else data.load_or_fetch_bar_series
+    return loader(
+        symbol=symbol,
+        exchange=exchange,
+        start=start,
+        end=end,
+        bar_size=str(bar_size),
+        use_rth=bool(use_rth),
+        cache_dir=cfg.backtest.cache_dir,
+    )
 
 
 class IBKRHistoricalData:

@@ -1,4 +1,4 @@
-"""Data models for synthetic backtests."""
+"""Canonical backtest records and outcome aggregation."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -94,3 +94,62 @@ class SummaryStats:
     max_drawdown: float
     max_drawdown_pct: float
     avg_hold_hours: float
+
+
+@dataclass(frozen=True)
+class BacktestResult:
+    trades: list[OptionTrade | SpotTrade]
+    equity: list[EquityPoint]
+    summary: SummaryStats
+    lifecycle_trace: list[dict[str, object]] | None = None
+
+
+def summarize_with_max_drawdown(
+    trades: list[OptionTrade | SpotTrade],
+    *,
+    starting_cash: float,
+    max_drawdown: float,
+    multiplier: float,
+) -> SummaryStats:
+    pnls = [trade.pnl(multiplier) for trade in trades]
+    wins = [pnl for pnl in pnls if pnl >= 0]
+    losses = [pnl for pnl in pnls if pnl < 0]
+    hold_hours = [
+        (trade.exit_time - trade.entry_time).total_seconds() / 3600.0
+        for trade in trades
+        if trade.exit_time is not None
+    ]
+    total_pnl = sum(pnls)
+    total = len(pnls)
+    return SummaryStats(
+        trades=total,
+        wins=len(wins),
+        losses=len(losses),
+        win_rate=len(wins) / total if total else 0.0,
+        total_pnl=total_pnl,
+        roi=total_pnl / starting_cash if starting_cash > 0 else 0.0,
+        avg_win=sum(wins) / len(wins) if wins else 0.0,
+        avg_loss=sum(losses) / len(losses) if losses else 0.0,
+        max_drawdown=max_drawdown,
+        max_drawdown_pct=max_drawdown / starting_cash if starting_cash > 0 else 0.0,
+        avg_hold_hours=sum(hold_hours) / len(hold_hours) if hold_hours else 0.0,
+    )
+
+
+def summarize(
+    trades: list[OptionTrade | SpotTrade],
+    starting_cash: float,
+    equity_curve: list[EquityPoint],
+    multiplier: float,
+) -> SummaryStats:
+    peak = equity_curve[0].equity if equity_curve else starting_cash
+    max_drawdown = 0.0
+    for point in equity_curve:
+        peak = max(peak, point.equity)
+        max_drawdown = max(max_drawdown, peak - point.equity)
+    return summarize_with_max_drawdown(
+        trades,
+        starting_cash=starting_cash,
+        max_drawdown=max_drawdown,
+        multiplier=multiplier,
+    )

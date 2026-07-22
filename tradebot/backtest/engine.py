@@ -12,24 +12,18 @@ from pathlib import Path
 from typing import NamedTuple, Union
 
 from .config import ConfigBundle, SpotLegConfig
-from .data import IBKRHistoricalData, ContractMeta
-from .models import Bar, EquityPoint, OptionLeg, OptionTrade, SpotTrade, SummaryStats
+from .data import IBKRHistoricalData, ContractMeta, load_backtest_series
+from .models import BacktestResult, Bar, EquityPoint, SpotTrade, summarize_with_max_drawdown
 from .spot_context import SpotBarRequirement, load_spot_context_bars, spot_signal_warmup_days_from_strategy
-from .strategy import TradeSpec
 from ..chart_data.cache import series_cache_service
 from ..chart_data.series import BarSeries, bars_list
 from ..engines.risk import risk_overlay_policy_from_filters
 from ..engines.signals import EmaDecisionSnapshot
-from ..option_package import (
-    option_package_debit_value,
-    option_profit_target_hit,
-    option_stop_loss_hit,
-)
 from ..spot.gates import (
     deferred_entry_plan as lifecycle_deferred_entry_plan,
     fill_due_ts as lifecycle_fill_due_ts,
     entry_capacity_ok as lifecycle_entry_capacity_ok,
-    flip_exit_hit,
+    flip_exit_allowed,
     flip_exit_gate_blocked as lifecycle_flip_exit_gate_blocked,
     next_open_due_ts as lifecycle_next_open_due_ts,
     next_open_entry_allowed as lifecycle_next_open_entry_allowed,
@@ -41,16 +35,14 @@ from ..spot.fill_modes import (
     normalize_spot_fill_mode,
     spot_fill_mode_is_deferred,
 )
-from ..spot.graph_core import spot_dynamic_flip_hold_bars
 from ..spot.graph import SpotPolicyGraph
 from ..spot.policy_contract import SpotPolicyConfigView
 from ..spot.scenario import lifecycle_trace_row, why_not_exit_resize_report, write_rows_csv
-from .synth import IVSurfaceParams, black_76, black_scholes, iv_atm, iv_for_strike, mid_edge_quote
-from ..utils.date_utils import business_days_until
 from ..engine import (
     _trade_date,
     _trade_weekday,
     _ts_to_et,
+    bars_elapsed,
     cooldown_ok_by_index,
     normalize_spot_entry_signal,
     parse_time_hhmm,
@@ -74,7 +66,7 @@ from ..engine import (
     spot_shock_exit_pct_multipliers,
     spot_stop_level,
 )
-from ..signals import ema_periods as _ema_periods_shared
+from ..signals import ema_periods as _ema_periods_shared, parse_bar_size
 
 
 # region Internal Caches (Spot Backtest)
@@ -565,60 +557,6 @@ def _spot_exec_profile(strategy: object) -> _SpotExecProfile:
 
 
 # region Public API
-@dataclass(frozen=True)
-class BacktestResult:
-    trades: list[OptionTrade | SpotTrade]
-    equity: list[EquityPoint]
-    summary: SummaryStats
-    lifecycle_trace: list[dict[str, object]] | None = None
-
-
-def _load_backtest_series(
-    *,
-    data: IBKRHistoricalData,
-    cfg: ConfigBundle,
-    symbol: str,
-    exchange: str | None,
-    start: datetime,
-    end: datetime,
-    bar_size: str,
-    use_rth: bool,
-) -> BarSeries[Bar]:
-    loader = data.load_cached_bar_series if bool(cfg.backtest.offline) else data.load_or_fetch_bar_series
-    return loader(
-        symbol=symbol,
-        exchange=exchange,
-        start=start,
-        end=end,
-        bar_size=str(bar_size),
-        use_rth=bool(use_rth),
-        cache_dir=cfg.backtest.cache_dir,
-    )
-
-
-def _load_backtest_bars(
-    *,
-    data: IBKRHistoricalData,
-    cfg: ConfigBundle,
-    symbol: str,
-    exchange: str | None,
-    start: datetime,
-    end: datetime,
-    bar_size: str,
-    use_rth: bool,
-) -> list[Bar]:
-    return _load_backtest_series(
-        data=data,
-        cfg=cfg,
-        symbol=symbol,
-        exchange=exchange,
-        start=start,
-        end=end,
-        bar_size=bar_size,
-        use_rth=use_rth,
-    ).as_list()
-
-
 def _resolve_backtest_contract_meta(*, data: IBKRHistoricalData, cfg: ConfigBundle) -> ContractMeta:
     is_future = cfg.strategy.symbol in ("MNQ", "MBT")
     if cfg.backtest.offline:
@@ -662,7 +600,7 @@ def _load_spot_backtest_context_bars(
 ]:
     def _load_requirement(req: SpotBarRequirement, req_start: datetime, req_end: datetime):
         if not bool(cfg.backtest.offline) or req_start == start_dt:
-            return _load_backtest_series(
+            return load_backtest_series(
                 data=data,
                 cfg=cfg,
                 symbol=req.symbol,
@@ -673,7 +611,7 @@ def _load_spot_backtest_context_bars(
                 use_rth=bool(req.use_rth),
             )
         try:
-            return _load_backtest_series(
+            return load_backtest_series(
                 data=data,
                 cfg=cfg,
                 symbol=req.symbol,
@@ -687,7 +625,7 @@ def _load_spot_backtest_context_bars(
             # Router/indicator warmup can request earlier context windows than the cache contains.
             # Falling back to the scoring start preserves run continuity while still warming up
             # any slow indicators as bars arrive.
-            return _load_backtest_series(
+            return load_backtest_series(
                 data=data,
                 cfg=cfg,
                 symbol=req.symbol,
@@ -734,7 +672,7 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
         )
     )
     try:
-        bar_series = _load_backtest_series(
+        bar_series = load_backtest_series(
             data=data,
             cfg=cfg,
             symbol=cfg.strategy.symbol,
@@ -747,7 +685,7 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
     except FileNotFoundError:
         # Warmup can request bars earlier than the cached dataset starts (e.g. the first year in the cache).
         # Fall back to the scoring start; downstream indicators will still warm up as bars arrive.
-        bar_series = _load_backtest_series(
+        bar_series = load_backtest_series(
             data=data,
             cfg=cfg,
             symbol=cfg.strategy.symbol,
@@ -1822,7 +1760,7 @@ def _run_spot_backtest_summary(
     """Spot backtest optimized for sweeps that only need `SummaryStats`.
 
     Keeps semantics aligned with `_run_spot_backtest_exec_loop`, but skips building the
-    full equity curve list (and the generic `_summarize` pass over it).
+    full equity curve list (and a second aggregation pass over it).
     """
     signal_bars = _bars_input_list(bars)
     regime_bars_list = _bars_input_optional_list(regime_bars)
@@ -1933,7 +1871,7 @@ def _run_spot_backtest_exec_loop(
     )
     entry_signal = normalize_spot_entry_signal(getattr(cfg.strategy, "entry_signal", "ema"))
 
-    ema_periods = _ema_periods(cfg.strategy.ema_preset) if entry_signal == "ema" else None
+    ema_periods = _ema_periods_shared(cfg.strategy.ema_preset) if entry_signal == "ema" else None
     needs_direction = cfg.strategy.directional_spot is not None
     if entry_signal == "ema" and ema_periods is None:
         raise ValueError("spot backtests require ema_preset")
@@ -3431,10 +3369,10 @@ def _run_spot_backtest_exec_loop(
                 exit_exec_idx=int(len(exec_bars) - 1),
             )
 
-    summary = _summarize_from_trades_and_max_dd(
+    summary = summarize_with_max_drawdown(
         trades,
         starting_cash=cfg.backtest.starting_cash,
-        max_dd=float(equity_max_dd),
+        max_drawdown=float(equity_max_dd),
         multiplier=meta.multiplier,
     )
     trace_path = str(trace_out_raw or "").strip()
@@ -3497,42 +3435,6 @@ def _spot_score_start_dt(cfg: ConfigBundle) -> datetime:
     return datetime.combine(cfg.backtest.start, time(0, 0))
 
 
-def _flip_exit_base_checks(
-    cfg: ConfigBundle,
-    *,
-    trade_dir: str | None,
-    entry_time: datetime,
-    bar_ts: datetime,
-    signal: EmaDecisionSnapshot | None,
-    tr_ratio: float | None = None,
-    shock_atr_vel_pct: float | None = None,
-    tr_median_pct: float | None = None,
-) -> bool:
-    if cfg.strategy.direction_source != "ema":
-        return False
-    if trade_dir is None:
-        return False
-    if not flip_exit_hit(
-        exit_on_signal_flip=bool(cfg.strategy.exit_on_signal_flip),
-        open_dir=trade_dir,
-        signal=signal,
-        flip_exit_mode_raw=cfg.strategy.flip_exit_mode,
-        ema_entry_mode_raw=cfg.strategy.ema_entry_mode,
-    ):
-        return False
-    hold_bars, _hold_trace = spot_dynamic_flip_hold_bars(
-        strategy=cfg.strategy,
-        tr_ratio=float(tr_ratio) if tr_ratio is not None else None,
-        shock_atr_vel_pct=float(shock_atr_vel_pct) if shock_atr_vel_pct is not None else None,
-        tr_median_pct=float(tr_median_pct) if tr_median_pct is not None else None,
-    )
-    if hold_bars > 0:
-        held = _bars_held(cfg.backtest.bar_size, entry_time, bar_ts)
-        if held < int(hold_bars):
-            return False
-    return True
-
-
 def _spot_ratsv_probe_cancel_hit(
     cfg: ConfigBundle,
     *,
@@ -3552,7 +3454,7 @@ def _spot_ratsv_probe_cancel_hit(
         max_bars = 0
     if max_bars <= 0:
         return False
-    held = _bars_held(str(cfg.backtest.bar_size), trade.entry_time, bar.ts)
+    held = bars_elapsed(trade.entry_time, bar.ts, bar_size=str(cfg.backtest.bar_size))
     if held > int(max_bars):
         return False
 
@@ -3606,7 +3508,7 @@ def _spot_ratsv_adverse_release_hit(
     except (TypeError, ValueError):
         min_hold = 0
     if min_hold > 0:
-        held = _bars_held(str(cfg.backtest.bar_size), trade.entry_time, bar.ts)
+        held = bars_elapsed(trade.entry_time, bar.ts, bar_size=str(cfg.backtest.bar_size))
         if held < int(min_hold):
             return False
 
@@ -3640,11 +3542,12 @@ def _spot_hit_flip_exit(
     tr_median_pct: float | None = None,
 ) -> bool:
     trade_dir = "up" if trade.qty > 0 else "down" if trade.qty < 0 else None
-    if not _flip_exit_base_checks(
-        cfg,
-        trade_dir=trade_dir,
+    if not flip_exit_allowed(
+        strategy=cfg.strategy,
+        open_dir=trade_dir,
         entry_time=trade.entry_time,
-        bar_ts=bar.ts,
+        current_time=bar.ts,
+        bar_size=str(cfg.backtest.bar_size),
         signal=signal,
         tr_ratio=tr_ratio,
         shock_atr_vel_pct=shock_atr_vel_pct,
@@ -3680,249 +3583,7 @@ def _close_spot_trade(trade: SpotTrade, ts: datetime, price: float, reason: str,
 # endregion
 
 
-# region Synthetic Options Helpers
-def _trade_value(
-    trade: OptionTrade,
-    bar: Bar,
-    rv: float,
-    cfg: ConfigBundle,
-    surface_params: IVSurfaceParams,
-    min_tick: float,
-    is_future: bool,
-    calibration,
-) -> float:
-    return _trade_value_from_spec(
-        trade,
-        bar,
-        rv,
-        cfg,
-        surface_params,
-        min_tick,
-        is_future,
-        mode="mark",
-        calibration=calibration,
-    )
-
-
-def _rv_from_bars(bars: list[Bar], cfg: ConfigBundle) -> float:
-    closes = [float(bar.close) for bar in bars if bar.close and float(bar.close) > 0]
-    rv = realized_vol_from_closes(
-        closes,
-        lookback=int(cfg.synthetic.rv_lookback),
-        lam=float(cfg.synthetic.rv_ewma_lambda),
-        bar_size=str(cfg.backtest.bar_size),
-        use_rth=bool(cfg.backtest.use_rth),
-    )
-    return float(cfg.synthetic.iv_floor) if rv is None else float(rv)
-
-
-def _ema_periods(preset: str | None) -> tuple[int, int] | None:
-    return _ema_periods_shared(preset)
-
-
-def _ema_bias(cfg: ConfigBundle) -> str:
-    if cfg.strategy.ema_directional:
-        return "any"
-    legs = cfg.strategy.legs
-    if legs:
-        first = legs[0]
-        action = first.action.upper()
-        right = first.right.upper()
-        if (action, right) in (("BUY", "CALL"), ("SELL", "PUT")):
-            return "up"
-        if (action, right) in (("BUY", "PUT"), ("SELL", "CALL")):
-            return "down"
-        return "any"
-    right = cfg.strategy.right.upper()
-    if right == "PUT":
-        return "up"
-    if right == "CALL":
-        return "down"
-    return "any"
-
-
-def _direction_from_legs(legs: list[OptionLeg]) -> str | None:
-    if not legs:
-        return None
-    first = legs[0]
-    action = first.action.upper()
-    right = first.right.upper()
-    if (action, right) in (("BUY", "CALL"), ("SELL", "PUT")):
-        return "up"
-    if (action, right) in (("BUY", "PUT"), ("SELL", "CALL")):
-        return "down"
-    return None
-
-
-def _trade_value_from_spec(
-    spec: TradeSpec | OptionTrade,
-    bar: Bar,
-    rv: float,
-    cfg: ConfigBundle,
-    surface_params: IVSurfaceParams,
-    min_tick: float,
-    is_future: bool,
-    mode: str,
-    calibration,
-) -> float:
-    trade_day = _trade_date(bar.ts)
-    dte_days = max((spec.expiry - trade_day).days, 0)
-    if calibration:
-        surface_params = calibration.surface_params_asof(
-            dte_days,
-            trade_day.isoformat(),
-            surface_params,
-        )
-    atm_iv = iv_atm(rv, dte_days, surface_params)
-    forward = bar.close
-    if dte_days == 0:
-        t = max(_session_hours(cfg.backtest.use_rth) / (24.0 * 365.0), _min_time(cfg.backtest.bar_size))
-    else:
-        t = max(dte_days / 365.0, _min_time(cfg.backtest.bar_size))
-    legs = spec.legs
-    if len(legs) <= 1:
-        rows: list[tuple[str, int, float]] = []
-        for leg in legs:
-            leg_iv = iv_for_strike(atm_iv, forward, leg.strike, surface_params)
-            if is_future:
-                mid = black_76(forward, leg.strike, t, cfg.backtest.risk_free_rate, leg_iv, leg.right)
-            else:
-                mid = black_scholes(forward, leg.strike, t, cfg.backtest.risk_free_rate, leg_iv, leg.right)
-            quote = mid_edge_quote(mid, cfg.synthetic.min_spread_pct, min_tick)
-            if mode == "entry":
-                price = quote.bid if leg.action == "SELL" else quote.ask
-            elif mode == "exit":
-                price = quote.ask if leg.action == "SELL" else quote.bid
-            else:
-                price = quote.mid
-            action = "SELL" if leg.action == "SELL" else "BUY"
-            rows.append((action, leg.qty, price))
-        debit_value = option_package_debit_value(rows)
-        assert debit_value is not None
-        return -float(debit_value)
-
-    # Multi-leg combos: apply a single bid/ask edge to the net mid instead of legging each spread.
-    mid_rows: list[tuple[str, int, float]] = []
-    for leg in legs:
-        leg_iv = iv_for_strike(atm_iv, forward, leg.strike, surface_params)
-        if is_future:
-            mid = black_76(forward, leg.strike, t, cfg.backtest.risk_free_rate, leg_iv, leg.right)
-        else:
-            mid = black_scholes(forward, leg.strike, t, cfg.backtest.risk_free_rate, leg_iv, leg.right)
-        action = "SELL" if leg.action == "SELL" else "BUY"
-        mid_rows.append((action, leg.qty, mid))
-
-    debit_mid = option_package_debit_value(mid_rows)
-    assert debit_mid is not None
-    net_mid = -float(debit_mid)
-
-    abs_mid = abs(net_mid)
-    quote = mid_edge_quote(abs_mid, cfg.synthetic.min_spread_pct, min_tick)
-    mid_signed = quote.mid if net_mid >= 0 else -quote.mid
-    bid_signed = quote.bid if net_mid >= 0 else -quote.bid
-    ask_signed = quote.ask if net_mid >= 0 else -quote.ask
-
-    if mode == "mark":
-        return mid_signed
-    if mode == "entry":
-        return bid_signed if net_mid >= 0 else ask_signed
-    # mode == "exit"
-    return ask_signed if net_mid >= 0 else bid_signed
-
-
-def _hit_profit(trade: OptionTrade, current_value: float) -> bool:
-    return option_profit_target_hit(
-        entry_value=trade.entry_price,
-        current_value=current_value,
-        profit_target=trade.profit_target,
-    )
-
-
-def _hit_stop(trade: OptionTrade, current_value: float, basis: str, spot: float) -> bool:
-    max_loss = None
-    if basis != "credit":
-        max_loss = trade.max_loss if trade.max_loss is not None else _max_loss(trade)
-        if max_loss is None:
-            max_loss = _max_loss_estimate(trade, spot)
-        if max_loss is None:
-            max_loss = abs(trade.entry_price)
-
-    return option_stop_loss_hit(
-        entry_value=trade.entry_price,
-        current_value=current_value,
-        stop_loss=trade.stop_loss,
-        basis=basis,
-        max_loss=max_loss,
-    )
-
-
-def _hit_exit_dte(cfg: ConfigBundle, trade: OptionTrade, today: date) -> bool:
-    if cfg.strategy.exit_dte <= 0:
-        return False
-    entry_dte = business_days_until(_trade_date(trade.entry_time), trade.expiry)
-    if cfg.strategy.exit_dte >= entry_dte:
-        return False
-    remaining = business_days_until(today, trade.expiry)
-    return remaining <= cfg.strategy.exit_dte
-
-
-def _hit_flip_exit(
-    cfg: ConfigBundle,
-    trade: OptionTrade,
-    bar: Bar,
-    current_value: float,
-    signal: EmaDecisionSnapshot | None,
-) -> bool:
-    trade_dir = _direction_from_legs(trade.legs)
-    if not _flip_exit_base_checks(
-        cfg,
-        trade_dir=trade_dir,
-        entry_time=trade.entry_time,
-        bar_ts=bar.ts,
-        signal=signal,
-        tr_ratio=None,
-        shock_atr_vel_pct=None,
-    ):
-        return False
-
-    if cfg.strategy.flip_exit_only_if_profit:
-        if (trade.entry_price - current_value) <= 0:
-            return False
-    return True
-
-
-def _bars_held(bar_size: str, start: datetime, end: datetime) -> int:
-    hours = _bar_hours(bar_size)
-    if hours <= 0:
-        return 0
-    return int((end - start).total_seconds() / 3600.0 / hours)
-
-
-def _bar_hours(bar_size: str) -> float:
-    label = bar_size.lower().strip()
-    if "hour" in label:
-        try:
-            prefix = label.split("hour")[0].strip()
-            return float(prefix) if prefix else 1.0
-        except ValueError:
-            return 1.0
-    if "min" in label:
-        try:
-            prefix = label.split("min")[0].strip()
-            mins = float(prefix) if prefix else 30.0
-            return mins / 60.0
-        except ValueError:
-            return 0.5
-    if "day" in label:
-        try:
-            prefix = label.split("day")[0].strip()
-            days = float(prefix) if prefix else 1.0
-            return days * 24.0
-        except ValueError:
-            return 24.0
-    return 1.0
-
-
+# region Spot Analysis Helpers
 def _spot_local_extrema_probe(
     *,
     bars: list[Bar],
@@ -3935,7 +3596,11 @@ def _spot_local_extrema_probe(
     ref = float(ref_price)
     if not math.isfinite(ref) or ref <= 0.0:
         return None
-    bar_hours = max(float(_bar_hours(bar_size)), 1e-9)
+    bar_def = parse_bar_size(bar_size)
+    bar_hours = max(
+        bar_def.duration.total_seconds() / 3600.0 if bar_def is not None else 1.0,
+        1e-9,
+    )
     out: dict[str, object] = {}
     for label, window_hours in (("15m", 0.25), ("1h", 1.0), ("6h30m", 6.5)):
         lookback_bars = max(1, int(math.ceil(float(window_hours) / float(bar_hours))))
@@ -3956,152 +3621,6 @@ def _spot_local_extrema_probe(
             "range_pos": max(0.0, min(1.0, (float(ref) - float(low)) / float(span))),
         }
     return out or None
-
-
-def _close_trade(trade: OptionTrade, ts: datetime, price: float, reason: str, trades: list[OptionTrade]) -> None:
-    trade.exit_time = ts
-    trade.exit_price = price
-    trade.exit_reason = reason
-    trades.append(trade)
-
-
-def _summarize_from_trades_and_max_dd(
-    trades: list[OptionTrade | SpotTrade],
-    *,
-    starting_cash: float,
-    max_dd: float,
-    multiplier: float,
-) -> SummaryStats:
-    wins = 0
-    losses = 0
-    total_pnl = 0.0
-    win_pnls: list[float] = []
-    loss_pnls: list[float] = []
-    hold_hours: list[float] = []
-
-    for trade in trades:
-        pnl = trade.pnl(multiplier)
-        total_pnl += pnl
-        if pnl >= 0:
-            wins += 1
-            win_pnls.append(pnl)
-        else:
-            losses += 1
-            loss_pnls.append(pnl)
-        if trade.exit_time:
-            hold_hours.append((trade.exit_time - trade.entry_time).total_seconds() / 3600.0)
-
-    total = wins + losses
-    win_rate = wins / total if total else 0.0
-    avg_win = sum(win_pnls) / len(win_pnls) if win_pnls else 0.0
-    avg_loss = sum(loss_pnls) / len(loss_pnls) if loss_pnls else 0.0
-    avg_hold = sum(hold_hours) / len(hold_hours) if hold_hours else 0.0
-    roi = (total_pnl / starting_cash) if starting_cash > 0 else 0.0
-    max_dd_pct = (max_dd / starting_cash) if starting_cash > 0 else 0.0
-    return SummaryStats(
-        trades=total,
-        wins=wins,
-        losses=losses,
-        win_rate=win_rate,
-        total_pnl=total_pnl,
-        roi=roi,
-        avg_win=avg_win,
-        avg_loss=avg_loss,
-        max_drawdown=max_dd,
-        max_drawdown_pct=max_dd_pct,
-        avg_hold_hours=avg_hold,
-    )
-
-
-def _summarize(
-    trades: list[OptionTrade | SpotTrade],
-    starting_cash: float,
-    equity_curve: list[EquityPoint],
-    multiplier: float,
-) -> SummaryStats:
-    peak = starting_cash
-    max_dd = 0.0
-    if equity_curve:
-        peak = equity_curve[0].equity
-    for point in equity_curve:
-        if point.equity > peak:
-            peak = point.equity
-        dd = peak - point.equity
-        if dd > max_dd:
-            max_dd = dd
-    return _summarize_from_trades_and_max_dd(
-        trades,
-        starting_cash=starting_cash,
-        max_dd=float(max_dd),
-        multiplier=multiplier,
-    )
-
-
-def _max_loss(trade: OptionTrade) -> float | None:
-    legs = trade.legs
-    if len(legs) != 2:
-        return None
-    a, b = legs
-    if a.right != b.right:
-        return None
-    if a.qty != b.qty:
-        return None
-    if {a.action, b.action} != {"BUY", "SELL"}:
-        return None
-    width = abs(a.strike - b.strike)
-    if trade.entry_price >= 0:
-        return max(0.0, (width * a.qty) - trade.entry_price)
-    return abs(trade.entry_price)
-
-
-def _session_hours(use_rth: bool) -> float:
-    return 6.5 if use_rth else 24.0
-
-
-def _min_time(bar_size: str) -> float:
-    return float(_bar_hours(bar_size)) / (24.0 * 365.0)
-
-
-def _margin_required(trade: OptionTrade, spot: float, multiplier: float) -> float:
-    if trade.entry_price <= 0:
-        return 0.0
-    max_loss = trade.max_loss if trade.max_loss is not None else _max_loss(trade)
-    if max_loss is None:
-        max_loss = _max_loss_estimate(trade, spot)
-    if max_loss is None:
-        return 0.0
-    return max(0.0, max_loss) * multiplier
-
-
-def _max_loss_estimate(trade: OptionTrade, spot: float) -> float | None:
-    strikes = sorted({leg.strike for leg in trade.legs})
-    if not strikes:
-        return None
-    high = max(spot, strikes[-1]) * 5.0
-    candidates = [0.0] + strikes + [high]
-    min_pnl = None
-    for price in candidates:
-        pnl = trade.entry_price + _payoff_at_expiry(trade.legs, price)
-        if min_pnl is None or pnl < min_pnl:
-            min_pnl = pnl
-    if min_pnl is None:
-        return None
-    return max(0.0, -min_pnl)
-
-
-def _payoff_at_expiry(legs: list[OptionLeg], spot: float) -> float:
-    rows: list[tuple[str, int, float]] = []
-    for leg in legs:
-        right = leg.right.upper()
-        if right == "CALL":
-            intrinsic = max(spot - leg.strike, 0.0)
-        else:
-            intrinsic = max(leg.strike - spot, 0.0)
-        action = "BUY" if leg.action.upper() == "BUY" else "SELL"
-        rows.append((action, leg.qty, intrinsic))
-    payoff = option_package_debit_value(rows)
-    assert payoff is not None
-    return float(payoff)
 
 
 # endregion

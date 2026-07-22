@@ -2,10 +2,49 @@ import unittest
 from datetime import date, datetime
 from types import SimpleNamespace
 
+from tradebot.spot.gates import flip_exit_allowed
 from tradebot.spot.policy import SpotPolicy, SpotPolicyConfigView
 
 
 class SpotPolicyKernelTests(unittest.TestCase):
+    def test_flip_exit_allowed_enforces_canonical_hold_boundary(self) -> None:
+        strategy = {
+            "direction_source": "ema",
+            "exit_on_signal_flip": True,
+            "ema_entry_mode": "trend",
+            "flip_exit_mode": "state",
+            "flip_exit_min_hold_bars": 6,
+        }
+        signal = SimpleNamespace(
+            ema_ready=True,
+            ema_fast=99.0,
+            ema_slow=100.0,
+            state="down",
+            cross_up=False,
+            cross_down=False,
+        )
+        entry = datetime(2026, 7, 22, 10, 0)
+        self.assertFalse(
+            flip_exit_allowed(
+                strategy=strategy,
+                open_dir="up",
+                entry_time=entry,
+                current_time=datetime(2026, 7, 22, 10, 25),
+                bar_size="5 mins",
+                signal=signal,
+            )
+        )
+        self.assertTrue(
+            flip_exit_allowed(
+                strategy=strategy,
+                open_dir="up",
+                entry_time=entry,
+                current_time=datetime(2026, 7, 22, 10, 30),
+                bar_size="5 mins",
+                signal=signal,
+            )
+        )
+
     def test_resolve_entry_action_qty_directional_and_fallback(self) -> None:
         strategy = {
             "directional_spot": {

@@ -13,7 +13,7 @@ from ib_insync import Bag, Option, Stock
 import pytest
 
 from tradebot.backtest.models import OptionLeg
-import tradebot.backtest.engine as backtest_engine
+import tradebot.backtest.engine_options as backtest_engine
 from tradebot.backtest.synth import IVSurfaceParams
 
 

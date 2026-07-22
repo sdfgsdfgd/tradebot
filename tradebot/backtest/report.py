@@ -5,7 +5,7 @@ import csv
 import json
 from pathlib import Path
 
-from .engine import BacktestResult
+from .models import BacktestResult
 
 
 def write_reports(result: BacktestResult, output_dir: Path) -> None:
