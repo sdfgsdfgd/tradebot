@@ -3,7 +3,8 @@ from datetime import datetime
 from types import SimpleNamespace
 
 from tradebot.backtest.models import Bar
-from tradebot.spot.lifecycle import decide_flat_position_intent, signal_filters_ok
+from tradebot.spot.gates import signal_filters_ok
+from tradebot.spot.lifecycle import decide_flat_position_intent
 from tradebot.spot_engine import SpotSignalEvaluator
 
 

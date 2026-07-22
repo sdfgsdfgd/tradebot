@@ -1,13 +1,8 @@
 """Shared spot policy kernel for live UI and backtests."""
 
-from .lifecycle import (
+from .gates import (
     SpotDeferredEntryPlan,
-    SpotLifecycleDecision,
-    adaptive_resize_target_qty,
     apply_regime_gate,
-    decide_flat_position_intent,
-    decide_open_position_intent,
-    decide_pending_next_open,
     deferred_entry_plan,
     fill_due_ts,
     flip_exit_hit,
@@ -15,9 +10,16 @@ from .lifecycle import (
     flip_exit_gate_blocked,
     next_open_entry_allowed,
     permission_gate_status,
-    pick_exit_reason,
     signal_filter_checks,
     signal_filters_ok,
+)
+from .lifecycle import (
+    SpotLifecycleDecision,
+    adaptive_resize_target_qty,
+    decide_flat_position_intent,
+    decide_open_position_intent,
+    decide_pending_next_open,
+    pick_exit_reason,
 )
 from .graph import (
     SpotGraphProfile,

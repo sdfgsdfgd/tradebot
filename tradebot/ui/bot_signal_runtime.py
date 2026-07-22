@@ -24,16 +24,14 @@ from ..engine import (
     spot_stop_level,
 )
 from ..signals import ema_periods, parse_bar_size
-from ..spot.lifecycle import (
-    decide_flat_position_intent,
-    decide_open_position_intent,
-    decide_pending_next_open,
+from ..spot.gates import (
     deferred_entry_plan as lifecycle_deferred_entry_plan,
     fill_due_ts as lifecycle_fill_due_ts,
     next_open_due_ts as lifecycle_next_open_due_ts,
     signal_bar_close_ts as lifecycle_signal_bar_close_ts,
     signal_filter_checks,
 )
+from ..spot.lifecycle import decide_flat_position_intent, decide_open_position_intent, decide_pending_next_open
 from ..spot.fill_modes import (
     SPOT_FILL_MODE_CLOSE,
     SPOT_FILL_MODE_NEXT_TRADABLE_BAR,

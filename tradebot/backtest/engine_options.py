@@ -16,7 +16,7 @@ from .models import Bar, EquityPoint, OptionTrade
 from .strategy import CreditSpreadStrategy
 from .synth import IVSurfaceParams
 from ..engines.signals import EmaDecisionEngine, SupertrendEngine
-from ..spot.lifecycle import apply_regime_gate, signal_filters_ok
+from ..spot.gates import apply_regime_gate, signal_filters_ok
 from ..engine import (
     _trade_date,
     annualized_ewma_vol,
