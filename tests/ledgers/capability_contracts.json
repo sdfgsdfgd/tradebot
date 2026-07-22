@@ -395,6 +395,10 @@
         "tradebot/ui/app.py",
         "tradebot/ui/bot_journal.py",
         "tradebot/ui/bot_journal_diagnostics.py",
+        "tradebot/ui/portfolio/market.py",
+        "tradebot/ui/portfolio/search_runtime.py",
+        "tradebot/ui/portfolio/search_state.py",
+        "tradebot/ui/portfolio/table.py",
         "tradebot/ui/positions.py",
         "tradebot/ui/position_detail/chart.py",
         "tradebot/ui/position_detail/market.py",
@@ -745,7 +749,8 @@
         "README.md"
       ],
       "owner_surface": [
-        "tradebot/ui/app.py"
+        "tradebot/ui/bot_journal.py",
+        "tradebot/ui/bot_journal_diagnostics.py"
       ],
       "oracle": [
         "a measurable pass/fail outcome exists",
