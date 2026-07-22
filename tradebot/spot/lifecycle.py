@@ -28,8 +28,9 @@ from .fill_modes import (
     spot_fill_mode_is_next_tradable,
 )
 from .gates import _bars_elapsed, _get, _normalize_fill_mode
-from .graph import SpotPolicyGraph, canonical_exit_reason as graph_canonical_exit_reason
-from .graph import pick_exit_reason as graph_pick_exit_reason
+from .graph import SpotPolicyGraph
+from .graph_core import canonical_exit_reason as graph_canonical_exit_reason
+from .graph_core import pick_exit_reason as graph_pick_exit_reason
 from .policy import SpotIntentDecision, SpotPolicy, SpotPolicyConfigView
 
 

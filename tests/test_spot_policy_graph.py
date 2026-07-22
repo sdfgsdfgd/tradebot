@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from tradebot.spot.graph import SpotPolicyGraph, spot_dynamic_flip_hold_bars
+from tradebot.spot.graph import SpotPolicyGraph
+from tradebot.spot.graph_core import spot_dynamic_flip_hold_bars
 from tradebot.spot.lifecycle import decide_flat_position_intent
 from tradebot.spot.policy import SpotPolicy
 

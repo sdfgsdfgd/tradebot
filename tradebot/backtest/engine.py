@@ -57,7 +57,8 @@ from ..spot.fill_modes import (
     normalize_spot_fill_mode,
     spot_fill_mode_is_deferred,
 )
-from ..spot.graph import SpotPolicyGraph, spot_dynamic_flip_hold_bars
+from ..spot.graph import SpotPolicyGraph
+from ..spot.graph_core import spot_dynamic_flip_hold_bars
 from ..spot.scenario import lifecycle_trace_row, why_not_exit_resize_report, write_rows_csv
 from .synth import IVSurfaceParams, black_76, black_scholes, iv_atm, iv_for_strike, mid_edge_quote
 from ..utils.date_utils import business_days_until
