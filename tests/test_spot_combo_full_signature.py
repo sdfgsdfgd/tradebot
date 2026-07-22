@@ -157,7 +157,7 @@ def test_cartesian_manifest_uses_one_cache_scope_and_invalidates_summary(tmp_pat
     runtime.run_cfg_persistent_conn = None
     runtime.run_cfg_persistent_path = tmp_path / "sweeps.sqlite3"
     runtime.run_cfg_persistent_lock = threading.Lock()
-    runtime.status_span_manifest_compact_seen = {}
+    runtime.cartesian_rank_manifest_compact_seen = {}
     runtime.rank_dominance_manifest_applied_seen = set()
     runtime._CARTESIAN_RANK_STATUS_VALUES = frozenset(
         ("pending", "cached_hit", "evaluated", "dominated")
@@ -196,6 +196,9 @@ def test_cartesian_manifest_uses_one_cache_scope_and_invalidates_summary(tmp_pat
     assert conn.execute(
         "SELECT DISTINCT stage_label FROM stage_unresolved_summary"
     ).fetchall() == [("combo|m7",)]
+    assert conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='stage_rank_manifest'"
+    ).fetchall() == []
 
 
 def test_stage_grid_materializes_fully_cached_plan() -> None:

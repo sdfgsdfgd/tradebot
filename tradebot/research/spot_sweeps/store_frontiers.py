@@ -23,52 +23,6 @@ from .support import (
 
 
 class SweepFrontierStore:
-    def _cartesian_rank_manifest_set_many(
-        self,
-        *,
-        stage_label: str,
-        window_signature: str,
-        rows: list[tuple[int, int, str]],
-    ) -> None:
-        self._status_span_manifest_set_many(
-            manifest_name="cartesian",
-            stage_label=str(stage_label),
-            window_signature=str(window_signature),
-            rows=list(rows or ()),
-        )
-
-    def _stage_rank_manifest_set_many(
-        self,
-        *,
-        stage_label: str,
-        plan_signature: str,
-        window_signature: str,
-        rows: list[tuple[int, int, str]],
-    ) -> None:
-        self._status_span_manifest_set_many(
-            manifest_name="stage",
-            stage_label=str(stage_label),
-            plan_signature=str(plan_signature),
-            window_signature=str(window_signature),
-            rows=list(rows or ()),
-        )
-
-    def _stage_rank_manifest_unresolved_ranges(
-        self,
-        *,
-        stage_label: str,
-        plan_signature: str,
-        window_signature: str,
-        total: int,
-    ) -> tuple[tuple[int, int], ...]:
-        return self._status_span_manifest_unresolved_ranges(
-            manifest_name="stage",
-            stage_label=str(stage_label),
-            plan_signature=str(plan_signature),
-            window_signature=str(window_signature),
-            total=int(total),
-        )
-
     def _rank_dominance_stamp_get_many(
         self,
         *,
@@ -307,29 +261,6 @@ class SweepFrontierStore:
         self.rank_dominance_manifest_applies += len(manifest_rows)
         self.rank_dominance_stamp_hits += int(covered)
 
-    def _cartesian_rank_manifest_unresolved_ranges(
-        self,
-        *,
-        stage_label: str,
-        window_signature: str,
-        total: int,
-    ) -> tuple[tuple[int, int], ...]:
-        total_i = int(total)
-        if total_i <= 0:
-            return ()
-        window_key = str(window_signature).strip()
-        self._apply_rank_dominance_stamps_to_manifest(
-            stage_label=str(stage_label),
-            window_signature=str(window_key),
-            total=int(total_i),
-        )
-        return self._status_span_manifest_unresolved_ranges(
-            manifest_name="cartesian",
-            stage_label=str(stage_label),
-            window_signature=str(window_key),
-            total=int(total_i),
-        )
-
     def _cartesian_rank_manifest_claim_next_range(
         self,
         *,
@@ -518,23 +449,11 @@ class SweepFrontierStore:
             except Exception:
                 return None
 
-        if int(reads_seen) > 0:
-            self._status_span_manifest_counter_add(
-                manifest_name="cartesian", field="reads", value=int(reads_seen)
-            )
-        if int(stale_pending_pruned) > 0:
-            self._status_span_manifest_counter_add(
-                manifest_name="cartesian",
-                field="pending_ttl_prunes",
-                value=int(stale_pending_pruned),
-            )
-        self._status_span_manifest_counter_add(
-            manifest_name="cartesian", field="writes", value=1
-        )
+        self.cartesian_rank_manifest_reads += int(reads_seen)
+        self.cartesian_rank_manifest_pending_ttl_prunes += int(stale_pending_pruned)
+        self.cartesian_rank_manifest_writes += 1
         if isinstance(claim_row, tuple):
-            self._status_span_manifest_counter_add(
-                manifest_name="cartesian", field="writes", value=1
-            )
+            self.cartesian_rank_manifest_writes += 1
         return claim_row
 
     def _stage_frontier_get_many(

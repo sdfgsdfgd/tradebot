@@ -83,17 +83,6 @@ class SweepCacheStore:
                 "PRIMARY KEY(stage_label, window_signature))"
             )
             conn.execute(
-                "CREATE TABLE IF NOT EXISTS stage_rank_manifest ("
-                "stage_label TEXT NOT NULL, "
-                "plan_signature TEXT NOT NULL, "
-                "window_signature TEXT NOT NULL, "
-                "rank_lo INTEGER NOT NULL, "
-                "rank_hi INTEGER NOT NULL, "
-                "status TEXT NOT NULL, "
-                "updated_at REAL NOT NULL, "
-                "PRIMARY KEY(stage_label, plan_signature, window_signature, rank_lo, rank_hi))"
-            )
-            conn.execute(
                 "CREATE TABLE IF NOT EXISTS stage_unresolved_summary ("
                 "manifest_name TEXT NOT NULL, "
                 "stage_label TEXT NOT NULL, "

@@ -226,67 +226,6 @@ class SweepStatusStore:
         except Exception:
             return
 
-    def _status_span_manifest_spec(self, manifest_name: str) -> dict[str, object]:
-        key = str(manifest_name or "").strip().lower()
-        if key == "cartesian":
-            return {
-                "key": "cartesian",
-                "table": "cartesian_rank_manifest",
-                "cfg_key": "cartesian_rank_manifest",
-                "status_values": self._CARTESIAN_RANK_STATUS_VALUES,
-                "has_plan_signature": False,
-                "compact_min_rows": 1024.0,
-                "compact_min_interval_sec": 120.0,
-                "pending_ttl_sec": 86400.0,
-            }
-        if key == "stage":
-            return {
-                "key": "stage",
-                "table": "stage_rank_manifest",
-                "cfg_key": "stage_rank_manifest",
-                "status_values": self._STAGE_RANK_STATUS_VALUES,
-                "has_plan_signature": True,
-                "compact_min_rows": 512.0,
-                "compact_min_interval_sec": 60.0,
-                "pending_ttl_sec": 21600.0,
-            }
-        return {}
-
-    def _status_span_manifest_counter_add(self, *, manifest_name: str, field: str, value: int) -> None:
-        delta = int(max(0, int(value)))
-        if delta <= 0:
-            return
-        key = str(manifest_name).strip().lower()
-        field_key = str(field).strip().lower()
-        if key == "cartesian":
-            if field_key == "reads":
-                self.cartesian_rank_manifest_reads += delta
-            elif field_key == "writes":
-                self.cartesian_rank_manifest_writes += delta
-            elif field_key == "compactions":
-                self.cartesian_rank_manifest_compactions += delta
-            elif field_key == "pending_ttl_prunes":
-                self.cartesian_rank_manifest_pending_ttl_prunes += delta
-        elif key == "stage":
-            if field_key == "reads":
-                self.stage_rank_manifest_reads += delta
-            elif field_key == "writes":
-                self.stage_rank_manifest_writes += delta
-            elif field_key == "compactions":
-                self.stage_rank_manifest_compactions += delta
-            elif field_key == "pending_ttl_prunes":
-                self.stage_rank_manifest_pending_ttl_prunes += delta
-
-    def _status_span_manifest_counter_add_hits(self, *, manifest_name: str, covered: int) -> None:
-        delta = int(max(0, int(covered)))
-        if delta <= 0:
-            return
-        key = str(manifest_name).strip().lower()
-        if key == "cartesian":
-            self.cartesian_rank_manifest_hits += delta
-        elif key == "stage":
-            self.stage_rank_manifest_hits += delta
-
     def _stage_unresolved_summary_get(
         self,
         *,
@@ -300,16 +239,16 @@ class SweepStatusStore:
         if conn is None:
             return None
         manifest_key = str(manifest_name or "").strip().lower()
-        if manifest_key not in ("cartesian", "stage", "stage_cell"):
+        if manifest_key not in ("cartesian", "stage_cell"):
             return None
         stage_key = self._stage_cache_scope(stage_label)
         window_key = str(window_signature).strip()
-        plan_key = str(plan_signature).strip() if manifest_key in ("stage", "stage_cell") else ""
+        plan_key = str(plan_signature).strip() if manifest_key == "stage_cell" else ""
         try:
             total_i = int(total)
         except (TypeError, ValueError):
             return None
-        if total_i <= 0 or not stage_key or not window_key or (manifest_key in ("stage", "stage_cell") and not plan_key):
+        if total_i <= 0 or not stage_key or not window_key or (manifest_key == "stage_cell" and not plan_key):
             return None
         cfg = _cache_config("stage_unresolved_summary")
         ttl_sec = max(0.0, float(_registry_float(cfg.get("ttl_sec"), 21600.0)))
@@ -373,12 +312,12 @@ class SweepStatusStore:
         if conn is None:
             return
         manifest_key = str(manifest_name or "").strip().lower()
-        if manifest_key not in ("cartesian", "stage", "stage_cell"):
+        if manifest_key not in ("cartesian", "stage_cell"):
             return
         stage_key = self._stage_cache_scope(stage_label)
         window_key = str(window_signature).strip()
-        plan_key = str(plan_signature).strip() if manifest_key in ("stage", "stage_cell") else ""
-        if not stage_key or not window_key or (manifest_key in ("stage", "stage_cell") and not plan_key):
+        plan_key = str(plan_signature).strip() if manifest_key == "stage_cell" else ""
+        if not stage_key or not window_key or (manifest_key == "stage_cell" and not plan_key):
             return
         try:
             with self.run_cfg_persistent_lock:
@@ -404,12 +343,12 @@ class SweepStatusStore:
         if conn is None:
             return
         manifest_key = str(manifest_name or "").strip().lower()
-        if manifest_key not in ("cartesian", "stage", "stage_cell"):
+        if manifest_key not in ("cartesian", "stage_cell"):
             return
         stage_key = self._stage_cache_scope(stage_label)
         window_key = str(window_signature).strip()
-        plan_key = str(plan_signature).strip() if manifest_key in ("stage", "stage_cell") else ""
-        if not stage_key or not window_key or (manifest_key in ("stage", "stage_cell") and not plan_key):
+        plan_key = str(plan_signature).strip() if manifest_key == "stage_cell" else ""
+        if not stage_key or not window_key or (manifest_key == "stage_cell" and not plan_key):
             return
         try:
             total_i = int(max(0, int(total)))
@@ -447,11 +386,10 @@ class SweepStatusStore:
         except Exception:
             return
 
-    def _status_span_rows_compact(
+    def _cartesian_rank_rows_compact(
         self,
         *,
         rows: list[tuple[int, int, str]],
-        status_values: frozenset[str],
     ) -> list[tuple[int, int, str]]:
         status_priority = {
             "pending": 0,
@@ -467,7 +405,11 @@ class SweepStatusStore:
             except (TypeError, ValueError):
                 continue
             status = str(status_raw or "").strip().lower()
-            if rank_lo < 0 or rank_hi < rank_lo or status not in status_values:
+            if (
+                rank_lo < 0
+                or rank_hi < rank_lo
+                or status not in self._CARTESIAN_RANK_STATUS_VALUES
+            ):
                 continue
             key = (int(rank_lo), int(rank_hi))
             prev = merged.get(key)
@@ -493,134 +435,79 @@ class SweepStatusStore:
             out.append((int(rank_lo), int(rank_hi), str(status)))
         return out
 
-    def _status_span_manifest_set_many(
+    def _cartesian_rank_manifest_set_many(
         self,
         *,
-        manifest_name: str,
         stage_label: str,
         window_signature: str,
         rows: list[tuple[int, int, str]],
-        plan_signature: str = "",
         replace_scope: bool = False,
     ) -> None:
-        spec = self._status_span_manifest_spec(str(manifest_name))
-        if not isinstance(spec, dict) or not spec:
-            return
         conn = self._run_cfg_persistent_conn()
         if conn is None:
             return
         stage_key = self._stage_cache_scope(stage_label)
         window_key = str(window_signature).strip()
-        has_plan_signature = bool(spec.get("has_plan_signature"))
-        plan_key = str(plan_signature).strip()
         if not stage_key or not window_key:
             return
-        if has_plan_signature and not plan_key:
-            return
-        status_values = spec.get("status_values")
-        if not isinstance(status_values, frozenset):
-            return
-        compact_rows = self._status_span_rows_compact(rows=list(rows or ()), status_values=status_values)
+        compact_rows = self._cartesian_rank_rows_compact(rows=list(rows or ()))
         did_mutate = bool(replace_scope) or bool(compact_rows)
         now_ts = float(pytime.time())
         try:
             with self.run_cfg_persistent_lock:
                 if bool(replace_scope):
-                    if has_plan_signature:
-                        conn.execute(
-                            "DELETE FROM stage_rank_manifest WHERE stage_label=? AND plan_signature=? AND window_signature=?",
-                            (str(stage_key), str(plan_key), str(window_key)),
-                        )
-                    else:
-                        conn.execute(
-                            "DELETE FROM cartesian_rank_manifest WHERE stage_label=? AND window_signature=?",
-                            (str(stage_key), str(window_key)),
-                        )
+                    conn.execute(
+                        "DELETE FROM cartesian_rank_manifest WHERE stage_label=? AND window_signature=?",
+                        (str(stage_key), str(window_key)),
+                    )
                 if compact_rows:
-                    if has_plan_signature:
-                        payload = [
-                            (
-                                str(stage_key),
-                                str(plan_key),
-                                str(window_key),
-                                int(rank_lo),
-                                int(rank_hi),
-                                str(status),
-                                float(now_ts),
-                            )
-                            for rank_lo, rank_hi, status in compact_rows
-                        ]
-                        conn.executemany(
-                            "INSERT OR REPLACE INTO stage_rank_manifest("
-                            "stage_label, plan_signature, window_signature, rank_lo, rank_hi, status, updated_at"
-                            ") VALUES(?,?,?,?,?,?,?)",
-                            payload,
+                    payload = [
+                        (
+                            str(stage_key),
+                            str(window_key),
+                            int(rank_lo),
+                            int(rank_hi),
+                            str(status),
+                            float(now_ts),
                         )
-                    else:
-                        payload = [
-                            (
-                                str(stage_key),
-                                str(window_key),
-                                int(rank_lo),
-                                int(rank_hi),
-                                str(status),
-                                float(now_ts),
-                            )
-                            for rank_lo, rank_hi, status in compact_rows
-                        ]
-                        conn.executemany(
-                            "INSERT OR REPLACE INTO cartesian_rank_manifest("
-                            "stage_label, window_signature, rank_lo, rank_hi, status, updated_at"
-                            ") VALUES(?,?,?,?,?,?)",
-                            payload,
-                        )
+                        for rank_lo, rank_hi, status in compact_rows
+                    ]
+                    conn.executemany(
+                        "INSERT OR REPLACE INTO cartesian_rank_manifest("
+                        "stage_label, window_signature, rank_lo, rank_hi, status, updated_at"
+                        ") VALUES(?,?,?,?,?,?)",
+                        payload,
+                    )
             if bool(did_mutate):
                 self._stage_unresolved_summary_invalidate(
-                    manifest_name=str(spec.get("key") or ""),
+                    manifest_name="cartesian",
                     stage_label=str(stage_label),
-                    plan_signature=(str(plan_key) if has_plan_signature else ""),
                     window_signature=str(window_key),
                 )
-            self._status_span_manifest_counter_add(
-                manifest_name=str(spec.get("key") or ""),
-                field="writes",
-                value=len(compact_rows),
-            )
+            self.cartesian_rank_manifest_writes += len(compact_rows)
         except Exception:
             return
 
-    def _status_span_manifest_get_many(
+    def _cartesian_rank_manifest_get_many(
         self,
         *,
-        manifest_name: str,
         stage_label: str,
         window_signature: str,
-        plan_signature: str = "",
     ) -> list[tuple[int, int, str]]:
-        spec = self._status_span_manifest_spec(str(manifest_name))
-        if not isinstance(spec, dict) or not spec:
-            return []
         conn = self._run_cfg_persistent_conn()
         if conn is None:
             return []
         stage_key = self._stage_cache_scope(stage_label)
         window_key = str(window_signature).strip()
-        has_plan_signature = bool(spec.get("has_plan_signature"))
-        plan_key = str(plan_signature).strip()
         if not stage_key or not window_key:
             return []
-        if has_plan_signature and not plan_key:
-            return []
-        status_values = spec.get("status_values")
-        if not isinstance(status_values, frozenset):
-            return []
-        cfg = _cache_config(str(spec.get("cfg_key") or ""))
+        cfg = _cache_config("cartesian_rank_manifest")
         compact_min_rows = max(
             64,
             int(
                 _registry_float(
                     cfg.get("compact_min_rows"),
-                    float(spec.get("compact_min_rows") or 512.0),
+                    1024.0,
                 )
             ),
         )
@@ -629,7 +516,7 @@ class SweepStatusStore:
             float(
                 _registry_float(
                     cfg.get("compact_min_interval_sec"),
-                    float(spec.get("compact_min_interval_sec") or 120.0),
+                    120.0,
                 )
             ),
         )
@@ -638,7 +525,7 @@ class SweepStatusStore:
             float(
                 _registry_float(
                     cfg.get("pending_ttl_sec"),
-                    float(spec.get("pending_ttl_sec") or 0.0),
+                    86400.0,
                 )
             ),
         )
@@ -647,16 +534,10 @@ class SweepStatusStore:
         stale_pending = 0
         try:
             with self.run_cfg_persistent_lock:
-                if has_plan_signature:
-                    rows_db = conn.execute(
-                        "SELECT rank_lo, rank_hi, status, updated_at FROM stage_rank_manifest WHERE stage_label=? AND plan_signature=? AND window_signature=?",
-                        (str(stage_key), str(plan_key), str(window_key)),
-                    ).fetchall()
-                else:
-                    rows_db = conn.execute(
-                        "SELECT rank_lo, rank_hi, status, updated_at FROM cartesian_rank_manifest WHERE stage_label=? AND window_signature=?",
-                        (str(stage_key), str(window_key)),
-                    ).fetchall()
+                rows_db = conn.execute(
+                    "SELECT rank_lo, rank_hi, status, updated_at FROM cartesian_rank_manifest WHERE stage_label=? AND window_signature=?",
+                    (str(stage_key), str(window_key)),
+                ).fetchall()
             for row in rows_db:
                 try:
                     rank_lo = int(row[0])
@@ -668,7 +549,11 @@ class SweepStatusStore:
                     updated_at = float(row[3] or 0.0)
                 except (TypeError, ValueError):
                     updated_at = 0.0
-                if rank_lo < 0 or rank_hi < rank_lo or status not in status_values:
+                if (
+                    rank_lo < 0
+                    or rank_hi < rank_lo
+                    or status not in self._CARTESIAN_RANK_STATUS_VALUES
+                ):
                     continue
                 if (
                     status == "pending"
@@ -681,86 +566,60 @@ class SweepStatusStore:
                 out.append((int(rank_lo), int(rank_hi), str(status)))
         except Exception:
             return []
-        self._status_span_manifest_counter_add(
-            manifest_name=str(spec.get("key") or ""),
-            field="reads",
-            value=len(out),
-        )
+        self.cartesian_rank_manifest_reads += len(out)
         if not out:
             if int(stale_pending) > 0:
-                self._status_span_manifest_set_many(
-                    manifest_name=str(spec.get("key") or ""),
+                self._cartesian_rank_manifest_set_many(
                     stage_label=str(stage_label),
-                    plan_signature=str(plan_key),
                     window_signature=str(window_key),
                     rows=[],
                     replace_scope=True,
                 )
-                self._status_span_manifest_counter_add(
-                    manifest_name=str(spec.get("key") or ""),
-                    field="pending_ttl_prunes",
-                    value=int(stale_pending),
-                )
+                self.cartesian_rank_manifest_pending_ttl_prunes += int(stale_pending)
             return []
 
-        compacted = self._status_span_rows_compact(rows=list(out), status_values=status_values)
-        compact_key = (
-            str(spec.get("key") or ""),
-            str(stage_key),
-            str(plan_key if has_plan_signature else ""),
-            str(window_key),
+        compacted = self._cartesian_rank_rows_compact(rows=list(out))
+        compact_key = (str(stage_key), str(window_key))
+        last_ts = float(
+            self.cartesian_rank_manifest_compact_seen.get(compact_key, 0.0) or 0.0
         )
-        last_ts = float(self.status_span_manifest_compact_seen.get(compact_key, 0.0) or 0.0)
         interval_ok = (float(now_ts) - float(last_ts)) >= float(compact_min_interval)
         should_rewrite = bool(int(stale_pending) > 0 or (interval_ok and len(out) >= int(compact_min_rows) and len(compacted) < len(out)))
         if should_rewrite:
-            self._status_span_manifest_set_many(
-                manifest_name=str(spec.get("key") or ""),
+            self._cartesian_rank_manifest_set_many(
                 stage_label=str(stage_label),
-                plan_signature=str(plan_key),
                 window_signature=str(window_key),
                 rows=list(compacted),
                 replace_scope=True,
             )
             if len(compacted) < len(out):
-                self._status_span_manifest_counter_add(
-                    manifest_name=str(spec.get("key") or ""),
-                    field="compactions",
-                    value=1,
-                )
+                self.cartesian_rank_manifest_compactions += 1
             if int(stale_pending) > 0:
-                self._status_span_manifest_counter_add(
-                    manifest_name=str(spec.get("key") or ""),
-                    field="pending_ttl_prunes",
-                    value=int(stale_pending),
-                )
+                self.cartesian_rank_manifest_pending_ttl_prunes += int(stale_pending)
             out = list(compacted)
-        self.status_span_manifest_compact_seen[compact_key] = float(now_ts)
+        self.cartesian_rank_manifest_compact_seen[compact_key] = float(now_ts)
         return out
 
-    def _status_span_manifest_unresolved_ranges(
+    def _cartesian_rank_manifest_unresolved_ranges(
         self,
         *,
-        manifest_name: str,
         stage_label: str,
         window_signature: str,
         total: int,
-        plan_signature: str = "",
     ) -> tuple[tuple[int, int], ...]:
         total_i = int(total)
         if total_i <= 0:
             return ()
-        spec = self._status_span_manifest_spec(str(manifest_name))
-        manifest_key = str(spec.get("key") or str(manifest_name)).strip().lower()
-        has_plan_signature = bool(spec.get("has_plan_signature"))
-        plan_key = str(plan_signature).strip() if has_plan_signature else ""
-        if has_plan_signature and not plan_key:
-            return ((0, int(total_i - 1)),)
-        summary = self._stage_unresolved_summary_get(
-            manifest_name=str(manifest_key),
+        window_key = str(window_signature).strip()
+        self._apply_rank_dominance_stamps_to_manifest(
             stage_label=str(stage_label),
-            plan_signature=str(plan_key),
-            window_signature=str(window_signature),
+            window_signature=str(window_key),
+            total=int(total_i),
+        )
+        summary = self._stage_unresolved_summary_get(
+            manifest_name="cartesian",
+            stage_label=str(stage_label),
+            window_signature=str(window_key),
             total=int(total_i),
         )
         if isinstance(summary, tuple) and len(summary) == 2:
@@ -772,25 +631,19 @@ class SweepStatusStore:
                 resolved_count = -1
             if unresolved_count == 0:
                 if resolved_count > 0:
-                    self._status_span_manifest_counter_add_hits(
-                        manifest_name=str(manifest_key),
-                        covered=int(resolved_count),
-                    )
+                    self.cartesian_rank_manifest_hits += int(resolved_count)
                 return ()
             if unresolved_count >= int(total_i):
                 return ((0, int(total_i - 1)),)
-        rows = self._status_span_manifest_get_many(
-            manifest_name=str(manifest_name),
+        rows = self._cartesian_rank_manifest_get_many(
             stage_label=str(stage_label),
-            window_signature=str(window_signature),
-            plan_signature=str(plan_signature),
+            window_signature=str(window_key),
         )
         if not rows:
             self._stage_unresolved_summary_set(
-                manifest_name=str(manifest_key),
+                manifest_name="cartesian",
                 stage_label=str(stage_label),
-                plan_signature=str(plan_key),
-                window_signature=str(window_signature),
+                window_signature=str(window_key),
                 total=int(total_i),
                 unresolved_count=int(total_i),
                 resolved_count=0,
@@ -807,10 +660,9 @@ class SweepStatusStore:
             resolved_ranges.append((int(lo), int(hi)))
         if not resolved_ranges:
             self._stage_unresolved_summary_set(
-                manifest_name=str(manifest_key),
+                manifest_name="cartesian",
                 stage_label=str(stage_label),
-                plan_signature=str(plan_key),
-                window_signature=str(window_signature),
+                window_signature=str(window_key),
                 total=int(total_i),
                 unresolved_count=int(total_i),
                 resolved_count=0,
@@ -842,16 +694,12 @@ class SweepStatusStore:
         if cursor < total_i:
             unresolved.append((int(cursor), int(total_i - 1)))
         if covered > 0:
-            self._status_span_manifest_counter_add_hits(
-                manifest_name=str(manifest_key),
-                covered=int(covered),
-            )
+            self.cartesian_rank_manifest_hits += int(covered)
         unresolved_count = sum(max(0, int(hi) - int(lo) + 1) for lo, hi in unresolved)
         self._stage_unresolved_summary_set(
-            manifest_name=str(manifest_key),
+            manifest_name="cartesian",
             stage_label=str(stage_label),
-            plan_signature=str(plan_key),
-            window_signature=str(window_signature),
+            window_signature=str(window_key),
             total=int(total_i),
             unresolved_count=int(unresolved_count),
             resolved_count=int(max(0, int(total_i) - int(unresolved_count))),

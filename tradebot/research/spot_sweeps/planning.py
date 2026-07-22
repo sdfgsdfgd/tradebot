@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import math
 from ...backtest.config import (
@@ -14,13 +13,10 @@ from ...backtest.spot_codec import (
     strategy_from_payload as _codec_strategy_from_payload,
 )
 from .fingerprints import (
-    _RUN_CFG_CACHE_ENGINE_VERSION,
     _axis_dimension_fingerprint,
-    _window_signature,
 )
 from .milestones import (
     _filters_payload,
-    _milestone_key,
     _spot_strategy_payload,
 )
 from .support import (
@@ -185,62 +181,6 @@ class SweepPlanning:
         if out < 0:
             return None
         return int(out)
-
-    def _plan_item_stage_rank(self, item) -> int | None:
-        meta_item = self._plan_item_meta(item)
-        if not isinstance(meta_item, dict):
-            return None
-        raw = meta_item.get("_stage_rank")
-        try:
-            out = int(raw)
-        except (TypeError, ValueError):
-            return None
-        if out < 0:
-            return None
-        return int(out)
-
-    def _plan_items_with_stage_ranks(self, plan_all) -> list:
-        out: list = []
-        for rank_i, item in enumerate(list(plan_all or ())):
-            if not isinstance(item, tuple):
-                out.append(item)
-                continue
-            if len(item) < 2:
-                out.append(item)
-                continue
-            meta_item = item[2] if len(item) >= 3 and isinstance(item[2], dict) else {}
-            meta_out = dict(meta_item) if isinstance(meta_item, dict) else {}
-            meta_out["_stage_rank"] = int(rank_i)
-            prefix = [item[0], item[1], meta_out]
-            if len(item) > 3:
-                prefix.extend(item[3:])
-            out.append(tuple(prefix))
-        return out
-
-    def _stage_rank_manifest_plan_signature(self, *, stage_label: str, plan_all) -> str:
-        hasher = hashlib.sha1()
-        hasher.update(str(_RUN_CFG_CACHE_ENGINE_VERSION).encode("utf-8"))
-        hasher.update(str(stage_label).strip().lower().encode("utf-8"))
-        items = list(plan_all or ())
-        hasher.update(str(len(items)).encode("utf-8"))
-        for item in items:
-            cfg = self._plan_item_cfg(item)
-            if cfg is None:
-                hasher.update(str(item).encode("utf-8"))
-                continue
-            hasher.update(hashlib.sha1(_milestone_key(cfg).encode("utf-8")).digest())
-            hasher.update(
-                hashlib.sha1(_axis_dimension_fingerprint(cfg).encode("utf-8")).digest()
-            )
-        return hasher.hexdigest()
-
-    def _stage_rank_manifest_window_signature(self, *, bars: list | None) -> str:
-        bars_sig = self._bars_signature(bars)
-        return _window_signature(
-            bars_sig=bars_sig,
-            regime_sig=(0, None, None),
-            regime2_sig=(0, None, None),
-        )
 
     def _plan_item_dimension_values(self, item) -> tuple[tuple[str, str], ...]:
         meta_item = self._plan_item_meta(item)

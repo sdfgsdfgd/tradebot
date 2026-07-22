@@ -210,11 +210,6 @@ class SpotSweepRuntime(
         self.cartesian_rank_manifest_hits = 0
         self.cartesian_rank_manifest_compactions = 0
         self.cartesian_rank_manifest_pending_ttl_prunes = 0
-        self.stage_rank_manifest_reads = 0
-        self.stage_rank_manifest_writes = 0
-        self.stage_rank_manifest_hits = 0
-        self.stage_rank_manifest_compactions = 0
-        self.stage_rank_manifest_pending_ttl_prunes = 0
         self.stage_unresolved_summary_reads = 0
         self.stage_unresolved_summary_writes = 0
         self.stage_unresolved_summary_hits = 0
@@ -261,7 +256,7 @@ class SpotSweepRuntime(
             ],
             str,
         ] = {}
-        self.status_span_manifest_compact_seen: dict[tuple[str, str, str, str], float] = {}
+        self.cartesian_rank_manifest_compact_seen: dict[tuple[str, str], float] = {}
         self.rank_dominance_stamp_compact_seen: dict[tuple[str, str], float] = {}
         self.rank_dominance_manifest_applied_seen: set[tuple[str, str]] = set()
         self._RUN_CFG_CACHE_MISS = object()
@@ -289,7 +284,6 @@ class SpotSweepRuntime(
         self._STAGE_CELL_STATUS_VALUES = frozenset(("pending", "cached_hit", "evaluated"))
         self._CARTESIAN_CELL_STATUS_VALUES = frozenset(("pending", "cached_hit", "evaluated", "dominated"))
         self._CARTESIAN_RANK_STATUS_VALUES = frozenset(("pending", "cached_hit", "evaluated", "dominated"))
-        self._STAGE_RANK_STATUS_VALUES = frozenset(("pending", "cached_hit", "evaluated", "dominated"))
 
         regime_bars_1d = self._bars_cached("1 day")
         if not regime_bars_1d:
@@ -385,11 +379,6 @@ class SpotSweepRuntime(
                 f"cartesian_rank_manifest_hits={int(self.cartesian_rank_manifest_hits)} "
                 f"cartesian_rank_manifest_compactions={int(self.cartesian_rank_manifest_compactions)} "
                 f"cartesian_rank_manifest_pending_ttl_prunes={int(self.cartesian_rank_manifest_pending_ttl_prunes)} "
-                f"stage_rank_manifest_reads={int(self.stage_rank_manifest_reads)} "
-                f"stage_rank_manifest_writes={int(self.stage_rank_manifest_writes)} "
-                f"stage_rank_manifest_hits={int(self.stage_rank_manifest_hits)} "
-                f"stage_rank_manifest_compactions={int(self.stage_rank_manifest_compactions)} "
-                f"stage_rank_manifest_pending_ttl_prunes={int(self.stage_rank_manifest_pending_ttl_prunes)} "
                 f"stage_unresolved_summary_reads={int(self.stage_unresolved_summary_reads)} "
                 f"stage_unresolved_summary_writes={int(self.stage_unresolved_summary_writes)} "
                 f"stage_unresolved_summary_hits={int(self.stage_unresolved_summary_hits)} "
