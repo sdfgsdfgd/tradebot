@@ -29,11 +29,15 @@ def _parse_date(value: str | None) -> date:
     return _parse_date_impl(value)
 
 
-def _parse_weekdays(days: list[str]) -> tuple[int, ...]:
+def _parse_weekdays(days: list[object]) -> tuple[int, ...]:
     if not days:
         return (0, 1, 2, 3, 4)
     parsed: list[int] = []
     for day in days:
+        if isinstance(day, int) and not isinstance(day, bool):
+            if 0 <= day <= 6:
+                parsed.append(day)
+            continue
         if not isinstance(day, str):
             continue
         key = day.strip().upper()[:3]

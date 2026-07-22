@@ -889,6 +889,33 @@
       "next": "Retain coverage while extending canonical strategy execution and promotion semantics."
     },
     {
+      "id": "unit.strategy.entry-day-normalization",
+      "layer": "unit",
+      "subsystem": "live-execution-orders",
+      "phase": "strategy-entry-day-normalization",
+      "capability": "Typed strategy configuration, spot payloads, and live entry gates share one weekday normalization law.",
+      "status": "covered",
+      "owner_surface": [
+        "tradebot/backtest/config_values.py",
+        "tradebot/backtest/config.py",
+        "tradebot/backtest/spot_codec.py",
+        "tradebot/ui/bot_signal_runtime.py"
+      ],
+      "evidence": [
+        "tests/test_spot_single_position_mode.py::test_load_config_preserves_integer_and_mixed_entry_days_for_live_parity"
+      ],
+      "fixtures": [
+        "omitted, empty, named, integer, mixed, boolean, unsupported, out-of-range, and unknown-string weekday payloads",
+        "typed options hydration, ET backtest gating, and AST-isolated live numeric-gate corroboration"
+      ],
+      "oracle": [
+        "valid weekday names and non-boolean integers 0 through 6 preserve order through typed strategy hydration",
+        "missing, empty, or wholly unsupported collections retain the Monday-through-Friday fallback",
+        "unknown weekday strings fail explicitly and live numeric entry-day gates remain behaviorally aligned"
+      ],
+      "next": "Retain coverage while centralizing remaining canonical strategy and execution semantics."
+    },
+    {
       "id": "unit.strategy.option-package-entry-intent",
       "layer": "unit",
       "subsystem": "live-execution-orders",

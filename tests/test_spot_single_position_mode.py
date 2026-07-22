@@ -5,6 +5,8 @@ from datetime import date, datetime, timedelta
 import json
 from pathlib import Path
 
+import pytest
+
 from tradebot.backtest.config import load_config
 from tradebot.backtest.data import ContractMeta
 from tradebot.backtest.engine import _run_spot_backtest_summary
@@ -279,3 +281,35 @@ def test_load_config_options_ignores_legacy_unknown_field(tmp_path: Path) -> Non
     cfg = load_config(cfg_path)
     assert cfg.strategy.instrument == "options"
     assert not hasattr(cfg.strategy, "legacy_open_slots")
+
+
+@pytest.mark.parametrize(
+    ("entry_days", "expected"),
+    (
+        ([0, 2, 4], (0, 2, 4)),
+        (["Mon", 3, "Fri"], (0, 3, 4)),
+    ),
+    ids=("integer", "mixed"),
+)
+def test_load_config_preserves_integer_and_mixed_entry_days_for_live_parity(
+    tmp_path: Path,
+    entry_days: list[object],
+    expected: tuple[int, ...],
+) -> None:
+    raw = {
+        "backtest": {
+            "start": "2025-01-08",
+            "end": "2025-01-09",
+        },
+        "strategy": {
+            "instrument": "options",
+            "symbol": "XSP",
+            "entry_days": entry_days,
+        },
+    }
+    cfg_path = tmp_path / "options_entry_days.json"
+    cfg_path.write_text(json.dumps(raw))
+
+    cfg = load_config(cfg_path)
+
+    assert cfg.strategy.entry_days == expected
