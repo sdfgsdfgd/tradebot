@@ -13,7 +13,7 @@ from ...time_utils import UTC as _UTC
 from ..cache import read_cache, write_cache
 from ..data import IBKRHistoricalData
 from ..models import Bar
-from ..trading_calendar import utc_bounds_for_et_day as _utc_bounds_for_et_day
+from ...engines.market import utc_bounds_for_et_day as _utc_bounds_for_et_day
 from .coverage import (
     _audit_rows,
     _bars_for_day,

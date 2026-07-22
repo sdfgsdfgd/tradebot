@@ -9,7 +9,6 @@ from pathlib import Path
 
 from ..backtest.engine import run_backtest
 from ..backtest.spot_codec import (
-    effective_filters_payload,
     filters_from_payload,
     make_bundle,
     metrics_from_summary,
@@ -17,6 +16,7 @@ from ..backtest.spot_codec import (
 )
 from ..climate_router import DailyBar, host_policy, year_slice
 from ..engines.signals import SupertrendEngine
+from ..spot.codec import effective_filters_payload
 
 
 def load_daily_bars_from_intraday_csv(path: Path) -> list[DailyBar]:

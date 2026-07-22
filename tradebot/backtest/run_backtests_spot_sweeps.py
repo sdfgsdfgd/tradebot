@@ -52,7 +52,6 @@ from .config import (
 )
 from .config_filters import _parse_filters
 from .spot_codec import (
-    effective_filters_payload as _codec_effective_filters_payload,
     filters_from_payload as _codec_filters_from_payload,
     filters_payload as _codec_filters_payload,
     make_bundle as _codec_make_bundle,
@@ -68,6 +67,7 @@ from .engine import (
     _spot_prepare_summary_series_pack,
     _spot_series_pack_cache_state,
 )
+from ..spot.codec import effective_filters_payload as _codec_effective_filters_payload
 from .sweep_fingerprint import (
     _canonicalize_fingerprint_value,
     _strategy_fingerprint,

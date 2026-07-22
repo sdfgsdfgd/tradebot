@@ -20,11 +20,7 @@ OVERSIZED_MODULE_DEBT = {
 }
 
 # Existing ownership inversions only. New inversions and stale exemptions fail.
-BACKTEST_IMPORT_DEBT = {
-    ("tradebot/client.py", "tradebot.backtest.trading_calendar"),
-    ("tradebot/ui/bot.py", "tradebot.backtest.spot_codec"),
-    ("tradebot/ui/bot.py", "tradebot.backtest.trading_calendar"),
-}
+BACKTEST_IMPORT_DEBT: set[tuple[str, str]] = set()
 
 
 def _production_modules() -> list[Path]:

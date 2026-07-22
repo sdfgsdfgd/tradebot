@@ -17,7 +17,7 @@ from ...time_utils import (
 )
 from ..cache import CacheFileMeta, parse_cache_filename
 from ..models import Bar
-from ..trading_calendar import (
+from ...engines.market import (
     SESSION_ORDER as _SESSION_ORDER,
     SESSION_WEIGHTS as _SESSION_WEIGHTS,
     et_day_from_utc_naive as _et_day_from_utc_naive,

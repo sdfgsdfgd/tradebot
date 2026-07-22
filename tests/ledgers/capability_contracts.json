@@ -165,7 +165,8 @@
         "tradebot/config.py",
         "tradebot/backtest/config.py",
         "tradebot/backtest/config_filters.py",
-        "tradebot/backtest/config_values.py"
+        "tradebot/backtest/config_values.py",
+        "tradebot/spot/codec.py"
       ],
       "oracle": [
         "all evidence assigned to runtime-configuration-state passes",
@@ -194,6 +195,7 @@
       ],
       "owner_surface": [
         "tradebot/chart_data/realtime.py",
+        "tradebot/engines/market.py",
         "tradebot/time_utils.py"
       ],
       "oracle": [

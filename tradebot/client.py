@@ -31,7 +31,7 @@ from ib_insync import (
     util,
 )
 
-from .backtest.trading_calendar import expected_sessions, session_label_et
+from .engines.market import expected_sessions, session_label_et
 from .config import IBKRConfig
 from .live.execution import order_ids
 from .time_utils import NaiveTsMode, now_et as _now_et, now_et_naive as _now_et_naive, to_et as _to_et_shared

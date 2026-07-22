@@ -21,8 +21,8 @@ from textual.containers import Vertical
 from textual.screen import Screen
 from textual.widgets import DataTable, Footer, Header, Static
 
-from ..backtest.trading_calendar import full24_post_close_time_et, is_trading_day, session_label_et
-from ..backtest.spot_codec import effective_filters_payload as _effective_filters_payload
+from ..engines.market import full24_post_close_time_et, is_trading_day, session_label_et
+from ..spot.codec import effective_filters_payload as _effective_filters_payload
 from ..client import IBKRClient, _session_flags
 from ..engines.execution import (
     _aggressive_price,
