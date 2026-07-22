@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
@@ -123,6 +125,40 @@ def promotion_receipt(
 
 def strategy_key(strategy: dict, *, filters: dict | None) -> str:
     return _strategy_fingerprint(strategy, filters=filters)
+
+
+def multiwindow_cache_key(
+    *,
+    engine_version: str,
+    data_revision: str,
+    strategy: dict,
+    filters: dict | None,
+    windows: tuple[tuple[date, date], ...],
+    min_trades: int,
+    min_trades_per_year: float | None,
+    min_win: float,
+    require_close_eod: bool,
+    require_positive_pnl: bool,
+    offline: bool,
+) -> str:
+    """Bind a derived multiwindow result to policy, strategy, and market-data revision."""
+    payload = {
+        "version": str(engine_version),
+        "data_revision": str(data_revision),
+        "strategy_key": strategy_key(strategy, filters=filters),
+        "windows": tuple((start.isoformat(), end.isoformat()) for start, end in windows),
+        "min_trades": int(min_trades),
+        "min_trades_per_year": (
+            float(min_trades_per_year) if min_trades_per_year is not None else None
+        ),
+        "min_win": float(min_win),
+        "require_close_eod": bool(require_close_eod),
+        "require_positive_pnl": bool(require_positive_pnl),
+        "offline": bool(offline),
+    }
+    return hashlib.sha1(
+        json.dumps(payload, sort_keys=True, default=str).encode("utf-8")
+    ).hexdigest()
 
 
 def candidate_shortlist(

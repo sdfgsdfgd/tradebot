@@ -6,7 +6,7 @@ import pytest
 
 from tradebot.backtest.cache_ops.cli import main_resample
 from tradebot.backtest.cli_utils import expected_cache_path
-from tradebot.backtest.cache import cache_path, read_cache, write_cache
+from tradebot.backtest.cache import cache_data_revision, cache_path, read_cache, write_cache
 from tradebot.backtest.data import IBKRHistoricalData
 from tradebot.backtest.models import Bar
 from tradebot.backtest.multiwindow_helpers import preflight_offline_cache_or_die
@@ -104,6 +104,17 @@ def _require_sweeps_offline_cache(
             data.disconnect()
         except Exception:
             pass
+
+
+def test_cache_data_revision_changes_with_market_tape(tmp_path) -> None:
+    before = cache_data_revision(tmp_path)
+    _touch_overlap_segments(tmp_path)
+    populated = cache_data_revision(tmp_path)
+    path = next((tmp_path / "SLV").glob("*.csv"))
+    write_cache(path, [_bar(datetime(2025, 1, 1, 12, 0), 1234.0)])
+
+    assert populated != before
+    assert cache_data_revision(tmp_path) != populated
 
 
 def test_sweeps_offline_preflight_accepts_overlap_coverage(tmp_path) -> None:

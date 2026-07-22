@@ -6,7 +6,6 @@ This module owns evaluation, cache, sharding, and data orchestration for the
 
 from __future__ import annotations
 
-import hashlib
 import json
 import math
 import os
@@ -18,6 +17,7 @@ from datetime import date, datetime, time, timedelta
 from pathlib import Path
 
 from .cli_utils import parse_date as _parse_date, parse_window as _parse_window
+from .cache import cache_data_revision
 from .config import ConfigBundle
 from .multiwindow_helpers import (
     die_empty_bars as _mw_die_empty_bars,
@@ -46,6 +46,7 @@ from ..research.multiwindow import (
     candidate_shortlist,
     collect_multiwindow_rows,
     emit_multiwindow_results,
+    multiwindow_cache_key,
     parse_multiwindow_args,
     strategy_key,
 )
@@ -55,7 +56,7 @@ from ..time_utils import now_et as _now_et
 _SERIES_CACHE = series_cache_service()
 _SWEEP_MULTIWINDOW_BARS_NAMESPACE = "spot.sweeps.multiwindow.bars"
 # Bump whenever evaluation semantics change so stale cached rows don't mask runtime fixes.
-_MULTIWINDOW_CACHE_ENGINE_VERSION = "spot_multiwindow_v13"
+_MULTIWINDOW_CACHE_ENGINE_VERSION = "spot_multiwindow_v14"
 
 
 def spot_multitimeframe_main() -> None:
@@ -159,6 +160,7 @@ def spot_multitimeframe_main() -> None:
 
     cache_dir = Path(args.cache_dir)
     offline = bool(args.offline)
+    data_revision = cache_data_revision(cache_dir)
     multiwindow_cache_path = cache_dir / "spot_multiwindow_eval_cache.sqlite3"
     multiwindow_cache_conn: sqlite3.Connection | None = None
     multiwindow_cache_enabled = True
@@ -211,22 +213,20 @@ def spot_multitimeframe_main() -> None:
             multiwindow_cache_conn = None
             return None
 
-    def _multiwindow_windows_signature() -> tuple[tuple[str, str], ...]:
-        return tuple((a.isoformat(), b.isoformat()) for a, b in windows)
-
     def _multiwindow_cache_key(*, strategy_payload: dict, filters_payload: dict | None) -> str:
-        raw = {
-            "version": str(_MULTIWINDOW_CACHE_ENGINE_VERSION),
-            "strategy_key": strategy_key(strategy_payload, filters=filters_payload),
-            "windows": _multiwindow_windows_signature(),
-            "min_trades": int(args.min_trades),
-            "min_trades_per_year": float(min_trades_per_year) if min_trades_per_year is not None else None,
-            "min_win": float(args.min_win),
-            "require_close_eod": bool(args.require_close_eod),
-            "require_positive_pnl": bool(args.require_positive_pnl),
-            "offline": bool(offline),
-        }
-        return hashlib.sha1(json.dumps(raw, sort_keys=True, default=str).encode("utf-8")).hexdigest()
+        return multiwindow_cache_key(
+            engine_version=_MULTIWINDOW_CACHE_ENGINE_VERSION,
+            data_revision=data_revision,
+            strategy=strategy_payload,
+            filters=filters_payload,
+            windows=tuple(windows),
+            min_trades=int(args.min_trades),
+            min_trades_per_year=min_trades_per_year,
+            min_win=float(args.min_win),
+            require_close_eod=bool(args.require_close_eod),
+            require_positive_pnl=bool(args.require_positive_pnl),
+            offline=offline,
+        )
 
     def _multiwindow_cache_get(*, cache_key: str) -> dict | None | object:
         conn = _multiwindow_cache_conn()
@@ -394,7 +394,7 @@ def spot_multitimeframe_main() -> None:
         data: IBKRHistoricalData | None,
         progress_callback=None,
     ) -> dict | None:
-        nonlocal multiwindow_cache_hits, multiwindow_cache_writes
+        nonlocal data_revision, multiwindow_cache_hits, multiwindow_cache_writes
         def _emit_candidate_progress(event: dict | None = None, **payload: object) -> None:
             if not callable(progress_callback):
                 return
@@ -420,8 +420,18 @@ def spot_multitimeframe_main() -> None:
             return dict(cached) if isinstance(cached, dict) else None
 
         def _cache_and_return(payload: dict | None) -> dict | None:
-            nonlocal multiwindow_cache_writes
-            _multiwindow_cache_set(cache_key=cache_key, payload=payload if isinstance(payload, dict) else None)
+            nonlocal data_revision, multiwindow_cache_writes
+            final_cache_key = cache_key
+            if not offline:
+                data_revision = cache_data_revision(cache_dir)
+                final_cache_key = _multiwindow_cache_key(
+                    strategy_payload=strategy_payload if isinstance(strategy_payload, dict) else {},
+                    filters_payload=filters_payload if isinstance(filters_payload, dict) else None,
+                )
+            _multiwindow_cache_set(
+                cache_key=final_cache_key,
+                payload=payload if isinstance(payload, dict) else None,
+            )
             multiwindow_cache_writes += 1
             _emit_candidate_progress(phase="candidate.done", cached=False, kept=bool(payload))
             return dict(payload) if isinstance(payload, dict) else None
@@ -834,6 +844,7 @@ def spot_multitimeframe_main() -> None:
             cache_dir=cache_dir,
             cache_policy=str(args.cache_policy),
         )
+        data_revision = cache_data_revision(cache_dir)
 
         data = IBKRHistoricalData()
         _load_bars_cached = _make_bars_loader(data)
@@ -864,6 +875,7 @@ def spot_multitimeframe_main() -> None:
             cache_dir=cache_dir,
             cache_policy=str(args.cache_policy),
         )
+        data_revision = cache_data_revision(cache_dir)
 
         base_cli = _strip_flags(
             list(sys.argv[1:]),
@@ -938,6 +950,7 @@ def spot_multitimeframe_main() -> None:
             cache_dir=cache_dir,
             cache_policy=str(args.cache_policy),
         )
+        data_revision = cache_data_revision(cache_dir)
 
     _tested_serial, out_rows = _evaluate_candidate_multiwindow_shard(
         load_bars_cached=_load_bars_cached,

@@ -7,6 +7,7 @@ from tradebot.research.multiwindow import (
     MultiwindowReport,
     candidate_shortlist,
     emit_multiwindow_results,
+    multiwindow_cache_key,
     parse_multiwindow_args,
     promotion_receipt,
 )
@@ -24,6 +25,26 @@ def test_multiwindow_cli_contract_preserves_defaults() -> None:
     assert args.track == "auto"
     assert not hasattr(args, "include_full")
     assert not hasattr(args, "allow_unlimited_stacking")
+
+
+def test_multiwindow_cache_key_is_bound_to_market_data_revision() -> None:
+    kwargs = {
+        "engine_version": "test-v1",
+        "strategy": {"ema_preset": "5/13"},
+        "filters": {"rv_min": 0.1},
+        "windows": ((date(2025, 1, 1), date(2026, 1, 1)),),
+        "min_trades": 20,
+        "min_trades_per_year": 20.0,
+        "min_win": 0.5,
+        "require_close_eod": False,
+        "require_positive_pnl": True,
+        "offline": True,
+    }
+
+    before = multiwindow_cache_key(data_revision="cache-v1:a", **kwargs)
+    after = multiwindow_cache_key(data_revision="cache-v1:b", **kwargs)
+
+    assert before != after
 
 
 def test_multiwindow_report_preserves_operator_and_json_contract(tmp_path, capsys) -> None:

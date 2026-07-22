@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import os
 import re
 from dataclasses import dataclass
@@ -50,6 +51,31 @@ class CacheFileMeta:
     end_date: date
     bar_token: str
     tag: str
+
+
+def cache_data_revision(cache_dir: Path) -> str:
+    """Fingerprint cached market-data files so derived results cannot outlive their tape."""
+    root = Path(cache_dir)
+    digest = hashlib.blake2b(digest_size=16)
+    if not root.exists():
+        return f"cache-v1:{digest.hexdigest()}"
+    for path in sorted(root.rglob("*.csv")):
+        if parse_cache_filename(path) is None:
+            continue
+        try:
+            stat = path.stat()
+            relative = path.relative_to(root).as_posix()
+        except (OSError, ValueError):
+            continue
+        digest.update(relative.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(str(int(stat.st_size)).encode("ascii"))
+        digest.update(b"\0")
+        digest.update(str(int(stat.st_mtime_ns)).encode("ascii"))
+        digest.update(b"\0")
+        digest.update(str(int(stat.st_ctime_ns)).encode("ascii"))
+        digest.update(b"\n")
+    return f"cache-v1:{digest.hexdigest()}"
 
 
 def _canonical_bar_token(bar_size: str) -> str:
