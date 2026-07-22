@@ -49,7 +49,7 @@ from ..spot.fill_modes import (
     normalize_spot_fill_mode,
     spot_fill_mode_is_deferred,
 )
-from ..spot.evaluator_common import SpotSignalSnapshot
+from ..spot.evaluator_common import SpotRegimeState, SpotSignalSnapshot
 from ..spot.graph import SpotPolicyGraph
 from ..spot.policy_contract import SpotPolicyConfigView
 from ..spot.scenario import (
@@ -211,12 +211,7 @@ class _SpotPendingEntry:
     branch: str | None = None
     set_date: date | None = None
     due_ts: datetime | None = None
-    hard_dir: str | None = None
-    hard_ready: bool = False
-    hard_release_age: int | None = None
-    regime4_state: str | None = None
-    regime4_transition_hot: bool = False
-    regime4_owner: str | None = None
+    regime: SpotRegimeState = SpotRegimeState()
     guard_probe: dict[str, object] | None = None
     guard_inputs: dict[str, object] | None = None
 
@@ -236,21 +231,12 @@ class _SpotPendingEntry:
         guard_probe: dict[str, object] | None = None,
         guard_inputs: dict[str, object] | None = None,
     ) -> "_SpotPendingEntry":
-        hard_dir = getattr(snapshot, "regime2_bear_hard_dir", None)
-        release_age = getattr(snapshot, "regime2_bear_hard_release_age_bars", None)
         return cls(
             direction=str(direction),
             branch=str(branch) if branch in ("a", "b") else None,
             set_date=set_date,
             due_ts=due_ts,
-            hard_dir=str(hard_dir) if hard_dir in ("up", "down") else None,
-            hard_ready=bool(getattr(snapshot, "regime2_bear_hard_ready", False)),
-            hard_release_age=int(release_age) if release_age is not None else None,
-            regime4_state=str(getattr(snapshot, "regime4_state", "") or "") or None,
-            regime4_transition_hot=bool(
-                getattr(snapshot, "regime4_transition_hot", False)
-            ),
-            regime4_owner=str(getattr(snapshot, "regime4_owner", "") or "") or None,
+            regime=SpotRegimeState.from_snapshot(snapshot),
             guard_probe=dict(guard_probe) if isinstance(guard_probe, dict) else None,
             guard_inputs=dict(guard_inputs) if isinstance(guard_inputs, dict) else None,
         )
@@ -266,12 +252,7 @@ class _SpotEntryEvidence:
     riskpanic: bool
     riskpop: bool
     risk_snapshot: object | None
-    hard_dir: str | None
-    hard_ready: bool
-    hard_release_age: int | None
-    regime4_state: str | None
-    regime4_transition_hot: bool
-    regime4_owner: str | None
+    regime: SpotRegimeState
     guard_probe: dict[str, object] | None = None
     guard_inputs: dict[str, object] | None = None
     local_extrema: dict[str, object] | None = None
@@ -294,21 +275,6 @@ class _SpotEntryEvidence:
         local_extrema: dict[str, object] | None = None,
     ) -> "_SpotEntryEvidence":
         source = pending if pending is not None else snapshot
-        hard_dir = (
-            getattr(source, "hard_dir", None)
-            if pending is not None
-            else getattr(source, "regime2_bear_hard_dir", None)
-        )
-        hard_ready = (
-            getattr(source, "hard_ready", False)
-            if pending is not None
-            else getattr(source, "regime2_bear_hard_ready", False)
-        )
-        release_age = (
-            getattr(source, "hard_release_age", None)
-            if pending is not None
-            else getattr(source, "regime2_bear_hard_release_age_bars", None)
-        )
         return cls(
             snapshot=snapshot,
             shock=shock,
@@ -318,14 +284,7 @@ class _SpotEntryEvidence:
             riskpanic=bool(riskpanic),
             riskpop=bool(riskpop),
             risk_snapshot=risk_snapshot,
-            hard_dir=str(hard_dir) if hard_dir in ("up", "down") else None,
-            hard_ready=bool(hard_ready),
-            hard_release_age=int(release_age) if release_age is not None else None,
-            regime4_state=str(getattr(source, "regime4_state", "") or "") or None,
-            regime4_transition_hot=bool(
-                getattr(source, "regime4_transition_hot", False)
-            ),
-            regime4_owner=str(getattr(source, "regime4_owner", "") or "") or None,
+            regime=SpotRegimeState.from_snapshot(source),
             guard_probe=dict(guard_probe) if isinstance(guard_probe, dict) else None,
             guard_inputs=dict(guard_inputs) if isinstance(guard_inputs, dict) else None,
             local_extrema=dict(local_extrema)
@@ -1308,8 +1267,8 @@ def _spot_try_open_entry(
     signal = getattr(snapshot, "signal", None)
     signal_entry_dir = getattr(snapshot, "entry_dir", None)
     signal_regime_dir = getattr(signal, "regime_dir", None)
-    regime2_dir = getattr(snapshot, "regime2_dir", None)
-    regime2_ready = bool(getattr(snapshot, "regime2_ready", False))
+    regime2_dir = evidence.regime.fast_dir
+    regime2_ready = evidence.regime.fast_ready
     action = str(getattr(entry_leg, "action", "BUY") or "BUY").strip().upper()
     side = "buy" if action == "BUY" else "sell"
     lot = max(1, int(getattr(entry_leg, "qty", 1) or 1))
@@ -1515,16 +1474,20 @@ def _spot_try_open_entry(
             else:
                 signed_qty = int(intent_decision.delta_qty)
                 decision_trace_payload = decision_trace.as_payload()
-                decision_trace_payload["regime2_bear_hard_dir"] = evidence.hard_dir
-                decision_trace_payload["regime2_bear_hard_ready"] = evidence.hard_ready
+                decision_trace_payload["regime2_bear_hard_dir"] = (
+                    evidence.regime.hard_dir
+                )
+                decision_trace_payload["regime2_bear_hard_ready"] = (
+                    evidence.regime.hard_ready
+                )
                 decision_trace_payload["regime2_bear_hard_release_age_bars"] = (
-                    evidence.hard_release_age
+                    evidence.regime.hard_release_age_bars
                 )
-                decision_trace_payload["regime4_state"] = evidence.regime4_state
+                decision_trace_payload["regime4_state"] = evidence.regime.label
                 decision_trace_payload["regime4_transition_hot"] = (
-                    evidence.regime4_transition_hot
+                    evidence.regime.transition_hot
                 )
-                decision_trace_payload["regime4_owner"] = evidence.regime4_owner
+                decision_trace_payload["regime4_owner"] = evidence.regime.owner
                 decision_trace_payload["entry_guard_probe"] = evidence.guard_probe
                 decision_trace_payload["entry_guard_inputs"] = evidence.guard_inputs
                 decision_trace_payload["entry_local_extrema_probe"] = (

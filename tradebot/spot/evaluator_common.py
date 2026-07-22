@@ -35,6 +35,28 @@ class SpotRegimeState:
     hard_ready: bool = False
     hard_release_age_bars: int | None = None
 
+    @classmethod
+    def from_snapshot(cls, snapshot: object | None) -> "SpotRegimeState":
+        canonical = getattr(snapshot, "regime", None)
+        if isinstance(canonical, cls):
+            return canonical
+        return cls(
+            label=str(getattr(snapshot, "regime4_state", "") or "") or None,
+            owner=str(getattr(snapshot, "regime4_owner", "") or "primary"),
+            transition_hot=bool(
+                getattr(snapshot, "regime4_transition_hot", False)
+            ),
+            fast_dir=getattr(snapshot, "regime2_dir", None),
+            fast_ready=bool(getattr(snapshot, "regime2_ready", False)),
+            hard_dir=getattr(snapshot, "regime2_bear_hard_dir", None),
+            hard_ready=bool(
+                getattr(snapshot, "regime2_bear_hard_ready", False)
+            ),
+            hard_release_age_bars=getattr(
+                snapshot, "regime2_bear_hard_release_age_bars", None
+            ),
+        )
+
     def entry_context(self) -> dict[str, object]:
         return {
             "regime4_state": self.label,
@@ -178,14 +200,6 @@ class SpotSignalSnapshot:
     shock_dir_up_streak_bars: int | None
     risk: RiskOverlaySnapshot | None
     atr: float | None
-    regime2_dir: str | None
-    regime2_ready: bool
-    regime2_bear_hard_dir: str | None
-    regime2_bear_hard_ready: bool
-    regime2_bear_hard_release_age_bars: int | None
-    regime4_state: str | None
-    regime4_transition_hot: bool
-    regime4_owner: str | None
     or_high: float | None
     or_low: float | None
     or_ready: bool
@@ -215,21 +229,42 @@ class SpotSignalSnapshot:
     regime_router_crash_rv: float | None = None
     regime_router_fast_ret: float | None = None
     regime_router_slow_ret: float | None = None
-    regime: SpotRegimeState | None = None
+    regime: SpotRegimeState = SpotRegimeState()
 
     def regime_state(self) -> SpotRegimeState:
-        if self.regime is not None:
-            return self.regime
-        return SpotRegimeState(
-            label=self.regime4_state,
-            owner=str(self.regime4_owner or "primary"),
-            transition_hot=bool(self.regime4_transition_hot),
-            fast_dir=self.regime2_dir,
-            fast_ready=bool(self.regime2_ready),
-            hard_dir=self.regime2_bear_hard_dir,
-            hard_ready=bool(self.regime2_bear_hard_ready),
-            hard_release_age_bars=self.regime2_bear_hard_release_age_bars,
-        )
+        return self.regime
+
+    @property
+    def regime2_dir(self) -> str | None:
+        return self.regime.fast_dir
+
+    @property
+    def regime2_ready(self) -> bool:
+        return self.regime.fast_ready
+
+    @property
+    def regime2_bear_hard_dir(self) -> str | None:
+        return self.regime.hard_dir
+
+    @property
+    def regime2_bear_hard_ready(self) -> bool:
+        return self.regime.hard_ready
+
+    @property
+    def regime2_bear_hard_release_age_bars(self) -> int | None:
+        return self.regime.hard_release_age_bars
+
+    @property
+    def regime4_state(self) -> str | None:
+        return self.regime.label
+
+    @property
+    def regime4_transition_hot(self) -> bool:
+        return self.regime.transition_hot
+
+    @property
+    def regime4_owner(self) -> str:
+        return self.regime.owner
 
     def entry_context(self) -> dict[str, object]:
         return {

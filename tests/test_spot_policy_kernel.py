@@ -51,6 +51,41 @@ class _ConfirmationRegimeHarness(SpotSignalRegimeMixin):
 
 
 class SpotPolicyKernelTests(unittest.TestCase):
+    def test_canonical_regime_state_owns_legacy_snapshot_names(self) -> None:
+        canonical = SpotRegimeState(
+            label="transition_up_hot",
+            owner="clean",
+            transition_hot=True,
+            fast_dir="up",
+            fast_ready=True,
+            hard_dir="down",
+            hard_ready=True,
+            hard_release_age_bars=3,
+        )
+        snapshot = SimpleNamespace(
+            regime=canonical,
+            regime4_state="stale_legacy_value",
+            regime2_dir="down",
+        )
+
+        self.assertIs(SpotRegimeState.from_snapshot(snapshot), canonical)
+        self.assertEqual(
+            SpotRegimeState.from_snapshot(
+                SimpleNamespace(
+                    regime4_state="trend_down",
+                    regime4_owner="primary",
+                    regime2_dir="down",
+                    regime2_ready=True,
+                )
+            ),
+            SpotRegimeState(
+                label="trend_down",
+                owner="primary",
+                fast_dir="down",
+                fast_ready=True,
+            ),
+        )
+
     def test_legacy_regime_keys_decode_into_semantic_gate_policy(self) -> None:
         policy = _regime_gate_policy(
             {

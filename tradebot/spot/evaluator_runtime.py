@@ -497,18 +497,6 @@ class SpotSignalRuntimeMixin:
             shock_dir_up_streak_bars=int(self._shock_dir_up_streak_bars),
             risk=self._last_risk,
             atr=atr,
-            regime2_dir=regime.fast_dir,
-            regime2_ready=regime.fast_ready,
-            regime2_bear_hard_dir=regime.hard_dir,
-            regime2_bear_hard_ready=regime.hard_ready,
-            regime2_bear_hard_release_age_bars=(
-                int(regime.hard_release_age_bars)
-                if regime.hard_release_age_bars is not None
-                else None
-            ),
-            regime4_state=regime.label,
-            regime4_transition_hot=regime.transition_hot,
-            regime4_owner=regime.owner,
             or_high=self._orb_engine.or_high if self._orb_engine is not None else None,
             or_low=self._orb_engine.or_low if self._orb_engine is not None else None,
             or_ready=bool(self._orb_engine and self._orb_engine.or_ready),
