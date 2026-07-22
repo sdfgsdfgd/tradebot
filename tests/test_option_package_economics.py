@@ -895,6 +895,43 @@ def test_backtest_multi_quantity_credit_vertical_risk_matches_canonical_package_
     assert backtest_engine._hit_stop(trade, 4.0, "max_loss", 100.0) is False
 
 
+def test_backtest_option_exit_thresholds_disable_when_non_positive() -> None:
+    def _trade(*, profit_target: float = 0.5, stop_loss: float = 0.5) -> SimpleNamespace:
+        return SimpleNamespace(
+            entry_price=1.0,
+            profit_target=profit_target,
+            stop_loss=stop_loss,
+            max_loss=4.0,
+        )
+
+    assert backtest_engine._hit_profit(_trade(), 0.5) is True
+    assert backtest_engine._hit_stop(_trade(), 1.5, "credit", 100.0) is True
+    assert backtest_engine._hit_stop(_trade(), 3.0, "max_loss", 100.0) is True
+
+    assert backtest_engine._hit_profit(_trade(profit_target=float("nan")), 0.0) is False
+    assert backtest_engine._hit_profit(_trade(profit_target=float("inf")), 0.0) is False
+    assert backtest_engine._hit_stop(_trade(stop_loss=float("nan")), 10.0, "max_loss", 100.0) is False
+    assert backtest_engine._hit_stop(_trade(stop_loss=float("inf")), 10.0, "max_loss", 100.0) is False
+
+    for threshold in (0.0, -0.1, float("-inf")):
+        assert backtest_engine._hit_profit(
+            _trade(profit_target=threshold),
+            0.0,
+        ) is False
+        assert backtest_engine._hit_stop(
+            _trade(stop_loss=threshold),
+            10.0,
+            "credit",
+            100.0,
+        ) is False
+        assert backtest_engine._hit_stop(
+            _trade(stop_loss=threshold),
+            10.0,
+            "max_loss",
+            100.0,
+        ) is False
+
+
 def test_expiry_payoff_consumes_canonical_debit_value_without_inversion(monkeypatch) -> None:
     calls: list[list[tuple[str, int, float | None]]] = []
     monkeypatch.setattr(

@@ -45,6 +45,7 @@ from ..time_utils import now_et as _now_et
 from ..time_utils import to_et as _to_et_shared
 from .bot_models import _BotInstance
 from .common import _market_session_bucket, _quote_num_display, _safe_num, _sanitize_nbbo, _ticker_price
+from ..option_package import option_profit_target_hit, option_stop_loss_hit
 
 _DEFAULT_ORDER_STAGE_TIMEOUT_SEC = 20.0
 _DEFAULT_EXIT_RETRY_MAX_PER_BAR = 3
@@ -2529,34 +2530,36 @@ class BotSignalRuntimeMixin:
 
             entry_value, current_value = self._options_position_values(open_items)
             if entry_value is not None and current_value is not None:
-                profit = float(entry_value) - float(current_value)
                 try:
                     profit_target = float(instance.strategy.get("profit_target", 0.0) or 0.0)
                 except (TypeError, ValueError):
                     profit_target = 0.0
-                if profit_target > 0 and abs(entry_value) > 0:
-                    if profit >= abs(entry_value) * profit_target:
-                        return _trigger_exit("profit_target", mode="options")
+                if abs(entry_value) > 0 and option_profit_target_hit(
+                    entry_value=entry_value,
+                    current_value=current_value,
+                    profit_target=profit_target,
+                ):
+                    return _trigger_exit("profit_target", mode="options")
 
                 try:
                     stop_loss = float(instance.strategy.get("stop_loss", 0.0) or 0.0)
                 except (TypeError, ValueError):
                     stop_loss = 0.0
-                if stop_loss > 0:
-                    loss = max(0.0, float(current_value) - float(entry_value))
-                    basis = str(instance.strategy.get("stop_loss_basis") or "max_loss").strip().lower()
-                    if basis == "credit":
-                        if entry_value >= 0:
-                            if current_value >= entry_value * (1.0 + stop_loss):
-                                return _trigger_exit("stop_loss_credit", mode="options")
-                        elif loss >= abs(entry_value) * stop_loss:
-                            return _trigger_exit("stop_loss_credit", mode="options")
-                    else:
-                        max_loss = self._options_max_loss_estimate(open_items, spot=float(snap.close))
-                        if max_loss is None or max_loss <= 0:
-                            max_loss = abs(entry_value)
-                        if max_loss and loss >= float(max_loss) * stop_loss:
-                            return _trigger_exit("stop_loss_max_loss", mode="options")
+                basis = str(instance.strategy.get("stop_loss_basis") or "max_loss").strip().lower()
+                max_loss = None
+                if basis != "credit":
+                    max_loss = self._options_max_loss_estimate(open_items, spot=float(snap.close))
+                    if max_loss is None or max_loss <= 0:
+                        max_loss = abs(entry_value)
+                if option_stop_loss_hit(
+                    entry_value=entry_value,
+                    current_value=current_value,
+                    stop_loss=stop_loss,
+                    basis=basis,
+                    max_loss=max_loss,
+                ):
+                    reason = "stop_loss_credit" if basis == "credit" else "stop_loss_max_loss"
+                    return _trigger_exit(reason, mode="options")
 
         if instrument != "spot" and self._should_exit_on_flip(instance, snap, open_dir, open_items):
             return _trigger_exit("flip", mode=instrument)

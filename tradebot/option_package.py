@@ -72,6 +72,45 @@ def option_package_debit_value(
     return float(total)
 
 
+def option_profit_target_hit(
+    *,
+    entry_value: float,
+    current_value: float,
+    profit_target: float,
+) -> bool:
+    """Return whether enabled package economics reached the profit target."""
+    if not profit_target > 0:
+        return False
+    return (float(entry_value) - float(current_value)) >= (
+        abs(float(entry_value)) * float(profit_target)
+    )
+
+
+def option_stop_loss_hit(
+    *,
+    entry_value: float,
+    current_value: float,
+    stop_loss: float,
+    basis: str,
+    max_loss: float | None,
+) -> bool:
+    """Return whether enabled package economics reached the stop loss."""
+    if not stop_loss > 0:
+        return False
+
+    entry = float(entry_value)
+    current = float(current_value)
+    threshold = float(stop_loss)
+    loss = max(0.0, current - entry)
+    if basis == "credit":
+        if entry >= 0:
+            return current >= entry * (1.0 + threshold)
+        return loss >= abs(entry) * threshold
+
+    resolved_max_loss = abs(entry) if max_loss is None else float(max_loss)
+    return loss >= resolved_max_loss * threshold
+
+
 def option_package_risk(
     rows: Iterable[tuple[str, str, float, int, str, float | None]],
     *,

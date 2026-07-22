@@ -26,7 +26,11 @@ from .spot_context import SpotBarRequirement, load_spot_context_bars, spot_signa
 from .strategy import CreditSpreadStrategy, TradeSpec
 from ..series import BarSeries, bars_list
 from ..series_cache import series_cache_service
-from ..option_package import option_package_debit_value
+from ..option_package import (
+    option_package_debit_value,
+    option_profit_target_hit,
+    option_stop_loss_hit,
+)
 from ..spot.lifecycle import (
     apply_regime_gate,
     decide_flat_position_intent,
@@ -7074,22 +7078,29 @@ def _trade_value_from_spec(
 
 
 def _hit_profit(trade: OptionTrade, current_value: float) -> bool:
-    target = abs(trade.entry_price) * trade.profit_target
-    return (trade.entry_price - current_value) >= target
+    return option_profit_target_hit(
+        entry_value=trade.entry_price,
+        current_value=current_value,
+        profit_target=trade.profit_target,
+    )
 
 
 def _hit_stop(trade: OptionTrade, current_value: float, basis: str, spot: float) -> bool:
-    loss = max(0.0, current_value - trade.entry_price)
-    if basis == "credit":
-        if trade.entry_price >= 0:
-            return current_value >= trade.entry_price * (1 + trade.stop_loss)
-        return loss >= abs(trade.entry_price) * trade.stop_loss
-    max_loss = trade.max_loss if trade.max_loss is not None else _max_loss(trade)
-    if max_loss is None:
-        max_loss = _max_loss_estimate(trade, spot)
-    if max_loss is None:
-        max_loss = abs(trade.entry_price)
-    return loss >= max_loss * trade.stop_loss
+    max_loss = None
+    if basis != "credit":
+        max_loss = trade.max_loss if trade.max_loss is not None else _max_loss(trade)
+        if max_loss is None:
+            max_loss = _max_loss_estimate(trade, spot)
+        if max_loss is None:
+            max_loss = abs(trade.entry_price)
+
+    return option_stop_loss_hit(
+        entry_value=trade.entry_price,
+        current_value=current_value,
+        stop_loss=trade.stop_loss,
+        basis=basis,
+        max_loss=max_loss,
+    )
 
 
 def _hit_exit_dte(cfg: ConfigBundle, trade: OptionTrade, today: date) -> bool:
