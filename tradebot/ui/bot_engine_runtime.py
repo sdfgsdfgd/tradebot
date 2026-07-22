@@ -337,6 +337,15 @@ class BotEngineRuntimeMixin:
                     sec_type = str(getattr(order.order_contract, "secType", "") or "").strip().upper()
                     intent = str(order.intent or "").strip().lower()
                     signal_bar_ts = order.signal_bar_ts if isinstance(order.signal_bar_ts, datetime) else None
+                    if (
+                        status in ("Cancelled", "ApiCancelled")
+                        and intent == "enter"
+                        and max(float(order.filled_qty), float(order.executed_qty)) <= 0.0
+                        and signal_bar_ts is not None
+                        and instance.last_entry_bar_ts == signal_bar_ts
+                    ):
+                        instance.last_entry_bar_ts = None
+                        done_data["entry_lock_released"] = True
                     if status == "Inactive":
                         error_payload = None
                         client = getattr(self, "_client", None)

@@ -2995,6 +2995,7 @@ def test_engine_terminal_partial_package_cancel_preserves_fill_facts() -> None:
 
         bar_ts = datetime(2026, 2, 9, 10, 0)
         instance = _new_instance()
+        instance.last_entry_bar_ts = bar_ts
         order = _new_order(
             status="Submitted",
             signal_bar_ts=bar_ts,
@@ -3065,12 +3066,12 @@ def test_engine_terminal_partial_package_cancel_preserves_fill_facts() -> None:
             if event == "ORDER_CANCELLED"
         ]
         assert len(payloads) == 1
-        return order, dict(payloads[0])
+        return instance, order, dict(payloads[0])
 
-    zero_order, zero_payload = asyncio.run(
+    zero_instance, zero_order, zero_payload = asyncio.run(
         _run_case(filled_qty=0.0, remaining_qty=2.0)
     )
-    partial_order, partial_payload = asyncio.run(
+    partial_instance, partial_order, partial_payload = asyncio.run(
         _run_case(filled_qty=1.0, remaining_qty=1.0)
     )
 
@@ -3092,6 +3093,9 @@ def test_engine_terminal_partial_package_cancel_preserves_fill_facts() -> None:
     assert partial_payload["remaining_qty"] == 1.0
     assert partial_payload["executed_qty"] == 1.0
     assert zero_payload != partial_payload
+
+    assert zero_instance.last_entry_bar_ts is None
+    assert partial_instance.last_entry_bar_ts == partial_order.signal_bar_ts
 
 
 def test_order_error_cache_pop_and_expiry() -> None:
