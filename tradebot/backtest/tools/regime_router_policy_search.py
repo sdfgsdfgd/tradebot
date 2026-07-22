@@ -10,7 +10,8 @@ from pathlib import Path
 from statistics import mean
 from time import monotonic
 
-from ...climate_router import ClimateDecision, load_hf_host_strategy
+from ...climate_router import ClimateDecision
+from ...research.climate import load_hf_host_strategy
 from ...backtest.engine import run_backtest
 from ...backtest.spot_codec import make_bundle, metrics_from_summary
 

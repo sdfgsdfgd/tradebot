@@ -7,7 +7,8 @@ import csv
 from pathlib import Path
 from statistics import mean
 
-from ...climate_router import bull_sovereign_entry_ok, load_daily_bars_from_intraday_csv, moving_average_target_dir, rolling_climate_states
+from ...climate_router import bull_sovereign_entry_ok, moving_average_target_dir, rolling_climate_states
+from ...research.climate import load_daily_bars_from_intraday_csv
 
 
 def _future_stats(days, start_idx: int, horizon: int) -> tuple[float | None, float | None]:

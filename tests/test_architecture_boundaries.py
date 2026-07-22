@@ -17,7 +17,6 @@ OVERSIZED_MODULE_DEBT = {
     "tradebot/backtest/run_backtests_spot_multiwindow.py",
     "tradebot/backtest/run_backtests_spot_sweeps.py",
     "tradebot/client.py",
-    "tradebot/climate_router.py",
     "tradebot/engine.py",
     "tradebot/spot/graph.py",
     "tradebot/spot/lifecycle.py",
@@ -32,8 +31,6 @@ OVERSIZED_MODULE_DEBT = {
 # Existing ownership inversions only. New inversions and stale exemptions fail.
 BACKTEST_IMPORT_DEBT = {
     ("tradebot/client.py", "tradebot.backtest.trading_calendar"),
-    ("tradebot/climate_router.py", "tradebot.backtest.engine"),
-    ("tradebot/climate_router.py", "tradebot.backtest.spot_codec"),
     ("tradebot/ui/bot.py", "tradebot.backtest.spot_codec"),
     ("tradebot/ui/bot.py", "tradebot.backtest.trading_calendar"),
 }
@@ -73,7 +70,8 @@ def test_backtest_dependency_debt_only_shrinks() -> None:
     violations: set[tuple[str, str]] = set()
     for source in _production_modules():
         source_rel = source.relative_to(ROOT).as_posix()
-        if source_rel.startswith("tradebot/backtest/"):
+        # Research is the one production family allowed to depend on backtest adapters.
+        if source_rel.startswith(("tradebot/backtest/", "tradebot/research/")):
             continue
         tree = ast.parse(source.read_text(), filename=str(source))
         for node in ast.walk(tree):

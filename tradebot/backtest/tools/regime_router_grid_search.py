@@ -8,7 +8,8 @@ from datetime import date
 from pathlib import Path
 from statistics import mean
 
-from ...climate_router import ClimateDecision, load_hf_host_strategy
+from ...climate_router import ClimateDecision
+from ...research.climate import load_hf_host_strategy
 from ...backtest.spot_codec import make_bundle, metrics_from_summary
 from ...backtest.engine import run_backtest
 

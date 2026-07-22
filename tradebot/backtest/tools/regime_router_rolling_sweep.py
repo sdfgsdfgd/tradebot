@@ -23,9 +23,8 @@ from statistics import mean
 from ...climate_router import (
     DailyRegimeRouterEngine,
     RegimeRouterConfig,
-    load_daily_bars_from_intraday_csv,
-    load_hf_host_strategy,
 )
+from ...research.climate import load_daily_bars_from_intraday_csv, load_hf_host_strategy
 from ..engine import run_backtest
 from ..models import SpotTrade
 from ..spot_codec import make_bundle, metrics_from_summary

@@ -8,11 +8,13 @@ from pathlib import Path
 from statistics import mean
 
 from ...climate_router import (
-    buyhold_year_pdd,
     classify_climate_v2,
     classify_climate_v3,
     classify_climate_v4,
     compute_year_features,
+)
+from ...research.climate import (
+    buyhold_year_pdd,
     hf_host_year_stats,
     load_daily_bars_from_intraday_csv,
     load_hf_host_strategy,
