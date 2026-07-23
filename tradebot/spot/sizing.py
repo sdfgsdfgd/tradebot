@@ -45,7 +45,8 @@ class SpotSizingPolicy:
         cash_ref: float | None = None,
         policy_graph: SpotPolicyGraph | None = None,
         policy_config: SpotPolicyConfigView | None = None,
-    ) -> tuple[int, SpotDecisionTrace]:
+        capture_trace: bool = True,
+    ) -> tuple[int, SpotDecisionTrace | None]:
         cfg = policy_config or cls.policy_config(strategy=strategy, filters=filters)
 
         lot_i = max(1, int(lot or 1))
@@ -188,70 +189,91 @@ class SpotSizingPolicy:
         cap_pct_base = float(cfg.spot_max_notional_pct)
         cap_pct = float(cap_pct_base) * float(graph_overlay.cap_mult)
 
-        trace = SpotDecisionTrace(
-            action=str(raw_action),
-            sizing_mode=str(cfg.sizing_mode),
-            lot=int(lot_i),
-            quantity_mult=int(cfg.quantity_mult),
-            base_signed_qty=int(base_signed_qty),
-            entry_price=float(entry_price_f),
-            stop_price=float(stop_price_clean) if stop_price_clean is not None else None,
-            stop_loss_pct=float(stop_loss_pct_clean) if stop_loss_pct_clean is not None else None,
-            equity_ref=float(equity_ref_f),
-            cash_ref=float(cash_ref_f) if cash_ref_f is not None else None,
-            riskoff=bool(riskoff),
-            riskpanic=bool(riskpanic),
-            riskpop=bool(riskpop),
-            shock=bool(shock),
-            shock_dir=shock_dir_clean,
-            shock_dir_down_streak_bars=int(shock_dir_down_streak_clean)
-            if shock_dir_down_streak_clean is not None
-            else None,
-            shock_atr_pct=float(shock_atr_pct_clean) if shock_atr_pct_clean is not None else None,
-            shock_drawdown_dist_on_pct=(
-                float(shock_drawdown_dist_on_clean) if shock_drawdown_dist_on_clean is not None else None
-            ),
-            shock_drawdown_dist_on_vel_pp=(
-                float(shock_drawdown_dist_on_vel_clean)
-                if shock_drawdown_dist_on_vel_clean is not None
-                else None
-            ),
-            shock_drawdown_dist_on_accel_pp=(
-                float(shock_drawdown_dist_on_accel_clean)
-                if shock_drawdown_dist_on_accel_clean is not None
-                else None
-            ),
-            shock_drawdown_dist_off_pct=(
-                float(shock_drawdown_dist_off_clean) if shock_drawdown_dist_off_clean is not None else None
-            ),
-            shock_prearm_down_streak_bars=(
-                int(shock_prearm_down_streak_clean) if shock_prearm_down_streak_clean is not None else None
-            ),
-            riskoff_mode=str(cfg.riskoff_mode),
-            risk_dir=risk_dir_clean,
-            signal_entry_dir=signal_entry_dir_clean,
-            signal_regime_dir=signal_regime_dir_clean,
-            regime2_dir=regime2_dir_clean,
-            regime2_ready=bool(regime2_ready_clean),
-            riskoff_long_factor=float(cfg.riskoff_long_factor),
-            riskoff_short_factor=float(cfg.riskoff_short_factor),
-            riskpanic_long_factor=float(cfg.riskpanic_long_factor),
-            riskpanic_short_factor=float(cfg.riskpanic_short_factor),
-            riskpop_long_factor=float(cfg.riskpop_long_factor),
-            riskpop_short_factor=float(cfg.riskpop_short_factor),
-            graph_profile=str(graph.profile_name),
-            graph_entry_policy=str(graph.entry_policy),
-            graph_exit_policy=str(graph.exit_policy),
-            graph_resize_policy=str(graph.resize_policy),
-            graph_risk_overlay_policy=str(graph.risk_overlay_policy),
-            graph_overlay_trace=graph_overlay.as_payload(),
-            cap_pct_base=float(cap_pct_base),
-            cap_pct_final=float(cap_pct),
+        graph_overlay_payload = (
+            graph_overlay.as_payload()
+            if bool(capture_trace) or bool(cfg.liq_boost_enable)
+            else None
+        )
+        trace = (
+            SpotDecisionTrace(
+                action=str(raw_action),
+                sizing_mode=str(cfg.sizing_mode),
+                lot=int(lot_i),
+                quantity_mult=int(cfg.quantity_mult),
+                base_signed_qty=int(base_signed_qty),
+                entry_price=float(entry_price_f),
+                stop_price=float(stop_price_clean) if stop_price_clean is not None else None,
+                stop_loss_pct=float(stop_loss_pct_clean) if stop_loss_pct_clean is not None else None,
+                equity_ref=float(equity_ref_f),
+                cash_ref=float(cash_ref_f) if cash_ref_f is not None else None,
+                riskoff=bool(riskoff),
+                riskpanic=bool(riskpanic),
+                riskpop=bool(riskpop),
+                shock=bool(shock),
+                shock_dir=shock_dir_clean,
+                shock_dir_down_streak_bars=int(shock_dir_down_streak_clean)
+                if shock_dir_down_streak_clean is not None
+                else None,
+                shock_atr_pct=float(shock_atr_pct_clean) if shock_atr_pct_clean is not None else None,
+                shock_drawdown_dist_on_pct=(
+                    float(shock_drawdown_dist_on_clean) if shock_drawdown_dist_on_clean is not None else None
+                ),
+                shock_drawdown_dist_on_vel_pp=(
+                    float(shock_drawdown_dist_on_vel_clean)
+                    if shock_drawdown_dist_on_vel_clean is not None
+                    else None
+                ),
+                shock_drawdown_dist_on_accel_pp=(
+                    float(shock_drawdown_dist_on_accel_clean)
+                    if shock_drawdown_dist_on_accel_clean is not None
+                    else None
+                ),
+                shock_drawdown_dist_off_pct=(
+                    float(shock_drawdown_dist_off_clean) if shock_drawdown_dist_off_clean is not None else None
+                ),
+                shock_prearm_down_streak_bars=(
+                    int(shock_prearm_down_streak_clean) if shock_prearm_down_streak_clean is not None else None
+                ),
+                riskoff_mode=str(cfg.riskoff_mode),
+                risk_dir=risk_dir_clean,
+                signal_entry_dir=signal_entry_dir_clean,
+                signal_regime_dir=signal_regime_dir_clean,
+                regime2_dir=regime2_dir_clean,
+                regime2_ready=bool(regime2_ready_clean),
+                riskoff_long_factor=float(cfg.riskoff_long_factor),
+                riskoff_short_factor=float(cfg.riskoff_short_factor),
+                riskpanic_long_factor=float(cfg.riskpanic_long_factor),
+                riskpanic_short_factor=float(cfg.riskpanic_short_factor),
+                riskpop_long_factor=float(cfg.riskpop_long_factor),
+                riskpop_short_factor=float(cfg.riskpop_short_factor),
+                graph_profile=str(graph.profile_name),
+                graph_entry_policy=str(graph.entry_policy),
+                graph_exit_policy=str(graph.exit_policy),
+                graph_resize_policy=str(graph.resize_policy),
+                graph_risk_overlay_policy=str(graph.risk_overlay_policy),
+                graph_overlay_trace=graph_overlay_payload,
+                cap_pct_base=float(cap_pct_base),
+                cap_pct_final=float(cap_pct),
+            )
+            if bool(capture_trace)
+            else None
         )
 
+        trace_updates: dict[str, object] = {}
+
         def _update_trace(**kwargs: object) -> None:
-            nonlocal trace
-            trace = replace(trace, **kwargs)
+            trace_updates.update(kwargs)
+
+        def _trace_value(name: str, default: object = None) -> object:
+            return trace_updates.get(
+                name,
+                getattr(trace, name, default) if trace is not None else default,
+            )
+
+        def _finish_trace() -> SpotDecisionTrace | None:
+            if trace is None:
+                return None
+            return replace(trace, **trace_updates) if trace_updates else trace
 
         if str(cfg.sizing_mode) == "fixed":
             abs_qty = abs(int(base_signed_qty))
@@ -262,11 +284,11 @@ class SpotSizingPolicy:
                 min_effective_qty=max(int(cfg.spot_min_qty), int(lot_i)),
                 signed_qty_final=int(base_signed_qty),
             )
-            return int(base_signed_qty), trace
+            return int(base_signed_qty), _finish_trace()
 
         if float(entry_price_f) <= 0:
             _update_trace(zero_reason="invalid_entry_price", signed_qty_final=0)
-            return 0, trace
+            return 0, _finish_trace()
 
         desired_qty = 0
 
@@ -302,18 +324,18 @@ class SpotSizingPolicy:
                             if str(risk_dir_clean) == "up":
                                 if float(cfg.riskoff_long_factor) == 0:
                                     _update_trace(zero_reason="riskoff_long_factor_zero", signed_qty_final=0)
-                                    return 0, trace
+                                    return 0, _finish_trace()
                                 risk_dollars *= float(cfg.riskoff_long_factor)
                         else:
                             if float(cfg.riskoff_long_factor) == 0:
                                 _update_trace(zero_reason="riskoff_long_factor_zero", signed_qty_final=0)
-                                return 0, trace
+                                return 0, _finish_trace()
                             risk_dollars *= float(cfg.riskoff_long_factor)
 
                     if bool(riskpanic):
                         if float(cfg.riskpanic_long_factor) == 0:
                             _update_trace(zero_reason="riskpanic_long_factor_zero", signed_qty_final=0)
-                            return 0, trace
+                            return 0, _finish_trace()
                         risk_dollars *= float(cfg.riskpanic_long_factor)
                     elif risk is not None and str(cfg.riskpanic_long_scale_mode) == "linear":
                         tr_delta = getattr(risk, "tr_median_delta_pct", None)
@@ -345,13 +367,13 @@ class SpotSizingPolicy:
                                 eff = float(max(0.0, min(1.0, eff)))
                                 if eff <= 0:
                                     _update_trace(zero_reason="riskpanic_linear_zero", signed_qty_final=0)
-                                    return 0, trace
+                                    return 0, _finish_trace()
                                 risk_dollars *= float(eff)
 
                     if bool(riskpop):
                         if float(cfg.riskpop_long_factor) == 0:
                             _update_trace(zero_reason="riskpop_long_factor_zero", signed_qty_final=0)
-                            return 0, trace
+                            return 0, _finish_trace()
                         risk_dollars *= float(cfg.riskpop_long_factor)
 
                     if bool(shock) and shock_dir_clean in ("up", "down"):
@@ -413,14 +435,14 @@ class SpotSizingPolicy:
                             _update_trace(shock_long_factor=float(shock_long_mult))
                             if shock_long_mult == 0:
                                 _update_trace(zero_reason="shock_long_factor_zero", signed_qty_final=0)
-                                return 0, trace
+                                return 0, _finish_trace()
                             risk_dollars *= float(shock_long_mult)
 
                     risk_dollars *= float(graph_overlay.long_risk_mult)
                     risk_dollars *= float(graph_overlay.risk_mult)
                     if risk_dollars <= 0:
                         _update_trace(zero_reason="graph_overlay_nonpositive", signed_qty_final=0)
-                        return 0, trace
+                        return 0, _finish_trace()
 
                 else:
                     short_mult = float(cfg.spot_short_risk_mult)
@@ -463,7 +485,7 @@ class SpotSizingPolicy:
                         )
                         if not bool(gate_ok):
                             _update_trace(zero_reason="shock_short_entry_depth_gate", signed_qty_final=0)
-                            return 0, trace
+                            return 0, _finish_trace()
 
                     if bool(riskoff):
                         # In `directional` mode we only apply the short factor when the risk direction is explicitly down.
@@ -671,12 +693,12 @@ class SpotSizingPolicy:
                     _update_trace(short_mult_final=float(short_mult))
                     if short_mult <= 0:
                         _update_trace(zero_reason="short_mult_nonpositive", signed_qty_final=0)
-                        return 0, trace
+                        return 0, _finish_trace()
                     risk_dollars *= float(short_mult)
                     risk_dollars *= float(graph_overlay.risk_mult)
                     if risk_dollars <= 0:
                         _update_trace(zero_reason="graph_overlay_nonpositive", signed_qty_final=0)
-                        return 0, trace
+                        return 0, _finish_trace()
 
                 if (
                     cfg.shock_risk_scale_target_atr_pct is not None
@@ -705,10 +727,11 @@ class SpotSizingPolicy:
                 liq_boost_mult = 1.0
                 liq_boost_score = None
                 if bool(cfg.liq_boost_enable):
-                    overlay_trace = graph_overlay.as_payload() if hasattr(graph_overlay, "as_payload") else {}
+                    overlay_trace = graph_overlay_payload or {}
                     raw_score = overlay_trace.get("trace", {}).get("score") if isinstance(overlay_trace, dict) else None
-                    if raw_score is None and isinstance(trace.graph_overlay_trace, dict):
-                        raw_score = trace.graph_overlay_trace.get("trace", {}).get("score")
+                    graph_overlay_trace = _trace_value("graph_overlay_trace")
+                    if raw_score is None and isinstance(graph_overlay_trace, dict):
+                        raw_score = graph_overlay_trace.get("trace", {}).get("score")
                     try:
                         liq_boost_score = float(raw_score) if raw_score is not None else None
                     except (TypeError, ValueError):
@@ -828,7 +851,7 @@ class SpotSizingPolicy:
             cap_qty = int((float(equity_ref_f) * float(cap_pct)) / float(entry_price_f))
             desired_qty = min(int(desired_qty), max(0, int(cap_qty)))
             if (
-                bool(getattr(trace, "liq_boost_applied", False))
+                bool(_trace_value("liq_boost_applied", False))
                 and float(getattr(cfg, "liq_boost_cap_floor_frac", 0.0)) > 0
                 and cap_qty is not None
                 and cap_qty > 0
@@ -838,11 +861,11 @@ class SpotSizingPolicy:
                     desired_qty = max(int(desired_qty), int(floor_qty))
                     _update_trace(liq_boost_cap_floor_qty=int(floor_qty))
             if (
-                float(getattr(trace, "shock_ramp_cap_floor_frac", 0.0) or 0.0) > 0
+                float(_trace_value("shock_ramp_cap_floor_frac", 0.0) or 0.0) > 0
                 and cap_qty is not None
                 and cap_qty > 0
             ):
-                floor_qty = int(float(cap_qty) * float(getattr(trace, "shock_ramp_cap_floor_frac", 0.0) or 0.0))
+                floor_qty = int(float(cap_qty) * float(_trace_value("shock_ramp_cap_floor_frac", 0.0) or 0.0))
                 if floor_qty > 0:
                     desired_qty = max(int(desired_qty), int(floor_qty))
                     _update_trace(shock_ramp_cap_floor_qty=int(floor_qty))
@@ -873,7 +896,7 @@ class SpotSizingPolicy:
                 zero_reason="min_qty_gate",
                 cap_pct_final=float(cap_pct),
             )
-            return 0, trace
+            return 0, _finish_trace()
 
         signed_qty = int(lot_rounded_qty) if raw_action == "BUY" else -int(lot_rounded_qty)
         _update_trace(
@@ -889,7 +912,7 @@ class SpotSizingPolicy:
             zero_reason=None,
             cap_pct_final=float(cap_pct),
         )
-        return int(signed_qty), trace
+        return int(signed_qty), _finish_trace()
 
     @classmethod
     def calc_signed_qty(
@@ -947,5 +970,6 @@ class SpotSizingPolicy:
             signal_regime_dir=signal_regime_dir,
             equity_ref=equity_ref,
             cash_ref=cash_ref,
+            capture_trace=False,
         )
         return int(qty)

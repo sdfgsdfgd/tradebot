@@ -636,14 +636,19 @@ def spot_sizing_input(
 
 def spot_calc_signed_qty_with_trace(
     sizing_input: SpotSizingInput | None = None,
+    *,
+    capture_trace: bool = True,
     **legacy_fields: object,
-) -> tuple[int, SpotDecisionTrace]:
+) -> tuple[int, SpotDecisionTrace | None]:
     """Return signed share qty plus a typed spot decision trace."""
     if sizing_input is None:
         sizing_input = spot_sizing_input(**legacy_fields)
     elif legacy_fields:
         raise TypeError("legacy sizing fields cannot accompany SpotSizingInput")
-    return SpotPolicy.calc_signed_qty_with_trace(**sizing_input.as_kwargs())
+    return SpotPolicy.calc_signed_qty_with_trace(
+        **sizing_input.as_kwargs(),
+        capture_trace=bool(capture_trace),
+    )
 
 
 def spot_resolve_position_intent(

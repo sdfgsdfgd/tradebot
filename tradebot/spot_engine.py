@@ -135,15 +135,19 @@ class SpotSignalEvaluator(
         self._ratsv_slope_slow_window = max(int(self._ratsv_slope_window) + 1, int(slow_window))
         self._ratsv_tr_fast = max(1, int(_get(filters, "ratsv_tr_fast_bars", 5) or 5)) if filters is not None else 5
         self._ratsv_tr_slow = max(self._ratsv_tr_fast, int(_get(filters, "ratsv_tr_slow_bars", 20) or 20)) if filters is not None else 20
-        self._ratsv_tr_pct_hist: deque[float] = deque(maxlen=max(256, self._ratsv_tr_slow + 8))
+        self._ratsv_tr_fast_hist: deque[float] = deque(maxlen=self._ratsv_tr_fast)
+        self._ratsv_tr_slow_hist: deque[float] = deque(maxlen=self._ratsv_tr_slow)
         self._ratsv_prev_tr_close: float | None = None
         self._ratsv_branch_cross_age: dict[str, int | None] = {"single": None, "a": None, "b": None}
-        slope_hist_maxlen = max(16, max(int(self._ratsv_slope_window), int(self._ratsv_slope_slow_window)) * 4)
-        self._ratsv_branch_slope_hist: dict[str, deque[float]] = {
-            "single": deque(maxlen=int(slope_hist_maxlen)),
-            "a": deque(maxlen=int(slope_hist_maxlen)),
-            "b": deque(maxlen=int(slope_hist_maxlen)),
+        self._ratsv_branch_slope_fast_hist: dict[str, deque[float]] = {
+            key: deque(maxlen=self._ratsv_slope_window)
+            for key in ("single", "a", "b")
         }
+        self._ratsv_branch_slope_slow_hist: dict[str, deque[float]] = {
+            key: deque(maxlen=self._ratsv_slope_slow_window)
+            for key in ("single", "a", "b")
+        }
+        slope_hist_maxlen = max(16, self._ratsv_slope_slow_window * 4)
         self._ratsv_branch_slope_vel_hist: dict[str, deque[float]] = {
             "single": deque(maxlen=int(slope_hist_maxlen)),
             "a": deque(maxlen=int(slope_hist_maxlen)),

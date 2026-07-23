@@ -446,7 +446,7 @@ class IBKRHistoricalData:
                 sliced = read_cache(cache_file)
                 source = "cache"
             else:
-                sliced = [bar for bar in read_cache(covering) if start <= bar.ts <= end]
+                sliced = read_cache(covering, start=start, end=end)
                 source = "cache-covering"
             normalized = _normalize_bars(sliced, symbol=symbol, bar_size=bar_size, use_rth=use_rth)
             return BarSeries(

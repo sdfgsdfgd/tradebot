@@ -116,12 +116,10 @@ class SpotSignalPolicyMixin:
         return _trade_date_shared(ts, naive_ts_mode=self._naive_ts_mode)
 
     def _ratsv_tr_fast_slow(self) -> tuple[float | None, float | None]:
-        tr_hist = list(self._ratsv_tr_pct_hist)
-        if not tr_hist:
-            return None, None
-        fast = self._median(tr_hist[-int(self._ratsv_tr_fast) :])
-        slow = self._median(tr_hist[-int(self._ratsv_tr_slow) :])
-        return fast, slow
+        return (
+            self._median(self._ratsv_tr_fast_hist),
+            self._median(self._ratsv_tr_slow_hist),
+        )
 
     def _ratsv_update_bar_metrics(self, *, high: float, low: float, close: float) -> None:
         prev_close = self._ratsv_prev_tr_close
@@ -138,7 +136,8 @@ class SpotSignalPolicyMixin:
                 abs(float(low) - float(prev_close)),
             )
         tr_pct = float(tr) / max(float(close), 1e-9)
-        self._ratsv_tr_pct_hist.append(float(tr_pct))
+        self._ratsv_tr_fast_hist.append(float(tr_pct))
+        self._ratsv_tr_slow_hist.append(float(tr_pct))
 
     def _ratsv_side_rank(self, *, signal: EmaDecisionSnapshot, entry_dir: str, close: float) -> float | None:
         if close <= 0:
@@ -293,11 +292,12 @@ class SpotSignalPolicyMixin:
 
         slope_now = self._signed_fast_slope_pct(signal, float(close))
         if slope_now is not None:
-            self._ratsv_branch_slope_hist[branch_key].append(float(slope_now))
-        window = list(self._ratsv_branch_slope_hist[branch_key])[-int(self._ratsv_slope_window) :]
-        slope_med = self._median(window)
-        window_slow = list(self._ratsv_branch_slope_hist[branch_key])[-int(self._ratsv_slope_slow_window) :]
-        slope_med_slow = self._median(window_slow)
+            self._ratsv_branch_slope_fast_hist[branch_key].append(float(slope_now))
+            self._ratsv_branch_slope_slow_hist[branch_key].append(float(slope_now))
+        slope_med = self._median(self._ratsv_branch_slope_fast_hist[branch_key])
+        slope_med_slow = self._median(
+            self._ratsv_branch_slope_slow_hist[branch_key]
+        )
         prev_med = self._ratsv_branch_last_slope_med.get(branch_key)
         prev_med_slow = self._ratsv_branch_last_slope_med_slow.get(branch_key)
         slope_vel = None

@@ -242,6 +242,25 @@ def test_write_cache_invalidates_read_cache_lru() -> None:
     assert second[0].close == 2.0
 
 
+def test_read_cache_window_materializes_only_requested_rows() -> None:
+    start = datetime(2025, 1, 6, 14, 30)
+    bars = _bars(start, n=8, minutes=5)
+    with TemporaryDirectory() as tmpdir:
+        path = Path(tmpdir) / "bars.csv"
+        write_cache(path, bars)
+        window = read_cache(
+            path,
+            start=start + timedelta(minutes=10),
+            end=start + timedelta(minutes=20),
+        )
+
+    assert [bar.ts for bar in window] == [
+        start + timedelta(minutes=10),
+        start + timedelta(minutes=15),
+        start + timedelta(minutes=20),
+    ]
+
+
 def test_spot_signal_evaluator_accepts_bar_series_inputs() -> None:
     start = datetime(2025, 1, 6, 14, 30)
     regime = _bars(start, n=40, minutes=30)

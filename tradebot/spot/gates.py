@@ -508,6 +508,12 @@ def _clone_signal_snapshot(
     regime_dir: str | None,
     regime_ready: bool,
 ) -> object:
+    if (
+        getattr(signal, "entry_dir", None) == entry_dir
+        and getattr(signal, "regime_dir", None) == regime_dir
+        and bool(getattr(signal, "regime_ready", False)) == bool(regime_ready)
+    ):
+        return signal
     if is_dataclass(signal):
         try:
             return replace(

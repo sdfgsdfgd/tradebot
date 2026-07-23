@@ -1396,6 +1396,7 @@ def _spot_try_open_entry(
     cash: float,
     margin_used: float,
     liquidation_value: float,
+    capture_decision_trace: bool = True,
 ) -> tuple[SpotTrade, float, float] | None:
     snapshot = evidence.snapshot
     filters = cfg.strategy.filters
@@ -1554,7 +1555,10 @@ def _spot_try_open_entry(
             policy_graph=policy.sizing_graph,
             policy_config=policy.sizing_config,
         )
-        signed_qty, decision_trace = spot_calc_signed_qty_with_trace(entry_sizing_input)
+        signed_qty, decision_trace = spot_calc_signed_qty_with_trace(
+            entry_sizing_input,
+            capture_trace=bool(capture_decision_trace),
+        )
         if signed_qty == 0:
             can_open = False
         else:
@@ -1565,11 +1569,12 @@ def _spot_try_open_entry(
                 spot_min_qty=int(getattr(cfg.strategy, "spot_min_qty", 1) or 1),
                 spot_max_qty=int(getattr(cfg.strategy, "spot_max_qty", 0) or 0),
             )
-            decision_trace = decision_trace.with_branch_scaling(
-                entry_branch=entry_branch,
-                size_mult=float(size_mult),
-                signed_qty_after_branch=int(signed_qty),
-            )
+            if decision_trace is not None:
+                decision_trace = decision_trace.with_branch_scaling(
+                    entry_branch=entry_branch,
+                    size_mult=float(size_mult),
+                    signed_qty_after_branch=int(signed_qty),
+                )
             lifecycle = _spot_open_position_intent(
                 policy=policy,
                 strategy=cfg.strategy,
@@ -1578,7 +1583,11 @@ def _spot_try_open_entry(
                 open_dir=None,
                 current_qty=0,
                 target_qty=int(signed_qty),
-                spot_decision=decision_trace.as_payload(),
+                spot_decision=(
+                    decision_trace.as_payload()
+                    if decision_trace is not None
+                    else None
+                ),
                 shock_atr_pct=evidence.shock_atr_pct,
                 tr_ratio=float(getattr(evidence.risk_snapshot, "tr_ratio", 0.0))
                 if evidence.risk_snapshot is not None
@@ -1614,28 +1623,29 @@ def _spot_try_open_entry(
                 can_open = False
             else:
                 signed_qty = int(intent_decision.delta_qty)
-                decision_trace_payload = decision_trace.as_payload()
-                decision_trace_payload["regime2_bear_hard_dir"] = (
-                    evidence.regime.hard_dir
-                )
-                decision_trace_payload["regime2_bear_hard_ready"] = (
-                    evidence.regime.hard_ready
-                )
-                decision_trace_payload["regime2_bear_hard_release_age_bars"] = (
-                    evidence.regime.hard_release_age_bars
-                )
-                decision_trace_payload["regime4_state"] = evidence.regime.label
-                decision_trace_payload["regime4_transition_hot"] = (
-                    evidence.regime.transition_hot
-                )
-                decision_trace_payload["regime4_owner"] = evidence.regime.owner
-                decision_trace_payload["entry_guard_probe"] = evidence.guard_probe
-                decision_trace_payload["entry_guard_inputs"] = evidence.guard_inputs
-                decision_trace_payload["entry_local_extrema_probe"] = (
-                    evidence.local_extrema
-                )
-                decision_trace_payload["spot_intent"] = intent_decision.as_payload()
-                decision_trace_payload["spot_lifecycle"] = lifecycle.as_payload()
+                if decision_trace is not None:
+                    decision_trace_payload = decision_trace.as_payload()
+                    decision_trace_payload["regime2_bear_hard_dir"] = (
+                        evidence.regime.hard_dir
+                    )
+                    decision_trace_payload["regime2_bear_hard_ready"] = (
+                        evidence.regime.hard_ready
+                    )
+                    decision_trace_payload["regime2_bear_hard_release_age_bars"] = (
+                        evidence.regime.hard_release_age_bars
+                    )
+                    decision_trace_payload["regime4_state"] = evidence.regime.label
+                    decision_trace_payload["regime4_transition_hot"] = (
+                        evidence.regime.transition_hot
+                    )
+                    decision_trace_payload["regime4_owner"] = evidence.regime.owner
+                    decision_trace_payload["entry_guard_probe"] = evidence.guard_probe
+                    decision_trace_payload["entry_guard_inputs"] = evidence.guard_inputs
+                    decision_trace_payload["entry_local_extrema_probe"] = (
+                        evidence.local_extrema
+                    )
+                    decision_trace_payload["spot_intent"] = intent_decision.as_payload()
+                    decision_trace_payload["spot_lifecycle"] = lifecycle.as_payload()
     else:
         signed_qty = 0
 
@@ -1754,6 +1764,7 @@ def _spot_apply_resize_trade(
     multiplier: float,
     lifecycle_payload: dict[str, object] | None = None,
     decision_payload: dict[str, object] | None = None,
+    capture_trace: bool = True,
 ) -> tuple[bool, float, float]:
     delta = int(delta_qty)
     if delta == 0:
@@ -1801,24 +1812,25 @@ def _spot_apply_resize_trade(
         0.0, float(margin_used) - float(old_margin) + float(new_margin)
     )
 
-    trace = trade.decision_trace if isinstance(trade.decision_trace, dict) else {}
-    resizes = trace.get("resizes")
-    rows = list(resizes) if isinstance(resizes, list) else []
-    rows.append(
-        {
-            "delta_qty": int(delta),
-            "new_qty": int(new_qty),
-            "resize_price": float(resize_price),
-            "lifecycle": dict(lifecycle_payload)
-            if isinstance(lifecycle_payload, dict)
-            else None,
-            "spot_decision": dict(decision_payload)
-            if isinstance(decision_payload, dict)
-            else None,
-        }
-    )
-    trace["resizes"] = rows
-    trade.decision_trace = trace
+    if capture_trace:
+        trace = trade.decision_trace if isinstance(trade.decision_trace, dict) else {}
+        resizes = trace.get("resizes")
+        rows = list(resizes) if isinstance(resizes, list) else []
+        rows.append(
+            {
+                "delta_qty": int(delta),
+                "new_qty": int(new_qty),
+                "resize_price": float(resize_price),
+                "lifecycle": dict(lifecycle_payload)
+                if isinstance(lifecycle_payload, dict)
+                else None,
+                "spot_decision": dict(decision_payload)
+                if isinstance(decision_payload, dict)
+                else None,
+            }
+        )
+        trace["resizes"] = rows
+        trade.decision_trace = trace
 
     return True, float(next_cash), float(next_margin_used)
 
@@ -1994,6 +2006,7 @@ def _run_spot_backtest_exec_loop(
         or bool(str(why_not_out_raw or "").strip())
     )
     lifecycle_rows: list[dict[str, object]] | None = [] if capture_lifecycle else None
+    capture_decision_trace = bool(capture_equity or capture_lifecycle)
 
     if not signal_bars:
         raise ValueError("signal_bars is empty")
@@ -2161,7 +2174,7 @@ def _run_spot_backtest_exec_loop(
         )
 
     def _latest_signal_snapshot_probe(*, exec_idx: int) -> dict[str, object] | None:
-        if last_sig_snap is None:
+        if not capture_decision_trace or last_sig_snap is None:
             return None
         risk_snap = getattr(last_sig_snap, "risk", None)
         age_bars = (
@@ -2268,23 +2281,24 @@ def _run_spot_backtest_exec_loop(
             trade=trade,
             trades=trades,
         )
-        trace = trade.decision_trace if isinstance(trade.decision_trace, dict) else {}
-        rows_raw = trace.get("exits")
-        rows = list(rows_raw) if isinstance(rows_raw, list) else []
-        payload = (
-            dict(exit_trace_payload) if isinstance(exit_trace_payload, dict) else {}
-        )
-        if exit_exec_idx is not None:
-            payload["local_extrema_probe"] = _spot_local_extrema_probe(
-                bars=exec_bars,
-                exec_idx=int(exit_exec_idx),
-                ref_price=float(exit_price),
-                bar_size=spot_exec_bar_size,
+        if capture_decision_trace:
+            trace = trade.decision_trace if isinstance(trade.decision_trace, dict) else {}
+            rows_raw = trace.get("exits")
+            rows = list(rows_raw) if isinstance(rows_raw, list) else []
+            payload = (
+                dict(exit_trace_payload) if isinstance(exit_trace_payload, dict) else {}
             )
-        if payload:
-            rows.append(payload)
-            trace["exits"] = rows
-            trade.decision_trace = trace
+            if exit_exec_idx is not None:
+                payload["local_extrema_probe"] = _spot_local_extrema_probe(
+                    bars=exec_bars,
+                    exec_idx=int(exit_exec_idx),
+                    ref_price=float(exit_price),
+                    bar_size=spot_exec_bar_size,
+                )
+            if payload:
+                rows.append(payload)
+                trace["exits"] = rows
+                trade.decision_trace = trace
         return float(exit_price), float(next_cash), float(next_margin_used)
 
     pending_entry = _SpotPendingEntry()
@@ -2546,17 +2560,22 @@ def _run_spot_backtest_exec_loop(
                             pending=filled_entry,
                             guard_probe=filled_entry.guard_probe,
                             guard_inputs=filled_entry.guard_inputs,
-                            local_extrema=_spot_local_extrema_probe(
-                                bars=exec_bars,
-                                exec_idx=int(idx),
-                                ref_price=float(bar.open),
-                                bar_size=spot_exec_bar_size,
+                            local_extrema=(
+                                _spot_local_extrema_probe(
+                                    bars=exec_bars,
+                                    exec_idx=int(idx),
+                                    ref_price=float(bar.open),
+                                    bar_size=spot_exec_bar_size,
+                                )
+                                if capture_decision_trace
+                                else None
                             ),
                         ),
                         exec_profile=exec_profile,
                         cash=float(cash),
                         margin_used=float(margin_used),
                         liquidation_value=float(liquidation_open),
+                        capture_decision_trace=bool(capture_decision_trace),
                     )
                     if opened is not None:
                         candidate, cash, margin_used = opened
@@ -2592,9 +2611,13 @@ def _run_spot_backtest_exec_loop(
         )
         signal_inputs = sig_snap.lifecycle_inputs() if sig_snap is not None else {}
         signal_trace = (
-            sig_snap.lifecycle_trace()
-            if sig_snap is not None
-            else {key: None for key in _SPOT_SIGNAL_TRACE_KEYS}
+            (
+                sig_snap.lifecycle_trace()
+                if sig_snap is not None
+                else {key: None for key in _SPOT_SIGNAL_TRACE_KEYS}
+            )
+            if capture_lifecycle
+            else {}
         )
         entry_context = sig_snap.entry_context() if sig_snap is not None else {}
 
@@ -2991,17 +3014,23 @@ def _run_spot_backtest_exec_loop(
             context=signal_trace,
         )
         entry_guard_probe_now = None
-        if isinstance(getattr(entry_decision, "trace", None), dict):
+        if capture_decision_trace and isinstance(
+            getattr(entry_decision, "trace", None), dict
+        ):
             raw_graph_entry = entry_decision.trace.get("graph_entry")
             if isinstance(raw_graph_entry, dict):
                 entry_guard_probe_now = dict(raw_graph_entry)
-        entry_guard_inputs_now = dict(entry_context)
-        entry_guard_inputs_now.update(
+        entry_guard_inputs_now = (
             {
-                key: value
-                for key, value in signal_inputs.items()
-                if key != "signal_entry_dir"
+                **entry_context,
+                **{
+                    key: value
+                    for key, value in signal_inputs.items()
+                    if key != "signal_entry_dir"
+                },
             }
+            if capture_decision_trace
+            else None
         )
         if entry_decision.intent == "enter" and entry_plan is not None:
             direction = str(entry_decision.direction or direction)
@@ -3088,17 +3117,22 @@ def _run_spot_backtest_exec_loop(
                             else None,
                             guard_probe=entry_guard_probe_now,
                             guard_inputs=entry_guard_inputs_now,
-                            local_extrema=_spot_local_extrema_probe(
-                                bars=exec_bars,
-                                exec_idx=int(idx),
-                                ref_price=float(bar.close),
-                                bar_size=spot_exec_bar_size,
+                            local_extrema=(
+                                _spot_local_extrema_probe(
+                                    bars=exec_bars,
+                                    exec_idx=int(idx),
+                                    ref_price=float(bar.close),
+                                    bar_size=spot_exec_bar_size,
+                                )
+                                if capture_decision_trace
+                                else None
                             ),
                         ),
                         exec_profile=exec_profile,
                         cash=float(cash),
                         margin_used=float(margin_used),
                         liquidation_value=float(liquidation_close),
+                        capture_decision_trace=bool(capture_decision_trace),
                     )
                     if opened is not None:
                         candidate, cash, margin_used = opened
@@ -3236,7 +3270,10 @@ def _run_spot_backtest_exec_loop(
                     policy_graph=policy.sizing_graph,
                     policy_config=policy.sizing_config,
                 )
-                signed_target, resize_trace = spot_calc_signed_qty_with_trace(resize_sizing_input)
+                signed_target, resize_trace = spot_calc_signed_qty_with_trace(
+                    resize_sizing_input,
+                    capture_trace=bool(capture_decision_trace),
+                )
                 if int(signed_target) != 0:
                     size_mult = _spot_branch_size_mult(
                         policy=policy, entry_branch=trade.entry_branch
@@ -3247,11 +3284,12 @@ def _run_spot_backtest_exec_loop(
                         spot_min_qty=int(getattr(cfg.strategy, "spot_min_qty", 1) or 1),
                         spot_max_qty=int(getattr(cfg.strategy, "spot_max_qty", 0) or 0),
                     )
-                    resize_trace = resize_trace.with_branch_scaling(
-                        entry_branch=trade.entry_branch,
-                        size_mult=float(size_mult),
-                        signed_qty_after_branch=int(signed_target),
-                    )
+                    if resize_trace is not None:
+                        resize_trace = resize_trace.with_branch_scaling(
+                            entry_branch=trade.entry_branch,
+                            size_mult=float(size_mult),
+                            signed_qty_after_branch=int(signed_target),
+                        )
                     lifecycle = _spot_open_position_intent(
                         policy=policy,
                         strategy=cfg.strategy,
@@ -3260,7 +3298,11 @@ def _run_spot_backtest_exec_loop(
                         open_dir=trade_dir,
                         current_qty=int(trade.qty),
                         target_qty=int(signed_target),
-                        spot_decision=resize_trace.as_payload(),
+                        spot_decision=(
+                            resize_trace.as_payload()
+                            if resize_trace is not None
+                            else None
+                        ),
                         last_resize_bar_ts=last_resize_bar_ts,
                         **signal_inputs,
                     )
@@ -3289,8 +3331,18 @@ def _run_spot_backtest_exec_loop(
                             slippage_per_share=float(spot_slippage),
                             mark_to_market=str(spot_mark_to_market),
                             multiplier=float(meta.multiplier),
-                            lifecycle_payload=lifecycle.as_payload(),
-                            decision_payload=resize_trace.as_payload(),
+                            lifecycle_payload=(
+                                lifecycle.as_payload()
+                                if capture_decision_trace
+                                else None
+                            ),
+                            decision_payload=(
+                                resize_trace.as_payload()
+                                if capture_decision_trace
+                                and resize_trace is not None
+                                else None
+                            ),
+                            capture_trace=bool(capture_decision_trace),
                         )
                         if applied:
                             last_resize_bar_ts = bar.ts

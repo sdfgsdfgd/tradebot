@@ -343,10 +343,11 @@ def resample_cached_window(
 
         source_path_raw = str(getattr(src_series.meta, "source_path", "") or "").strip()
         source_path = Path(source_path_raw) if source_path_raw else None
-        if source_path is not None and source_path.exists():
-            src_bars = [bar for bar in read_cache(source_path) if start <= bar.ts <= end]
-        else:
-            src_bars = [bar for bar in src_series.as_list() if start <= bar.ts <= end]
+        src_bars = (
+            read_cache(source_path, start=start, end=end)
+            if source_path is not None and source_path.exists()
+            else [bar for bar in src_series.as_list() if start <= bar.ts <= end]
+        )
         if not src_bars:
             last_err = f"source_empty_after_slice({src_label})"
             continue

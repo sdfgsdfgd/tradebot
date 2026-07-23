@@ -133,7 +133,12 @@ def cache_path(cache_dir: Path, symbol: str, start: datetime, end: datetime, bar
     return cache_dir / symbol / f"{symbol}_{start.date()}_{end.date()}_{safe_bar}_{tag}.csv"
 
 
-def read_cache(path: Path) -> list[Bar]:
+def read_cache(
+    path: Path,
+    *,
+    start: datetime | None = None,
+    end: datetime | None = None,
+) -> list[Bar]:
     stat = path.stat()
     return list(
         _read_cache_cached(
@@ -141,6 +146,8 @@ def read_cache(path: Path) -> list[Bar]:
             int(stat.st_mtime_ns),
             int(stat.st_size),
             int(stat.st_ino),
+            start.isoformat() if start is not None else "",
+            end.isoformat() if end is not None else "",
         )
     )
 
@@ -151,14 +158,23 @@ def _read_cache_cached(
     _mtime_ns: int = 0,
     _size: int = 0,
     _inode: int = 0,
+    _start_iso: str = "",
+    _end_iso: str = "",
 ) -> tuple[Bar, ...]:
+    start = datetime.fromisoformat(_start_iso) if _start_iso else None
+    end = datetime.fromisoformat(_end_iso) if _end_iso else None
     rows: list[Bar] = []
     with Path(path).open("r", newline="") as handle:
         reader = csv.DictReader(handle)
         for row in reader:
+            ts = datetime.fromisoformat(row["ts"])
+            if start is not None and ts < start:
+                continue
+            if end is not None and ts > end:
+                continue
             rows.append(
                 Bar(
-                    ts=datetime.fromisoformat(row["ts"]),
+                    ts=ts,
                     open=float(row["open"]),
                     high=float(row["high"]),
                     low=float(row["low"]),
