@@ -39,7 +39,9 @@ from .milestones import (
     _spot_strategy_payload,
 )
 from .support import (
+    _registry_float,
     _require_offline_cache_or_die,
+    _runtime_policy,
 )
 
 
@@ -684,7 +686,6 @@ class SweepCartesian:
                 "end": self.end.isoformat(),
                 "signal_bar_size": str(self.signal_bar_size),
                 "use_rth": bool(self.use_rth),
-                "run_min_trades": int(self.run_min_trades),
                 "preset": str(combo_full_preset or ""),
                 "ordered_dims": tuple(str(v) for v in ordered_dims),
                 "size_by_dim": tuple((str(k), int(v)) for k, v in size_by_dim.items()),
@@ -735,6 +736,7 @@ class SweepCartesian:
 
         rows: list[dict] = []
         candidates: list[tuple[ConfigBundle, dict, str]] = []
+        all_candidates: list[tuple[ConfigBundle, dict, str]] = []
         combo_stage_args = tuple(("--combo-full-preset", str(combo_full_preset)) if combo_full_preset else ())
         combo_manifest_window_sig = _combo_full_worker_stage_window_signature()
         snapshot_full = bool(getattr(self.args, "write_milestones", False))
@@ -745,12 +747,32 @@ class SweepCartesian:
         )
         snapshot_scope = (
             f"{combo_manifest_window_sig}|"
+            f"m{int(self.run_min_trades)}|"
             f"{'full' if snapshot_full else f'top{snapshot_limit}'}"
         )
         combo_snapshot_key = self._run_cfg_persistent_key(
             strategy_fingerprint="__stage_result__",
             axis_dimension_fingerprint="combo_full_cartesian",
             window_signature=str(snapshot_scope),
+        )
+        complete_snapshot_limit = max(
+            0,
+            int(
+                _registry_float(
+                    _runtime_policy("stage_result_snapshot").get(
+                        "complete_max_total"
+                    ),
+                    2048.0,
+                )
+            ),
+        )
+        complete_snapshot_enabled = bool(
+            0 < int(total) <= int(complete_snapshot_limit)
+        )
+        complete_snapshot_key = self._run_cfg_persistent_key(
+            strategy_fingerprint="__stage_result__",
+            axis_dimension_fingerprint="combo_full_cartesian",
+            window_signature=f"{combo_manifest_window_sig}|complete",
         )
         combo_snapshot = self._run_cfg_persistent_get(
             cache_key=str(combo_snapshot_key)
@@ -767,6 +789,28 @@ class SweepCartesian:
             and int(snapshot_tested) == int(total)
             and isinstance(combo_snapshot.get("records"), list)
         )
+        complete_snapshot = (
+            self._run_cfg_persistent_get(cache_key=str(complete_snapshot_key))
+            if complete_snapshot_enabled and not snapshot_valid
+            else None
+        )
+        try:
+            complete_snapshot_tested = int(
+                complete_snapshot.get("tested")
+                if isinstance(complete_snapshot, dict)
+                else -1
+            )
+        except (TypeError, ValueError):
+            complete_snapshot_tested = -1
+        complete_snapshot_valid = bool(
+            isinstance(complete_snapshot, dict)
+            and complete_snapshot.get("schema")
+            == "tradebot.research.stage-result.v2"
+            and complete_snapshot.get("complete") is True
+            and int(complete_snapshot_tested) == int(total)
+            and isinstance(complete_snapshot.get("records"), list)
+            and len(complete_snapshot.get("records") or ()) == int(total)
+        )
         snapshot_records = (
             [
                 dict(record)
@@ -776,8 +820,25 @@ class SweepCartesian:
             if snapshot_valid and isinstance(combo_snapshot, dict)
             else []
         )
+        if complete_snapshot_valid and isinstance(complete_snapshot, dict):
+            snapshot_valid = True
+            snapshot_records = [
+                dict(record)
+                for record in complete_snapshot.get("records", ())
+                if isinstance(record, dict)
+                and _metric(
+                    record.get("row")
+                    if isinstance(record.get("row"), dict)
+                    else {},
+                    "trades",
+                )
+                >= int(self.run_min_trades)
+            ]
 
         def _combo_full_parallel_totals() -> tuple[int, int]:
+            if snapshot_valid:
+                return 0, int(total)
+
             def _unresolved_total() -> int:
                 try:
                     unresolved_ranges = self._cartesian_rank_manifest_unresolved_ranges(
@@ -832,7 +893,11 @@ class SweepCartesian:
                     "--combo-full-preset",
                 ),
                 run_min_trades_flag="--combo-full-cartesian-run-min-trades",
-                run_min_trades=int(self.run_min_trades),
+                run_min_trades=(
+                    0
+                    if complete_snapshot_enabled
+                    else int(self.run_min_trades)
+                ),
                 stage_args=combo_stage_args,
                 capture_error="Failed to capture combo_full Cartesian worker stdout.",
                 failure_label="combo_full Cartesian worker",
@@ -853,6 +918,10 @@ class SweepCartesian:
                 row = dict(row)
                 row["note"] = "base"
                 note = "base"
+            all_candidates.append((cfg, row, note))
+            if _metric(row, "trades") < int(self.run_min_trades):
+                return
+            self._record_milestone(cfg, row, note)
             rows.append(row)
             candidates.append((cfg, row, note))
 
@@ -868,8 +937,26 @@ class SweepCartesian:
             parallel_payloads_builder=_combo_full_parallel_payloads,
             parallel_default_note="combo_full Cartesian",
             parallel_dedupe_by_milestone_key=True,
-            record_milestones=True,
+            record_milestones=False,
         )
+        if complete_snapshot_enabled and len(all_candidates) == int(total):
+            complete_candidates = sorted(
+                all_candidates, key=lambda item: _milestone_key(item[0])
+            )
+            self._run_cfg_persistent_set(
+                cache_key=str(complete_snapshot_key),
+                payload={
+                    "schema": "tradebot.research.stage-result.v2",
+                    "complete": True,
+                    "tested": int(total),
+                    "records": [
+                        self._encode_cfg_payload(
+                            cfg, note=note, extra={"row": row}
+                        )
+                        for cfg, row, note in complete_candidates
+                    ],
+                },
+            )
         snapshot_candidates = (
             list(candidates)
             if snapshot_full

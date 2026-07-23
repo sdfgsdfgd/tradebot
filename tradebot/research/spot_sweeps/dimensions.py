@@ -895,6 +895,10 @@ _SWEEP_RUNTIME_POLICY: dict[str, dict[str, object]] = {
             "max_claim_span": 2048,
             "max_batch_multiple": 8,
         },
+        "stage_result_snapshot": {
+            # Retain complete bounded spaces so reporting-only changes need no workers.
+            "complete_max_total": 2048,
+        },
         "cartesian_rank_manifest": {
             # Trigger compaction only when row volume is meaningful.
             "compact_min_rows": 1024,

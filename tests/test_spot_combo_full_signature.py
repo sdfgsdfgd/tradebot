@@ -880,6 +880,25 @@ def test_combo_full_warm_run_rehydrates_cached_shortlist(monkeypatch) -> None:
     assert saved[-1]["tested"] == 2
     assert len(saved[-1]["records"]) == 2
 
+    runtime.run_min_trades = 5
+    complete_snapshot = {
+        **snapshot,
+        "schema": "tradebot.research.stage-result.v2",
+        "complete": True,
+    }
+    snapshot_reads = iter((None, complete_snapshot))
+    runtime._run_cfg_persistent_get = lambda **_kwargs: next(snapshot_reads)
+    parallel_calls.clear()
+    printed.clear()
+    saved.clear()
+
+    runtime._sweep_combo_full()
+
+    assert parallel_calls == [0]
+    assert [float(row["pnl"]) for row in printed[0]] == [40.0]
+    assert saved[-1]["schema"] == "tradebot.research.stage-result.v1"
+    assert len(saved[-1]["records"]) == 1
+
 
 def test_cfg_payload_round_trip_preserves_backtest_timeframe() -> None:
     runtime = object.__new__(SpotSweepRuntime)
@@ -1051,6 +1070,12 @@ def test_cartesian_manifest_uses_one_cache_scope_and_invalidates_summary(tmp_pat
     runtime.rank_dominance_manifest_applies = 0
     runtime.rank_dominance_stamp_compactions = 0
     runtime.rank_dominance_stamp_ttl_prunes = 0
+
+    assert runtime._stage_cache_scope("combo") == "combo|spot_stage_v12|m7"
+    assert (
+        runtime._stage_cache_scope("combo_full_cartesian")
+        == "combo_full_cartesian|spot_stage_v12|m0"
+    )
 
     assert runtime._cartesian_rank_manifest_unresolved_ranges(
         stage_label="combo", window_signature="window", total=32

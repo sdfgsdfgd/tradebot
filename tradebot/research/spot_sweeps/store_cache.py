@@ -16,9 +16,15 @@ class SweepCacheStore:
         stage_key = str(stage_label).strip().lower()
         if not stage_key:
             return ""
+        # Full-combo completion is economic evidence; min_trades filters its presentation.
+        run_min_trades = (
+            0
+            if stage_key == "combo_full_cartesian"
+            else int(self.run_min_trades)
+        )
         return (
             f"{stage_key}|{_RUN_CFG_CACHE_ENGINE_VERSION}|"
-            f"m{int(self.run_min_trades)}"
+            f"m{int(run_min_trades)}"
         )
 
     def _run_cfg_persistent_conn(self) -> sqlite3.Connection | None:
