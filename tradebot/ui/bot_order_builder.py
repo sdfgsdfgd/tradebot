@@ -22,9 +22,12 @@ from ..engines.execution import (
     _tick_size,
 )
 from ..option_package import (
+    OptionPackage,
+    ResolvedOptionLeg,
     normalize_option_legs,
     option_package_debit_value,
     option_package_entry_intent,
+    option_product_facts,
     option_package_risk,
 )
 from ..spot.lifecycle import decide_open_position_intent
@@ -664,28 +667,42 @@ class BotOrderBuilderMixin:
                     )
                 )
             bag = Bag(symbol=symbol, exchange="SMART", currency="USD", comboLegs=combo_legs)
-            package_risk = option_package_risk(
-                [
-                    (
-                        leg_order.action,
-                        str(getattr(leg_order.contract, "right", "") or ""),
-                        getattr(leg_order.contract, "strike", None),
-                        leg_order.ratio,
-                        str(
-                            getattr(
-                                leg_order.contract,
-                                "lastTradeDateOrContractMonth",
-                                "",
-                            )
-                            or ""
-                        ),
-                        getattr(leg_order.contract, "multiplier", None),
-                    )
-                    for leg_order in leg_orders
-                ],
-                debit_value=float(desired_debit),
-                quantity=package_quantity,
-            )
+            try:
+                first_contract = leg_orders[0].contract
+                product = option_product_facts(
+                    symbol,
+                    security_type=getattr(first_contract, "secType", None),
+                    exchange=getattr(first_contract, "exchange", None),
+                    multiplier=getattr(first_contract, "multiplier", None),
+                    trading_class=getattr(first_contract, "tradingClass", None),
+                    source="broker",
+                )
+                package = OptionPackage(
+                    product=product,
+                    legs=tuple(
+                        ResolvedOptionLeg(
+                            action=leg_order.action,
+                            right=str(getattr(leg_order.contract, "right", "") or ""),
+                            strike=getattr(leg_order.contract, "strike", None),
+                            ratio=leg_order.ratio,
+                            expiry=str(
+                                getattr(
+                                    leg_order.contract,
+                                    "lastTradeDateOrContractMonth",
+                                    "",
+                                )
+                                or ""
+                            ),
+                        )
+                        for leg_order in leg_orders
+                    ),
+                    quantity=package_quantity,
+                    debit_value=float(desired_debit),
+                    intent=intent_clean,
+                )
+            except (TypeError, ValueError):
+                package = None
+            package_risk = option_package_risk(package) if package is not None else None
 
             if (
                 intent_clean == "enter"

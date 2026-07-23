@@ -7,12 +7,18 @@ import sys
 from types import SimpleNamespace
 import types
 
-from tradebot.option_package import option_package_debit_value, option_package_risk
+from tradebot.option_package import (
+    OptionPackage,
+    ResolvedOptionLeg,
+    option_package_debit_value,
+    option_package_risk,
+    option_product_facts,
+)
 
 from ib_insync import Bag, Option, Stock
 import pytest
 
-from tradebot.backtest.models import OptionLeg
+from tradebot.backtest.models import OptionTrade
 import tradebot.backtest.engine_options as backtest_engine
 from tradebot.backtest.synth import IVSurfaceParams
 
@@ -42,6 +48,17 @@ def _recording_kernel(calls: list[list[tuple[str, int, float | None]]]):
         return option_package_debit_value(materialized)
 
     return _record
+
+
+def _resolved_leg(
+    *,
+    action: str,
+    right: str,
+    strike: float,
+    ratio: int = 1,
+    expiry: str = "20260724",
+) -> ResolvedOptionLeg:
+    return ResolvedOptionLeg(action, right, strike, ratio, expiry)
 
 
 def test_option_package_debit_value_credit_debit_and_ratios() -> None:
@@ -795,7 +812,6 @@ def test_backtest_and_live_option_entries_delegate_to_canonical_intent_before_re
 ) -> None:
     import tradebot.backtest.strategy as backtest_strategy
 
-    from tradebot.backtest.models import OptionLeg
     from tradebot.option_package import LegConfig
 
     canonical_legs = (
@@ -821,10 +837,10 @@ def test_backtest_and_live_option_entries_delegate_to_canonical_intent_before_re
 
     def _record_legs(legs, _spot, quantity):
         backtest_events.append(("legs", legs, quantity))
-        return [
-            OptionLeg(action="SELL", right="PUT", strike=100.0, qty=2),
-            OptionLeg(action="BUY", right="PUT", strike=95.0, qty=2),
-        ]
+        return (
+            _resolved_leg(action="SELL", right="PUT", strike=100.0, expiry="20260209"),
+            _resolved_leg(action="BUY", right="PUT", strike=95.0, expiry="20260209"),
+        )
 
     monkeypatch.setattr(
         backtest_strategy,
@@ -845,7 +861,7 @@ def test_backtest_and_live_option_entries_delegate_to_canonical_intent_before_re
         width_pct=5.0,
         entry_days=(0, 1, 2, 3, 4),
     )
-    spec = backtest_strategy.CreditSpreadStrategy(cfg).build_spec(
+    spec = backtest_strategy.OptionPackageStrategy(cfg).build_spec(
         datetime(2026, 2, 9, 10, 0),
         100.0,
         legs_override=canonical_legs,
@@ -875,16 +891,18 @@ def test_backtest_and_live_option_entries_delegate_to_canonical_intent_before_re
 
     assert {
         "backtest_events": backtest_events,
-        "backtest_leg_qtys": [leg.qty for leg in spec.legs],
+        "backtest_leg_ratios": [leg.ratio for leg in spec.legs],
+        "backtest_quantity": spec.quantity,
         "live_events": live_events,
         "live_order_quantity": harness._orders[0].quantity if harness._orders else None,
     } == {
         "backtest_events": [
             ("intent", canonical_legs, "legs_override"),
             ("expiry", 0),
-            ("legs", canonical_legs, 2),
+            ("legs", canonical_legs, date(2026, 2, 9)),
         ],
-        "backtest_leg_qtys": [2, 2],
+        "backtest_leg_ratios": [1, 1],
+        "backtest_quantity": 2,
         "live_events": ["intent", "stock_option_chain"],
         "live_order_quantity": 2,
     }
@@ -1041,8 +1059,8 @@ def test_backtest_package_value_explicitly_inverts_canonical_debit_value(monkeyp
     spec = SimpleNamespace(
         expiry=date(2026, 2, 9),
         legs=[
-            OptionLeg(action="SELL", right="PUT", strike=100.0, qty=1),
-            OptionLeg(action="BUY", right="PUT", strike=95.0, qty=1),
+            _resolved_leg(action="SELL", right="PUT", strike=100.0, expiry="20260209"),
+            _resolved_leg(action="BUY", right="PUT", strike=95.0, expiry="20260209"),
         ],
     )
     bar = SimpleNamespace(ts=datetime(2026, 2, 9, 10, 0), close=100.0)
@@ -1062,7 +1080,7 @@ def test_backtest_package_value_explicitly_inverts_canonical_debit_value(monkeyp
         cfg,
         _surface(),
         0.10,
-        False,
+        option_product_facts("XSP"),
         mode="entry",
         calibration=None,
     )
@@ -1074,37 +1092,32 @@ def test_backtest_package_value_explicitly_inverts_canonical_debit_value(monkeyp
 def test_backtest_multi_quantity_credit_vertical_risk_matches_canonical_package_economics() -> None:
     quantity = 2
     multiplier = 100.0
-    canonical = option_package_risk(
-        [
-            ("SELL", "PUT", 100.0, quantity, "20260724", multiplier),
-            ("BUY", "PUT", 95.0, quantity, "20260724", multiplier),
-        ],
-        debit_value=-2.0,
-        quantity=1,
+    package = OptionPackage(
+        product=option_product_facts("XSP", multiplier=multiplier),
+        legs=(
+            _resolved_leg(action="SELL", right="PUT", strike=100.0),
+            _resolved_leg(action="BUY", right="PUT", strike=95.0),
+        ),
+        debit_value=-1.0,
+        quantity=quantity,
     )
+    canonical = option_package_risk(package)
     assert canonical is not None
 
-    trade = SimpleNamespace(
-        legs=[
-            OptionLeg(action="SELL", right="PUT", strike=100.0, qty=quantity),
-            OptionLeg(action="BUY", right="PUT", strike=95.0, qty=quantity),
-        ],
-        entry_price=2.0,
-        max_loss=None,
+    trade = OptionTrade(
+        package=package,
+        risk=canonical,
+        entry_time=datetime(2026, 7, 23, 10, 0),
         stop_loss=0.5,
+        profit_target=0.5,
+        margin_required=canonical.max_loss,
     )
 
     assert canonical.max_loss == pytest.approx(800.0)
-    assert backtest_engine._max_loss_estimate(trade, 100.0) == pytest.approx(8.0)
-
-    exact_max_loss = backtest_engine._max_loss(trade)
-
-    assert exact_max_loss == pytest.approx(canonical.max_loss / multiplier)
-    assert backtest_engine._margin_required(trade, 100.0, multiplier) == pytest.approx(
-        canonical.max_loss
-    )
-    trade.max_loss = exact_max_loss
-    assert backtest_engine._hit_stop(trade, 4.0, "max_loss", 100.0) is False
+    assert trade.max_loss == pytest.approx(4.0)
+    assert trade.margin_required == pytest.approx(canonical.max_loss)
+    assert backtest_engine._hit_stop(trade, 2.9, "max_loss") is False
+    assert backtest_engine._hit_stop(trade, 3.0, "max_loss") is True
 
 
 def test_backtest_option_exit_thresholds_disable_when_non_positive() -> None:
@@ -1117,13 +1130,13 @@ def test_backtest_option_exit_thresholds_disable_when_non_positive() -> None:
         )
 
     assert backtest_engine._hit_profit(_trade(), 0.5) is True
-    assert backtest_engine._hit_stop(_trade(), 1.5, "credit", 100.0) is True
-    assert backtest_engine._hit_stop(_trade(), 3.0, "max_loss", 100.0) is True
+    assert backtest_engine._hit_stop(_trade(), 1.5, "credit") is True
+    assert backtest_engine._hit_stop(_trade(), 3.0, "max_loss") is True
 
     assert backtest_engine._hit_profit(_trade(profit_target=float("nan")), 0.0) is False
     assert backtest_engine._hit_profit(_trade(profit_target=float("inf")), 0.0) is False
-    assert backtest_engine._hit_stop(_trade(stop_loss=float("nan")), 10.0, "max_loss", 100.0) is False
-    assert backtest_engine._hit_stop(_trade(stop_loss=float("inf")), 10.0, "max_loss", 100.0) is False
+    assert backtest_engine._hit_stop(_trade(stop_loss=float("nan")), 10.0, "max_loss") is False
+    assert backtest_engine._hit_stop(_trade(stop_loss=float("inf")), 10.0, "max_loss") is False
 
     for threshold in (0.0, -0.1, float("-inf")):
         assert backtest_engine._hit_profit(
@@ -1134,29 +1147,15 @@ def test_backtest_option_exit_thresholds_disable_when_non_positive() -> None:
             _trade(stop_loss=threshold),
             10.0,
             "credit",
-            100.0,
         ) is False
         assert backtest_engine._hit_stop(
             _trade(stop_loss=threshold),
             10.0,
             "max_loss",
-            100.0,
         ) is False
 
 
-def test_expiry_payoff_consumes_canonical_debit_value_without_inversion(monkeypatch) -> None:
-    calls: list[list[tuple[str, int, float | None]]] = []
-    monkeypatch.setattr(
-        backtest_engine,
-        "option_package_debit_value",
-        _recording_kernel(calls),
-    )
-    legs = [
-        OptionLeg(action="SELL", right="CALL", strike=100.0, qty=1),
-        OptionLeg(action="BUY", right="CALL", strike=105.0, qty=1),
-    ]
-
-    payoff = backtest_engine._payoff_at_expiry(legs, 110.0)
-
-    assert payoff == pytest.approx(-5.0)
-    assert calls == [[("SELL", 1, 10.0), ("BUY", 1, 5.0)]]
+def test_backtest_has_no_parallel_option_risk_or_expiry_payoff_engine() -> None:
+    assert not hasattr(backtest_engine, "_max_loss")
+    assert not hasattr(backtest_engine, "_max_loss_estimate")
+    assert not hasattr(backtest_engine, "_payoff_at_expiry")

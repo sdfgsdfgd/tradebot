@@ -8,7 +8,7 @@ from tradebot.spot.gates import (
     next_open_due_ts as _spot_next_open_due_ts,
     next_open_entry_allowed as _spot_next_open_entry_allowed,
 )
-from tradebot.backtest.strategy import CreditSpreadStrategy
+from tradebot.backtest.strategy import OptionPackageStrategy
 
 
 @dataclass(frozen=True)
@@ -134,12 +134,12 @@ class BacktestTradeDateSemanticsTests(unittest.TestCase):
 
     def test_strategy_should_enter_uses_et_weekday(self) -> None:
         # 2025-01-16 00:30 UTC is Wednesday ET (weekday=2).
-        strat = CreditSpreadStrategy(_StrategyCfg(entry_days=(2,), dte=0))
+        strat = OptionPackageStrategy(_StrategyCfg(entry_days=(2,), dte=0))
         self.assertTrue(strat.should_enter(datetime(2025, 1, 16, 0, 30)))
 
     def test_strategy_expiry_anchor_uses_et_trade_date(self) -> None:
         # dte=1 from ET Jan 15 should expire on ET Jan 16.
-        strat = CreditSpreadStrategy(_StrategyCfg(entry_days=(2,), dte=1))
+        strat = OptionPackageStrategy(_StrategyCfg(entry_days=(2,), dte=1))
         spec = strat.build_spec(datetime(2025, 1, 16, 0, 30), spot=25.0)
         self.assertEqual(spec.expiry, date(2025, 1, 16))
 

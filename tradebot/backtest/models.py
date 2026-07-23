@@ -4,6 +4,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, date
 
+from ..option_package import OptionPackage, OptionPackageRisk, ResolvedOptionLeg
+
 
 @dataclass(frozen=True)
 class Bar:
@@ -15,28 +17,44 @@ class Bar:
     volume: float
 
 
-@dataclass(frozen=True)
-class OptionLeg:
-    action: str
-    right: str
-    strike: float
-    qty: int
-
-
 @dataclass
 class OptionTrade:
-    symbol: str
-    legs: list[OptionLeg]
+    package: OptionPackage
+    risk: OptionPackageRisk
     entry_time: datetime
-    expiry: date
-    entry_price: float
     stop_loss: float
     profit_target: float
     margin_required: float = 0.0
-    max_loss: float | None = None
     exit_time: datetime | None = None
     exit_price: float | None = None
     exit_reason: str | None = None
+
+    @property
+    def symbol(self) -> str:
+        return self.package.product.underlying_symbol
+
+    @property
+    def legs(self) -> tuple[ResolvedOptionLeg, ...]:
+        return self.package.legs
+
+    @property
+    def expiry(self) -> date:
+        raw = self.package.legs[0].expiry
+        return (
+            date.fromisoformat(raw)
+            if "-" in raw
+            else datetime.strptime(raw[:8], "%Y%m%d").date()
+        )
+
+    @property
+    def entry_price(self) -> float:
+        """Signed package credit units: credit positive, debit negative."""
+        return -self.package.debit_value
+
+    @property
+    def max_loss(self) -> float:
+        scale = self.package.product.multiplier * self.package.quantity
+        return self.risk.max_loss / scale
 
     def is_open(self) -> bool:
         return self.exit_time is None
@@ -44,7 +62,11 @@ class OptionTrade:
     def pnl(self, multiplier: float) -> float:
         if self.exit_price is None:
             return 0.0
-        return (self.entry_price - self.exit_price) * multiplier
+        return (
+            (self.entry_price - self.exit_price)
+            * self.package.product.multiplier
+            * self.package.quantity
+        )
 
 
 @dataclass

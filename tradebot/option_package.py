@@ -220,21 +220,6 @@ def option_package_entry_intent(
     )
 
 
-@dataclass(frozen=True)
-class OptionPackageRisk:
-    structure: str
-    right: str
-    expiry: str
-    width: float
-    debit_value: float
-    multiplier: float
-    quantity: int
-    max_loss: float
-
-    def as_payload(self) -> dict[str, object]:
-        return asdict(self)
-
-
 def _finite_float(value: object) -> float | None:
     try:
         parsed = float(value)
@@ -263,6 +248,182 @@ def _option_right(value: object) -> str | None:
     if cleaned in {"C", "CALL"}:
         return "CALL"
     return None
+
+
+@dataclass(frozen=True)
+class OptionProductFacts:
+    """Economic identity shared by live option packages and deterministic replay."""
+
+    underlying_symbol: str
+    security_type: str
+    exchange: str
+    currency: str
+    multiplier: float
+    pricing_model: str
+    trading_class: str | None = None
+    settlement: str = "unknown"
+    source: str = "configured"
+
+    def __post_init__(self) -> None:
+        symbol = str(self.underlying_symbol or "").strip().upper()
+        security_type = str(self.security_type or "").strip().upper()
+        exchange = str(self.exchange or "").strip().upper()
+        currency = str(self.currency or "").strip().upper()
+        multiplier = _finite_float(self.multiplier)
+        pricing_model = str(self.pricing_model or "").strip().lower()
+        trading_class = str(self.trading_class or "").strip().upper() or None
+        settlement = str(self.settlement or "unknown").strip().lower()
+        source = str(self.source or "configured").strip().lower()
+        if not symbol:
+            raise ValueError("underlying_symbol is required")
+        if security_type not in {"OPT", "FOP"}:
+            raise ValueError("security_type must be OPT or FOP")
+        if not exchange:
+            raise ValueError("exchange is required")
+        if not currency:
+            raise ValueError("currency is required")
+        if multiplier is None or multiplier <= 0:
+            raise ValueError("multiplier must be positive")
+        if pricing_model not in {"black_scholes", "black_76"}:
+            raise ValueError("pricing_model must be black_scholes or black_76")
+        object.__setattr__(self, "underlying_symbol", symbol)
+        object.__setattr__(self, "security_type", security_type)
+        object.__setattr__(self, "exchange", exchange)
+        object.__setattr__(self, "currency", currency)
+        object.__setattr__(self, "multiplier", multiplier)
+        object.__setattr__(self, "pricing_model", pricing_model)
+        object.__setattr__(self, "trading_class", trading_class)
+        object.__setattr__(self, "settlement", settlement)
+        object.__setattr__(self, "source", source)
+
+
+_OPTION_PRODUCT_DEFAULTS = {
+    "XSP": ("OPT", "CBOE", 100.0, "black_scholes", "cash"),
+    "SPX": ("OPT", "CBOE", 100.0, "black_scholes", "cash"),
+    "MNQ": ("FOP", "CME", 2.0, "black_76", "future"),
+    "MCL": ("FOP", "NYMEX", 100.0, "black_76", "financial"),
+    "MBT": ("FOP", "CME", 0.1, "black_76", "future"),
+}
+
+
+def option_product_facts(
+    underlying_symbol: object,
+    *,
+    security_type: object | None = None,
+    exchange: object | None = None,
+    currency: object = "USD",
+    multiplier: object | None = None,
+    pricing_model: object | None = None,
+    trading_class: object | None = None,
+    settlement: object | None = None,
+    source: object = "configured",
+) -> OptionProductFacts:
+    """Resolve one product identity; explicit broker/tape facts override safe defaults."""
+
+    symbol = str(underlying_symbol or "").strip().upper()
+    default = _OPTION_PRODUCT_DEFAULTS.get(
+        symbol,
+        ("OPT", "SMART", 100.0, "black_scholes", "unknown"),
+    )
+    resolved_security_type = (
+        str(security_type).strip().upper() if security_type is not None else default[0]
+    )
+    return OptionProductFacts(
+        underlying_symbol=symbol,
+        security_type=resolved_security_type,
+        exchange=str(exchange).strip().upper() if exchange is not None else default[1],
+        currency=str(currency or "USD"),
+        multiplier=default[2] if multiplier is None else float(multiplier),
+        pricing_model=(
+            str(pricing_model).strip().lower()
+            if pricing_model is not None
+            else ("black_76" if resolved_security_type == "FOP" else default[3])
+        ),
+        trading_class=(
+            str(trading_class).strip().upper() if trading_class is not None else None
+        ),
+        settlement=str(settlement).strip().lower() if settlement is not None else default[4],
+        source=str(source or "configured"),
+    )
+
+
+@dataclass(frozen=True)
+class ResolvedOptionLeg:
+    """Broker-independent resolved leg; quantity is a package ratio."""
+
+    action: str
+    right: str
+    strike: float
+    ratio: int
+    expiry: str
+
+    def __post_init__(self) -> None:
+        action = str(self.action or "").strip().upper()
+        right = _option_right(self.right)
+        strike = _finite_float(self.strike)
+        ratio = _positive_int(self.ratio)
+        expiry = str(self.expiry or "").strip()
+        if action not in {"BUY", "SELL"}:
+            raise ValueError("action must be BUY or SELL")
+        if right is None:
+            raise ValueError("right must be PUT or CALL")
+        if strike is None or strike <= 0:
+            raise ValueError("strike must be positive")
+        if ratio is None:
+            raise ValueError("ratio must be a positive integer")
+        if not expiry:
+            raise ValueError("expiry is required")
+        object.__setattr__(self, "action", action)
+        object.__setattr__(self, "right", right)
+        object.__setattr__(self, "strike", strike)
+        object.__setattr__(self, "ratio", ratio)
+        object.__setattr__(self, "expiry", expiry)
+
+
+@dataclass(frozen=True)
+class OptionPackage:
+    """Canonical signed package economics; debit is positive and credit negative."""
+
+    product: OptionProductFacts
+    legs: tuple[ResolvedOptionLeg, ...]
+    quantity: int
+    debit_value: float
+    intent: str = "enter"
+
+    def __post_init__(self) -> None:
+        quantity = _positive_int(self.quantity)
+        debit_value = _finite_float(self.debit_value)
+        intent = str(self.intent or "").strip().lower()
+        if not isinstance(self.product, OptionProductFacts):
+            raise ValueError("product must be OptionProductFacts")
+        if not isinstance(self.legs, tuple) or not self.legs:
+            raise ValueError("legs must be a non-empty tuple")
+        if any(not isinstance(leg, ResolvedOptionLeg) for leg in self.legs):
+            raise ValueError("legs must contain ResolvedOptionLeg values")
+        if quantity is None:
+            raise ValueError("quantity must be a positive integer")
+        if debit_value is None:
+            raise ValueError("debit_value must be finite")
+        if intent not in {"enter", "exit", "resize"}:
+            raise ValueError("intent must be enter, exit, or resize")
+        object.__setattr__(self, "quantity", quantity)
+        object.__setattr__(self, "debit_value", debit_value)
+        object.__setattr__(self, "intent", intent)
+
+
+@dataclass(frozen=True)
+class OptionPackageRisk:
+    structure: str
+    right: str
+    expiry: str
+    width: float
+    debit_value: float
+    multiplier: float
+    quantity: int
+    max_loss: float
+
+    def as_payload(self) -> dict[str, object]:
+        return asdict(self)
 
 
 def option_package_debit_value(
@@ -327,81 +488,99 @@ def option_stop_loss_hit(
 
 
 def option_package_risk(
-    rows: Iterable[tuple[str, str, float, int, str, float | None]],
-    *,
-    debit_value: float,
-    quantity: int,
+    package: OptionPackage,
 ) -> OptionPackageRisk | None:
-    """Return defined-risk vertical economics in account-currency units."""
-    try:
-        materialized = list(rows)
-    except TypeError:
-        return None
-    if len(materialized) != 2:
-        return None
+    """Return exact same-expiry defined-risk economics in account-currency units."""
 
-    parsed_rows: list[tuple[str, str, float, int, str, float]] = []
-    for row in materialized:
-        try:
-            action_raw, right_raw, strike_raw, ratio_raw, expiry_raw, multiplier_raw = row
-        except (TypeError, ValueError):
-            return None
-
-        action = str(action_raw or "").strip().upper()
-        right = _option_right(right_raw)
-        strike = _finite_float(strike_raw)
-        ratio = _positive_int(ratio_raw)
-        expiry = str(expiry_raw or "").strip()
-        multiplier = _finite_float(multiplier_raw)
-        if (
-            action not in {"BUY", "SELL"}
-            or right is None
-            or strike is None
-            or strike <= 0
-            or ratio is None
-            or not expiry
-            or multiplier is None
-            or multiplier <= 0
-        ):
-            return None
-        parsed_rows.append((action, right, strike, ratio, expiry, multiplier))
-
-    first, second = parsed_rows
-    if {first[0], second[0]} != {"BUY", "SELL"}:
+    if not isinstance(package, OptionPackage):
         return None
-    if first[1] != second[1] or first[3] != second[3] or first[4] != second[4]:
-        return None
-    if not math.isclose(first[5], second[5], rel_tol=0.0, abs_tol=1e-12):
+    expiries = {leg.expiry for leg in package.legs}
+    if len(expiries) != 1:
         return None
 
-    width = abs(first[2] - second[2])
-    debit = _finite_float(debit_value)
-    package_quantity = _positive_int(quantity)
-    if width <= 0 or debit is None or debit == 0 or package_quantity is None:
+    def _terminal_profit(spot: float) -> float:
+        payoff = 0.0
+        for leg in package.legs:
+            intrinsic = (
+                max(0.0, spot - leg.strike)
+                if leg.right == "CALL"
+                else max(0.0, leg.strike - spot)
+            )
+            payoff += (1.0 if leg.action == "BUY" else -1.0) * leg.ratio * intrinsic
+        return payoff - package.debit_value
+
+    upper_slope = sum(
+        (1.0 if leg.action == "BUY" else -1.0) * leg.ratio
+        for leg in package.legs
+        if leg.right == "CALL"
+    )
+    if upper_slope < 0:
         return None
 
-    ratio = first[3]
-    multiplier = first[5]
-    if debit > 0:
-        structure = "vertical_debit"
-        max_loss_units = debit
-    else:
-        structure = "vertical_credit"
-        max_loss_units = (width * ratio) + debit
-        if max_loss_units <= 0:
-            return None
-
-    max_loss = max_loss_units * multiplier * package_quantity
+    strikes = sorted({leg.strike for leg in package.legs})
+    max_loss_units = max(0.0, -min(_terminal_profit(spot) for spot in [0.0, *strikes]))
+    max_loss = max_loss_units * package.product.multiplier * package.quantity
     if not math.isfinite(max_loss) or max_loss <= 0:
         return None
 
+    rights = {leg.right for leg in package.legs}
+    right = next(iter(rights)) if len(rights) == 1 else "MIXED"
+    structure = _option_package_structure(package)
+    if structure.startswith(("iron_condor_", "iron_butterfly_")):
+        width = max(
+            max(leg.strike for leg in package.legs if leg.right == right)
+            - min(leg.strike for leg in package.legs if leg.right == right)
+            for right in {"PUT", "CALL"}
+        )
+    else:
+        width = max(strikes) - min(strikes)
     return OptionPackageRisk(
         structure=structure,
-        right=first[1],
-        expiry=first[4],
+        right=right,
+        expiry=next(iter(expiries)),
         width=float(width),
-        debit_value=float(debit),
-        multiplier=float(multiplier),
-        quantity=int(package_quantity),
+        debit_value=package.debit_value,
+        multiplier=package.product.multiplier,
+        quantity=package.quantity,
         max_loss=float(max_loss),
     )
+
+
+def _option_package_structure(package: OptionPackage) -> str:
+    legs = package.legs
+    credit_or_debit = "credit" if package.debit_value < 0 else "debit"
+    rights = {leg.right for leg in legs}
+    actions_by_right = {
+        right: {leg.action for leg in legs if leg.right == right}
+        for right in rights
+    }
+    if (
+        len(legs) == 2
+        and len(rights) == 1
+        and next(iter(actions_by_right.values())) == {"BUY", "SELL"}
+        and legs[0].ratio == legs[1].ratio
+    ):
+        return f"vertical_{credit_or_debit}"
+    if (
+        len(legs) == 3
+        and len(rights) == 1
+        and next(iter(actions_by_right.values())) == {"BUY", "SELL"}
+    ):
+        ordered = sorted(legs, key=lambda leg: leg.strike)
+        if (
+            ordered[0].action == ordered[2].action
+            and ordered[1].action != ordered[0].action
+            and ordered[0].ratio == ordered[2].ratio
+            and ordered[1].ratio == 2 * ordered[0].ratio
+        ):
+            return f"butterfly_{credit_or_debit}"
+    if (
+        len(legs) == 4
+        and rights == {"PUT", "CALL"}
+        and all(actions == {"BUY", "SELL"} for actions in actions_by_right.values())
+        and len({leg.ratio for leg in legs}) == 1
+    ):
+        middle = sorted(leg.strike for leg in legs)[1:3]
+        name = "iron_butterfly" if math.isclose(*middle) else "iron_condor"
+        return f"{name}_{credit_or_debit}"
+    return "defined_risk_combo"

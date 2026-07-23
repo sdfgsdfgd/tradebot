@@ -32,6 +32,7 @@ from ..chart_data.cache import series_cache_service
 from ..chart_data.series import BarSeries, BarSeriesSignature, bars_list
 from ..engines.risk import risk_overlay_policy_from_filters
 from ..engines.signals import EmaDecisionSnapshot
+from ..option_package import option_product_facts
 from ..spot.gates import (
     deferred_entry_plan as lifecycle_deferred_entry_plan,
     fill_due_ts as lifecycle_fill_due_ts,
@@ -713,12 +714,19 @@ def _resolve_backtest_contract_meta(
     *, data: IBKRHistoricalData, cfg: ConfigBundle
 ) -> ContractMeta:
     is_future = cfg.strategy.symbol in ("MNQ", "MBT")
+    option_product = (
+        option_product_facts(cfg.strategy.symbol)
+        if cfg.strategy.instrument == "options"
+        else None
+    )
     if cfg.backtest.offline:
-        exchange = "CME" if is_future else "SMART"
         if cfg.strategy.instrument == "spot":
+            exchange = "CME" if is_future else "SMART"
             multiplier = _spot_multiplier(cfg.strategy.symbol, is_future)
         else:
-            multiplier = 1.0 if is_future else 100.0
+            assert option_product is not None
+            exchange = option_product.exchange
+            multiplier = option_product.multiplier
         return ContractMeta(
             symbol=cfg.strategy.symbol,
             exchange=exchange,
@@ -736,14 +744,17 @@ def _resolve_backtest_contract_meta(
             ),
             min_tick=resolved.min_tick,
         )
-    if (not is_future) and resolved.exchange == "SMART":
-        return ContractMeta(
-            symbol=resolved.symbol,
-            exchange=resolved.exchange,
-            multiplier=100.0,
-            min_tick=resolved.min_tick,
-        )
-    return resolved
+    assert option_product is not None
+    return ContractMeta(
+        symbol=resolved.symbol,
+        exchange=resolved.exchange or option_product.exchange,
+        multiplier=(
+            option_product.multiplier
+            if resolved.exchange == "SMART"
+            else resolved.multiplier or option_product.multiplier
+        ),
+        min_tick=resolved.min_tick,
+    )
 
 
 def _load_spot_backtest_context_bars(

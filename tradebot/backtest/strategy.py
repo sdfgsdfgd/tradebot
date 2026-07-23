@@ -5,18 +5,18 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
 from .config import StrategyConfig, LegConfig
-from .models import OptionLeg
 from ..engine import _trade_date, _trade_weekday
-from ..option_package import option_package_entry_intent
+from ..option_package import ResolvedOptionLeg, option_package_entry_intent
 
 
 @dataclass(frozen=True)
 class TradeSpec:
     expiry: date
-    legs: list[OptionLeg]
+    legs: tuple[ResolvedOptionLeg, ...]
+    quantity: int
 
 
-class CreditSpreadStrategy:
+class OptionPackageStrategy:
     def __init__(self, cfg: StrategyConfig) -> None:
         self._cfg = cfg
 
@@ -64,9 +64,13 @@ class CreditSpreadStrategy:
         legs = _build_legs(
             entry_intent.legs,
             spot,
-            entry_intent.quantity,
+            expiry,
         )
-        return TradeSpec(expiry=expiry, legs=legs)
+        return TradeSpec(
+            expiry=expiry,
+            legs=legs,
+            quantity=entry_intent.quantity,
+        )
 
 
 def _expiry_from_dte(anchor: date, dte: int) -> date:
@@ -79,19 +83,24 @@ def _expiry_from_dte(anchor: date, dte: int) -> date:
     return current
 
 
-def _build_legs(legs: tuple[LegConfig, ...], spot: float, quantity: int) -> list[OptionLeg]:
-    built: list[OptionLeg] = []
+def _build_legs(
+    legs: tuple[LegConfig, ...],
+    spot: float,
+    expiry: date,
+) -> tuple[ResolvedOptionLeg, ...]:
+    built: list[ResolvedOptionLeg] = []
     for leg in legs:
         strike = _strike_from_moneyness(spot, leg.right, leg.moneyness_pct)
         built.append(
-            OptionLeg(
+            ResolvedOptionLeg(
                 action=leg.action,
                 right=leg.right,
                 strike=strike,
-                qty=leg.qty * quantity,
+                ratio=leg.qty,
+                expiry=expiry.strftime("%Y%m%d"),
             )
         )
-    return built
+    return tuple(built)
 
 
 

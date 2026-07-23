@@ -11,11 +11,20 @@ from datetime import date, datetime
 from .calibration import ensure_calibration, load_calibration
 from .config import ConfigBundle, OptionsStrategyConfig
 from .data import ContractMeta, IBKRHistoricalData, load_backtest_series
-from .models import BacktestResult, Bar, EquityPoint, OptionLeg, OptionTrade, summarize
-from .strategy import CreditSpreadStrategy, TradeSpec
+from .models import BacktestResult, Bar, EquityPoint, OptionTrade, summarize
+from .strategy import OptionPackageStrategy, TradeSpec
 from .synth import IVSurfaceParams, black_76, black_scholes, iv_atm, iv_for_strike, mid_edge_quote
 from ..engines.signals import EmaDecisionEngine, EmaDecisionSnapshot, SupertrendEngine
-from ..option_package import option_package_debit_value, option_profit_target_hit, option_stop_loss_hit
+from ..option_package import (
+    OptionPackage,
+    OptionProductFacts,
+    ResolvedOptionLeg,
+    option_package_debit_value,
+    option_package_risk,
+    option_product_facts,
+    option_profit_target_hit,
+    option_stop_loss_hit,
+)
 from ..spot.gates import apply_regime_gate, flip_exit_allowed, signal_filters_ok
 from ..engine import (
     _trade_date,
@@ -38,7 +47,12 @@ def run_options_backtest(
     if not isinstance(cfg.strategy, OptionsStrategyConfig):
         raise ValueError("run_options_backtest requires an options strategy config")
 
-    is_future = cfg.strategy.symbol in ("MNQ", "MBT")
+    product = option_product_facts(
+        cfg.strategy.symbol,
+        exchange=meta.exchange,
+        multiplier=meta.multiplier,
+        source="backtest_contract_meta",
+    )
     surface_params = IVSurfaceParams(
         rv_lookback=cfg.synthetic.rv_lookback,
         rv_ewma_lambda=cfg.synthetic.rv_ewma_lambda,
@@ -53,7 +67,7 @@ def run_options_backtest(
     else:
         calibration = load_calibration(cfg.backtest.calibration_dir, cfg.strategy.symbol)
 
-    strategy = CreditSpreadStrategy(cfg.strategy)
+    strategy = OptionPackageStrategy(cfg.strategy)
     returns = deque(maxlen=surface_params.rv_lookback)
     cash = cfg.backtest.starting_cash
     margin_used = 0.0
@@ -207,12 +221,16 @@ def run_options_backtest(
                         cfg,
                         surface_params,
                         meta.min_tick,
-                        is_future,
+                        product,
                         mode="exit",
                         calibration=calibration,
                     )
                     _close_trade(trade, prev_bar.ts, exit_debit, "expiry", trades)
-                    cash += (-exit_debit) * meta.multiplier
+                    cash += (
+                        -exit_debit
+                        * product.multiplier
+                        * trade.package.quantity
+                    )
                     margin_used = max(0.0, margin_used - trade.margin_required)
                 else:
                     still_open.append(trade)
@@ -229,7 +247,7 @@ def run_options_backtest(
                     cfg,
                     surface_params,
                     meta.min_tick,
-                    is_future,
+                    product,
                     calibration,
                 )
                 should_close = False
@@ -238,7 +256,7 @@ def run_options_backtest(
                 if _hit_profit(trade, current_value):
                     should_close = True
                     reason = "profit"
-                elif _hit_stop(trade, current_value, cfg.strategy.stop_loss_basis, bar.close):
+                elif _hit_stop(trade, current_value, cfg.strategy.stop_loss_basis):
                     should_close = True
                     reason = "stop"
                 elif _hit_exit_dte(cfg, trade, _trade_date(bar.ts)):
@@ -259,16 +277,24 @@ def run_options_backtest(
                         cfg,
                         surface_params,
                         meta.min_tick,
-                        is_future,
+                        product,
                         mode="exit",
                         calibration=calibration,
                     )
                     _close_trade(trade, bar.ts, exit_debit, reason, trades)
-                    cash += (-exit_debit) * meta.multiplier
+                    cash += (
+                        -exit_debit
+                        * product.multiplier
+                        * trade.package.quantity
+                    )
                     margin_used = max(0.0, margin_used - trade.margin_required)
                 else:
                     still_open.append(trade)
-                    liquidation += (-current_value) * meta.multiplier
+                    liquidation += (
+                        -current_value
+                        * product.multiplier
+                        * trade.package.quantity
+                    )
             open_trades = still_open
 
         entry_signal_dir = signal.entry_dir if signal is not None else None
@@ -350,7 +376,7 @@ def run_options_backtest(
                 cfg,
                 surface_params,
                 meta.min_tick,
-                is_future,
+                product,
                 mode="entry",
                 calibration=calibration,
             )
@@ -365,25 +391,30 @@ def run_options_backtest(
                     cfg,
                     surface_params,
                     meta.min_tick,
-                    is_future,
+                    product,
                     mode="mark",
                     calibration=calibration,
                 )
-                mark_liquidation = (-mark_price) * meta.multiplier
-                candidate = OptionTrade(
-                    symbol=cfg.strategy.symbol,
+                package = OptionPackage(
+                    product=product,
                     legs=spec.legs,
+                    quantity=spec.quantity,
+                    debit_value=-entry_price,
+                )
+                package_risk = option_package_risk(package)
+                if package_risk is None:
+                    continue
+                scale = product.multiplier * package.quantity
+                mark_liquidation = -mark_price * scale
+                candidate = OptionTrade(
+                    package=package,
+                    risk=package_risk,
                     entry_time=bar.ts,
-                    expiry=spec.expiry,
-                    entry_price=entry_price,
                     stop_loss=cfg.strategy.stop_loss,
                     profit_target=cfg.strategy.profit_target,
+                    margin_required=package_risk.max_loss if entry_price > 0 else 0.0,
                 )
-                candidate.max_loss = _max_loss(candidate)
-                if candidate.max_loss is None:
-                    candidate.max_loss = _max_loss_estimate(candidate, bar.close)
-                candidate.margin_required = _margin_required(candidate, bar.close, meta.multiplier)
-                cash_after = cash + (entry_price * meta.multiplier)
+                cash_after = cash + (entry_price * scale)
                 margin_after = margin_used + candidate.margin_required
                 equity_after = cash_after + liquidation + mark_liquidation
                 if cash_after >= 0 and equity_after >= margin_after:
@@ -405,15 +436,24 @@ def run_options_backtest(
                 cfg,
                 surface_params,
                 meta.min_tick,
-                is_future,
+                product,
                 mode="exit",
                 calibration=calibration,
             )
             _close_trade(trade, prev_bar.ts, exit_debit, "end", trades)
-            cash += (-exit_debit) * meta.multiplier
+            cash += (
+                -exit_debit
+                * product.multiplier
+                * trade.package.quantity
+            )
             margin_used = max(0.0, margin_used - trade.margin_required)
 
-    summary = summarize(trades, cfg.backtest.starting_cash, equity_curve, meta.multiplier)
+    summary = summarize(
+        trades,
+        cfg.backtest.starting_cash,
+        equity_curve,
+        product.multiplier,
+    )
     return BacktestResult(trades=trades, equity=equity_curve, summary=summary)
 
 
@@ -443,7 +483,7 @@ def _ema_bias(cfg: ConfigBundle) -> str:
     return {"PUT": "up", "CALL": "down"}.get(cfg.strategy.right.upper(), "any")
 
 
-def _direction_from_legs(legs: list[OptionLeg]) -> str | None:
+def _direction_from_legs(legs: tuple[ResolvedOptionLeg, ...]) -> str | None:
     if not legs:
         return None
     pair = (legs[0].action.upper(), legs[0].right.upper())
@@ -461,7 +501,7 @@ def _trade_value(
     cfg: ConfigBundle,
     surface_params: IVSurfaceParams,
     min_tick: float,
-    is_future: bool,
+    product: OptionProductFacts,
     calibration,
 ) -> float:
     return _trade_value_from_spec(
@@ -471,7 +511,7 @@ def _trade_value(
         cfg,
         surface_params,
         min_tick,
-        is_future,
+        product,
         mode="mark",
         calibration=calibration,
     )
@@ -484,7 +524,7 @@ def _trade_value_from_spec(
     cfg: ConfigBundle,
     surface_params: IVSurfaceParams,
     min_tick: float,
-    is_future: bool,
+    product: OptionProductFacts,
     mode: str,
     calibration,
 ) -> float:
@@ -507,10 +547,10 @@ def _trade_value_from_spec(
         leg_iv = iv_for_strike(atm_iv, forward, leg.strike, surface_params)
         price = (
             black_76(forward, leg.strike, t, cfg.backtest.risk_free_rate, leg_iv, leg.right)
-            if is_future
+            if product.pricing_model == "black_76"
             else black_scholes(forward, leg.strike, t, cfg.backtest.risk_free_rate, leg_iv, leg.right)
         )
-        mid_rows.append(("SELL" if leg.action == "SELL" else "BUY", leg.qty, price))
+        mid_rows.append(("SELL" if leg.action == "SELL" else "BUY", leg.ratio, price))
 
     if len(mid_rows) <= 1:
         rows: list[tuple[str, int, float]] = []
@@ -549,14 +589,8 @@ def _hit_profit(trade: OptionTrade, current_value: float) -> bool:
     )
 
 
-def _hit_stop(trade: OptionTrade, current_value: float, basis: str, spot: float) -> bool:
-    max_loss = None
-    if basis != "credit":
-        max_loss = trade.max_loss if trade.max_loss is not None else _max_loss(trade)
-        if max_loss is None:
-            max_loss = _max_loss_estimate(trade, spot)
-        if max_loss is None:
-            max_loss = abs(trade.entry_price)
+def _hit_stop(trade: OptionTrade, current_value: float, basis: str) -> bool:
+    max_loss = trade.max_loss if basis != "credit" else None
     return option_stop_loss_hit(
         entry_value=trade.entry_price,
         current_value=current_value,
@@ -599,46 +633,3 @@ def _close_trade(trade: OptionTrade, ts: datetime, price: float, reason: str, tr
     trade.exit_price = price
     trade.exit_reason = reason
     trades.append(trade)
-
-
-def _max_loss(trade: OptionTrade) -> float | None:
-    if len(trade.legs) != 2:
-        return None
-    a, b = trade.legs
-    if a.right != b.right or a.qty != b.qty or {a.action, b.action} != {"BUY", "SELL"}:
-        return None
-    if trade.entry_price < 0:
-        return abs(trade.entry_price)
-    return max(0.0, abs(a.strike - b.strike) * a.qty - trade.entry_price)
-
-
-def _margin_required(trade: OptionTrade, spot: float, multiplier: float) -> float:
-    if trade.entry_price <= 0:
-        return 0.0
-    max_loss = trade.max_loss if trade.max_loss is not None else _max_loss(trade)
-    if max_loss is None:
-        max_loss = _max_loss_estimate(trade, spot)
-    return max(0.0, max_loss) * multiplier if max_loss is not None else 0.0
-
-
-def _max_loss_estimate(trade: OptionTrade, spot: float) -> float | None:
-    strikes = sorted({leg.strike for leg in trade.legs})
-    if not strikes:
-        return None
-    candidates = [0.0, *strikes, max(spot, strikes[-1]) * 5.0]
-    pnl = [trade.entry_price + _payoff_at_expiry(trade.legs, price) for price in candidates]
-    return max(0.0, -min(pnl))
-
-
-def _payoff_at_expiry(legs: list[OptionLeg], spot: float) -> float:
-    rows = [
-        (
-            "BUY" if leg.action.upper() == "BUY" else "SELL",
-            leg.qty,
-            max(spot - leg.strike, 0.0) if leg.right.upper() == "CALL" else max(leg.strike - spot, 0.0),
-        )
-        for leg in legs
-    ]
-    payoff = option_package_debit_value(rows)
-    assert payoff is not None
-    return float(payoff)
