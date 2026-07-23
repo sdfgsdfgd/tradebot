@@ -71,6 +71,7 @@ from ..engine import (
     resolve_spot_regime_spec,
     spot_apply_branch_size_mult,
     spot_calc_signed_qty_with_trace,
+    spot_sizing_input,
     spot_hit_profit,
     spot_hit_stop,
     spot_exec_price as _spot_exec_price,
@@ -1371,7 +1372,7 @@ def _spot_try_open_entry(
         )
 
     if can_open:
-        signed_qty, decision_trace = spot_calc_signed_qty_with_trace(
+        entry_sizing_input = spot_sizing_input(
             strategy=cfg.strategy,
             filters=filters,
             action=action,
@@ -1412,6 +1413,7 @@ def _spot_try_open_entry(
             policy_graph=policy.sizing_graph,
             policy_config=policy.sizing_config,
         )
+        signed_qty, decision_trace = spot_calc_signed_qty_with_trace(entry_sizing_input)
         if signed_qty == 0:
             can_open = False
         else:
@@ -2989,7 +2991,7 @@ def _run_spot_backtest_exec_loop(
                     stop_loss_pct = None
 
                 liquidation_close = _spot_liquidation(float(bar.close))
-                signed_target, resize_trace = spot_calc_signed_qty_with_trace(
+                resize_sizing_input = spot_sizing_input(
                     strategy=cfg.strategy,
                     filters=filters,
                     action=action,
@@ -3070,6 +3072,7 @@ def _run_spot_backtest_exec_loop(
                     policy_graph=policy.sizing_graph,
                     policy_config=policy.sizing_config,
                 )
+                signed_target, resize_trace = spot_calc_signed_qty_with_trace(resize_sizing_input)
                 if int(signed_target) != 0:
                     size_mult = _spot_branch_size_mult(
                         policy=policy, entry_branch=trade.entry_branch

@@ -357,10 +357,10 @@ Source and references must be saturated before mutation, in this order:
 
 - Milestone base: `9261954424c4f1fe6f40a38bc3cf8aa9245737b5`.
 - Frozen capabilities: **20**.
-- Semantic alignment: **15/20 (75.0%)**.
-- Shared-covered: **9/20 (45.0%)**.
+- Semantic alignment: **16/20 (80.0%)**.
+- Shared-covered: **10/20 (50.0%)**.
 - Intentional adapters: **6/20 (30.0%)**.
-- Unproven: **5/20 (25.0%)**.
+- Unproven: **4/20 (20.0%)**.
 - Confirmed gaps: **0/20 (0.0%)**.
 - Machine-readable source: `tests/ledgers/parity_capabilities.json`.
 
@@ -380,7 +380,7 @@ Source and references must be saturated before mutation, in this order:
 | `spot-v1.execution-fill-adaptation` | `market-realism-parity` | `intentional-adapter` | `aligned` | Capture read-only IB fill/order-state shapes and replay them. |
 | `spot-v1.order-submission-status-adaptation` | `live-execution-orders` | `intentional-adapter` | `aligned` | Add spot-specific staged→send-error/cancel/inactive/partial/fill scenarios. |
 | `spot-v1.resize-mutation-accounting-adaptation` | `backtest-simulation-accounting` | `intentional-adapter` | `aligned` | Add broker-replay partial/full resize position and basis receipts. |
-| `spot-v1.sizing-input-assembly-parity` | `policy-risk-sizing` | `unproven` | `unproven` | Create canonical sizing-input payload and paired adapter extraction tests. |
+| `spot-v1.sizing-input-assembly-parity` | `policy-risk-sizing` | `shared-covered` | `aligned` | Add direct runtime capture for the backtest resize owner and non-default regime2/shock/risk value vectors. |
 | `spot-v1.pending-state-mutation-parity` | `live-execution-orders` | `unproven` | `unproven` | Add identical pending-state transition tables for both adapters. |
 | `spot-v1.entry-basis-reconciliation` | `backtest-simulation-accounting` | `unproven` | `unproven` | Define normalized economic basis and test partial/multiple fills. |
 | `spot-v1.trace-projection-parity` | `operator-ui-observability` | `unproven` | `unproven` | Normalize receipt schema and compare scenario snapshots. |
@@ -397,6 +397,16 @@ Source and references must be saturated before mutation, in this order:
 - Affected-file receipt: `59 passed, 1 warning in 0.43s`.
 - Deterministic receipt: `465 passed, 4 deselected, 1 warning in 9.87s`.
 - `spot-v1.resize-cooldown-fill-ownership` moved from `parity-gap` to aligned `intentional-adapter`.
+
+### Wave 2 resolution: canonical sizing-input assembly
+
+- Canonical owner: `tradebot/spot/policy_contract.py::SpotSizingInput` and `tradebot/engine.py::spot_sizing_input`.
+- Static matrix: backtest entry and resize each provide all 29 canonical fields; live supplies 27 explicit fields and delegates `SpotPolicyGraph` and `SpotPolicyConfigView` construction to the shared factory.
+- Runtime evidence: four backtest-entry payloads and one live-resize payload were captured; every payload was typed with graph/config populated, and the live approximately USD 2,200 profile carried `equity_ref=2200.0` and `cash_ref=1800.0`.
+- Typed and legacy wrapper entry forms produced identical quantity and trace output.
+- TDD receipts: semantic RED `8c3346697a225a6d012243c78980e824aac878e5af24ce3e56854e237ee3bb63`; exact/related GREEN `2365f85d748b9c19791d329d17e0d91a9700e013209b1ad6c5f7c00e79dad8f1`; full/value GREEN `4a1f960f748d1380910d9e481e2634a7ad33d672402c10ad5485f4c2bdf15843`.
+- Full deterministic verification: `604 passed, 4 deselected`; zero sockets; implementation diff SHA `a15c06259161e6aac185c15cbdf4eda68f1fb2c02f91e3181bc0a0a69f481ff8`.
+- `spot-v1.sizing-input-assembly-parity` moved from `unproven` to aligned `shared-covered`.
 
 <!-- END: TRADEBOT_PARITY_FIRST_SLICE_V1 -->
 

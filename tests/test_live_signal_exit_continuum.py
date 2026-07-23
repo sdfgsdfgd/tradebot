@@ -3698,3 +3698,87 @@ def test_initial_exec_mode_escalates_stop_exit_retries() -> None:
         )
         == "OPTIMISTIC"
     )
+
+
+def test_live_sizing_assembly_delegates_via_typed_payload() -> None:
+    import ast
+    from pathlib import Path
+
+    source = Path("tradebot/ui/bot_order_builder.py").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+
+    def _leaf(node) -> str:
+        if isinstance(node, ast.Name):
+            return node.id
+        if isinstance(node, ast.Attribute):
+            return node.attr
+        return ""
+
+    def _target_names(node) -> set[str]:
+        return {
+            child.id
+            for child in ast.walk(node)
+            if isinstance(child, ast.Name)
+        }
+
+    factory_calls = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and _leaf(node.func) == "spot_sizing_input"
+    ]
+    wrapper_calls = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and _leaf(node.func) == "spot_calc_signed_qty_with_trace"
+    ]
+    assert len(wrapper_calls) == 1, "expected one live spot sizing delegation"
+    assert len(factory_calls) == len(wrapper_calls), (
+        "live sizing adapter must call spot_sizing_input once per kernel "
+        f"delegation: factory={len(factory_calls)} kernel={len(wrapper_calls)}"
+    )
+
+    factory_targets: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Assign, ast.AnnAssign)):
+            value = node.value
+            if not isinstance(value, ast.Call) or _leaf(value.func) != "spot_sizing_input":
+                continue
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            for target in targets:
+                factory_targets.update(_target_names(target))
+
+    raw_fields = {
+        "strategy", "filters", "action", "lot", "entry_price", "stop_price",
+        "stop_loss_pct", "shock", "shock_dir", "shock_atr_pct",
+        "shock_dir_down_streak_bars", "shock_drawdown_dist_on_pct",
+        "shock_drawdown_dist_on_vel_pp", "shock_drawdown_dist_on_accel_pp",
+        "shock_prearm_down_streak_bars", "shock_ramp", "riskoff", "risk_dir",
+        "riskpanic", "riskpop", "risk", "signal_entry_dir",
+        "signal_regime_dir", "regime2_dir", "regime2_ready", "equity_ref",
+        "cash_ref", "policy_graph", "policy_config",
+    }
+    call = wrapper_calls[0]
+    expressions = [*call.args, *(keyword.value for keyword in call.keywords)]
+    uses_inline_factory = any(
+        isinstance(child, ast.Call) and _leaf(child.func) == "spot_sizing_input"
+        for expression in expressions
+        for child in ast.walk(expression)
+    )
+    uses_factory_result = any(
+        isinstance(child, ast.Name)
+        and isinstance(child.ctx, ast.Load)
+        and child.id in factory_targets
+        for expression in expressions
+        for child in ast.walk(expression)
+    )
+    assert uses_inline_factory or uses_factory_result, (
+        "live sizing kernel must receive the typed factory result"
+    )
+    raw_keywords = {
+        keyword.arg for keyword in call.keywords if keyword.arg is not None
+    } & raw_fields
+    assert not raw_keywords, (
+        "live sizing kernel still receives raw adapter fields: "
+        f"{sorted(raw_keywords)}"
+    )

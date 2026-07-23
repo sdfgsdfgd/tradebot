@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from dataclasses import asdict, dataclass, replace
+from dataclasses import asdict, dataclass, fields, replace
 
 from .fill_modes import SPOT_FILL_MODE_CLOSE, normalize_spot_fill_mode
 from .packs import resolve_pack
@@ -36,6 +36,44 @@ def parse_float(value: object, *, default: float, min_value: float | None = None
     except (TypeError, ValueError):
         parsed = float(default)
     return float(min_value) if min_value is not None and parsed < float(min_value) else float(parsed)
+
+
+@dataclass(frozen=True)
+class SpotSizingInput:
+    """Canonical sizing facts assembled by backtest and live adapters."""
+
+    strategy: Mapping[str, object] | object
+    filters: Mapping[str, object] | object | None
+    action: str
+    lot: int
+    entry_price: float
+    stop_price: float | None
+    stop_loss_pct: float | None
+    shock: bool | None
+    shock_dir: str | None
+    shock_atr_pct: float | None
+    shock_dir_down_streak_bars: int | None
+    shock_drawdown_dist_on_pct: float | None
+    shock_drawdown_dist_on_vel_pp: float | None
+    shock_drawdown_dist_on_accel_pp: float | None
+    shock_prearm_down_streak_bars: int | None
+    shock_ramp: Mapping[str, object] | object | None
+    riskoff: bool
+    risk_dir: str | None
+    riskpanic: bool
+    riskpop: bool
+    risk: object | None
+    signal_entry_dir: str | None
+    signal_regime_dir: str | None
+    regime2_dir: str | None
+    regime2_ready: bool
+    equity_ref: float
+    cash_ref: float | None
+    policy_graph: object | None
+    policy_config: SpotPolicyConfigView | None
+
+    def as_kwargs(self) -> dict[str, object]:
+        return {field.name: getattr(self, field.name) for field in fields(self)}
 
 
 @dataclass(frozen=True)

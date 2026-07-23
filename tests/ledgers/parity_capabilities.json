@@ -276,16 +276,24 @@
       "id": "spot-v1.sizing-input-assembly-parity",
       "subsystem": "policy-risk-sizing",
       "capability": "Assemble equivalent action, price, stop, shock, regime and risk inputs before shared sizing.",
-      "classification": "unproven",
-      "status": "unproven",
-      "shared_surface": "spot_calc_signed_qty_with_trace signature",
+      "classification": "shared-covered",
+      "status": "aligned",
+      "shared_surface": "SpotSizingInput and spot_sizing_input",
       "backtest_surface": "_spot_try_open_entry and resize block",
       "live_surface": "BotOrderBuilderMixin._create_order_for_instance",
       "evidence": [
-        "Both adapters call the shared sizing kernel."
+        "tradebot/spot/policy_contract.py::SpotSizingInput",
+        "tradebot/engine.py::spot_sizing_input",
+        "Backtest entry and resize provide all 29 canonical fields; live provides 27 and delegates policy graph/config construction to the shared factory.",
+        "Runtime capture produced typed payloads with populated SpotPolicyGraph and SpotPolicyConfigView; typed and legacy wrapper paths were equivalent.",
+        "Full deterministic receipt 4a1f960f748d1380910d9e481e2634a7ad33d672402c10ad5485f4c2bdf15843: 604 passed, 4 deselected, zero sockets."
       ],
-      "tests": [],
-      "next": "Create canonical sizing-input payload and paired adapter extraction tests."
+      "tests": [
+        "tests/test_spot_policy_kernel.py::test_spot_sizing_input_contract_is_typed_and_complete",
+        "tests/test_spot_summary_parity.py::test_backtest_sizing_assemblies_delegate_via_typed_payload",
+        "tests/test_live_signal_exit_continuum.py::test_live_sizing_assembly_delegates_via_typed_payload"
+      ],
+      "next": "Add direct runtime capture for the backtest resize owner and non-default regime2/shock/risk value vectors."
     },
     {
       "id": "spot-v1.pending-state-mutation-parity",

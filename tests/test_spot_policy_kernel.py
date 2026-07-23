@@ -946,3 +946,91 @@ class SpotPolicyKernelTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_spot_sizing_input_contract_is_typed_and_complete() -> None:
+    from dataclasses import fields, is_dataclass
+
+    import tradebot.engine as engine_module
+    from tradebot.spot import policy_contract as contract_module
+
+    expected_fields = (
+        "strategy",
+        "filters",
+        "action",
+        "lot",
+        "entry_price",
+        "stop_price",
+        "stop_loss_pct",
+        "shock",
+        "shock_dir",
+        "shock_atr_pct",
+        "shock_dir_down_streak_bars",
+        "shock_drawdown_dist_on_pct",
+        "shock_drawdown_dist_on_vel_pp",
+        "shock_drawdown_dist_on_accel_pp",
+        "shock_prearm_down_streak_bars",
+        "shock_ramp",
+        "riskoff",
+        "risk_dir",
+        "riskpanic",
+        "riskpop",
+        "risk",
+        "signal_entry_dir",
+        "signal_regime_dir",
+        "regime2_dir",
+        "regime2_ready",
+        "equity_ref",
+        "cash_ref",
+        "policy_graph",
+        "policy_config",
+    )
+
+    contract_type = getattr(contract_module, "SpotSizingInput", None)
+    assert contract_type is not None, "SpotSizingInput contract is missing"
+    assert is_dataclass(contract_type), "SpotSizingInput must be a dataclass"
+    assert tuple(field.name for field in fields(contract_type)) == expected_fields
+
+    factory = getattr(engine_module, "spot_sizing_input", None)
+    assert callable(factory), "tradebot.engine.spot_sizing_input factory is missing"
+
+    strategy = object()
+    filters = object()
+    risk = object()
+    policy_graph = object()
+    policy_config = object()
+    values = {
+        "strategy": strategy,
+        "filters": filters,
+        "action": "SELL",
+        "lot": 3,
+        "entry_price": 101.25,
+        "stop_price": 103.0,
+        "stop_loss_pct": 0.02,
+        "shock": True,
+        "shock_dir": "down",
+        "shock_atr_pct": 8.5,
+        "shock_dir_down_streak_bars": 4,
+        "shock_drawdown_dist_on_pct": 1.5,
+        "shock_drawdown_dist_on_vel_pp": 0.4,
+        "shock_drawdown_dist_on_accel_pp": 0.1,
+        "shock_prearm_down_streak_bars": 2,
+        "shock_ramp": {"down": {"risk_mult": 1.5}},
+        "riskoff": True,
+        "risk_dir": "down",
+        "riskpanic": False,
+        "riskpop": False,
+        "risk": risk,
+        "signal_entry_dir": "down",
+        "signal_regime_dir": "down",
+        "regime2_dir": "down",
+        "regime2_ready": True,
+        "equity_ref": 2_200.0,
+        "cash_ref": 1_800.0,
+        "policy_graph": policy_graph,
+        "policy_config": policy_config,
+    }
+    payload = factory(**values)
+    assert isinstance(payload, contract_type)
+    for name, expected in values.items():
+        assert getattr(payload, name) == expected
