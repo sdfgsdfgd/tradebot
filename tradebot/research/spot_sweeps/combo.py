@@ -415,21 +415,12 @@ class SweepCartesian:
             )
             warm_start = window_start - timedelta(days=warmup_days)
             if self.offline:
-                for req in unique_requirements.values():
-                    _require_offline_cache_or_die(
-                        data=self.data,
-                        cache_dir=self.cache_dir,
-                        symbol=str(req.symbol),
-                        exchange=req.exchange,
-                        start_dt=datetime.combine(
-                            window_start - timedelta(days=max(0, int(req.warmup_days))),
-                            time(0, 0),
-                        ),
-                        end_dt=datetime.combine(window_end, time(23, 59)),
-                        bar_size=str(req.bar_size),
-                        use_rth=bool(req.use_rth),
-                        cache_policy=self.cache_policy,
-                    )
+                self._preflight_offline_requirements(
+                    unique_requirements.values(),
+                    start_dt=datetime.combine(window_start, time(0, 0)),
+                    end_dt=datetime.combine(window_end, time(23, 59)),
+                    honor_warmup=True,
+                )
 
             child_args = type(self.args)(**vars(self.args))
             child_args.start = warm_start.isoformat()
@@ -871,6 +862,26 @@ class SweepCartesian:
 
         def _combo_full_parallel_payloads() -> dict[int, dict]:
             unresolved_i, prefetched_i = _combo_full_parallel_totals()
+            if unresolved_i > 0 and self.offline:
+                requirements = []
+                for rank in range(int(total)):
+                    cfg, _note, _meta = preset_context.run_item_from_rank(rank)
+                    requirements.extend(
+                        req
+                        for req in spot_bar_requirements_from_strategy(
+                            strategy=cfg.strategy,
+                            default_symbol=self.symbol,
+                            default_exchange=cfg.strategy.exchange,
+                            default_signal_bar_size=self.signal_bar_size,
+                            default_signal_use_rth=self.use_rth,
+                        )
+                        if req.kind not in {"signal", "tick"}
+                    )
+                self._preflight_offline_requirements(
+                    requirements,
+                    start_dt=self.start_dt,
+                    end_dt=self.end_dt,
+                )
             payloads = self._run_parallel_stage(
                 axis_name="combo_full",
                 stage_label="combo_full Cartesian",

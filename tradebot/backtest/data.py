@@ -9,9 +9,23 @@ from pathlib import Path
 from ib_insync import IB, ContFuture, Index, Stock, util
 from zoneinfo import ZoneInfo
 
-from ..contract_identity import future_exchange_for_symbol, is_future_symbol
+from ..contract_identity import (
+    future_exchange_for_symbol,
+    index_exchange_for_symbol,
+    is_future_symbol,
+)
 from .config import ConfigBundle
 from .models import Bar
+from ..chart_data.history import (
+    _canonical_bar_token,
+    _intraday_resample_preferred,
+    cache_path,
+    load_history_window,
+    normalize_bars_to_close as _normalize_bars,
+    read_cache,
+    write_cache,
+    write_history_chunk,
+)
 from ..chart_data.series import BarSeries, BarSeriesMeta, bars_list
 from ..config import load_config
 from ..signals import parse_bar_size
@@ -22,22 +36,6 @@ from ..time_utils import (
     to_et as _to_et_shared,
     to_utc_naive as _to_utc_naive_shared,
 )
-from .cache import (
-    _canonical_bar_token,
-    _intraday_resample_preferred,
-    _uncovered_date_ranges,
-    cache_path,
-    find_covering_cache_path,
-    find_overlapping_cache_paths,
-    parse_cache_filename,
-    read_cache,
-    write_cache,
-)
-
-_INDEX_EXCHANGES = {
-    "TICK-NYSE": "NYSE",
-    "TICK-AMEX": "AMEX",
-}
 
 _OVERNIGHT_START_ET = time(20, 0)
 _PREMARKET_START_ET = time(4, 0)
@@ -146,10 +144,12 @@ class IBKRHistoricalData:
             self._ib.disconnect()
 
     def resolve_contract(self, symbol: str, exchange: str | None) -> tuple[object, ContractMeta]:
+        symbol = str(symbol).strip().upper()
         future_exchange = future_exchange_for_symbol(symbol)
+        index_exchange = index_exchange_for_symbol(symbol)
         if exchange is None:
-            exchange = future_exchange or _INDEX_EXCHANGES.get(symbol) or "SMART"
-        if symbol in _INDEX_EXCHANGES:
+            exchange = future_exchange or index_exchange or "SMART"
+        if index_exchange is not None:
             contract = Index(symbol=symbol, exchange=exchange, currency="USD")
         elif exchange != "SMART" and is_future_symbol(symbol):
             contract = ContFuture(symbol=symbol, exchange=exchange, currency="USD")
@@ -176,22 +176,6 @@ class IBKRHistoricalData:
     ) -> BarSeries[Bar]:
         cache_file = cache_path(cache_dir, symbol, start, end, bar_size, use_rth)
         cache_file.parent.mkdir(parents=True, exist_ok=True)
-        if cache_file.exists():
-            cached = read_cache(cache_file)
-            if cached:
-                normalized = _normalize_bars(cached, symbol=symbol, bar_size=bar_size, use_rth=use_rth)
-                return BarSeries(
-                    bars=tuple(normalized),
-                    meta=_series_meta(
-                        symbol=symbol,
-                        bar_size=bar_size,
-                        use_rth=use_rth,
-                        source="cache",
-                        source_path=cache_file,
-                        start=start,
-                        end=end,
-                    ),
-                )
 
         debug_stitch = str(os.environ.get("TRADEBOT_CACHE_STITCH_DEBUG", "")).strip().lower() in {"1", "true", "yes", "on"}
 
@@ -269,73 +253,88 @@ class IBKRHistoricalData:
                 )
             return self._fetch_bars(primary, fetch_start, fetch_end, bar_size, use_rth)
 
-        overlap_paths = find_overlapping_cache_paths(
+        history = load_history_window(
             cache_dir=cache_dir,
             symbol=symbol,
-            start=start,
-            end=end,
+            start_et=start,
+            end_et=end,
             bar_size=bar_size,
             use_rth=use_rth,
+            naive_ts_mode=NaiveTsMode.UTC,
         )
-        if overlap_paths:
-            stitched_by_ts: dict[datetime, Bar] = {}
-            covered_ranges: list[tuple[date, date]] = []
-            for overlap in overlap_paths:
-                meta = parse_cache_filename(overlap)
-                if meta is not None:
-                    covered_ranges.append((meta.start_date, meta.end_date))
-                for bar in read_cache(overlap):
-                    if start <= bar.ts <= end:
-                        stitched_by_ts[bar.ts] = bar
-
-            uncovered_ranges = _uncovered_date_ranges(
-                request_start=start.date(),
-                request_end=end.date(),
-                covered_ranges=covered_ranges,
+        if history.bars and not history.missing_ranges:
+            source_path = history.source_paths[0] if len(history.source_paths) == 1 else None
+            source = (
+                "cache"
+                if source_path == cache_file
+                else "cache-covering"
+                if source_path is not None
+                else "cache-stitched"
             )
-            reused_ranges: list[tuple[date, date]] = []
-            cursor = start.date()
-            for gap_start, gap_end in uncovered_ranges:
-                if gap_start > cursor:
-                    reused_ranges.append((cursor, gap_start - timedelta(days=1)))
-                cursor = max(cursor, gap_end + timedelta(days=1))
-                if cursor > end.date():
-                    break
-            if cursor <= end.date():
-                reused_ranges.append((cursor, end.date()))
+            normalized = _normalize_bars(history.bars, symbol=symbol, bar_size=bar_size, use_rth=use_rth)
+            return BarSeries(
+                bars=tuple(normalized),
+                meta=_series_meta(
+                    symbol=symbol,
+                    bar_size=bar_size,
+                    use_rth=use_rth,
+                    source=source,
+                    source_path=source_path,
+                    start=start,
+                    end=end,
+                ),
+            )
+
+        if history.bars:
+            missing_ranges = list(history.missing_ranges)
             if debug_stitch:
                 session_tag = "RTH" if bool(use_rth) else "FULL"
                 print(
                     f"[CACHE_STITCH] {symbol} {bar_size} {session_tag} "
                     f"{start.date().isoformat()}→{end.date().isoformat()} "
-                    f"cache_reused_ranges={_fmt_ranges(reused_ranges)} "
-                    f"fetched_gap_ranges={_fmt_ranges(uncovered_ranges)}",
+                    f"cache_rows={len(history.bars)} "
+                    f"fetched_gap_ranges={_fmt_ranges(missing_ranges)}",
                     flush=True,
                 )
-            for gap_start, gap_end in uncovered_ranges:
-                fetch_start = datetime.combine(gap_start, time(0, 0))
-                fetch_end = datetime.combine(gap_end, time(23, 59))
-                for bar in _fetch_window(fetch_start, fetch_end):
-                    if start <= bar.ts <= end:
-                        stitched_by_ts[bar.ts] = bar
+            for gap_start, gap_end in missing_ranges:
+                fetch_start = max(start, datetime.combine(gap_start, time(0, 0)))
+                fetch_end = min(end, datetime.combine(gap_end, time(23, 59, 59)))
+                fetched = _fetch_window(fetch_start, fetch_end)
+                write_history_chunk(
+                    cache_dir=cache_dir,
+                    symbol=symbol,
+                    start_date=gap_start,
+                    end_date=gap_end,
+                    bar_size=bar_size,
+                    use_rth=use_rth,
+                    bars=fetched,
+                )
 
-            if stitched_by_ts:
-                stitched = [stitched_by_ts[k] for k in sorted(stitched_by_ts.keys())]
-                normalized = _normalize_bars(stitched, symbol=symbol, bar_size=bar_size, use_rth=use_rth)
-                write_cache(cache_file, stitched)
-                source = "cache-stitched" if not uncovered_ranges else "cache+ibkr"
+            healed = load_history_window(
+                cache_dir=cache_dir,
+                symbol=symbol,
+                start_et=start,
+                end_et=end,
+                bar_size=bar_size,
+                use_rth=use_rth,
+                naive_ts_mode=NaiveTsMode.UTC,
+            )
+            if healed.bars and not healed.missing_ranges:
+                normalized = _normalize_bars(healed.bars, symbol=symbol, bar_size=bar_size, use_rth=use_rth)
                 return BarSeries(
                     bars=tuple(normalized),
                     meta=_series_meta(
                         symbol=symbol,
                         bar_size=bar_size,
                         use_rth=use_rth,
-                        source=source,
-                        source_path=cache_file,
+                        source="cache+ibkr",
+                        source_path=None,
                         start=start,
                         end=end,
                     ),
                 )
+            missing = ", ".join(_fmt_ranges(list(healed.missing_ranges)))
+            raise RuntimeError(f"Incomplete history after sparse fetch: {missing or 'no bars'}")
 
         if debug_stitch:
             session_tag = "RTH" if bool(use_rth) else "FULL"
@@ -395,6 +394,7 @@ class IBKRHistoricalData:
         cache_dir: Path,
     ) -> BarSeries[Bar]:
         cache_file = cache_path(cache_dir, symbol, start, end, bar_size, use_rth)
+
         def _try_resampled() -> BarSeries[Bar] | None:
             if not _intraday_resample_preferred(bar_size):
                 return None
@@ -433,67 +433,24 @@ class IBKRHistoricalData:
         resampled = _try_resampled()
         if resampled is not None:
             return resampled
-        covering = find_covering_cache_path(
-            cache_dir=cache_dir,
-            symbol=symbol,
-            start=start,
-            end=end,
-            bar_size=bar_size,
-            use_rth=use_rth,
-        )
-        if covering is not None:
-            if covering == cache_file:
-                sliced = read_cache(cache_file)
-                source = "cache"
-            else:
-                sliced = read_cache(covering, start=start, end=end)
-                source = "cache-covering"
-            normalized = _normalize_bars(sliced, symbol=symbol, bar_size=bar_size, use_rth=use_rth)
-            return BarSeries(
-                bars=tuple(normalized),
-                meta=_series_meta(
-                    symbol=symbol,
-                    bar_size=bar_size,
-                    use_rth=use_rth,
-                    source=source,
-                    source_path=covering,
-                    start=start,
-                    end=end,
-                ),
-            )
 
-        overlap_paths = find_overlapping_cache_paths(
+        history = load_history_window(
             cache_dir=cache_dir,
             symbol=symbol,
-            start=start,
-            end=end,
+            start_et=start,
+            end_et=end,
             bar_size=bar_size,
             use_rth=use_rth,
+            naive_ts_mode=NaiveTsMode.UTC,
         )
-        if not overlap_paths:
+        if not history.bars:
             raise FileNotFoundError(f"No cached bars found at {cache_file}")
-
-        stitched_by_ts: dict[datetime, Bar] = {}
-        covered_ranges: list[tuple[date, date]] = []
-        for overlap in overlap_paths:
-            meta = parse_cache_filename(overlap)
-            if meta is not None:
-                covered_ranges.append((meta.start_date, meta.end_date))
-            for bar in read_cache(overlap):
-                if start <= bar.ts <= end:
-                    stitched_by_ts[bar.ts] = bar
-
-        uncovered_ranges = _uncovered_date_ranges(
-            request_start=start.date(),
-            request_end=end.date(),
-            covered_ranges=covered_ranges,
-        )
-        if uncovered_ranges:
+        if history.missing_ranges:
             resampled = _try_resampled()
             if resampled is not None:
                 return resampled
             missing = []
-            for s, e in uncovered_ranges:
+            for s, e in history.missing_ranges:
                 if s == e:
                     missing.append(s.isoformat())
                 else:
@@ -502,20 +459,23 @@ class IBKRHistoricalData:
                 f"No cached bars found at {cache_file}; missing date ranges: {', '.join(missing)}"
             )
 
-        if not stitched_by_ts:
-            raise FileNotFoundError(f"No cached bars found at {cache_file}")
-
-        stitched = [stitched_by_ts[k] for k in sorted(stitched_by_ts.keys())]
-        write_cache(cache_file, stitched)
-        normalized = _normalize_bars(stitched, symbol=symbol, bar_size=bar_size, use_rth=use_rth)
+        source_path = history.source_paths[0] if len(history.source_paths) == 1 else None
+        source = (
+            "cache"
+            if source_path == cache_file
+            else "cache-covering"
+            if source_path is not None
+            else "cache-stitched"
+        )
+        normalized = _normalize_bars(history.bars, symbol=symbol, bar_size=bar_size, use_rth=use_rth)
         return BarSeries(
             bars=tuple(normalized),
             meta=_series_meta(
                 symbol=symbol,
                 bar_size=bar_size,
                 use_rth=use_rth,
-                source="cache-stitched",
-                source_path=cache_file,
+                source=source,
+                source_path=source_path,
                 start=start,
                 end=end,
             ),
@@ -733,78 +693,6 @@ def _parse_float(value) -> float | None:
         return float(value)
     except (TypeError, ValueError):
         return None
-
-
-def _daily_close_time_et(*, symbol: str, use_rth: bool) -> time:
-    sym = str(symbol or "").strip().upper()
-    if is_future_symbol(sym):
-        return time(16, 0) if use_rth else time(17, 0)
-    return time(16, 0) if use_rth else time(20, 0)
-
-
-def _normalize_bars(bars: list[Bar], *, symbol: str, bar_size: str, use_rth: bool) -> list[Bar]:
-    """Normalize bar timestamps so MTF alignment doesn't leak future information."""
-    if not bars:
-        return bars
-    ordered = sorted(bars, key=lambda b: b.ts)
-    label = str(bar_size or "").strip().lower()
-    if label.startswith("1 day"):
-        close_et = _daily_close_time_et(symbol=symbol, use_rth=use_rth)
-        out: list[Bar] = []
-        for bar in ordered:
-            ts_et = datetime.combine(bar.ts.date(), close_et, tzinfo=_ET_ZONE)
-            ts_utc = _to_utc_naive_shared(ts_et)
-            out.append(
-                Bar(
-                    ts=ts_utc,
-                    open=bar.open,
-                    high=bar.high,
-                    low=bar.low,
-                    close=bar.close,
-                    volume=bar.volume,
-                )
-            )
-        return out
-
-    bar_def = parse_bar_size(str(bar_size))
-    if bar_def is None:
-        return ordered
-    dur = bar_def.duration
-    if dur <= timedelta(0):
-        return ordered
-
-    close_et = _daily_close_time_et(symbol=symbol, use_rth=use_rth) if use_rth else None
-    out: list[Bar] = []
-    for i, bar in enumerate(ordered):
-        # Baseline: convert bar-start timestamps to bar-close timestamps.
-        close_ts = bar.ts + dur
-
-        # Some IBKR RTH higher-timeframe bars are session-fragmented (short first/last bars).
-        # When the next bar starts earlier than `bar.ts + duration`, use that as the close.
-        if i + 1 < len(ordered):
-            next_ts = ordered[i + 1].ts
-            if next_ts > bar.ts and next_ts < close_ts:
-                close_ts = next_ts
-
-        # Clamp RTH closes at session close to avoid pushing tail bars past the market close.
-        if close_et is not None:
-            start_et = _to_et_shared(bar.ts, naive_ts_mode=NaiveTsMode.UTC)
-            session_close_et = datetime.combine(start_et.date(), close_et, tzinfo=_ET_ZONE)
-            session_close_utc = _to_utc_naive_shared(session_close_et)
-            if close_ts > session_close_utc:
-                close_ts = session_close_utc
-
-        out.append(
-            Bar(
-                ts=close_ts,
-                open=bar.open,
-                high=bar.high,
-                low=bar.low,
-                close=bar.close,
-                volume=bar.volume,
-            )
-        )
-    return out
 
 
 def load_bars(

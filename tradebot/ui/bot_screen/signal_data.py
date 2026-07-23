@@ -9,10 +9,11 @@ from datetime import datetime, time, timedelta
 from ib_insync import Contract, Stock
 
 from ...contract_identity import future_exchange_for_symbol, is_future_symbol
+from ...chart_data.history import normalize_bars_to_close
 from ...chart_data.series import BarSeries, BarSeriesMeta
 from ...client import IBKRClient, _session_flags
 from ...engines.market import full24_post_close_time_et, is_trading_day, session_label_et
-from ...signals import parse_bar_size
+from ...signals import bar_sizes_equal, parse_bar_size
 from ...time_utils import to_et as _to_et_shared
 from ..bot_models import _BotInstance
 from ..common import _market_session_bucket
@@ -139,8 +140,6 @@ class BotSignalDataMixin:
         strategy: dict | None = None,
         use_rth: bool | None = None,
     ) -> str:
-        label = str(bar_size or "").strip().lower()
-
         def _rank(duration: str) -> int:
             order = ("1 D", "2 D", "1 W", "2 W", "1 M", "2 M", "3 M", "6 M", "1 Y", "2 Y")
             cleaned = str(duration or "").strip()
@@ -152,20 +151,22 @@ class BotSignalDataMixin:
         def _max_duration(a: str, b: str) -> str:
             return a if _rank(a) >= _rank(b) else b
 
+        parsed = parse_bar_size(str(bar_size or ""))
+        duration = parsed.duration if parsed is not None else None
         base = "2 W"
-        if label.startswith(("1 min", "2 mins")):
+        if duration is not None and duration <= timedelta(minutes=2):
             base = "2 D"
-        elif label.startswith(("5 mins", "10 mins", "15 mins")):
+        elif duration is not None and duration <= timedelta(minutes=15):
             base = "1 W"
-        elif label.startswith("30 min"):
+        elif duration == timedelta(minutes=30):
             # Regime2 often runs on 30m bars (RTH => ~13 bars/day). A 1W request can land
             # just under the 60-bar supertrend warmup requirement depending on the time
             # of week / partial days / holidays. Bump the default so PREWARM converges
             # immediately instead of "waiting" for live closes.
             base = "2 W"
-        elif "hour" in label:
+        elif duration is not None and duration < timedelta(days=1):
             base = "2 W"
-        elif "day" in label:
+        elif duration is not None:
             base = "1 Y"
 
         # Start at the minimum viable duration for readiness instead of requesting a larger
@@ -628,7 +629,7 @@ class BotSignalDataMixin:
                     return True
                 if str(request.get("duration_str", "") or "").strip() != str(duration):
                     return False
-                if str(request.get("bar_size", "") or "").strip() != str(bar_size):
+                if not bar_sizes_equal(request.get("bar_size"), bar_size):
                     return False
                 if str(request.get("what_to_show", "") or "").strip().upper() != str(what_to_show).strip().upper():
                     return False
@@ -703,20 +704,31 @@ class BotSignalDataMixin:
                         strict_zero_gap=bool(strict_zero_gap),
                     )
                 )
+            close_aligned = normalize_bars_to_close(
+                trimmed,
+                symbol=str(symbol or ""),
+                bar_size=str(bar_size),
+                use_rth=bool(use_rth),
+                naive_ts_mode="et",
+            )
             series = BarSeries(
-                bars=tuple(trimmed),
+                bars=tuple(close_aligned),
                 meta=BarSeriesMeta(
                     symbol=symbol,
                     bar_size=str(bar_size),
                     tz_mode="et_naive",
                     session_mode="rth" if bool(use_rth) else "full24",
                     source=f"ibkr:{str(what_to_show).strip().lower()}",
-                    extra={"duration_str": str(req_duration), "con_id": int(con_id)},
+                    extra={
+                        "duration_str": str(req_duration),
+                        "con_id": int(con_id),
+                        "timestamp_semantics": "close",
+                    },
                 ),
             )
             return series, _annotate_health(
                 self._signal_bar_health(
-                    bars=series.as_list(),
+                    bars=trimmed,
                     bar_size=bar_size,
                     now_ref=now_ref,
                     use_rth=use_rth,

@@ -17,7 +17,7 @@ from ...time_utils import (
     NaiveTsSourceMode,
     to_et as _to_et_shared,
 )
-from ..cache import cache_path, read_cache, write_cache
+from ...chart_data.history import cache_path, read_cache, write_cache
 from ..data import IBKRHistoricalData
 from ..models import Bar
 from ..spot_context import SpotBarRequirement, spot_bar_requirements_from_strategy
@@ -405,12 +405,43 @@ def _fetch_single_request(
             return "warn"
         return "ok"
 
+    def _overlay_days(rows: list[Bar], days: list[date]) -> list[Bar]:
+        by_ts, day_to_ts = _build_indices(rows)
+        _ibkr_overlay_adaptive(
+            symbol=req.symbol,
+            bar_size=req.bar_size,
+            use_rth=bool(req.use_rth),
+            by_ts=by_ts,
+            day_to_ts=day_to_ts,
+            candidate_days=days,
+            threads=max(1, int(mend_threads)),
+            retries=max(1, int(mend_retries)),
+            timeout_sec=timeout_sec,
+            client_id_base=(int(client_id_offset) * 1000),
+            session_mode=session_mode,
+            adaptive_threads=bool(mend_adaptive_threads),
+        )
+        return _dedupe_sort_bars(by_ts.values())
+
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     provider = IBKRHistoricalData(client_id_offset=client_id_offset)
+    backup_path: Path | None = None
+    fetch_attempted = False
+    fetch_accepted = False
+
+    def _stage_existing() -> None:
+        nonlocal backup_path
+        if backup_path is not None or not cache_file.exists():
+            return
+        backup_path = cache_file.with_name(
+            f".{cache_file.name}.pre_fetch.{os.getpid()}.{os.urandom(4).hex()}"
+        )
+        os.replace(cache_file, backup_path)
+
     try:
-        if force_refresh and cache_file.exists():
-            cache_file.unlink()
+        if force_refresh:
+            _stage_existing()
 
         # Default behavior: if exact cache exists, detect internal coverage anomalies and
         # heal in-place before accepting cache-hit.
@@ -425,31 +456,13 @@ def _fetch_single_request(
 
                 final_rows = canonical_rows
                 if candidate_days:
-                    by_ts, day_to_ts = _build_indices(canonical_rows)
-                    _ibkr_overlay_adaptive(
-                        symbol=req.symbol,
-                        bar_size=req.bar_size,
-                        use_rth=bool(req.use_rth),
-                        by_ts=by_ts,
-                        day_to_ts=day_to_ts,
-                        candidate_days=candidate_days,
-                        threads=max(1, int(mend_threads)),
-                        retries=max(1, int(mend_retries)),
-                        timeout_sec=timeout_sec,
-                        client_id_base=(int(client_id_offset) * 1000),
-                        session_mode=session_mode,
-                        adaptive_threads=bool(mend_adaptive_threads),
-                    )
-                    final_rows = _dedupe_sort_bars(by_ts.values())
+                    final_rows = _overlay_days(canonical_rows, candidate_days)
 
                 changed = bool(tz_canon)
                 if len(final_rows) != len(canonical_rows):
                     changed = True
                 elif not changed:
                     changed = any(a != b for a, b in zip(canonical_rows, final_rows))
-
-                if changed:
-                    write_cache(cache_file, final_rows)
 
                 rows_in_window = _rows_in_window(final_rows)
                 if supports_audit:
@@ -458,6 +471,8 @@ def _fetch_single_request(
                     anomaly_fingerprint = _coverage_fingerprint(audit_after, gaps_after)
                     if not remaining_days and final_rows:
                         ok = bool(rows_in_window)
+                        if changed:
+                            write_cache(cache_file, final_rows)
                         return _CacheFetchOutcome(
                             request=req,
                             ok=ok,
@@ -482,10 +497,11 @@ def _fetch_single_request(
                             anomaly_fingerprint=None,
                         )
                     # Coverage still incomplete: force one full-window refresh attempt.
-                    if cache_file.exists():
-                        cache_file.unlink()
+                    _stage_existing()
                 else:
                     ok = bool(rows_in_window)
+                    if changed:
+                        write_cache(cache_file, final_rows)
                     return _CacheFetchOutcome(
                         request=req,
                         ok=ok,
@@ -510,6 +526,7 @@ def _fetch_single_request(
                         anomaly_fingerprint=None,
                     )
 
+        fetch_attempted = True
         provider.load_or_fetch_bars(
             symbol=req.symbol,
             exchange=None,
@@ -542,13 +559,15 @@ def _fetch_single_request(
 
         mode_after, _ = _infer_timestamp_mode(raw_after)
         canonical_after = _canonicalize_rows(raw_after, mode=mode_after)
-        if mode_after != NaiveTsSourceMode.UTC_NAIVE.value:
-            write_cache(cache_file, canonical_after)
         tz_canon = bool(tz_canon or (mode_after != NaiveTsSourceMode.UTC_NAIVE.value))
 
         rows_in_window = _rows_in_window(canonical_after)
         if not supports_audit:
             ok = bool(rows_in_window)
+            if ok:
+                if mode_after != NaiveTsSourceMode.UTC_NAIVE.value:
+                    write_cache(cache_file, canonical_after)
+                fetch_accepted = True
             return _CacheFetchOutcome(
                 request=req,
                 ok=ok,
@@ -574,16 +593,29 @@ def _fetch_single_request(
             )
 
         audit_after, gaps_after, remaining_days, session_after, gap_after = _coverage_days(canonical_after)
+        if remaining_days:
+            candidate_days_count = max(candidate_days_count, len(remaining_days))
+            canonical_after = _overlay_days(canonical_after, remaining_days)
+            audit_after, gaps_after, remaining_days, session_after, gap_after = _coverage_days(
+                canonical_after
+            )
+            rows_in_window = _rows_in_window(canonical_after)
         healed_days = max(int(healed_days), max(0, int(candidate_days_count) - len(remaining_days)))
         anomaly_fingerprint = _coverage_fingerprint(audit_after, gaps_after)
         ok_complete = bool(rows_in_window) and not remaining_days
         error = None
         if not ok_complete:
+            missing_dates = ",".join(day.isoformat() for day in remaining_days[:8])
             error = (
                 "incomplete_after_fetch:"
                 f" session_days={int(audit_after.get('anomaly_day_count_effective', 0) or 0)}"
                 f" gap_days={len(gaps_after)}"
+                f" dates={missing_dates or '-'}"
             )
+        else:
+            if mode_after != NaiveTsSourceMode.UTC_NAIVE.value or healed_days > 0:
+                write_cache(cache_file, canonical_after)
+            fetch_accepted = True
         return _CacheFetchOutcome(
             request=req,
             ok=ok_complete,
@@ -629,6 +661,17 @@ def _fetch_single_request(
     finally:
         try:
             provider.disconnect()
+        except Exception:
+            pass
+        try:
+            if backup_path is not None:
+                if fetch_accepted:
+                    backup_path.unlink(missing_ok=True)
+                else:
+                    cache_file.unlink(missing_ok=True)
+                    os.replace(backup_path, cache_file)
+            elif fetch_attempted and not fetch_accepted:
+                cache_file.unlink(missing_ok=True)
         except Exception:
             pass
         try:

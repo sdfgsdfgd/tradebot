@@ -35,7 +35,7 @@ from ..engine import (
     cooldown_ok_by_index,
     realized_vol_from_closes,
 )
-from ..signals import ema_next, ema_periods, parse_bar_size
+from ..signals import bar_sizes_equal, ema_next, ema_periods, parse_bar_size
 from ..utils.date_utils import business_days_until
 
 
@@ -192,10 +192,10 @@ def prepare_options_tape(
     regime_preset = cfg.strategy.regime_ema_preset
     regime_bar = cfg.strategy.regime_bar_size or cfg.backtest.bar_size
     use_mtf_regime = (
-        str(regime_bar) != str(cfg.backtest.bar_size)
+        not bar_sizes_equal(regime_bar, cfg.backtest.bar_size)
         if regime_mode == "supertrend"
         else bool(regime_preset)
-        and str(regime_bar) != str(cfg.backtest.bar_size)
+        and not bar_sizes_equal(regime_bar, cfg.backtest.bar_size)
     )
     regime_bars = (
         load_backtest_series(

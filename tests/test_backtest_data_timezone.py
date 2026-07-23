@@ -3,7 +3,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from tradebot.backtest.cache import (
+from tradebot.chart_data.history import (
     cache_path,
     find_covering_cache_path,
     parse_cache_filename,
@@ -74,6 +74,18 @@ class _StubHistoricalData(IBKRHistoricalData):
 
 
 class BacktestDataTimezoneTests(unittest.TestCase):
+    def test_xsp_resolves_as_cboe_index(self) -> None:
+        data = IBKRHistoricalData()
+        data.connect = lambda: None
+        data._ib.qualifyContracts = lambda contract: [contract]
+
+        contract, meta = data.resolve_contract("xsp", None)
+
+        self.assertEqual(contract.secType, "IND")
+        self.assertEqual(contract.symbol, "XSP")
+        self.assertEqual(contract.exchange, "CBOE")
+        self.assertEqual(meta.exchange, "CBOE")
+
     def test_as_utc_aware_marks_naive_as_utc(self) -> None:
         ts = _as_utc_aware(datetime(2025, 1, 15, 9, 30))
         self.assertEqual(ts.tzinfo, timezone.utc)
@@ -196,7 +208,7 @@ class BacktestDataTimezoneTests(unittest.TestCase):
             self.assertEqual(len(data.fetch_calls), 0)
             self.assertEqual(series.meta.source, "cache-stitched")
             exact = cache_path(cache_dir, "SLV", req_start, req_end, "1 min", use_rth=False)
-            self.assertTrue(exact.exists())
+            self.assertFalse(exact.exists())
 
     def test_load_or_fetch_fetches_only_uncovered_gap_days(self) -> None:
         with TemporaryDirectory() as tmpdir:
@@ -244,8 +256,46 @@ class BacktestDataTimezoneTests(unittest.TestCase):
             self.assertIn("OVERNIGHT", exchanges)
             self.assertEqual(series.meta.source, "cache+ibkr")
 
+    def test_load_or_fetch_detects_missing_day_inside_covering_cache(self) -> None:
+        with TemporaryDirectory() as tmpdir:
+            cache_dir = Path(tmpdir)
+            req_start = datetime(2025, 1, 1, 0, 0)
+            req_end = datetime(2025, 1, 10, 23, 59)
+            covering = cache_path(
+                cache_dir,
+                "SLV",
+                req_start,
+                req_end,
+                "1 min",
+                use_rth=False,
+            )
+            covering.parent.mkdir(parents=True, exist_ok=True)
+            write_cache(
+                covering,
+                [
+                    bar
+                    for bar in _day_bars(req_start.date(), req_end.date())
+                    if bar.ts.date() != date(2025, 1, 6)
+                ],
+            )
 
-    def test_load_cached_stitches_contiguous_cache_shards_and_persists_exact(self) -> None:
+            data = _StubHistoricalData()
+            series = data.load_or_fetch_bar_series(
+                symbol="SLV",
+                exchange="SMART",
+                start=req_start,
+                end=req_end,
+                bar_size="1 min",
+                use_rth=False,
+                cache_dir=cache_dir,
+            )
+
+            assert {start.date() for _, start, _, _, _ in data.fetch_calls} == {date(2025, 1, 6)}
+            assert {end.date() for _, _, end, _, _ in data.fetch_calls} == {date(2025, 1, 6)}
+            assert series.meta.source == "cache+ibkr"
+
+
+    def test_load_cached_stitches_contiguous_cache_shards_without_copying_exact(self) -> None:
         with TemporaryDirectory() as tmpdir:
             cache_dir = Path(tmpdir)
             req_start = datetime(2025, 2, 1, 0, 0)
@@ -284,7 +334,7 @@ class BacktestDataTimezoneTests(unittest.TestCase):
 
             self.assertEqual(series.meta.source, "cache-stitched")
             exact = cache_path(cache_dir, "SLV", req_start, req_end, "1 min", use_rth=False)
-            self.assertTrue(exact.exists())
+            self.assertFalse(exact.exists())
 
     def test_load_cached_raises_when_date_coverage_has_gaps(self) -> None:
         with TemporaryDirectory() as tmpdir:

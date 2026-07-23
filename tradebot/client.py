@@ -32,10 +32,23 @@ from ib_insync import (
 )
 
 from .contract_identity import future_exchange_for_symbol
+from .chart_data.history import (
+    duration_window_et,
+    load_history_window,
+    write_history_chunk,
+)
+from .chart_data.series import OhlcvBar
 from .engines.market import expected_sessions, session_label_et
 from .config import IBKRConfig
 from .live.execution import order_ids
-from .time_utils import NaiveTsMode, now_et as _now_et, now_et_naive as _now_et_naive, to_et as _to_et_shared
+from .signals import parse_bar_size
+from .time_utils import (
+    NaiveTsMode,
+    now_et as _now_et,
+    now_et_naive as _now_et_naive,
+    to_et as _to_et_shared,
+    to_utc_naive as _to_utc_naive_shared,
+)
 
 # region Constants
 _INDEX_STRIP_SYMBOLS = ("NQ", "ES")
@@ -144,16 +157,6 @@ _FUT_ROOT_NAME_LOOKUP_BUDGET = 12
 
 
 # region Models
-@dataclass(frozen=True)
-class OhlcvBar:
-    ts: datetime
-    open: float
-    high: float
-    low: float
-    close: float
-    volume: float
-
-
 @dataclass(frozen=True)
 class BrokerOrderPreview:
     status: str | None = None
@@ -2683,8 +2686,12 @@ class IBKRClient:
         Uses a small in-memory TTL cache to avoid pacing issues when the bot is running.
         """
         con_id = int(getattr(contract, "conId", 0) or 0)
-        sec_type = str(getattr(contract, "secType", "") or "")
-        symbol = str(getattr(contract, "symbol", "") or "")
+        sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
+        symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
+        parsed_bar_size = parse_bar_size(str(bar_size or ""))
+        bar_size_key = parsed_bar_size.label if parsed_bar_size is not None else str(bar_size or "").strip().lower()
+        duration_key = " ".join(str(duration_str or "").strip().upper().split())
+        what_to_show_key = str(what_to_show or "").strip().upper()
         end_ts_key = ""
         if isinstance(end_ts, datetime):
             try:
@@ -2696,10 +2703,10 @@ class IBKRClient:
             con_id,
             sec_type,
             str(end_ts_key),
-            str(bar_size),
+            str(bar_size_key),
             bool(use_rth),
-            str(what_to_show),
-            str(duration_str),
+            str(what_to_show_key),
+            str(duration_key),
         )
         requested_ttl = max(0.0, float(cache_ttl_sec))
         empty_ttl_sec = 1.0
@@ -2768,11 +2775,16 @@ class IBKRClient:
     ) -> list[OhlcvBar]:
         """Return OHLCV bars for the given contract.
 
-        Uses a small in-memory TTL cache to avoid pacing issues when the bot is running.
+        Reuses canonical TRADES history, fetching only sparse gaps and the live
+        tail; MIDPOINT and contract-specific derivatives remain broker-only.
         """
         con_id = int(getattr(contract, "conId", 0) or 0)
-        sec_type = str(getattr(contract, "secType", "") or "")
-        symbol = str(getattr(contract, "symbol", "") or "")
+        sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
+        symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
+        parsed_bar_size = parse_bar_size(str(bar_size or ""))
+        bar_size_key = parsed_bar_size.label if parsed_bar_size is not None else str(bar_size or "").strip().lower()
+        duration_key = " ".join(str(duration_str or "").strip().upper().split())
+        what_to_show_key = str(what_to_show or "").strip().upper()
         end_ts_key = ""
         if isinstance(end_ts, datetime):
             try:
@@ -2784,20 +2796,20 @@ class IBKRClient:
             int(con_id),
             str(sec_type),
             str(end_ts_key),
-            str(duration_str),
-            str(bar_size),
+            str(duration_key),
+            str(bar_size_key),
             bool(use_rth),
-            str(what_to_show),
+            str(what_to_show_key),
         )
         key = (
             symbol,
             con_id,
             sec_type,
             str(end_ts_key),
-            str(bar_size),
+            str(bar_size_key),
             bool(use_rth),
-            str(what_to_show),
-            str(duration_str),
+            str(what_to_show_key),
+            str(duration_key),
         )
         requested_ttl = max(0.0, float(cache_ttl_sec))
         empty_ttl_sec = 1.0
@@ -2826,6 +2838,24 @@ class IBKRClient:
                 return list(bars)
             return None
 
+        def _from_raw(raw) -> list[OhlcvBar]:
+            bars: list[OhlcvBar] = []
+            for bar in raw or []:
+                dt = self._ib_bar_datetime(getattr(bar, "date", None))
+                if dt is None:
+                    continue
+                try:
+                    values = tuple(
+                        float(getattr(bar, field, 0.0) or 0.0)
+                        for field in ("open", "high", "low", "close", "volume")
+                    )
+                except (TypeError, ValueError):
+                    continue
+                if values[3] <= 0:
+                    continue
+                bars.append(OhlcvBar(dt, *values))
+            return bars
+
         if _backoff_hit():
             cached_bars = _cached_bars(self._historical_bar_ohlcv_cache.get(key))
             return cached_bars if cached_bars is not None else []
@@ -2843,49 +2873,184 @@ class IBKRClient:
             cached_bars = _cached_bars(self._historical_bar_ohlcv_cache.get(key))
             if cached_bars is not None:
                 return cached_bars
-            raw = await self._request_historical_data_for_stream(
-                contract,
-                end_ts=end_ts,
-                duration_str=str(duration_str),
-                bar_size=str(bar_size),
-                what_to_show=str(what_to_show),
-                use_rth=bool(use_rth),
-            )
 
             bars: list[OhlcvBar] = []
-            for bar in raw or []:
-                dt = self._ib_bar_datetime(getattr(bar, "date", None))
-                if dt is None:
-                    continue
-                try:
-                    open_p = float(getattr(bar, "open", 0.0) or 0.0)
-                    high = float(getattr(bar, "high", 0.0) or 0.0)
-                    low = float(getattr(bar, "low", 0.0) or 0.0)
-                    close = float(getattr(bar, "close", 0.0) or 0.0)
-                    volume = float(getattr(bar, "volume", 0.0) or 0.0)
-                except (TypeError, ValueError):
-                    continue
-                if close <= 0:
-                    continue
-                bars.append(
-                    OhlcvBar(
-                        ts=dt,
-                        open=open_p,
-                        high=high,
-                        low=low,
-                        close=close,
-                        volume=volume,
-                    )
-                )
+            broker_attempted = False
+            broker_failed = False
+            cache_dir_raw = str(getattr(self._config, "market_data_dir", "") or "").strip()
+            disk_eligible = bool(
+                cache_dir_raw
+                and symbol
+                and str(sec_type).upper() in {"STK", "IND"}
+                and str(what_to_show).strip().upper() == "TRADES"
+            )
 
-            if bars:
+            start_et: datetime | None = None
+            end_et: datetime | None = None
+            history = None
+            if disk_eligible:
+                try:
+                    start_et, end_et = duration_window_et(str(duration_str), end=end_ts)
+                    history = load_history_window(
+                        cache_dir=Path(cache_dir_raw),
+                        symbol=str(symbol),
+                        start_et=start_et,
+                        end_et=end_et,
+                        bar_size=str(bar_size),
+                        use_rth=bool(use_rth),
+                    )
+                    bars = [
+                        OhlcvBar(
+                            ts=_to_et_shared(bar.ts, naive_ts_mode=NaiveTsMode.UTC).replace(tzinfo=None),
+                            open=bar.open,
+                            high=bar.high,
+                            low=bar.low,
+                            close=bar.close,
+                            volume=bar.volume,
+                        )
+                        for bar in history.bars
+                    ]
+                except (OSError, ValueError):
+                    history = None
+                    bars = []
+
+            fetch_ranges: list[tuple[date, date]] = []
+            if history is not None and history.bars and start_et is not None and end_et is not None:
+                fetch_ranges = list(history.missing_ranges)
+                today = _now_et().date()
+                tail_day = end_et.date()
+                session_mode = "rth" if bool(use_rth) else "full24"
+                if tail_day >= today and expected_sessions(tail_day, session_mode=session_mode):
+                    fetch_ranges.append((tail_day, tail_day))
+
+                merged_ranges: list[tuple[date, date]] = []
+                for range_start, range_end in sorted(fetch_ranges):
+                    if merged_ranges and range_start <= merged_ranges[-1][1] + timedelta(days=1):
+                        merged_ranges[-1] = (
+                            merged_ranges[-1][0],
+                            max(merged_ranges[-1][1], range_end),
+                        )
+                    else:
+                        merged_ranges.append((range_start, range_end))
+                fetch_ranges = merged_ranges
+
+                missing_span = sum((range_end - range_start).days + 1 for range_start, range_end in fetch_ranges)
+                requested_span = max(1, (end_et.date() - start_et.date()).days + 1)
+                if missing_span > max(31, requested_span // 4):
+                    fetch_ranges = []
+                    history = None
+                    bars = []
+
+            if history is not None and bars and start_et is not None and end_et is not None:
+                for gap_start, gap_end in fetch_ranges:
+                    broker_attempted = True
+                    is_live_tail = gap_end >= _now_et().date() and end_ts is None
+                    gap_end_ts = None if is_live_tail else datetime.combine(gap_end, dtime(23, 59, 59))
+                    gap_duration = f"{max(1, (gap_end - gap_start).days + 1)} D"
+                    raw = await self._request_historical_data_for_stream(
+                        contract,
+                        end_ts=gap_end_ts,
+                        duration_str=gap_duration,
+                        bar_size=str(bar_size),
+                        what_to_show=str(what_to_show),
+                        use_rth=bool(use_rth),
+                    )
+                    fetched = [
+                        bar
+                        for bar in _from_raw(raw)
+                        if gap_start <= bar.ts.date() <= gap_end
+                        and start_et <= bar.ts <= end_et
+                    ]
+                    if not fetched:
+                        diag = self.last_historical_request(contract)
+                        status = str(diag.get("status", "") or "").strip().lower() if isinstance(diag, dict) else ""
+                        broker_failed = broker_failed or status in {
+                            "timeout",
+                            "connect_error",
+                            "request_error",
+                            "incomplete",
+                        }
+                        continue
+                    write_history_chunk(
+                        cache_dir=Path(cache_dir_raw),
+                        symbol=str(symbol),
+                        start_date=gap_start,
+                        end_date=gap_end,
+                        bar_size=str(bar_size),
+                        use_rth=bool(use_rth),
+                        bars=(
+                            OhlcvBar(
+                                ts=_to_utc_naive_shared(bar.ts, naive_ts_mode=NaiveTsMode.ET),
+                                open=bar.open,
+                                high=bar.high,
+                                low=bar.low,
+                                close=bar.close,
+                                volume=bar.volume,
+                            )
+                            for bar in fetched
+                        ),
+                    )
+                refreshed = load_history_window(
+                    cache_dir=Path(cache_dir_raw),
+                    symbol=str(symbol),
+                    start_et=start_et,
+                    end_et=end_et,
+                    bar_size=str(bar_size),
+                    use_rth=bool(use_rth),
+                )
+                bars = [
+                    OhlcvBar(
+                        ts=_to_et_shared(bar.ts, naive_ts_mode=NaiveTsMode.UTC).replace(tzinfo=None),
+                        open=bar.open,
+                        high=bar.high,
+                        low=bar.low,
+                        close=bar.close,
+                        volume=bar.volume,
+                    )
+                    for bar in refreshed.bars
+                ]
+                broker_failed = broker_failed or bool(refreshed.missing_ranges)
+            else:
+                broker_attempted = True
+                raw = await self._request_historical_data_for_stream(
+                    contract,
+                    end_ts=end_ts,
+                    duration_str=str(duration_str),
+                    bar_size=str(bar_size),
+                    what_to_show=str(what_to_show),
+                    use_rth=bool(use_rth),
+                )
+                bars = _from_raw(raw)
+                if disk_eligible and bars:
+                    start_et, end_et = duration_window_et(str(duration_str), end=end_ts)
+                    write_history_chunk(
+                        cache_dir=Path(cache_dir_raw),
+                        symbol=str(symbol),
+                        start_date=min(bar.ts.date() for bar in bars),
+                        end_date=max(bar.ts.date() for bar in bars),
+                        bar_size=str(bar_size),
+                        use_rth=bool(use_rth),
+                        bars=(
+                            OhlcvBar(
+                                ts=_to_utc_naive_shared(bar.ts, naive_ts_mode=NaiveTsMode.ET),
+                                open=bar.open,
+                                high=bar.high,
+                                low=bar.low,
+                                close=bar.close,
+                                volume=bar.volume,
+                            )
+                            for bar in bars
+                        ),
+                    )
+
+            if bars and not broker_failed:
                 self._historical_bar_ohlcv_backoff.pop(backoff_key, None)
                 cache_ttl = requested_ttl
             else:
-                cache_ttl = min(requested_ttl, empty_ttl_sec)
+                cache_ttl = requested_ttl if bars else min(requested_ttl, empty_ttl_sec)
                 diag = self.last_historical_request(contract)
                 status = str(diag.get("status", "") or "").strip().lower() if isinstance(diag, dict) else ""
-                if status in ("timeout", "connect_error", "request_error", "incomplete"):
+                if broker_attempted and (broker_failed or status in ("timeout", "connect_error", "request_error", "incomplete")):
                     prev = self._historical_bar_ohlcv_backoff.get(backoff_key)
                     failures = int(prev.get("failures", 0) or 0) + 1 if isinstance(prev, dict) else 1
                     delay_sec = min(300.0, 5.0 * float(2 ** max(0, failures - 1)))

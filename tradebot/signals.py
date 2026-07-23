@@ -173,23 +173,32 @@ class BarSize:
 def parse_bar_size(bar_size: str) -> BarSize | None:
     if not isinstance(bar_size, str):
         return None
-    label = bar_size.strip().lower()
-    if label.startswith("1 min"):
-        return BarSize(label="1 min", duration=timedelta(minutes=1))
-    if label.startswith("2 mins"):
-        return BarSize(label="2 mins", duration=timedelta(minutes=2))
-    if label.startswith("10 mins") or label.startswith("10 min"):
-        return BarSize(label="10 mins", duration=timedelta(minutes=10))
-    if label.startswith("1 hour"):
-        return BarSize(label="1 hour", duration=timedelta(hours=1))
-    if label.startswith("4 hour"):
-        return BarSize(label="4 hours", duration=timedelta(hours=4))
-    if label.startswith("30 mins"):
-        return BarSize(label="30 mins", duration=timedelta(minutes=30))
-    if label.startswith("15 mins"):
-        return BarSize(label="15 mins", duration=timedelta(minutes=15))
-    if label.startswith("5 mins"):
-        return BarSize(label="5 mins", duration=timedelta(minutes=5))
-    if label.startswith("1 day"):
+    match = re.fullmatch(
+        r"\s*(\d+)\s*(min|mins|minute|minutes|hour|hours|day|days)\s*",
+        bar_size.lower(),
+    )
+    if match is None:
+        return None
+    count = int(match.group(1))
+    unit = match.group(2)
+    if unit.startswith("min") and count in {1, 2, 5, 10, 15, 30}:
+        return BarSize(
+            label="1 min" if count == 1 else f"{count} mins",
+            duration=timedelta(minutes=count),
+        )
+    if unit.startswith("hour") and count in {1, 4}:
+        return BarSize(
+            label="1 hour" if count == 1 else f"{count} hours",
+            duration=timedelta(hours=count),
+        )
+    if unit.startswith("day") and count == 1:
         return BarSize(label="1 day", duration=timedelta(days=1))
     return None
+
+
+def bar_sizes_equal(left: object, right: object) -> bool:
+    left_parsed = parse_bar_size(str(left or ""))
+    right_parsed = parse_bar_size(str(right or ""))
+    if left_parsed is not None and right_parsed is not None:
+        return left_parsed.duration == right_parsed.duration
+    return str(left or "").strip().lower() == str(right or "").strip().lower()

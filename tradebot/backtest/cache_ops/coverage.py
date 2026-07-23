@@ -15,13 +15,14 @@ from ...time_utils import (
     to_et as _to_et_shared,
     to_utc_naive as _to_utc_naive_shared,
 )
-from ..cache import CacheFileMeta, parse_cache_filename
+from ...chart_data.history import CacheFileMeta, parse_cache_filename
 from ..models import Bar
 from ...engines.market import (
     SESSION_ORDER as _SESSION_ORDER,
     SESSION_WEIGHTS as _SESSION_WEIGHTS,
     et_day_from_utc_naive as _et_day_from_utc_naive,
     expected_sessions as _expected_sessions,
+    is_early_close_day as _is_early_close_day,
     is_maintenance_gap as _is_maintenance_gap,
     session_label_et as _session_label_et,
 )
@@ -126,9 +127,15 @@ def _audit_rows(
     et_day_start = start_et.date()
     et_day_end = end_et.date()
     boundary_partial_days: set[date] = set()
-    if start_et.timetz().replace(tzinfo=None) != time(0, 0):
+    start_time = start_et.timetz().replace(tzinfo=None)
+    end_time = end_et.timetz().replace(tzinfo=None)
+    required_bounds = {
+        "rth": (time(9, 30), time(15, 59)),
+        "smart_ext": (time(4, 0), time(19, 59)),
+    }.get(session_mode, (time(0, 0), time(23, 59)))
+    if start_time > required_bounds[0]:
         boundary_partial_days.add(et_day_start)
-    if end_et.timetz().replace(tzinfo=None) != time(23, 59):
+    if end_time < required_bounds[1]:
         boundary_partial_days.add(et_day_end)
 
     sessions_by_day, rows_by_day = _day_state_for_bars(bars, start_utc=start_utc, end_utc=end_utc)
@@ -215,9 +222,21 @@ def _intra_session_gap_days(
 
     out: dict[str, list[str]] = defaultdict(list)
     for (day, sess), values in by_day_session.items():
-        if len(values) < 2:
-            continue
         seq = sorted(set(values))
+        if session_mode == "rth" and sess == "RTH":
+            expected_end = time(12, 59) if _is_early_close_day(day) else time(15, 59)
+            first_et = _to_et_shared(seq[0], naive_ts_mode=NaiveTsMode.UTC).time()
+            last_et = _to_et_shared(seq[-1], naive_ts_mode=NaiveTsMode.UTC).time()
+            expected_rows = 210 if _is_early_close_day(day) else 390
+            if (
+                len(seq) != expected_rows
+                or first_et != time(9, 30)
+                or last_et != expected_end
+            ):
+                out[day.isoformat()].append(sess)
+                continue
+        if len(seq) < 2:
+            continue
         prev = seq[0]
         has_gap = False
         for cur in seq[1:]:

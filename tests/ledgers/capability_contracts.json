@@ -438,7 +438,7 @@
         "tests/test_options_prepared_tape.py"
       ],
       "owner_surface": [
-        "tradebot/backtest/cache.py",
+        "tradebot/chart_data/history.py",
         "tradebot/backtest/cache_ops/cli.py",
         "tradebot/backtest/cache_ops/coverage.py",
         "tradebot/backtest/cache_ops/repair.py",
@@ -612,7 +612,7 @@
         "README.md"
       ],
       "owner_surface": [
-        "tradebot/backtest/cache.py"
+        "tradebot/chart_data/history.py"
       ],
       "oracle": [
         "a measurable pass/fail outcome exists",

@@ -23,12 +23,11 @@ from ..engine import (
     spot_shock_exit_pct_multipliers,
     spot_stop_level,
 )
-from ..signals import ema_periods, parse_bar_size
+from ..signals import bar_sizes_equal, ema_periods, parse_bar_size
 from ..spot.gates import (
     deferred_entry_plan as lifecycle_deferred_entry_plan,
     fill_due_ts as lifecycle_fill_due_ts,
     next_open_due_ts as lifecycle_next_open_due_ts,
-    signal_bar_close_ts as lifecycle_signal_bar_close_ts,
     signal_filter_checks,
 )
 from ..spot.lifecycle import (
@@ -987,7 +986,7 @@ class BotSignalRuntimeMixin:
         regime2_bear_hard_bar = str(strategy.get("regime2_bear_hard_bar_size") or "").strip()
         if not regime2_bear_hard_bar or regime2_bear_hard_bar.lower() in ("same", "default"):
             regime2_bear_hard_bar = str(strategy.get("regime2_bar_size") or bar_size)
-        if regime2_bear_hard_mode == "supertrend" and regime2_bear_hard_bar != bar_size:
+        if regime2_bear_hard_mode == "supertrend" and not bar_sizes_equal(regime2_bear_hard_bar, bar_size):
             hard_need = self._supertrend_warmup_bars(
                 strategy.get("regime2_bear_hard_supertrend_atr_period", strategy.get("regime2_supertrend_atr_period")),
                 default=self._int_from(strategy.get("regime2_supertrend_atr_period"), default=10, min_value=1),
@@ -1298,26 +1297,18 @@ class BotSignalRuntimeMixin:
             return floor_ts
         return floor_ts + span
 
-    def _spot_signal_close_ts(self, instance: _BotInstance, signal_bar_ts: datetime) -> datetime:
-        return lifecycle_signal_bar_close_ts(
-            signal_bar_ts=signal_bar_ts,
-            signal_bar_size=self._signal_bar_size(instance),
-        )
-
-    def _spot_next_open_due_ts(self, instance: _BotInstance, signal_bar_ts: datetime) -> datetime:
-        close_ts = self._spot_signal_close_ts(instance, signal_bar_ts)
+    def _spot_next_open_due_ts(self, instance: _BotInstance, signal_close_ts: datetime) -> datetime:
         return lifecycle_next_open_due_ts(
-            signal_close_ts=close_ts,
+            signal_close_ts=signal_close_ts,
             exec_bar_size=str(instance.strategy.get("spot_exec_bar_size") or self._signal_bar_size(instance) or ""),
             strategy=instance.strategy,
             naive_ts_mode="et",
         )
 
-    def _spot_fill_due_ts(self, instance: _BotInstance, signal_bar_ts: datetime, *, fill_mode: str) -> datetime | None:
-        close_ts = self._spot_signal_close_ts(instance, signal_bar_ts)
+    def _spot_fill_due_ts(self, instance: _BotInstance, signal_close_ts: datetime, *, fill_mode: str) -> datetime | None:
         return lifecycle_fill_due_ts(
             fill_mode=normalize_spot_fill_mode(fill_mode, default=SPOT_FILL_MODE_CLOSE),
-            signal_close_ts=close_ts,
+            signal_close_ts=signal_close_ts,
             exec_bar_size=str(instance.strategy.get("spot_exec_bar_size") or self._signal_bar_size(instance) or ""),
             strategy=instance.strategy,
             naive_ts_mode="et",
@@ -1615,7 +1606,7 @@ class BotSignalRuntimeMixin:
         gate,
     ) -> bool:
         fill_mode_clean = normalize_spot_fill_mode(fill_mode, default=SPOT_FILL_MODE_NEXT_TRADABLE_BAR)
-        due_from_ts = self._spot_signal_close_ts(instance, signal_bar_ts)
+        due_from_ts = signal_bar_ts
         due_ts = due_ts if due_ts is not None else self._spot_fill_due_ts(instance, signal_bar_ts, fill_mode=fill_mode_clean)
         if due_ts is None:
             return False
@@ -1674,7 +1665,7 @@ class BotSignalRuntimeMixin:
         gate,
     ) -> bool:
         fill_mode_clean = normalize_spot_fill_mode(fill_mode, default=SPOT_FILL_MODE_NEXT_TRADABLE_BAR)
-        due_from_ts = self._spot_signal_close_ts(instance, signal_bar_ts)
+        due_from_ts = signal_bar_ts
         due_ts = due_ts if due_ts is not None else self._spot_fill_due_ts(instance, signal_bar_ts, fill_mode=fill_mode_clean)
         if due_ts is None:
             return False
@@ -1794,11 +1785,7 @@ class BotSignalRuntimeMixin:
         self._apply_pending_mutation(instance, mutation=mutation)
 
         if mutation.queue_intent == "exit":
-            due_from_ts = (
-                self._spot_signal_close_ts(instance, pending_exit_signal_bar_ts)
-                if pending_exit_signal_bar_ts is not None
-                else (pending_exit_due or now_wall)
-            )
+            due_from_ts = pending_exit_signal_bar_ts or pending_exit_due or now_wall
             self._queue_order(
                 instance,
                 intent="exit",
@@ -1824,11 +1811,7 @@ class BotSignalRuntimeMixin:
             return True
 
         if mutation.queue_intent == "enter":
-            due_from_ts = (
-                self._spot_signal_close_ts(instance, pending_entry_signal_bar_ts)
-                if pending_entry_signal_bar_ts is not None
-                else (pending_entry_due or now_wall)
-            )
+            due_from_ts = pending_entry_signal_bar_ts or pending_entry_due or now_wall
             self._queue_order(
                 instance,
                 intent="enter",
@@ -1885,7 +1868,7 @@ class BotSignalRuntimeMixin:
                     "fill_mode": str(decision.fill_mode),
                     "next_open_due": instance.pending_exit_due_ts.isoformat(),
                     "next_open_due_from": (
-                        self._spot_signal_close_ts(instance, instance.pending_exit_signal_bar_ts).isoformat()
+                        instance.pending_exit_signal_bar_ts.isoformat()
                         if instance.pending_exit_signal_bar_ts is not None
                         else instance.pending_exit_due_ts.isoformat()
                     ),
@@ -1905,7 +1888,7 @@ class BotSignalRuntimeMixin:
                     "fill_mode": str(decision.fill_mode),
                     "next_open_due": instance.pending_entry_due_ts.isoformat(),
                     "next_open_due_from": (
-                        self._spot_signal_close_ts(instance, instance.pending_entry_signal_bar_ts).isoformat()
+                        instance.pending_entry_signal_bar_ts.isoformat()
                         if instance.pending_entry_signal_bar_ts is not None
                         else instance.pending_entry_due_ts.isoformat()
                     ),
@@ -2466,7 +2449,7 @@ class BotSignalRuntimeMixin:
                     )
                     if scheduled and lifecycle.queue_reentry_dir in ("up", "down"):
                         if instance.pending_entry_due_ts is None:
-                            due_from_ts = self._spot_signal_close_ts(instance, snap.bar_ts)
+                            due_from_ts = snap.bar_ts
                             due_ts = self._spot_fill_due_ts(
                                 instance,
                                 snap.bar_ts,
@@ -2600,7 +2583,7 @@ class BotSignalRuntimeMixin:
             entry_plan = lifecycle_deferred_entry_plan(
                 fill_mode=str(runtime_spec.entry_fill_mode),
                 signal_ts=snap.bar_ts,
-                signal_close_ts=self._spot_signal_close_ts(instance, snap.bar_ts),
+                signal_close_ts=snap.bar_ts,
                 exec_bar_size=str(instance.strategy.get("spot_exec_bar_size") or self._signal_bar_size(instance) or ""),
                 strategy=instance.strategy,
                 riskoff_today=bool(getattr(risk, "riskoff", False)) if risk is not None else False,

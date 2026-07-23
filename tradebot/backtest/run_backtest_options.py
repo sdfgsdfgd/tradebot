@@ -17,7 +17,7 @@ from pathlib import Path
 import time
 
 from .cli_utils import parse_date as _parse_date
-from .cache import cache_data_revision
+from ..chart_data.history import cache_data_revision
 from .config import (
     BacktestConfig,
     ConfigBundle,

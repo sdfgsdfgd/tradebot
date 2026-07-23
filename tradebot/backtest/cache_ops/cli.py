@@ -24,7 +24,7 @@ from datetime import datetime, time
 from pathlib import Path
 
 from ...time_utils import UTC as _UTC
-from ..cache import cache_path, read_cache, write_cache
+from ...chart_data.history import cache_path, read_cache
 from ..data import IBKRHistoricalData
 from .repair import (
     _adaptive_thread_plan,
@@ -192,15 +192,18 @@ def main_resample(argv: list[str]) -> None:
             pass
     if not out.ok:
         raise SystemExit(f"Resample failed: {out.error or 'unknown_error'}")
-    if not out.src_path:
-        raise SystemExit("Resample failed to resolve source cache path.")
 
     print("")
     print("=== cache resample ===")
     print(f"- symbol={symbol} use_rth={use_rth}")
-    print(f"- src={src_bar_size} rows={int(out.src_rows)} path={out.src_path}")
-    print(f"- dst={dst_bar_size} rows={int(out.dst_rows)} path={out.dst_path}")
-    print(f"- dropped_incomplete={int(out.dropped_incomplete)}")
+    if out.from_cache:
+        print(f"- cache_hit=true src={src_bar_size}")
+        print(f"- dst={dst_bar_size} path={out.dst_path}")
+    else:
+        source = str(out.src_path) if out.src_path is not None else "stitched canonical view"
+        print(f"- src={src_bar_size} rows={int(out.src_rows)} path={source}")
+        print(f"- dst={dst_bar_size} rows={int(out.dst_rows)} path={out.dst_path}")
+        print(f"- dropped_incomplete={int(out.dropped_incomplete)}")
     dst_bars = read_cache(out.dst_path)
     if dst_bars:
         print(f"- first={dst_bars[0].ts} last={dst_bars[-1].ts}")
@@ -503,6 +506,7 @@ def main_fetch(argv: list[str]) -> None:
                 target.bar_size,
                 target.use_rth,
             )
+            resolved_path = target_path
             is_primary_target = (target.start == primary.start) and (target.end == primary.end)
             if is_primary_target:
                 rows = len(primary_rows)
@@ -522,32 +526,26 @@ def main_fetch(argv: list[str]) -> None:
             else:
                 target_start_dt = datetime.combine(target.start, time(0, 0))
                 target_end_dt = datetime.combine(target.end, time(23, 59))
-                try:
-                    sliced = [bar for bar in primary_rows if target_start_dt <= bar.ts <= target_end_dt]
-                    target_path.parent.mkdir(parents=True, exist_ok=True)
-                    if bool(args.force_refresh) and target_path.exists():
-                        target_path.unlink()
-                    write_cache(target_path, sliced)
-                    rows = len(sliced)
-                    ok = rows > 0
-                    from_cache = False
-                    err = None if ok else "empty_slice_from_primary"
-                    status = "ok" if ok else "fail"
-                except Exception as exc:  # pragma: no cover - filesystem dependent
-                    rows = 0
-                    ok = False
-                    from_cache = False
-                    err = f"slice_write_error: {exc}"
-                    status = "fail"
-                healed = False
-                healed_days = 0
-                remaining_days = 0
-                session_before = 0
-                session_after = 0
-                gap_before = 0
-                gap_after = 0
-                tz_canonicalized = False
-                anomaly_fp = None
+                rows = sum(
+                    target_start_dt <= bar.ts <= target_end_dt
+                    for bar in primary_rows
+                )
+                ok = rows > 0
+                from_cache = bool(primary_out.from_cache)
+                err = None if ok else "empty_slice_from_primary"
+                status = str(primary_out.status or ("ok" if ok else "fail"))
+                healed = bool(primary_out.healed)
+                healed_days = int(primary_out.healed_days)
+                remaining_days = int(primary_out.remaining_days)
+                session_before = int(primary_out.session_missing_days_before)
+                session_after = int(primary_out.session_missing_days_after)
+                gap_before = int(primary_out.gap_days_before)
+                gap_after = int(primary_out.gap_days_after)
+                tz_canonicalized = bool(primary_out.timezone_canonicalized)
+                anomaly_fp = primary_out.anomaly_fingerprint
+                # Target windows are views over the audited covering tape. Persisting
+                # every slice duplicates market truth and makes invalidation ambiguous.
+                resolved_path = primary_path
 
             request_records.append(
                 {
@@ -560,7 +558,7 @@ def main_fetch(argv: list[str]) -> None:
                     "ok": bool(ok),
                     "from_cache": bool(from_cache),
                     "rows": int(rows),
-                    "cache_path": str(target_path),
+                    "cache_path": str(resolved_path),
                     "error": err,
                     "status": status,
                     "healed": bool(healed),

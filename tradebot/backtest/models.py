@@ -5,17 +5,8 @@ from dataclasses import dataclass
 from datetime import datetime, date
 from functools import cached_property
 
+from ..chart_data.series import OhlcvBar as Bar
 from ..option_package import OptionPackage, OptionPackageRisk, ResolvedOptionLeg
-
-
-@dataclass(frozen=True)
-class Bar:
-    ts: datetime
-    open: float
-    high: float
-    low: float
-    close: float
-    volume: float
 
 
 @dataclass

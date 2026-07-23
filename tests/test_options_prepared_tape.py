@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 
 import tradebot.backtest.engine as backtest_engine
 import tradebot.backtest.run_backtest_options as options_sweep
-from tradebot.backtest.cache import cache_path, write_cache
+from tradebot.chart_data.history import cache_path, write_cache
 from tradebot.backtest.config import load_config
 from tradebot.backtest.engine import OptionsBacktestSourcePool
 from tradebot.backtest.engine_options import (

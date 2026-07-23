@@ -3,9 +3,28 @@ from datetime import datetime
 
 from tradebot.backtest.data import _normalize_bars
 from tradebot.backtest.models import Bar
+from tradebot.engine import resolve_spot_regime2_spec, resolve_spot_regime_spec
 
 
 class BacktestTimeAlignmentTests(unittest.TestCase):
+    def test_equivalent_bar_labels_do_not_create_duplicate_mtf_feeds(self) -> None:
+        self.assertFalse(
+            resolve_spot_regime_spec(
+                bar_size="5 min",
+                regime_mode_raw="supertrend",
+                regime_ema_preset_raw=None,
+                regime_bar_size_raw="5 mins",
+            )[3]
+        )
+        self.assertFalse(
+            resolve_spot_regime2_spec(
+                bar_size="30 min",
+                regime2_mode_raw="supertrend",
+                regime2_ema_preset_raw=None,
+                regime2_bar_size_raw="30 mins",
+            )[3]
+        )
+
     def test_intraday_bars_shift_to_close_timestamp(self) -> None:
         raw = [
             Bar(ts=datetime(2025, 1, 1, 0, 0), open=1, high=1, low=1, close=1, volume=0),

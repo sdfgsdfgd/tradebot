@@ -21,6 +21,16 @@ BarSeriesSignature = tuple[int, str | None, str | None, str | None]
 
 
 @dataclass(frozen=True)
+class OhlcvBar:
+    ts: datetime
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: float
+
+
+@dataclass(frozen=True)
 class BarSeriesMeta:
     symbol: str | None = None
     bar_size: str | None = None

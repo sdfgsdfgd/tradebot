@@ -83,6 +83,9 @@ class SpotSweepRuntime(
         self.use_rth = bool(self.args.use_rth)
         self.offline = bool(self.args.offline)
         self.cache_policy = str(self.args.cache_policy).strip().lower() or "strict"
+        if self.args.combo_full_cartesian_worker is not None:
+            # Parent preflight owns hydration; parallel evaluators are cache-only.
+            self.cache_policy = "strict"
         self.cache_dir = Path(self.args.cache_dir)
         self.start_dt = datetime.combine(self.start, time(0, 0))
         self.end_dt = datetime.combine(self.end, time(23, 59))

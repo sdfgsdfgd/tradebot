@@ -7,10 +7,18 @@ import pytest
 
 from tradebot.backtest.cache_ops.cli import main_resample
 from tradebot.backtest.cli_utils import expected_cache_path
-from tradebot.backtest.cache import cache_data_revision, cache_path, read_cache, write_cache
+from tradebot.chart_data.history import (
+    cache_data_revision,
+    cache_path,
+    ensure_offline_cached_window,
+    read_cache,
+    write_cache,
+)
 from tradebot.backtest.data import IBKRHistoricalData
 from tradebot.backtest.models import Bar
 from tradebot.research.spot_sweeps.market import SweepMarketData
+from tradebot.research.spot_sweeps.cli import parse_spot_sweep_args
+from tradebot.research.spot_sweeps.runtime import SpotSweepRuntime
 from tradebot.research.spot_sweeps.support import _require_offline_cache_or_die
 
 
@@ -125,6 +133,67 @@ def test_sweeps_offline_preflight_accepts_overlap_coverage(tmp_path) -> None:
         start_dt=datetime.combine(date(2025, 1, 1), time(0, 0)),
         end_dt=datetime.combine(date(2025, 1, 2), time(23, 59)),
     )
+
+
+def test_rth_four_hour_coverage_allows_early_close_without_full_bar(tmp_path) -> None:
+    start = datetime(2025, 11, 26)
+    end = datetime(2025, 11, 28, 23, 59)
+    path = cache_path(tmp_path, "TQQQ", start, end, "4 hours", True)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    write_cache(path, [_bar(datetime(2025, 11, 26, 16, 0), 10.0)])
+
+    ok, _expected, resolved, missing, error = ensure_offline_cached_window(
+        cache_dir=tmp_path,
+        symbol="TQQQ",
+        start=start,
+        end=end,
+        bar_size="4 hours",
+        use_rth=True,
+    )
+
+    assert ok is True
+    assert resolved == path
+    assert missing == []
+    assert error is None
+
+
+def test_combo_parallel_worker_forces_strict_cache_policy(tmp_path) -> None:
+    day = date(2025, 1, 2)
+    path = cache_path(
+        tmp_path,
+        "SLV",
+        datetime.combine(day, time(0, 0)),
+        datetime.combine(day, time(23, 59)),
+        "1 day",
+        False,
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    write_cache(path, [_bar(datetime.combine(day, time(0, 0)), 10.0)])
+    args = parse_spot_sweep_args(
+        [
+            "--symbol",
+            "SLV",
+            "--start",
+            day.isoformat(),
+            "--end",
+            day.isoformat(),
+            "--cache-dir",
+            str(tmp_path),
+            "--offline",
+            "--cache-policy",
+            "auto",
+            "--combo-full-cartesian-worker",
+            "0",
+        ]
+    )
+
+    runtime = SpotSweepRuntime(args)
+    try:
+        assert runtime.cache_policy == "strict"
+    finally:
+        runtime.data.disconnect()
+        if runtime.run_cfg_persistent_conn is not None:
+            runtime.run_cfg_persistent_conn.close()
 
 
 def test_sweeps_offline_preflight_auto_resamples_from_finer_cache(tmp_path) -> None:
@@ -295,7 +364,7 @@ def test_cache_ops_resample_uses_overlap_stitching(tmp_path) -> None:
         ]
     )
 
-    assert stitched_src.exists()
+    assert not stitched_src.exists()
     dst = expected_cache_path(
         cache_dir=tmp_path,
         symbol="SLV",

@@ -31,6 +31,7 @@ class IBKRConfig:
     reconnect_interval_sec: float
     reconnect_timeout_sec: float
     reconnect_slow_interval_sec: float
+    market_data_dir: str | None = None
     client_id_pool_start: int = DEFAULT_CLIENT_ID_POOL_START
     client_id_pool_end: int = DEFAULT_CLIENT_ID_POOL_END
     client_id_burst_attempts: int = DEFAULT_CLIENT_ID_BURST_ATTEMPTS
@@ -74,6 +75,7 @@ def load_config() -> IBKRConfig:
                 DEFAULT_RECONNECT_SLOW_INTERVAL_SEC,
             )
         ),
+        market_data_dir=os.getenv("TRADEBOT_MARKET_DATA_DIR", "db") or None,
         client_id_pool_start=pool_start,
         client_id_pool_end=pool_end,
         client_id_burst_attempts=max(

@@ -10,7 +10,7 @@ from ..engine import (
     resolve_spot_regime2_spec,
     resolve_spot_regime_spec,
 )
-from ..signals import ema_periods, parse_bar_size
+from ..signals import bar_sizes_equal, ema_periods, parse_bar_size
 from ..spot.codec import bool_from_payload
 from ..spot.policy_contract import parse_int as _parse_int
 from ..spot.policy_contract import source_value as _get
@@ -264,7 +264,7 @@ def spot_bar_requirements_from_strategy(
     regime2_bear_hard_bar = str(_get(strategy, "regime2_bear_hard_bar_size", "") or "").strip()
     if not regime2_bear_hard_bar or regime2_bear_hard_bar.lower() in ("same", "default"):
         regime2_bear_hard_bar = str(regime2_bar)
-    if regime2_bear_hard_mode == "supertrend" and str(regime2_bear_hard_bar) != str(signal_bar_size):
+    if regime2_bear_hard_mode == "supertrend" and not bar_sizes_equal(regime2_bear_hard_bar, signal_bar_size):
         hard_warm_days = _supertrend_warmup_days(
             _get(
                 strategy,
@@ -306,7 +306,7 @@ def spot_bar_requirements_from_strategy(
         )
 
     exec_bar_size = str(_get(strategy, "spot_exec_bar_size", "") or "").strip()
-    if exec_bar_size and str(exec_bar_size) != str(signal_bar_size):
+    if exec_bar_size and not bar_sizes_equal(exec_bar_size, signal_bar_size):
         out.append(
             SpotBarRequirement(
                 kind="exec",
