@@ -421,6 +421,9 @@ Source and references must be saturated before mutation, in this order:
 - Promotion boundary receipt: `38f85952542c44e660fa0a89560c3ed8e65e2b80f496e54b5da3f94251c72a53`; README remained a certified no-op because its crosswalk is owned by `tests/ledgers/capability_contracts.json`.
 - `spot-v1.pending-state-mutation-parity` moved from `unproven` to aligned `shared-covered`.
 
+- Publication: pending-state milestone commit `29256f119f8c522b4dcc669246bd94e3a96e2328` (`Centralize spot pending state mutation`) advanced `origin/main` from `53ebd8e4a3de32f745ed711b8ca7eb58612dddfe`; explicit SSH push and an independent fresh fetch verified the same commit, parent, subject, exact seven-path scope and diff SHA `9052b5f4a59112e3fd95a7b7e0c16fa5f92bc5aac9e62ed626880c840e8823ef`.
+- Publication receipt: `62c78a3dfb5cffc7d5ce177f388ee090dc2724d45fa0164d442a022e6640419e`; independent pre-publication validation receipt `d17fb3c246973b51df3b91db500d118145e27dffa9ccc5ea310aa71b3235af4f`; the sibling workspace finished clean and the original five-path dirty workspace remained unchanged.
+
 <!-- END: TRADEBOT_PARITY_FIRST_SLICE_V1 -->
 
 <!-- BEGIN: TRADEBOT_ARCHITECTURE_PRIORITY_QUEUE_V1 -->
