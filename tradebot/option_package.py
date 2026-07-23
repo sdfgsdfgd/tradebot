@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from dataclasses import asdict, dataclass
+from datetime import date
 import math
 
 from .contract_identity import (
@@ -9,6 +10,7 @@ from .contract_identity import (
     future_multiplier_for_symbol,
     is_future_symbol,
 )
+from .utils.date_utils import add_business_days
 
 
 @dataclass(frozen=True)
@@ -189,6 +191,52 @@ class OptionPackageEntryIntent:
             "min_credit",
             _option_entry_min_credit(self.min_credit, path="min_credit"),
         )
+
+    def target_expiry(self, anchor: date) -> date:
+        """Resolve the shared weekday-DTE target used by replay and live chain selection."""
+        return add_business_days(anchor, self.dte)
+
+    @staticmethod
+    def target_strike(leg: LegConfig, spot: float) -> float:
+        """Resolve moneyness into the broker-independent target strike."""
+        price = _option_leg_finite_float(spot, path="spot")
+        if price <= 0:
+            raise ValueError("spot must be positive")
+        return price * (
+            1 - leg.moneyness_pct / 100.0
+            if leg.right == "PUT"
+            else 1 + leg.moneyness_pct / 100.0
+        )
+
+    def resolved_legs(
+        self,
+        *,
+        spot: float,
+        expiry: date | str,
+    ) -> tuple[ResolvedOptionLeg, ...]:
+        """Resolve deterministic replay legs without introducing adapter semantics."""
+        expiry_text = expiry.strftime("%Y%m%d") if isinstance(expiry, date) else str(expiry)
+        return tuple(
+            ResolvedOptionLeg(
+                action=leg.action,
+                right=leg.right,
+                strike=self.target_strike(leg, spot),
+                ratio=leg.qty,
+                expiry=expiry_text,
+            )
+            for leg in self.legs
+        )
+
+    def required_credit(self, tick: float) -> float:
+        resolved_tick = _option_leg_finite_float(tick, path="tick")
+        if resolved_tick <= 0:
+            raise ValueError("tick must be positive")
+        return resolved_tick if self.min_credit is None else self.min_credit
+
+    def admits_debit_value(self, debit_value: float, *, tick: float) -> bool:
+        """Apply the same minimum-credit contract to signed live/backtest values."""
+        value = _option_leg_finite_float(debit_value, path="debit_value")
+        return value >= 0 or -value >= self.required_credit(tick)
 
 
 def option_package_entry_intent(

@@ -1,4 +1,4 @@
-"""Research and backtest adapters for daily climate routing."""
+"""Research adapters for archived daily climate experiments."""
 
 from __future__ import annotations
 

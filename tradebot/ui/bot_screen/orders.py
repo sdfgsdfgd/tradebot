@@ -9,14 +9,7 @@ from datetime import date
 from ib_insync import Contract, PortfolioItem
 from rich.text import Text
 
-from ...engines.execution import (
-    _limit_price_for_mode,
-    _midpoint,
-    _round_to_tick,
-    _sanitize_nbbo,
-    _tick_size,
-)
-from ...live.options import preview_and_admit_option_order, quote_live_option_package
+from ...live.options import preview_and_admit_option_order, quote_live_option_order
 from ...order_reservation import (
     OrderReservation,
     OrderReservationSummary,
@@ -50,26 +43,6 @@ class BotOrdersMixin:
         if not legs:
             return mode_changed
 
-        if len(legs) == 1 and order.order_contract.secType != "BAG":
-            leg = legs[0]
-            ticker = await self._client.ensure_ticker(leg.contract, owner="bot")
-            bid, ask, last = _sanitize_nbbo(
-                getattr(ticker, "bid", None),
-                getattr(ticker, "ask", None),
-                getattr(ticker, "last", None),
-            )
-            limit = _limit_price_for_mode(bid, ask, last, action=leg.action, mode=mode)
-            if limit is None:
-                return False
-            tick = _tick_size(leg.contract, ticker, limit) or 0.01
-            limit = _round_to_tick(float(limit), tick)
-            changed = not math.isclose(limit, order.limit_price, rel_tol=0, abs_tol=tick / 2.0)
-            order.limit_price = float(limit)
-            order.bid = bid
-            order.ask = ask
-            order.last = last
-            return changed or mode_changed
-
         tickers: list[object] = []
         for leg in legs:
             ticker = await self._client.ensure_ticker(leg.contract, owner="bot")
@@ -78,7 +51,7 @@ class BotOrdersMixin:
         symbol = getattr(product, "underlying_symbol", None) or getattr(
             order.order_contract, "symbol", ""
         )
-        package_quote = quote_live_option_package(
+        quote = quote_live_option_order(
             symbol=str(symbol),
             legs=legs,
             tickers=tickers,
@@ -86,21 +59,21 @@ class BotOrdersMixin:
             intent=str(order.intent or "enter"),
             mode=mode,
         )
-        if package_quote is None:
+        if quote is None:
             return False
 
-        tick = package_quote.tick
-        order.action = "BUY"
-        new_limit = package_quote.limit_value
+        tick = quote.tick
+        order.action = quote.action
+        new_limit = quote.limit_value
         changed = not math.isclose(
             new_limit, order.limit_price, rel_tol=0, abs_tol=tick / 2.0
         )
         order.limit_price = float(new_limit)
-        order.bid = package_quote.bid_value
-        order.ask = package_quote.ask_value
-        order.last = package_quote.mid_value
-        order.package = package_quote.live.package
-        order.package_risk = package_quote.live.risk
+        order.bid = quote.bid_value
+        order.ask = quote.ask_value
+        order.last = quote.last_value
+        order.package = quote.package
+        order.package_risk = quote.risk
         return changed or mode_changed
 
     def _reset_daily_counters_if_needed(self, instance: _BotInstance) -> None:
@@ -346,17 +319,6 @@ class BotOrdersMixin:
         open_dir: str | None,
         open_items: list[PortfolioItem],
     ) -> bool:
-        router_host_managed = bool(getattr(snap, "regime_router_host_managed", False))
-        if router_host_managed and bool(getattr(snap, "regime_router_ready", False)):
-            routed_dir = (
-                str(getattr(snap, "entry_dir", None))
-                if getattr(snap, "entry_dir", None) in ("up", "down")
-                else None
-            )
-            if open_dir in ("up", "down") and routed_dir != str(open_dir):
-                return True
-        if router_host_managed:
-            return False
         if not flip_exit_hit(
             exit_on_signal_flip=bool(instance.strategy.get("exit_on_signal_flip")),
             open_dir=open_dir,

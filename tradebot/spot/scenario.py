@@ -8,11 +8,11 @@ from __future__ import annotations
 
 import csv
 from collections.abc import Iterable, Mapping
+from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 
 from .lifecycle import SpotLifecycleDecision
-from copy import deepcopy
 
 
 def lifecycle_trace_row(
@@ -143,3 +143,221 @@ def project_spot_trace_receipt(
         "fill": _project_spot_trace_dimension(fill),
         "accounting": _project_spot_trace_dimension(accounting),
     }
+
+
+def project_live_spot_order_journal(
+    *,
+    snapshot: object,
+    intent: str,
+    direction: str | None,
+    entry_branch: str,
+    branch_size_mult: float | None,
+    sizing: object,
+    lifecycle: object,
+    spot_intent: object,
+    exit_mode: str,
+    stop_loss_pct: float | None,
+    stop_price: float | None,
+    target_price: float | None,
+    sizing_currency: str,
+    net_liq: float | None,
+    net_liq_currency: str | None,
+    net_liq_fx_rate: float | None,
+    buying_power: float | None,
+    buying_power_currency: str | None,
+    buying_power_fx_rate: float | None,
+    chase_orders: bool,
+) -> dict[str, object]:
+    """Project the stable live-order diagnostic payload from shared spot decisions."""
+
+    snap = snapshot
+    signal = getattr(snap, "signal", None)
+    receipt = project_spot_trace_receipt(
+        sizing=sizing,
+        intent=spot_intent,
+        lifecycle=lifecycle,
+    )
+    sizing_payload = receipt["sizing"] or {}
+    intent_payload = receipt["intent"] or {}
+    lifecycle_payload = receipt["lifecycle"] or {}
+    journal: dict[str, object] = {
+        "intent": intent,
+        "direction": direction,
+        "bar_ts": snap.bar_ts.isoformat(),
+        "close": float(snap.close),
+        "signal": {
+            "state": getattr(signal, "state", None),
+            "entry_dir": getattr(signal, "entry_dir", None),
+            "regime_dir": getattr(signal, "regime_dir", None),
+            "ema_ready": bool(getattr(signal, "ema_ready", False)),
+        },
+        "entry_dir": getattr(snap, "entry_dir", None),
+        "regime4_state": str(getattr(snap, "regime4_state", "") or "") or None,
+        "hard_dir": (
+            str(getattr(snap, "regime2_bear_hard_dir"))
+            if getattr(snap, "regime2_bear_hard_dir", None) in ("up", "down")
+            else None
+        ),
+        "entry_branch": entry_branch if entry_branch in ("a", "b") else None,
+        "branch_size_mult": float(branch_size_mult)
+        if branch_size_mult is not None
+        else None,
+        "spot_decision": sizing_payload,
+        "spot_lifecycle": lifecycle_payload,
+        "spot_intent": intent_payload,
+        "size_funnel": {
+            "signed_qty_final": int(getattr(sizing, "signed_qty_final", 0)),
+            "signed_qty_after_branch": int(
+                getattr(
+                    sizing,
+                    "signed_qty_after_branch",
+                    getattr(sizing, "signed_qty_final", 0),
+                )
+            ),
+            "resize_target_qty": int(getattr(spot_intent, "target_qty", 0)),
+            "intent_qty": int(getattr(spot_intent, "order_qty", 0)),
+        },
+        "ratsv": {
+            "side_rank": float(getattr(snap, "ratsv_side_rank"))
+            if getattr(snap, "ratsv_side_rank", None) is not None
+            else None,
+            "tr_ratio": float(getattr(snap, "ratsv_tr_ratio"))
+            if getattr(snap, "ratsv_tr_ratio", None) is not None
+            else None,
+            "fast_slope_pct": float(getattr(snap, "ratsv_fast_slope_pct"))
+            if getattr(snap, "ratsv_fast_slope_pct", None) is not None
+            else None,
+            "fast_slope_med_pct": float(getattr(snap, "ratsv_fast_slope_med_pct"))
+            if getattr(snap, "ratsv_fast_slope_med_pct", None) is not None
+            else None,
+            "fast_slope_vel_pct": float(getattr(snap, "ratsv_fast_slope_vel_pct"))
+            if getattr(snap, "ratsv_fast_slope_vel_pct", None) is not None
+            else None,
+            "slow_slope_med_pct": float(getattr(snap, "ratsv_slow_slope_med_pct"))
+            if getattr(snap, "ratsv_slow_slope_med_pct", None) is not None
+            else None,
+            "slow_slope_vel_pct": float(getattr(snap, "ratsv_slow_slope_vel_pct"))
+            if getattr(snap, "ratsv_slow_slope_vel_pct", None) is not None
+            else None,
+            "slope_vel_consistency": float(
+                getattr(snap, "ratsv_slope_vel_consistency")
+            )
+            if getattr(snap, "ratsv_slope_vel_consistency", None) is not None
+            else None,
+            "cross_age_bars": int(getattr(snap, "ratsv_cross_age_bars"))
+            if getattr(snap, "ratsv_cross_age_bars", None) is not None
+            else None,
+        },
+        "bars_in_day": int(snap.bars_in_day),
+        "rv": float(snap.rv) if snap.rv is not None else None,
+        "volume": float(snap.volume) if snap.volume is not None else None,
+        "shock": bool(snap.shock) if snap.shock is not None else None,
+        "shock_dir": snap.shock_dir,
+        "shock_detector": str(getattr(snap, "shock_detector", "") or ""),
+        "shock_direction_source_effective": str(
+            getattr(snap, "shock_direction_source_effective", "") or ""
+        ),
+        "shock_scale_detector": str(
+            getattr(snap, "shock_scale_detector", "") or ""
+        ),
+        "shock_dir_ret_sum_pct": float(getattr(snap, "shock_dir_ret_sum_pct"))
+        if getattr(snap, "shock_dir_ret_sum_pct", None) is not None
+        else None,
+        "shock_atr_pct": float(snap.shock_atr_pct)
+        if snap.shock_atr_pct is not None
+        else None,
+        "shock_drawdown_pct": float(getattr(snap, "shock_drawdown_pct"))
+        if getattr(snap, "shock_drawdown_pct", None) is not None
+        else None,
+        "shock_drawdown_on_pct": float(getattr(snap, "shock_drawdown_on_pct"))
+        if getattr(snap, "shock_drawdown_on_pct", None) is not None
+        else None,
+        "shock_drawdown_off_pct": float(getattr(snap, "shock_drawdown_off_pct"))
+        if getattr(snap, "shock_drawdown_off_pct", None) is not None
+        else None,
+        "shock_drawdown_dist_on_pct": float(
+            getattr(snap, "shock_drawdown_dist_on_pct")
+        )
+        if getattr(snap, "shock_drawdown_dist_on_pct", None) is not None
+        else None,
+        "shock_drawdown_dist_on_vel_pp": float(
+            getattr(snap, "shock_drawdown_dist_on_vel_pp")
+        )
+        if getattr(snap, "shock_drawdown_dist_on_vel_pp", None) is not None
+        else None,
+        "shock_drawdown_dist_on_accel_pp": float(
+            getattr(snap, "shock_drawdown_dist_on_accel_pp")
+        )
+        if getattr(snap, "shock_drawdown_dist_on_accel_pp", None) is not None
+        else None,
+        "shock_prearm_down_streak_bars": int(
+            getattr(snap, "shock_prearm_down_streak_bars")
+        )
+        if getattr(snap, "shock_prearm_down_streak_bars", None) is not None
+        else None,
+        "shock_drawdown_dist_off_pct": float(
+            getattr(snap, "shock_drawdown_dist_off_pct")
+        )
+        if getattr(snap, "shock_drawdown_dist_off_pct", None) is not None
+        else None,
+        "shock_atr_vel_pct": float(getattr(snap, "shock_atr_vel_pct"))
+        if getattr(snap, "shock_atr_vel_pct", None) is not None
+        else None,
+        "shock_atr_accel_pct": float(getattr(snap, "shock_atr_accel_pct"))
+        if getattr(snap, "shock_atr_accel_pct", None) is not None
+        else None,
+        "shock_peak_close": float(getattr(snap, "shock_peak_close"))
+        if getattr(snap, "shock_peak_close", None) is not None
+        else None,
+        "shock_dir_down_streak_bars": int(
+            getattr(snap, "shock_dir_down_streak_bars")
+        )
+        if getattr(snap, "shock_dir_down_streak_bars", None) is not None
+        else None,
+        "shock_dir_up_streak_bars": int(getattr(snap, "shock_dir_up_streak_bars"))
+        if getattr(snap, "shock_dir_up_streak_bars", None) is not None
+        else None,
+        "riskoff": bool(snap.risk.riskoff) if snap.risk is not None else None,
+        "riskpanic": bool(snap.risk.riskpanic) if snap.risk is not None else None,
+        "atr": float(snap.atr) if snap.atr is not None else None,
+        "or_high": float(snap.or_high) if snap.or_high is not None else None,
+        "or_low": float(snap.or_low) if snap.or_low is not None else None,
+        "or_ready": bool(snap.or_ready),
+        "exit_mode": exit_mode,
+        "stop_loss_pct": float(stop_loss_pct)
+        if stop_loss_pct is not None
+        else None,
+        "stop_price": float(stop_price) if stop_price is not None else None,
+        "target_price": float(target_price) if target_price is not None else None,
+        "sizing_currency": sizing_currency,
+        "net_liq": float(net_liq) if net_liq is not None else None,
+        "net_liq_currency": str(net_liq_currency)
+        if net_liq_currency is not None
+        else None,
+        "net_liq_fx_rate": float(net_liq_fx_rate)
+        if net_liq_fx_rate is not None
+        else None,
+        "buying_power": float(buying_power) if buying_power is not None else None,
+        "buying_power_currency": str(buying_power_currency)
+        if buying_power_currency is not None
+        else None,
+        "buying_power_fx_rate": float(buying_power_fx_rate)
+        if buying_power_fx_rate is not None
+        else None,
+        "exec_policy": "LADDER",
+        "exec_mode": "OPTIMISTIC",
+        "chase_orders": bool(chase_orders),
+    }
+    for key, attr in (
+        ("signal_bar_health", "bar_health"),
+        ("regime_bar_health", "regime_bar_health"),
+        ("regime2_bar_health", "regime2_bar_health"),
+    ):
+        raw = getattr(snap, attr, None)
+        payload = dict(raw) if isinstance(raw, dict) else None
+        if payload is not None:
+            for field, value in list(payload.items()):
+                if isinstance(value, datetime):
+                    payload[str(field)] = value.isoformat()
+        journal[key] = payload
+    return journal

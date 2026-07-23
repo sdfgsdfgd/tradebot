@@ -15,6 +15,7 @@ from textual.screen import Screen
 from textual.widgets import DataTable, Footer, Header, Static
 
 from ..client import IBKRClient
+from ..engines.execution import _ticker_price
 from .common import (
     _SyntheticPortfolioItem,
     _fmt_expiry,
@@ -23,7 +24,6 @@ from .common import (
     _price_direction_glyph,
     _quote_age_ribbon,
     _safe_num,
-    _ticker_price,
 )
 from .positions import PositionDetailScreen
 

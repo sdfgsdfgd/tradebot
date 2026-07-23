@@ -83,16 +83,23 @@ class SpotSignalTimeModeTests(unittest.TestCase):
             "ENTRY_GATE_BYPASS",
         )
 
-    def test_regime_router_overrides_entry_dir_and_emits_metadata(self) -> None:
-        strategy = {
+    def test_legacy_router_metadata_cannot_override_selected_strategy(self) -> None:
+        legacy_strategy = {
             **_strategy(),
             "regime_router": True,
             "regime_router_fast_window_days": 2,
             "regime_router_slow_window_days": 4,
             "regime_router_min_dwell_days": 1,
         }
-        evaluator = SpotSignalEvaluator(
-            strategy=strategy,
+        baseline = SpotSignalEvaluator(
+            strategy=_strategy(),
+            filters=None,
+            bar_size="5 mins",
+            use_rth=False,
+            naive_ts_mode="utc",
+        )
+        legacy = SpotSignalEvaluator(
+            strategy=legacy_strategy,
             filters=None,
             bar_size="5 mins",
             use_rth=False,
@@ -105,16 +112,18 @@ class SpotSignalTimeModeTests(unittest.TestCase):
             _bar(datetime(2025, 1, 4, 23, 55), 103.0),
             _bar(datetime(2025, 1, 5, 23, 55), 101.0),
         ]
-        snap = None
+        baseline_snap = None
+        legacy_snap = None
         for bar in bars:
-            snap = evaluator.update_signal_bar(bar)
-        self.assertIsNotNone(snap)
-        assert snap is not None
-        self.assertTrue(bool(snap.regime_router_ready))
-        self.assertEqual(str(snap.regime_router_host), "buyhold")
-        self.assertTrue(bool(snap.regime_router_host_managed))
-        self.assertFalse(bool(snap.regime_router_bull_sovereign_ok))
-        self.assertEqual(str(snap.entry_dir), "up")
+            baseline_snap = baseline.update_signal_bar(bar)
+            legacy_snap = legacy.update_signal_bar(bar)
+        self.assertIsNotNone(baseline_snap)
+        self.assertIsNotNone(legacy_snap)
+        assert baseline_snap is not None and legacy_snap is not None
+        self.assertEqual(legacy_snap.entry_dir, baseline_snap.entry_dir)
+        self.assertEqual(legacy_snap.entry_branch, baseline_snap.entry_branch)
+        self.assertEqual(legacy_snap.regime, baseline_snap.regime)
+        self.assertFalse(hasattr(legacy_snap, "regime_router_host"))
 
     def test_utc_mode_keeps_same_et_trade_date_across_utc_midnight(self) -> None:
         evaluator = SpotSignalEvaluator(

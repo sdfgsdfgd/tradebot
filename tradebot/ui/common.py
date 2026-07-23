@@ -15,10 +15,11 @@ from ib_insync import Contract, PnL, PortfolioItem, Ticker, Trade
 from rich.text import Text
 
 from tradebot.engines.execution import (
-    _quote_num_actionable,
     _quote_num_display,
     _sanitize_nbbo,
     _sanitize_nbbo_extremes,
+    _ticker_close,
+    _ticker_price,
 )
 from tradebot.ui.time_compat import now_et as _now_et
 
@@ -382,26 +383,6 @@ _TICKER_WIDTHS = {
 }
 
 
-def _ticker_price(ticker: Ticker) -> float | None:
-    bid, ask, last = _sanitize_nbbo(
-        getattr(ticker, "bid", None),
-        getattr(ticker, "ask", None),
-        getattr(ticker, "last", None),
-    )
-    if bid is not None and ask is not None and bid <= ask:
-        return (bid + ask) / 2.0
-    if last is not None:
-        return last
-    try:
-        value = float(ticker.marketPrice())
-    except Exception:
-        value = None
-    value = _quote_num_display(value)
-    if value is not None:
-        return value
-    return _ticker_close(ticker)
-
-
 def _ticker_actionable_price(ticker: Ticker) -> float | None:
     bid, ask, last = _sanitize_nbbo(
         getattr(ticker, "bid", None),
@@ -454,21 +435,6 @@ def _option_display_price(item: PortfolioItem, ticker: Ticker | None) -> float |
     if portfolio_mark is not None and (sec_type != "FOP" or ticker is not None):
         return float(portfolio_mark)
     return close_value
-
-
-def _ticker_close(ticker: Ticker) -> float | None:
-    for attr in ("close", "prevLast"):
-        value = getattr(ticker, attr, None)
-        if value is None:
-            continue
-        try:
-            num = float(value)
-        except (TypeError, ValueError):
-            continue
-        if math.isnan(num) or num <= 0:
-            continue
-        return num
-    return None
 
 
 def _market_data_tag(ticker: Ticker) -> str:

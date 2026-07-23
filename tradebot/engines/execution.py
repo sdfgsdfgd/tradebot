@@ -17,7 +17,7 @@ def _quote_num_actionable(value: float | None) -> float | None:
         number = float(value)
     except (TypeError, ValueError):
         return None
-    return number if not math.isnan(number) and number > 0 else None
+    return number if math.isfinite(number) and number > 0 else None
 
 
 def _quote_num_display(value: float | None) -> float | None:
@@ -77,6 +77,33 @@ def _midpoint(bid: float | None, ask: float | None) -> float | None:
     if bid is None or ask is None or bid <= 0 or ask <= 0 or bid > ask:
         return None
     return (bid + ask) / 2.0
+
+
+def _ticker_close(ticker: object) -> float | None:
+    for attr in ("close", "prevLast"):
+        value = _quote_num_display(getattr(ticker, attr, None))
+        if value is not None:
+            return value
+    return None
+
+
+def _ticker_price(ticker: object) -> float | None:
+    """Resolve the shared display/reference price from one live ticker."""
+    bid, ask, last = _sanitize_nbbo(
+        getattr(ticker, "bid", None),
+        getattr(ticker, "ask", None),
+        getattr(ticker, "last", None),
+    )
+    midpoint = _midpoint(bid, ask)
+    if midpoint is not None:
+        return midpoint
+    if last is not None:
+        return last
+    try:
+        market_price = ticker.marketPrice()
+    except Exception:
+        market_price = None
+    return _quote_num_display(market_price) or _ticker_close(ticker)
 
 
 def _price_increment_from_ladder(
@@ -191,6 +218,24 @@ _EXEC_LADDER_PHASES_SEC = (
     + _EXEC_LADDER_CROSS_SEC
 )
 _EXEC_AUTO_TIMEOUT_SEC = _EXEC_LADDER_PHASES_SEC + _EXEC_RELENTLESS_TIMEOUT_SEC
+
+
+def initial_execution_mode(
+    *,
+    instrument: str,
+    intent: str,
+    trigger_reason: str | None = None,
+    exit_retry_count: int = 0,
+) -> str:
+    if (
+        str(instrument or "").strip().lower() != "spot"
+        or str(intent or "").strip().lower() != "exit"
+        or str(trigger_reason or "").strip().lower()
+        not in ("stop_loss", "stop_loss_pct")
+    ):
+        return "OPTIMISTIC"
+    retries = max(0, int(exit_retry_count or 0))
+    return "AGGRESSIVE" if retries >= 2 else "MID" if retries else "OPTIMISTIC"
 
 
 def _exec_ladder_mode(elapsed_sec: float) -> str | None:

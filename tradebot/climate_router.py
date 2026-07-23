@@ -1,4 +1,4 @@
-"""Host-agnostic daily climate classification and live routing."""
+"""Daily climate research retained as evidence, never live strategy authority."""
 
 from __future__ import annotations
 

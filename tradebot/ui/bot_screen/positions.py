@@ -9,6 +9,7 @@ from ib_insync import Contract, PortfolioItem
 from rich.text import Text
 
 from ..bot_models import _BotInstance
+from ...engines.execution import _ticker_close, _ticker_price
 from ...spot.lifecycle import SpotEntryBasisState, reconcile_spot_entry_basis
 from ..common import (
     _SECTION_TYPES,
@@ -23,8 +24,6 @@ from ..common import (
     _price_pct_dual_text,
     _safe_float,
     _safe_num,
-    _ticker_close,
-    _ticker_price,
 )
 from .formatting import _InstancePnlState, _center_table_row
 

@@ -2588,17 +2588,11 @@ def _run_spot_backtest_exec_loop(
                 if trade.profit_target_price is None and scaled_pt is not None:
                     trade.profit_target_pct = float(scaled_pt)
 
-        # Signals advance only on their closes. Router ownership remains sticky across
-        # faster execution bars so host-managed lanes never regain local exits.
+        # Signals advance only on their closes.
         sig_snap = evaluator_tape.signals[int(idx)] if sig_bar is not None else None
         if sig_snap is not None:
             last_sig_snap = sig_snap
             last_sig_exec_idx = int(idx)
-        router_snap = sig_snap or last_sig_snap
-        router_ready = bool(router_snap and router_snap.regime_router_ready)
-        router_host_managed = bool(
-            router_snap and router_snap.regime_router_host_managed
-        )
         signal_inputs = sig_snap.lifecycle_inputs() if sig_snap is not None else {}
         signal_trace = (
             (
@@ -2619,9 +2613,7 @@ def _run_spot_backtest_exec_loop(
                     float(trade.entry_price),
                     int(trade.qty),
                     stop_loss_price=trade.stop_loss_price,
-                    stop_loss_pct=(
-                        None if router_host_managed else trade.stop_loss_pct
-                    ),
+                    stop_loss_pct=trade.stop_loss_pct,
                 )
                 worst_ref = spot_intrabar_worst_ref(
                     qty=int(trade.qty),
@@ -2652,7 +2644,7 @@ def _run_spot_backtest_exec_loop(
                 exit_ref_by_reason: dict[str, float] = {}
                 apply_slippage_by_reason: dict[str, bool] = {}
 
-                if (not router_host_managed) and spot_intrabar_exits:
+                if spot_intrabar_exits:
                     stop_level = spot_stop_level(
                         float(trade.entry_price),
                         int(trade.qty),
@@ -2690,7 +2682,7 @@ def _run_spot_backtest_exec_loop(
                         exit_candidates[reason] = True
                         exit_ref_by_reason[reason] = float(ref)
                         apply_slippage_by_reason[reason] = kind != "profit"
-                elif not router_host_managed:
+                else:
                     if spot_hit_profit(
                         entry_price=float(trade.entry_price),
                         qty=int(trade.qty),
@@ -2725,7 +2717,6 @@ def _run_spot_backtest_exec_loop(
                 is_signal_close = sig_idx is not None
                 if (
                     is_signal_close
-                    and not router_host_managed
                     and _spot_ratsv_probe_cancel_hit(
                         cfg,
                         trade=trade,
@@ -2739,7 +2730,6 @@ def _run_spot_backtest_exec_loop(
                     apply_slippage_by_reason["ratsv_probe_cancel"] = True
                 if (
                     is_signal_close
-                    and not router_host_managed
                     and _spot_ratsv_adverse_release_hit(
                         cfg,
                         trade=trade,
@@ -2754,7 +2744,6 @@ def _run_spot_backtest_exec_loop(
                     apply_slippage_by_reason["ratsv_adverse_release"] = True
                 if (
                     is_signal_close
-                    and (not router_host_managed)
                     and _spot_hit_flip_exit(
                         cfg,
                         trade,
@@ -2768,28 +2757,13 @@ def _run_spot_backtest_exec_loop(
                     exit_candidates["flip"] = True
                     exit_ref_by_reason["flip"] = float(bar.close)
                     apply_slippage_by_reason["flip"] = True
-                elif is_signal_close and router_ready and router_host_managed:
-                    trade_dir = (
-                        "up"
-                        if int(trade.qty) > 0
-                        else "down"
-                        if int(trade.qty) < 0
-                        else None
-                    )
-                    if (
-                        trade_dir in ("up", "down")
-                        and signal_inputs.get("signal_entry_dir") != trade_dir
-                    ):
-                        exit_candidates["flip"] = True
-                        exit_ref_by_reason["flip"] = float(bar.close)
-                        apply_slippage_by_reason["flip"] = True
-                if (not router_host_managed) and spot_exit_time is not None:
+                if spot_exit_time is not None:
                     ts_et = _ts_to_et(bar.ts)
                     if ts_et.time() >= spot_exit_time:
                         exit_candidates["exit_time"] = True
                         exit_ref_by_reason["exit_time"] = float(bar.close)
                         apply_slippage_by_reason["exit_time"] = True
-                if (not router_host_managed) and bool(spot_close_eod) and is_last_bar:
+                if bool(spot_close_eod) and is_last_bar:
                     exit_candidates["close_eod"] = True
                     exit_ref_by_reason["close_eod"] = float(bar.close)
                     apply_slippage_by_reason["close_eod"] = True
@@ -2993,13 +2967,6 @@ def _run_spot_backtest_exec_loop(
                 if sig_snap is not None and sig_snap.atr is not None
                 else None,
                 lifecycle_inputs=signal_inputs,
-                entry_gate_bypass=bool(
-                    sig_snap
-                    and (
-                        sig_snap.regime_router_host_managed
-                        or sig_snap.regime_router_bull_sovereign_ok
-                    )
-                ),
                 capture_trace=bool(capture_decision_trace),
             )
             _capture_lifecycle(

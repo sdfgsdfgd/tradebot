@@ -626,7 +626,6 @@ class SpotSignalPolicyMixin:
         """Apply the ordered, independently configured entry-policy gates."""
         for name, blocks in (
             ("crash", self._crash_gate_blocks),
-            ("router_damage", self._router_damage_gate_blocks),
             ("crash_prearm", self._crash_prearm_gate_blocks),
             ("branch_b_regime", self._branch_b_regime_gate_blocks),
             ("branch_a_upcorridor", self._branch_a_upcorridor_gate_blocks),
@@ -645,34 +644,6 @@ class SpotSignalPolicyMixin:
             self._regime_gates.crash_block_longs
             and context.regime.label == "crash_down"
             and candidate.direction == "up"
-        )
-
-    def _router_damage_gate_blocks(
-        self,
-        candidate: SpotEntryCandidate,
-        context: SpotEntryGateContext,
-    ) -> bool:
-        router = context.router
-        if not (
-            self._regime_gates.crash_block_longs
-            and self._regime_router_cfg.enabled
-            and bool(getattr(router, "ready", False))
-            and candidate.direction == "up"
-            and context.regime.label == "trend_down"
-            and context.shock_dir == "down"
-            and context.regime.hard_dir == "down"
-            and context.shock_atr_pct is not None
-            and self._regime_gates.crash_atr_min is not None
-            and getattr(router, "crash_maxdd", None) is not None
-            and getattr(router, "crash_ret", None) is not None
-        ):
-            return False
-        router_dd_min = float(self._regime_router_cfg.hf_takeover_crash_maxdd_min) * 0.75
-        atr_min = max(0.0, self._regime_gates.crash_atr_min - 0.1)
-        return bool(
-            float(router.crash_maxdd) >= router_dd_min
-            and float(router.crash_ret) <= 0.0
-            and float(context.shock_atr_pct) >= atr_min
         )
 
     def _crash_prearm_gate_blocks(

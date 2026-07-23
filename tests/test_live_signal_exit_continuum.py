@@ -18,6 +18,7 @@ from tradebot.backtest.engine import _spot_strategy_sec_type
 from tradebot.backtest.spot_codec import spot_strategy_payload, strategy_from_payload
 from tradebot.client import BrokerOrderPreview, IBKRClient, _session_flags
 from tradebot.config import IBKRConfig
+from tradebot.engines.execution import initial_execution_mode
 import tradebot.live.options as live_options_module
 from tradebot.live.options import QualifiedOptionLeg
 from tradebot.option_package import OptionPackageRisk
@@ -868,7 +869,7 @@ def test_signal_preflight_requires_regime2_supertrend_warmup_for_tqqq_hf_style_p
     assert req["regime2_bars_min"] >= 60
 
 
-def test_signal_preflight_does_not_require_router_daily_warmup_for_router_enabled_payload() -> None:
+def test_signal_preflight_ignores_legacy_router_warmup_metadata() -> None:
     harness = _EntryDayHarness()
     instance = _new_instance(
         strategy={
@@ -983,8 +984,6 @@ def test_auto_try_queue_entry_passes_entry_context_into_graph_gate() -> None:
             shock_dir="down",
             regime2_bear_hard_dir="up",
             regime2_bear_hard_release_age_bars=1000,
-            regime_router_host_managed=False,
-            regime_router_bull_sovereign_ok=False,
         ),
         gate=lambda status, data=None: gates.append(str(status)),
         now_et=datetime(2026, 2, 9, 10, 0),
@@ -3706,39 +3705,43 @@ def test_initial_exec_mode_escalates_stop_exit_retries() -> None:
 
     instance.exit_retry_count = 0
     assert (
-        BotOrderBuilderMixin._initial_exec_mode(
-            instance=instance,
+        initial_execution_mode(
             instrument="spot",
-            intent_clean="exit",
+            intent="exit",
+            trigger_reason=instance.order_trigger_reason,
+            exit_retry_count=instance.exit_retry_count,
         )
         == "OPTIMISTIC"
     )
 
     instance.exit_retry_count = 1
     assert (
-        BotOrderBuilderMixin._initial_exec_mode(
-            instance=instance,
+        initial_execution_mode(
             instrument="spot",
-            intent_clean="exit",
+            intent="exit",
+            trigger_reason=instance.order_trigger_reason,
+            exit_retry_count=instance.exit_retry_count,
         )
         == "MID"
     )
 
     instance.exit_retry_count = 2
     assert (
-        BotOrderBuilderMixin._initial_exec_mode(
-            instance=instance,
+        initial_execution_mode(
             instrument="spot",
-            intent_clean="exit",
+            intent="exit",
+            trigger_reason=instance.order_trigger_reason,
+            exit_retry_count=instance.exit_retry_count,
         )
         == "AGGRESSIVE"
     )
 
     assert (
-        BotOrderBuilderMixin._initial_exec_mode(
-            instance=instance,
+        initial_execution_mode(
             instrument="options",
-            intent_clean="exit",
+            intent="exit",
+            trigger_reason=instance.order_trigger_reason,
+            exit_retry_count=instance.exit_retry_count,
         )
         == "OPTIMISTIC"
     )

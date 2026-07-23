@@ -27,9 +27,6 @@ class _GateRecorder(SpotSignalPolicyMixin):
     def _crash_gate_blocks(self, *_args) -> bool:
         return self._record("crash")
 
-    def _router_damage_gate_blocks(self, *_args) -> bool:
-        return self._record("router_damage")
-
     def _crash_prearm_gate_blocks(self, *_args) -> bool:
         return self._record("crash_prearm")
 
@@ -119,7 +116,7 @@ class SpotPolicyKernelTests(unittest.TestCase):
 
         self.assertEqual(
             evaluator.visited,
-            ["crash", "router_damage", "crash_prearm", "branch_b_regime"],
+            ["crash", "crash_prearm", "branch_b_regime"],
         )
         self.assertEqual(result, SpotEntryCandidate(None, None, "branch_b_regime"))
 
