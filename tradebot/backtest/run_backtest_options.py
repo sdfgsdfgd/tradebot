@@ -5,8 +5,11 @@ This keeps bot presets and documentation reproducible without scraping markdown.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
+from contextlib import nullcontext
+from dataclasses import asdict
 from datetime import date, datetime, timezone
 from concurrent.futures import ProcessPoolExecutor
 from itertools import product
@@ -14,6 +17,7 @@ from pathlib import Path
 import time
 
 from .cli_utils import parse_date as _parse_date
+from .cache import cache_data_revision
 from .config import (
     BacktestConfig,
     ConfigBundle,
@@ -22,8 +26,67 @@ from .config import (
     OptionsStrategyConfig,
     SyntheticConfig,
 )
-from .engine import run_backtest
+from .engine import OptionsBacktestSourcePool, run_backtest
 from .sweeps import Progress, count_total_combos, fmt_duration, normalize_jobs, write_json
+from ..chart_data.cache import series_cache_service
+
+
+_OPTIONS_RESULT_NAMESPACE = "options.sweep_result.v1"
+_OPTIONS_RESULT_CACHE = series_cache_service()
+
+
+def _sweep_revision(*, backtest: BacktestConfig, symbol: str) -> str:
+    """Bind warm results to the exact code tree and cached market-data state."""
+
+    root = Path(__file__).resolve().parents[1]
+    digest = hashlib.blake2b(digest_size=20)
+    for path in sorted(root.rglob("*.py")):
+        digest.update(path.relative_to(root).as_posix().encode())
+        digest.update(b"\0")
+        digest.update(path.read_bytes())
+        digest.update(b"\0")
+    digest.update(
+        cache_data_revision(Path(backtest.cache_dir) / str(symbol)).encode()
+    )
+    calibration = Path(backtest.calibration_dir) / f"{symbol}.json"
+    digest.update(b"\0calibration\0")
+    digest.update(calibration.read_bytes() if calibration.is_file() else b"<missing>")
+    return digest.hexdigest()
+
+
+def _combo_cache_key(
+    *,
+    revision: str,
+    symbol: str,
+    backtest: BacktestConfig,
+    synthetic: SyntheticConfig,
+    group: dict,
+    min_trades: int,
+    combo: tuple,
+) -> str:
+    payload = json.dumps(
+        {
+            "revision": revision,
+            "symbol": symbol,
+            "backtest": asdict(backtest),
+            "synthetic": asdict(synthetic),
+            "group": group,
+            "min_trades": int(min_trades),
+            "combo": combo,
+        },
+        default=str,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    return hashlib.blake2b(payload.encode(), digest_size=20).hexdigest()
+
+
+def _valid_result_payload(value: object) -> bool:
+    return (
+        isinstance(value, dict)
+        and set(value) == {"entry"}
+        and (value["entry"] is None or isinstance(value["entry"], dict))
+    )
 
 
 # region CLI
@@ -262,25 +325,61 @@ def options_leaderboard_main() -> None:
         interval_sec=interval_sec,
         groups=len(groups),
     )
-    for group_idx, group in enumerate(groups, start=1):
-        progress.start_group(group_idx, group["name"], total=count_total_combos(grid))
-        entries = _run_group(
-            symbol=args.symbol,
-            backtest=base_backtest,
-            synthetic=synthetic,
-            grid=grid,
-            group=group,
-            progress=progress,
-            jobs=jobs,
+    revision = _sweep_revision(backtest=base_backtest, symbol=args.symbol)
+    result_db = base_backtest.cache_dir / "options_sweeps_results.sqlite3"
+    worker_ctx = {
+        "cwd": os.getcwd(),
+        "symbol": args.symbol,
+        "backtest": base_backtest,
+        "synthetic": synthetic,
+        "groups": tuple(
+            (group, _filters_cfg(group.get("filters")), int(grid["min_trades"]))
+            for group in groups
+        ),
+    }
+    pool_context = (
+        ProcessPoolExecutor(
+            max_workers=jobs,
+            initializer=_init_worker,
+            initargs=(worker_ctx,),
         )
-        progress.finish_group()
-        payload["groups"].append(
-            {
-                "name": group["name"],
-                "filters": group["filters"],
-                "entries": entries,
-            }
-        )
+        if jobs > 1
+        else nullcontext(None)
+    )
+    source_pool = OptionsBacktestSourcePool() if jobs == 1 else None
+    try:
+        with pool_context as pool:
+            for group_idx, group in enumerate(groups):
+                progress.start_group(
+                    group_idx + 1,
+                    group["name"],
+                    total=count_total_combos(grid),
+                )
+                entries = _run_group(
+                    symbol=args.symbol,
+                    backtest=base_backtest,
+                    synthetic=synthetic,
+                    grid=grid,
+                    group=group,
+                    progress=progress,
+                    jobs=jobs,
+                    pool=pool,
+                    worker_group_idx=group_idx,
+                    source_pool=source_pool,
+                    result_db=result_db,
+                    revision=revision,
+                )
+                progress.finish_group()
+                payload["groups"].append(
+                    {
+                        "name": group["name"],
+                        "filters": group["filters"],
+                        "entries": entries,
+                    }
+                )
+    finally:
+        if source_pool is not None:
+            source_pool.close()
 
     if bool(args.include_spot_milestones):
         milestones_path = Path(__file__).resolve().parent / "spot_milestones.json"
@@ -332,6 +431,11 @@ def _run_group(
     progress: "Progress",
     top_n: int = 2000,
     jobs: int = 1,
+    pool: ProcessPoolExecutor | None = None,
+    worker_group_idx: int = 0,
+    source_pool: OptionsBacktestSourcePool | None = None,
+    result_db: Path | None = None,
+    revision: str | None = None,
 ) -> list[dict]:
     jobs = normalize_jobs(int(jobs))
     filters_cfg = _filters_cfg(group.get("filters"))
@@ -356,46 +460,121 @@ def _run_group(
                 for hold, only_profit in flip_variants:
                     yield (dte, moneyness, pt, sl, ema, str(entry_mode), bool(flip), int(hold), bool(only_profit))
 
-    results: list[dict] = []
-    if jobs == 1:
-        for dte, moneyness, pt, sl, ema, entry_mode, flip, hold, only_profit in _combos():
-            progress.advance()
-            entry = _run_combo(
+    combos = list(_combos())
+    cache_keys = [
+        (
+            _combo_cache_key(
+                revision=revision,
                 symbol=symbol,
                 backtest=backtest,
                 synthetic=synthetic,
                 group=group,
-                filters_cfg=filters_cfg,
                 min_trades=min_trades,
-                dte=dte,
-                moneyness=moneyness,
-                profit_target=pt,
-                stop_loss=sl,
-                ema_preset=ema,
-                ema_entry_mode=entry_mode,
-                exit_on_signal_flip=flip,
-                flip_exit_min_hold_bars=hold,
-                flip_exit_only_if_profit=only_profit,
+                combo=combo,
             )
-            if entry is not None:
-                results.append(entry)
-        results.sort(key=lambda row: (row["metrics"]["pnl"], row["metrics"]["win_rate"]), reverse=True)
+            if revision is not None and result_db is not None
+            else ""
+        )
+        for combo in combos
+    ]
+    cached = _OPTIONS_RESULT_CACHE.get_persistent_many(
+        db_path=result_db,
+        namespace=_OPTIONS_RESULT_NAMESPACE,
+        key_hashes=(key for key in cache_keys if key),
+        validator=_valid_result_payload,
+    )
+    results: list[dict] = []
+    pending: list[tuple[str, tuple]] = []
+    for key, combo in zip(cache_keys, combos):
+        payload = cached.get(key)
+        if payload is None:
+            pending.append((key, combo))
+            continue
+        progress.advance()
+        entry = payload["entry"]
+        if entry is not None:
+            results.append(entry)
+
+    if not pending:
+        results.sort(
+            key=lambda row: (
+                row["metrics"]["pnl"],
+                row["metrics"]["win_rate"],
+            ),
+            reverse=True,
+        )
         return results[:top_n]
 
-    ctx = {
-        "cwd": os.getcwd(),
-        "symbol": symbol,
-        "backtest": backtest,
-        "synthetic": synthetic,
-        "group": group,
-        "filters_cfg": filters_cfg,
-        "min_trades": min_trades,
-    }
-    with ProcessPoolExecutor(max_workers=jobs, initializer=_init_worker, initargs=(ctx,)) as pool:
-        for entry in pool.map(_run_combo_worker, _combos(), chunksize=8):
-            progress.advance()
-            if entry is not None:
-                results.append(entry)
+    writes: dict[str, object] = {}
+    if jobs == 1:
+        owns_sources = source_pool is None
+        sources = source_pool or OptionsBacktestSourcePool()
+        try:
+            for key, combo in pending:
+                dte, moneyness, pt, sl, ema, entry_mode, flip, hold, only_profit = combo
+                entry = _run_combo(
+                    symbol=symbol,
+                    backtest=backtest,
+                    synthetic=synthetic,
+                    group=group,
+                    filters_cfg=filters_cfg,
+                    min_trades=min_trades,
+                    dte=dte,
+                    moneyness=moneyness,
+                    profit_target=pt,
+                    stop_loss=sl,
+                    ema_preset=ema,
+                    ema_entry_mode=entry_mode,
+                    exit_on_signal_flip=flip,
+                    flip_exit_min_hold_bars=hold,
+                    flip_exit_only_if_profit=only_profit,
+                    source_pool=sources,
+                )
+                progress.advance()
+                if key:
+                    writes[key] = {"entry": entry}
+                if entry is not None:
+                    results.append(entry)
+        finally:
+            if owns_sources:
+                sources.close()
+    else:
+        pool_context = (
+            nullcontext(pool)
+            if pool is not None
+            else ProcessPoolExecutor(
+                max_workers=jobs,
+                initializer=_init_worker,
+                initargs=(
+                    {
+                        "cwd": os.getcwd(),
+                        "symbol": symbol,
+                        "backtest": backtest,
+                        "synthetic": synthetic,
+                        "groups": ((group, filters_cfg, min_trades),),
+                    },
+                ),
+            )
+        )
+        task_group_idx = worker_group_idx if pool is not None else 0
+        with pool_context as active_pool:
+            assert active_pool is not None
+            tasks = ((task_group_idx, combo) for _, combo in pending)
+            for (key, _), entry in zip(
+                pending,
+                active_pool.map(_run_combo_worker, tasks, chunksize=8),
+            ):
+                progress.advance()
+                if key:
+                    writes[key] = {"entry": entry}
+                if entry is not None:
+                    results.append(entry)
+
+    _OPTIONS_RESULT_CACHE.set_persistent_many(
+        db_path=result_db,
+        namespace=_OPTIONS_RESULT_NAMESPACE,
+        values=writes,
+    )
 
     results.sort(key=lambda row: (row["metrics"]["pnl"], row["metrics"]["win_rate"]), reverse=True)
     return results[:top_n]
@@ -437,6 +616,7 @@ def _run_combo(
     exit_on_signal_flip: bool,
     flip_exit_min_hold_bars: int,
     flip_exit_only_if_profit: bool,
+    source_pool: OptionsBacktestSourcePool | None = None,
 ) -> dict | None:
     directional_legs = None
     legs = None
@@ -509,7 +689,11 @@ def _run_combo(
         spot_close_eod=False,
     )
 
-    result = run_backtest(ConfigBundle(backtest=backtest, strategy=strategy, synthetic=synthetic))
+    cfg = ConfigBundle(backtest=backtest, strategy=strategy, synthetic=synthetic)
+    result = run_backtest(
+        cfg,
+        options_source=source_pool.source_for(cfg) if source_pool is not None else None,
+    )
     summary = result.summary
     if summary.trades < min_trades:
         return None
@@ -568,27 +752,31 @@ def _run_combo(
 
 # region Multiprocessing
 _WORKER_CTX: dict | None = None
+_WORKER_SOURCES: OptionsBacktestSourcePool | None = None
 
 
 def _init_worker(ctx: dict) -> None:
-    global _WORKER_CTX
+    global _WORKER_CTX, _WORKER_SOURCES
     _WORKER_CTX = ctx
+    _WORKER_SOURCES = OptionsBacktestSourcePool()
     cwd = ctx.get("cwd")
     if cwd:
         os.chdir(cwd)
 
 
-def _run_combo_worker(combo: tuple[int, float, float, float, str, str, bool, int, bool]) -> dict | None:
-    if _WORKER_CTX is None:
+def _run_combo_worker(task: tuple[int, tuple]) -> dict | None:
+    if _WORKER_CTX is None or _WORKER_SOURCES is None:
         raise RuntimeError("Worker context not initialized")
+    group_idx, combo = task
+    group, filters_cfg, min_trades = _WORKER_CTX["groups"][group_idx]
     dte, moneyness, pt, sl, ema, entry_mode, flip, hold, only_profit = combo
     return _run_combo(
         symbol=_WORKER_CTX["symbol"],
         backtest=_WORKER_CTX["backtest"],
         synthetic=_WORKER_CTX["synthetic"],
-        group=_WORKER_CTX["group"],
-        filters_cfg=_WORKER_CTX["filters_cfg"],
-        min_trades=_WORKER_CTX["min_trades"],
+        group=group,
+        filters_cfg=filters_cfg,
+        min_trades=min_trades,
         dte=dte,
         moneyness=moneyness,
         profit_target=pt,
@@ -598,6 +786,7 @@ def _run_combo_worker(combo: tuple[int, float, float, float, str, str, bool, int
         exit_on_signal_flip=flip,
         flip_exit_min_hold_bars=hold,
         flip_exit_only_if_profit=only_profit,
+        source_pool=_WORKER_SOURCES,
     )
 
 

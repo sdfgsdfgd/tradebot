@@ -300,7 +300,19 @@ def test_series_cache_service_roundtrip_memory_and_persistent() -> None:
             key_hash="abc",
             validator=lambda obj: isinstance(obj, dict),
         )
+        cache.set_persistent_many(
+            db_path=db_path,
+            namespace="ns",
+            values={"def": {"x": 2}, "ignored": [3]},
+        )
+        loaded_many = cache.get_persistent_many(
+            db_path=db_path,
+            namespace="ns",
+            key_hashes=("abc", "def", "ignored", "missing"),
+            validator=lambda obj: isinstance(obj, dict),
+        )
     assert loaded == value
+    assert loaded_many == {"abc": {"x": 1}, "def": {"x": 2}}
 
 
 def test_series_cache_revision_covers_interior_market_data() -> None:

@@ -371,7 +371,7 @@ def prepare_options_tape(
 def run_options_backtest(
     *,
     cfg: ConfigBundle,
-    bars: list[Bar],
+    bars: list[Bar] | tuple[Bar, ...],
     meta: ContractMeta,
     data: IBKRHistoricalData,
     start_dt: datetime,
@@ -683,7 +683,10 @@ def run_options_backtest(
     return BacktestResult(trades=trades, equity=equity_curve, summary=summary)
 
 
-def _rv_from_bars(bars: list[Bar], cfg: ConfigBundle) -> float:
+def _rv_from_bars(
+    bars: list[Bar] | tuple[Bar, ...],
+    cfg: ConfigBundle,
+) -> float:
     closes = [float(bar.close) for bar in bars if bar.close and float(bar.close) > 0]
     rv = realized_vol_from_closes(
         closes,

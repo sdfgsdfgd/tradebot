@@ -7,7 +7,7 @@ import hashlib
 from bisect import bisect_left
 from collections import deque
 from collections.abc import Mapping
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import date, datetime, time, timedelta
 from pathlib import Path
 from typing import NamedTuple, Union
@@ -733,6 +733,77 @@ def _spot_exec_profile(strategy: object) -> _SpotExecProfile:
 
 
 # region Public API
+@dataclass(frozen=True)
+class OptionsBacktestSource:
+    """One immutable market-data source shared by compatible option runs."""
+
+    key: tuple[object, ...]
+    bars: tuple[Bar, ...]
+    meta: ContractMeta
+    data: IBKRHistoricalData
+    start_dt: datetime
+    end_dt: datetime
+
+    def close(self) -> None:
+        self.data.disconnect()
+
+
+@dataclass
+class OptionsBacktestSourcePool:
+    """Own and reuse the few exact data windows needed by an option sweep."""
+
+    _sources: dict[tuple[object, ...], OptionsBacktestSource] = field(
+        default_factory=dict
+    )
+
+    def source_for(self, cfg: ConfigBundle) -> OptionsBacktestSource:
+        key = _options_source_key(cfg)
+        source = self._sources.get(key)
+        if source is None:
+            source = prepare_options_backtest_source(cfg)
+            self._sources[key] = source
+        return source
+
+    def close(self) -> None:
+        for source in self._sources.values():
+            source.close()
+        self._sources.clear()
+
+
+def _backtest_window(cfg: ConfigBundle) -> tuple[datetime, datetime, datetime]:
+    start_dt = datetime.combine(cfg.backtest.start, time(0, 0))
+    end_dt = datetime.combine(cfg.backtest.end, time(23, 59))
+    signal_start_dt = start_dt - timedelta(
+        days=max(
+            0,
+            int(
+                spot_signal_warmup_days_from_strategy(
+                    strategy=cfg.strategy,
+                    default_signal_bar_size=str(cfg.backtest.bar_size),
+                    default_signal_use_rth=bool(cfg.backtest.use_rth),
+                )
+            ),
+        )
+    )
+    return start_dt, end_dt, signal_start_dt
+
+
+def _options_source_key(cfg: ConfigBundle) -> tuple[object, ...]:
+    _, _, signal_start_dt = _backtest_window(cfg)
+    return (
+        str(cfg.strategy.instrument),
+        str(cfg.strategy.symbol).strip().upper(),
+        cfg.strategy.exchange,
+        cfg.backtest.start,
+        cfg.backtest.end,
+        signal_start_dt,
+        str(cfg.backtest.bar_size),
+        bool(cfg.backtest.use_rth),
+        bool(cfg.backtest.offline),
+        str(Path(cfg.backtest.cache_dir).resolve()),
+    )
+
+
 def _resolve_backtest_contract_meta(
     *, data: IBKRHistoricalData, cfg: ConfigBundle
 ) -> ContractMeta:
@@ -791,6 +862,50 @@ def _resolve_backtest_contract_meta(
         ),
         min_tick=resolved.min_tick,
     )
+
+
+def prepare_options_backtest_source(cfg: ConfigBundle) -> OptionsBacktestSource:
+    if cfg.strategy.instrument != "options":
+        raise ValueError("options source requires an options strategy")
+
+    data = IBKRHistoricalData()
+    start_dt, end_dt, signal_start_dt = _backtest_window(cfg)
+    try:
+        try:
+            bar_series = load_backtest_series(
+                data=data,
+                cfg=cfg,
+                symbol=cfg.strategy.symbol,
+                exchange=cfg.strategy.exchange,
+                start=signal_start_dt,
+                end=end_dt,
+                bar_size=cfg.backtest.bar_size,
+                use_rth=cfg.backtest.use_rth,
+            )
+        except FileNotFoundError:
+            bar_series = load_backtest_series(
+                data=data,
+                cfg=cfg,
+                symbol=cfg.strategy.symbol,
+                exchange=cfg.strategy.exchange,
+                start=start_dt,
+                end=end_dt,
+                bar_size=cfg.backtest.bar_size,
+                use_rth=cfg.backtest.use_rth,
+            )
+        if not bar_series:
+            raise RuntimeError("No bars loaded for backtest")
+        return OptionsBacktestSource(
+            key=_options_source_key(cfg),
+            bars=bar_series.bars,
+            meta=_resolve_backtest_contract_meta(data=data, cfg=cfg),
+            data=data,
+            start_dt=start_dt,
+            end_dt=end_dt,
+        )
+    except Exception:
+        data.disconnect()
+        raise
 
 
 def _load_spot_backtest_context_bars(
@@ -855,22 +970,32 @@ def _load_spot_backtest_context_bars(
     return context
 
 
-def run_backtest(cfg: ConfigBundle) -> BacktestResult:
+def run_backtest(
+    cfg: ConfigBundle,
+    *,
+    options_source: OptionsBacktestSource | None = None,
+) -> BacktestResult:
+    if cfg.strategy.instrument == "options":
+        source = options_source or prepare_options_backtest_source(cfg)
+        if source.key != _options_source_key(cfg):
+            raise ValueError("options source does not match backtest data request")
+        try:
+            from .engine_options import run_options_backtest
+
+            return run_options_backtest(
+                cfg=cfg,
+                bars=source.bars,
+                meta=source.meta,
+                data=source.data,
+                start_dt=source.start_dt,
+                end_dt=source.end_dt,
+            )
+        finally:
+            if options_source is None:
+                source.close()
+
     data = IBKRHistoricalData()
-    start_dt = datetime.combine(cfg.backtest.start, time(0, 0))
-    end_dt = datetime.combine(cfg.backtest.end, time(23, 59))
-    signal_start_dt = start_dt - timedelta(
-        days=max(
-            0,
-            int(
-                spot_signal_warmup_days_from_strategy(
-                    strategy=cfg.strategy,
-                    default_signal_bar_size=str(cfg.backtest.bar_size),
-                    default_signal_use_rth=bool(cfg.backtest.use_rth),
-                )
-            ),
-        )
-    )
+    start_dt, end_dt, signal_start_dt = _backtest_window(cfg)
     try:
         bar_series = load_backtest_series(
             data=data,
@@ -895,42 +1020,26 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
             bar_size=cfg.backtest.bar_size,
             use_rth=cfg.backtest.use_rth,
         )
-    bars = bar_series.as_list()
-    if not bars:
+    if not bar_series:
         raise RuntimeError("No bars loaded for backtest")
     meta = _resolve_backtest_contract_meta(data=data, cfg=cfg)
 
-    if cfg.strategy.instrument == "spot":
-        context = _load_spot_backtest_context_bars(
-            data=data,
-            cfg=cfg,
-            signal_bars=bar_series,
-            start_dt=start_dt,
-            end_dt=end_dt,
-        )
-
-        result = _run_spot_backtest(
-            cfg,
-            context.signal_bars,
-            meta,
-            regime_bars=context.regime_bars,
-            regime2_bars=context.regime2_bars,
-            regime2_bear_hard_bars=context.regime2_bear_hard_bars,
-            tick_bars=context.tick_bars,
-            exec_bars=context.exec_bars,
-        )
-        data.disconnect()
-        return result
-
-    from .engine_options import run_options_backtest
-
-    result = run_options_backtest(
-        cfg=cfg,
-        bars=bars,
-        meta=meta,
+    context = _load_spot_backtest_context_bars(
         data=data,
+        cfg=cfg,
+        signal_bars=bar_series,
         start_dt=start_dt,
         end_dt=end_dt,
+    )
+    result = _run_spot_backtest(
+        cfg,
+        context.signal_bars,
+        meta,
+        regime_bars=context.regime_bars,
+        regime2_bars=context.regime2_bars,
+        regime2_bear_hard_bars=context.regime2_bear_hard_bars,
+        tick_bars=context.tick_bars,
+        exec_bars=context.exec_bars,
     )
     data.disconnect()
     return result
