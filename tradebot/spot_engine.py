@@ -11,7 +11,6 @@ from collections.abc import Mapping
 from datetime import time
 
 from .chart_data.series import BarSeries
-from .climate_router import DailyRegimeRouterEngine, regime_router_config
 from .engine import normalize_spot_entry_signal, normalize_spot_regime_mode, parse_time_hhmm
 from .engines.risk import RiskOverlaySnapshot, build_tr_pct_risk_overlay_engine
 from .engines.shock import build_shock_engine, normalize_shock_detector, normalize_shock_direction_source
@@ -48,7 +47,6 @@ class SpotSignalEvaluator(
         regime_bars: list[BarLike] | BarSeries[BarLike] | None = None,
         regime2_bars: list[BarLike] | BarSeries[BarLike] | None = None,
         regime2_bear_hard_bars: list[BarLike] | BarSeries[BarLike] | None = None,
-        regime_router_seed_days: list[BarLike] | BarSeries[BarLike] | None = None,
     ) -> None:
         self._strategy = strategy
         self._filters = filters
@@ -66,10 +64,6 @@ class SpotSignalEvaluator(
 
         self._sig_last_date = None
         self._sig_bars_in_day = 0
-        self._regime_router_cfg = regime_router_config(strategy)
-        self._regime_router = DailyRegimeRouterEngine(config=self._regime_router_cfg)
-        if bool(self._regime_router_cfg.enabled) and regime_router_seed_days:
-            self._regime_router.seed_completed_days(_bars_input_list(regime_router_seed_days))
 
         # Entry signal
         entry_signal = normalize_spot_entry_signal(_get(strategy, "entry_signal", "ema"))

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import replace
 from datetime import date, datetime, timedelta
 
 from tradebot.backtest.data import ContractMeta
@@ -43,17 +42,15 @@ def _extract_signal_bars(exec_bars: list[Bar], *, every_minutes: int) -> list[Ba
     return out
 
 
-def test_regime_router_host_managed_persists_between_signal_bars() -> None:
-    """Regression: multi-res spot backtests must not re-enable pct stops on non-signal exec bars.
+def test_selected_strategy_stop_applies_between_signal_bars() -> None:
+    """The selected strategy owns exits on every multi-resolution execution bar.
 
     Setup:
-    - signal bars: 30m closes (policy + router update cadence)
+    - signal bars: 30m closes (policy cadence)
     - exec bars: 5m (intrabar exits)
-    - regime_router: enabled and forced to become ready quickly
 
     Expected:
-    - When router selects a host-managed lane (e.g. buyhold), stop_loss_pct exits never trigger,
-      even on exec bars that are not signal-bar closes.
+    - The configured stop_loss_pct triggers on a non-signal execution bar.
     """
 
     day1 = date(2024, 1, 2)
@@ -123,11 +120,6 @@ def test_regime_router_host_managed_persists_between_signal_bars() -> None:
         spot_mark_to_market="close",
         spot_drawdown_mode="intrabar",
         spot_sizing_mode="fixed",
-        # Router: make it ready quickly so day3 is host-managed buyhold.
-        regime_router=True,
-        regime_router_fast_window_days=2,
-        regime_router_slow_window_days=2,
-        regime_router_min_dwell_days=1,
     )
     synthetic = SyntheticConfig(
         rv_lookback=60,
@@ -155,9 +147,7 @@ def test_regime_router_host_managed_persists_between_signal_bars() -> None:
     # Ensure a stop-triggering low at 14:40 (minute=40) which is not a 30m signal close.
     for i, b in enumerate(day3_bars):
         if b.ts.hour == 14 and b.ts.minute == 40:
-            entry_ref = day3_bars[i - 1].close if i > 0 else b.open
-            stop_level = float(entry_ref) * (1.0 - 0.02)
-            dip_low = float(stop_level) * 0.99
+            dip_low = 95.0
             day3_bars[i] = Bar(
                 ts=b.ts,
                 open=b.open,
@@ -174,5 +164,4 @@ def test_regime_router_host_managed_persists_between_signal_bars() -> None:
 
     assert res.trades, "expected at least one trade"
     stop_exits = [t for t in res.trades if t.exit_reason in ("stop_loss", "stop_loss_pct")]
-    assert not stop_exits, f"unexpected stop exits under host-managed router: {stop_exits!r}"
-
+    assert stop_exits, f"selected-strategy stop was suppressed between signal bars: {res.trades!r}"

@@ -95,7 +95,6 @@ class SpotEntryGateContext:
     shock_atr_pct: float | None = None
     shock_dir_ret_sum_pct: float | None = None
     shock_drawdown_dist_on_vel_pp: float | None = None
-    router: object | None = None
 
 
 @dataclass(frozen=True)
@@ -208,18 +207,6 @@ class SpotSignalSnapshot:
     shock_atr_vel_pct: float | None = None
     shock_atr_accel_pct: float | None = None
     shock_ramp: dict[str, object] | None = None
-    regime_router_ready: bool = False
-    regime_router_climate: str | None = None
-    regime_router_host: str | None = None
-    regime_router_entry_dir: str | None = None
-    regime_router_host_managed: bool = False
-    regime_router_bull_sovereign_ok: bool = False
-    regime_router_dwell_days: int = 0
-    regime_router_crash_ret: float | None = None
-    regime_router_crash_maxdd: float | None = None
-    regime_router_crash_rv: float | None = None
-    regime_router_fast_ret: float | None = None
-    regime_router_slow_ret: float | None = None
     regime: SpotRegimeState = SpotRegimeState()
 
     def regime_state(self) -> SpotRegimeState:

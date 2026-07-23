@@ -12,7 +12,7 @@ from datetime import date
 from pathlib import Path
 from typing import Union
 
-from ..option_package import LegConfig, OptionLegSpec
+from ..option_package import LegConfig
 
 
 @dataclass(frozen=True)
@@ -355,21 +355,6 @@ class StrategyConfigBase:
     spot_policy_pack: str | None = None
     spot_policy_graph: str | None = None
     spot_graph_profile: str | None = None
-    regime_router: bool = False
-    regime_router_fast_window_days: int = 63
-    regime_router_slow_window_days: int = 84
-    regime_router_min_dwell_days: int = 10
-    regime_router_crash_hf_slow_ret_max: float = -0.25
-    regime_router_hf_takeover_crash_ret_max: float = -0.08
-    regime_router_hf_takeover_crash_maxdd_min: float = 0.20
-    regime_router_hf_takeover_crash_rv_max: float = 0.55
-    regime_router_damage_positive_lock_maxdd_min: float = 0.24
-    regime_router_damage_positive_lock_ret_max: float = 0.20
-    regime_router_damage_positive_lock_eff_max: float = 0.10
-    regime_router_bull_sovereign_on_confirm_days: int = 1
-    regime_router_bull_sovereign_off_confirm_days: int = 7
-    regime_router_bull_overextended_hf_fast_ret_min: float = 999.0
-    regime_router_bull_overextended_hf_slow_ret_min: float = 0.0
     spot_entry_policy: str | None = None
     spot_exit_policy: str | None = None
     spot_resize_policy: str | None = None

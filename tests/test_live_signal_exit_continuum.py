@@ -869,7 +869,7 @@ def test_signal_preflight_requires_regime2_supertrend_warmup_for_tqqq_hf_style_p
     assert req["regime2_bars_min"] >= 60
 
 
-def test_signal_preflight_does_not_require_router_daily_warmup_for_router_enabled_payload() -> None:
+def test_signal_preflight_ignores_legacy_router_warmup_metadata() -> None:
     harness = _EntryDayHarness()
     instance = _new_instance(
         strategy={
@@ -984,8 +984,6 @@ def test_auto_try_queue_entry_passes_entry_context_into_graph_gate() -> None:
             shock_dir="down",
             regime2_bear_hard_dir="up",
             regime2_bear_hard_release_age_bars=1000,
-            regime_router_host_managed=False,
-            regime_router_bull_sovereign_ok=False,
         ),
         gate=lambda status, data=None: gates.append(str(status)),
         now_et=datetime(2026, 2, 9, 10, 0),

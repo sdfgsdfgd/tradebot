@@ -347,43 +347,6 @@ def project_live_spot_order_journal(
         "exec_policy": "LADDER",
         "exec_mode": "OPTIMISTIC",
         "chase_orders": bool(chase_orders),
-        "regime_router_ready": bool(
-            getattr(snap, "regime_router_ready", False)
-        ),
-        "regime_router_climate": str(
-            getattr(snap, "regime_router_climate", "") or ""
-        )
-        or None,
-        "regime_router_host": str(
-            getattr(snap, "regime_router_host", "") or ""
-        )
-        or None,
-        "regime_router_entry_dir": (
-            str(getattr(snap, "regime_router_entry_dir"))
-            if getattr(snap, "regime_router_entry_dir", None) in ("up", "down")
-            else None
-        ),
-        "regime_router_host_managed": bool(
-            getattr(snap, "regime_router_host_managed", False)
-        ),
-        "regime_router_bull_sovereign_ok": bool(
-            getattr(snap, "regime_router_bull_sovereign_ok", False)
-        ),
-        "regime_router_dwell_days": (
-            int(getattr(snap, "regime_router_dwell_days", 0))
-            if getattr(snap, "regime_router_dwell_days", None) is not None
-            else 0
-        ),
-        "regime_router_crash_ret": float(
-            getattr(snap, "regime_router_crash_ret")
-        )
-        if getattr(snap, "regime_router_crash_ret", None) is not None
-        else None,
-        "regime_router_crash_maxdd": float(
-            getattr(snap, "regime_router_crash_maxdd")
-        )
-        if getattr(snap, "regime_router_crash_maxdd", None) is not None
-        else None,
     }
     for key, attr in (
         ("signal_bar_health", "bar_health"),

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import copy
 import json
-import math
 from datetime import datetime
 
 from ib_insync import Contract
@@ -318,20 +317,6 @@ class BotSignalSnapshotMixin:
                 if isinstance(getattr(snap, "shock_ramp", None), dict)
                 else None
             ),
-            regime_router_ready=bool(getattr(snap, "regime_router_ready", False)),
-            regime_router_climate=(
-                str(getattr(snap, "regime_router_climate", "") or "") or None
-            ),
-            regime_router_host=(
-                str(getattr(snap, "regime_router_host", "") or "") or None
-            ),
-            regime_router_entry_dir=(
-                str(getattr(snap, "regime_router_entry_dir", None))
-                if getattr(snap, "regime_router_entry_dir", None) in ("up", "down")
-                else None
-            ),
-            regime_router_host_managed=bool(getattr(snap, "regime_router_host_managed", False)),
-            regime_router_bull_sovereign_ok=bool(getattr(snap, "regime_router_bull_sovereign_ok", False)),
             regime2_dir=(
                 str(getattr(snap, "regime2_dir"))
                 if getattr(snap, "regime2_dir", None) in ("up", "down")
@@ -344,36 +329,6 @@ class BotSignalSnapshotMixin:
             ),
             regime4_state=str(getattr(snap, "regime4_state", "") or "") or None,
             regime4_owner=str(getattr(snap, "regime4_owner", "") or "") or None,
-            regime_router_dwell_days=(
-                int(getattr(snap, "regime_router_dwell_days", 0))
-                if getattr(snap, "regime_router_dwell_days", None) is not None
-                else None
-            ),
-            regime_router_crash_ret=(
-                float(getattr(snap, "regime_router_crash_ret"))
-                if getattr(snap, "regime_router_crash_ret", None) is not None
-                else None
-            ),
-            regime_router_crash_maxdd=(
-                float(getattr(snap, "regime_router_crash_maxdd"))
-                if getattr(snap, "regime_router_crash_maxdd", None) is not None
-                else None
-            ),
-            regime_router_crash_rv=(
-                float(getattr(snap, "regime_router_crash_rv"))
-                if getattr(snap, "regime_router_crash_rv", None) is not None
-                else None
-            ),
-            regime_router_fast_ret=(
-                float(getattr(snap, "regime_router_fast_ret"))
-                if getattr(snap, "regime_router_fast_ret", None) is not None
-                else None
-            ),
-            regime_router_slow_ret=(
-                float(getattr(snap, "regime_router_slow_ret"))
-                if getattr(snap, "regime_router_slow_ret", None) is not None
-                else None
-            ),
             bar_health=bar_health,
             regime_bar_health=regime_bar_health,
             regime2_bar_health=regime2_bar_health,
@@ -610,47 +565,9 @@ class BotSignalSnapshotMixin:
             regime2_supertrend_source_raw=regime2_supertrend_source_raw,
         )
 
-        regime_router_seed = None
-        regime_router_seed_health = None
-        if bool(strategy.get("regime_router")):
-            slow_days = self._int_from(
-                strategy.get("regime_router_slow_window_days"),
-                default=0,
-                min_value=0,
-            )
-
-            warmup_days = int(slow_days) + 5
-            if bool(use_rth) and slow_days > 0:
-                warmup_days = int(math.ceil(float(slow_days) * (7.0 / 5.0))) + 7
-            daily_duration = self._duration_for_days(max(2, int(warmup_days)))
-            _set_diag(
-                "regime_router_seed_fetch",
-                regime_router_seed_bar_size="1 day",
-                regime_router_seed_duration=str(daily_duration),
-                bar_health=self._signal_health_payload(bar_health),
-            )
-            regime_router_seed, regime_router_seed_health = await self._signal_fetch_bars(
-                contract=contract,
-                duration_str=str(daily_duration),
-                bar_size="1 day",
-                use_rth=use_rth,
-                now_ref=now_ref,
-                strict_zero_gap=False,
-                heal_if_stale=False,
-            )
-            if regime_router_seed is None or len(regime_router_seed) == 0:
-                _set_diag(
-                    "regime_router_seed_bars",
-                    regime_router_seed_bar_size="1 day",
-                    regime_router_seed_duration=str(daily_duration),
-                    bar_health=self._signal_health_payload(bar_health),
-                    regime_router_seed_health=self._signal_health_payload(regime_router_seed_health),
-                )
-
         bars_list = self._signal_series_list(bars)
         regime_bars_list = self._signal_series_list(regime_bars)
         regime2_bars_list = self._signal_series_list(regime2_bars)
-        regime_router_seed_list = self._signal_series_list(regime_router_seed)
         snapshot_key = (
             int(getattr(contract, "conId", 0) or 0),
             str(getattr(contract, "symbol", "") or "").strip().upper(),
@@ -659,7 +576,6 @@ class BotSignalSnapshotMixin:
             self._signal_series_signature(bars),
             self._signal_series_signature(regime_bars),
             self._signal_series_signature(regime2_bars),
-            self._signal_series_signature(regime_router_seed),
             self._stable_json_key(strategy),
             self._stable_json_key(filters or {}),
         )
@@ -673,7 +589,6 @@ class BotSignalSnapshotMixin:
                 bars_count=int(len(bars_list)),
                 regime_bars_count=int(len(regime_bars_list)),
                 regime2_bars_count=int(len(regime2_bars_list)),
-                regime_router_seed_count=int(len(regime_router_seed_list)),
                 bar_health=self._signal_health_payload(bar_health),
             )
             return cached_snapshot
@@ -686,7 +601,6 @@ class BotSignalSnapshotMixin:
             naive_ts_mode="et",
             regime_bars=regime_bars,
             regime2_bars=regime2_bars,
-            regime_router_seed_days=regime_router_seed,
         )
 
         _set_diag(
@@ -694,11 +608,9 @@ class BotSignalSnapshotMixin:
             bars_count=int(len(bars_list)),
             regime_bars_count=int(len(regime_bars_list)),
             regime2_bars_count=int(len(regime2_bars_list)),
-            regime_router_seed_count=int(len(regime_router_seed_list)),
             bar_health=self._signal_health_payload(bar_health),
             regime_bar_health=self._signal_health_payload(regime_health),
             regime2_bar_health=self._signal_health_payload(regime2_health),
-            regime_router_seed_health=self._signal_health_payload(regime_router_seed_health),
         )
         last_snap = self._signal_eval_last_snapshot(evaluator=evaluator, bars=bars_list)
         if last_snap is None:
@@ -718,15 +630,6 @@ class BotSignalSnapshotMixin:
                 signal_state=str(last_snap.signal.state or ""),
                 entry_dir=str(last_snap.signal.entry_dir or ""),
                 regime_dir=str(last_snap.signal.regime_dir or ""),
-                bar_health=self._signal_health_payload(bar_health),
-            )
-            return None
-
-        if bool(strategy.get("regime_router")) and not bool(getattr(last_snap, "regime_router_ready", False)):
-            _set_diag(
-                "regime_router_not_ready",
-                bars_count=int(len(bars_list)),
-                min_duration_str=str(min_duration_str) if min_duration_str is not None else None,
                 bar_health=self._signal_health_payload(bar_health),
             )
             return None
@@ -763,11 +666,9 @@ class BotSignalSnapshotMixin:
             bars_count=int(len(bars_list)),
             regime_bars_count=int(len(regime_bars_list)),
             regime2_bars_count=int(len(regime2_bars_list)),
-            regime_router_seed_count=int(len(regime_router_seed_list)),
             bar_health=self._signal_health_payload(bar_health),
             regime_bar_health=self._signal_health_payload(regime_health),
             regime2_bar_health=self._signal_health_payload(regime2_health),
-            regime_router_seed_health=self._signal_health_payload(regime_router_seed_health),
             bar_ts=last_snap.bar_ts.isoformat() if isinstance(last_snap.bar_ts, datetime) else None,
         )
         snapshot = self._signal_snapshot_from_eval(

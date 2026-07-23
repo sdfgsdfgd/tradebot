@@ -139,21 +139,6 @@ class SpotSignalRuntimeMixin:
         entry_dir_for_entries = selection.candidate.direction
         entry_branch = selection.candidate.branch
 
-        router_snap = self._regime_router.update_bar(
-            ts=str(bar.ts.isoformat()),
-            open=float(bar.open),
-            high=float(bar.high),
-            low=float(bar.low),
-            close=float(bar.close),
-            hf_entry_dir=str(entry_dir_for_entries) if entry_dir_for_entries in ("up", "down") else None,
-        )
-        if bool(self._regime_router_cfg.enabled):
-            entry_dir_for_entries = (
-                str(router_snap.effective_entry_dir) if router_snap.effective_entry_dir in ("up", "down") else None
-            )
-            if str(router_snap.chosen_host or "") != "hf_host":
-                entry_branch = None
-
         shock_atr_vel_pct = None
         shock_atr_accel_pct = None
         if shock_atr_pct is not None:
@@ -235,7 +220,6 @@ class SpotSignalRuntimeMixin:
                 shock_atr_pct=shock_atr_pct,
                 shock_dir_ret_sum_pct=shock_dir_ret_sum_pct,
                 shock_drawdown_dist_on_vel_pp=shock_drawdown_dist_on_vel_pp,
-                router=router_snap,
             ),
         )
         entry_dir_for_entries, entry_branch = candidate.direction, candidate.branch
@@ -550,32 +534,6 @@ class SpotSignalRuntimeMixin:
             shock_atr_vel_pct=float(shock_atr_vel_pct) if shock_atr_vel_pct is not None else None,
             shock_atr_accel_pct=float(shock_atr_accel_pct) if shock_atr_accel_pct is not None else None,
             shock_ramp=shock_ramp,
-            regime_router_ready=bool(router_snap.ready),
-            regime_router_climate=str(router_snap.climate) if router_snap.climate else None,
-            regime_router_host=str(router_snap.chosen_host) if router_snap.chosen_host else None,
-            regime_router_entry_dir=(
-                str(router_snap.effective_entry_dir) if router_snap.effective_entry_dir in ("up", "down") else None
-            ),
-            regime_router_host_managed=bool(router_snap.host_managed),
-            regime_router_bull_sovereign_ok=bool(router_snap.bull_sovereign_ok),
-            regime_router_dwell_days=int(getattr(router_snap, "dwell_days", 0) or 0),
-            regime_router_crash_ret=(
-                float(getattr(router_snap, "crash_ret", None)) if getattr(router_snap, "crash_ret", None) is not None else None
-            ),
-            regime_router_crash_maxdd=(
-                float(getattr(router_snap, "crash_maxdd", None))
-                if getattr(router_snap, "crash_maxdd", None) is not None
-                else None
-            ),
-            regime_router_crash_rv=(
-                float(getattr(router_snap, "crash_rv", None)) if getattr(router_snap, "crash_rv", None) is not None else None
-            ),
-            regime_router_fast_ret=(
-                float(getattr(router_snap, "fast_ret", None)) if getattr(router_snap, "fast_ret", None) is not None else None
-            ),
-            regime_router_slow_ret=(
-                float(getattr(router_snap, "slow_ret", None)) if getattr(router_snap, "slow_ret", None) is not None else None
-            ),
             regime=regime,
         )
         self._last_signal = signal

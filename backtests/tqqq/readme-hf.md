@@ -27,11 +27,11 @@ Canonical execution paths:
 
 Historical `spot_multitimeframe` commands below remain provenance, not current CLI examples.
 
-## Climate Router Log
+## Archived Climate Router Log
 
-- `regime_router` is now the top-level opt-in contract for host routing.
-- Current central implementation lives in `tradebot/climate_router.py`.
-- This is intentionally above the HF host line; it exists to stop forcing one host to trade every climate.
+- `regime_router` was an experimental host-switching contract and is no longer execution authority.
+- Its classifier and receipts remain in `tradebot/climate_router.py` and this log as research evidence.
+- Live and backtest execution now remain loyal to the explicitly selected strategy.
 
 ### Router v1
 - First prototype insight only:
@@ -130,9 +130,9 @@ Historical `spot_multitimeframe` commands below remain provenance, not current C
 - Status:
   - policy remains interpretable and knob-light (no new strategy knobs; one rule change)
 
-## Current Champions (stack)
+## Champion lineage
 
-### CURRENT (v50) — Router-On Composite Context Confidence; router-aware crash sensitivity (live preset)
+### ARCHIVED (v50) — Router-On Composite Context Confidence; climate-router research
 
 - Delta vs `v49`:
   - in `tradebot/spot_engine.py`:
@@ -140,7 +140,7 @@ Historical `spot_multitimeframe` commands below remain provenance, not current C
       tighten the crash ATR threshold slightly to exit earlier in correction→crash sequences (April-2024)
   - in `tradebot/climate_router.py`:
     - expose router crash/fast/slow probes on `RegimeRouterSnapshot` (no-lookahead; computed from completed daily bars)
-- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v50_routerOnCompositeContextConfidence_20260406.json`
+- Preset file (research archive): `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v50_routerOnCompositeContextConfidence_20260406.json`
 - Universal-floor floor (min `2020..2025` pnl/dd): **0.328**
 - `2020` (`2020-01-01 -> 2021-01-01`): trades **298**, pnl **26,104.1**, dd **13,431.6**, pnl/dd **1.943**
 - `2021` (`2021-01-01 -> 2022-01-01`): trades **20**, pnl **6,216.6**, dd **18,978.3**, pnl/dd **0.328**
@@ -246,7 +246,7 @@ Historical `spot_multitimeframe` commands below remain provenance, not current C
 - `2025` (`2025-01-01 -> 2026-01-19`): trades **248**, pnl **18,707.6**, dd **10,802.7**, pnl/dd **1.732**
 - Underlying HF host (router-off): `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v43_compositeContextConfidence_20260319.json`
 
-### PREVIOUS (v43) — Composite Context Confidence; canonical-cache reigning organism over the `2020..2025` universal-floor contract
+### CURRENT (v43) — Composite Context Confidence; selected-strategy sovereign live preset
 
 - Delta vs `v42`:
   - Keep the all-green `v42` organism intact.

@@ -406,8 +406,6 @@ class BotSignalRuntimeMixin:
                 stage = str(diag_dict.get("stage") or "").strip()
                 if stage in ("ok", "snapshot_cache_hit") and (not preflight_ready or degraded_streams):
                     if not bool(getattr(instance, "prewarm_wait_logged", False)):
-                        seed_health = diag_dict.get("regime_router_seed_health")
-                        seed_count = diag_dict.get("regime_router_seed_count")
                         payload = dict(preflight_payload)
                         payload.update(
                             {
@@ -426,18 +424,6 @@ class BotSignalRuntimeMixin:
                                 "regime2_bear_hard_dir": getattr(snap, "regime2_bear_hard_dir", None),
                                 "regime4_owner": getattr(snap, "regime4_owner", None),
                                 "regime4_state": getattr(snap, "regime4_state", None),
-                                "regime_router_ready": bool(getattr(snap, "regime_router_ready", False)),
-                                "regime_router_host": getattr(snap, "regime_router_host", None),
-                                "regime_router_climate": getattr(snap, "regime_router_climate", None),
-                                "regime_router_entry_dir": getattr(snap, "regime_router_entry_dir", None),
-                                "regime_router_dwell_days": getattr(snap, "regime_router_dwell_days", None),
-                                "regime_router_crash_ret": getattr(snap, "regime_router_crash_ret", None),
-                                "regime_router_crash_maxdd": getattr(snap, "regime_router_crash_maxdd", None),
-                                "regime_router_crash_rv": getattr(snap, "regime_router_crash_rv", None),
-                                "regime_router_fast_ret": getattr(snap, "regime_router_fast_ret", None),
-                                "regime_router_slow_ret": getattr(snap, "regime_router_slow_ret", None),
-                                "regime_router_seed_count": int(seed_count) if seed_count is not None else None,
-                                "regime_router_seed_health": dict(seed_health) if isinstance(seed_health, dict) else None,
                                 "filter_checks": signal_filter_checks_preview,
                                 "failed_filters": failed_filters_preview,
                                 "degraded_streams": degraded_streams,
@@ -446,8 +432,6 @@ class BotSignalRuntimeMixin:
                         self._journal_write(event="GATE", instance=instance, reason="PREWARM_WAIT", data=payload)
                         instance.prewarm_wait_logged = True
                 if preflight_ready and not degraded_streams and stage in ("ok", "snapshot_cache_hit"):
-                    seed_health = diag_dict.get("regime_router_seed_health")
-                    seed_count = diag_dict.get("regime_router_seed_count")
                     payload = dict(preflight_payload)
                     payload.update(
                         {
@@ -466,18 +450,6 @@ class BotSignalRuntimeMixin:
                             "regime2_bear_hard_dir": getattr(snap, "regime2_bear_hard_dir", None),
                             "regime4_owner": getattr(snap, "regime4_owner", None),
                             "regime4_state": getattr(snap, "regime4_state", None),
-                            "regime_router_ready": bool(getattr(snap, "regime_router_ready", False)),
-                            "regime_router_host": getattr(snap, "regime_router_host", None),
-                            "regime_router_climate": getattr(snap, "regime_router_climate", None),
-                            "regime_router_entry_dir": getattr(snap, "regime_router_entry_dir", None),
-                            "regime_router_dwell_days": getattr(snap, "regime_router_dwell_days", None),
-                            "regime_router_crash_ret": getattr(snap, "regime_router_crash_ret", None),
-                            "regime_router_crash_maxdd": getattr(snap, "regime_router_crash_maxdd", None),
-                            "regime_router_crash_rv": getattr(snap, "regime_router_crash_rv", None),
-                            "regime_router_fast_ret": getattr(snap, "regime_router_fast_ret", None),
-                            "regime_router_slow_ret": getattr(snap, "regime_router_slow_ret", None),
-                            "regime_router_seed_count": int(seed_count) if seed_count is not None else None,
-                            "regime_router_seed_health": dict(seed_health) if isinstance(seed_health, dict) else None,
                             "filter_checks": signal_filter_checks_preview,
                             "failed_filters": failed_filters_preview,
                         }
@@ -756,10 +728,6 @@ class BotSignalRuntimeMixin:
                         "rv": snap.rv,
                         "regime4_owner": getattr(snap, "regime4_owner", None),
                         "regime4_state": getattr(snap, "regime4_state", None),
-                        "regime_router_ready": bool(getattr(snap, "regime_router_ready", False)),
-                        "regime_router_climate": getattr(snap, "regime_router_climate", None),
-                        "regime_router_host": getattr(snap, "regime_router_host", None),
-                        "regime_router_entry_dir": getattr(snap, "regime_router_entry_dir", None),
                         "degraded_streams": degraded_regime_streams,
                         "regime_bar_health": regime_bar_health,
                         "regime2_bar_health": regime2_bar_health,
@@ -2268,7 +2236,6 @@ class BotSignalRuntimeMixin:
 
             target_price = instance.spot_profit_target_price
             stop_price = instance.spot_stop_loss_price
-            router_host_managed = bool(getattr(snap, "regime_router_host_managed", False))
 
             try:
                 pt = (
@@ -2330,7 +2297,6 @@ class BotSignalRuntimeMixin:
             intrabar_enabled = bool(runtime_spec.intrabar_exits)
             if (
                 pos
-                and not router_host_managed
                 and intrabar_enabled
                 and exec_bar_open is not None
                 and exec_bar_high is not None
@@ -2373,7 +2339,6 @@ class BotSignalRuntimeMixin:
 
             if (
                 pos
-                and not router_host_managed
                 and market_price is not None
                 and market_price > 0
                 and (stop_level is not None or profit_level is not None)
@@ -2417,36 +2382,35 @@ class BotSignalRuntimeMixin:
                             )
 
             exit_candidates: dict[str, bool] = {}
-            if not router_host_managed:
-                exit_candidates["ratsv_probe_cancel"] = bool(
-                    self._spot_ratsv_probe_cancel_hit(
-                        instance=instance,
-                        pos=pos,
-                        held_bars=int(held_bars),
-                        entry_branch=entry_branch,
-                        tr_ratio=ratsv_tr_ratio,
-                        slope_med=ratsv_slope_med,
-                    )
+            exit_candidates["ratsv_probe_cancel"] = bool(
+                self._spot_ratsv_probe_cancel_hit(
+                    instance=instance,
+                    pos=pos,
+                    held_bars=int(held_bars),
+                    entry_branch=entry_branch,
+                    tr_ratio=ratsv_tr_ratio,
+                    slope_med=ratsv_slope_med,
                 )
-                exit_candidates["ratsv_adverse_release"] = bool(
-                    self._spot_ratsv_adverse_release_hit(
-                        instance=instance,
-                        pos=pos,
-                        held_bars=int(held_bars),
-                        tr_ratio=ratsv_tr_ratio,
-                        slope_med=ratsv_slope_med,
-                        slope_vel=ratsv_slope_vel,
-                    )
+            )
+            exit_candidates["ratsv_adverse_release"] = bool(
+                self._spot_ratsv_adverse_release_hit(
+                    instance=instance,
+                    pos=pos,
+                    held_bars=int(held_bars),
+                    tr_ratio=ratsv_tr_ratio,
+                    slope_med=ratsv_slope_med,
+                    slope_vel=ratsv_slope_vel,
                 )
+            )
 
-                exit_time = parse_time_hhmm(instance.strategy.get("spot_exit_time_et"))
-                if exit_time is not None and now_et.time() >= exit_time:
-                    exit_candidates["exit_time"] = True
+            exit_time = parse_time_hhmm(instance.strategy.get("spot_exit_time_et"))
+            if exit_time is not None and now_et.time() >= exit_time:
+                exit_candidates["exit_time"] = True
 
-                if bool(instance.strategy.get("spot_close_eod")) and (
-                    now_et.hour > 15 or now_et.hour == 15 and now_et.minute >= 55
-                ):
-                    exit_candidates["close_eod"] = True
+            if bool(instance.strategy.get("spot_close_eod")) and (
+                now_et.hour > 15 or now_et.hour == 15 and now_et.minute >= 55
+            ):
+                exit_candidates["close_eod"] = True
 
             exit_candidates["flip"] = bool(self._should_exit_on_flip(instance, snap, open_dir, open_items))
 
@@ -2731,8 +2695,6 @@ class BotSignalRuntimeMixin:
             slope_vel_slow_pct=float(getattr(snap, "ratsv_slow_slope_vel_pct", 0.0))
             if getattr(snap, "ratsv_slow_slope_vel_pct", None) is not None
             else None,
-            entry_gate_bypass=bool(getattr(snap, "regime_router_host_managed", False))
-            or bool(getattr(snap, "regime_router_bull_sovereign_ok", False)),
         )
         if decision.intent != "enter":
             payload = {

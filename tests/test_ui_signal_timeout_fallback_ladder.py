@@ -59,7 +59,7 @@ def test_signal_duration_str_starts_at_floor_for_daily_shock() -> None:
     assert screen._signal_duration_str("10 mins", filters=filters) == "1 M"
 
 
-def test_signal_duration_str_does_not_inflate_for_regime_router() -> None:
+def test_signal_duration_str_ignores_legacy_router_metadata() -> None:
     screen = _screen()
     strategy = {
         "regime_router": True,
@@ -68,15 +68,9 @@ def test_signal_duration_str_does_not_inflate_for_regime_router() -> None:
     assert screen._signal_duration_str("5 mins", strategy=strategy, use_rth=True) == "1 W"
 
 
-def test_signal_strategy_payload_preserves_router_and_unknown_fields() -> None:
+def test_signal_strategy_payload_preserves_unknown_transport_fields() -> None:
     screen = _screen()
     base_strategy = {
-        "regime_router": True,
-        "regime_router_fast_window_days": 63,
-        "regime_router_slow_window_days": 84,
-        "regime_router_min_dwell_days": 10,
-        "regime_router_bull_sovereign_on_confirm_days": 1,
-        "regime_router_bull_sovereign_off_confirm_days": 7,
         "custom_transport_key": "keep_me",
     }
     payload = screen._signal_strategy_payload(
@@ -113,8 +107,6 @@ def test_signal_strategy_payload_preserves_router_and_unknown_fields() -> None:
         regime2_supertrend_source_raw=None,
     )
     assert payload.get("custom_transport_key") == "keep_me"
-    assert payload.get("regime_router") is True
-    assert payload.get("regime_router_bull_sovereign_off_confirm_days") == 7
 
 
 class _FallbackClient:
@@ -250,7 +242,7 @@ def test_signal_snapshot_regime2_off_does_not_require_regime2_bars() -> None:
     assert snap is not None
 
 
-def test_signal_snapshot_regime_router_seeds_daily_and_keeps_intraday_short() -> None:
+def test_signal_snapshot_ignores_legacy_router_daily_seed_request() -> None:
     client = _SnapshotClient(daily_bars=160, intraday_bars=90)
     screen = _screen_with_client(client)
     contract = Stock("TQQQ", "SMART", "USD")
@@ -277,7 +269,7 @@ def test_signal_snapshot_regime_router_seeds_daily_and_keeps_intraday_short() ->
 
     assert snap is not None
     assert ("1 W", "5 mins") in client.calls
-    assert ("6 M", "1 day") in client.calls
+    assert not any(bar_size == "1 day" for _, bar_size in client.calls)
 
 
 def test_signal_fetch_bars_fallback_prefers_1m_before_1w() -> None:

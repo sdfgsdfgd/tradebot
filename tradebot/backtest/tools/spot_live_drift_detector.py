@@ -5,7 +5,6 @@ This tool is meant to run shortly after a live session (nightly / post-close):
 - For each ORDER_STAGED row, it extracts the live signal snapshot fields embedded in `order_journal`.
 - It replays SpotSignalEvaluator on IBKR historical bars (same bar_size/use_rth + the recorded duration/source),
   and diffs the key discrete decision surfaces:
-    - regime-router host/climate/dir (+ dwell)
     - regime4_state / hard_dir
     - entry_dir (including entry_dir=None "flat" blocks)
 
@@ -20,7 +19,6 @@ import argparse
 import asyncio
 import csv
 import json
-import math
 import time
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -105,19 +103,6 @@ def _bar_close_ts(bar_ts: datetime, bar_size: str) -> datetime:
     return bar_ts + parsed.duration
 
 
-def _duration_for_days(days_needed: int) -> str:
-    days = max(0, int(days_needed))
-    if days <= 25:
-        return "1 M"
-    if days <= 50:
-        return "2 M"
-    if days <= 95:
-        return "3 M"
-    if days <= 180:
-        return "6 M"
-    return "1 Y"
-
-
 def _probe_from_snap(snap: SpotSignalSnapshot) -> dict[str, object]:
     return {
         "bar_ts": snap.bar_ts.isoformat(),
@@ -129,23 +114,6 @@ def _probe_from_snap(snap: SpotSignalSnapshot) -> dict[str, object]:
         "hard_dir": (
             str(snap.regime2_bear_hard_dir) if snap.regime2_bear_hard_dir in ("up", "down") else None
         ),
-        "router_ready": bool(getattr(snap, "regime_router_ready", False)),
-        "router_climate": str(getattr(snap, "regime_router_climate", "") or "") or None,
-        "router_host": str(getattr(snap, "regime_router_host", "") or "") or None,
-        "router_entry_dir": (
-            str(getattr(snap, "regime_router_entry_dir", None))
-            if getattr(snap, "regime_router_entry_dir", None) in ("up", "down")
-            else None
-        ),
-        "router_host_managed": bool(getattr(snap, "regime_router_host_managed", False)),
-        "router_bull_ok": bool(getattr(snap, "regime_router_bull_sovereign_ok", False)),
-        "router_dwell_days": int(getattr(snap, "regime_router_dwell_days", 0) or 0),
-        "router_crash_ret": float(getattr(snap, "regime_router_crash_ret"))
-        if getattr(snap, "regime_router_crash_ret", None) is not None
-        else None,
-        "router_crash_maxdd": float(getattr(snap, "regime_router_crash_maxdd"))
-        if getattr(snap, "regime_router_crash_maxdd", None) is not None
-        else None,
     }
 
 
@@ -158,19 +126,6 @@ def _probe_from_live_order_journal(order_journal: dict[str, object]) -> dict[str
         "shock_atr_pct": order_journal.get("shock_atr_pct"),
         "regime4_state": order_journal.get("regime4_state") if order_journal.get("regime4_state") else None,
         "hard_dir": order_journal.get("hard_dir") if order_journal.get("hard_dir") in ("up", "down") else None,
-        "router_ready": bool(order_journal.get("regime_router_ready", False)),
-        "router_climate": str(order_journal.get("regime_router_climate", "") or "") or None,
-        "router_host": str(order_journal.get("regime_router_host", "") or "") or None,
-        "router_entry_dir": (
-            str(order_journal.get("regime_router_entry_dir", None))
-            if order_journal.get("regime_router_entry_dir", None) in ("up", "down")
-            else None
-        ),
-        "router_host_managed": bool(order_journal.get("regime_router_host_managed", False)),
-        "router_bull_ok": bool(order_journal.get("regime_router_bull_sovereign_ok", False)),
-        "router_dwell_days": int(order_journal.get("regime_router_dwell_days", 0) or 0),
-        "router_crash_ret": order_journal.get("regime_router_crash_ret"),
-        "router_crash_maxdd": order_journal.get("regime_router_crash_maxdd"),
     }
 
 
@@ -180,13 +135,6 @@ def _diff_keys(*, live: dict[str, object], replay: dict[str, object]) -> list[st
         "entry_branch",
         "regime4_state",
         "hard_dir",
-        "router_ready",
-        "router_climate",
-        "router_host",
-        "router_entry_dir",
-        "router_host_managed",
-        "router_bull_ok",
-        "router_dwell_days",
     ]
     diffs: list[str] = []
     for k in keys:
@@ -330,7 +278,6 @@ async def main_async(argv: list[str] | None = None) -> int:
         bar_size = str(strategy.get("signal_bar_size") or "5 mins").strip() or "5 mins"
         use_rth = bool(strategy.get("signal_use_rth", True))
         signal_end_ts = _bar_close_ts(bar_ts, bar_size)
-        use_regime_router = bool(strategy.get("regime_router"))
 
         _regime_mode, _regime_preset, regime_bar_size, use_mtf_regime = resolve_spot_regime_spec(
             bar_size=bar_size,
@@ -380,31 +327,10 @@ async def main_async(argv: list[str] | None = None) -> int:
             what_to_show=_pick_source(regime2_health, fallback=str(sig_spec.what_to_show)),
         )
 
-        seed_spec = None
-        seed_key = None
-        if use_regime_router:
-            slow_days_raw = strategy.get("regime_router_slow_window_days")
-            try:
-                slow_days = int(slow_days_raw) if slow_days_raw is not None else 0
-            except (TypeError, ValueError):
-                slow_days = 0
-            slow_days = max(0, int(slow_days))
-            warmup_days = int(slow_days) + 5
-            if bool(use_rth) and slow_days > 0:
-                warmup_days = int(math.ceil(float(slow_days) * (7.0 / 5.0))) + 7
-            seed_spec = ReplaySpec(
-                bar_size="1 day",
-                use_rth=bool(use_rth),
-                duration_str=_duration_for_days(max(2, int(warmup_days))),
-                what_to_show="TRADES",
-            )
-            seed_key = _spec_key(seed_spec)
-
         for spec in (
             sig_spec,
             reg_spec if bool(use_mtf_regime) else None,
             reg2_spec if bool(use_mtf_regime2) else None,
-            seed_spec,
         ):
             if spec is None:
                 continue
@@ -424,15 +350,12 @@ async def main_async(argv: list[str] | None = None) -> int:
                 "use_rth": use_rth,
                 "use_mtf_regime": bool(use_mtf_regime),
                 "use_mtf_regime2": bool(use_mtf_regime2),
-                "use_regime_router": bool(use_regime_router),
                 "sig_spec": sig_spec,
                 "reg_spec": reg_spec,
                 "reg2_spec": reg2_spec,
-                "seed_spec": seed_spec,
                 "sig_key": _spec_key(sig_spec),
                 "reg_key": _spec_key(reg_spec),
                 "reg2_key": _spec_key(reg2_spec),
-                "seed_key": seed_key,
             }
         )
 
@@ -471,16 +394,13 @@ async def main_async(argv: list[str] | None = None) -> int:
         use_rth = bool(item.get("use_rth", True))
         use_mtf_regime = bool(item.get("use_mtf_regime", False))
         use_mtf_regime2 = bool(item.get("use_mtf_regime2", False))
-        use_regime_router = bool(item.get("use_regime_router", False))
         signal_end_ts = item.get("signal_end_ts") if isinstance(item.get("signal_end_ts"), datetime) else None
         sig_spec = item.get("sig_spec")
         reg_spec = item.get("reg_spec")
         reg2_spec = item.get("reg2_spec")
-        seed_spec = item.get("seed_spec")
         sig_key = item.get("sig_key")
         reg_key = item.get("reg_key")
         reg2_key = item.get("reg2_key")
-        seed_key = item.get("seed_key")
         if not isinstance(strategy, dict) or not isinstance(sig_spec, ReplaySpec) or not isinstance(sig_key, tuple):
             continue
 
@@ -524,22 +444,6 @@ async def main_async(argv: list[str] | None = None) -> int:
             if bool(use_mtf_regime2) and isinstance(reg2_spec, ReplaySpec) and isinstance(reg2_key, tuple)
             else None
         )
-        regime_router_seed_days = (
-            await _fetch_bars_trimmed(
-                client=client,
-                contract=contract,
-                spec=seed_spec,
-                request_end_ts=(max_end_ts_by_key.get(seed_key) or request_end_ts),
-                now_ref=signal_end_ts,
-                trim_end_ts=bar_ts,
-                cache=cache,
-            )
-            if bool(use_regime_router) and isinstance(seed_spec, ReplaySpec) and isinstance(seed_key, tuple)
-            else None
-        )
-        if isinstance(regime_router_seed_days, list) and len(regime_router_seed_days) == 0:
-            regime_router_seed_days = None
-
         evaluator = SpotSignalEvaluator(
             strategy=strategy,
             filters=filters,
@@ -548,7 +452,6 @@ async def main_async(argv: list[str] | None = None) -> int:
             naive_ts_mode="et",
             regime_bars=regime_bars,
             regime2_bars=regime2_bars,
-            regime_router_seed_days=regime_router_seed_days,
         )
         replay_snap = _eval_last_snapshot(evaluator=evaluator, bars=sig_bars)
         dt = time.time() - t0
