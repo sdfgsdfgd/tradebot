@@ -17,6 +17,8 @@ from tradebot.chart_data.history import (
 from tradebot.backtest.data import IBKRHistoricalData
 from tradebot.backtest.models import Bar
 from tradebot.research.spot_sweeps.market import SweepMarketData
+from tradebot.research.spot_sweeps.cli import parse_spot_sweep_args
+from tradebot.research.spot_sweeps.runtime import SpotSweepRuntime
 from tradebot.research.spot_sweeps.support import _require_offline_cache_or_die
 
 
@@ -153,6 +155,45 @@ def test_rth_four_hour_coverage_allows_early_close_without_full_bar(tmp_path) ->
     assert resolved == path
     assert missing == []
     assert error is None
+
+
+def test_combo_parallel_worker_forces_strict_cache_policy(tmp_path) -> None:
+    day = date(2025, 1, 2)
+    path = cache_path(
+        tmp_path,
+        "SLV",
+        datetime.combine(day, time(0, 0)),
+        datetime.combine(day, time(23, 59)),
+        "1 day",
+        False,
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    write_cache(path, [_bar(datetime.combine(day, time(0, 0)), 10.0)])
+    args = parse_spot_sweep_args(
+        [
+            "--symbol",
+            "SLV",
+            "--start",
+            day.isoformat(),
+            "--end",
+            day.isoformat(),
+            "--cache-dir",
+            str(tmp_path),
+            "--offline",
+            "--cache-policy",
+            "auto",
+            "--combo-full-cartesian-worker",
+            "0",
+        ]
+    )
+
+    runtime = SpotSweepRuntime(args)
+    try:
+        assert runtime.cache_policy == "strict"
+    finally:
+        runtime.data.disconnect()
+        if runtime.run_cfg_persistent_conn is not None:
+            runtime.run_cfg_persistent_conn.close()
 
 
 def test_sweeps_offline_preflight_auto_resamples_from_finer_cache(tmp_path) -> None:

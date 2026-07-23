@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time as pytime
+from collections.abc import Iterable
 from datetime import datetime, timedelta
 from ...backtest.config import (
     ConfigBundle,
@@ -103,6 +104,32 @@ class SweepMarketData:
             key_fn=lambda key, _row, _note: key,
         )
         return [key for key, _row, _note in ranked]
+
+    def _preflight_offline_requirements(
+        self,
+        requirements: Iterable[SpotBarRequirement],
+        *,
+        start_dt: datetime,
+        end_dt: datetime,
+        honor_warmup: bool = False,
+    ) -> None:
+        unique: dict[tuple[object, ...], SpotBarRequirement] = {}
+        for req in requirements:
+            key = (req.symbol, req.exchange, req.bar_size, req.use_rth)
+            if key not in unique or req.warmup_days > unique[key].warmup_days:
+                unique[key] = req
+        for req in unique.values():
+            _require_offline_cache_or_die(
+                data=self.data,
+                cache_dir=self.cache_dir,
+                symbol=req.symbol,
+                exchange=req.exchange,
+                start_dt=start_dt - timedelta(days=req.warmup_days if honor_warmup else 0),
+                end_dt=end_dt,
+                bar_size=req.bar_size,
+                use_rth=req.use_rth,
+                cache_policy=self.cache_policy,
+            )
 
     def _bars(self, bar_size: str) -> list:
         if self.offline:
