@@ -8,10 +8,9 @@ from ..order_reservation import (
 )
 
 import asyncio
-import math
-from datetime import date, datetime
+from datetime import datetime
 
-from ib_insync import Contract, Option, Stock, Ticker
+from ib_insync import Contract, Stock, Ticker
 
 from ..engine import normalize_spot_entry_signal, spot_resolve_entry_action_qty, spot_runtime_spec_view
 from ..engines.execution import (
@@ -21,60 +20,17 @@ from ..engines.execution import (
     _sanitize_nbbo,
     _tick_size,
 )
-from ..live.options import QualifiedOptionLeg, quote_live_option_package
-from ..option_package import (
-    normalize_option_legs,
-    option_package_entry_intent,
+from ..live.options import (
+    QualifiedOptionLeg,
+    normalize_option_position_close,
+    quote_live_option_order,
+    resolve_live_option_entry,
 )
+from ..option_package import option_package_entry_intent
 from ..spot.lifecycle import decide_open_position_intent
 from ..time_utils import now_et as _now_et
 from ..time_utils import now_et_naive as _now_et_naive
-from ..utils.date_utils import add_business_days
 from .bot_models import _BotInstance, _BotOrder
-from .common import (
-    _safe_num,
-    _ticker_price,
-)
-
-
-def _pick_chain_expiry(today: date, dte: int, expirations: list[str]) -> str | None:
-    if not expirations:
-        return None
-    target = add_business_days(today, dte)
-    parsed: list[tuple[date, str]] = []
-    for exp in expirations:
-        dt = _parse_chain_date(exp)
-        if dt:
-            parsed.append((dt, exp))
-    if not parsed:
-        return None
-    future = [(dt, exp) for dt, exp in parsed if dt >= target]
-    candidates = future or parsed
-    candidates.sort(key=lambda pair: abs((pair[0] - target).days))
-    return candidates[0][1]
-
-
-def _parse_chain_date(raw: str) -> date | None:
-    raw = str(raw).strip()
-    if len(raw) != 8 or not raw.isdigit():
-        return None
-    return date(int(raw[:4]), int(raw[4:6]), int(raw[6:8]))
-
-
-def _strike_from_moneyness(spot: float, right: str, moneyness_pct: float) -> float:
-    # Negative moneyness means ITM (e.g., -1 = 1% ITM).
-    if right == "PUT":
-        return spot * (1 - moneyness_pct / 100.0)
-    return spot * (1 + moneyness_pct / 100.0)
-
-
-def _nearest_strike(strikes: list[float], target: float) -> float | None:
-    if not strikes:
-        return None
-    try:
-        return min((float(s) for s in strikes), key=lambda s: abs(s - target))
-    except (TypeError, ValueError):
-        return None
 
 
 class BotOrderBuilderMixin:
@@ -92,93 +48,6 @@ class BotOrderBuilderMixin:
         if retry_count >= 1:
             return "MID"
         return mode
-
-    async def _strike_by_delta(
-        self,
-        *,
-        symbol: str,
-        expiry: str,
-        right_char: str,
-        strikes: list[float],
-        trading_class: str | None,
-        near_strike: float,
-        target_delta: float,
-    ) -> float | None:
-        try:
-            target = abs(float(target_delta))
-        except (TypeError, ValueError):
-            return None
-        if not math.isfinite(target) or target <= 0 or target > 1:
-            return None
-        try:
-            strike_values = sorted(float(s) for s in strikes)
-        except (TypeError, ValueError):
-            return None
-        if not strike_values:
-            return None
-        center_idx = min(
-            range(len(strike_values)), key=lambda idx: abs(strike_values[idx] - near_strike)
-        )
-        window = strike_values[max(center_idx - 10, 0) : center_idx + 11]
-        if not window:
-            return None
-
-        candidates = [
-            Option(
-                symbol=symbol,
-                lastTradeDateOrContractMonth=expiry,
-                strike=float(strike),
-                right=right_char,
-                exchange="SMART",
-                currency="USD",
-                tradingClass=trading_class,
-            )
-            for strike in window
-        ]
-        qualified = await self._client.qualify_proxy_contracts(*candidates)
-        if qualified and len(qualified) == len(candidates):
-            contracts: list[Contract] = list(qualified)
-        else:
-            contracts = list(candidates)
-
-        best_strike: float | None = None
-        best_diff: float | None = None
-        for contract, strike in zip(contracts, window):
-            con_id = int(getattr(contract, "conId", 0) or 0)
-            if con_id:
-                self._tracked_conids.add(con_id)
-            ticker = await self._client.ensure_ticker(contract, owner="bot")
-            delta = None
-            for _ in range(6):
-                for attr in ("modelGreeks", "bidGreeks", "askGreeks", "lastGreeks"):
-                    greeks = getattr(ticker, attr, None)
-                    if greeks is not None:
-                        raw = getattr(greeks, "delta", None)
-                        if raw is not None:
-                            try:
-                                delta = float(raw)
-                            except (TypeError, ValueError):
-                                delta = None
-                            break
-                if delta is not None:
-                    break
-                await asyncio.sleep(0.05)
-            if delta is None:
-                continue
-            diff = abs(abs(delta) - target)
-            if best_diff is None or diff < best_diff:
-                best_diff = diff
-                best_strike = float(strike)
-
-        # Avoid keeping a large number of quote subscriptions just to pick strike.
-        for contract, strike in zip(contracts, window):
-            if best_strike is not None and float(strike) == best_strike:
-                continue
-            con_id = int(getattr(contract, "conId", 0) or 0)
-            if con_id:
-                self._client.release_ticker(con_id, owner="bot")
-                self._tracked_conids.discard(con_id)
-        return best_strike
 
     async def _create_order_for_instance_exit(
         self,
@@ -272,35 +141,35 @@ class BotOrderBuilderMixin:
         if qualified:
             underlying = qualified[0]
 
-        leg_orders: list[QualifiedOptionLeg] = []
+        try:
+            leg_orders, package_quantity = normalize_option_position_close(
+                tuple(
+                    (item.contract, getattr(item, "position", 0.0))
+                    for item in open_items
+                )
+            )
+        except ValueError as exc:
+            return fail(f"Exit: {exc}")
+
         leg_quotes: list[tuple[float | None, float | None, float | None, Ticker]] = []
-        for item in open_items:
-            contract = item.contract
-            try:
-                pos = float(getattr(item, "position", 0.0) or 0.0)
-            except (TypeError, ValueError):
-                continue
-            if not pos:
-                continue
-            ratio = int(abs(pos))
-            if ratio <= 0:
-                continue
-            action = "SELL" if pos > 0 else "BUY"
-            con_id = int(getattr(contract, "conId", 0) or 0)
+        for leg in leg_orders:
+            con_id = int(getattr(leg.contract, "conId", 0) or 0)
             if con_id:
                 self._tracked_conids.add(con_id)
-            ticker = await self._client.ensure_ticker(contract, owner="bot")
+            ticker = await self._client.ensure_ticker(leg.contract, owner="bot")
             bid, ask, last = _sanitize_nbbo(
                 getattr(ticker, "bid", None),
                 getattr(ticker, "ask", None),
                 getattr(ticker, "last", None),
             )
-            leg_orders.append(QualifiedOptionLeg(contract=contract, action=action, ratio=ratio))
             leg_quotes.append((bid, ask, last, ticker))
 
-        if not leg_orders:
-            return fail(f"Exit: no option positions for instance {instance.instance_id}")
-        finalize_leg_orders(underlying=underlying, leg_orders=leg_orders, leg_quotes=leg_quotes)
+        finalize_leg_orders(
+            underlying=underlying,
+            leg_orders=list(leg_orders),
+            leg_quotes=leg_quotes,
+            package_quantity=package_quantity,
+        )
 
     async def _create_order_for_instance(
         self,
@@ -491,23 +360,32 @@ class BotOrderBuilderMixin:
                 data=payload,
             )
 
-        entry_intent = None
-
         def _finalize_leg_orders(
             *,
             underlying: Contract,
             leg_orders: list[QualifiedOptionLeg],
             leg_quotes: list[tuple[float | None, float | None, float | None, Ticker]],
+            package_quantity: int,
+            entry_intent=None,
         ) -> None:
             if not leg_orders:
                 return _fail("Order: no legs configured")
 
-            if len(leg_orders) == 1:
-                single = leg_orders[0]
-                (bid, ask, last, ticker) = leg_quotes[0]
-                mid = _midpoint(bid, ask)
-                limit = _leg_price(bid, ask, last, single.action)
-                if limit is None:
+            order_quote = quote_live_option_order(
+                symbol=symbol,
+                legs=leg_orders,
+                tickers=[quote[3] for quote in leg_quotes],
+                quantity=(
+                    package_quantity
+                    if len(leg_orders) > 1
+                    else leg_orders[0].ratio * package_quantity
+                ),
+                intent=intent_clean,
+                mode=mode,
+            )
+            if order_quote is None:
+                if len(leg_orders) == 1:
+                    bid, ask, last, ticker = leg_quotes[0]
                     return _fail(
                         "Quote: no bid/ask/last (cannot price)",
                         quote_payload=_quote_failure_payload(
@@ -515,95 +393,22 @@ class BotOrderBuilderMixin:
                             bid=bid,
                             ask=ask,
                             last=last,
-                            mid=mid,
+                            mid=_midpoint(bid, ask),
                         ),
                     )
-                tick = _tick_size(single.contract, ticker, limit) or 0.01
-                limit = _round_to_tick(float(limit), tick)
-                single_quantity = single.ratio
-                if intent_clean == "enter":
-                    if entry_intent is None:
-                        return _fail("Order: option entry intent unavailable")
-                    single_quantity *= entry_intent.quantity
-                order = _BotOrder(
-                    instance_id=instance.instance_id,
-                    preset=None,
-                    underlying=underlying,
-                    order_contract=single.contract,
-                    legs=leg_orders,
-                    action=single.action,
-                    quantity=single_quantity,
-                    limit_price=float(limit),
-                    created_at=_now_et(),
-                    bid=bid,
-                    ask=ask,
-                    last=last,
-                    intent=intent_clean,
-                    direction=direction,
-                    reason=intent_clean,
-                    signal_bar_ts=signal_bar_ts,
-                    journal=_order_journal_with_attempt(),
-                    exec_mode=mode,
-                )
-                con_id = int(getattr(single.contract, "conId", 0) or 0)
-                if con_id:
-                    instance.touched_conids.add(con_id)
-                self._add_order(order)
-                if intent_clean == "enter":
-                    if direction in ("up", "down"):
-                        instance.open_direction = str(direction)
-                    if signal_bar_ts is not None:
-                        instance.last_entry_bar_ts = signal_bar_ts
-                    _bump_entry_counters()
-                _set_status(
-                    f"Created order {single.action} {single_quantity} {symbol} @ {limit:.2f}"
-                )
-                return
-
-            package_quantity = 1
-            if intent_clean == "enter":
-                if entry_intent is None:
-                    return _fail("Order: option entry intent unavailable")
-                package_quantity = entry_intent.quantity
-            else:
-                try:
-                    package_quantity = int(strat.get("quantity", 1) or 1)
-                except (TypeError, ValueError):
-                    package_quantity = 1
-                package_quantity = max(1, package_quantity)
-            package_quote = quote_live_option_package(
-                symbol=symbol,
-                legs=leg_orders,
-                tickers=[quote[3] for quote in leg_quotes],
-                quantity=package_quantity,
-                intent=intent_clean,
-                mode=mode,
-            )
-            if package_quote is None:
                 return _fail(
                     "Quote: package legs are not jointly executable",
                     retry_reason="package_quote_unavailable",
                 )
 
-            # Multi-leg combos use IBKR's native signed debit encoding.
-            order_action = "BUY"
-            order_bid = package_quote.bid_value
-            order_ask = package_quote.ask_value
-            order_last = package_quote.mid_value
-            order_limit = package_quote.limit_value
-            tick = package_quote.tick
-
+            order_limit = order_quote.limit_value
+            tick = order_quote.tick
             if intent_clean == "enter" and order_limit < 0:
                 if entry_intent is None:
                     return _fail("Order: option entry intent unavailable")
-                min_credit = (
-                    float(tick)
-                    if entry_intent.min_credit is None
-                    else entry_intent.min_credit
-                )
-
                 credit = -float(order_limit)
-                if credit < min_credit:
+                min_credit = entry_intent.required_credit(tick)
+                if not entry_intent.admits_debit_value(order_limit, tick=tick):
                     return _fail(
                         f"Order: credit {credit:.2f} below minimum {min_credit:.2f}",
                         quote_payload={
@@ -615,20 +420,19 @@ class BotOrderBuilderMixin:
                         retry_reason="minimum_credit_not_met",
                     )
 
-            live_package = package_quote.live
-
             if (
                 intent_clean in {"enter", "resize"}
                 and symbol == "XSP"
+                and order_quote.risk is not None
             ):
                 reservation_summary = self._order_reservation_summary()
                 capacity_decision = evaluate_order_reservation_capacity(
                     OrderReservationCapacityRequest(
                         account=reservation_summary.account,
                         product_domain=symbol,
-                        sec_type=str(getattr(live_package.contract, "secType", "") or ""),
-                        structure=live_package.risk.structure,
-                        candidate_max_loss=live_package.risk.max_loss,
+                        sec_type=str(getattr(order_quote.contract, "secType", "") or ""),
+                        structure=order_quote.risk.structure,
+                        candidate_max_loss=order_quote.risk.max_loss,
                         available_capacity=strat.get(
                             "xsp_reservation_capacity_usd"
                         ),
@@ -645,17 +449,17 @@ class BotOrderBuilderMixin:
                 instance_id=instance.instance_id,
                 preset=None,
                 underlying=underlying,
-                order_contract=live_package.contract,
-                legs=list(live_package.legs),
-                action=order_action,
-                quantity=package_quantity,
+                order_contract=order_quote.contract,
+                legs=list(order_quote.legs),
+                action=order_quote.action,
+                quantity=order_quote.quantity,
                 limit_price=float(order_limit),
                 created_at=_now_et(),
-                package=live_package.package,
-                package_risk=live_package.risk,
-                bid=order_bid,
-                ask=order_ask,
-                last=order_last,
+                package=order_quote.package,
+                package_risk=order_quote.risk,
+                bid=order_quote.bid_value,
+                ask=order_quote.ask_value,
+                last=order_quote.last_value,
                 intent=intent_clean,
                 direction=direction,
                 reason=intent_clean,
@@ -674,7 +478,12 @@ class BotOrderBuilderMixin:
                 if signal_bar_ts is not None:
                     instance.last_entry_bar_ts = signal_bar_ts
                 _bump_entry_counters()
-            _set_status(f"Created order {order_action} BAG {symbol} @ {order_limit:.2f} ({len(leg_orders)} legs)")
+            suffix = (
+                f"BAG {symbol} @ {order_limit:.2f} ({len(leg_orders)} legs)"
+                if len(leg_orders) > 1
+                else f"{order_quote.quantity} {symbol} @ {order_limit:.2f}"
+            )
+            _set_status(f"Created order {order_quote.action} {suffix}")
 
         instrument_kind = "spot" if instrument == "spot" else "options"
         flow_key = (intent_clean, instrument_kind)
@@ -1405,86 +1214,29 @@ class BotOrderBuilderMixin:
             )
         except ValueError as exc:
             return _fail(f"Order: {exc}")
-        normalized_legs = entry_intent.legs
-        dte = entry_intent.dte
-
-        chain_info = await self._client.stock_option_chain(symbol)
-        if not chain_info:
-            return _fail(f"Chain: not found for {symbol}")
-        underlying, chain = chain_info
-        underlying_ticker = await self._client.ensure_ticker(underlying, owner="bot")
-        under_con_id = int(getattr(underlying, "conId", 0) or 0)
-        if under_con_id:
-            self._tracked_conids.add(under_con_id)
-        spot = _ticker_price(underlying_ticker)
-        if spot is None:
-            return _fail(f"Spot: n/a for {symbol}")
-
-        expiry = _pick_chain_expiry(_now_et().date(), dte, getattr(chain, "expirations", []))
-        if not expiry:
-            return _fail(f"Expiry: none for {symbol}")
-
-        # Build and qualify option legs.
-        strikes = getattr(chain, "strikes", [])
-        trading_class = getattr(chain, "tradingClass", None)
-        option_candidates: list[Option] = []
-        leg_specs: list[tuple[str, str, int, float, float | None]] = []
-        for leg in normalized_legs:
-            action = leg.action
-            right = leg.right
-            ratio = leg.qty
-            moneyness = leg.moneyness_pct
-            delta_target = leg.delta
-
-            target_strike = _strike_from_moneyness(spot, right, moneyness)
-            right_char = "P" if right == "PUT" else "C"
-            strike = None
-            if delta_target is not None and strikes:
-                strike = await self._strike_by_delta(
-                    symbol=symbol,
-                    expiry=expiry,
-                    right_char=right_char,
-                    strikes=list(strikes),
-                    trading_class=trading_class,
-                    near_strike=target_strike,
-                    target_delta=delta_target,
-                )
-            if strike is None:
-                strike = _nearest_strike(strikes, target_strike)
-            if strike is None:
-                return _fail(f"Strike: none for {symbol}")
-            option_candidates.append(
-                Option(
-                    symbol=symbol,
-                    lastTradeDateOrContractMonth=expiry,
-                    strike=float(strike),
-                    right=right_char,
-                    exchange="SMART",
-                    currency="USD",
-                    tradingClass=trading_class,
-                )
+        try:
+            resolved = await resolve_live_option_entry(
+                self._client,
+                symbol=symbol,
+                intent=entry_intent,
+                anchor=_now_et().date(),
+                owner="bot",
             )
-            leg_specs.append((action, right, ratio, moneyness, delta_target))
+        except ValueError as exc:
+            return _fail(str(exc))
 
-        qualified = await self._client.qualify_proxy_contracts(*option_candidates)
-        if qualified and len(qualified) == len(option_candidates):
-            option_contracts: list[Contract] = list(qualified)
-        else:
-            option_contracts = list(option_candidates)
-
-        leg_orders: list[QualifiedOptionLeg] = []
-        leg_quotes: list[tuple[float | None, float | None, float | None, Ticker]] = []
-        for contract, (action, _, ratio, _, _) in zip(option_contracts, leg_specs):
+        for contract in (resolved.underlying, *(leg.contract for leg in resolved.legs)):
             con_id = int(getattr(contract, "conId", 0) or 0)
             if con_id:
                 self._tracked_conids.add(con_id)
-            ticker = await self._client.ensure_ticker(contract, owner="bot")
-            bid, ask, last = _sanitize_nbbo(
-                getattr(ticker, "bid", None),
-                getattr(ticker, "ask", None),
-                getattr(ticker, "last", None),
-            )
-            leg_orders.append(QualifiedOptionLeg(contract=contract, action=action, ratio=ratio))
-            leg_quotes.append((bid, ask, last, ticker))
 
-        _finalize_leg_orders(underlying=underlying, leg_orders=leg_orders, leg_quotes=leg_quotes)
+        _finalize_leg_orders(
+            underlying=resolved.underlying,
+            leg_orders=list(resolved.legs),
+            leg_quotes=[
+                (*_sanitize_nbbo(ticker.bid, ticker.ask, ticker.last), ticker)
+                for ticker in resolved.tickers
+            ],
+            package_quantity=entry_intent.quantity,
+            entry_intent=entry_intent,
+        )

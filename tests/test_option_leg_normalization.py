@@ -9,8 +9,8 @@ import tradebot.option_package as option_package
 import tradebot.backtest.config_values as config_values
 import tradebot.backtest.spot_codec as spot_codec
 import tradebot.knobs.models as knob_models
+import tradebot.live.options as live_options
 import tradebot.ui.bot_order_builder as bot_order_builder
-from tradebot.ui.bot_order_builder import BotOrderBuilderMixin
 
 
 def _valid_leg(**overrides):
@@ -160,11 +160,11 @@ def test_directional_collections_reject_nonlist_branches_instead_of_skipping():
         )
 
 
-def test_all_ingestion_and_live_consumers_reference_the_shared_normalizers():
+def test_ingestion_consumers_reference_the_shared_normalizers_without_ui_facades():
     assert config_values.normalize_option_legs is option_package.normalize_option_legs
     assert spot_codec.normalize_option_leg is option_package.normalize_option_leg
     assert spot_codec.normalize_option_legs is option_package.normalize_option_legs
-    assert bot_order_builder.normalize_option_legs is option_package.normalize_option_legs
+    assert not hasattr(bot_order_builder, "normalize_option_legs")
 
 
 def test_nonfinite_delta_is_rejected_before_any_provider_interaction():
@@ -172,20 +172,17 @@ def test_nonfinite_delta_is_rejected_before_any_provider_interaction():
         async def qualify_proxy_contracts(self, *contracts):
             raise AssertionError("provider interaction occurred")
 
-    harness = SimpleNamespace(
-        _client=_NoProvider(),
-        _tracked_conids=set(),
-    )
     result = asyncio.run(
-        BotOrderBuilderMixin._strike_by_delta(
-            harness,
+        live_options._strike_by_delta(
+            _NoProvider(),
             symbol="XSP",
             expiry="20260724",
-            right_char="P",
+            right="P",
             strikes=[100.0],
             trading_class="XSP",
-            near_strike=100.0,
+            target_strike=100.0,
             target_delta=float("nan"),
+            owner="bot",
         )
     )
     assert result is None

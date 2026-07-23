@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 
 from .config import StrategyConfig, LegConfig
 from ..engine import _trade_date, _trade_weekday
@@ -60,51 +60,9 @@ class OptionPackageStrategy:
             legs=selected_legs,
             path=legs_path,
         )
-        expiry = _expiry_from_dte(_trade_date(ts), entry_intent.dte)
-        legs = _build_legs(
-            entry_intent.legs,
-            spot,
-            expiry,
-        )
+        expiry = entry_intent.target_expiry(_trade_date(ts))
         return TradeSpec(
             expiry=expiry,
-            legs=legs,
+            legs=entry_intent.resolved_legs(spot=spot, expiry=expiry),
             quantity=entry_intent.quantity,
         )
-
-
-def _expiry_from_dte(anchor: date, dte: int) -> date:
-    current = anchor
-    days = max(dte, 0)
-    while days > 0:
-        current += timedelta(days=1)
-        if current.weekday() < 5:
-            days -= 1
-    return current
-
-
-def _build_legs(
-    legs: tuple[LegConfig, ...],
-    spot: float,
-    expiry: date,
-) -> tuple[ResolvedOptionLeg, ...]:
-    built: list[ResolvedOptionLeg] = []
-    for leg in legs:
-        strike = _strike_from_moneyness(spot, leg.right, leg.moneyness_pct)
-        built.append(
-            ResolvedOptionLeg(
-                action=leg.action,
-                right=leg.right,
-                strike=strike,
-                ratio=leg.qty,
-                expiry=expiry.strftime("%Y%m%d"),
-            )
-        )
-    return tuple(built)
-
-
-
-def _strike_from_moneyness(spot: float, right: str, moneyness_pct: float) -> float:
-    if right == "PUT":
-        return spot * (1 - moneyness_pct / 100.0)
-    return spot * (1 + moneyness_pct / 100.0)

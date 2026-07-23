@@ -8,6 +8,7 @@ import time
 from ib_insync import Contract, PortfolioItem, Ticker
 from rich.text import Text
 
+from ...engines.execution import _ticker_close, _ticker_price
 from ..common import (
     _INDEX_FUT_LABELS,
     _INDEX_FUT_ORDER,
@@ -25,9 +26,7 @@ from ..common import (
     _safe_float,
     _safe_num,
     _ticker_actionable_price,
-    _ticker_close,
     _ticker_line,
-    _ticker_price,
 )
 
 

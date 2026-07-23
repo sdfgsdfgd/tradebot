@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Sequence
 from dataclasses import dataclass
+from datetime import date, datetime
 import math
 
-from ib_insync import Bag, ComboLeg, Contract
+from ib_insync import Bag, ComboLeg, Contract, Option
 
 from ..engines.execution import (
     _limit_price_for_mode,
@@ -14,9 +16,11 @@ from ..engines.execution import (
     _round_to_tick,
     _sanitize_nbbo,
     _tick_size,
+    _ticker_price,
 )
 from ..option_package import (
     OptionPackage,
+    OptionPackageEntryIntent,
     OptionPackageRisk,
     ResolvedOptionLeg,
     option_package_debit_value,
@@ -146,12 +150,273 @@ class LiveOptionPackageQuote:
     tick: float
 
 
+@dataclass(frozen=True)
+class LiveOptionOrderQuote:
+    """Executable single-leg or native BAG order projection."""
+
+    contract: Contract
+    legs: tuple[QualifiedOptionLeg, ...]
+    action: str
+    quantity: int
+    limit_value: float
+    bid_value: float | None
+    ask_value: float | None
+    last_value: float | None
+    tick: float
+    package: OptionPackage | None = None
+    risk: OptionPackageRisk | None = None
+
+
+@dataclass(frozen=True)
+class ResolvedLiveOptionEntry:
+    """Qualified contracts and quote streams for one canonical entry intent."""
+
+    underlying: Contract
+    legs: tuple[QualifiedOptionLeg, ...]
+    tickers: tuple[object, ...]
+
+
 def _positive_float(value: object) -> float | None:
     try:
         parsed = float(value)
     except (TypeError, ValueError):
         return None
     return parsed if math.isfinite(parsed) and parsed > 0 else None
+
+
+def _chain_expiry(target: date, expirations: Sequence[object]) -> str | None:
+    parsed: list[tuple[date, str]] = []
+    for raw in expirations:
+        value = str(raw or "").strip()
+        try:
+            expiry = datetime.strptime(value, "%Y%m%d").date()
+        except ValueError:
+            continue
+        parsed.append((expiry, value))
+    if not parsed:
+        return None
+    future = [candidate for candidate in parsed if candidate[0] >= target]
+    return min(
+        future or parsed,
+        key=lambda candidate: abs((candidate[0] - target).days),
+    )[1]
+
+
+def _nearest_strike(strikes: Sequence[object], target: float) -> float | None:
+    try:
+        return min(
+            (float(strike) for strike in strikes),
+            key=lambda strike: abs(strike - target),
+        )
+    except (TypeError, ValueError):
+        return None
+
+
+async def _strike_by_delta(
+    client: object,
+    *,
+    symbol: str,
+    expiry: str,
+    right: str,
+    strikes: Sequence[object],
+    trading_class: str | None,
+    target_strike: float,
+    target_delta: float,
+    owner: str,
+) -> float | None:
+    try:
+        target = abs(float(target_delta))
+        strike_values = sorted(float(strike) for strike in strikes)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(target) or not 0 < target <= 1 or not strike_values:
+        return None
+
+    center = min(
+        range(len(strike_values)),
+        key=lambda index: abs(strike_values[index] - target_strike),
+    )
+    window = strike_values[max(center - 10, 0) : center + 11]
+    candidates = [
+        Option(
+            symbol=symbol,
+            lastTradeDateOrContractMonth=expiry,
+            strike=strike,
+            right=right,
+            exchange="SMART",
+            currency="USD",
+            tradingClass=trading_class,
+        )
+        for strike in window
+    ]
+    qualified = await client.qualify_proxy_contracts(*candidates)
+    contracts = (
+        tuple(qualified)
+        if qualified and len(qualified) == len(candidates)
+        else tuple(candidates)
+    )
+
+    selected: tuple[float, Contract] | None = None
+    try:
+        for contract, strike in zip(contracts, window):
+            ticker = await client.ensure_ticker(contract, owner=owner)
+            delta = None
+            for _ in range(6):
+                for attr in ("modelGreeks", "bidGreeks", "askGreeks", "lastGreeks"):
+                    greeks = getattr(ticker, attr, None)
+                    raw = getattr(greeks, "delta", None) if greeks is not None else None
+                    try:
+                        delta = float(raw) if raw is not None else None
+                    except (TypeError, ValueError):
+                        delta = None
+                    if delta is not None:
+                        break
+                if delta is not None:
+                    break
+                await asyncio.sleep(0.05)
+            if delta is None or not math.isfinite(delta):
+                continue
+            difference = abs(abs(delta) - target)
+            if selected is None or difference < selected[0]:
+                selected = difference, contract
+    finally:
+        release_ticker = getattr(client, "release_ticker", None)
+        if callable(release_ticker):
+            for contract in contracts:
+                con_id = int(getattr(contract, "conId", 0) or 0)
+                if con_id:
+                    release_ticker(con_id, owner=owner)
+    return float(getattr(selected[1], "strike", 0.0)) if selected else None
+
+
+async def resolve_live_option_entry(
+    client: object,
+    *,
+    symbol: str,
+    intent: OptionPackageEntryIntent,
+    anchor: date,
+    owner: str,
+) -> ResolvedLiveOptionEntry:
+    """Resolve one shared entry intent against the broker's current chain."""
+
+    chain_info = await client.stock_option_chain(symbol)
+    if not chain_info:
+        raise ValueError(f"Chain: not found for {symbol}")
+    underlying, chain = chain_info
+    acquired: set[int] = set()
+    try:
+        ticker = await client.ensure_ticker(underlying, owner=owner)
+        underlying_con_id = int(getattr(underlying, "conId", 0) or 0)
+        if underlying_con_id:
+            acquired.add(underlying_con_id)
+        spot = _ticker_price(ticker)
+        if spot is None:
+            raise ValueError(f"Spot: n/a for {symbol}")
+
+        expiry = _chain_expiry(
+            intent.target_expiry(anchor),
+            getattr(chain, "expirations", ()),
+        )
+        if expiry is None:
+            raise ValueError(f"Expiry: none for {symbol}")
+
+        strikes = tuple(getattr(chain, "strikes", ()) or ())
+        trading_class = getattr(chain, "tradingClass", None)
+        candidates: list[Option] = []
+        for leg in intent.legs:
+            target_strike = intent.target_strike(leg, spot)
+            right = "P" if leg.right == "PUT" else "C"
+            strike = (
+                await _strike_by_delta(
+                    client,
+                    symbol=symbol,
+                    expiry=expiry,
+                    right=right,
+                    strikes=strikes,
+                    trading_class=trading_class,
+                    target_strike=target_strike,
+                    target_delta=leg.delta,
+                    owner=owner,
+                )
+                if leg.delta is not None
+                else None
+            )
+            strike = strike if strike is not None else _nearest_strike(strikes, target_strike)
+            if strike is None:
+                raise ValueError(f"Strike: none for {symbol}")
+            candidates.append(
+                Option(
+                    symbol=symbol,
+                    lastTradeDateOrContractMonth=expiry,
+                    strike=strike,
+                    right=right,
+                    exchange="SMART",
+                    currency="USD",
+                    tradingClass=trading_class,
+                )
+            )
+
+        qualified = await client.qualify_proxy_contracts(*candidates)
+        contracts = (
+            tuple(qualified)
+            if qualified and len(qualified) == len(candidates)
+            else tuple(candidates)
+        )
+        legs = tuple(
+            QualifiedOptionLeg(contract=contract, action=leg.action, ratio=leg.qty)
+            for contract, leg in zip(contracts, intent.legs)
+        )
+        tickers = []
+        for leg in legs:
+            ticker = await client.ensure_ticker(leg.contract, owner=owner)
+            tickers.append(ticker)
+            con_id = int(getattr(leg.contract, "conId", 0) or 0)
+            if con_id:
+                acquired.add(con_id)
+        return ResolvedLiveOptionEntry(
+            underlying=underlying,
+            legs=legs,
+            tickers=tuple(tickers),
+        )
+    except Exception:
+        release_ticker = getattr(client, "release_ticker", None)
+        if callable(release_ticker):
+            for con_id in acquired:
+                release_ticker(con_id, owner=owner)
+        raise
+
+
+def normalize_option_position_close(
+    positions: Sequence[tuple[Contract, object]],
+) -> tuple[tuple[QualifiedOptionLeg, ...], int]:
+    """Invert complete option positions into minimal BAG ratios and quantity."""
+
+    resolved: list[tuple[Contract, int]] = []
+    for contract, raw_position in positions:
+        try:
+            position = float(raw_position)
+        except (TypeError, ValueError):
+            raise ValueError("option position must be an integer") from None
+        if not math.isfinite(position) or not position.is_integer():
+            raise ValueError("option position must be an integer")
+        signed = int(position)
+        if signed:
+            resolved.append((contract, signed))
+    if not resolved:
+        raise ValueError("option package has no open positions")
+
+    quantity = math.gcd(*(abs(position) for _contract, position in resolved))
+    return (
+        tuple(
+            QualifiedOptionLeg(
+                contract=contract,
+                action="SELL" if position > 0 else "BUY",
+                ratio=abs(position) // quantity,
+            )
+            for contract, position in resolved
+        ),
+        quantity,
+    )
 
 
 def resolve_live_option_package(
@@ -357,6 +622,89 @@ def quote_live_option_package(
         mid_value=mid_value,
         limit_value=float(rounded_limit),
         tick=float(resolved_tick),
+    )
+
+
+def quote_live_option_order(
+    *,
+    symbol: str,
+    legs: Sequence[QualifiedOptionLeg],
+    tickers: Sequence[object],
+    quantity: int,
+    intent: str,
+    mode: str,
+) -> LiveOptionOrderQuote | None:
+    """Quote the exact contract submitted by both staging and chase repricing."""
+
+    materialized = tuple(legs)
+    quote_sources = tuple(tickers)
+    try:
+        order_quantity = int(quantity)
+    except (TypeError, ValueError):
+        return None
+    if (
+        not materialized
+        or len(materialized) != len(quote_sources)
+        or order_quantity <= 0
+    ):
+        return None
+
+    if len(materialized) == 1:
+        leg = materialized[0]
+        ticker = quote_sources[0]
+        bid, ask, last = _sanitize_nbbo(
+            getattr(ticker, "bid", None),
+            getattr(ticker, "ask", None),
+            getattr(ticker, "last", None),
+        )
+        limit = _limit_price_for_mode(
+            bid,
+            ask,
+            last,
+            action=leg.action,
+            mode=mode,
+        )
+        if limit is None:
+            return None
+        tick = _tick_size(leg.contract, ticker, limit) or 0.01
+        rounded = _round_to_tick(limit, tick)
+        if rounded is None:
+            return None
+        return LiveOptionOrderQuote(
+            contract=leg.contract,
+            legs=materialized,
+            action=leg.action,
+            quantity=order_quantity,
+            limit_value=float(rounded),
+            bid_value=bid,
+            ask_value=ask,
+            last_value=last,
+            tick=float(tick),
+        )
+
+    package_quote = quote_live_option_package(
+        symbol=symbol,
+        legs=materialized,
+        tickers=quote_sources,
+        quantity=order_quantity,
+        intent=intent,
+        mode=mode,
+    )
+    if package_quote is None:
+        return None
+    live = package_quote.live
+    return LiveOptionOrderQuote(
+        contract=live.contract,
+        legs=live.legs,
+        action="BUY",
+        quantity=order_quantity,
+        limit_value=package_quote.limit_value,
+        bid_value=package_quote.bid_value,
+        ask_value=package_quote.ask_value,
+        last_value=package_quote.mid_value,
+        tick=package_quote.tick,
+        package=live.package,
+        risk=live.risk,
     )
 
 

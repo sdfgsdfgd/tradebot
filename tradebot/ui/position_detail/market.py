@@ -9,7 +9,13 @@ from ib_insync import PortfolioItem, Ticker
 from rich.text import Text
 
 from ...client import IBKRClient
-from ...engines.execution import _midpoint, _quote_num_actionable, _tick_size
+from ...engines.execution import (
+    _midpoint,
+    _quote_num_actionable,
+    _tick_size,
+    _ticker_close,
+    _ticker_price,
+)
 from ..common import (
     _cost_basis,
     _fmt_expiry,
@@ -23,8 +29,6 @@ from ..common import (
     _safe_float,
     _safe_num,
     _quote_status_line,
-    _ticker_close,
-    _ticker_price,
 )
 from .frame import box_bottom, box_row, box_top
 from .chart import PositionChart

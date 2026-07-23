@@ -25,6 +25,8 @@ from ..engines.execution import (
     _round_to_tick,
     _tick_decimals,
     _tick_size,
+    _ticker_close,
+    _ticker_price,
 )
 from ..live.execution import LiveOrderExecution, order_ids
 from .common import (
@@ -34,8 +36,6 @@ from .common import (
     _option_display_price,
     _parse_int,
     _safe_num,
-    _ticker_close,
-    _ticker_price,
     _unrealized_pnl_values,
 )
 from .position_detail.frame import pane_width

@@ -40,6 +40,7 @@ def test_limit_price_unchanged_for_valid_cross_quote() -> None:
 
 def test_sanitize_nbbo_rejects_non_positive_values() -> None:
     assert _sanitize_nbbo(-1.0, 0.0, float("nan")) == (None, None, None)
+    assert _sanitize_nbbo(float("inf"), float("-inf"), None) == (None, None, None)
 
 
 def test_quote_health_flags_actionable_nbbo() -> None:

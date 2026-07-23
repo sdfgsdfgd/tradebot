@@ -22,7 +22,11 @@ from tradebot.backtest.models import OptionTrade
 import tradebot.backtest.engine_options as backtest_engine
 from tradebot.backtest.synth import IVSurfaceParams
 import tradebot.live.options as live_options_module
-from tradebot.live.options import QualifiedOptionLeg, resolve_live_option_package
+from tradebot.live.options import (
+    QualifiedOptionLeg,
+    normalize_option_position_close,
+    resolve_live_option_package,
+)
 
 
 _UI_DIR = Path(__file__).resolve().parents[1] / "tradebot" / "ui"
@@ -194,6 +198,53 @@ def test_live_combo_reprice_consumes_canonical_package_kernel(monkeypatch) -> No
     )
 
 
+def test_live_single_leg_reprice_uses_the_shared_order_quote() -> None:
+    contract = Option(
+        symbol="XSP",
+        lastTradeDateOrContractMonth="20260209",
+        strike=100.0,
+        right="P",
+        exchange="SMART",
+        currency="USD",
+    )
+    contract.conId = 1001
+    order = _BotOrder(
+        instance_id=1,
+        preset=None,
+        underlying=contract,
+        order_contract=contract,
+        legs=[QualifiedOptionLeg(contract=contract, action="BUY", ratio=1)],
+        action="BUY",
+        quantity=2,
+        limit_price=2.00,
+        created_at=datetime(2026, 2, 9, 10, 0),
+        exec_mode="OPTIMISTIC",
+    )
+
+    class _Client:
+        @staticmethod
+        async def ensure_ticker(requested, *, owner: str):
+            assert requested is contract
+            assert owner == "bot"
+            return SimpleNamespace(
+                contract=contract,
+                bid=2.00,
+                ask=2.20,
+                last=2.10,
+                minTick=0.01,
+            )
+
+    changed = asyncio.run(
+        BotScreen._reprice_order(SimpleNamespace(_client=_Client()), order, mode="MID")
+    )
+
+    assert changed is True
+    assert (order.action, order.quantity, order.limit_price) == ("BUY", 2, 2.10)
+    assert (order.bid, order.ask, order.last) == pytest.approx((2.00, 2.20, 2.10))
+    assert order.package is None
+    assert order.package_risk is None
+
+
 def test_live_option_projection_builds_one_atomic_defined_risk_bag() -> None:
     legs = []
     for con_id, action, right, strike in (
@@ -249,6 +300,133 @@ def test_live_option_projection_builds_one_atomic_defined_risk_bag() -> None:
         )
         is None
     )
+
+
+def test_option_position_close_reduces_positions_to_minimal_bag_ratio() -> None:
+    short = Option(symbol="XSP", exchange="SMART", currency="USD")
+    short.conId = 1001
+    long = Option(symbol="XSP", exchange="SMART", currency="USD")
+    long.conId = 1002
+
+    legs, quantity = normalize_option_position_close(((short, -4), (long, 2)))
+
+    assert quantity == 2
+    assert [
+        (leg.contract.conId, leg.action, leg.ratio)
+        for leg in legs
+    ] == [
+        (1001, "BUY", 2),
+        (1002, "SELL", 1),
+    ]
+    with pytest.raises(ValueError, match="integer"):
+        normalize_option_position_close(((short, -1.5), (long, 1)))
+
+
+def test_option_builder_closes_two_lot_spread_as_one_normalized_bag() -> None:
+    contracts = []
+    for con_id, right, strike, position in (
+        (1001, "P", 100.0, -2.0),
+        (1002, "P", 95.0, 2.0),
+    ):
+        contract = Option(
+            symbol="XSP",
+            lastTradeDateOrContractMonth="20260209",
+            strike=strike,
+            right=right,
+            exchange="SMART",
+            currency="USD",
+            multiplier="100",
+            tradingClass="XSP",
+        )
+        contract.conId = con_id
+        contracts.append(SimpleNamespace(contract=contract, position=position))
+
+    class _Client:
+        @staticmethod
+        async def qualify_proxy_contracts(*values):
+            values[0].conId = 900
+            return list(values)
+
+        @staticmethod
+        async def ensure_ticker(contract, *, owner: str):
+            assert owner == "bot"
+            bid, ask = (
+                (2.00, 2.20)
+                if float(contract.strike) == 100.0
+                else (1.00, 1.20)
+            )
+            return SimpleNamespace(
+                contract=contract,
+                bid=bid,
+                ask=ask,
+                last=(bid + ask) / 2,
+                minTick=0.01,
+                marketDataType=1,
+            )
+
+        @staticmethod
+        def proxy_error():
+            return None
+
+    class _Harness(BotOrderBuilderMixin):
+        def __init__(self) -> None:
+            self._client = _Client()
+            self._payload = None
+            self._tracked_conids: set[int] = set()
+            self._orders: list[_BotOrder] = []
+            self._status = ""
+
+        @staticmethod
+        def _strategy_instrument(_strategy) -> str:
+            return "options"
+
+        @staticmethod
+        def _initial_exec_mode(**_kwargs) -> str:
+            return "MID"
+
+        @staticmethod
+        def _resolve_open_positions(*_args, **_kwargs):
+            return "options", contracts, None
+
+        def _add_order(self, order: _BotOrder) -> None:
+            self._orders.append(order)
+
+        def _render_status(self) -> None:
+            return None
+
+        def _journal_write(self, **_kwargs) -> None:
+            return None
+
+    instance = _BotInstance(
+        instance_id=1,
+        group="xsp-credit",
+        symbol="XSP",
+        strategy={"instrument": "options", "quantity": 2, "ema_preset": "9/21"},
+        filters=None,
+    )
+    harness = _Harness()
+    asyncio.run(
+        harness._create_order_for_instance(
+            instance,
+            intent="exit",
+            direction="up",
+            signal_bar_ts=datetime(2026, 2, 9, 10, 0),
+        )
+    )
+
+    assert len(harness._orders) == 1
+    order = harness._orders[0]
+    assert (order.action, order.quantity, order.limit_price) == ("BUY", 2, 1.0)
+    assert [(leg.action, leg.ratio) for leg in order.legs] == [
+        ("BUY", 1),
+        ("SELL", 1),
+    ]
+    assert [(leg.action, leg.ratio) for leg in order.order_contract.comboLegs] == [
+        ("BUY", 1),
+        ("SELL", 1),
+    ]
+
+
 def test_live_combo_quote_signature_consumes_canonical_package_kernel(monkeypatch) -> None:
     order, tickers = _option_order_fixture()
     calls: list[list[tuple[str, int, float | None]]] = []
@@ -859,6 +1037,18 @@ def test_option_package_entry_intent_is_frozen_strict_and_source_agnostic() -> N
     assert defaults.dte == 0
     assert defaults.quantity == 1
     assert defaults.min_credit is None
+    assert expected.target_expiry(date(2026, 2, 6)) == date(2026, 2, 6)
+    assert expected.target_strike(expected.legs[1], 100.0) == pytest.approx(95.0)
+    assert [
+        (leg.action, leg.right, leg.strike, leg.ratio, leg.expiry)
+        for leg in expected.resolved_legs(spot=100.0, expiry=date(2026, 2, 9))
+    ] == [
+        ("SELL", "PUT", 100.0, 1, "20260209"),
+        ("BUY", "PUT", 95.0, 1, "20260209"),
+    ]
+    assert expected.required_credit(0.05) == pytest.approx(1.50)
+    assert expected.admits_debit_value(-1.50, tick=0.05)
+    assert not expected.admits_debit_value(-1.49, tick=0.05)
 
     with pytest.raises((FrozenInstanceError, AttributeError)):
         defaults.quantity = 3
@@ -896,13 +1086,13 @@ def test_backtest_and_live_option_entries_delegate_to_canonical_intent_before_re
 ) -> None:
     import tradebot.backtest.strategy as backtest_strategy
 
-    from tradebot.option_package import LegConfig
+    from tradebot.option_package import LegConfig, OptionPackageEntryIntent
 
     canonical_legs = (
         LegConfig(action="SELL", right="PUT", moneyness_pct=0.0, qty=1),
         LegConfig(action="BUY", right="PUT", moneyness_pct=5.0, qty=1),
     )
-    projected = SimpleNamespace(
+    projected = OptionPackageEntryIntent(
         legs=canonical_legs,
         dte=0,
         quantity=2,
@@ -915,25 +1105,12 @@ def test_backtest_and_live_option_entries_delegate_to_canonical_intent_before_re
         backtest_events.append(("intent", legs, path))
         return projected
 
-    def _record_expiry(_trade_date, dte):
-        backtest_events.append(("expiry", dte))
-        return date(2026, 2, 9)
-
-    def _record_legs(legs, _spot, quantity):
-        backtest_events.append(("legs", legs, quantity))
-        return (
-            _resolved_leg(action="SELL", right="PUT", strike=100.0, expiry="20260209"),
-            _resolved_leg(action="BUY", right="PUT", strike=95.0, expiry="20260209"),
-        )
-
     monkeypatch.setattr(
         backtest_strategy,
         "option_package_entry_intent",
         _backtest_projector,
         raising=False,
     )
-    monkeypatch.setattr(backtest_strategy, "_expiry_from_dte", _record_expiry)
-    monkeypatch.setattr(backtest_strategy, "_build_legs", _record_legs)
 
     cfg = SimpleNamespace(
         dte=-99,
@@ -982,8 +1159,6 @@ def test_backtest_and_live_option_entries_delegate_to_canonical_intent_before_re
     } == {
         "backtest_events": [
             ("intent", canonical_legs, "legs_override"),
-            ("expiry", 0),
-            ("legs", canonical_legs, date(2026, 2, 9)),
         ],
         "backtest_leg_ratios": [1, 1],
         "backtest_quantity": 2,
