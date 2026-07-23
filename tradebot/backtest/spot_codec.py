@@ -5,6 +5,7 @@ from dataclasses import asdict, fields
 from datetime import date
 from pathlib import Path
 
+from ..contract_identity import future_exchange_for_symbol, is_future_symbol
 from .config import (
     BacktestConfig,
     ConfigBundle,
@@ -15,6 +16,7 @@ from .config import (
     SyntheticConfig,
 )
 from .config_filters import _parse_filters
+from .config_values import _parse_spot_exchange, _parse_spot_sec_type
 from .data import ContractMeta
 from ..spot.codec import bool_from_payload
 
@@ -85,7 +87,9 @@ def strategy_from_payload(strategy: dict, *, filters: FiltersConfig | None) -> S
     # force tradable_24x5 so deferred fill modes (next_open/next_tradable_bar)
     # schedule against the intended session window.
     instrument = str(raw.get("instrument", "spot") or "spot").strip().lower()
-    sec_type = str(raw.get("spot_sec_type") or "STK").strip().upper()
+    spot_sec_type = _parse_spot_sec_type(raw.get("spot_sec_type"))
+    spot_exchange = _parse_spot_exchange(raw.get("spot_exchange"))
+    sec_type = spot_sec_type or "STK"
     mode_raw = str(raw.get("spot_next_open_session") or "").strip()
     use_rth = bool_from_payload(raw.get("signal_use_rth"))
     if instrument == "spot" and sec_type == "STK" and not use_rth and not mode_raw:
@@ -93,8 +97,8 @@ def strategy_from_payload(strategy: dict, *, filters: FiltersConfig | None) -> S
 
     raw.pop("signal_bar_size", None)
     raw.pop("signal_use_rth", None)
-    raw.pop("spot_sec_type", None)
-    raw.pop("spot_exchange", None)
+    raw["spot_sec_type"] = spot_sec_type
+    raw["spot_exchange"] = spot_exchange
 
     raw["entry_days"] = weekdays_from_payload(raw.get("entry_days") or [])
     raw.setdefault("flip_exit_gate_mode", "off")
@@ -218,10 +222,16 @@ def spot_strategy_payload(cfg: ConfigBundle, *, meta: ContractMeta) -> dict:
     strategy["filters"] = filters_payload(cfg.strategy.filters)
 
     sym = str(cfg.strategy.symbol or "").strip().upper()
-    if sym in {"MNQ", "MES", "ES", "NQ", "YM", "RTY", "M2K"}:
-        strategy.setdefault("spot_sec_type", "FUT")
-        strategy.setdefault("spot_exchange", str(meta.exchange or "CME"))
-    else:
-        strategy.setdefault("spot_sec_type", "STK")
-        strategy.setdefault("spot_exchange", "SMART")
+    sec_type = _parse_spot_sec_type(cfg.strategy.spot_sec_type)
+    exchange = _parse_spot_exchange(cfg.strategy.spot_exchange)
+    if sec_type is None:
+        sec_type = "FUT" if is_future_symbol(sym) else "STK"
+    if exchange is None:
+        exchange = (
+            str(future_exchange_for_symbol(sym) or meta.exchange or "CME").strip().upper()
+            if sec_type == "FUT"
+            else "SMART"
+        )
+    strategy["spot_sec_type"] = sec_type
+    strategy["spot_exchange"] = exchange
     return strategy

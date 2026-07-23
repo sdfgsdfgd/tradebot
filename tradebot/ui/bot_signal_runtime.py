@@ -31,7 +31,13 @@ from ..spot.gates import (
     signal_bar_close_ts as lifecycle_signal_bar_close_ts,
     signal_filter_checks,
 )
-from ..spot.lifecycle import decide_flat_position_intent, decide_open_position_intent, decide_pending_next_open
+from ..spot.lifecycle import (
+    decide_flat_position_intent,
+    decide_open_position_intent,
+    decide_pending_next_open,
+    SpotPendingMutationPlan,
+    plan_pending_mutation,
+)
 from ..spot.fill_modes import (
     SPOT_FILL_MODE_CLOSE,
     SPOT_FILL_MODE_NEXT_TRADABLE_BAR,
@@ -1623,6 +1629,17 @@ class BotSignalRuntimeMixin:
         instance.pending_exit_due_ts = None
 
     @staticmethod
+    def _apply_pending_mutation(
+        instance: _BotInstance,
+        *,
+        mutation: SpotPendingMutationPlan,
+    ) -> None:
+        if mutation.clear_exit:
+            BotSignalRuntimeMixin._clear_pending_exit(instance)
+        if mutation.clear_entry:
+            BotSignalRuntimeMixin._clear_pending_entry(instance)
+
+    @staticmethod
     def _reset_exit_retry_state(instance: _BotInstance) -> None:
         instance.exit_retry_bar_ts = None
         instance.exit_retry_count = 0
@@ -1810,12 +1827,15 @@ class BotSignalRuntimeMixin:
             naive_ts_mode="et",
         )
 
-        if decision.pending_clear_exit:
-            self._clear_pending_exit(instance)
-        if decision.pending_clear_entry:
-            self._clear_pending_entry(instance)
+        mutation = plan_pending_mutation(
+            decision,
+            pending_entry_direction=pending_entry_direction,
+            pending_exit_reason=pending_exit_reason,
+            open_dir=open_dir,
+        )
+        self._apply_pending_mutation(instance, mutation=mutation)
 
-        if decision.intent == "exit":
+        if mutation.queue_intent == "exit":
             due_from_ts = (
                 self._spot_signal_close_ts(instance, pending_exit_signal_bar_ts)
                 if pending_exit_signal_bar_ts is not None
@@ -1824,16 +1844,16 @@ class BotSignalRuntimeMixin:
             self._queue_order(
                 instance,
                 intent="exit",
-                direction=open_dir,
+                direction=mutation.queue_direction,
                 signal_bar_ts=pending_exit_signal_bar_ts,
-                trigger_reason=pending_exit_reason,
+                trigger_reason=mutation.queue_reason or pending_exit_reason,
                 trigger_mode="spot",
             )
             gate(
                 "TRIGGER_EXIT",
                 {
                     "mode": "spot",
-                    "reason": pending_exit_reason,
+                    "reason": mutation.queue_reason or pending_exit_reason,
                     "fill_mode": str(decision.fill_mode),
                     "next_open_due": pending_exit_due.isoformat() if pending_exit_due is not None else None,
                     "next_open_due_from": due_from_ts.isoformat(),
@@ -1845,7 +1865,7 @@ class BotSignalRuntimeMixin:
             )
             return True
 
-        if decision.intent == "enter":
+        if mutation.queue_intent == "enter":
             due_from_ts = (
                 self._spot_signal_close_ts(instance, pending_entry_signal_bar_ts)
                 if pending_entry_signal_bar_ts is not None
@@ -1854,15 +1874,15 @@ class BotSignalRuntimeMixin:
             self._queue_order(
                 instance,
                 intent="enter",
-                direction=pending_entry_direction,
+                direction=mutation.queue_direction,
                 signal_bar_ts=pending_entry_signal_bar_ts,
-                trigger_reason="next_open",
+                trigger_reason=mutation.queue_reason or "next_open",
                 trigger_mode="spot",
             )
             gate(
                 "TRIGGER_ENTRY",
                 {
-                    "direction": pending_entry_direction,
+                    "direction": mutation.queue_direction,
                     "fill_mode": str(decision.fill_mode),
                     "next_open_due": pending_entry_due.isoformat() if pending_entry_due is not None else None,
                     "next_open_due_from": due_from_ts.isoformat(),

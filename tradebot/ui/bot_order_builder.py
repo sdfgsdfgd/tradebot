@@ -958,6 +958,7 @@ class BotOrderBuilderMixin:
                 spot_apply_branch_size_mult,
                 spot_branch_size_mult,
                 spot_calc_signed_qty_with_trace,
+                spot_sizing_input,
                 spot_scale_exit_pcts,
                 spot_shock_exit_pct_multipliers,
             )
@@ -1064,7 +1065,7 @@ class BotOrderBuilderMixin:
             riskpanic = bool(snap.risk.riskpanic) if snap.risk is not None else False
             riskpop = bool(snap.risk.riskpop) if snap.risk is not None else False
 
-            signed_qty, decision_trace = spot_calc_signed_qty_with_trace(
+            sizing_input = spot_sizing_input(
                 strategy=strat,
                 filters=filters,
                 action=str(action),
@@ -1088,9 +1089,16 @@ class BotOrderBuilderMixin:
                 risk=snap.risk,
                 signal_entry_dir=getattr(getattr(snap, "signal", None), "entry_dir", None),
                 signal_regime_dir=getattr(getattr(snap, "signal", None), "regime_dir", None),
+                regime2_dir=(
+                    str(getattr(snap, "regime2_dir"))
+                    if getattr(snap, "regime2_dir", None) in ("up", "down")
+                    else None
+                ),
+                regime2_ready=bool(getattr(snap, "regime2_ready", False)),
                 equity_ref=float(equity_ref),
                 cash_ref=cash_ref,
             )
+            signed_qty, decision_trace = spot_calc_signed_qty_with_trace(sizing_input)
             if signed_qty == 0:
                 return _fail(
                     "Order: spot sizing returned 0 qty",

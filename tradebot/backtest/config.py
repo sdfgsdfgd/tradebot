@@ -54,6 +54,8 @@ from .config_values import (
     _parse_spot_resize_adaptive_mode,
     _parse_spot_resize_mode,
     _parse_spot_sizing_mode,
+    _parse_spot_exchange,
+    _parse_spot_sec_type,
     _parse_supertrend_source,
     _parse_tick_direction_policy,
     _parse_tick_gate_mode,
@@ -517,7 +519,14 @@ def _options_strategy_schema() -> dict[str, _FieldSpec]:
 
 
 def _spot_strategy_schema() -> dict[str, _FieldSpec]:
-    return _strategy_schema_common()
+    schema = _strategy_schema_common()
+    schema.update(
+        {
+            "spot_sec_type": _field(_parse_spot_sec_type, None),
+            "spot_exchange": _field(_parse_spot_exchange, None),
+        }
+    )
+    return schema
 
 
 def _synthetic_schema() -> dict[str, _FieldSpec]:

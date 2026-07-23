@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import csv
-from dataclasses import dataclass
-from datetime import datetime, timezone
+from dataclasses import dataclass, replace
+from datetime import date, datetime, timezone
 import json
 from pathlib import Path
 import sys
@@ -14,10 +14,13 @@ from unittest.mock import patch
 
 from ib_insync import Bag, ComboLeg, Contract, Future, Stock
 
+from tradebot.backtest.engine import _spot_strategy_sec_type
+from tradebot.backtest.spot_codec import spot_strategy_payload, strategy_from_payload
 from tradebot.client import BrokerOrderPreview, IBKRClient, _session_flags
 from tradebot.config import IBKRConfig
 from tradebot.option_package import OptionPackageRisk
 from tradebot.order_admission import evaluate_order_admission
+from tradebot.research.spot_sweeps.support import _bundle_base
 from tradebot.spot.gates import flip_exit_gate_blocked, signal_filter_checks
 
 _UI_DIR = Path(__file__).resolve().parents[1] / "tradebot" / "ui"
@@ -739,6 +742,103 @@ def test_entry_weekday_allows_numeric_entry_days_from_champion_payload() -> None
     sunday_overnight = datetime(2026, 2, 8, 23, 32)
     assert harness._entry_weekday_for_ts(instance, sunday_overnight) == 0
     assert harness._can_order_now(instance, now_et=sunday_overnight) is True
+
+
+def test_mcl_research_codec_preserves_futures_identity_for_backtest_and_live_weekday() -> None:
+    base = _bundle_base(
+        symbol="MCL",
+        start=date(2025, 1, 8),
+        end=date(2025, 1, 10),
+        bar_size="5 mins",
+        use_rth=False,
+        cache_dir=Path("db"),
+        offline=True,
+        filters=None,
+        entry_signal="ema",
+    )
+    source = spot_strategy_payload(
+        base,
+        meta=SimpleNamespace(exchange="NYMEX"),
+    )
+    source.update(
+        {
+            "spot_sec_type": "FUT",
+            "spot_exchange": "NYMEX",
+            "spot_next_open_session": "tradable_24x5",
+        }
+    )
+
+    typed = strategy_from_payload(dict(source), filters=base.strategy.filters)
+    encoded = spot_strategy_payload(
+        replace(base, strategy=typed),
+        meta=SimpleNamespace(exchange="NYMEX"),
+    )
+    instance = _new_instance(strategy=encoded)
+    sunday_overnight = datetime(2026, 2, 8, 23, 32)
+
+    observed = {
+        "typed_sec_type": getattr(typed, "spot_sec_type", None),
+        "typed_exchange": getattr(typed, "spot_exchange", None),
+        "encoded_sec_type": encoded.get("spot_sec_type"),
+        "encoded_exchange": encoded.get("spot_exchange"),
+        "backtest_sec_type": _spot_strategy_sec_type(strategy=typed),
+        "live_weekday": _EntryDayHarness()._entry_weekday_for_ts(
+            instance,
+            sunday_overnight,
+        ),
+    }
+    assert observed == {
+        "typed_sec_type": "FUT",
+        "typed_exchange": "NYMEX",
+        "encoded_sec_type": "FUT",
+        "encoded_exchange": "NYMEX",
+        "backtest_sec_type": "FUT",
+        "live_weekday": 6,
+    }
+
+
+def test_bot_config_defaults_mcl_spot_identity_from_canonical_registry() -> None:
+    from tradebot.ui.bot_screen.config import BotConfigScreen
+
+    def _build(symbol: str, *, supplied: str | None = None) -> str:
+        strategy = {"instrument": "spot", "symbol": symbol}
+        if supplied is not None:
+            strategy["spot_sec_type"] = supplied
+        holder = SimpleNamespace(
+            _strategy=strategy,
+            _symbol=symbol,
+            _filters={},
+            _fields=[],
+        )
+        BotConfigScreen._build_fields(holder)
+        return str(holder._strategy.get("spot_sec_type") or "")
+
+    assert _build("MCL") == "FUT"
+    assert _build("MNQ") == "FUT"
+    assert _build("SLV") == "STK"
+    assert _build("MCL", supplied="STK") == "STK"
+
+
+def test_canonical_contract_identity_registry_covers_mcl_mnq_and_equity_controls() -> None:
+    from tradebot.contract_identity import (
+        future_exchange_for_symbol,
+        future_multiplier_for_symbol,
+        is_future_symbol,
+        normalize_contract_symbol,
+    )
+
+    assert normalize_contract_symbol(" mcl ") == "MCL"
+    assert future_exchange_for_symbol("mcl") == "NYMEX"
+    assert is_future_symbol("MCL") is True
+    assert future_multiplier_for_symbol("MCL") == 100.0
+
+    assert future_exchange_for_symbol("mnq") == "CME"
+    assert is_future_symbol("MNQ") is True
+    assert future_multiplier_for_symbol("MNQ") == 2.0
+
+    assert future_exchange_for_symbol("slv") is None
+    assert is_future_symbol("SLV") is False
+    assert future_multiplier_for_symbol("SLV") == 1.0
 
 
 def test_signal_preflight_requires_regime2_supertrend_warmup_for_tqqq_hf_style_payload() -> None:
@@ -3597,4 +3697,413 @@ def test_initial_exec_mode_escalates_stop_exit_retries() -> None:
             intent_clean="exit",
         )
         == "OPTIMISTIC"
+    )
+
+
+def test_live_sizing_assembly_delegates_via_typed_payload() -> None:
+    import ast
+    from pathlib import Path
+
+    source = Path("tradebot/ui/bot_order_builder.py").read_text(encoding="utf-8")
+    tree = ast.parse(source)
+
+    def _leaf(node) -> str:
+        if isinstance(node, ast.Name):
+            return node.id
+        if isinstance(node, ast.Attribute):
+            return node.attr
+        return ""
+
+    def _target_names(node) -> set[str]:
+        return {
+            child.id
+            for child in ast.walk(node)
+            if isinstance(child, ast.Name)
+        }
+
+    factory_calls = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and _leaf(node.func) == "spot_sizing_input"
+    ]
+    wrapper_calls = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and _leaf(node.func) == "spot_calc_signed_qty_with_trace"
+    ]
+    assert len(wrapper_calls) == 1, "expected one live spot sizing delegation"
+    assert len(factory_calls) == len(wrapper_calls), (
+        "live sizing adapter must call spot_sizing_input once per kernel "
+        f"delegation: factory={len(factory_calls)} kernel={len(wrapper_calls)}"
+    )
+
+    factory_targets: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Assign, ast.AnnAssign)):
+            value = node.value
+            if not isinstance(value, ast.Call) or _leaf(value.func) != "spot_sizing_input":
+                continue
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            for target in targets:
+                factory_targets.update(_target_names(target))
+
+    raw_fields = {
+        "strategy", "filters", "action", "lot", "entry_price", "stop_price",
+        "stop_loss_pct", "shock", "shock_dir", "shock_atr_pct",
+        "shock_dir_down_streak_bars", "shock_drawdown_dist_on_pct",
+        "shock_drawdown_dist_on_vel_pp", "shock_drawdown_dist_on_accel_pp",
+        "shock_prearm_down_streak_bars", "shock_ramp", "riskoff", "risk_dir",
+        "riskpanic", "riskpop", "risk", "signal_entry_dir",
+        "signal_regime_dir", "regime2_dir", "regime2_ready", "equity_ref",
+        "cash_ref", "policy_graph", "policy_config",
+    }
+    call = wrapper_calls[0]
+    expressions = [*call.args, *(keyword.value for keyword in call.keywords)]
+    uses_inline_factory = any(
+        isinstance(child, ast.Call) and _leaf(child.func) == "spot_sizing_input"
+        for expression in expressions
+        for child in ast.walk(expression)
+    )
+    uses_factory_result = any(
+        isinstance(child, ast.Name)
+        and isinstance(child.ctx, ast.Load)
+        and child.id in factory_targets
+        for expression in expressions
+        for child in ast.walk(expression)
+    )
+    assert uses_inline_factory or uses_factory_result, (
+        "live sizing kernel must receive the typed factory result"
+    )
+    raw_keywords = {
+        keyword.arg for keyword in call.keywords if keyword.arg is not None
+    } & raw_fields
+    assert not raw_keywords, (
+        "live sizing kernel still receives raw adapter fields: "
+        f"{sorted(raw_keywords)}"
+    )
+
+
+def test_live_pending_state_mutation_matches_shared_transition_table() -> None:
+    import inspect
+    from datetime import datetime, timedelta
+
+    from tradebot.spot import lifecycle as lifecycle_module
+    from tradebot.ui import bot_signal_runtime as live_runtime
+
+    planner = getattr(lifecycle_module, "plan_pending_mutation", None)
+    assert callable(planner), "missing canonical plan_pending_mutation seam"
+
+    plan_type = getattr(lifecycle_module, "SpotPendingMutationPlan", None)
+    assert plan_type is not None, "missing typed SpotPendingMutationPlan contract"
+
+    apply_mutation = getattr(live_runtime.BotSignalRuntimeMixin, "_apply_pending_mutation", None)
+    assert callable(apply_mutation), "missing live pending-mutation adapter"
+
+    runtime_source = inspect.getsource(live_runtime.BotSignalRuntimeMixin._auto_process_pending_next_open)
+    assert "plan_pending_mutation(" in runtime_source
+    assert "_apply_pending_mutation(" in runtime_source
+
+    now = datetime(2026, 7, 20, 14, 0)
+    due_past = now - timedelta(minutes=1)
+    due_future = now + timedelta(minutes=1)
+    common = {
+        "now_ts": now,
+        "has_open": False,
+        "open_dir": None,
+        "pending_entry_dir": None,
+        "pending_entry_set_date": None,
+        "pending_entry_due_ts": None,
+        "pending_exit_reason": None,
+        "pending_exit_due_ts": None,
+        "risk_overlay_enabled": False,
+        "riskoff_today": False,
+        "riskpanic_today": False,
+        "riskpop_today": False,
+        "riskoff_mode": "hygiene",
+        "shock_dir_now": None,
+        "riskoff_end_hour": None,
+        "naive_ts_mode": "et",
+    }
+    cases = [
+        ("no_pending", {}, {"clear_entry": False, "clear_exit": False, "queue_intent": None, "queue_direction": None, "queue_reason": None}),
+        ("exit_wait", {"has_open": True, "open_dir": "up", "pending_exit_reason": "flip", "pending_exit_due_ts": due_future}, {"clear_entry": False, "clear_exit": False, "queue_intent": None, "queue_direction": None, "queue_reason": None}),
+        ("exit_due_open", {"has_open": True, "open_dir": "up", "pending_exit_reason": "flip", "pending_exit_due_ts": due_past}, {"clear_entry": False, "clear_exit": True, "queue_intent": "exit", "queue_direction": "up", "queue_reason": "flip"}),
+        ("exit_due_flat", {"pending_exit_reason": "flip", "pending_exit_due_ts": due_past}, {"clear_entry": False, "clear_exit": True, "queue_intent": None, "queue_direction": None, "queue_reason": None}),
+        ("entry_wait", {"pending_entry_dir": "up", "pending_entry_set_date": now.date(), "pending_entry_due_ts": due_future}, {"clear_entry": False, "clear_exit": False, "queue_intent": None, "queue_direction": None, "queue_reason": None}),
+        ("entry_due_flat", {"pending_entry_dir": "up", "pending_entry_set_date": now.date(), "pending_entry_due_ts": due_past}, {"clear_entry": True, "clear_exit": False, "queue_intent": "enter", "queue_direction": "up", "queue_reason": "next_open"}),
+        ("entry_due_open", {"has_open": True, "open_dir": "up", "pending_entry_dir": "down", "pending_entry_set_date": now.date(), "pending_entry_due_ts": due_past}, {"clear_entry": True, "clear_exit": False, "queue_intent": None, "queue_direction": None, "queue_reason": None}),
+        ("entry_cancel_date_roll", {"pending_entry_dir": "up", "pending_entry_set_date": now.date() - timedelta(days=1), "pending_entry_due_ts": due_future, "risk_overlay_enabled": True, "riskoff_today": True}, {"clear_entry": True, "clear_exit": False, "queue_intent": None, "queue_direction": None, "queue_reason": None}),
+        ("entry_cancel_directional_mismatch", {"pending_entry_dir": "up", "pending_entry_set_date": now.date(), "pending_entry_due_ts": due_future, "risk_overlay_enabled": True, "riskoff_today": True, "riskoff_mode": "directional", "shock_dir_now": "down"}, {"clear_entry": True, "clear_exit": False, "queue_intent": None, "queue_direction": None, "queue_reason": None}),
+        ("entry_directional_match_wait", {"pending_entry_dir": "up", "pending_entry_set_date": now.date(), "pending_entry_due_ts": due_future, "risk_overlay_enabled": True, "riskoff_today": True, "riskoff_mode": "directional", "shock_dir_now": "up"}, {"clear_entry": False, "clear_exit": False, "queue_intent": None, "queue_direction": None, "queue_reason": None}),
+    ]
+
+    for scenario, overrides, expected in cases:
+        kwargs = dict(common)
+        kwargs.update(overrides)
+        decision = lifecycle_module.decide_pending_next_open(**kwargs)
+        mutation = planner(
+            decision,
+            pending_entry_direction=kwargs["pending_entry_dir"],
+            pending_exit_reason=kwargs["pending_exit_reason"],
+            open_dir=kwargs["open_dir"],
+        )
+        assert isinstance(mutation, plan_type), scenario
+        assert mutation.as_payload() == expected, scenario
+
+        instance = _new_instance(strategy={"instrument": "spot"})
+        if kwargs["pending_entry_dir"] in ("up", "down") and kwargs["pending_entry_due_ts"] is not None:
+            instance.pending_entry_direction = str(kwargs["pending_entry_dir"])
+            instance.pending_entry_signal_bar_ts = now
+            instance.pending_entry_due_ts = kwargs["pending_entry_due_ts"]
+        if kwargs["pending_exit_due_ts"] is not None:
+            instance.pending_exit_reason = str(kwargs["pending_exit_reason"] or "flip")
+            instance.pending_exit_signal_bar_ts = now
+            instance.pending_exit_due_ts = kwargs["pending_exit_due_ts"]
+
+        before_entry = (
+            instance.pending_entry_direction,
+            instance.pending_entry_signal_bar_ts,
+            instance.pending_entry_due_ts,
+        )
+        before_exit = (
+            instance.pending_exit_reason,
+            instance.pending_exit_signal_bar_ts,
+            instance.pending_exit_due_ts,
+        )
+
+        apply_mutation(instance, mutation=mutation)
+
+        after_entry = (
+            instance.pending_entry_direction,
+            instance.pending_entry_signal_bar_ts,
+            instance.pending_entry_due_ts,
+        )
+        after_exit = (
+            instance.pending_exit_reason,
+            instance.pending_exit_signal_bar_ts,
+            instance.pending_exit_due_ts,
+        )
+        assert after_entry == ((None, None, None) if expected["clear_entry"] else before_entry), scenario
+        assert after_exit == ((None, None, None) if expected["clear_exit"] else before_exit), scenario
+
+
+def test_live_entry_basis_reconciliation_matches_shared_fill_table() -> None:
+    import inspect
+    import math
+    from types import SimpleNamespace
+
+    from tradebot.spot import lifecycle as lifecycle_module
+    from tradebot.ui import bot_engine_runtime as live_engine
+    from tradebot.ui import bot_models
+    from tradebot.ui.bot_screen import positions as positions_runtime
+
+    reconciler = getattr(lifecycle_module, "reconcile_spot_entry_basis", None)
+    assert callable(reconciler), "missing canonical reconcile_spot_entry_basis seam"
+
+    state_type = getattr(lifecycle_module, "SpotEntryBasisState", None)
+    assert state_type is not None, "missing typed SpotEntryBasisState contract"
+
+    cases = [
+        ("initial_long_fill", 0.0, None, 10.0, 100.0, None, None, 10.0, 100.0, "fill"),
+        ("initial_short_fill", 0.0, None, -4.0, 50.0, None, None, -4.0, 50.0, "fill"),
+        ("partial_entry_cancel_with_fill", 0.0, None, 3.0, 101.0, None, None, 3.0, 101.0, "fill"),
+        ("same_direction_scale_in", 10.0, 100.0, 3.0, 110.0, None, None, 13.0, (10.0 * 100.0 + 3.0 * 110.0) / 13.0, "fill"),
+        ("scale_out_preserves_basis", 10.0, 100.0, -4.0, 120.0, None, None, 6.0, 100.0, "fill"),
+        ("flat_clears_basis", 6.0, 100.0, -6.0, 121.0, None, None, 0.0, None, "flat"),
+        ("overclose_flip_resets_basis", 6.0, 100.0, -9.0, 121.0, None, None, -3.0, 121.0, "fill"),
+        ("reconnect_duplicate_fill_noop", 13.0, (10.0 * 100.0 + 3.0 * 110.0) / 13.0, 0.0, 110.0, None, None, 13.0, (10.0 * 100.0 + 3.0 * 110.0) / 13.0, "fill"),
+        ("broker_average_cost_authoritative", 13.0, (10.0 * 100.0 + 3.0 * 110.0) / 13.0, 0.0, None, 13.0, 102.5, 13.0, 102.5, "broker_average_cost"),
+    ]
+
+    for (
+        scenario,
+        previous_qty,
+        previous_basis,
+        fill_delta_qty,
+        fill_price,
+        broker_qty,
+        broker_average_cost,
+        expected_qty,
+        expected_basis,
+        expected_source,
+    ) in cases:
+        state = reconciler(
+            previous_qty=previous_qty,
+            previous_basis_price=previous_basis,
+            fill_delta_qty=fill_delta_qty,
+            fill_price=fill_price,
+            broker_qty=broker_qty,
+            broker_average_cost=broker_average_cost,
+        )
+        assert isinstance(state, state_type), scenario
+        assert math.isclose(float(state.quantity), expected_qty, rel_tol=0.0, abs_tol=1e-12), scenario
+        if expected_basis is None:
+            assert state.basis_price is None, scenario
+        else:
+            assert state.basis_price is not None, scenario
+            assert math.isclose(float(state.basis_price), expected_basis, rel_tol=0.0, abs_tol=1e-12), scenario
+        assert str(state.source) == expected_source, scenario
+
+    order_annotations = getattr(bot_models._BotOrder, "__annotations__", {})
+    instance_annotations = getattr(bot_models._BotInstance, "__annotations__", {})
+    assert "basis_applied_filled_qty" in order_annotations
+    assert "spot_entry_basis_qty" in instance_annotations
+
+    apply_fill = getattr(live_engine.BotEngineRuntimeMixin, "_apply_spot_entry_basis_fill", None)
+    assert callable(apply_fill), "missing live entry-basis fill adapter"
+
+    apply_broker = getattr(positions_runtime.BotPositionsMixin, "_apply_spot_broker_entry_basis", None)
+    assert callable(apply_broker), "missing live broker entry-basis adapter"
+
+    for (
+        scenario,
+        previous_qty,
+        previous_basis,
+        fill_delta_qty,
+        fill_price,
+        _broker_qty,
+        _broker_average_cost,
+        expected_qty,
+        expected_basis,
+        expected_source,
+    ) in cases[:-1]:
+        instance = _new_instance(strategy={"instrument": "spot"})
+        instance.spot_entry_basis_qty = float(previous_qty)
+        instance.spot_entry_basis_price = previous_basis
+        instance.spot_entry_basis_source = "fill" if previous_basis is not None else None
+
+        status = "Cancelled" if scenario == "partial_entry_cancel_with_fill" else "Filled"
+        intent = "enter" if previous_qty == 0 else "resize"
+        order = _new_order(
+            status=status,
+            signal_bar_ts=datetime(2026, 2, 9, 10, 0),
+            intent=intent,
+        )
+        order.action = "BUY" if fill_delta_qty >= 0 else "SELL"
+        cumulative_filled = abs(float(fill_delta_qty))
+        if scenario == "reconnect_duplicate_fill_noop":
+            cumulative_filled = 3.0
+            order.basis_applied_filled_qty = 3.0
+        else:
+            order.basis_applied_filled_qty = 0.0
+
+        state = apply_fill(
+            instance,
+            order,
+            cumulative_filled=cumulative_filled,
+            fill_price=fill_price,
+        )
+        assert isinstance(state, state_type), scenario
+        assert math.isclose(float(state.quantity), expected_qty, rel_tol=0.0, abs_tol=1e-12), scenario
+        assert math.isclose(float(instance.spot_entry_basis_qty), expected_qty, rel_tol=0.0, abs_tol=1e-12), scenario
+        if expected_basis is None:
+            assert state.basis_price is None and instance.spot_entry_basis_price is None, scenario
+        else:
+            assert state.basis_price is not None and instance.spot_entry_basis_price is not None, scenario
+            assert math.isclose(float(state.basis_price), expected_basis, rel_tol=0.0, abs_tol=1e-12), scenario
+            assert math.isclose(float(instance.spot_entry_basis_price), expected_basis, rel_tol=0.0, abs_tol=1e-12), scenario
+        assert str(state.source) == expected_source, scenario
+        assert math.isclose(float(order.basis_applied_filled_qty), cumulative_filled, rel_tol=0.0, abs_tol=1e-12), scenario
+
+    broker_instance = _new_instance(strategy={"instrument": "spot"})
+    broker_instance.spot_entry_basis_qty = 13.0
+    broker_instance.spot_entry_basis_price = (10.0 * 100.0 + 3.0 * 110.0) / 13.0
+    broker_instance.spot_entry_basis_source = "fill"
+    broker_item = SimpleNamespace(position=13.0, averageCost=102.5)
+    broker_state = apply_broker(broker_instance, broker_item)
+    assert isinstance(broker_state, state_type)
+    assert math.isclose(float(broker_instance.spot_entry_basis_qty), 13.0, rel_tol=0.0, abs_tol=1e-12)
+    assert math.isclose(float(broker_instance.spot_entry_basis_price), 102.5, rel_tol=0.0, abs_tol=1e-12)
+    assert broker_instance.spot_entry_basis_source == "broker_average_cost"
+
+    chase_source = inspect.getsource(live_engine.BotEngineRuntimeMixin._chase_orders_tick)
+    fill_route = chase_source.find("_apply_spot_entry_basis_fill(")
+    terminal_gate = chase_source.find("if is_done:")
+    legacy_filled_gate = chase_source.find('if status == "Filled" and sec_type == "STK":')
+    assert terminal_gate >= 0
+    assert fill_route > terminal_gate
+    assert legacy_filled_gate < 0 or fill_route < legacy_filled_gate
+
+    refresh_source = inspect.getsource(positions_runtime.BotPositionsMixin._refresh_positions)
+    assert "_apply_spot_broker_entry_basis(" in refresh_source
+
+
+import pytest
+
+
+@pytest.mark.parametrize("portfolio_mode", ("explicit_zero", "omitted"))
+def test_live_broker_refresh_clears_entry_basis_without_open_position(
+    portfolio_mode: str,
+) -> None:
+    import asyncio
+
+    from ib_insync import PortfolioItem, Stock
+
+    from tradebot.ui.bot_models import _BotInstance
+    from tradebot.ui.bot_screen.positions import BotPositionsMixin
+
+    contract = Stock("SLV", "SMART", "USD")
+    contract.conId = 1001
+    flat_item = PortfolioItem(
+        contract=contract,
+        position=0.0,
+        marketPrice=102.0,
+        marketValue=0.0,
+        averageCost=0.0,
+        unrealizedPNL=0.0,
+        realizedPNL=0.0,
+        account="DU-TEST",
+    )
+    portfolio = [flat_item] if portfolio_mode == "explicit_zero" else []
+
+    instance = _BotInstance(
+        instance_id=1,
+        group="entry-basis-flat",
+        symbol="SLV",
+        strategy={"instrument": "spot", "spot_sec_type": "STK"},
+        filters=None,
+    )
+    instance.spot_entry_basis_qty = 10.0
+    instance.spot_entry_basis_price = 100.0
+    instance.spot_entry_basis_source = "fill"
+
+    class _Client:
+        async def fetch_portfolio(self):
+            return list(portfolio)
+
+    class _Harness(BotPositionsMixin):
+        def __init__(self) -> None:
+            self._client = _Client()
+            self._instances = [instance]
+            self._positions = []
+            self._tracked_conids = set()
+
+        async def _prime_position_tickers(self) -> None:
+            return None
+
+        def _refresh_instances_table(self, *, refresh_dependents=True) -> None:
+            return None
+
+        def _refresh_orders_table(self) -> None:
+            return None
+
+        @staticmethod
+        def _spot_sec_type(_instance, _symbol) -> str:
+            return "STK"
+
+        @staticmethod
+        def _item_con_id(item) -> int:
+            return int(getattr(getattr(item, "contract", None), "conId", 0) or 0)
+
+    asyncio.run(_Harness()._refresh_positions())
+
+    assert instance.spot_entry_basis_qty == 0.0, (
+        f"{portfolio_mode}: broker refresh must clear stale spot entry basis when flat"
+    )
+    assert instance.spot_entry_basis_price is None, (
+        f"{portfolio_mode}: broker refresh must clear stale spot entry basis when flat"
+    )
+    assert instance.spot_entry_basis_source == "flat", (
+        f"{portfolio_mode}: broker refresh must clear stale spot entry basis when flat"
     )

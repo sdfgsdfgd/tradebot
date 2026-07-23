@@ -29,11 +29,15 @@ def _parse_date(value: str | None) -> date:
     return _parse_date_impl(value)
 
 
-def _parse_weekdays(days: list[str]) -> tuple[int, ...]:
+def _parse_weekdays(days: list[object]) -> tuple[int, ...]:
     if not days:
         return (0, 1, 2, 3, 4)
     parsed: list[int] = []
     for day in days:
+        if isinstance(day, int) and not isinstance(day, bool):
+            if 0 <= day <= 6:
+                parsed.append(day)
+            continue
         if not isinstance(day, str):
             continue
         key = day.strip().upper()[:3]
@@ -496,6 +500,24 @@ def _parse_supertrend_source(value) -> str:
         if cleaned in ("close", "c"):
             return "close"
     return "hl2"
+
+
+def _parse_spot_sec_type(value) -> str | None:
+    if value is None:
+        return None
+    cleaned = str(value).strip().upper()
+    if not cleaned:
+        return None
+    if cleaned not in {"STK", "FUT"}:
+        raise ValueError(f"Invalid spot_sec_type: {value!r} (expected 'STK' or 'FUT')")
+    return cleaned
+
+
+def _parse_spot_exchange(value) -> str | None:
+    if value is None:
+        return None
+    cleaned = str(value).strip().upper()
+    return cleaned or None
 
 
 def _parse_instrument(value) -> str:

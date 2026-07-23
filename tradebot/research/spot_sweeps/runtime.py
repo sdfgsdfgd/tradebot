@@ -9,6 +9,7 @@ import threading
 import time as pytime
 from datetime import datetime, time
 from pathlib import Path
+from ...contract_identity import future_exchange_for_symbol, future_multiplier_for_symbol, is_future_symbol
 from ...backtest.cli_utils import parse_date as _parse_date
 from ...backtest.config import (
     ConfigBundle,
@@ -118,14 +119,12 @@ class SpotSweepRuntime(
         self.data = IBKRHistoricalData()
 
         if self.offline:
-            is_future = self.symbol in ("MNQ", "MBT")
-            exchange = "CME" if is_future else "SMART"
-            multiplier = 1.0
-            if is_future:
-                multiplier = {"MNQ": 2.0, "MBT": 0.1}.get(self.symbol, 1.0)
+            is_future = is_future_symbol(self.symbol)
+            exchange = future_exchange_for_symbol(self.symbol) if is_future else "SMART"
+            multiplier = future_multiplier_for_symbol(self.symbol) if is_future else 1.0
             self.meta = ContractMeta(
                 symbol=self.symbol,
-                exchange=exchange,
+                exchange=str(exchange or "CME"),
                 multiplier=multiplier,
                 min_tick=0.01,
             )

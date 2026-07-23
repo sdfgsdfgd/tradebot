@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Iterable
 
 from .signals import parse_bar_size
 from .spot.policy import SpotPolicy
-from .spot.policy_contract import SpotDecisionTrace, SpotIntentDecision, SpotPolicyConfigView, SpotRuntimeSpec
+from .spot.policy_contract import SpotDecisionTrace, SpotIntentDecision, SpotPolicyConfigView, SpotRuntimeSpec, SpotSizingInput
 from .time_utils import (
     NaiveTsModeInput,
     normalize_naive_ts_mode as _normalize_naive_ts_mode_shared,
@@ -556,7 +556,7 @@ def spot_calc_signed_qty(
     )
 
 
-def spot_calc_signed_qty_with_trace(
+def spot_sizing_input(
     *,
     strategy: Mapping[str, object] | object,
     filters: Mapping[str, object] | object | None,
@@ -587,9 +587,21 @@ def spot_calc_signed_qty_with_trace(
     cash_ref: float | None = None,
     policy_graph: SpotPolicyGraph | None = None,
     policy_config: SpotPolicyConfigView | None = None,
-) -> tuple[int, SpotDecisionTrace]:
-    """Return signed share qty plus a typed spot decision trace."""
-    return SpotPolicy.calc_signed_qty_with_trace(
+) -> SpotSizingInput:
+    """Build the canonical typed input consumed by spot sizing."""
+    if policy_graph is None:
+        from .spot.graph import SpotPolicyGraph
+
+        policy_graph = SpotPolicyGraph.from_sources(
+            strategy=strategy,
+            filters=filters,
+        )
+    if policy_config is None:
+        policy_config = SpotPolicyConfigView.from_sources(
+            strategy=strategy,
+            filters=filters,
+        )
+    return SpotSizingInput(
         strategy=strategy,
         filters=filters,
         action=action,
@@ -620,6 +632,18 @@ def spot_calc_signed_qty_with_trace(
         policy_graph=policy_graph,
         policy_config=policy_config,
     )
+
+
+def spot_calc_signed_qty_with_trace(
+    sizing_input: SpotSizingInput | None = None,
+    **legacy_fields: object,
+) -> tuple[int, SpotDecisionTrace]:
+    """Return signed share qty plus a typed spot decision trace."""
+    if sizing_input is None:
+        sizing_input = spot_sizing_input(**legacy_fields)
+    elif legacy_fields:
+        raise TypeError("legacy sizing fields cannot accompany SpotSizingInput")
+    return SpotPolicy.calc_signed_qty_with_trace(**sizing_input.as_kwargs())
 
 
 def spot_resolve_position_intent(

@@ -1089,6 +1089,80 @@ def test_backtest_package_value_explicitly_inverts_canonical_debit_value(monkeyp
     assert calls == [[("SELL", 1, 2.0), ("BUY", 1, 1.0)]]
 
 
+def test_options_backtest_delegates_mcl_economics_to_canonical_product_facts(monkeypatch) -> None:
+    product_calls: list[tuple[str, dict[str, object]]] = []
+
+    class _Strategy:
+        symbol = "MCL"
+        filters = None
+        ema_preset = None
+        directional_legs = None
+        direction_source = "ema"
+        regime_mode = "ema"
+        regime_ema_preset = None
+        regime_bar_size = None
+
+    class _FakeOptionPackageStrategy:
+        def __init__(self, strategy) -> None:
+            self.strategy = strategy
+
+    def _product(symbol, **facts):
+        normalized = str(symbol or "").strip().upper()
+        product_calls.append((normalized, dict(facts)))
+        return option_product_facts(normalized, **facts)
+
+    monkeypatch.setattr(backtest_engine, "OptionsStrategyConfig", _Strategy)
+    monkeypatch.setattr(
+        backtest_engine,
+        "OptionPackageStrategy",
+        _FakeOptionPackageStrategy,
+    )
+    monkeypatch.setattr(backtest_engine, "load_calibration", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(backtest_engine, "ema_periods", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(backtest_engine, "option_product_facts", _product)
+    sentinel = object()
+    monkeypatch.setattr(backtest_engine, "summarize", lambda *_args, **_kwargs: sentinel)
+    cfg = SimpleNamespace(
+        strategy=_Strategy(),
+        synthetic=SimpleNamespace(
+            rv_lookback=20,
+            rv_ewma_lambda=0.94,
+            iv_risk_premium=1.0,
+            iv_floor=0.01,
+            term_slope=0.0,
+            skew=0.0,
+        ),
+        backtest=SimpleNamespace(
+            calibrate=False,
+            calibration_dir=Path("."),
+            starting_cash=1000.0,
+            bar_size="5 mins",
+            use_rth=False,
+        ),
+    )
+
+    result = backtest_engine.run_options_backtest(
+        cfg=cfg,
+        bars=[],
+        meta=SimpleNamespace(exchange="NYMEX", multiplier=100.0, min_tick=0.01),
+        data=SimpleNamespace(),
+        start_dt=SimpleNamespace(),
+        end_dt=SimpleNamespace(),
+    )
+
+    assert result.summary is sentinel
+    assert product_calls == [
+        (
+            "MCL",
+            {
+                "exchange": "NYMEX",
+                "multiplier": 100.0,
+                "source": "backtest_contract_meta",
+            },
+        )
+    ]
+
+
 def test_backtest_multi_quantity_credit_vertical_risk_matches_canonical_package_economics() -> None:
     quantity = 2
     multiplier = 100.0

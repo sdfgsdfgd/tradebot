@@ -432,6 +432,9 @@ class OptionsStrategyConfig(StrategyConfigBase):
 
 @dataclass(frozen=True)
 class SpotStrategyConfig(StrategyConfigBase):
+    spot_sec_type: str | None = None
+    spot_exchange: str | None = None
+
     def __post_init__(self) -> None:
         if str(self.instrument or "").strip().lower() != "spot":
             raise ValueError("SpotStrategyConfig requires instrument='spot'")

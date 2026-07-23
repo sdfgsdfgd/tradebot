@@ -66,6 +66,7 @@ class _BotInstance:
     error: str | None = None
     spot_profit_target_price: float | None = None
     spot_stop_loss_price: float | None = None
+    spot_entry_basis_qty: float = 0.0
     spot_entry_basis_price: float | None = None
     spot_entry_basis_source: str | None = None
     spot_entry_basis_set_ts: datetime | None = None
@@ -165,6 +166,7 @@ class _BotOrder:
     filled_qty: float = 0.0
     remaining_qty: float = 0.0
     executed_qty: float = 0.0
+    basis_applied_filled_qty: float = 0.0
 
 
 @dataclass(frozen=True)

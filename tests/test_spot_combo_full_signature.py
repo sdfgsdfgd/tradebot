@@ -219,6 +219,33 @@ def test_combo_full_seed_source_decodes_every_matching_lane_entry() -> None:
     assert all(cfg.strategy.filters.rv_max == 0.5 for cfg, _metrics, _note in candidates)
 
 
+def test_spot_strategy_payload_infers_mcl_futures_identity_from_contract_meta() -> None:
+    cfg = _bundle_base(
+        symbol="MCL",
+        start=date(2025, 1, 8),
+        end=date(2025, 1, 10),
+        bar_size="5 mins",
+        use_rth=False,
+        cache_dir=Path("db"),
+        offline=True,
+        filters=None,
+        entry_signal="ema",
+    )
+
+    strategy = _spot_strategy_payload(
+        cfg,
+        meta=ContractMeta("MCL", "NYMEX", 100.0, 0.01),
+    )
+
+    assert {
+        "spot_sec_type": strategy.get("spot_sec_type"),
+        "spot_exchange": strategy.get("spot_exchange"),
+    } == {
+        "spot_sec_type": "FUT",
+        "spot_exchange": "NYMEX",
+    }
+
+
 def test_combo_full_stability_reuses_exact_windows_and_canonical_evaluator(
     tmp_path,
     monkeypatch,

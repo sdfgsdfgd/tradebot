@@ -437,7 +437,11 @@ def test_search_option_underlyers_returns_ranked_symbols() -> None:
             ),
         ]
 
+    async def _fallback_from_symbol(_symbol: str):
+        return None
+
     client._matching_symbols = _matching_symbols
+    client._opt_underlyer_fallback_from_symbol = _fallback_from_symbol
 
     underlyers = asyncio.run(client.search_option_underlyers("bitcoin", limit=4))
 

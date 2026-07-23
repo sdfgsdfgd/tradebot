@@ -4,6 +4,12 @@ from collections.abc import Iterable, Mapping
 from dataclasses import asdict, dataclass
 import math
 
+from .contract_identity import (
+    future_exchange_for_symbol,
+    future_multiplier_for_symbol,
+    is_future_symbol,
+)
+
 
 @dataclass(frozen=True)
 class LegConfig:
@@ -300,9 +306,6 @@ class OptionProductFacts:
 _OPTION_PRODUCT_DEFAULTS = {
     "XSP": ("OPT", "CBOE", 100.0, "black_scholes", "cash"),
     "SPX": ("OPT", "CBOE", 100.0, "black_scholes", "cash"),
-    "MNQ": ("FOP", "CME", 2.0, "black_76", "future"),
-    "MCL": ("FOP", "NYMEX", 100.0, "black_76", "financial"),
-    "MBT": ("FOP", "CME", 0.1, "black_76", "future"),
 }
 
 
@@ -321,10 +324,17 @@ def option_product_facts(
     """Resolve one product identity; explicit broker/tape facts override safe defaults."""
 
     symbol = str(underlying_symbol or "").strip().upper()
-    default = _OPTION_PRODUCT_DEFAULTS.get(
-        symbol,
-        ("OPT", "SMART", 100.0, "black_scholes", "unknown"),
-    )
+    default = _OPTION_PRODUCT_DEFAULTS.get(symbol)
+    if default is None and is_future_symbol(symbol):
+        default = (
+            "FOP",
+            future_exchange_for_symbol(symbol) or "CME",
+            future_multiplier_for_symbol(symbol),
+            "black_76",
+            "financial" if symbol == "MCL" else "future",
+        )
+    if default is None:
+        default = ("OPT", "SMART", 100.0, "black_scholes", "unknown")
     resolved_security_type = (
         str(security_type).strip().upper() if security_type is not None else default[0]
     )

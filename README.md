@@ -151,6 +151,8 @@ Live safety: the canary performs direct TCP inspection and disposable SSH forwar
 | `unit` | `covered` | `unit.live.market-data-contracts` | `live-market-data-contracts` |
 | `unit` | `covered` | `unit.live.execution-orders` | `live-execution-orders` |
 | `unit` | `covered` | `unit.strategy.option-leg-normalization` | `live-execution-orders` |
+| `unit` | `covered` | `unit.strategy.entry-day-normalization` | `live-execution-orders` |
+| `unit` | `covered` | `unit.strategy.spot-contract-identity-parity` | `live-execution-orders` |
 | `unit` | `covered` | `unit.strategy.option-package-entry-intent` | `live-execution-orders` |
 | `unit` | `covered` | `unit.operator.ui-observability` | `operator-ui-observability` |
 | `unit` | `covered` | `unit.backtest.data-cache` | `backtest-data-cache` |

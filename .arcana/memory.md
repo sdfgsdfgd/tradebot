@@ -357,10 +357,10 @@ Source and references must be saturated before mutation, in this order:
 
 - Milestone base: `9261954424c4f1fe6f40a38bc3cf8aa9245737b5`.
 - Frozen capabilities: **20**.
-- Semantic alignment: **15/20 (75.0%)**.
-- Shared-covered: **9/20 (45.0%)**.
+- Semantic alignment: **18/20 (90.0%)**.
+- Shared-covered: **12/20 (60.0%)**.
 - Intentional adapters: **6/20 (30.0%)**.
-- Unproven: **5/20 (25.0%)**.
+- Unproven: **2/20 (10.0%)**.
 - Confirmed gaps: **0/20 (0.0%)**.
 - Machine-readable source: `tests/ledgers/parity_capabilities.json`.
 
@@ -380,9 +380,9 @@ Source and references must be saturated before mutation, in this order:
 | `spot-v1.execution-fill-adaptation` | `market-realism-parity` | `intentional-adapter` | `aligned` | Capture read-only IB fill/order-state shapes and replay them. |
 | `spot-v1.order-submission-status-adaptation` | `live-execution-orders` | `intentional-adapter` | `aligned` | Add spot-specific staged→send-error/cancel/inactive/partial/fill scenarios. |
 | `spot-v1.resize-mutation-accounting-adaptation` | `backtest-simulation-accounting` | `intentional-adapter` | `aligned` | Add broker-replay partial/full resize position and basis receipts. |
-| `spot-v1.sizing-input-assembly-parity` | `policy-risk-sizing` | `unproven` | `unproven` | Create canonical sizing-input payload and paired adapter extraction tests. |
-| `spot-v1.pending-state-mutation-parity` | `live-execution-orders` | `unproven` | `unproven` | Add identical pending-state transition tables for both adapters. |
-| `spot-v1.entry-basis-reconciliation` | `backtest-simulation-accounting` | `unproven` | `unproven` | Define normalized economic basis and test partial/multiple fills. |
+| `spot-v1.sizing-input-assembly-parity` | `policy-risk-sizing` | `shared-covered` | `aligned` | Add direct runtime capture for the backtest resize owner and non-default regime2/shock/risk value vectors. |
+| `spot-v1.pending-state-mutation-parity` | `live-execution-orders` | `shared-covered` | `aligned` | Extend paired transition vectors to partial-fill, reconnect and reconciliation states. |
+| `spot-v1.entry-basis-reconciliation` | `backtest-simulation-accounting` | `shared-covered` | `aligned` | Keep cumulative partial-fill, reconnect, scale-in/out, sign-flip, broker-average-cost and authoritative-flat receipts current. |
 | `spot-v1.trace-projection-parity` | `operator-ui-observability` | `unproven` | `unproven` | Normalize receipt schema and compare scenario snapshots. |
 | `spot-v1.exit-resize-adapter-receipts` | `verification-capability-evolution` | `unproven` | `unproven` | Build deterministic adapter harness and optional Gateway replay suite. |
 | `spot-v1.resize-cooldown-fill-ownership` | `live-execution-orders` | `intentional-adapter` | `aligned` | Extend successful-fill ownership receipts to partial fills, reconnect recovery and broker-position reconciliation. |
@@ -397,6 +397,54 @@ Source and references must be saturated before mutation, in this order:
 - Affected-file receipt: `59 passed, 1 warning in 0.43s`.
 - Deterministic receipt: `465 passed, 4 deselected, 1 warning in 9.87s`.
 - `spot-v1.resize-cooldown-fill-ownership` moved from `parity-gap` to aligned `intentional-adapter`.
+
+### Wave 2 resolution: canonical sizing-input assembly
+
+- Canonical owner: `tradebot/spot/policy_contract.py::SpotSizingInput` and `tradebot/engine.py::spot_sizing_input`.
+- Static matrix: backtest entry and resize each provide all 29 canonical fields; live supplies 27 explicit fields and delegates `SpotPolicyGraph` and `SpotPolicyConfigView` construction to the shared factory.
+- Runtime evidence: four backtest-entry payloads and one live-resize payload were captured; every payload was typed with graph/config populated, and the live approximately USD 2,200 profile carried `equity_ref=2200.0` and `cash_ref=1800.0`.
+- Typed and legacy wrapper entry forms produced identical quantity and trace output.
+- TDD receipts: semantic RED `8c3346697a225a6d012243c78980e824aac878e5af24ce3e56854e237ee3bb63`; exact/related GREEN `2365f85d748b9c19791d329d17e0d91a9700e013209b1ad6c5f7c00e79dad8f1`; full/value GREEN `4a1f960f748d1380910d9e481e2634a7ad33d672402c10ad5485f4c2bdf15843`.
+- Full deterministic verification: `604 passed, 4 deselected`; zero sockets; implementation diff SHA `a15c06259161e6aac185c15cbdf4eda68f1fb2c02f91e3181bc0a0a69f481ff8`.
+- `spot-v1.sizing-input-assembly-parity` moved from `unproven` to aligned `shared-covered`.
+- Publication: code milestone commit `737ecb7fb1b00d4a5bdb55d1d479c463e5f1cd06` (`Centralize spot sizing inputs`) advanced `origin/main` from `bf593fe06afc61f5db42df3446bae5a0b763200f`; an independent fresh fetch verified the same commit, parent, subject, and exact nine-path scope.
+- Publication receipt: `976166f6b39f4eccacbefde29e7de501fa90735c2e2328c117f1202c41530663`; independent pre-publication validation receipt `4144f35c05fdd514f1100f91ed74595b677e871ede3909c1a175c58fe3bfc829`; the sibling workspace finished clean and the original five-path dirty workspace remained unchanged.
+
+### Wave 3 resolution: canonical pending-state mutation
+
+- Canonical owner: `tradebot/spot/lifecycle.py::SpotPendingMutationPlan` and `tradebot/spot/lifecycle.py::plan_pending_mutation`.
+- Adapter owners: `tradebot/backtest/engine.py::_spot_apply_pending_mutation` and `tradebot/ui/bot_signal_runtime.py::BotSignalRuntimeMixin._apply_pending_mutation`.
+- Ten identical pending-entry/exit scenarios proved UTC-backtest and ET-live plan parity, exact clear behavior, state preservation and queue projection.
+- Persistent evidence: `tests/test_spot_summary_parity.py::test_backtest_pending_state_mutation_matches_shared_transition_table` and `tests/test_live_signal_exit_continuum.py::test_live_pending_state_mutation_matches_shared_transition_table`.
+- TDD receipts: denominator `81433dc08dbbbcf45fab0b665a647e8e71a7a2fe22cea8d0a4b17a00fc2384c9`; semantic RED `a7018da57423f2700317b8393e4e1e521df6b215885901298cc2a6b675ccfcba`; implementation GREEN `3a73fbf4bc2896847700943e0f5b39e6ee66eef51ebd6236d80cdc0839a0a6c4`; value/full-suite GREEN `c1437db7b1d25d64aeacc6f6443294183bbec3a6d96bdcfc324e4eb56dcc88a0`.
+- Full deterministic verification: `606 passed, 4 deselected`; zero sockets; five-path implementation diff SHA `86942b1b459a5bf28ebc8cdd055dbfedff6b252cec6d53e5796189f771001cc4`.
+- Promotion boundary receipt: `38f85952542c44e660fa0a89560c3ed8e65e2b80f496e54b5da3f94251c72a53`; README remained a certified no-op because its crosswalk is owned by `tests/ledgers/capability_contracts.json`.
+- `spot-v1.pending-state-mutation-parity` moved from `unproven` to aligned `shared-covered`.
+
+- Publication: pending-state milestone commit `29256f119f8c522b4dcc669246bd94e3a96e2328` (`Centralize spot pending state mutation`) advanced `origin/main` from `53ebd8e4a3de32f745ed711b8ca7eb58612dddfe`; explicit SSH push and an independent fresh fetch verified the same commit, parent, subject, exact seven-path scope and diff SHA `9052b5f4a59112e3fd95a7b7e0c16fa5f92bc5aac9e62ed626880c840e8823ef`.
+- Publication receipt: `62c78a3dfb5cffc7d5ce177f388ee090dc2724d45fa0164d442a022e6640419e`; independent pre-publication validation receipt `d17fb3c246973b51df3b91db500d118145e27dffa9ccc5ea310aa71b3235af4f`; the sibling workspace finished clean and the original five-path dirty workspace remained unchanged.
+
+### Wave 4 resolution: canonical entry-basis reconciliation
+
+- Canonical owner: `tradebot/spot/lifecycle.py::SpotEntryBasisState` and `tradebot/spot/lifecycle.py::reconcile_spot_entry_basis`.
+- Backtest adapters: `tradebot/backtest/engine.py::_spot_try_open_entry` and `tradebot/backtest/engine.py::_spot_apply_resize_trade`.
+- Live adapters: `tradebot/ui/bot_engine_runtime.py::BotEngineRuntimeMixin._apply_spot_entry_basis_fill`, `tradebot/ui/bot_screen/positions.py::BotPositionsMixin._apply_spot_broker_entry_basis`, and `tradebot/ui/bot_screen/positions.py::BotPositionsMixin._refresh_positions`.
+- The shared nine-row matrix covers initial long/short fills, terminal partial entry, same-direction scale-in, scale-out, flat, overclose sign flip, reconnect duplicate no-op, and broker-average-cost authority.
+- Live cumulative-fill application uses `_BotOrder.basis_applied_filled_qty`; signed increments derive from typed order action; `_BotInstance.spot_entry_basis_qty` provides the prior inventory state.
+- Successful broker snapshots project non-flat `position`/`averageCost`, explicit zero rows, and omitted positions; a failed portfolio fetch preserves prior basis and emits the existing status error.
+- Persistent evidence: `tests/test_spot_summary_parity.py::test_backtest_entry_basis_reconciliation_matches_shared_fill_table`, `tests/test_live_signal_exit_continuum.py::test_live_entry_basis_reconciliation_matches_shared_fill_table`, and `tests/test_live_signal_exit_continuum.py::test_live_broker_refresh_clears_entry_basis_without_open_position`.
+- TDD receipts: corrected paired RED `c01a766222592ae32c2bfb7e93010b9727cc39cd62cf81d18a0f4b1496995812`; initial implementation GREEN `cec2336d408242477042fb87d30e15eb9bb73f166b2475f6c290235e6b50833e`; broker-flat RED `a0efffeec1a77e7398c96c0add4fae2d32ef3633a80ca1f374aa4740d5db540f`; broker-flat GREEN `691b45d947ea8bc93a6fe8c5f1ac884decb44081ef971982cc7235de66d7e5db`; independent promotion boundary `31551d5218284a8c213e8ef20fb5fceb10e773dca795a8e720f89e5187744dcf`.
+- Full deterministic verification: `610 passed, 4 deselected`; zero sockets; test diff SHA `85602f6d84c7fd2540ac7e6ba135a78d4010f02993d300e5d9949e99c91c3f11`; production diff SHA `e4d5041fb8fadd871a478d08cb29e4835539ef7675e3d8e76a3e76d71596ec08`; combined implementation diff SHA `252c3b1de8822210fb479c2c98aabc8ee3e99e5d2b6423d04dc9c604d973a138`.
+- README remained a certified no-op because its crosswalk validator is backed by `tests/ledgers/capability_contracts.json`, not this parity ledger.
+- `spot-v1.entry-basis-reconciliation` moved from `unproven` to aligned `shared-covered`; the frozen denominator is now 18/20 aligned, 12/20 shared-covered, 6/20 intentional adapters and 2/20 unproven.
+
+### Wave 4 publication: canonical entry-basis reconciliation
+
+- Code milestone: `180582b76ebe6a1b11540183446fdbcbc894d1fb` (`Centralize spot entry basis reconciliation`), parent `0a2176530206747ef857665ec45fa5cc8568abc3`.
+- Explicit SSH push advanced `origin/main` from `0a2176530206747ef857665ec45fa5cc8568abc3` to `180582b76ebe6a1b11540183446fdbcbc894d1fb` without changing origin configuration.
+- Independent fresh fetch verified the exact nine-path scope and promoted diff SHA `ffb3d5046da99b991e256aa6ce25b0f65a97a4c00d978e53c405059cfc29d718`.
+- Published verification: focused `16 passed`; capability validators `5 passed`; full deterministic suite `610 passed, 4 deselected`; zero sockets.
+- Independent publication receipt: `338f92416919b1298250e330f542eda98679a99ee0605ede02140452551c7bdf`.
 
 <!-- END: TRADEBOT_PARITY_FIRST_SLICE_V1 -->
 
@@ -423,3 +471,19 @@ Safety constraints:
 Next cycle: recursively map existing combination-contract, option-leg, margin, backtest-strategy, optimizer and promotion surfaces before extending the machine denominator.
 
 <!-- END: TRADEBOT_ARCHITECTURE_PRIORITY_QUEUE_V1 -->
+
+<!-- BEGIN: TRADEBOT_SPOT_CONTRACT_IDENTITY_V1 -->
+
+<!-- anchor: @strategy.spot-contract-identity-v1 -->
+## Spot Contract Identity v1
+
+- Covered contract: `unit.strategy.spot-contract-identity-parity` in `live-execution-orders`.
+- Canonical owner: `tradebot/contract_identity.py`; nullable typed `spot_sec_type` and `spot_exchange` preserve explicit identity while absent values delegate to the registry.
+- MCL is `FUT` / `NYMEX` / multiplier `100.0`; MNQ is `FUT` / `CME` / multiplier `2.0`; unknown equity symbols remain non-futures and use stock defaults.
+- Centralized consumers: research payloads, historical/calibration/backtest/options, offline sweeps, UI configuration/live signal contracts, and client exchange/order normalization.
+- TDD receipts: remaining-consumer RED `052c62529c638aba416855c4ca640663335e942d3ea96a43a3ac773441cf0dc6`; duplicate-free transport-clean GREEN `14a700706d3a06907620bcae474d4f01f39a559ddbf6c880bcef7f021b13bc11` (`2` exact and `243` collected/passed, zero sockets). Direct canonical-registry evidence: `tests/test_live_signal_exit_continuum.py::test_canonical_contract_identity_registry_covers_mcl_mnq_and_equity_controls`.
+- Full deterministic verification: `601 passed, 4 deselected`; selected denominator `601`; focused coverage `10 passed`; zero sockets.
+
+- Publication: code milestone commit `82a6a452c31d6ea44390b8dfb45005c2807fbd40` was pushed as a fast-forward from `d68a496820dcc8bfdfda9a845250c52f03b780b0` to `origin/main`; a fresh independent fetch resolved `refs/heads/main` to the same commit; the original dirty workspace remained at `90447ff29f177d1e216a38b07b47d923487e18cb` with its exact five-path status and empty index.
+
+<!-- END: TRADEBOT_SPOT_CONTRACT_IDENTITY_V1 -->
