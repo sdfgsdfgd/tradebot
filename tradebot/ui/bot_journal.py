@@ -20,6 +20,117 @@ _REPEAT_FROM_ET_KEY = "log_repeat_from_ts_et"
 _REPEAT_FROM_UTC_KEY = "log_repeat_from_ts_utc"
 
 
+def order_attempt_payload(
+    instance: _BotInstance,
+    base: dict | None = None,
+    *,
+    required: bool = False,
+) -> dict[str, object]:
+    payload: dict[str, object] = dict(base) if isinstance(base, dict) else {}
+    attempt = max(0, int(instance.order_trigger_attempt or 0))
+    if required or attempt:
+        payload["order_attempt"] = max(1, attempt)
+    retry_reason = str(instance.order_trigger_retry_reason or "").strip()
+    if retry_reason:
+        payload["retry_reason"] = retry_reason
+    return payload
+
+
+def order_build_failure_payload(
+    message: str,
+    instance: _BotInstance,
+    *,
+    direction: str | None,
+    signal_bar_ts: datetime | None,
+    retry_reason: str | None = None,
+    quote_payload: dict[str, object] | None = None,
+) -> dict[str, object]:
+    text = str(message or "")
+    lowered = text.strip().lower()
+    reason = str(retry_reason or "").strip()
+    if not reason:
+        reason = next(
+            (
+                value
+                for prefix, value in (
+                    ("quote:", "quote_unpriced"),
+                    ("signal:", "signal_unavailable"),
+                    ("contract:", "contract_unavailable"),
+                    ("order: atr not ready", "atr_not_ready"),
+                    ("order: spot sizing returned 0 qty", "sizing_zero_qty"),
+                    (
+                        "order: currency conversion unavailable",
+                        "currency_conversion_unavailable",
+                    ),
+                )
+                if lowered.startswith(prefix)
+            ),
+            "order_build_failed",
+        )
+    payload = order_attempt_payload(
+        instance,
+        {
+            "error": text,
+            "direction": direction,
+            "signal_bar_ts": signal_bar_ts.isoformat()
+            if signal_bar_ts is not None
+            else None,
+            "retry_reason": reason,
+        },
+        required=True,
+    )
+    payload["retry_reason"] = reason
+    if isinstance(quote_payload, dict):
+        payload.update(quote_payload)
+    return payload
+
+
+def order_quote_failure_payload(
+    *,
+    ticker: object | None,
+    bid: float | None,
+    ask: float | None,
+    last: float | None,
+    mid: float | None = None,
+    proxy_error: object = None,
+) -> dict[str, object]:
+    md_type_raw = getattr(ticker, "marketDataType", None) if ticker is not None else None
+    try:
+        md_type = int(md_type_raw) if md_type_raw is not None else None
+    except (TypeError, ValueError):
+        md_type = None
+    age_ms = None
+    ticker_ts = getattr(ticker, "time", None) if ticker is not None else None
+    if isinstance(ticker_ts, datetime):
+        now_ts = (
+            datetime.now(tz=ticker_ts.tzinfo)
+            if ticker_ts.tzinfo is not None
+            else _now_et().replace(tzinfo=None)
+        )
+        try:
+            age_ms = max(0, int((now_ts - ticker_ts).total_seconds() * 1000.0))
+        except Exception:
+            age_ms = None
+    return {
+        "quote": {
+            "bid": float(bid) if bid is not None else None,
+            "ask": float(ask) if ask is not None else None,
+            "last": float(last) if last is not None else None,
+            "mid": float(mid) if mid is not None else None,
+            "market_data_type": md_type,
+            "live": md_type in (1, 2),
+            "delayed": md_type in (3, 4),
+            "frozen": md_type in (2, 4),
+            "md_ok": any(
+                value is not None and float(value) > 0
+                for value in (bid, ask, last)
+            ),
+            "ticker_age_ms": age_ms,
+            "proxy_error": proxy_error,
+        }
+    }
+
+
 class BotJournal:
     def __init__(self, out_dir: Path) -> None:
         self._lock = threading.Lock()

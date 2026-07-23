@@ -322,7 +322,12 @@ def test_option_position_close_reduces_positions_to_minimal_bag_ratio() -> None:
         normalize_option_position_close(((short, -1.5), (long, 1)))
 
 
-def test_option_builder_closes_two_lot_spread_as_one_normalized_bag() -> None:
+def test_option_builder_closes_two_lot_spread_as_one_normalized_bag(monkeypatch) -> None:
+    monkeypatch.setattr(
+        bot_order_builder_module,
+        "initial_execution_mode",
+        lambda **_kwargs: "MID",
+    )
     contracts = []
     for con_id, right, strike, position in (
         (1001, "P", 100.0, -2.0),
@@ -379,10 +384,6 @@ def test_option_builder_closes_two_lot_spread_as_one_normalized_bag() -> None:
         @staticmethod
         def _strategy_instrument(_strategy) -> str:
             return "options"
-
-        @staticmethod
-        def _initial_exec_mode(**_kwargs) -> str:
-            return "MID"
 
         @staticmethod
         def _resolve_open_positions(*_args, **_kwargs):
@@ -461,6 +462,11 @@ def test_option_builder_stages_native_credit_bag_through_canonical_kernel(monkey
         "_now_et",
         lambda: datetime(2026, 2, 9, 10, 0),
     )
+    monkeypatch.setattr(
+        bot_order_builder_module,
+        "initial_execution_mode",
+        lambda **_kwargs: "MID",
+    )
 
     underlying = Stock(symbol="XSP", exchange="SMART", currency="USD")
     underlying.conId = 900
@@ -524,10 +530,6 @@ def test_option_builder_stages_native_credit_bag_through_canonical_kernel(monkey
         @staticmethod
         def _strategy_instrument(_strategy) -> str:
             return "options"
-
-        @staticmethod
-        def _initial_exec_mode(**_kwargs) -> str:
-            return "MID"
 
         @staticmethod
         def _reset_daily_counters_if_needed(_instance) -> None:
@@ -697,10 +699,6 @@ def test_option_builder_rejects_unsupported_transition_intent_before_mutation(
             return "options"
 
         @staticmethod
-        def _initial_exec_mode(**_kwargs) -> str:
-            return "MID"
-
-        @staticmethod
         def _reset_daily_counters_if_needed(_instance) -> None:
             return None
 
@@ -815,6 +813,11 @@ def _run_xsp_capacity_builder_case(
         "_now_et",
         lambda: datetime(2026, 2, 9, 10, 0),
     )
+    monkeypatch.setattr(
+        bot_order_builder_module,
+        "initial_execution_mode",
+        lambda **_kwargs: "MID",
+    )
 
     def _record_capacity(request, summary):
         capacity_calls.append((request, summary))
@@ -901,10 +904,6 @@ def _run_xsp_capacity_builder_case(
         @staticmethod
         def _strategy_instrument(_strategy) -> str:
             return "options"
-
-        @staticmethod
-        def _initial_exec_mode(**_kwargs) -> str:
-            return "MID"
 
         @staticmethod
         def _reset_daily_counters_if_needed(_instance) -> None:

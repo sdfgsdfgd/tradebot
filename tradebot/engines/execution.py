@@ -220,6 +220,24 @@ _EXEC_LADDER_PHASES_SEC = (
 _EXEC_AUTO_TIMEOUT_SEC = _EXEC_LADDER_PHASES_SEC + _EXEC_RELENTLESS_TIMEOUT_SEC
 
 
+def initial_execution_mode(
+    *,
+    instrument: str,
+    intent: str,
+    trigger_reason: str | None = None,
+    exit_retry_count: int = 0,
+) -> str:
+    if (
+        str(instrument or "").strip().lower() != "spot"
+        or str(intent or "").strip().lower() != "exit"
+        or str(trigger_reason or "").strip().lower()
+        not in ("stop_loss", "stop_loss_pct")
+    ):
+        return "OPTIMISTIC"
+    retries = max(0, int(exit_retry_count or 0))
+    return "AGGRESSIVE" if retries >= 2 else "MID" if retries else "OPTIMISTIC"
+
+
 def _exec_ladder_mode(elapsed_sec: float) -> str | None:
     """Advance OPTIMISTIC -> MID -> AGGRESSIVE -> CROSS in six-second phases."""
     try:

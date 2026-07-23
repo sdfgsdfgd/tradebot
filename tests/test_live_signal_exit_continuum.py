@@ -18,6 +18,7 @@ from tradebot.backtest.engine import _spot_strategy_sec_type
 from tradebot.backtest.spot_codec import spot_strategy_payload, strategy_from_payload
 from tradebot.client import BrokerOrderPreview, IBKRClient, _session_flags
 from tradebot.config import IBKRConfig
+from tradebot.engines.execution import initial_execution_mode
 import tradebot.live.options as live_options_module
 from tradebot.live.options import QualifiedOptionLeg
 from tradebot.option_package import OptionPackageRisk
@@ -3706,39 +3707,43 @@ def test_initial_exec_mode_escalates_stop_exit_retries() -> None:
 
     instance.exit_retry_count = 0
     assert (
-        BotOrderBuilderMixin._initial_exec_mode(
-            instance=instance,
+        initial_execution_mode(
             instrument="spot",
-            intent_clean="exit",
+            intent="exit",
+            trigger_reason=instance.order_trigger_reason,
+            exit_retry_count=instance.exit_retry_count,
         )
         == "OPTIMISTIC"
     )
 
     instance.exit_retry_count = 1
     assert (
-        BotOrderBuilderMixin._initial_exec_mode(
-            instance=instance,
+        initial_execution_mode(
             instrument="spot",
-            intent_clean="exit",
+            intent="exit",
+            trigger_reason=instance.order_trigger_reason,
+            exit_retry_count=instance.exit_retry_count,
         )
         == "MID"
     )
 
     instance.exit_retry_count = 2
     assert (
-        BotOrderBuilderMixin._initial_exec_mode(
-            instance=instance,
+        initial_execution_mode(
             instrument="spot",
-            intent_clean="exit",
+            intent="exit",
+            trigger_reason=instance.order_trigger_reason,
+            exit_retry_count=instance.exit_retry_count,
         )
         == "AGGRESSIVE"
     )
 
     assert (
-        BotOrderBuilderMixin._initial_exec_mode(
-            instance=instance,
+        initial_execution_mode(
             instrument="options",
-            intent_clean="exit",
+            intent="exit",
+            trigger_reason=instance.order_trigger_reason,
+            exit_retry_count=instance.exit_retry_count,
         )
         == "OPTIMISTIC"
     )

@@ -47,6 +47,7 @@ from ..spot.fill_modes import (
 from ..time_utils import now_et as _now_et
 from ..time_utils import to_et as _to_et_shared
 from ..engines.execution import _quote_num_display, _sanitize_nbbo, _ticker_price
+from .bot_journal import order_attempt_payload
 from .bot_models import _BotInstance
 from .common import _market_session_bucket, _safe_num
 from ..option_package import option_profit_target_hit, option_stop_loss_hit
@@ -1269,17 +1270,6 @@ class BotSignalRuntimeMixin:
         instance.order_trigger_retry_reason = None
         instance.order_trigger_last_error = None
 
-    @staticmethod
-    def _order_trigger_watch_payload(instance: _BotInstance) -> dict[str, object]:
-        payload: dict[str, object] = {}
-        attempt = max(0, int(instance.order_trigger_attempt or 0))
-        if attempt > 0:
-            payload["order_attempt"] = int(attempt)
-        retry_reason = str(instance.order_trigger_retry_reason or "").strip()
-        if retry_reason:
-            payload["retry_reason"] = retry_reason
-        return payload
-
     def _check_order_trigger_watchdogs(self, *, now_et: datetime) -> None:
         now_wall = self._wall_time(now_et)
         for instance in self._instances:
@@ -1306,7 +1296,7 @@ class BotSignalRuntimeMixin:
                 ),
                 "deadline_ts": deadline.isoformat(),
             }
-            payload.update(self._order_trigger_watch_payload(instance))
+            payload.update(order_attempt_payload(instance))
             self._journal_write(
                 event="ORDER_DROPPED",
                 instance=instance,
@@ -1679,7 +1669,7 @@ class BotSignalRuntimeMixin:
                     "next_open_due_from": due_from_ts.isoformat(),
                     "now_wall_ts": now_wall.isoformat(),
                     "signal_bar_ts": signal_bar_ts.isoformat(),
-                    **self._order_trigger_watch_payload(instance),
+                    **order_attempt_payload(instance),
                 },
             )
             return True
@@ -1739,7 +1729,7 @@ class BotSignalRuntimeMixin:
                     "next_open_due_from": due_from_ts.isoformat(),
                     "now_wall_ts": now_wall.isoformat(),
                     "signal_bar_ts": signal_bar_ts.isoformat(),
-                    **self._order_trigger_watch_payload(instance),
+                    **order_attempt_payload(instance),
                 },
             )
             return True
@@ -1860,7 +1850,7 @@ class BotSignalRuntimeMixin:
                     "now_wall_ts": now_wall.isoformat(),
                     "signal_bar_ts": pending_exit_signal_bar_ts.isoformat() if pending_exit_signal_bar_ts is not None else None,
                     "spot_lifecycle": decision.as_payload(),
-                    **self._order_trigger_watch_payload(instance),
+                    **order_attempt_payload(instance),
                 },
             )
             return True
@@ -1893,7 +1883,7 @@ class BotSignalRuntimeMixin:
                         else None
                     ),
                     "spot_lifecycle": decision.as_payload(),
-                    **self._order_trigger_watch_payload(instance),
+                    **order_attempt_payload(instance),
                 },
             )
             return True
@@ -2048,7 +2038,7 @@ class BotSignalRuntimeMixin:
             if lifecycle is not None:
                 as_payload = getattr(lifecycle, "as_payload", None)
                 payload["spot_lifecycle"] = as_payload() if callable(as_payload) else lifecycle
-            payload.update(self._order_trigger_watch_payload(instance))
+            payload.update(order_attempt_payload(instance))
             gate("TRIGGER_EXIT", payload)
             return True
 
@@ -2619,7 +2609,7 @@ class BotSignalRuntimeMixin:
             "mode": "target",
             "cooldown_bars": int(getattr(policy, "spot_resize_cooldown_bars", 0) or 0),
         }
-        payload.update(self._order_trigger_watch_payload(instance))
+        payload.update(order_attempt_payload(instance))
         gate("TRIGGER_RESIZE", payload)
         return True
 
@@ -2797,7 +2787,7 @@ class BotSignalRuntimeMixin:
         }
         if next_open_ctx is not None:
             payload["next_open_ctx"] = next_open_ctx
-        payload.update(self._order_trigger_watch_payload(instance))
+        payload.update(order_attempt_payload(instance))
         gate("TRIGGER_ENTRY", payload)
         return True
 
@@ -2863,7 +2853,7 @@ class BotSignalRuntimeMixin:
                         "direction": direction,
                         "signal_bar_ts": signal_bar_ts.isoformat() if signal_bar_ts else None,
                         "retry_reason": "order_build_exception",
-                        **self._order_trigger_watch_payload(instance),
+                        **order_attempt_payload(instance),
                     },
                 )
                 self._status = f"Order build error: {exc}"

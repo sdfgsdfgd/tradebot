@@ -2,11 +2,6 @@
 
 from __future__ import annotations
 
-from ..order_reservation import (
-    OrderReservationCapacityRequest,
-    evaluate_order_reservation_capacity,
-)
-
 import asyncio
 from datetime import datetime
 
@@ -19,36 +14,20 @@ from ..engines.execution import (
     _round_to_tick,
     _sanitize_nbbo,
     _tick_size,
+    initial_execution_mode,
 )
-from ..live.options import (
-    QualifiedOptionLeg,
-    normalize_option_position_close,
-    quote_live_option_order,
-    resolve_live_option_entry,
-)
+from ..live.options import QualifiedOptionLeg, normalize_option_position_close, quote_live_option_order, resolve_live_option_entry
 from ..option_package import option_package_entry_intent
+from ..order_reservation import OrderReservationCapacityRequest, evaluate_order_reservation_capacity
 from ..spot.lifecycle import decide_open_position_intent
+from ..spot.scenario import project_live_spot_order_journal
 from ..time_utils import now_et as _now_et
 from ..time_utils import now_et_naive as _now_et_naive
+from .bot_journal import order_attempt_payload, order_build_failure_payload, order_quote_failure_payload
 from .bot_models import _BotInstance, _BotOrder
 
 
 class BotOrderBuilderMixin:
-    @staticmethod
-    def _initial_exec_mode(*, instance: _BotInstance, instrument: str, intent_clean: str) -> str:
-        mode = "OPTIMISTIC"
-        if str(instrument or "").strip().lower() != "spot" or str(intent_clean or "") != "exit":
-            return mode
-        trigger_reason = str(instance.order_trigger_reason or "").strip().lower()
-        if trigger_reason not in ("stop_loss", "stop_loss_pct"):
-            return mode
-        retry_count = max(0, int(instance.exit_retry_count or 0))
-        if retry_count >= 2:
-            return "AGGRESSIVE"
-        if retry_count >= 1:
-            return "MID"
-        return mode
-
     async def _create_order_for_instance_exit(
         self,
         *,
@@ -62,8 +41,7 @@ class BotOrderBuilderMixin:
         leg_price,
         fail,
         set_status,
-        order_journal_with_attempt,
-        quote_failure_payload,
+        order_journal,
         finalize_leg_orders,
     ) -> None:
         if instrument == "spot":
@@ -100,7 +78,13 @@ class BotOrderBuilderMixin:
             if limit is None:
                 return fail(
                     "Quote: no bid/ask/last (cannot price)",
-                    quote_payload=quote_failure_payload(ticker=ticker, bid=bid, ask=ask, last=last),
+                    quote_payload=order_quote_failure_payload(
+                        ticker=ticker,
+                        bid=bid,
+                        ask=ask,
+                        last=last,
+                        proxy_error=self._client.proxy_error(),
+                    ),
                 )
             tick = _tick_size(contract, ticker, limit) or 0.01
             limit = _round_to_tick(float(limit), tick)
@@ -121,7 +105,7 @@ class BotOrderBuilderMixin:
                 direction=direction,
                 reason="exit",
                 signal_bar_ts=signal_bar_ts,
-                journal=order_journal_with_attempt(),
+                journal=dict(order_journal),
                 exec_mode=mode,
             )
             if con_id:
@@ -240,10 +224,11 @@ class BotOrderBuilderMixin:
 
         # All live execution uses the shared execution ladder (optimistic -> mid -> aggressive -> cross).
         # For repeated stop exits, start one rung higher so risk-off retries become marketable faster.
-        mode = self._initial_exec_mode(
-            instance=instance,
+        mode = initial_execution_mode(
             instrument=instrument,
-            intent_clean=intent_clean,
+            intent=intent_clean,
+            trigger_reason=instance.order_trigger_reason,
+            exit_retry_count=instance.exit_retry_count,
         )
 
         def _leg_price(
@@ -259,80 +244,6 @@ class BotOrderBuilderMixin:
             self._status = message
             self._render_status()
 
-        def _order_attempt_payload() -> dict[str, object]:
-            payload: dict[str, object] = {
-                "order_attempt": max(1, int(instance.order_trigger_attempt or 1)),
-            }
-            retry_reason = str(instance.order_trigger_retry_reason or "").strip()
-            if retry_reason:
-                payload["retry_reason"] = retry_reason
-            return payload
-
-        def _order_journal_with_attempt(base: dict | None = None) -> dict[str, object]:
-            payload: dict[str, object] = dict(base) if isinstance(base, dict) else {}
-            payload.update(_order_attempt_payload())
-            return payload
-
-        def _retry_reason_from_error(message: str) -> str:
-            text = str(message or "").strip().lower()
-            if text.startswith("quote:"):
-                return "quote_unpriced"
-            if text.startswith("signal:"):
-                return "signal_unavailable"
-            if text.startswith("contract:"):
-                return "contract_unavailable"
-            if text.startswith("order: atr not ready"):
-                return "atr_not_ready"
-            if text.startswith("order: spot sizing returned 0 qty"):
-                return "sizing_zero_qty"
-            if text.startswith("order: currency conversion unavailable"):
-                return "currency_conversion_unavailable"
-            return "order_build_failed"
-
-        def _quote_failure_payload(
-            *,
-            ticker: Ticker | None,
-            bid: float | None,
-            ask: float | None,
-            last: float | None,
-            mid: float | None = None,
-        ) -> dict[str, object]:
-            md_type_raw = getattr(ticker, "marketDataType", None) if ticker is not None else None
-            try:
-                md_type = int(md_type_raw) if md_type_raw is not None else None
-            except (TypeError, ValueError):
-                md_type = None
-            live = md_type in (1, 2)
-            delayed = md_type in (3, 4)
-            frozen = md_type in (2, 4)
-            quote_ok = any(v is not None and float(v) > 0 for v in (bid, ask, last))
-            age_ms = None
-            if ticker is not None:
-                ticker_ts = getattr(ticker, "time", None)
-                if isinstance(ticker_ts, datetime):
-                    now_ts = (
-                        datetime.now(tz=ticker_ts.tzinfo) if ticker_ts.tzinfo is not None else _now_et_naive()
-                    )
-                    try:
-                        age_ms = max(0, int((now_ts - ticker_ts).total_seconds() * 1000.0))
-                    except Exception:
-                        age_ms = None
-            return {
-                "quote": {
-                    "bid": float(bid) if bid is not None else None,
-                    "ask": float(ask) if ask is not None else None,
-                    "last": float(last) if last is not None else None,
-                    "mid": float(mid) if mid is not None else None,
-                    "market_data_type": md_type,
-                    "live": bool(live),
-                    "delayed": bool(delayed),
-                    "frozen": bool(frozen),
-                    "md_ok": bool(quote_ok),
-                    "ticker_age_ms": age_ms,
-                    "proxy_error": self._client.proxy_error(),
-                }
-            }
-
         def _fail(
             message: str,
             *,
@@ -340,18 +251,17 @@ class BotOrderBuilderMixin:
             retry_reason: str | None = None,
         ) -> None:
             _set_status(message)
-            reason_clean = str(retry_reason or "").strip() or _retry_reason_from_error(message)
+            payload = order_build_failure_payload(
+                message,
+                instance,
+                direction=direction,
+                signal_bar_ts=signal_bar_ts,
+                retry_reason=retry_reason,
+                quote_payload=quote_payload,
+            )
+            reason_clean = str(payload["retry_reason"])
             instance.order_trigger_last_error = str(message or "")
             instance.order_trigger_retry_reason = reason_clean
-            payload = {
-                "error": str(message or ""),
-                "direction": direction,
-                "signal_bar_ts": signal_bar_ts.isoformat() if signal_bar_ts is not None else None,
-                "retry_reason": reason_clean,
-                **_order_attempt_payload(),
-            }
-            if isinstance(quote_payload, dict):
-                payload.update(quote_payload)
             self._journal_write(
                 event="ORDER_BUILD_FAILED",
                 instance=instance,
@@ -388,12 +298,13 @@ class BotOrderBuilderMixin:
                     bid, ask, last, ticker = leg_quotes[0]
                     return _fail(
                         "Quote: no bid/ask/last (cannot price)",
-                        quote_payload=_quote_failure_payload(
+                        quote_payload=order_quote_failure_payload(
                             ticker=ticker,
                             bid=bid,
                             ask=ask,
                             last=last,
                             mid=_midpoint(bid, ask),
+                            proxy_error=self._client.proxy_error(),
                         ),
                     )
                 return _fail(
@@ -464,7 +375,7 @@ class BotOrderBuilderMixin:
                 direction=direction,
                 reason=intent_clean,
                 signal_bar_ts=signal_bar_ts,
-                journal=_order_journal_with_attempt(),
+                journal=order_attempt_payload(instance, required=True),
                 exec_mode=mode,
             )
             for leg_order in leg_orders:
@@ -508,8 +419,7 @@ class BotOrderBuilderMixin:
                 leg_price=_leg_price,
                 fail=_fail,
                 set_status=_set_status,
-                order_journal_with_attempt=_order_journal_with_attempt,
-                quote_failure_payload=_quote_failure_payload,
+                order_journal=order_attempt_payload(instance, required=True),
                 finalize_leg_orders=_finalize_leg_orders,
             )
             return
@@ -602,7 +512,13 @@ class BotOrderBuilderMixin:
             if limit is None:
                 return _fail(
                     "Quote: no bid/ask/last (cannot price)",
-                    quote_payload=_quote_failure_payload(ticker=ticker, bid=bid, ask=ask, last=last),
+                    quote_payload=order_quote_failure_payload(
+                        ticker=ticker,
+                        bid=bid,
+                        ask=ask,
+                        last=last,
+                        proxy_error=self._client.proxy_error(),
+                    ),
                 )
             tick = _tick_size(contract, ticker, limit) or 0.01
             limit = _round_to_tick(float(limit), tick)
@@ -929,7 +845,7 @@ class BotOrderBuilderMixin:
                             if intent_decision is not None
                             else 0,
                         },
-                        **_order_attempt_payload(),
+                        **order_attempt_payload(instance, required=True),
                     },
                 )
                 clear_order_watch = getattr(self, "_clear_order_trigger_watch", None)
@@ -947,194 +863,29 @@ class BotOrderBuilderMixin:
             elif int(intent_decision.target_qty) < 0:
                 direction = "down"
 
-            journal = {
-                "intent": intent_clean,
-                "direction": direction,
-                "bar_ts": snap.bar_ts.isoformat() if snap is not None else None,
-                "close": float(snap.close) if snap is not None else None,
-                "signal": {
-                    "state": getattr(getattr(snap, "signal", None), "state", None),
-                    "entry_dir": getattr(getattr(snap, "signal", None), "entry_dir", None),
-                    "regime_dir": getattr(getattr(snap, "signal", None), "regime_dir", None),
-                    "ema_ready": bool(getattr(getattr(snap, "signal", None), "ema_ready", False)),
-                },
-                "entry_dir": getattr(snap, "entry_dir", None),
-                "regime4_state": str(getattr(snap, "regime4_state", "") or "") or None,
-                "hard_dir": (
-                    str(getattr(snap, "regime2_bear_hard_dir", None))
-                    if getattr(snap, "regime2_bear_hard_dir", None) in ("up", "down")
-                    else None
-                ),
-                "entry_branch": str(entry_branch) if entry_branch in ("a", "b") else None,
-                "branch_size_mult": float(branch_size_mult) if branch_size_mult is not None else None,
-                "spot_decision": decision_trace.as_payload(),
-                "spot_lifecycle": lifecycle_decision.as_payload(),
-                "spot_intent": intent_decision.as_payload(),
-                "size_funnel": {
-                    "signed_qty_final": int(getattr(decision_trace, "signed_qty_final", 0)),
-                    "signed_qty_after_branch": int(
-                        getattr(decision_trace, "signed_qty_after_branch", getattr(decision_trace, "signed_qty_final", 0))
-                    ),
-                    "resize_target_qty": int(getattr(intent_decision, "target_qty", 0)),
-                    "intent_qty": int(getattr(intent_decision, "order_qty", 0)),
-                },
-                "ratsv": {
-                    "side_rank": float(getattr(snap, "ratsv_side_rank", 0.0)) if getattr(snap, "ratsv_side_rank", None) is not None else None,
-                    "tr_ratio": float(getattr(snap, "ratsv_tr_ratio", 0.0)) if getattr(snap, "ratsv_tr_ratio", None) is not None else None,
-                    "fast_slope_pct": float(getattr(snap, "ratsv_fast_slope_pct", 0.0)) if getattr(snap, "ratsv_fast_slope_pct", None) is not None else None,
-                    "fast_slope_med_pct": float(getattr(snap, "ratsv_fast_slope_med_pct", 0.0)) if getattr(snap, "ratsv_fast_slope_med_pct", None) is not None else None,
-                    "fast_slope_vel_pct": float(getattr(snap, "ratsv_fast_slope_vel_pct", 0.0)) if getattr(snap, "ratsv_fast_slope_vel_pct", None) is not None else None,
-                    "slow_slope_med_pct": float(getattr(snap, "ratsv_slow_slope_med_pct", 0.0)) if getattr(snap, "ratsv_slow_slope_med_pct", None) is not None else None,
-                    "slow_slope_vel_pct": float(getattr(snap, "ratsv_slow_slope_vel_pct", 0.0)) if getattr(snap, "ratsv_slow_slope_vel_pct", None) is not None else None,
-                    "slope_vel_consistency": float(getattr(snap, "ratsv_slope_vel_consistency", 0.0)) if getattr(snap, "ratsv_slope_vel_consistency", None) is not None else None,
-                    "cross_age_bars": int(getattr(snap, "ratsv_cross_age_bars", 0)) if getattr(snap, "ratsv_cross_age_bars", None) is not None else None,
-                },
-                "bars_in_day": int(snap.bars_in_day) if snap is not None else None,
-                "rv": float(snap.rv) if snap is not None and snap.rv is not None else None,
-                "volume": float(snap.volume) if snap is not None and snap.volume is not None else None,
-                "shock": bool(snap.shock) if snap is not None and snap.shock is not None else None,
-                "shock_dir": snap.shock_dir if snap is not None else None,
-                "shock_detector": str(getattr(snap, "shock_detector", "") or "") if snap is not None else None,
-                "shock_direction_source_effective": (
-                    str(getattr(snap, "shock_direction_source_effective", "") or "") if snap is not None else None
-                ),
-                "shock_scale_detector": (
-                    str(getattr(snap, "shock_scale_detector", "") or "") if snap is not None else None
-                ),
-                "shock_dir_ret_sum_pct": (
-                    float(getattr(snap, "shock_dir_ret_sum_pct", 0.0))
-                    if snap is not None and getattr(snap, "shock_dir_ret_sum_pct", None) is not None
-                    else None
-                ),
-                "shock_atr_pct": float(snap.shock_atr_pct)
-                if snap is not None and snap.shock_atr_pct is not None
-                else None,
-                "shock_drawdown_pct": (
-                    float(getattr(snap, "shock_drawdown_pct", 0.0))
-                    if snap is not None and getattr(snap, "shock_drawdown_pct", None) is not None
-                    else None
-                ),
-                "shock_drawdown_on_pct": (
-                    float(getattr(snap, "shock_drawdown_on_pct", 0.0))
-                    if snap is not None and getattr(snap, "shock_drawdown_on_pct", None) is not None
-                    else None
-                ),
-                "shock_drawdown_off_pct": (
-                    float(getattr(snap, "shock_drawdown_off_pct", 0.0))
-                    if snap is not None and getattr(snap, "shock_drawdown_off_pct", None) is not None
-                    else None
-                ),
-                "shock_drawdown_dist_on_pct": (
-                    float(getattr(snap, "shock_drawdown_dist_on_pct", 0.0))
-                    if snap is not None and getattr(snap, "shock_drawdown_dist_on_pct", None) is not None
-                    else None
-                ),
-                "shock_drawdown_dist_on_vel_pp": (
-                    float(getattr(snap, "shock_drawdown_dist_on_vel_pp", 0.0))
-                    if snap is not None and getattr(snap, "shock_drawdown_dist_on_vel_pp", None) is not None
-                    else None
-                ),
-                "shock_drawdown_dist_on_accel_pp": (
-                    float(getattr(snap, "shock_drawdown_dist_on_accel_pp", 0.0))
-                    if snap is not None and getattr(snap, "shock_drawdown_dist_on_accel_pp", None) is not None
-                    else None
-                ),
-                "shock_prearm_down_streak_bars": (
-                    int(getattr(snap, "shock_prearm_down_streak_bars", 0))
-                    if snap is not None and getattr(snap, "shock_prearm_down_streak_bars", None) is not None
-                    else None
-                ),
-                "shock_drawdown_dist_off_pct": (
-                    float(getattr(snap, "shock_drawdown_dist_off_pct", 0.0))
-                    if snap is not None and getattr(snap, "shock_drawdown_dist_off_pct", None) is not None
-                    else None
-                ),
-                "shock_atr_vel_pct": float(getattr(snap, "shock_atr_vel_pct", 0.0))
-                if snap is not None and getattr(snap, "shock_atr_vel_pct", None) is not None
-                else None,
-                "shock_atr_accel_pct": float(getattr(snap, "shock_atr_accel_pct", 0.0))
-                if snap is not None and getattr(snap, "shock_atr_accel_pct", None) is not None
-                else None,
-                "shock_peak_close": (
-                    float(getattr(snap, "shock_peak_close", 0.0))
-                    if snap is not None and getattr(snap, "shock_peak_close", None) is not None
-                    else None
-                ),
-                "shock_dir_down_streak_bars": (
-                    int(getattr(snap, "shock_dir_down_streak_bars", 0))
-                    if snap is not None and getattr(snap, "shock_dir_down_streak_bars", None) is not None
-                    else None
-                ),
-                "shock_dir_up_streak_bars": (
-                    int(getattr(snap, "shock_dir_up_streak_bars", 0))
-                    if snap is not None and getattr(snap, "shock_dir_up_streak_bars", None) is not None
-                    else None
-                ),
-                "riskoff": bool(snap.risk.riskoff) if snap is not None and snap.risk is not None else None,
-                "riskpanic": bool(snap.risk.riskpanic) if snap is not None and snap.risk is not None else None,
-                "atr": float(snap.atr) if snap is not None and snap.atr is not None else None,
-                "or_high": float(snap.or_high) if snap is not None and snap.or_high is not None else None,
-                "or_low": float(snap.or_low) if snap is not None and snap.or_low is not None else None,
-                "or_ready": bool(snap.or_ready) if snap is not None else None,
-                "exit_mode": exit_mode,
-                "stop_loss_pct": float(stop_loss_pct) if stop_loss_pct is not None else None,
-                "stop_price": float(stop_price) if stop_price is not None else None,
-                "target_price": float(instance.spot_profit_target_price)
-                if instance.spot_profit_target_price is not None
-                else None,
-                "sizing_currency": sizing_currency,
-                "net_liq": float(equity_ref) if equity_ref is not None else None,
-                "net_liq_currency": str(net_liq_currency) if net_liq_currency is not None else None,
-                "net_liq_fx_rate": float(net_liq_fx_rate) if net_liq_fx_rate is not None else None,
-                "buying_power": float(cash_ref) if cash_ref is not None else None,
-                "buying_power_currency": str(buying_power_currency)
-                if buying_power_currency is not None
-                else None,
-                "buying_power_fx_rate": float(buying_power_fx_rate)
-                if buying_power_fx_rate is not None
-                else None,
-                "exec_policy": "LADDER",
-                "exec_mode": "OPTIMISTIC",
-                "chase_orders": bool(strat.get("chase_orders", True)),
-                "regime_router_ready": bool(getattr(snap, "regime_router_ready", False)),
-                "regime_router_climate": str(getattr(snap, "regime_router_climate", "") or "") or None,
-                "regime_router_host": str(getattr(snap, "regime_router_host", "") or "") or None,
-                "regime_router_entry_dir": (
-                    str(getattr(snap, "regime_router_entry_dir", None))
-                    if getattr(snap, "regime_router_entry_dir", None) in ("up", "down")
-                    else None
-                ),
-                "regime_router_host_managed": bool(getattr(snap, "regime_router_host_managed", False)),
-                "regime_router_bull_sovereign_ok": bool(getattr(snap, "regime_router_bull_sovereign_ok", False)),
-                "regime_router_dwell_days": (
-                    int(getattr(snap, "regime_router_dwell_days", 0))
-                    if getattr(snap, "regime_router_dwell_days", None) is not None
-                    else 0
-                ),
-                "regime_router_crash_ret": (
-                    float(getattr(snap, "regime_router_crash_ret"))
-                    if getattr(snap, "regime_router_crash_ret", None) is not None
-                    else None
-                ),
-                "regime_router_crash_maxdd": (
-                    float(getattr(snap, "regime_router_crash_maxdd"))
-                    if getattr(snap, "regime_router_crash_maxdd", None) is not None
-                    else None
-                ),
-            }
-            def _health_json(raw: object) -> dict[str, object] | None:
-                if not isinstance(raw, dict):
-                    return None
-                payload: dict[str, object] = dict(raw)
-                for key, value in list(payload.items()):
-                    if isinstance(value, datetime):
-                        payload[str(key)] = value.isoformat()
-                return payload
-
-            journal["signal_bar_health"] = _health_json(getattr(snap, "bar_health", None))
-            journal["regime_bar_health"] = _health_json(getattr(snap, "regime_bar_health", None))
-            journal["regime2_bar_health"] = _health_json(getattr(snap, "regime2_bar_health", None))
-            journal.update(_order_attempt_payload())
+            journal = project_live_spot_order_journal(
+                snapshot=snap,
+                intent=intent_clean,
+                direction=direction,
+                entry_branch=entry_branch,
+                branch_size_mult=branch_size_mult,
+                sizing=decision_trace,
+                lifecycle=lifecycle_decision,
+                spot_intent=intent_decision,
+                exit_mode=exit_mode,
+                stop_loss_pct=stop_loss_pct,
+                stop_price=stop_price,
+                target_price=instance.spot_profit_target_price,
+                sizing_currency=sizing_currency,
+                net_liq=equity_ref,
+                net_liq_currency=net_liq_currency,
+                net_liq_fx_rate=net_liq_fx_rate,
+                buying_power=cash_ref,
+                buying_power_currency=buying_power_currency,
+                buying_power_fx_rate=buying_power_fx_rate,
+                chase_orders=bool(strat.get("chase_orders", True)),
+            )
+            journal.update(order_attempt_payload(instance, required=True))
 
             order = _BotOrder(
                 instance_id=instance.instance_id,
