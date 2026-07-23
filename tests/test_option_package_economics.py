@@ -21,6 +21,7 @@ import pytest
 from tradebot.backtest.models import OptionTrade
 import tradebot.backtest.engine_options as backtest_engine
 from tradebot.backtest.synth import IVSurfaceParams
+from tradebot.live.options import QualifiedOptionLeg, resolve_live_option_package
 
 
 _UI_DIR = Path(__file__).resolve().parents[1] / "tradebot" / "ui"
@@ -34,7 +35,7 @@ import tradebot.ui.bot_screen.orders as bot_orders_module
 import tradebot.ui.bot_order_builder as bot_order_builder_module
 from tradebot.ui.bot import BotScreen
 from tradebot.ui.bot_engine_runtime import BotEngineRuntimeMixin
-from tradebot.ui.bot_models import _BotInstance, _BotLegOrder, _BotOrder
+from tradebot.ui.bot_models import _BotInstance, _BotOrder
 from tradebot.ui.bot_order_builder import BotOrderBuilderMixin
 
 
@@ -106,19 +107,36 @@ def _option_order_fixture() -> tuple[_BotOrder, dict[int, SimpleNamespace]]:
     underlying = Stock(symbol="XSP", exchange="SMART", currency="USD")
     underlying.conId = 900
     bag = Bag(symbol="XSP", exchange="SMART", currency="USD", comboLegs=[])
+    package = OptionPackage(
+        product=option_product_facts(
+            "XSP",
+            security_type="OPT",
+            exchange="SMART",
+            multiplier=100,
+            source="broker",
+        ),
+        legs=(
+            _resolved_leg(action="SELL", right="PUT", strike=100, expiry="20260209"),
+            _resolved_leg(action="BUY", right="PUT", strike=95, expiry="20260209"),
+        ),
+        quantity=1,
+        debit_value=-0.50,
+    )
     order = _BotOrder(
         instance_id=1,
         preset=None,
         underlying=underlying,
         order_contract=bag,
         legs=[
-            _BotLegOrder(contract=short, action="SELL", ratio=1),
-            _BotLegOrder(contract=long, action="BUY", ratio=1),
+            QualifiedOptionLeg(contract=short, action="SELL", ratio=1),
+            QualifiedOptionLeg(contract=long, action="BUY", ratio=1),
         ],
         action="BUY",
         quantity=1,
         limit_price=-0.50,
         created_at=datetime(2026, 2, 9, 10, 0),
+        package=package,
+        package_risk=option_package_risk(package),
         exec_mode="OPTIMISTIC",
     )
     tickers = {
@@ -162,10 +180,72 @@ def test_live_combo_reprice_consumes_canonical_package_kernel(monkeypatch) -> No
     assert order.action == "BUY"
     assert order.limit_price == pytest.approx(-1.00)
     assert (order.bid, order.ask, order.last) == pytest.approx((-1.00, -1.00, -1.00))
+    assert order.package is not None
+    assert order.package.debit_value == pytest.approx(-1.00)
+    assert order.package_risk is not None
+    assert order.package_risk.max_loss == pytest.approx(400.00)
     assert len(calls) == 4
-    assert all([(row[0], row[1]) for row in call] == [("SELL", 1), ("BUY", 1)] for call in calls)
+    assert all(
+        [(row[0], row[1]) for row in call] == [("SELL", 1), ("BUY", 1)]
+        for call in calls
+    )
 
 
+def test_live_option_projection_builds_one_atomic_defined_risk_bag() -> None:
+    legs = []
+    for con_id, action, right, strike in (
+        (1001, "BUY", "P", 90.0),
+        (1002, "SELL", "P", 95.0),
+        (1003, "SELL", "C", 105.0),
+        (1004, "BUY", "C", 110.0),
+    ):
+        contract = Option(
+            symbol="XSP",
+            lastTradeDateOrContractMonth="20260209",
+            strike=strike,
+            right=right,
+            exchange="SMART",
+            currency="USD",
+            multiplier="100",
+            tradingClass="XSP",
+        )
+        contract.conId = con_id
+        legs.append(QualifiedOptionLeg(contract=contract, action=action, ratio=1))
+
+    live = resolve_live_option_package(
+        symbol="XSP",
+        legs=legs,
+        quantity=1,
+        debit_value=-1.20,
+        intent="enter",
+    )
+
+    assert live is not None
+    assert live.package.product.multiplier == 100
+    assert live.risk.structure == "iron_condor_credit"
+    assert live.risk.max_loss == pytest.approx(380.00)
+    assert live.contract.secType == "BAG"
+    assert [
+        (leg.conId, leg.ratio, leg.action, leg.exchange)
+        for leg in live.contract.comboLegs
+    ] == [
+        (1001, 1, "BUY", "SMART"),
+        (1002, 1, "SELL", "SMART"),
+        (1003, 1, "SELL", "SMART"),
+        (1004, 1, "BUY", "SMART"),
+    ]
+
+    legs[-1].contract.multiplier = ""
+    assert (
+        resolve_live_option_package(
+            symbol="XSP",
+            legs=legs,
+            quantity=1,
+            debit_value=-1.20,
+            intent="enter",
+        )
+        is None
+    )
 def test_live_combo_quote_signature_consumes_canonical_package_kernel(monkeypatch) -> None:
     order, tickers = _option_order_fixture()
     calls: list[list[tuple[str, int, float | None]]] = []

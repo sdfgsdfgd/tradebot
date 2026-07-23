@@ -3,6 +3,8 @@ from __future__ import annotations
 import math
 from dataclasses import asdict, dataclass, field
 
+from .option_package import DEFINED_RISK_OPTION_STRUCTURES
+
 
 @dataclass(frozen=True)
 class OrderAdmissionLeg:
@@ -109,7 +111,7 @@ def _decision(
     )
 
 
-def _xsp_bag_common_identity_valid(request: OrderAdmissionRequest) -> bool:
+def _xsp_defined_risk_bag_identity_valid(request: OrderAdmissionRequest) -> bool:
     if _token(request.sec_type) != "BAG":
         return False
     if _token(request.currency) != "USD":
@@ -120,10 +122,10 @@ def _xsp_bag_common_identity_valid(request: OrderAdmissionRequest) -> bool:
         return False
     if int(request.quantity) <= 0:
         return False
-    if len(request.legs) != 2:
+    if len(request.legs) < 2:
         return False
 
-    actions: list[str] = []
+    actions: set[str] = set()
     con_ids: set[int] = set()
     for leg in request.legs:
         con_id = int(leg.con_id)
@@ -132,28 +134,23 @@ def _xsp_bag_common_identity_valid(request: OrderAdmissionRequest) -> bool:
         exchange = _token(leg.exchange)
         if con_id <= 0 or ratio <= 0 or action not in {"BUY", "SELL"} or not exchange:
             return False
-        actions.append(action)
+        actions.add(action)
         con_ids.add(con_id)
 
-    return sorted(actions) == ["BUY", "SELL"] and len(con_ids) == 2
+    if actions != {"BUY", "SELL"} or len(con_ids) != len(request.legs):
+        return False
 
-
-def _xsp_credit_bag_identity_valid(request: OrderAdmissionRequest) -> bool:
-    if str(request.structure or "").strip().lower() != "vertical_credit":
+    structure = str(request.structure or "").strip().lower()
+    if structure not in DEFINED_RISK_OPTION_STRUCTURES:
         return False
     limit_price = _finite(request.limit_price)
-    if limit_price is None or limit_price >= 0:
+    if limit_price is None or limit_price == 0:
         return False
-    return _xsp_bag_common_identity_valid(request)
-
-
-def _xsp_debit_bag_exit_identity_valid(request: OrderAdmissionRequest) -> bool:
-    if str(request.structure or "").strip().lower() != "vertical_debit":
+    if structure.endswith("_credit") and limit_price >= 0:
         return False
-    limit_price = _finite(request.limit_price)
-    if limit_price is None or limit_price <= 0:
+    if structure.endswith("_debit") and limit_price <= 0:
         return False
-    return _xsp_bag_common_identity_valid(request)
+    return True
 
 
 def evaluate_order_admission(
@@ -175,14 +172,10 @@ def evaluate_order_admission(
             reason="product_policy_unavailable",
         )
 
-    if intent == "enter":
-        identity_valid = _xsp_credit_bag_identity_valid(request)
-    elif intent == "exit":
-        identity_valid = _xsp_debit_bag_exit_identity_valid(request)
-    else:
+    if intent not in {"enter", "exit", "resize"}:
         return _decision(request, facts, allow=False, reason="intent_invalid")
 
-    if not identity_valid:
+    if not _xsp_defined_risk_bag_identity_valid(request):
         return _decision(request, facts, allow=False, reason="structure_invalid")
 
     max_loss = _finite(request.max_loss)

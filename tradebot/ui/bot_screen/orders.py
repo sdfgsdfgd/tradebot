@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import math
+from dataclasses import replace
 from datetime import date
 
 from ib_insync import Contract, PortfolioItem
@@ -16,13 +17,8 @@ from ...engines.execution import (
     _sanitize_nbbo,
     _tick_size,
 )
-from ...option_package import option_package_debit_value
-from ...order_admission import (
-    OrderAdmissionFacts,
-    OrderAdmissionLeg,
-    OrderAdmissionRequest,
-    evaluate_order_admission,
-)
+from ...live.options import preview_and_admit_option_order
+from ...option_package import option_package_debit_value, option_package_risk
 from ...order_reservation import (
     OrderReservation,
     OrderReservationSummary,
@@ -119,6 +115,13 @@ class BotOrdersMixin:
         new_limit = _round_to_tick(float(desired_debit), tick)
         if not new_limit:
             return False
+        repriced_package = None
+        repriced_risk = None
+        if order.package is not None:
+            repriced_package = replace(order.package, debit_value=float(new_limit))
+            repriced_risk = option_package_risk(repriced_package)
+            if repriced_risk is None:
+                return False
         new_bid = float(debit_bid)
         new_ask = float(debit_ask)
         new_last = float(debit_mid)
@@ -129,6 +132,9 @@ class BotOrdersMixin:
         order.bid = new_bid
         order.ask = new_ask
         order.last = new_last
+        if repriced_package is not None:
+            order.package = repriced_package
+            order.package_risk = repriced_risk
         return changed or mode_changed
 
     def _reset_daily_counters_if_needed(self, instance: _BotInstance) -> None:
@@ -495,12 +501,9 @@ class BotOrdersMixin:
             sec_type = str(
                 getattr(order.order_contract, "secType", "") or ""
             ).strip().upper()
-            symbol = str(
-                getattr(order.order_contract, "symbol", "") or ""
-            ).strip().upper()
-            if sec_type == "BAG" and symbol == "XSP":
-                package_risk = order.package_risk
-                request = OrderAdmissionRequest(
+            if sec_type == "BAG":
+                decision = await preview_and_admit_option_order(
+                    self._client,
                     account=str(
                         getattr(
                             getattr(self._client, "_config", None),
@@ -509,72 +512,15 @@ class BotOrdersMixin:
                         )
                         or ""
                     ).strip(),
-                    intent=str(order.intent or "enter").strip().lower(),
-                    product_domain=symbol,
-                    structure=(
-                        str(package_risk.structure)
-                        if package_risk is not None
-                        else ""
-                    ),
-                    sec_type=sec_type,
-                    symbol=symbol,
-                    currency=str(
-                        getattr(order.order_contract, "currency", "") or ""
-                    ).strip().upper(),
-                    exchange=str(
-                        getattr(order.order_contract, "exchange", "") or ""
-                    ).strip().upper(),
+                    package=order.package,
+                    risk=order.package_risk,
+                    contract=order.order_contract,
+                    legs=order.legs,
                     action=str(order.action or "").strip().upper(),
                     quantity=int(order.quantity),
                     limit_price=float(order.limit_price),
-                    max_loss=(
-                        float(package_risk.max_loss)
-                        if package_risk is not None
-                        else None
-                    ),
-                    legs=tuple(
-                        OrderAdmissionLeg(
-                            con_id=int(
-                                getattr(leg.contract, "conId", 0) or 0
-                            ),
-                            ratio=int(leg.ratio),
-                            action=str(leg.action or "").strip().upper(),
-                            exchange=str(
-                                getattr(leg.contract, "exchange", "") or ""
-                            ).strip().upper(),
-                        )
-                        for leg in order.legs
-                    ),
+                    intent=str(order.intent or "enter").strip().lower(),
                 )
-
-                facts = OrderAdmissionFacts()
-                if package_risk is not None:
-                    preview = await self._client.preview_limit_order(
-                        order.order_contract,
-                        order.action,
-                        order.quantity,
-                        order.limit_price,
-                        outside_rth=False,
-                    )
-                    facts = OrderAdmissionFacts(
-                        status=preview.status,
-                        init_margin_before=preview.init_margin_before,
-                        init_margin_change=preview.init_margin_change,
-                        init_margin_after=preview.init_margin_after,
-                        maintenance_margin_before=preview.maintenance_margin_before,
-                        maintenance_margin_change=preview.maintenance_margin_change,
-                        maintenance_margin_after=preview.maintenance_margin_after,
-                        equity_with_loan_before=preview.equity_with_loan_before,
-                        equity_with_loan_change=preview.equity_with_loan_change,
-                        equity_with_loan_after=preview.equity_with_loan_after,
-                        commission=preview.commission,
-                        min_commission=preview.min_commission,
-                        max_commission=preview.max_commission,
-                        commission_currency=preview.commission_currency,
-                        warning_text=preview.warning_text,
-                    )
-
-                decision = evaluate_order_admission(request, facts)
                 self._journal_write(
                     event="ORDER_ADMISSION",
                     order=order,
@@ -767,12 +713,7 @@ class BotOrdersMixin:
             )
 
             if not structure and sec_type == "BAG" and symbol == "XSP":
-                try:
-                    signed_combo_price = float(order.limit_price)
-                except (TypeError, ValueError):
-                    signed_combo_price = 0.0
-                if signed_combo_price < 0:
-                    structure = "vertical_credit"
+                structure = "defined_risk_combo"
 
             reservations.append(
                 OrderReservation(
@@ -782,6 +723,7 @@ class BotOrdersMixin:
                     structure=structure,
                     status=str(order.status or ""),
                     max_loss=max_loss,
+                    intent=str(order.intent or "enter"),
                 )
             )
 

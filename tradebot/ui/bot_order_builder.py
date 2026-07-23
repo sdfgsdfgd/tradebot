@@ -11,7 +11,7 @@ import asyncio
 import math
 from datetime import date, datetime
 
-from ib_insync import Bag, ComboLeg, Contract, Option, Stock, Ticker
+from ib_insync import Contract, Option, Stock, Ticker
 
 from ..engine import normalize_spot_entry_signal, spot_resolve_entry_action_qty, spot_runtime_spec_view
 from ..engines.execution import (
@@ -21,20 +21,17 @@ from ..engines.execution import (
     _sanitize_nbbo,
     _tick_size,
 )
+from ..live.options import QualifiedOptionLeg, resolve_live_option_package
 from ..option_package import (
-    OptionPackage,
-    ResolvedOptionLeg,
     normalize_option_legs,
     option_package_debit_value,
     option_package_entry_intent,
-    option_product_facts,
-    option_package_risk,
 )
 from ..spot.lifecycle import decide_open_position_intent
 from ..time_utils import now_et as _now_et
 from ..time_utils import now_et_naive as _now_et_naive
 from ..utils.date_utils import add_business_days
-from .bot_models import _BotInstance, _BotLegOrder, _BotOrder
+from .bot_models import _BotInstance, _BotOrder
 from .common import (
     _safe_num,
     _ticker_price,
@@ -244,7 +241,7 @@ class BotOrderBuilderMixin:
                 preset=None,
                 underlying=contract,
                 order_contract=contract,
-                legs=[_BotLegOrder(contract=contract, action=action, ratio=qty)],
+                legs=[QualifiedOptionLeg(contract=contract, action=action, ratio=qty)],
                 action=action,
                 quantity=qty,
                 limit_price=float(limit),
@@ -276,7 +273,7 @@ class BotOrderBuilderMixin:
         if qualified:
             underlying = qualified[0]
 
-        leg_orders: list[_BotLegOrder] = []
+        leg_orders: list[QualifiedOptionLeg] = []
         leg_quotes: list[tuple[float | None, float | None, float | None, Ticker]] = []
         for item in open_items:
             contract = item.contract
@@ -299,7 +296,7 @@ class BotOrderBuilderMixin:
                 getattr(ticker, "ask", None),
                 getattr(ticker, "last", None),
             )
-            leg_orders.append(_BotLegOrder(contract=contract, action=action, ratio=ratio))
+            leg_orders.append(QualifiedOptionLeg(contract=contract, action=action, ratio=ratio))
             leg_quotes.append((bid, ask, last, ticker))
 
         if not leg_orders:
@@ -500,7 +497,7 @@ class BotOrderBuilderMixin:
         def _finalize_leg_orders(
             *,
             underlying: Contract,
-            leg_orders: list[_BotLegOrder],
+            leg_orders: list[QualifiedOptionLeg],
             leg_quotes: list[tuple[float | None, float | None, float | None, Ticker]],
         ) -> None:
             if not leg_orders:
@@ -645,79 +642,31 @@ class BotOrderBuilderMixin:
                 except (TypeError, ValueError):
                     package_quantity = 1
                 package_quantity = max(1, package_quantity)
-            combo_legs: list[ComboLeg] = []
-            for leg_order, (_, _, _, ticker) in zip(leg_orders, leg_quotes):
-                con_id = int(getattr(leg_order.contract, "conId", 0) or 0)
-                if not con_id:
-                    return _fail("Contract: missing conId for combo leg")
-                leg_exchange = (
-                    getattr(getattr(ticker, "contract", None), "exchange", "") or ""
-                ).strip()
-                if not leg_exchange:
-                    leg_exchange = (getattr(leg_order.contract, "exchange", "") or "").strip()
-                if not leg_exchange:
-                    leg_sec_type = str(getattr(leg_order.contract, "secType", "") or "").strip()
-                    leg_exchange = "CME" if leg_sec_type == "FOP" else "SMART"
-                combo_legs.append(
-                    ComboLeg(
-                        conId=con_id,
-                        ratio=leg_order.ratio,
-                        action=leg_order.action,
-                        exchange=leg_exchange,
-                    )
+            live_package = resolve_live_option_package(
+                symbol=symbol,
+                legs=leg_orders,
+                quantity=package_quantity,
+                debit_value=float(order_limit),
+                intent=intent_clean,
+            )
+            if live_package is None:
+                return _fail(
+                    "Order: package identity or defined risk unavailable",
+                    retry_reason="package_risk_unavailable",
                 )
-            bag = Bag(symbol=symbol, exchange="SMART", currency="USD", comboLegs=combo_legs)
-            try:
-                first_contract = leg_orders[0].contract
-                product = option_product_facts(
-                    symbol,
-                    security_type=getattr(first_contract, "secType", None),
-                    exchange=getattr(first_contract, "exchange", None),
-                    multiplier=getattr(first_contract, "multiplier", None),
-                    trading_class=getattr(first_contract, "tradingClass", None),
-                    source="broker",
-                )
-                package = OptionPackage(
-                    product=product,
-                    legs=tuple(
-                        ResolvedOptionLeg(
-                            action=leg_order.action,
-                            right=str(getattr(leg_order.contract, "right", "") or ""),
-                            strike=getattr(leg_order.contract, "strike", None),
-                            ratio=leg_order.ratio,
-                            expiry=str(
-                                getattr(
-                                    leg_order.contract,
-                                    "lastTradeDateOrContractMonth",
-                                    "",
-                                )
-                                or ""
-                            ),
-                        )
-                        for leg_order in leg_orders
-                    ),
-                    quantity=package_quantity,
-                    debit_value=float(desired_debit),
-                    intent=intent_clean,
-                )
-            except (TypeError, ValueError):
-                package = None
-            package_risk = option_package_risk(package) if package is not None else None
 
             if (
-                intent_clean == "enter"
+                intent_clean in {"enter", "resize"}
                 and symbol == "XSP"
-                and package_risk is not None
-                and package_risk.structure == "vertical_credit"
             ):
                 reservation_summary = self._order_reservation_summary()
                 capacity_decision = evaluate_order_reservation_capacity(
                     OrderReservationCapacityRequest(
                         account=reservation_summary.account,
                         product_domain=symbol,
-                        sec_type=str(getattr(bag, "secType", "") or ""),
-                        structure=package_risk.structure,
-                        candidate_max_loss=package_risk.max_loss,
+                        sec_type=str(getattr(live_package.contract, "secType", "") or ""),
+                        structure=live_package.risk.structure,
+                        candidate_max_loss=live_package.risk.max_loss,
                         available_capacity=strat.get(
                             "xsp_reservation_capacity_usd"
                         ),
@@ -734,13 +683,14 @@ class BotOrderBuilderMixin:
                 instance_id=instance.instance_id,
                 preset=None,
                 underlying=underlying,
-                order_contract=bag,
-                legs=leg_orders,
+                order_contract=live_package.contract,
+                legs=list(live_package.legs),
                 action=order_action,
                 quantity=package_quantity,
                 limit_price=float(order_limit),
                 created_at=_now_et(),
-                package_risk=package_risk,
+                package=live_package.package,
+                package_risk=live_package.risk,
                 bid=order_bid,
                 ask=order_ask,
                 last=order_last,
@@ -1420,7 +1370,7 @@ class BotOrderBuilderMixin:
                 preset=None,
                 underlying=contract,
                 order_contract=contract,
-                legs=[_BotLegOrder(contract=contract, action=action, ratio=qty)],
+                legs=[QualifiedOptionLeg(contract=contract, action=action, ratio=qty)],
                 action=action,
                 quantity=qty,
                 limit_price=float(limit),
@@ -1560,7 +1510,7 @@ class BotOrderBuilderMixin:
         else:
             option_contracts = list(option_candidates)
 
-        leg_orders: list[_BotLegOrder] = []
+        leg_orders: list[QualifiedOptionLeg] = []
         leg_quotes: list[tuple[float | None, float | None, float | None, Ticker]] = []
         for contract, (action, _, ratio, _, _) in zip(option_contracts, leg_specs):
             con_id = int(getattr(contract, "conId", 0) or 0)
@@ -1572,7 +1522,7 @@ class BotOrderBuilderMixin:
                 getattr(ticker, "ask", None),
                 getattr(ticker, "last", None),
             )
-            leg_orders.append(_BotLegOrder(contract=contract, action=action, ratio=ratio))
+            leg_orders.append(QualifiedOptionLeg(contract=contract, action=action, ratio=ratio))
             leg_quotes.append((bid, ask, last, ticker))
 
         _finalize_leg_orders(underlying=underlying, leg_orders=leg_orders, leg_quotes=leg_quotes)

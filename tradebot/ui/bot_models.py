@@ -9,7 +9,8 @@ from ib_insync import Contract, Trade
 
 from ..engines.risk import RiskOverlaySnapshot
 from ..engines.signals import EmaDecisionSnapshot
-from ..option_package import OptionPackageRisk
+from ..live.options import QualifiedOptionLeg
+from ..option_package import OptionPackage, OptionPackageRisk
 
 _BOT_JOURNAL_FIELDS = (
     "ts_et",
@@ -128,23 +129,17 @@ class _BotConfigField:
 
 
 @dataclass
-class _BotLegOrder:
-    contract: Contract
-    action: str  # BUY/SELL
-    ratio: int
-
-
-@dataclass
 class _BotOrder:
     instance_id: int
     preset: _BotPreset | None
     underlying: Contract
     order_contract: Contract
-    legs: list[_BotLegOrder]
+    legs: list[QualifiedOptionLeg]
     action: str  # BUY/SELL (order action for order_contract)
     quantity: int  # combo quantity (BAG) or contracts (single-leg)
     limit_price: float
     created_at: datetime
+    package: OptionPackage | None = None
     package_risk: OptionPackageRisk | None = None
     bid: float | None = None
     ask: float | None = None

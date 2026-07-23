@@ -89,6 +89,15 @@ def test_xsp_reservation_sums_only_active_local_defined_risk_packages() -> None:
             structure="vertical_debit",
             status="STAGED",
             max_loss=999.0,
+            intent="exit",
+        ),
+        reservation_type(
+            account="DU2200",
+            product_domain="XSP",
+            sec_type="BAG",
+            structure="iron_condor_credit",
+            status="STAGED",
+            max_loss=500.0,
         ),
         reservation_type(
             account="OTHER",
@@ -105,9 +114,9 @@ def test_xsp_reservation_sums_only_active_local_defined_risk_packages() -> None:
     assert isinstance(summary, summary_type)
     assert summary.as_payload() == {
         "account": "DU2200",
-        "active_count": 3,
+        "active_count": 4,
         "unknown_active_count": 0,
-        "reserved_max_loss": 950.0,
+        "reserved_max_loss": 1450.0,
         "complete": True,
         "reason": "reservation_complete",
     }

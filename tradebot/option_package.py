@@ -436,6 +436,21 @@ class OptionPackageRisk:
         return asdict(self)
 
 
+DEFINED_RISK_OPTION_STRUCTURES = frozenset(
+    {
+        "vertical_credit",
+        "vertical_debit",
+        "butterfly_credit",
+        "butterfly_debit",
+        "iron_butterfly_credit",
+        "iron_butterfly_debit",
+        "iron_condor_credit",
+        "iron_condor_debit",
+        "defined_risk_combo",
+    }
+)
+
+
 def option_package_debit_value(
     rows: Iterable[tuple[str, int, float | None]],
 ) -> float | None:

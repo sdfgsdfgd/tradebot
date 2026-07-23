@@ -18,6 +18,8 @@ from tradebot.backtest.engine import _spot_strategy_sec_type
 from tradebot.backtest.spot_codec import spot_strategy_payload, strategy_from_payload
 from tradebot.client import BrokerOrderPreview, IBKRClient, _session_flags
 from tradebot.config import IBKRConfig
+import tradebot.live.options as live_options_module
+from tradebot.live.options import QualifiedOptionLeg
 from tradebot.option_package import OptionPackageRisk
 from tradebot.order_admission import evaluate_order_admission
 from tradebot.research.spot_sweeps.support import _bundle_base
@@ -32,7 +34,7 @@ if "tradebot.ui" not in sys.modules:
 from tradebot.ui.bot_engine_runtime import BotEngineRuntimeMixin
 from tradebot.ui.bot_journal import BotJournal
 from tradebot.ui.bot_journal_diagnostics import JournalDiagnostics
-from tradebot.ui.bot_models import _BotInstance, _BotLegOrder, _BotOrder
+from tradebot.ui.bot_models import _BotInstance, _BotOrder
 from tradebot.ui.bot_order_builder import BotOrderBuilderMixin
 from tradebot.ui.bot_signal_runtime import BotSignalRuntimeMixin
 from tradebot.ui.bot import BotScreen
@@ -2349,8 +2351,8 @@ def _admission_xsp_order(
         underlying=Stock(symbol="XSP", exchange="SMART", currency="USD"),
         order_contract=bag,
         legs=[
-            _BotLegOrder(contract=short_contract, action="SELL", ratio=1),
-            _BotLegOrder(contract=long_contract, action="BUY", ratio=1),
+            QualifiedOptionLeg(contract=short_contract, action="SELL", ratio=1),
+            QualifiedOptionLeg(contract=long_contract, action="BUY", ratio=1),
         ],
         action="BUY",
         quantity=1,
@@ -2465,10 +2467,9 @@ def test_automated_xsp_admission_denies_missing_staged_risk_before_preview_or_pl
         return evaluate_order_admission(request, facts)
 
     monkeypatch.setattr(
-        bot_orders_module,
+        live_options_module,
         "evaluate_order_admission",
         _recording_evaluate,
-        raising=False,
     )
 
     client = _AdmissionSendClient(_admission_preview())
@@ -2510,6 +2511,35 @@ def test_automated_xsp_admission_denies_missing_staged_risk_before_preview_or_pl
     assert "structure_invalid" in harness._status
 
 
+def test_every_non_xsp_bag_fails_closed_before_preview_or_placement() -> None:
+    client = _AdmissionSendClient(_admission_preview())
+    harness = _AdmissionSendHarness(client)
+    order = _admission_xsp_order(
+        package_risk=OptionPackageRisk(
+            structure="vertical_credit",
+            right="PUT",
+            expiry="20260209",
+            width=5.0,
+            debit_value=-1.0,
+            multiplier=100.0,
+            quantity=1,
+            max_loss=400.0,
+        )
+    )
+    order.order_contract.symbol = "MCL"
+    order.order_contract.exchange = "NYMEX"
+    for leg in order.legs:
+        leg.contract.symbol = "MCL"
+        leg.contract.exchange = "NYMEX"
+
+    asyncio.run(BotScreen._send_order(harness, order))
+
+    assert client.calls == []
+    assert order.status == "BLOCKED"
+    assert order.error == "product_policy_unavailable"
+    assert [event for event, _data in harness._events] == ["ORDER_ADMISSION"]
+
+
 def test_automated_xsp_admission_previews_then_places_only_when_admitted(
     monkeypatch,
 ) -> None:
@@ -2520,10 +2550,9 @@ def test_automated_xsp_admission_previews_then_places_only_when_admitted(
         return evaluate_order_admission(request, facts)
 
     monkeypatch.setattr(
-        bot_orders_module,
+        live_options_module,
         "evaluate_order_admission",
         _recording_evaluate,
-        raising=False,
     )
 
     preview = _admission_preview()
@@ -2544,8 +2573,11 @@ def test_automated_xsp_admission_previews_then_places_only_when_admitted(
 
     asyncio.run(BotScreen._send_order(harness, order))
 
-    assert len(captured) == 1
-    request, facts = captured[0]
+    assert len(captured) == 2
+    preflight_request, preflight_facts = captured[0]
+    request, facts = captured[1]
+    assert preflight_request == request
+    assert preflight_facts.status is None
     assert request.account == "DU2200"
     assert request.product_domain == "XSP"
     assert request.structure == "vertical_credit"
@@ -2599,10 +2631,9 @@ def test_automated_xsp_atomic_close_previews_then_places_with_exit_intent(
         return evaluate_order_admission(request, facts)
 
     monkeypatch.setattr(
-        bot_orders_module,
+        live_options_module,
         "evaluate_order_admission",
         _recording_evaluate,
-        raising=False,
     )
 
     preview = _admission_preview()
@@ -2623,15 +2654,28 @@ def test_automated_xsp_atomic_close_previews_then_places_with_exit_intent(
     order.intent = "exit"
     order.reason = "exit"
     order.limit_price = 0.90
-    order.legs[0].action = "BUY"
-    order.legs[1].action = "SELL"
+    order.legs = [
+        QualifiedOptionLeg(
+            contract=order.legs[0].contract,
+            action="BUY",
+            ratio=order.legs[0].ratio,
+        ),
+        QualifiedOptionLeg(
+            contract=order.legs[1].contract,
+            action="SELL",
+            ratio=order.legs[1].ratio,
+        ),
+    ]
     order.order_contract.comboLegs[0].action = "BUY"
     order.order_contract.comboLegs[1].action = "SELL"
 
     asyncio.run(BotScreen._send_order(harness, order))
 
-    assert len(captured) == 1
-    request, facts = captured[0]
+    assert len(captured) == 2
+    preflight_request, preflight_facts = captured[0]
+    request, facts = captured[1]
+    assert preflight_request == request
+    assert preflight_facts.status is None
     assert getattr(request, "intent", None) == "exit"
     assert request.account == "DU2200"
     assert request.product_domain == "XSP"

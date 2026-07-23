@@ -4,6 +4,8 @@ from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 import math
 
+from .option_package import DEFINED_RISK_OPTION_STRUCTURES
+
 
 _ACTIVE_STATUSES = frozenset({"STAGED", "WORKING", "CANCELING"})
 
@@ -16,6 +18,7 @@ class OrderReservation:
     structure: str
     status: str
     max_loss: float | None
+    intent: str = "enter"
 
 
 @dataclass(frozen=True)
@@ -82,7 +85,9 @@ def _is_target_reservation(
         str(reservation.account or "").strip() == account
         and _token(reservation.product_domain) == "XSP"
         and _token(reservation.sec_type) == "BAG"
-        and _token(reservation.structure) == "VERTICAL_CREDIT"
+        and str(reservation.structure or "").strip().lower()
+        in DEFINED_RISK_OPTION_STRUCTURES
+        and str(reservation.intent or "").strip().lower() in {"enter", "resize"}
         and _token(reservation.status) in _ACTIVE_STATUSES
     )
 
@@ -182,7 +187,7 @@ def evaluate_order_reservation_capacity(
     if product_domain != "XSP":
         return _decision(allow=False, reason="product_policy_unavailable")
 
-    if sec_type != "BAG" or structure != "vertical_credit":
+    if sec_type != "BAG" or structure not in DEFINED_RISK_OPTION_STRUCTURES:
         return _decision(allow=False, reason="structure_invalid")
 
     if (

@@ -143,10 +143,48 @@ def test_complete_xsp_vertical_debit_exit_is_admitted_from_empirical_preview() -
     assert decision.as_payload()["trace"]["structure"] == "vertical_debit"
 
 
+def test_complete_xsp_iron_condor_resize_is_admitted_from_empirical_preview() -> None:
+    module = _policy_module()
+    leg_type = _require_owner(module, "OrderAdmissionLeg")
+    request_type = _require_owner(module, "OrderAdmissionRequest")
+    evaluate = _require_owner(module, "evaluate_order_admission")
+
+    decision = evaluate(
+        request_type(
+            account="DU2200",
+            intent="resize",
+            product_domain="XSP",
+            structure="iron_condor_credit",
+            sec_type="BAG",
+            symbol="XSP",
+            currency="USD",
+            exchange="SMART",
+            action="BUY",
+            quantity=2,
+            limit_price=-1.20,
+            max_loss=760.00,
+            legs=tuple(
+                leg_type(con_id=con_id, ratio=1, action=action, exchange="SMART")
+                for con_id, action in (
+                    (1001, "BUY"),
+                    (1002, "SELL"),
+                    (1003, "SELL"),
+                    (1004, "BUY"),
+                )
+            ),
+        ),
+        _complete_preview_facts(module),
+    )
+
+    assert decision.allow is True
+    assert decision.reason == "broker_preview_admitted"
+    assert decision.as_payload()["trace"]["intent"] == "resize"
+    assert decision.as_payload()["trace"]["structure"] == "iron_condor_credit"
+
+
 @pytest.mark.parametrize(
     ("request_changes", "fact_changes", "expected_reason"),
     [
-        ({"intent": "resize"}, {}, "intent_invalid"),
         ({"max_loss": None}, {}, "max_loss_unknown"),
         ({}, {"init_margin_change": None}, "preview_incomplete"),
         ({}, {"equity_with_loan_after": None}, "preview_incomplete"),
