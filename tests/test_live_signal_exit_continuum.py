@@ -4157,86 +4157,147 @@ def test_live_broker_refresh_clears_entry_basis_without_open_position(
 
 
 def test_live_trace_receipt_projection_matches_shared_schema() -> None:
-    import json
 
-    from tradebot.spot.scenario import project_spot_trace_receipt
+    class _Trace:
+        signed_qty_final = 2
+        signed_qty_after_branch = 2
 
-    order_journal = {
-        "spot_decision": {
-            "action": "BUY",
-            "sizing_mode": "fixed",
-            "signed_qty_final": 2,
-            "signed_qty_after_branch": 2,
-            "graph_overlay_trace": {
-                "policy": "neutral",
-                "nested": {"risk_mult": 1.0},
-            },
-        },
-        "spot_intent": {
-            "intent": "enter",
-            "reason": "entry_allowed",
-            "gate": "TRIGGER_ENTRY",
-            "action": "BUY",
-            "order_qty": 2,
-            "delta_qty": 2,
-            "target_qty": 2,
-        },
-        "spot_lifecycle": {
-            "intent": "enter",
-            "reason": "entry_allowed",
-            "gate": "TRIGGER_ENTRY",
-            "direction": "up",
-            "fill_mode": "close",
-            "trace": {
-                "stage": "flat",
-                "path": "enter",
-                "graph_entry": {
-                    "gate": "TRIGGER_ENTRY",
-                    "trace": {"policy": "slope_tr_guard", "threshold": 1.3},
-                },
-            },
-        },
-        "size_funnel": {
-            "signed_qty_final": 2,
-            "signed_qty_after_branch": 2,
-            "intent_qty": 2,
-        },
-    }
-    fill = {
-        "status": "filled",
-        "filled_qty": 2.0,
-        "remaining_qty": 0.0,
-        "executed_qty": 2.0,
-        "basis_applied_filled_qty": 2.0,
-        "details": {"avg_fill_price": 101.25},
-    }
-    accounting = {
-        "entry_basis_qty": 2.0,
-        "entry_basis_price": 101.25,
-        "entry_basis_source": "broker_average_cost",
-    }
+        @staticmethod
+        def as_payload() -> dict[str, object]:
+            return {'signed_qty_final': 2, 'signed_qty_after_branch': 2}
 
-    receipt = project_spot_trace_receipt(
-        sizing=order_journal["spot_decision"],
-        intent=order_journal["spot_intent"],
-        lifecycle=order_journal["spot_lifecycle"],
-        fill=fill,
-        accounting=accounting,
-    )
+        def with_branch_scaling(self, **kwargs):
+            self.signed_qty_after_branch = int(kwargs.get('signed_qty_after_branch', 2))
+            return self
 
-    assert receipt == {
-        "schema": "spot-trace-receipt-v1",
-        "sizing": order_journal["spot_decision"],
-        "intent": order_journal["spot_intent"],
-        "lifecycle": order_journal["spot_lifecycle"],
-        "fill": fill,
-        "accounting": accounting,
-    }
-    assert json.loads(json.dumps(receipt, sort_keys=True)) == receipt
+    class _Intent:
+        order_qty = 1
+        order_action = 'BUY'
+        target_qty = 2
 
-    order_journal["spot_decision"]["graph_overlay_trace"]["nested"]["risk_mult"] = 9.0
-    fill["details"]["avg_fill_price"] = 999.0
-    accounting["entry_basis_price"] = 999.0
-    assert receipt["sizing"]["graph_overlay_trace"]["nested"]["risk_mult"] == 1.0
-    assert receipt["fill"]["details"]["avg_fill_price"] == 101.25
-    assert receipt["accounting"]["entry_basis_price"] == 101.25
+        @staticmethod
+        def as_payload() -> dict[str, object]:
+            return {'order_qty': 1, 'order_action': 'BUY', 'target_qty': 2}
+
+    class _Lifecycle:
+        intent = 'resize'
+        reason = 'resize_target'
+        spot_intent = _Intent()
+
+        @staticmethod
+        def as_payload() -> dict[str, object]:
+            return {'intent': 'resize', 'reason': 'resize_target'}
+    contract = Stock(symbol='SLV', exchange='SMART', currency='USD')
+    contract.conId = 1001
+    contract.minTick = 0.01
+    ticker = SimpleNamespace(contract=contract, bid=10.0, ask=10.02, last=10.01, minTick=0.01, marketDataType=1)
+    bar_ts = datetime(2026, 2, 9, 10, 0)
+    prior_ts = datetime(2026, 2, 9, 9, 30)
+    snapshot = SimpleNamespace(bar_ts=bar_ts, close=10.01, signal=SimpleNamespace(state='up', entry_dir='up', regime_dir='up', ema_ready=True), bars_in_day=12, rv=0.1, volume=1000.0, shock=False, shock_dir=None, risk=None, atr=None, or_high=None, or_low=None, or_ready=False, entry_dir='up', entry_branch=None, shock_atr_pct=None, shock_atr_vel_pct=None, shock_atr_accel_pct=None, bar_health=None, regime_bar_health=None, regime2_bar_health=None)
+
+    class _BuilderClient:
+
+        @staticmethod
+        async def ensure_ticker(_contract, *, owner: str):
+            assert owner == 'bot'
+            return ticker
+
+        @staticmethod
+        def account_value(tag: str, currency: str | None=None):
+            value = 2200.0 if tag == 'NetLiquidation' else 1800.0
+            return (value, currency or 'USD', None)
+
+        @staticmethod
+        async def convert_currency_value(value, *, from_currency: str, to_currency: str):
+            assert from_currency == to_currency
+            return (float(value), 1.0)
+
+        @staticmethod
+        def proxy_error():
+            return None
+
+    class _BuilderHarness(BotOrderBuilderMixin):
+
+        def __init__(self) -> None:
+            self._client = _BuilderClient()
+            self._payload = None
+            self._tracked_conids: set[int] = set()
+            self._orders: list[_BotOrder] = []
+            self._events: list[tuple[str, dict]] = []
+            self._status = ''
+
+        @staticmethod
+        def _strategy_instrument(_strategy) -> str:
+            return 'spot'
+
+        @staticmethod
+        async def _signal_contract(_instance, _symbol):
+            return contract
+
+        @staticmethod
+        def _signal_snapshot_kwargs(*args, **kwargs) -> dict[str, object]:
+            return {}
+
+        @staticmethod
+        async def _signal_snapshot_for_contract(*args, **kwargs):
+            return snapshot
+
+        @staticmethod
+        def _entry_direction_for_instance(_instance, _snapshot) -> str:
+            return 'up'
+
+        @staticmethod
+        async def _spot_contract(_instance, _symbol):
+            return contract
+
+        @staticmethod
+        def _resolve_open_positions(*args, **kwargs):
+            return ('spot', [SimpleNamespace(position=1.0)], 'up')
+
+        @staticmethod
+        def _signal_bar_size(_instance) -> str:
+            return '1 hour'
+
+        def _add_order(self, order: _BotOrder) -> None:
+            self._orders.append(order)
+
+        def _journal_write(self, *, event: str, data: dict | None=None, **kwargs) -> None:
+            self._events.append((str(event), dict(data or {})))
+
+        def _render_status(self) -> None:
+            return None
+    instance = _new_instance(strategy={'instrument': 'spot', 'entry_signal': 'ema', 'ema_preset': '9/21', 'spot_resize_mode': 'target', 'spot_sizing_mode': 'fixed', 'spot_fixed_qty': 2})
+    instance.open_direction = 'up'
+    instance.last_resize_bar_ts = prior_ts
+    harness = _BuilderHarness()
+    with patch('tradebot.ui.bot_order_builder.normalize_spot_entry_signal', return_value='ema'), patch('tradebot.ui.bot_order_builder.spot_runtime_spec_view', return_value=SimpleNamespace(exit_mode='pct')), patch('tradebot.ui.bot_order_builder.spot_resolve_entry_action_qty', return_value=('BUY', 1)), patch('tradebot.ui.bot_order_builder.decide_open_position_intent', return_value=_Lifecycle()), patch('tradebot.engine.spot_shock_exit_pct_multipliers', return_value=(1.0, 1.0)), patch('tradebot.engine.spot_scale_exit_pcts', return_value=(None, None)), patch('tradebot.engine.spot_calc_signed_qty_with_trace', return_value=(2, _Trace())), patch('tradebot.engine.spot_branch_size_mult', return_value=1.0), patch('tradebot.engine.spot_apply_branch_size_mult', return_value=2):
+        asyncio.run(harness._create_order_for_instance(instance, intent='resize', direction='up', signal_bar_ts=bar_ts))
+    assert len(harness._orders) == 1
+    staged = harness._orders[0]
+    assert staged.status == 'STAGED'
+    assert staged.intent == 'resize'
+    assert staged.signal_bar_ts == bar_ts
+    assert staged.quantity == 1
+    assert instance.last_resize_bar_ts == prior_ts
+    assert isinstance(staged.journal, dict)
+    assert 'spot_trace_receipt' in staged.journal, 'production live builder route must populate spot_trace_receipt'
+    seeded = staged.journal['spot_trace_receipt']
+    assert list(seeded) == ['schema', 'sizing', 'intent', 'lifecycle', 'fill', 'accounting']
+    assert seeded['schema'] == 'spot-trace-receipt-v1'
+    assert seeded['sizing'] == staged.journal['spot_decision']
+    assert seeded['intent'] == staged.journal['spot_intent']
+    assert seeded['lifecycle'] == staged.journal['spot_lifecycle']
+    staged.filled_qty = 1.0
+    staged.remaining_qty = 0.0
+    staged.executed_qty = 1.0
+    state = BotEngineRuntimeMixin._apply_spot_entry_basis_fill(instance, staged, cumulative_filled=1.0, fill_price=10.01)
+    assert state is not None
+    refreshed = staged.journal['spot_trace_receipt']
+    assert refreshed['fill']['status'] == staged.status
+    assert refreshed['fill']['filled_qty'] == staged.filled_qty
+    assert refreshed['fill']['remaining_qty'] == staged.remaining_qty
+    assert refreshed['fill']['executed_qty'] == staged.executed_qty
+    assert refreshed['fill']['basis_applied_filled_qty'] == staged.basis_applied_filled_qty
+    assert refreshed['accounting']['entry_basis_qty'] == instance.spot_entry_basis_qty
+    assert refreshed['accounting']['entry_basis_price'] == instance.spot_entry_basis_price
+    assert refreshed['accounting']['entry_basis_source'] == instance.spot_entry_basis_source

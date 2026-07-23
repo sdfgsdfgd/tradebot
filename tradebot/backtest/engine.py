@@ -60,6 +60,7 @@ from ..spot.evaluator_common import SpotRegimeState, SpotSignalSnapshot
 from ..spot.graph import SpotPolicyGraph
 from ..spot.policy_contract import SpotPolicyConfigView
 from ..spot.scenario import (
+    project_backtest_spot_trade_receipt,
     lifecycle_trace_row,
     why_not_exit_resize_report,
     write_rows_csv,
@@ -3431,6 +3432,21 @@ def _run_spot_backtest_exec_loop(
         write_rows_csv(
             rows=why_not_exit_resize_report(lifecycle_rows), out_path=why_not_path
         )
+    for trade in trades:
+        if not isinstance(trade.decision_trace, dict):
+            continue
+        trace = dict(trade.decision_trace)
+        trace["spot_trace_receipt"] = project_backtest_spot_trade_receipt(
+            decision_trace=trace,
+            qty=trade.qty,
+            entry_price=trade.entry_price,
+            margin_required=trade.margin_required,
+            exit_price=trade.exit_price,
+            exit_reason=trade.exit_reason,
+            exit_time=trade.exit_time,
+        )
+        trade.decision_trace = trace
+
     return BacktestResult(
         trades=trades,
         equity=equity_curve,

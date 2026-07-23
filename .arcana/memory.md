@@ -448,14 +448,17 @@ Source and references must be saturated before mutation, in this order:
 
 
 ### Wave 5 — trace projection parity
-- capability: `spot-v1.trace-projection-parity` promoted to `shared-covered` / `aligned`.
-- shared owner: `tradebot/spot/scenario.py::project_spot_trace_receipt` (`spot-trace-receipt-v1`).
-- adapter evidence: backtest `SpotTrade.decision_trace` + `BacktestResult.lifecycle_trace`; live `_BotOrder.journal` + terminal fill counters + broker-reconciled `_BotInstance` basis.
-- verification: native deterministic non-live `630 passed, 4 deselected`; promoted deterministic non-live `632 passed, 4 deselected`; focused `8 passed`; capability validators `5 passed`; outbound sockets `0`.
-- hashes: tests `50d38caee7d6a377f55ee664f2f74c8ef436e150bd9226e01e4e1a964093bb43`; production `324d3504a0c53932f4291c2146702e56415beb19f5d7b4ed7cda4eaefc2d36a8`; combined `8be776a448263b8a29de88bef57924e6a7c4dac0b14dc11d936b588f97c8107c`.
-- receipts: ownership `171eb17d5fbd0d995a48fa96591e83a1631daf576cb5c4421d619dfd8e623b67`; paired RED `5227be080106268e64e6a37d27f323b0abd4edab1ba176cdbd73f5c4f673d3c2`; dynamic overlay `470a801f7275bfe97275cc3a3ccecbed06a99f197a2bc8f753a492dd4bfb38ab`; engine semantic `813f8f65d18fdc3806085d6fe804f36681ba9f7364f6b9703ce8d2abc0c33872`; marker correction `db3a472e68306d61513c805ce58f87e215e8e75f05f683a29035493552733df3`; denominator correction `dccffdcd2918026628be26a9ed583e0afcf3bb415f88b071d19115a8b44d2ba9`.
-- certified trace-semantic base: `652e9ab4a7c0fdb32eb9ebb2f63eaa7ddca1ff11`; integration base: `ea43fcaa5152a70a8009f1afa4613d994dc82fdf`.
 
+- **Correction status:** the initial projector-only proof is superseded; this wave is now grounded in production-owned backtest, live builder and live fill/accounting routes.
+- **Production-route RED:** two unchanged route tests failed only on absent production `spot_trace_receipt` keys; receipt `2ecd66750573e8b0b0562a4d4175d6cddd9fa4745e0c3f38339bf28e5059037b`; tests diff `cac88a10a522c95d904adcc7f636c2ca6cc4f11e82972c80bba3870b194324ef`; zero sockets.
+- **Production-route GREEN:** the same two tests passed `2/2` after canonical routing; receipt `966a9026ebdf29706e13ecf3f0d1de989569ecb4caa4e5e1774a1b20486bc08e`; production diff `c4ab4ca0be0ce3523898c1111aaeeccb2927ded0b27e2c4546a8126edb003cc9`; combined diff `517e7d4459fc047eebc7f966b64656922b425e2f3876cb4d7440a692d9b7f729`; zero sockets.
+- **Canonical ownership:** backtest final trade projection is owned by `_run_spot_backtest_exec_loop`; live seed is owned by `project_live_spot_order_journal`; live fill/accounting refresh is owned by `BotEngineRuntimeMixin._apply_spot_entry_basis_fill`.
+- **Test integrity:** both route tests contain zero direct calls to `project_spot_trace_receipt`; the projector is exercised through production callers only.
+- **Focused validation:** `6/6` route and harness tests passed with zero sockets; validation receipt `01a21a21cd602cfb025e0ff28fc2ad37ceefc60dd2dc64013123934525e5dc60`.
+- **Capability validation:** exact `tests/test_capability_contracts.py` validator set passed `5/5` with zero sockets; receipt `dbdacd8fdf53875c30c3b67390bcaefb232605c71f4024de1071c3d797e0e583`.
+- **Full deterministic validation:** `635/635` passed, four deselected, zero sockets; validation receipt `01a21a21cd602cfb025e0ff28fc2ad37ceefc60dd2dc64013123934525e5dc60`.
+- **Coverage conclusion:** `spot-v1.trace-projection-parity` remains `shared-covered` and `aligned`; no capability-ledger classification change is required.
+- **Provider boundary:** no provider or IB Gateway interaction occurred in RED, GREEN or deterministic validation.
 <!-- END: TRADEBOT_PARITY_FIRST_SLICE_V1 -->
 
 <!-- BEGIN: TRADEBOT_ARCHITECTURE_PRIORITY_QUEUE_V1 -->

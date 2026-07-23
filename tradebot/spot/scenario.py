@@ -144,6 +144,86 @@ def project_spot_trace_receipt(
         "accounting": _project_spot_trace_dimension(accounting),
     }
 
+def project_backtest_spot_trade_receipt(
+    *,
+    decision_trace: object,
+    qty: object,
+    entry_price: object,
+    margin_required: object,
+    exit_price: object = None,
+    exit_reason: object = None,
+    exit_time: object = None,
+) -> dict[str, object]:
+    """Project one final backtest trade receipt from its canonical trace state."""
+
+    trace = dict(decision_trace) if isinstance(decision_trace, Mapping) else {}
+    trace.pop("spot_trace_receipt", None)
+    exit_time_payload = (
+        exit_time.isoformat() if isinstance(exit_time, datetime) else exit_time
+    )
+    return project_spot_trace_receipt(
+        sizing=trace,
+        intent=trace.get("spot_intent"),
+        lifecycle=trace.get("spot_lifecycle"),
+        fill={
+            "resizes": list(trace.get("resizes") or []),
+            "exits": list(trace.get("exits") or []),
+        },
+        accounting={
+            "qty": qty,
+            "entry_price": entry_price,
+            "margin_required": margin_required,
+            "exit_price": exit_price,
+            "exit_reason": exit_reason,
+            "exit_time": exit_time_payload,
+        },
+    )
+
+def project_live_spot_execution_receipt(
+    *,
+    journal: object,
+    status: object,
+    filled_qty: object,
+    remaining_qty: object,
+    executed_qty: object,
+    basis_applied_filled_qty: object,
+    entry_basis_qty: object,
+    entry_basis_price: object,
+    entry_basis_source: object,
+) -> dict[str, object]:
+    """Project current live fill and entry-basis state onto a spot journal."""
+
+    payload = dict(journal) if isinstance(journal, Mapping) else {}
+    return project_spot_trace_receipt(
+        sizing=payload.get("spot_decision"),
+        intent=payload.get("spot_intent"),
+        lifecycle=payload.get("spot_lifecycle"),
+        fill={
+            "status": str(status or ""),
+            "filled_qty": float(filled_qty or 0.0),
+            "remaining_qty": float(remaining_qty or 0.0),
+            "executed_qty": float(executed_qty or 0.0),
+            "basis_applied_filled_qty": float(
+                basis_applied_filled_qty or 0.0
+            ),
+        },
+        accounting={
+            "entry_basis_qty": (
+                float(entry_basis_qty) if entry_basis_qty is not None else None
+            ),
+            "entry_basis_price": (
+                float(entry_basis_price)
+                if entry_basis_price is not None
+                else None
+            ),
+            "entry_basis_source": (
+                str(entry_basis_source)
+                if entry_basis_source is not None
+                else None
+            ),
+        },
+    )
+
 
 def project_live_spot_order_journal(
     *,
@@ -360,4 +440,15 @@ def project_live_spot_order_journal(
                 if isinstance(value, datetime):
                     payload[str(field)] = value.isoformat()
         journal[key] = payload
+    journal["spot_trace_receipt"] = project_live_spot_execution_receipt(
+        journal=journal,
+        status="STAGED",
+        filled_qty=0.0,
+        remaining_qty=0.0,
+        executed_qty=0.0,
+        basis_applied_filled_qty=0.0,
+        entry_basis_qty=None,
+        entry_basis_price=None,
+        entry_basis_source=None,
+    )
     return journal

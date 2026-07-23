@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from ..spot.lifecycle import SpotEntryBasisState, reconcile_spot_entry_basis
+from ..spot.scenario import project_live_spot_execution_receipt
 
 import asyncio
 from datetime import datetime, timedelta
@@ -199,6 +200,19 @@ class BotEngineRuntimeMixin:
             instance.spot_entry_basis_source = str(state.source)
             instance.spot_entry_basis_set_ts = _now_et_naive()
             order.basis_applied_filled_qty = float(cumulative)
+        journal = order.journal if isinstance(order.journal, dict) else {}
+        journal["spot_trace_receipt"] = project_live_spot_execution_receipt(
+            journal=journal,
+            status=order.status,
+            filled_qty=order.filled_qty,
+            remaining_qty=order.remaining_qty,
+            executed_qty=order.executed_qty,
+            basis_applied_filled_qty=order.basis_applied_filled_qty,
+            entry_basis_qty=instance.spot_entry_basis_qty,
+            entry_basis_price=instance.spot_entry_basis_price,
+            entry_basis_source=instance.spot_entry_basis_source,
+        )
+        order.journal = journal
         return state
 
     async def _chase_orders_tick(self) -> None:
