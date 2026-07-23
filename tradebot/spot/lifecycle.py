@@ -417,6 +417,7 @@ def decide_open_position_intent(
     slope_vel_slow_pct: float | None = None,
     policy_graph: SpotPolicyGraph | None = None,
     policy_config: SpotPolicyConfigView | None = None,
+    capture_trace: bool = True,
 ) -> SpotLifecycleDecision:
     graph = policy_graph or SpotPolicyGraph.from_sources(strategy=strategy, filters=None)
     exit_pick = graph.resolve_exit_reason(
@@ -456,14 +457,18 @@ def decide_open_position_intent(
             direction=str(open_dir) if open_dir in ("up", "down") else None,
             fill_mode=fill_mode,
             queue_reentry_dir=queue_reentry_dir,
-            trace={
-                "stage": "open",
-                "path": "exit",
-                "exit_reason": str(exit_reason),
-                "fill_mode": fill_mode,
-                "controlled_flip": bool(queue_reentry_dir is not None),
-                "exit_policy": exit_pick.as_payload(),
-            },
+            trace=(
+                {
+                    "stage": "open",
+                    "path": "exit",
+                    "exit_reason": str(exit_reason),
+                    "fill_mode": fill_mode,
+                    "controlled_flip": bool(queue_reentry_dir is not None),
+                    "exit_policy": exit_pick.as_payload(),
+                }
+                if capture_trace
+                else {}
+            ),
         )
 
     if target_qty is None:
@@ -472,7 +477,7 @@ def decide_open_position_intent(
             reason="holding_no_resize_target",
             gate="HOLDING",
             direction=str(open_dir) if open_dir in ("up", "down") else None,
-            trace={"stage": "open", "path": "hold"},
+            trace={"stage": "open", "path": "hold"} if capture_trace else {},
         )
 
     resize_target = graph.resolve_resize_target(
@@ -489,7 +494,7 @@ def decide_open_position_intent(
         slope_vel_slow_pct=slope_vel_slow_pct,
     )
     effective_target = int(resize_target.target_qty)
-    adaptive = dict(resize_target.trace)
+    adaptive = dict(resize_target.trace) if capture_trace else {}
     spot_intent = SpotPolicy.resolve_position_intent(
         strategy=strategy,
         current_qty=int(current_qty),
@@ -510,13 +515,17 @@ def decide_open_position_intent(
                     blocked=True,
                     spot_intent=spot_intent,
                     spot_decision=spot_decision,
-                    trace={
-                        "stage": "open",
-                        "path": "resize",
-                        "cooldown_bars": int(cooldown),
-                        "elapsed_bars": int(elapsed),
-                        "resize_policy": adaptive,
-                    },
+                    trace=(
+                        {
+                            "stage": "open",
+                            "path": "resize",
+                            "cooldown_bars": int(cooldown),
+                            "elapsed_bars": int(elapsed),
+                            "resize_policy": adaptive,
+                        }
+                        if capture_trace
+                        else {}
+                    ),
                 )
         return SpotLifecycleDecision(
             intent="resize",
@@ -525,7 +534,11 @@ def decide_open_position_intent(
             direction=str(open_dir) if open_dir in ("up", "down") else None,
             spot_intent=spot_intent,
             spot_decision=spot_decision,
-            trace={"stage": "open", "path": "resize", "resize_policy": adaptive},
+            trace=(
+                {"stage": "open", "path": "resize", "resize_policy": adaptive}
+                if capture_trace
+                else {}
+            ),
         )
 
     if str(spot_intent.intent) == "enter":
@@ -537,7 +550,11 @@ def decide_open_position_intent(
             direction=target_dir,
             spot_intent=spot_intent,
             spot_decision=spot_decision,
-            trace={"stage": "open", "path": "enter", "resize_policy": adaptive},
+            trace=(
+                {"stage": "open", "path": "enter", "resize_policy": adaptive}
+                if capture_trace
+                else {}
+            ),
         )
 
     if str(spot_intent.intent) == "exit":
@@ -548,7 +565,15 @@ def decide_open_position_intent(
             direction=str(open_dir) if open_dir in ("up", "down") else None,
             spot_intent=spot_intent,
             spot_decision=spot_decision,
-            trace={"stage": "open", "path": "exit_from_intent", "resize_policy": adaptive},
+            trace=(
+                {
+                    "stage": "open",
+                    "path": "exit_from_intent",
+                    "resize_policy": adaptive,
+                }
+                if capture_trace
+                else {}
+            ),
         )
 
     blocked_gate = "HOLDING" if not bool(spot_intent.blocked) else "BLOCKED_RESIZE"
@@ -560,7 +585,11 @@ def decide_open_position_intent(
         blocked=bool(spot_intent.blocked),
         spot_intent=spot_intent,
         spot_decision=spot_decision,
-        trace={"stage": "open", "path": "hold", "resize_policy": adaptive},
+        trace=(
+            {"stage": "open", "path": "hold", "resize_policy": adaptive}
+            if capture_trace
+            else {}
+        ),
     )
 
 
@@ -591,14 +620,18 @@ def decide_flat_position_intent(
     slope_vel_slow_pct: float | None = None,
     entry_gate_bypass: bool = False,
     policy_graph: SpotPolicyGraph | None = None,
+    capture_trace: bool = True,
 ) -> SpotLifecycleDecision:
+    flat_trace = (
+        {"stage": "flat", "bar_ts": bar_ts.isoformat()} if capture_trace else {}
+    )
     if bool(stale_signal):
         return SpotLifecycleDecision(
             intent="hold",
             reason="stale_signal",
             gate="BLOCKED_STALE_SIGNAL",
             blocked=True,
-            trace={"stage": "flat", "bar_ts": bar_ts.isoformat()},
+            trace=flat_trace,
         )
     if bool(gap_signal):
         return SpotLifecycleDecision(
@@ -606,7 +639,7 @@ def decide_flat_position_intent(
             reason="data_gap",
             gate="WAITING_DATA_GAP",
             blocked=True,
-            trace={"stage": "flat", "bar_ts": bar_ts.isoformat()},
+            trace=flat_trace,
         )
     if not bool(preflight_ok):
         return SpotLifecycleDecision(
@@ -614,7 +647,7 @@ def decide_flat_position_intent(
             reason="preflight",
             gate="WAITING_PREFLIGHT_BARS",
             blocked=True,
-            trace={"stage": "flat", "bar_ts": bar_ts.isoformat()},
+            trace=flat_trace,
         )
     if bool(pending_exists):
         return SpotLifecycleDecision(
@@ -622,7 +655,7 @@ def decide_flat_position_intent(
             reason="pending_order",
             gate="PENDING_ORDER",
             blocked=True,
-            trace={"stage": "flat", "bar_ts": bar_ts.isoformat()},
+            trace=flat_trace,
         )
     if not bool(can_order_now):
         return SpotLifecycleDecision(
@@ -630,7 +663,7 @@ def decide_flat_position_intent(
             reason="weekday_gate",
             gate="BLOCKED_WEEKDAY_NOW",
             blocked=True,
-            trace={"stage": "flat", "bar_ts": bar_ts.isoformat()},
+            trace=flat_trace,
         )
     if not bool(entry_capacity):
         return SpotLifecycleDecision(
@@ -638,7 +671,7 @@ def decide_flat_position_intent(
             reason="entry_limit",
             gate="BLOCKED_ENTRY_LIMIT",
             blocked=True,
-            trace={"stage": "flat", "bar_ts": bar_ts.isoformat()},
+            trace=flat_trace,
         )
     if entry_dir not in ("up", "down"):
         return SpotLifecycleDecision(
@@ -646,7 +679,7 @@ def decide_flat_position_intent(
             reason="waiting_signal",
             gate="WAITING_SIGNAL",
             blocked=True,
-            trace={"stage": "flat", "bar_ts": bar_ts.isoformat()},
+            trace=flat_trace,
         )
     if str(entry_dir) not in {str(d) for d in allowed_directions}:
         return SpotLifecycleDecision(
@@ -655,7 +688,7 @@ def decide_flat_position_intent(
             gate="BLOCKED_DIRECTION",
             direction=str(entry_dir),
             blocked=True,
-            trace={"stage": "flat", "bar_ts": bar_ts.isoformat()},
+            trace=flat_trace,
         )
     if not bool(filters_ok):
         return SpotLifecycleDecision(
@@ -664,7 +697,7 @@ def decide_flat_position_intent(
             gate="BLOCKED_FILTERS",
             direction=str(entry_dir),
             blocked=True,
-            trace={"stage": "flat", "bar_ts": bar_ts.isoformat()},
+            trace=flat_trace,
         )
     if not bool(atr_ready):
         return SpotLifecycleDecision(
@@ -673,7 +706,7 @@ def decide_flat_position_intent(
             gate="BLOCKED_ATR_NOT_READY",
             direction=str(entry_dir),
             blocked=True,
-            trace={"stage": "flat", "bar_ts": bar_ts.isoformat()},
+            trace=flat_trace,
         )
 
     fill_mode = _normalize_fill_mode(_get(strategy, "spot_entry_fill_mode", "close"), default="close")
@@ -685,7 +718,7 @@ def decide_flat_position_intent(
             direction=str(entry_dir),
             blocked=True,
             fill_mode=str(fill_mode),
-            trace={"stage": "flat", "bar_ts": bar_ts.isoformat()},
+            trace=flat_trace,
         )
 
     graph = policy_graph or SpotPolicyGraph.from_sources(strategy=strategy, filters=None)
@@ -705,7 +738,7 @@ def decide_flat_position_intent(
         slope_vel_slow_pct=slope_vel_slow_pct,
         entry_gate_bypass=bool(entry_gate_bypass),
     )
-    graph_payload = entry_gate.as_payload()
+    graph_payload = entry_gate.as_payload() if capture_trace else None
     if not bool(entry_gate.allow):
         return SpotLifecycleDecision(
             intent="hold",
@@ -714,12 +747,16 @@ def decide_flat_position_intent(
             direction=str(entry_dir) if entry_dir in ("up", "down") else None,
             fill_mode=str(fill_mode),
             blocked=True,
-            trace={
-                "stage": "flat",
-                "bar_ts": bar_ts.isoformat(),
-                "fill_mode": str(fill_mode),
-                "graph_entry": graph_payload,
-            },
+            trace=(
+                {
+                    "stage": "flat",
+                    "bar_ts": bar_ts.isoformat(),
+                    "fill_mode": str(fill_mode),
+                    "graph_entry": graph_payload,
+                }
+                if capture_trace
+                else {}
+            ),
         )
     return SpotLifecycleDecision(
         intent="enter",
@@ -728,10 +765,14 @@ def decide_flat_position_intent(
         direction=str(entry_dir),
         fill_mode=str(fill_mode),
         blocked=False,
-        trace={
-            "stage": "flat",
-            "bar_ts": bar_ts.isoformat(),
-            "fill_mode": str(fill_mode),
-            "graph_entry": graph_payload,
-        },
+        trace=(
+            {
+                "stage": "flat",
+                "bar_ts": bar_ts.isoformat(),
+                "fill_mode": str(fill_mode),
+                "graph_entry": graph_payload,
+            }
+            if capture_trace
+            else {}
+        ),
     )

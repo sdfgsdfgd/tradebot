@@ -1243,6 +1243,7 @@ def _spot_flat_entry_decision_from_signal(
     atr_value: float | None,
     lifecycle_inputs: Mapping[str, object],
     entry_gate_bypass: bool = False,
+    capture_trace: bool = True,
 ):
     filters_ok = lifecycle_signal_filters_ok(
         filters,
@@ -1295,6 +1296,7 @@ def _spot_flat_entry_decision_from_signal(
         slope_vel_slow_pct=lifecycle_inputs.get("slope_vel_slow_pct"),
         entry_gate_bypass=bool(entry_gate_bypass),
         policy_graph=policy.lifecycle_graph,
+        capture_trace=bool(capture_trace),
     )
 
 
@@ -1321,6 +1323,7 @@ def _spot_open_position_intent(
     slope_vel_pct: float | None = None,
     slope_med_slow_pct: float | None = None,
     slope_vel_slow_pct: float | None = None,
+    capture_trace: bool = True,
 ):
     return decide_open_position_intent(
         strategy=strategy,
@@ -1355,6 +1358,7 @@ def _spot_open_position_intent(
         else None,
         policy_graph=policy.lifecycle_graph,
         policy_config=policy.lifecycle_config,
+        capture_trace=bool(capture_trace),
     )
 
 
@@ -1613,6 +1617,7 @@ def _spot_try_open_entry(
                 and getattr(evidence.risk_snapshot, "tr_slope_vel_pct", None)
                 is not None
                 else None,
+                capture_trace=bool(capture_decision_trace),
             )
             intent_decision = lifecycle.spot_intent
             if (
@@ -2478,17 +2483,23 @@ def _run_spot_backtest_exec_loop(
                         pending_mutation.queue_reason or pending_exit_reason or "flip"
                     ),
                     apply_slippage=True,
-                    exit_trace_payload={
-                        "stage": "pending_exit",
-                        "bar_ts": bar.ts.isoformat(),
-                        "exit_ref_price": float(exit_ref),
-                        "apply_slippage": True,
-                        "pending_exit_reason": str(pending_mutation.queue_reason or "") or None,
-                        "signal_snapshot": _latest_signal_snapshot_probe(
-                            exec_idx=int(idx)
-                        ),
-                        "lifecycle": pending_decision.as_payload(),
-                    },
+                    exit_trace_payload=(
+                        {
+                            "stage": "pending_exit",
+                            "bar_ts": bar.ts.isoformat(),
+                            "exit_ref_price": float(exit_ref),
+                            "apply_slippage": True,
+                            "pending_exit_reason": (
+                                str(pending_mutation.queue_reason or "") or None
+                            ),
+                            "signal_snapshot": _latest_signal_snapshot_probe(
+                                exec_idx=int(idx)
+                            ),
+                            "lifecycle": pending_decision.as_payload(),
+                        }
+                        if capture_decision_trace
+                        else None
+                    ),
                     exit_exec_idx=int(idx),
                 )
             open_trades = []
@@ -2794,6 +2805,7 @@ def _run_spot_backtest_exec_loop(
                     open_dir="up" if int(trade.qty) > 0 else "down",
                     current_qty=int(trade.qty),
                     exit_candidates=exit_candidates,
+                    capture_trace=bool(capture_decision_trace),
                     **signal_inputs,
                 )
                 _capture_lifecycle(
@@ -2865,20 +2877,24 @@ def _run_spot_backtest_exec_loop(
                         exit_time=bar.ts,
                         reason=reason,
                         apply_slippage=bool(apply_slippage),
-                        exit_trace_payload={
-                            "stage": "open_exit",
-                            "bar_ts": bar.ts.isoformat(),
-                            "exit_ref_price": float(exit_ref),
-                            "apply_slippage": bool(apply_slippage),
-                            "resolved_exit_reason": str(reason),
-                            "exit_candidates": dict(exit_candidates)
-                            if isinstance(exit_candidates, dict)
-                            else None,
-                            "signal_snapshot": _latest_signal_snapshot_probe(
-                                exec_idx=int(idx)
-                            ),
-                            "lifecycle": lifecycle.as_payload(),
-                        },
+                        exit_trace_payload=(
+                            {
+                                "stage": "open_exit",
+                                "bar_ts": bar.ts.isoformat(),
+                                "exit_ref_price": float(exit_ref),
+                                "apply_slippage": bool(apply_slippage),
+                                "resolved_exit_reason": str(reason),
+                                "exit_candidates": dict(exit_candidates)
+                                if isinstance(exit_candidates, dict)
+                                else None,
+                                "signal_snapshot": _latest_signal_snapshot_probe(
+                                    exec_idx=int(idx)
+                                ),
+                                "lifecycle": lifecycle.as_payload(),
+                            }
+                            if capture_decision_trace
+                            else None
+                        ),
                         exit_exec_idx=int(idx),
                     )
                 else:
@@ -2947,52 +2963,55 @@ def _run_spot_backtest_exec_loop(
         next_open_ok = bool(
             entry_plan is not None and entry_plan.allowed and not pending_entry.active
         )
-        entry_decision = _spot_flat_entry_decision_from_signal(
-            policy=policy,
-            strategy=cfg.strategy,
-            filters=filters,
-            signal_bar=sig_bar,
-            signal=sig_snap.signal if sig_snap is not None else None,
-            direction=direction,
-            entry_context=entry_context,
-            bars_in_day=int(sig_snap.bars_in_day) if sig_snap is not None else 0,
-            volume_ema=float(sig_snap.volume_ema)
-            if sig_snap is not None and sig_snap.volume_ema is not None
-            else None,
-            volume_ema_ready=bool(sig_snap is None or sig_snap.volume_ema_ready),
-            rv=float(sig_snap.rv)
-            if sig_snap is not None and sig_snap.rv is not None
-            else None,
-            cooldown_ok=bool(cooldown_ok),
-            shock=sig_snap.shock if sig_snap is not None else None,
-            shock_dir=sig_snap.shock_dir if sig_snap is not None else None,
-            open_count=int(effective_open),
-            entries_today=int(entries_today),
-            pending_exists=bool(pending_entry.active or pending_exit_all),
-            next_open_allowed=bool(next_open_ok),
-            exit_mode=exit_mode,
-            atr_value=float(sig_snap.atr)
-            if sig_snap is not None and sig_snap.atr is not None
-            else None,
-            lifecycle_inputs=signal_inputs,
-            entry_gate_bypass=bool(
-                sig_snap
-                and (
-                    sig_snap.regime_router_host_managed
-                    or sig_snap.regime_router_bull_sovereign_ok
-                )
-            ),
-        )
-        _capture_lifecycle(
-            stage="flat_entry",
-            decision=entry_decision,
-            bar_ts=sig_bar.ts,
-            exec_idx=int(idx),
-            sig_idx=int(sig_idx),
-            context=signal_trace,
-        )
+        entry_decision = None
+        if entry_plan is not None or lifecycle_rows is not None:
+            entry_decision = _spot_flat_entry_decision_from_signal(
+                policy=policy,
+                strategy=cfg.strategy,
+                filters=filters,
+                signal_bar=sig_bar,
+                signal=sig_snap.signal if sig_snap is not None else None,
+                direction=direction,
+                entry_context=entry_context,
+                bars_in_day=int(sig_snap.bars_in_day) if sig_snap is not None else 0,
+                volume_ema=float(sig_snap.volume_ema)
+                if sig_snap is not None and sig_snap.volume_ema is not None
+                else None,
+                volume_ema_ready=bool(sig_snap is None or sig_snap.volume_ema_ready),
+                rv=float(sig_snap.rv)
+                if sig_snap is not None and sig_snap.rv is not None
+                else None,
+                cooldown_ok=bool(cooldown_ok),
+                shock=sig_snap.shock if sig_snap is not None else None,
+                shock_dir=sig_snap.shock_dir if sig_snap is not None else None,
+                open_count=int(effective_open),
+                entries_today=int(entries_today),
+                pending_exists=bool(pending_entry.active or pending_exit_all),
+                next_open_allowed=bool(next_open_ok),
+                exit_mode=exit_mode,
+                atr_value=float(sig_snap.atr)
+                if sig_snap is not None and sig_snap.atr is not None
+                else None,
+                lifecycle_inputs=signal_inputs,
+                entry_gate_bypass=bool(
+                    sig_snap
+                    and (
+                        sig_snap.regime_router_host_managed
+                        or sig_snap.regime_router_bull_sovereign_ok
+                    )
+                ),
+                capture_trace=bool(capture_decision_trace),
+            )
+            _capture_lifecycle(
+                stage="flat_entry",
+                decision=entry_decision,
+                bar_ts=sig_bar.ts,
+                exec_idx=int(idx),
+                sig_idx=int(sig_idx),
+                context=signal_trace,
+            )
         entry_guard_probe_now = None
-        if capture_decision_trace and isinstance(
+        if entry_decision is not None and capture_decision_trace and isinstance(
             getattr(entry_decision, "trace", None), dict
         ):
             raw_graph_entry = entry_decision.trace.get("graph_entry")
@@ -3010,7 +3029,11 @@ def _run_spot_backtest_exec_loop(
             if capture_decision_trace
             else None
         )
-        if entry_decision.intent == "enter" and entry_plan is not None:
+        if (
+            entry_decision is not None
+            and entry_decision.intent == "enter"
+            and entry_plan is not None
+        ):
             direction = str(entry_decision.direction or direction)
             spot_leg = _spot_entry_leg_for_direction(
                 strategy=cfg.strategy,
@@ -3281,6 +3304,7 @@ def _run_spot_backtest_exec_loop(
                             else None
                         ),
                         last_resize_bar_ts=last_resize_bar_ts,
+                        capture_trace=bool(capture_decision_trace),
                         **signal_inputs,
                     )
                     _capture_lifecycle(
@@ -3348,19 +3372,25 @@ def _run_spot_backtest_exec_loop(
                                     exit_time=bar.ts,
                                     reason=str(lifecycle.reason or "target_zero"),
                                     apply_slippage=True,
-                                    exit_trace_payload={
-                                        "stage": "open_resize_exit",
-                                        "bar_ts": bar.ts.isoformat(),
-                                        "exit_ref_price": float(bar.close),
-                                        "apply_slippage": True,
-                                        "resolved_exit_reason": str(
-                                            lifecycle.reason or "target_zero"
-                                        ),
-                                        "signal_snapshot": _latest_signal_snapshot_probe(
-                                            exec_idx=int(idx)
-                                        ),
-                                        "lifecycle": lifecycle.as_payload(),
-                                    },
+                                    exit_trace_payload=(
+                                        {
+                                            "stage": "open_resize_exit",
+                                            "bar_ts": bar.ts.isoformat(),
+                                            "exit_ref_price": float(bar.close),
+                                            "apply_slippage": True,
+                                            "resolved_exit_reason": str(
+                                                lifecycle.reason or "target_zero"
+                                            ),
+                                            "signal_snapshot": (
+                                                _latest_signal_snapshot_probe(
+                                                    exec_idx=int(idx)
+                                                )
+                                            ),
+                                            "lifecycle": lifecycle.as_payload(),
+                                        }
+                                        if capture_decision_trace
+                                        else None
+                                    ),
                                     exit_exec_idx=int(idx),
                                 )
                                 open_trades = []
@@ -3371,19 +3401,25 @@ def _run_spot_backtest_exec_loop(
                                 exit_time=bar.ts,
                                 reason=str(lifecycle.reason or "target_zero"),
                                 apply_slippage=True,
-                                exit_trace_payload={
-                                    "stage": "open_resize_exit",
-                                    "bar_ts": bar.ts.isoformat(),
-                                    "exit_ref_price": float(bar.close),
-                                    "apply_slippage": True,
-                                    "resolved_exit_reason": str(
-                                        lifecycle.reason or "target_zero"
-                                    ),
-                                    "signal_snapshot": _latest_signal_snapshot_probe(
-                                        exec_idx=int(idx)
-                                    ),
-                                    "lifecycle": lifecycle.as_payload(),
-                                },
+                                exit_trace_payload=(
+                                    {
+                                        "stage": "open_resize_exit",
+                                        "bar_ts": bar.ts.isoformat(),
+                                        "exit_ref_price": float(bar.close),
+                                        "apply_slippage": True,
+                                        "resolved_exit_reason": str(
+                                            lifecycle.reason or "target_zero"
+                                        ),
+                                        "signal_snapshot": (
+                                            _latest_signal_snapshot_probe(
+                                                exec_idx=int(idx)
+                                            )
+                                        ),
+                                        "lifecycle": lifecycle.as_payload(),
+                                    }
+                                    if capture_decision_trace
+                                    else None
+                                ),
                                 exit_exec_idx=int(idx),
                             )
                             open_trades = []
@@ -3397,16 +3433,20 @@ def _run_spot_backtest_exec_loop(
                 exit_time=last_bar.ts,
                 reason="end",
                 apply_slippage=True,
-                exit_trace_payload={
-                    "stage": "close_all",
-                    "bar_ts": last_bar.ts.isoformat(),
-                    "exit_ref_price": float(last_bar.close),
-                    "apply_slippage": True,
-                    "resolved_exit_reason": "end",
-                    "signal_snapshot": _latest_signal_snapshot_probe(
-                        exec_idx=int(len(exec_bars) - 1)
-                    ),
-                },
+                exit_trace_payload=(
+                    {
+                        "stage": "close_all",
+                        "bar_ts": last_bar.ts.isoformat(),
+                        "exit_ref_price": float(last_bar.close),
+                        "apply_slippage": True,
+                        "resolved_exit_reason": "end",
+                        "signal_snapshot": _latest_signal_snapshot_probe(
+                            exec_idx=int(len(exec_bars) - 1)
+                        ),
+                    }
+                    if capture_decision_trace
+                    else None
+                ),
                 exit_exec_idx=int(len(exec_bars) - 1),
             )
 
