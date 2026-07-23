@@ -407,6 +407,8 @@ Source and references must be saturated before mutation, in this order:
 - TDD receipts: semantic RED `8c3346697a225a6d012243c78980e824aac878e5af24ce3e56854e237ee3bb63`; exact/related GREEN `2365f85d748b9c19791d329d17e0d91a9700e013209b1ad6c5f7c00e79dad8f1`; full/value GREEN `4a1f960f748d1380910d9e481e2634a7ad33d672402c10ad5485f4c2bdf15843`.
 - Full deterministic verification: `604 passed, 4 deselected`; zero sockets; implementation diff SHA `a15c06259161e6aac185c15cbdf4eda68f1fb2c02f91e3181bc0a0a69f481ff8`.
 - `spot-v1.sizing-input-assembly-parity` moved from `unproven` to aligned `shared-covered`.
+- Publication: code milestone commit `737ecb7fb1b00d4a5bdb55d1d479c463e5f1cd06` (`Centralize spot sizing inputs`) advanced `origin/main` from `bf593fe06afc61f5db42df3446bae5a0b763200f`; an independent fresh fetch verified the same commit, parent, subject, and exact nine-path scope.
+- Publication receipt: `976166f6b39f4eccacbefde29e7de501fa90735c2e2328c117f1202c41530663`; independent pre-publication validation receipt `4144f35c05fdd514f1100f91ed74595b677e871ede3909c1a175c58fe3bfc829`; the sibling workspace finished clean and the original five-path dirty workspace remained unchanged.
 
 <!-- END: TRADEBOT_PARITY_FIRST_SLICE_V1 -->
 
