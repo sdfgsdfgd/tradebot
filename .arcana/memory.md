@@ -436,4 +436,6 @@ Next cycle: recursively map existing combination-contract, option-leg, margin, b
 - TDD receipts: remaining-consumer RED `052c62529c638aba416855c4ca640663335e942d3ea96a43a3ac773441cf0dc6`; duplicate-free transport-clean GREEN `14a700706d3a06907620bcae474d4f01f39a559ddbf6c880bcef7f021b13bc11` (`2` exact and `243` collected/passed, zero sockets). Direct canonical-registry evidence: `tests/test_live_signal_exit_continuum.py::test_canonical_contract_identity_registry_covers_mcl_mnq_and_equity_controls`.
 - Full deterministic verification: `601 passed, 4 deselected`; selected denominator `601`; focused coverage `10 passed`; zero sockets.
 
+- Publication: code milestone commit `82a6a452c31d6ea44390b8dfb45005c2807fbd40` was pushed as a fast-forward from `d68a496820dcc8bfdfda9a845250c52f03b780b0` to `origin/main`; a fresh independent fetch resolved `refs/heads/main` to the same commit; the original dirty workspace remained at `90447ff29f177d1e216a38b07b47d923487e18cb` with its exact five-path status and empty index.
+
 <!-- END: TRADEBOT_SPOT_CONTRACT_IDENTITY_V1 -->
