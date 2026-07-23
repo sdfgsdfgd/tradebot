@@ -63,17 +63,6 @@ def normalize_next_open_session_mode(raw: object | None, *, default: str = "auto
     return mode
 
 
-def signal_bar_close_ts(
-    *,
-    signal_bar_ts: datetime,
-    signal_bar_size: str,
-) -> datetime:
-    signal_def = parse_bar_size(str(signal_bar_size or ""))
-    if signal_def is None or signal_def.duration.total_seconds() <= 0:
-        return signal_bar_ts
-    return signal_bar_ts + signal_def.duration
-
-
 def _spot_exec_span(exec_bar_size: str) -> timedelta:
     parsed = parse_bar_size(str(exec_bar_size or ""))
     if parsed is None or parsed.duration.total_seconds() <= 0:

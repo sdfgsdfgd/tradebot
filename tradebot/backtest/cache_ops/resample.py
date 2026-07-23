@@ -11,7 +11,7 @@ from pathlib import Path
 
 from ...signals import parse_bar_size
 from ...time_utils import NaiveTsMode, to_et as _to_et_shared
-from ..cache import (
+from ...chart_data.history import (
     cache_path,
     ensure_offline_cached_window,
     find_overlapping_cache_paths,
@@ -465,10 +465,8 @@ def ensure_cached_window_with_policy(
         raise ValueError(f"Unsupported cache_policy: {cache_policy!r}")
 
     ok, expected, resolved, missing_ranges, err = ensure_offline_cached_window(
-        data=data,
         cache_dir=cache_dir,
         symbol=symbol,
-        exchange=exchange,
         start=start,
         end=end,
         bar_size=bar_size,
@@ -497,10 +495,8 @@ def ensure_cached_window_with_policy(
         )
         attempt_notes.append(f"auto_resample_ok:{src_note}")
         ok2, expected2, resolved2, missing2, err2 = ensure_offline_cached_window(
-            data=data,
             cache_dir=cache_dir,
             symbol=symbol,
-            exchange=exchange,
             start=start,
             end=end,
             bar_size=bar_size,
@@ -530,10 +526,8 @@ def ensure_cached_window_with_policy(
         attempt_notes.append(f"auto_fetch_error:{exc}")
 
     ok3, expected3, resolved3, missing3, err3 = ensure_offline_cached_window(
-        data=data,
         cache_dir=cache_dir,
         symbol=symbol,
-        exchange=exchange,
         start=start,
         end=end,
         bar_size=bar_size,

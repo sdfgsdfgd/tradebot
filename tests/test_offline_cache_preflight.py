@@ -7,7 +7,7 @@ import pytest
 
 from tradebot.backtest.cache_ops.cli import main_resample
 from tradebot.backtest.cli_utils import expected_cache_path
-from tradebot.backtest.cache import cache_data_revision, cache_path, read_cache, write_cache
+from tradebot.chart_data.history import cache_data_revision, cache_path, read_cache, write_cache
 from tradebot.backtest.data import IBKRHistoricalData
 from tradebot.backtest.models import Bar
 from tradebot.research.spot_sweeps.market import SweepMarketData
@@ -295,7 +295,7 @@ def test_cache_ops_resample_uses_overlap_stitching(tmp_path) -> None:
         ]
     )
 
-    assert stitched_src.exists()
+    assert not stitched_src.exists()
     dst = expected_cache_path(
         cache_dir=tmp_path,
         symbol="SLV",

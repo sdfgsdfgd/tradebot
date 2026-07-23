@@ -18,6 +18,7 @@ from ...spot.codec import (
     bool_from_payload,
     effective_filters_payload as _codec_effective_filters_payload,
 )
+from ...signals import bar_sizes_equal
 from .fingerprints import (
     _axis_dimension_fingerprint,
 )
@@ -334,7 +335,7 @@ class SweepPlanning:
         regime_bar = (
             str(getattr(strat, "regime_bar_size", "") or "").strip() or signal_bar
         )
-        if regime_bar != signal_bar and (
+        if not bar_sizes_equal(regime_bar, signal_bar) and (
             regime_mode == "supertrend"
             or bool(getattr(strat, "regime_ema_preset", None))
         ):
@@ -346,7 +347,7 @@ class SweepPlanning:
         regime2_bar = (
             str(getattr(strat, "regime2_bar_size", "") or "").strip() or signal_bar
         )
-        if regime2_mode != "off" and regime2_bar != signal_bar:
+        if regime2_mode != "off" and not bar_sizes_equal(regime2_bar, signal_bar):
             cost += _cost_model_weight("regime2_cross_tf", 0.5)
 
         if (

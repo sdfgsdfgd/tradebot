@@ -1,23 +1,25 @@
-"""Canonical backtest cache persistence, discovery, and coverage."""
+"""Canonical raw market-history persistence, discovery, and coverage."""
 
 from __future__ import annotations
 
 import csv
 import hashlib
+import math
 import mmap
 import os
 import re
+from collections import defaultdict
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from functools import lru_cache
 from pathlib import Path
-from typing import TYPE_CHECKING, Iterable
+from typing import Iterable
 
+from ..contract_identity import is_future_symbol
+from ..engines.market import is_early_close_day, is_trading_day
 from ..signals import parse_bar_size
-from .models import Bar
-
-if TYPE_CHECKING:
-    from .data import IBKRHistoricalData
+from ..time_utils import ET_ZONE, NaiveTsMode, NaiveTsModeInput, now_et_naive, to_et, to_utc_naive
+from .series import OhlcvBar, OhlcvBar as Bar
 
 
 _APPROVED_CACHE_BAR_TOKENS = frozenset(
@@ -52,6 +54,292 @@ class CacheFileMeta:
     end_date: date
     bar_token: str
     tag: str
+
+
+@dataclass(frozen=True)
+class HistoryWindow:
+    bars: tuple[OhlcvBar, ...]
+    missing_ranges: tuple[tuple[date, date], ...]
+    source_paths: tuple[Path, ...]
+
+
+def duration_window_et(
+    duration_str: str,
+    *,
+    end: datetime | None = None,
+) -> tuple[datetime, datetime]:
+    """Resolve IBKR duration syntax into an ET-naive request window."""
+    end_et = to_et(end, naive_ts_mode=NaiveTsMode.ET).replace(tzinfo=None) if end else now_et_naive()
+    match = re.fullmatch(r"\s*(\d+)\s*([SDWMY])\s*", str(duration_str or "").upper())
+    if match is None:
+        raise ValueError(f"Unsupported IBKR duration: {duration_str!r}")
+    count = max(1, int(match.group(1)))
+    unit = match.group(2)
+    span = {
+        "S": timedelta(seconds=count),
+        "D": timedelta(days=count),
+        "W": timedelta(weeks=count),
+        "M": timedelta(days=31 * count),
+        "Y": timedelta(days=366 * count),
+    }[unit]
+    return end_et - span, end_et
+
+
+def normalize_bars_to_close(
+    bars: Iterable[OhlcvBar],
+    *,
+    symbol: str,
+    bar_size: str,
+    use_rth: bool,
+    naive_ts_mode: NaiveTsModeInput = NaiveTsMode.UTC,
+) -> list[OhlcvBar]:
+    """Convert IBKR bar-start timestamps to causal bar-close timestamps."""
+    ordered = sorted(bars, key=lambda bar: bar.ts)
+    if not ordered:
+        return []
+    close_time_et = _daily_close_time_et(symbol=symbol, use_rth=use_rth)
+    if str(bar_size or "").strip().lower().startswith("1 day"):
+        out: list[OhlcvBar] = []
+        for bar in ordered:
+            close_et = datetime.combine(bar.ts.date(), close_time_et, tzinfo=ET_ZONE)
+            close_ts = (
+                close_et.replace(tzinfo=None)
+                if str(getattr(naive_ts_mode, "value", naive_ts_mode)).lower() in {"et", "et_naive"}
+                else to_utc_naive(close_et)
+            )
+            out.append(_bar_at(bar, close_ts))
+        return out
+
+    bar_def = parse_bar_size(str(bar_size))
+    if bar_def is None or bar_def.duration <= timedelta(0):
+        return ordered
+    duration = bar_def.duration
+    out = []
+    for index, bar in enumerate(ordered):
+        close_ts = bar.ts + duration
+        if index + 1 < len(ordered) and bar.ts < ordered[index + 1].ts < close_ts:
+            close_ts = ordered[index + 1].ts
+        if use_rth:
+            start_et = to_et(bar.ts, naive_ts_mode=naive_ts_mode)
+            session_close_et = datetime.combine(start_et.date(), close_time_et, tzinfo=ET_ZONE)
+            session_close = (
+                session_close_et.replace(tzinfo=None)
+                if str(getattr(naive_ts_mode, "value", naive_ts_mode)).lower() in {"et", "et_naive"}
+                else to_utc_naive(session_close_et)
+            )
+            close_ts = min(close_ts, session_close)
+        out.append(_bar_at(bar, close_ts))
+    return out
+
+
+def _daily_close_time_et(*, symbol: str, use_rth: bool) -> time:
+    if is_future_symbol(str(symbol or "").strip().upper()):
+        return time(16, 0) if use_rth else time(17, 0)
+    return time(16, 0) if use_rth else time(20, 0)
+
+
+def _bar_at(bar: OhlcvBar, ts: datetime) -> OhlcvBar:
+    return OhlcvBar(ts, bar.open, bar.high, bar.low, bar.close, bar.volume)
+
+
+def load_history_window(
+    *,
+    cache_dir: Path,
+    symbol: str,
+    start_et: datetime,
+    end_et: datetime,
+    bar_size: str,
+    use_rth: bool,
+    naive_ts_mode: NaiveTsModeInput = NaiveTsMode.ET,
+) -> HistoryWindow:
+    """Read one canonical history view and identify absent trading days."""
+    paths = find_overlapping_cache_paths(
+        cache_dir=cache_dir,
+        symbol=symbol,
+        start=start_et,
+        end=end_et,
+        bar_size=bar_size,
+        use_rth=use_rth,
+    )
+    mode = str(getattr(naive_ts_mode, "value", naive_ts_mode) or "").strip().lower()
+    window_is_et = mode in {"et", "et_naive"}
+    start_utc = (
+        to_utc_naive(start_et, naive_ts_mode=NaiveTsMode.ET)
+        if window_is_et
+        else start_et
+    )
+    end_utc = (
+        to_utc_naive(end_et, naive_ts_mode=NaiveTsMode.ET)
+        if window_is_et
+        else end_et
+    )
+    by_ts: dict[datetime, OhlcvBar] = {}
+    for path in paths:
+        for bar in read_cache(path, start=start_utc, end=end_utc):
+            by_ts[bar.ts] = bar
+
+    bars = tuple(by_ts[ts] for ts in sorted(by_ts))
+    bar_def = parse_bar_size(str(bar_size))
+    daily = bool(bar_def is not None and bar_def.duration >= timedelta(days=1))
+    present_days = {
+        (
+            bar.ts.date()
+            if daily or not window_is_et
+            else to_et(bar.ts, naive_ts_mode=NaiveTsMode.UTC).date()
+        )
+        for bar in bars
+    }
+    missing_days = {
+        day
+        for day in _date_range(start_et.date(), end_et.date())
+        if _day_intersects_window(day, start_et=start_et, end_et=end_et, use_rth=use_rth)
+        and day not in present_days
+    }
+    missing_days.update(
+        _incomplete_rth_days(
+            bars,
+            start_et=start_et,
+            end_et=end_et,
+            bar_size=bar_size,
+            use_rth=use_rth,
+            partial_window=window_is_et,
+        )
+    )
+    return HistoryWindow(
+        bars=bars,
+        missing_ranges=tuple(_coalesce_days(missing_days)),
+        source_paths=tuple(paths),
+    )
+
+
+def write_history_chunk(
+    *,
+    cache_dir: Path,
+    symbol: str,
+    start_date: date,
+    end_date: date,
+    bar_size: str,
+    use_rth: bool,
+    bars: Iterable[OhlcvBar],
+) -> Path | None:
+    """Merge one fetched span into its canonical UTC-naive history shard."""
+    rows = list(bars)
+    if not rows:
+        return None
+    start = datetime.combine(start_date, datetime.min.time())
+    end = datetime.combine(end_date, datetime.max.time().replace(microsecond=0))
+    path = cache_path(cache_dir, symbol, start, end, bar_size, use_rth)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists():
+        rows = [*read_cache(path), *rows]
+    write_cache(path, rows)
+    return path
+
+
+def _date_range(start: date, end: date) -> Iterable[date]:
+    day = start
+    while day <= end:
+        yield day
+        day += timedelta(days=1)
+
+
+def _day_intersects_window(
+    day: date,
+    *,
+    start_et: datetime,
+    end_et: datetime,
+    use_rth: bool,
+) -> bool:
+    if not is_trading_day(day):
+        return False
+    session_start = time(9, 30) if use_rth else time(0, 0)
+    if use_rth:
+        session_end = time(12, 59, 59) if is_early_close_day(day) else time(15, 59, 59)
+    else:
+        session_end = time(23, 59, 59)
+    return (
+        datetime.combine(day, session_end) >= start_et
+        and datetime.combine(day, session_start) <= end_et
+    )
+
+
+def _incomplete_rth_days(
+    bars: Iterable[OhlcvBar],
+    *,
+    start_et: datetime,
+    end_et: datetime,
+    bar_size: str,
+    use_rth: bool,
+    partial_window: bool = False,
+) -> set[date]:
+    bar_def = parse_bar_size(str(bar_size))
+    if (
+        not use_rth
+        or bar_def is None
+        or bar_def.duration < timedelta(minutes=1)
+        or bar_def.duration > timedelta(minutes=30)
+    ):
+        return set()
+    bar_minutes = int(bar_def.duration.total_seconds() // 60)
+    if bar_minutes <= 0:
+        return set()
+    timestamps: dict[date, set[datetime]] = defaultdict(set)
+    for bar in bars:
+        stamp = to_et(bar.ts, naive_ts_mode=NaiveTsMode.UTC).replace(tzinfo=None)
+        timestamps[stamp.date()].add(stamp)
+
+    incomplete: set[date] = set()
+    for day in _date_range(start_et.date(), end_et.date()):
+        if not is_trading_day(day):
+            continue
+        stamps = timestamps.get(day, set())
+        close = time(13, 0) if is_early_close_day(day) else time(16, 0)
+        session_start = datetime.combine(day, time(9, 30))
+        session_end = datetime.combine(day, close)
+        if partial_window:
+            requested_start = max(session_start, start_et)
+            requested_end = min(session_end, end_et)
+            if requested_end <= requested_start:
+                continue
+            elapsed = max(0.0, (requested_start - session_start).total_seconds())
+            steps = int(math.ceil(elapsed / bar_def.duration.total_seconds()))
+            cursor = session_start + (bar_def.duration * steps)
+            expected_stamps: set[datetime] = set()
+            while cursor + bar_def.duration <= requested_end:
+                expected_stamps.add(cursor)
+                cursor += bar_def.duration
+            if expected_stamps and not expected_stamps.issubset(stamps):
+                incomplete.add(day)
+            continue
+        if start_et > session_start or end_et < session_end:
+            continue
+        expected = int((session_end - session_start).total_seconds() // bar_def.duration.total_seconds())
+        ordered = sorted(stamps)
+        if (
+            not ordered
+            or len(ordered) != expected
+            or ordered[0] != session_start
+            or ordered[-1] != session_end - bar_def.duration
+            or any(current - previous != bar_def.duration for previous, current in zip(ordered, ordered[1:]))
+        ):
+            incomplete.add(day)
+    return incomplete
+
+
+def _coalesce_days(days: Iterable[date]) -> list[tuple[date, date]]:
+    ranges: list[tuple[date, date]] = []
+    for day in sorted(set(days)):
+        if ranges:
+            cursor = ranges[-1][1] + timedelta(days=1)
+            intervening_trading_day = False
+            while cursor < day:
+                intervening_trading_day = intervening_trading_day or is_trading_day(cursor)
+                cursor += timedelta(days=1)
+            if not intervening_trading_day:
+                ranges[-1] = (ranges[-1][0], day)
+                continue
+        ranges.append((day, day))
+    return ranges
 
 
 def cache_data_revision(cache_dir: Path) -> str:
@@ -393,77 +681,36 @@ def cache_covers_window(
     bar_size: str,
     use_rth: bool,
 ) -> tuple[bool, Path | None, list[tuple[date, date]]]:
-    """Return whether cache files fully cover a requested window.
-
-    Coverage is true if either:
-    - one covering cache file exists, or
-    - overlapping cache files can fully span the requested date range.
-
-    Returns:
-      (covers, covering_path, missing_ranges)
-    where `covering_path` is set only when a single covering file exists, and
-    `missing_ranges` contains uncovered date spans when coverage is incomplete.
-    """
-    covering = find_covering_cache_path(
+    """Return content-aware coverage for one canonical UTC-naive window."""
+    history = load_history_window(
         cache_dir=cache_dir,
         symbol=symbol,
-        start=start,
-        end=end,
+        start_et=start,
+        end_et=end,
         bar_size=bar_size,
         use_rth=use_rth,
+        naive_ts_mode=NaiveTsMode.UTC,
     )
-    if covering is not None:
-        return True, covering, []
-
-    overlap_paths = find_overlapping_cache_paths(
-        cache_dir=cache_dir,
-        symbol=symbol,
-        start=start,
-        end=end,
-        bar_size=bar_size,
-        use_rth=use_rth,
-    )
-    if not overlap_paths:
-        return False, None, [(start.date(), end.date())]
-
-    covered_ranges: list[tuple[date, date]] = []
-    for overlap in overlap_paths:
-        meta = parse_cache_filename(overlap)
-        if meta is not None:
-            covered_ranges.append((meta.start_date, meta.end_date))
-
-    missing_ranges = _uncovered_date_ranges(
-        request_start=start.date(),
-        request_end=end.date(),
-        covered_ranges=covered_ranges,
-    )
-    if missing_ranges:
-        return False, None, missing_ranges
-    return True, None, []
+    missing_ranges = list(history.missing_ranges)
+    if not history.bars and not missing_ranges:
+        missing_ranges = [(start.date(), end.date())]
+    covering = history.source_paths[0] if len(history.source_paths) == 1 else None
+    return bool(history.bars and not missing_ranges), covering, missing_ranges
 
 
 def ensure_offline_cached_window(
     *,
-    data: IBKRHistoricalData,
     cache_dir: Path,
     symbol: str,
-    exchange: str | None,
     start: datetime,
     end: datetime,
     bar_size: str,
     use_rth: bool,
-    hydrate_overlap: bool = True,
 ) -> tuple[bool, Path, Path | None, list[tuple[date, date]], str | None]:
-    """Validate offline cache availability using runtime-equivalent loader logic.
+    """Validate whether canonical files cover an offline request.
 
     Returns:
       (ok, expected_path, resolved_path, missing_ranges, error_text)
-
-    Behavior:
-    - Fast path checks filename coverage metadata first.
-    - If coverage is overlap-only and no exact file exists, optionally hydrate by
-      invoking `load_cached_bar_series`, which performs deterministic stitch and
-      persists the exact cache window.
     """
     expected = cache_path(cache_dir, symbol, start, end, bar_size, use_rth)
     cache_ok, covering, missing_ranges = cache_covers_window(
@@ -478,44 +725,6 @@ def ensure_offline_cached_window(
         return False, expected, covering, missing_ranges, None
 
     resolved = covering if covering is not None else (expected if expected.exists() else None)
-    if not bool(hydrate_overlap):
-        return True, expected, resolved, [], None
-    if resolved is not None:
-        return True, expected, resolved, [], None
-
-    # Coverage is metadata-complete but exact file is missing. Reuse the same
-    # loader path as runtime so stitched windows are materialized consistently.
-    try:
-        series = data.load_cached_bar_series(
-            symbol=str(symbol),
-            exchange=exchange,
-            start=start,
-            end=end,
-            bar_size=str(bar_size),
-            use_rth=bool(use_rth),
-            cache_dir=cache_dir,
-        )
-    except FileNotFoundError as exc:
-        cache_ok2, covering2, missing_ranges2 = cache_covers_window(
-            cache_dir=cache_dir,
-            symbol=str(symbol),
-            start=start,
-            end=end,
-            bar_size=str(bar_size),
-            use_rth=bool(use_rth),
-        )
-        missing_eff = missing_ranges2 if missing_ranges2 else missing_ranges
-        resolved_eff = covering2 if cache_ok2 else None
-        return False, expected, resolved_eff, missing_eff, str(exc)
-
-    source_path = str(getattr(series.meta, "source_path", "") or "").strip()
-    if source_path:
-        try:
-            resolved = Path(source_path)
-        except Exception:
-            resolved = expected if expected.exists() else None
-    elif expected.exists():
-        resolved = expected
     return True, expected, resolved, [], None
 
 

@@ -24,7 +24,7 @@ from datetime import datetime, time
 from pathlib import Path
 
 from ...time_utils import UTC as _UTC
-from ..cache import cache_path, read_cache
+from ...chart_data.history import cache_path, read_cache
 from ..data import IBKRHistoricalData
 from .repair import (
     _adaptive_thread_plan,
@@ -192,8 +192,6 @@ def main_resample(argv: list[str]) -> None:
             pass
     if not out.ok:
         raise SystemExit(f"Resample failed: {out.error or 'unknown_error'}")
-    if not out.src_path and not out.from_cache:
-        raise SystemExit("Resample failed to resolve source cache path.")
 
     print("")
     print("=== cache resample ===")
@@ -202,7 +200,8 @@ def main_resample(argv: list[str]) -> None:
         print(f"- cache_hit=true src={src_bar_size}")
         print(f"- dst={dst_bar_size} path={out.dst_path}")
     else:
-        print(f"- src={src_bar_size} rows={int(out.src_rows)} path={out.src_path}")
+        source = str(out.src_path) if out.src_path is not None else "stitched canonical view"
+        print(f"- src={src_bar_size} rows={int(out.src_rows)} path={source}")
         print(f"- dst={dst_bar_size} rows={int(out.dst_rows)} path={out.dst_path}")
         print(f"- dropped_incomplete={int(out.dropped_incomplete)}")
     dst_bars = read_cache(out.dst_path)

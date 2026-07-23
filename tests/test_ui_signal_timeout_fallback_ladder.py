@@ -298,6 +298,33 @@ def test_signal_fetch_bars_fallback_prefers_1m_before_1w() -> None:
     assert list(health.get("timeout_fallback_attempts") or []) == ["2 M", "1 M"]
 
 
+def test_signal_fetch_bars_exposes_only_causally_closed_timestamps() -> None:
+    client = _FallbackClient(fail_durations=set())
+    screen = _screen_with_client(client)
+    contract = Stock("SLV", "SMART", "USD")
+    contract.conId = 10005
+
+    series, health = asyncio.run(
+        screen._signal_fetch_bars(
+            contract=contract,
+            duration_str="1 W",
+            bar_size="10 mins",
+            use_rth=False,
+            now_ref=datetime(2026, 2, 20, 12, 5),
+            strict_zero_gap=False,
+            heal_if_stale=False,
+        )
+    )
+
+    assert series is not None
+    assert [bar.ts for bar in series] == [
+        datetime(2026, 2, 20, 11, 50),
+        datetime(2026, 2, 20, 12, 0),
+    ]
+    assert series.meta.extra["timestamp_semantics"] == "close"
+    assert health["last_bar_ts"] == datetime(2026, 2, 20, 11, 50)
+
+
 def test_signal_fetch_bars_fallback_reaches_1w_when_months_fail() -> None:
     client = _FallbackClient(fail_durations={"3 M", "2 M", "1 M"})
     screen = _screen_with_client(client)

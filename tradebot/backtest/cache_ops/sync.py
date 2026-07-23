@@ -17,7 +17,7 @@ from ...time_utils import (
     NaiveTsSourceMode,
     to_et as _to_et_shared,
 )
-from ..cache import cache_path, read_cache, write_cache
+from ...chart_data.history import cache_path, read_cache, write_cache
 from ..data import IBKRHistoricalData
 from ..models import Bar
 from ..spot_context import SpotBarRequirement, spot_bar_requirements_from_strategy

@@ -12,7 +12,7 @@ from tradebot.backtest.cache_ops.sync import (
     _repo_root,
 )
 from tradebot.backtest.cache_ops.coverage import _intra_session_gap_days
-from tradebot.backtest.cache import _read_cache_cached, cache_path, read_cache, write_cache
+from tradebot.chart_data.history import _read_cache_cached, cache_path, read_cache, write_cache
 from tradebot.backtest.models import Bar
 
 

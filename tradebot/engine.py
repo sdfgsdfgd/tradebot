@@ -12,7 +12,7 @@ from functools import lru_cache
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Iterable
 
-from .signals import parse_bar_size
+from .signals import bar_sizes_equal, parse_bar_size
 from .spot.policy import SpotPolicy
 from .spot.policy_contract import SpotDecisionTrace, SpotIntentDecision, SpotPolicyConfigView, SpotRuntimeSpec, SpotSizingInput
 from .time_utils import (
@@ -131,9 +131,9 @@ def resolve_spot_regime_spec(
     if not regime_bar_size or regime_bar_size.lower() in ("same", "default"):
         regime_bar_size = base_bar_size
     if regime_mode == "supertrend":
-        use_mtf = str(regime_bar_size) != base_bar_size
+        use_mtf = not bar_sizes_equal(regime_bar_size, base_bar_size)
     else:
-        use_mtf = bool(regime_preset) and str(regime_bar_size) != base_bar_size
+        use_mtf = bool(regime_preset) and not bar_sizes_equal(regime_bar_size, base_bar_size)
     return regime_mode, regime_preset, regime_bar_size, use_mtf
 
 
@@ -153,9 +153,9 @@ def resolve_spot_regime2_spec(
     if not regime2_bar_size or regime2_bar_size.lower() in ("same", "default"):
         regime2_bar_size = base_bar_size
     if regime2_mode == "supertrend":
-        use_mtf = str(regime2_bar_size) != base_bar_size
+        use_mtf = not bar_sizes_equal(regime2_bar_size, base_bar_size)
     else:
-        use_mtf = bool(regime2_preset) and str(regime2_bar_size) != base_bar_size
+        use_mtf = bool(regime2_preset) and not bar_sizes_equal(regime2_bar_size, base_bar_size)
     return regime2_mode, regime2_preset, regime2_bar_size, use_mtf
 
 

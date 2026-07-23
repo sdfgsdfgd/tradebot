@@ -15,7 +15,7 @@ from ...time_utils import (
     to_et as _to_et_shared,
     to_utc_naive as _to_utc_naive_shared,
 )
-from ..cache import CacheFileMeta, parse_cache_filename
+from ...chart_data.history import CacheFileMeta, parse_cache_filename
 from ..models import Bar
 from ...engines.market import (
     SESSION_ORDER as _SESSION_ORDER,

@@ -35,6 +35,7 @@ from ..chart_data.series import BarSeries, BarSeriesSignature, bars_list
 from ..engines.risk import risk_overlay_policy_from_filters
 from ..engines.signals import EmaDecisionSnapshot
 from ..option_package import option_product_facts
+from ..signals import bar_sizes_equal
 from ..spot.gates import (
     deferred_entry_plan as lifecycle_deferred_entry_plan,
     fill_due_ts as lifecycle_fill_due_ts,
@@ -570,7 +571,7 @@ def _spot_prepare_summary_series_pack(
     tick_list = _bars_input_optional_list(tick_bars)
     exec_list = _bars_input_optional_list(exec_bars)
     exec_bar_size = str(getattr(cfg.strategy, "spot_exec_bar_size", "") or "").strip()
-    if exec_bar_size and exec_bar_size != str(cfg.backtest.bar_size):
+    if exec_bar_size and not bar_sizes_equal(exec_bar_size, cfg.backtest.bar_size):
         if not exec_list:
             return "", None
     else:
@@ -1865,7 +1866,7 @@ def _spot_resolve_run_bars(
     exec_bar_size = str(
         getattr(cfg.strategy, "spot_exec_bar_size", "") or ""
     ).strip()
-    if exec_bar_size and exec_bar_size != str(cfg.backtest.bar_size):
+    if exec_bar_size and not bar_sizes_equal(exec_bar_size, cfg.backtest.bar_size):
         if execution is None:
             raise ValueError(
                 "spot_exec_bar_size is set but exec_bars was not provided "

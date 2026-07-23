@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import csv
 from dataclasses import dataclass, replace
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 import json
 from pathlib import Path
 import sys
@@ -16,8 +16,11 @@ from ib_insync import Bag, ComboLeg, Contract, Future, Stock
 
 from tradebot.backtest.engine import _spot_strategy_sec_type
 from tradebot.backtest.spot_codec import spot_strategy_payload, strategy_from_payload
+from tradebot.chart_data.history import cache_path, duration_window_et, read_cache, write_cache
+from tradebot.chart_data.series import OhlcvBar
 from tradebot.client import BrokerOrderPreview, IBKRClient, _session_flags
 from tradebot.config import IBKRConfig
+from tradebot.engines.market import is_trading_day
 from tradebot.engines.execution import initial_execution_mode
 import tradebot.live.options as live_options_module
 from tradebot.live.options import QualifiedOptionLeg
@@ -25,6 +28,7 @@ from tradebot.option_package import OptionPackageRisk
 from tradebot.order_admission import evaluate_order_admission
 from tradebot.research.spot_sweeps.support import _bundle_base
 from tradebot.spot.gates import flip_exit_gate_blocked, signal_filter_checks
+from tradebot.time_utils import to_utc_naive
 
 _UI_DIR = Path(__file__).resolve().parents[1] / "tradebot" / "ui"
 if "tradebot.ui" not in sys.modules:
@@ -145,6 +149,68 @@ def test_historical_full24_stitches_overnight_and_keeps_what_to_show_cache_separ
     assert any(exchange == "OVERNIGHT" and what == "MIDPOINT" for exchange, what, _ in calls)
 
 
+def test_historical_ohlcv_reuses_six_month_cache_and_fetches_only_missing_day(tmp_path) -> None:
+    client = _new_client()
+    client._config = replace(client._config, market_data_dir=str(tmp_path))
+    end_ts = datetime(2025, 6, 30, 16, 0)
+    start_ts, _ = duration_window_et("6 M", end=end_ts)
+    missing_day = date(2025, 3, 12)
+    cached_bars: list[OhlcvBar] = []
+    day = start_ts.date()
+    while day <= end_ts.date():
+        if is_trading_day(day) and day != missing_day:
+            for slot in range(39):
+                stamp_et = datetime.combine(day, datetime.min.time()).replace(hour=9, minute=30) + timedelta(
+                    minutes=10 * slot
+                )
+                cached_bars.append(OhlcvBar(to_utc_naive(stamp_et, naive_ts_mode="et"), 1, 1, 1, 1, 1))
+        day += timedelta(days=1)
+
+    path = cache_path(tmp_path, "TQQQ", start_ts, end_ts, "10 mins", True)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    write_cache(path, cached_bars)
+    calls: list[tuple[datetime | None, str]] = []
+
+    async def _fake_request(
+        contract,
+        *,
+        end_ts: datetime | None = None,
+        duration_str: str,
+        bar_size: str,
+        what_to_show: str,
+        use_rth: bool,
+    ):
+        _ = contract, bar_size, what_to_show, use_rth
+        calls.append((end_ts, duration_str))
+        return [_RawBar(datetime.combine(missing_day, datetime.min.time()).replace(hour=10), 2, 2, 2, 2, 2)]
+
+    client._request_historical_data_for_stream = _fake_request  # type: ignore[method-assign]
+    contract = Stock(symbol="TQQQ", exchange="SMART", currency="USD")
+    contract.conId = 6001
+    bars = asyncio.run(
+        client.historical_bars_ohlcv(
+            contract,
+            end_ts=end_ts,
+            duration_str="6 M",
+            bar_size="10 mins",
+            use_rth=True,
+            cache_ttl_sec=0,
+        )
+    )
+
+    assert calls == [(datetime(2025, 3, 12, 23, 59, 59), "1 D")]
+    assert any(bar.ts.date() == missing_day and bar.close == 2 for bar in bars)
+    gap_path = cache_path(
+        tmp_path,
+        "TQQQ",
+        datetime.combine(missing_day, datetime.min.time()),
+        datetime.combine(missing_day, datetime.max.time()),
+        "10 mins",
+        True,
+    )
+    assert [bar.close for bar in read_cache(gap_path)] == [2]
+
+
 def test_historical_bars_ohlcv_empty_cache_expires_quickly() -> None:
     client = _new_client()
     calls = 0
@@ -204,6 +270,50 @@ def test_historical_bars_ohlcv_empty_cache_expires_quickly() -> None:
 
     # Empty snapshots should use a short cache TTL so a second request can recover quickly.
     assert calls == 2
+
+
+def test_historical_bars_ohlcv_reuses_equivalent_bar_size_alias() -> None:
+    client = _new_client()
+    calls = 0
+
+    async def _fake_request(
+        contract,
+        *,
+        end_ts: datetime | None = None,
+        duration_str: str,
+        bar_size: str,
+        what_to_show: str,
+        use_rth: bool,
+    ):
+        _ = contract, end_ts, duration_str, bar_size, what_to_show, use_rth
+        nonlocal calls
+        calls += 1
+        return [_RawBar(datetime(2026, 2, 9, 10, 0), 1, 1, 1, 1, 1)]
+
+    client._request_historical_data_for_stream = _fake_request  # type: ignore[method-assign]
+    contract = Future(symbol="MES", lastTradeDateOrContractMonth="202603", exchange="CME", currency="USD")
+    contract.conId = 2002
+
+    asyncio.run(
+        client.historical_bars_ohlcv(
+            contract,
+            duration_str="1 W",
+            bar_size="5 min",
+            use_rth=False,
+            cache_ttl_sec=30,
+        )
+    )
+    asyncio.run(
+        client.historical_bars_ohlcv(
+            contract,
+            duration_str="1 W",
+            bar_size="5 mins",
+            use_rth=False,
+            cache_ttl_sec=30,
+        )
+    )
+
+    assert calls == 1
 
 
 def test_historical_bars_ohlcv_timeout_backoff_throttles_retries() -> None:
@@ -1075,7 +1185,7 @@ def test_next_open_due_aligns_to_0400_after_stock_overnight_gap() -> None:
             "spot_sec_type": "STK",
         }
     )
-    due = harness._spot_next_open_due_ts(instance, datetime(2026, 2, 10, 3, 49))
+    due = harness._spot_next_open_due_ts(instance, datetime(2026, 2, 10, 3, 50))
     assert due == datetime(2026, 2, 10, 4, 0)
 
 
@@ -1091,7 +1201,7 @@ def test_next_open_due_auto_full24_keeps_stock_overnight_window() -> None:
         }
     )
     due = harness._spot_next_open_due_ts(instance, datetime(2026, 2, 10, 21, 20))
-    assert due == datetime(2026, 2, 10, 21, 30)
+    assert due == datetime(2026, 2, 10, 21, 20)
 
 
 def test_next_open_due_tradable_24x5_keeps_stock_overnight_window() -> None:
@@ -1107,7 +1217,7 @@ def test_next_open_due_tradable_24x5_keeps_stock_overnight_window() -> None:
         }
     )
     due = harness._spot_next_open_due_ts(instance, datetime(2026, 2, 10, 21, 20))
-    assert due == datetime(2026, 2, 10, 21, 30)
+    assert due == datetime(2026, 2, 10, 21, 20)
 
 
 def test_next_open_due_tradable_24x5_respects_overnight_gap() -> None:
@@ -1122,7 +1232,7 @@ def test_next_open_due_tradable_24x5_respects_overnight_gap() -> None:
             "spot_next_open_session": "tradable_24x5",
         }
     )
-    due = harness._spot_next_open_due_ts(instance, datetime(2026, 2, 10, 3, 49))
+    due = harness._spot_next_open_due_ts(instance, datetime(2026, 2, 10, 3, 50))
     assert due == datetime(2026, 2, 10, 4, 0)
 
 
@@ -1138,11 +1248,11 @@ def test_next_open_due_tradable_24x5_rolls_friday_post_close_to_sunday_2000() ->
             "spot_next_open_session": "tradable_24x5",
         }
     )
-    due = harness._spot_next_open_due_ts(instance, datetime(2026, 2, 13, 20, 4))
+    due = harness._spot_next_open_due_ts(instance, datetime(2026, 2, 13, 20, 5))
     assert due == datetime(2026, 2, 15, 20, 0)
 
 
-def test_schedule_next_bar_uses_immediate_exec_boundary_not_session_open() -> None:
+def test_schedule_next_bar_uses_closed_signal_boundary_without_an_extra_bar() -> None:
     harness = _PendingNextOpenHarness()
     instance = _new_instance(
         strategy={
@@ -1166,9 +1276,9 @@ def test_schedule_next_bar_uses_immediate_exec_boundary_not_session_open() -> No
     assert fired is True
     assert gate_events
     status, payload = gate_events[-1]
-    assert status == "PENDING_ENTRY_NEXT_OPEN"
-    assert payload.get("next_open_due") == "2026-02-09T21:30:00"
-    assert payload.get("next_open_due_from") == "2026-02-09T21:30:00"
+    assert status == "TRIGGER_ENTRY"
+    assert payload.get("next_open_due") == "2026-02-09T21:20:00"
+    assert payload.get("next_open_due_from") == "2026-02-09T21:20:00"
 
 
 def test_schedule_next_open_emits_due_from_and_now_wall() -> None:
@@ -1180,7 +1290,7 @@ def test_schedule_next_open_emits_due_from_and_now_wall() -> None:
             "spot_exec_bar_size": "5 mins",
         }
     )
-    signal_bar_ts = datetime(2026, 2, 9, 11, 10)
+    signal_bar_ts = datetime(2026, 2, 9, 11, 20)
     gate_events: list[tuple[str, dict | None]] = []
 
     fired = harness._schedule_pending_entry_next_open(
