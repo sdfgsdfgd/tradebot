@@ -9,7 +9,11 @@ from pathlib import Path
 from ib_insync import IB, ContFuture, Index, Stock, util
 from zoneinfo import ZoneInfo
 
-from ..contract_identity import future_exchange_for_symbol, is_future_symbol
+from ..contract_identity import (
+    future_exchange_for_symbol,
+    index_exchange_for_symbol,
+    is_future_symbol,
+)
 from .config import ConfigBundle
 from .models import Bar
 from ..chart_data.series import BarSeries, BarSeriesMeta, bars_list
@@ -33,11 +37,6 @@ from .cache import (
     read_cache,
     write_cache,
 )
-
-_INDEX_EXCHANGES = {
-    "TICK-NYSE": "NYSE",
-    "TICK-AMEX": "AMEX",
-}
 
 _OVERNIGHT_START_ET = time(20, 0)
 _PREMARKET_START_ET = time(4, 0)
@@ -146,10 +145,12 @@ class IBKRHistoricalData:
             self._ib.disconnect()
 
     def resolve_contract(self, symbol: str, exchange: str | None) -> tuple[object, ContractMeta]:
+        symbol = str(symbol).strip().upper()
         future_exchange = future_exchange_for_symbol(symbol)
+        index_exchange = index_exchange_for_symbol(symbol)
         if exchange is None:
-            exchange = future_exchange or _INDEX_EXCHANGES.get(symbol) or "SMART"
-        if symbol in _INDEX_EXCHANGES:
+            exchange = future_exchange or index_exchange or "SMART"
+        if index_exchange is not None:
             contract = Index(symbol=symbol, exchange=exchange, currency="USD")
         elif exchange != "SMART" and is_future_symbol(symbol):
             contract = ContFuture(symbol=symbol, exchange=exchange, currency="USD")

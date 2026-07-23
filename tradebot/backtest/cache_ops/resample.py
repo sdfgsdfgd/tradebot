@@ -23,7 +23,7 @@ from ..models import Bar
 
 
 _EPOCH = datetime(1970, 1, 1)
-_RESAMPLE_CACHE_VERSION = 2
+_RESAMPLE_CACHE_VERSION = 3
 
 
 @dataclass(frozen=True)
@@ -36,6 +36,7 @@ class _ResampleStats:
 class CacheResampleOutcome:
     ok: bool
     dst_path: Path
+    from_cache: bool = False
     src_bar_size: str | None = None
     src_path: Path | None = None
     src_rows: int = 0
@@ -60,27 +61,53 @@ def _resample_revision(
     symbol: str,
     start: datetime,
     end: datetime,
+    src_bar_size: str,
     dst_bar_size: str,
     use_rth: bool,
 ) -> dict[str, object]:
-    paths: set[Path] = set()
-    for src_bar_size in _cache_resample_source_candidates(dst_bar_size):
-        paths.update(
-            find_overlapping_cache_paths(
-                cache_dir=cache_dir,
-                symbol=symbol,
-                start=start,
-                end=end,
-                bar_size=src_bar_size,
-                use_rth=use_rth,
-            )
-        )
+    paths = find_overlapping_cache_paths(
+        cache_dir=cache_dir,
+        symbol=symbol,
+        start=start,
+        end=end,
+        bar_size=src_bar_size,
+        use_rth=use_rth,
+    )
     return {
         "version": _RESAMPLE_CACHE_VERSION,
-        "request": [str(symbol), start.isoformat(), end.isoformat(), str(dst_bar_size), bool(use_rth)],
+        "request": [
+            str(symbol),
+            start.isoformat(),
+            end.isoformat(),
+            str(dst_bar_size),
+            bool(use_rth),
+        ],
+        "source_bar_size": str(src_bar_size),
         "target": _file_revision(path, cache_dir),
-        "sources": [_file_revision(source, cache_dir) for source in sorted(paths, key=str)],
+        "sources": [
+            _file_revision(source, cache_dir)
+            for source in sorted(paths, key=str)
+        ],
     }
+
+
+def _manifest_source(
+    payload: dict[str, object],
+    *,
+    requested: str | None,
+    dst_bar_size: str,
+) -> str | None:
+    recorded = str(payload.get("source_bar_size") or "").strip()
+    if not recorded:
+        return None
+    explicit = str(requested or "").strip()
+    if explicit:
+        return recorded if parse_bar_size(recorded) == parse_bar_size(explicit) else None
+    return (
+        recorded
+        if recorded in _cache_resample_source_candidates(dst_bar_size)
+        else None
+    )
 
 
 def _resample_cache_current(
@@ -90,6 +117,7 @@ def _resample_cache_current(
     symbol: str,
     start: datetime,
     end: datetime,
+    src_bar_size: str | None,
     dst_bar_size: str,
     use_rth: bool,
 ) -> bool:
@@ -98,8 +126,22 @@ def _resample_cache_current(
         return False
     try:
         payload = json.loads(manifest_path.read_text())
+        manifest_src = _manifest_source(
+            payload,
+            requested=src_bar_size,
+            dst_bar_size=dst_bar_size,
+        )
+        if manifest_src is None:
+            return False
         expected = _resample_revision(
-            path, cache_dir=cache_dir, symbol=symbol, start=start, end=end, dst_bar_size=dst_bar_size, use_rth=use_rth
+            path,
+            cache_dir=cache_dir,
+            symbol=symbol,
+            start=start,
+            end=end,
+            src_bar_size=manifest_src,
+            dst_bar_size=dst_bar_size,
+            use_rth=use_rth,
         )
     except (OSError, TypeError, ValueError, json.JSONDecodeError):
         return False
@@ -113,10 +155,20 @@ def _write_resample_manifest(
     symbol: str,
     start: datetime,
     end: datetime,
+    src_bar_size: str,
     dst_bar_size: str,
     use_rth: bool,
 ) -> None:
-    payload = _resample_revision(path, cache_dir=cache_dir, symbol=symbol, start=start, end=end, dst_bar_size=dst_bar_size, use_rth=use_rth)
+    payload = _resample_revision(
+        path,
+        cache_dir=cache_dir,
+        symbol=symbol,
+        start=start,
+        end=end,
+        src_bar_size=src_bar_size,
+        dst_bar_size=dst_bar_size,
+        use_rth=use_rth,
+    )
     manifest_path = path.with_suffix(path.suffix + ".resample.json")
     tmp = manifest_path.with_suffix(manifest_path.suffix + f".tmp{os.getpid()}")
     tmp.write_text(json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n")
@@ -295,21 +347,23 @@ def resample_cached_window(
     src_bar_size: str | None = None,
 ) -> CacheResampleOutcome:
     dst_path = cache_path(cache_dir, symbol, start, end, dst_bar_size, use_rth)
-    current = (
-        None
-        if str(src_bar_size or "").strip()
-        else _resample_cache_current(
-            dst_path,
-            cache_dir=cache_dir,
-            symbol=symbol,
-            start=start,
-            end=end,
-            dst_bar_size=dst_bar_size,
-            use_rth=use_rth,
-        )
+    current = _resample_cache_current(
+        dst_path,
+        cache_dir=cache_dir,
+        symbol=symbol,
+        start=start,
+        end=end,
+        src_bar_size=src_bar_size,
+        dst_bar_size=dst_bar_size,
+        use_rth=use_rth,
     )
     if current:
-        return CacheResampleOutcome(ok=True, dst_path=dst_path)
+        return CacheResampleOutcome(
+            ok=True,
+            dst_path=dst_path,
+            from_cache=True,
+            src_bar_size=str(src_bar_size or "").strip() or None,
+        )
     src_candidates = (
         (str(src_bar_size).strip(),)
         if str(src_bar_size or "").strip()
@@ -376,6 +430,7 @@ def resample_cached_window(
             symbol=symbol,
             start=start,
             end=end,
+            src_bar_size=str(src_label),
             dst_bar_size=dst_bar_size,
             use_rth=use_rth,
         )

@@ -74,6 +74,18 @@ class _StubHistoricalData(IBKRHistoricalData):
 
 
 class BacktestDataTimezoneTests(unittest.TestCase):
+    def test_xsp_resolves_as_cboe_index(self) -> None:
+        data = IBKRHistoricalData()
+        data.connect = lambda: None
+        data._ib.qualifyContracts = lambda contract: [contract]
+
+        contract, meta = data.resolve_contract("xsp", None)
+
+        self.assertEqual(contract.secType, "IND")
+        self.assertEqual(contract.symbol, "XSP")
+        self.assertEqual(contract.exchange, "CBOE")
+        self.assertEqual(meta.exchange, "CBOE")
+
     def test_as_utc_aware_marks_naive_as_utc(self) -> None:
         ts = _as_utc_aware(datetime(2025, 1, 15, 9, 30))
         self.assertEqual(ts.tzinfo, timezone.utc)

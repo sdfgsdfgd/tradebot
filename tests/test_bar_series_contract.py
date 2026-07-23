@@ -5,6 +5,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from tradebot.backtest.cache import cache_path, read_cache, write_cache
+from tradebot.backtest.cache_ops import resample_cached_window
 from tradebot.backtest.data import IBKRHistoricalData
 from tradebot.backtest.models import Bar
 from tradebot.chart_data.cache import SeriesCacheService
@@ -154,8 +155,20 @@ def test_load_cached_bar_series_reuses_current_canonical_resample(monkeypatch) -
         second = data.load_cached_bar_series(
             "SLV", None, start, end, "5 mins", True, root
         )
+        explicit = resample_cached_window(
+            data=data,
+            cache_dir=root,
+            symbol="SLV",
+            exchange=None,
+            start=start,
+            end=end,
+            src_bar_size="1 min",
+            dst_bar_size="5 mins",
+            use_rth=True,
+        )
 
     assert second.as_list() == first.as_list()
+    assert explicit.from_cache is True
 
 
 def test_load_cached_bar_series_rebuilds_resample_after_source_change() -> None:

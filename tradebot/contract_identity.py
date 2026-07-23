@@ -21,6 +21,13 @@ FUTURE_EXCHANGES: dict[str, str] = {
     "MBT": "CME",
 }
 
+INDEX_EXCHANGES: dict[str, str] = {
+    "XSP": "CBOE",
+    "SPX": "CBOE",
+    "TICK-NYSE": "NYSE",
+    "TICK-AMEX": "AMEX",
+}
+
 _FUTURE_MULTIPLIERS: dict[str, float] = {
     "MNQ": 2.0,
     "MBT": 0.1,
@@ -38,6 +45,10 @@ def future_exchange_for_symbol(symbol: object) -> str | None:
 
 def is_future_symbol(symbol: object) -> bool:
     return future_exchange_for_symbol(symbol) is not None
+
+
+def index_exchange_for_symbol(symbol: object) -> str | None:
+    return INDEX_EXCHANGES.get(normalize_contract_symbol(symbol))
 
 
 def future_multiplier_for_symbol(symbol: object, *, default: float = 1.0) -> float:
