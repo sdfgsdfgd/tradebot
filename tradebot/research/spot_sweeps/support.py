@@ -266,6 +266,24 @@ def _tuned_parallel_jobs(
     if not bool(_registry_float(cfg.get("enabled"), 1.0) > 0.0):
         return int(jobs_eff)
     min_items = max(1, int(_registry_float(cfg.get("min_items_per_worker"), 64.0)))
+    stage_key = (
+        str(stage_label or "")
+        .strip()
+        .lower()
+        .replace("-", "_")
+        .replace(" ", "_")
+    )
+    stage_min_items = cfg.get("min_items_per_worker_by_stage")
+    if isinstance(stage_min_items, dict) and stage_key in stage_min_items:
+        min_items = max(
+            1,
+            int(
+                _registry_float(
+                    stage_min_items.get(stage_key),
+                    float(min_items),
+                )
+            ),
+        )
     max_workers_cfg = max(0, int(_registry_float(cfg.get("max_workers"), 0.0)))
     if int(max_workers_cfg) > 0:
         jobs_eff = min(int(jobs_eff), int(max_workers_cfg))
@@ -291,7 +309,6 @@ def _tuned_parallel_jobs(
     if int(total_i) > 0 and int(min_items) > 0:
         cap = int(math.ceil(float(total_i) / float(min_items)))
         jobs_eff = min(int(jobs_eff), max(1, int(cap)))
-    _ = stage_label  # keep signature explicit; stage-specific tuning can be added without API changes.
     return max(1, int(jobs_eff))
 
 

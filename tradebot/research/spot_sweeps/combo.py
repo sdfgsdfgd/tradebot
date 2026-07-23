@@ -667,8 +667,9 @@ class SweepCartesian:
                 )
 
         size_by_dim = preset_context.size_by_dim
-        total = preset_context.total
-        if total <= 0:
+        cartesian_total = preset_context.total
+        total = preset_context.run_total
+        if cartesian_total <= 0:
             raise SystemExit("combo_full has empty Cartesian dimensions.")
         base = preset_context.base
         ordered_dims = preset_context.ordered_dims
@@ -688,6 +689,7 @@ class SweepCartesian:
                 "ordered_dims": tuple(str(v) for v in ordered_dims),
                 "size_by_dim": tuple((str(k), int(v)) for k, v in size_by_dim.items()),
                 "dim_space_sig": str(combo_dim_space_sig),
+                "run_total": int(total),
                 "bars_sig": self._bars_signature(bars_sig),
             }
             return hashlib.sha1(json.dumps(raw, sort_keys=True, default=str).encode("utf-8")).hexdigest()
@@ -704,7 +706,7 @@ class SweepCartesian:
                 report_every=0,
                 heartbeat_sec=30.0,
                 plan_total=int(total),
-                plan_item_from_rank=preset_context.plan_item_from_rank,
+                plan_item_from_rank=preset_context.run_item_from_rank,
                 rank_manifest_window_signature=_combo_full_worker_stage_window_signature(),
                 rank_batch_size=2048,
             )
@@ -718,8 +720,9 @@ class SweepCartesian:
                 flush=True,
             )
         print(
-            "combo_full dimensions: total="
-            f"{int(total)} " + " ".join(f"{str(dim_name)}={int(size_by_dim.get(str(dim_name), 0) or 0)}" for dim_name in _COMBO_FULL_CARTESIAN_DIM_ORDER),
+            "combo_full dimensions: "
+            f"cartesian={int(cartesian_total)} evaluations={int(total)} "
+            + " ".join(f"{str(dim_name)}={int(size_by_dim.get(str(dim_name), 0) or 0)}" for dim_name in _COMBO_FULL_CARTESIAN_DIM_ORDER),
             flush=True,
         )
         print(
@@ -728,31 +731,128 @@ class SweepCartesian:
         )
         print("")
 
-        base_row = self._run_cfg(cfg=base, bars=bars_sig)
-        if base_row:
-            base_row["note"] = "base"
-            self._record_milestone(base, base_row, "base")
+        base_key = _milestone_key(base)
 
         rows: list[dict] = []
         candidates: list[tuple[ConfigBundle, dict, str]] = []
         combo_stage_args = tuple(("--combo-full-preset", str(combo_full_preset)) if combo_full_preset else ())
         combo_manifest_window_sig = _combo_full_worker_stage_window_signature()
+        snapshot_full = bool(getattr(self.args, "write_milestones", False))
+        snapshot_limit = max(
+            200,
+            int(getattr(self.args, "top", 0) or 0),
+            int(getattr(self.args, "stability_top", 0) or 0),
+        )
+        snapshot_scope = (
+            f"{combo_manifest_window_sig}|"
+            f"{'full' if snapshot_full else f'top{snapshot_limit}'}"
+        )
+        combo_snapshot_key = self._run_cfg_persistent_key(
+            strategy_fingerprint="__stage_result__",
+            axis_dimension_fingerprint="combo_full_cartesian",
+            window_signature=str(snapshot_scope),
+        )
+        combo_snapshot = self._run_cfg_persistent_get(
+            cache_key=str(combo_snapshot_key)
+        )
+        try:
+            snapshot_tested = int(
+                combo_snapshot.get("tested") if isinstance(combo_snapshot, dict) else -1
+            )
+        except (TypeError, ValueError):
+            snapshot_tested = -1
+        snapshot_valid = bool(
+            isinstance(combo_snapshot, dict)
+            and combo_snapshot.get("schema") == "tradebot.research.stage-result.v1"
+            and int(snapshot_tested) == int(total)
+            and isinstance(combo_snapshot.get("records"), list)
+        )
+        snapshot_records = (
+            [
+                dict(record)
+                for record in combo_snapshot.get("records", ())
+                if isinstance(record, dict)
+            ]
+            if snapshot_valid and isinstance(combo_snapshot, dict)
+            else []
+        )
 
         def _combo_full_parallel_totals() -> tuple[int, int]:
-            try:
-                unresolved_ranges = self._cartesian_rank_manifest_unresolved_ranges(
+            def _unresolved_total() -> int:
+                try:
+                    unresolved_ranges = self._cartesian_rank_manifest_unresolved_ranges(
+                        stage_label="combo_full_cartesian",
+                        window_signature=str(combo_manifest_window_sig),
+                        total=int(total),
+                    )
+                    return sum(
+                        max(0, int(rank_hi) - int(rank_lo) + 1)
+                        for rank_lo, rank_hi in tuple(unresolved_ranges)
+                    )
+                except Exception:
+                    return int(total)
+
+            unresolved_total = _unresolved_total()
+            if int(unresolved_total) < int(total) and not snapshot_valid:
+                print(
+                    "combo_full Cartesian result snapshot missing; replaying cached "
+                    "rank receipts",
+                    flush=True,
+                )
+                self._cartesian_rank_manifest_reset(
                     stage_label="combo_full_cartesian",
                     window_signature=str(combo_manifest_window_sig),
-                    total=int(total),
                 )
-                unresolved_total = sum(max(0, int(rank_hi) - int(rank_lo) + 1) for rank_lo, rank_hi in tuple(unresolved_ranges))
-            except Exception:
-                unresolved_total = int(total)
+                unresolved_total = _unresolved_total()
             unresolved_i = max(0, int(unresolved_total))
             prefetched_i = max(0, int(total) - int(unresolved_i))
             return int(unresolved_i), int(prefetched_i)
 
+        def _combo_full_parallel_payloads() -> dict[int, dict]:
+            unresolved_i, prefetched_i = _combo_full_parallel_totals()
+            payloads = self._run_parallel_stage(
+                axis_name="combo_full",
+                stage_label="combo_full Cartesian",
+                total=int(unresolved_i),
+                jobs=int(self.jobs),
+                worker_tmp_prefix="tradebot_combo_full_cartesian_",
+                worker_tag="cfc",
+                out_prefix="combo_full_cartesian_out",
+                stage_flag="--combo-full-cartesian-stage",
+                stage_value="1",
+                worker_flag="--combo-full-cartesian-worker",
+                workers_flag="--combo-full-cartesian-workers",
+                out_flag="--combo-full-cartesian-out",
+                strip_flags_with_values=(
+                    "--combo-full-cartesian-stage",
+                    "--combo-full-cartesian-worker",
+                    "--combo-full-cartesian-workers",
+                    "--combo-full-cartesian-out",
+                    "--combo-full-cartesian-run-min-trades",
+                    "--combo-full-preset",
+                ),
+                run_min_trades_flag="--combo-full-cartesian-run-min-trades",
+                run_min_trades=int(self.run_min_trades),
+                stage_args=combo_stage_args,
+                capture_error="Failed to capture combo_full Cartesian worker stdout.",
+                failure_label="combo_full Cartesian worker",
+                missing_label="combo_full Cartesian",
+                invalid_label="combo_full Cartesian",
+                planner_stage_label="combo_full_cartesian",
+            )
+            if int(prefetched_i) > 0 or snapshot_valid:
+                payloads[max(payloads, default=-1) + 1] = {
+                    "tested": int(prefetched_i),
+                    "kept": len(snapshot_records),
+                    "records": list(snapshot_records),
+                }
+            return payloads
+
         def _capture_candidate(cfg: ConfigBundle, row: dict, note: str) -> None:
+            if _milestone_key(cfg) == base_key:
+                row = dict(row)
+                row["note"] = "base"
+                note = "base"
             rows.append(row)
             candidates.append((cfg, row, note))
 
@@ -764,47 +864,32 @@ class SweepCartesian:
             report_every=200,
             heartbeat_sec=30.0,
             on_row=_capture_candidate,
-            serial_plan_builder=preset_context.iter_plan,
-            parallel_payloads_builder=lambda: (
-                lambda unresolved_i, prefetched_i: self._run_parallel_stage(
-                    axis_name="combo_full",
-                    stage_label="combo_full Cartesian",
-                    total=int(unresolved_i),
-                    jobs=int(self.jobs),
-                    worker_tmp_prefix="tradebot_combo_full_cartesian_",
-                    worker_tag="cfc",
-                    out_prefix="combo_full_cartesian_out",
-                    stage_flag="--combo-full-cartesian-stage",
-                    stage_value="1",
-                    worker_flag="--combo-full-cartesian-worker",
-                    workers_flag="--combo-full-cartesian-workers",
-                    out_flag="--combo-full-cartesian-out",
-                    strip_flags_with_values=(
-                        "--combo-full-cartesian-stage",
-                        "--combo-full-cartesian-worker",
-                        "--combo-full-cartesian-workers",
-                        "--combo-full-cartesian-out",
-                        "--combo-full-cartesian-run-min-trades",
-                        "--combo-full-preset",
-                    ),
-                    run_min_trades_flag="--combo-full-cartesian-run-min-trades",
-                    run_min_trades=int(self.run_min_trades),
-                    stage_args=combo_stage_args,
-                    capture_error="Failed to capture combo_full Cartesian worker stdout.",
-                    failure_label="combo_full Cartesian worker",
-                    missing_label="combo_full Cartesian",
-                    invalid_label="combo_full Cartesian",
-                    planner_stage_label="combo_full_cartesian",
-                    prefetched_tested_if_empty=int(prefetched_i),
-                )
-            )(*_combo_full_parallel_totals()),
+            serial_plan_builder=preset_context.iter_run_plan,
+            parallel_payloads_builder=_combo_full_parallel_payloads,
             parallel_default_note="combo_full Cartesian",
             parallel_dedupe_by_milestone_key=True,
             record_milestones=True,
         )
-        if base_row:
-            rows.append(base_row)
-            candidates.append((base, base_row, "base"))
+        snapshot_candidates = (
+            list(candidates)
+            if snapshot_full
+            else _objective_shortlist(
+                candidates,
+                limit=int(snapshot_limit),
+            )
+        )
+        self._run_cfg_persistent_set(
+            cache_key=str(combo_snapshot_key),
+            payload={
+                "schema": "tradebot.research.stage-result.v1",
+                "tested": int(total),
+                "records": [
+                    self._encode_cfg_payload(cfg, note=note, extra={"row": row})
+                    for cfg, row, note in snapshot_candidates
+                ],
+            },
+        )
+        self._run_cfg_persistent_flush_pending(force=True)
         print(
             f"combo_full Cartesian tested={int(tested_total)} kept={len(rows)} min_trades={int(self.run_min_trades)}",
             flush=True,

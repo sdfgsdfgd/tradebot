@@ -403,7 +403,7 @@ def test_cartesian_worker_policy_balances_small_stages() -> None:
         jobs_requested=12,
         total=4,
         default_jobs=12,
-    ) == 1
+    ) == 3
     assert _tuned_parallel_jobs(
         stage_label="combo_full_cartesian",
         jobs_requested=12,
@@ -622,6 +622,85 @@ def test_sweep_evaluation_hands_every_causal_tape_to_engine(monkeypatch) -> None
     }
 
 
+def test_run_cfg_cache_reuses_raw_metrics_across_min_trade_filters(
+    monkeypatch,
+) -> None:
+    runtime = object.__new__(SpotSweepRuntime)
+    context = SpotContextBars(signal_bars=["signal"])
+    runtime.run_calls_total = 0
+    runtime.run_cfg_fingerprint_cache = {}
+    runtime.run_cfg_cache = {}
+    runtime._RUN_CFG_CACHE_MISS = object()
+    runtime._context_bars_for_cfg = lambda **_kwargs: context
+    runtime._run_cfg_cache_coords = lambda **_kwargs: (
+        (("signal", (1, None, None, "revision")),),
+        ("strategy", "axis", "window"),
+        "axis",
+        "persistent",
+    )
+    runtime._run_cfg_persistent_get = lambda **_kwargs: runtime._RUN_CFG_CACHE_MISS
+    persisted: list[dict | None] = []
+    runtime._run_cfg_persistent_set = lambda *, payload, **_kwargs: persisted.append(
+        payload
+    )
+    runtime._run_cfg_dimension_index_set = lambda **_kwargs: None
+    progress: list[bool] = []
+    runtime._axis_progress_record = lambda *, kept: progress.append(bool(kept))
+    runtime.run_cfg_persistent_writes = 0
+    runtime.run_cfg_cache_hits = 0
+    runtime.run_cfg_fingerprint_hits = 0
+    runtime.run_cfg_persistent_hits = 0
+    runtime.meta = ContractMeta("SLV", "SMART", 1.0, 0.01)
+    runtime.run_min_trades = 10
+    engine_calls = 0
+
+    def _summary(*_args, **_kwargs):
+        nonlocal engine_calls
+        engine_calls += 1
+        return SummaryStats(5, 3, 2, 0.6, 10.0, 0.1, 5.0, -2.0, 2.0, 0.02, 1.0)
+
+    monkeypatch.setattr(sweep_evaluation, "_run_spot_backtest_summary", _summary)
+    cfg = _bundle_base(
+        symbol="SLV",
+        start=date(2025, 1, 8),
+        end=date(2025, 1, 10),
+        bar_size="15 mins",
+        use_rth=False,
+        cache_dir=Path("db"),
+        offline=True,
+        filters=None,
+    )
+    key_high_min = runtime._run_cfg_persistent_key(
+        strategy_fingerprint="strategy",
+        axis_dimension_fingerprint="axis",
+        window_signature="window",
+    )
+
+    assert runtime._run_cfg(cfg=cfg) is None
+    assert persisted == [
+        {
+            "trades": 5,
+            "win_rate": 0.6,
+            "pnl": 10.0,
+            "dd": 2.0,
+            "roi": 0.1,
+            "dd_pct": 0.02,
+            "pnl_over_dd": 5.0,
+        }
+    ]
+
+    runtime.run_min_trades = 0
+    key_low_min = runtime._run_cfg_persistent_key(
+        strategy_fingerprint="strategy",
+        axis_dimension_fingerprint="axis",
+        window_signature="window",
+    )
+    assert runtime._run_cfg(cfg=cfg) == persisted[0]
+    assert key_low_min == key_high_min
+    assert engine_calls == 1
+    assert progress == [False, True]
+
+
 def test_combo_full_progress_uses_executed_profile_space(monkeypatch) -> None:
     monkeypatch.delenv("TB_HF_TIMING_SNIPER_BRIDGE", raising=False)
     runtime = object.__new__(SpotSweepRuntime)
@@ -657,6 +736,147 @@ def test_combo_full_progress_uses_executed_profile_space(monkeypatch) -> None:
     lf_space = runtime._combo_full_context("lf_shock_sniper")
     assert lf_space.total == 10
     assert lf_space.dimension_signature == "c69ba2ad76b43accf1c11f352f54f659a3309218"
+
+
+def test_combo_full_warm_run_rehydrates_cached_shortlist(monkeypatch) -> None:
+    runtime = object.__new__(SpotSweepRuntime)
+    runtime.args = SimpleNamespace(
+        combo_full_cartesian_stage=None,
+        combo_full_preset="",
+        top=20,
+        stability_top=200,
+    )
+    runtime.symbol = "SLV"
+    runtime.start = date(2025, 1, 8)
+    runtime.end = date(2025, 1, 10)
+    runtime.start_dt = datetime(2025, 1, 8)
+    runtime.end_dt = datetime(2025, 1, 10, 23, 59)
+    runtime.signal_bar_size = "15 mins"
+    runtime.use_rth = False
+    runtime.offline = False
+    runtime.cache_dir = Path("db")
+    runtime.jobs = 4
+    runtime.run_min_trades = 0
+    runtime.meta = ContractMeta("SLV", "SMART", 1.0, 0.01)
+    base = _bundle_base(
+        symbol="SLV",
+        start=runtime.start,
+        end=runtime.end,
+        bar_size=runtime.signal_bar_size,
+        use_rth=False,
+        cache_dir=runtime.cache_dir,
+        offline=True,
+        filters=None,
+    )
+    candidate = replace(
+        base,
+        strategy=replace(base.strategy, ema_preset="3/7"),
+    )
+    candidate_row = {
+        "trades": 8,
+        "win_rate": 0.75,
+        "pnl": 40.0,
+        "dd": 10.0,
+        "roi": 0.04,
+        "dd_pct": 0.01,
+        "pnl_over_dd": 4.0,
+    }
+    rows_by_dim = {
+        str(dim_name): [0]
+        for dim_name in _COMBO_FULL_CARTESIAN_DIM_ORDER
+    }
+    for dim_name, _variants_key in _COMBO_FULL_PAIR_DIM_VARIANT_SPECS:
+        rows_by_dim[str(dim_name)] = [(f"{dim_name}=base", {})]
+    context = SimpleNamespace(
+        rows=rows_by_dim,
+        size_by_dim={
+            str(dim_name): 1 for dim_name in _COMBO_FULL_CARTESIAN_DIM_ORDER
+        },
+        total=1,
+        base=base,
+        ordered_dims=tuple(_COMBO_FULL_CARTESIAN_DIM_ORDER),
+        dimension_signature="space",
+        iter_plan=lambda: (),
+        plan_item_from_rank=lambda _rank: (candidate, "candidate", {}),
+        run_total=2,
+        iter_run_plan=lambda: (),
+        run_item_from_rank=lambda _rank: (candidate, "candidate", {}),
+    )
+    runtime._combo_full_context = lambda _preset: context
+    runtime._bars_cached = lambda _bar_size: ["bars"]
+    runtime._bars_signature = lambda _bars: ("bars",)
+    runtime._run_cfg = lambda **_kwargs: pytest.fail(
+        "the baseline belongs to the unified stage"
+    )
+    runtime._record_milestone = lambda *_args: None
+    runtime._cartesian_rank_manifest_unresolved_ranges = lambda **_kwargs: ()
+    runtime._cartesian_rank_manifest_reset = lambda **_kwargs: pytest.fail(
+        "valid snapshots must not reset rank receipts"
+    )
+    parallel_calls: list[int] = []
+    runtime._run_parallel_stage = lambda **kwargs: (
+        parallel_calls.append(int(kwargs["total"])) or {}
+    )
+    snapshot = {
+        "schema": "tradebot.research.stage-result.v1",
+        "tested": 2,
+        "records": [
+            runtime._encode_cfg_payload(
+                candidate,
+                note="candidate",
+                extra={"row": candidate_row},
+            ),
+            runtime._encode_cfg_payload(
+                base,
+                note="base",
+                extra={
+                    "row": {
+                        "trades": 1,
+                        "win_rate": 0.5,
+                        "pnl": 1.0,
+                        "dd": 1.0,
+                        "roi": 0.01,
+                        "dd_pct": 0.01,
+                        "pnl_over_dd": 1.0,
+                    }
+                },
+            ),
+        ],
+    }
+    runtime._run_cfg_persistent_get = lambda **_kwargs: snapshot
+    saved: list[dict] = []
+    runtime._run_cfg_persistent_set = lambda *, payload, **_kwargs: saved.append(
+        payload
+    )
+    runtime._run_cfg_persistent_flush_pending = lambda **_kwargs: None
+
+    def _run_stage(**kwargs):
+        payloads = kwargs["parallel_payloads_builder"]()
+        for payload in payloads.values():
+            for record in payload.get("records", ()):
+                decoded = runtime._decode_cfg_payload(record)
+                assert decoded is not None
+                cfg, note = decoded
+                kwargs["on_row"](cfg, dict(record["row"]), note)
+        return sum(int(payload.get("tested") or 0) for payload in payloads.values())
+
+    runtime._run_stage_cfg_rows = _run_stage
+    runtime._combo_full_stability = lambda candidates: None
+    printed: list[list[dict]] = []
+    monkeypatch.setattr(
+        sweep_combo,
+        "_print_leaderboards",
+        lambda rows, **_kwargs: printed.append(list(rows)),
+    )
+
+    runtime._sweep_combo_full()
+
+    assert parallel_calls == [0]
+    assert len(printed) == 1
+    assert {float(row["pnl"]) for row in printed[0]} == {1.0, 40.0}
+    assert saved[-1]["schema"] == "tradebot.research.stage-result.v1"
+    assert saved[-1]["tested"] == 2
+    assert len(saved[-1]["records"]) == 2
 
 
 def test_cfg_payload_round_trip_preserves_backtest_timeframe() -> None:
@@ -846,10 +1066,10 @@ def test_cartesian_manifest_uses_one_cache_scope_and_invalidates_summary(tmp_pat
     assert conn is not None
     assert conn.execute(
         "SELECT DISTINCT stage_label FROM cartesian_rank_manifest"
-    ).fetchall() == [("combo|m7",)]
+    ).fetchall() == [("combo|spot_stage_v12|m7",)]
     assert conn.execute(
         "SELECT DISTINCT stage_label FROM stage_unresolved_summary"
-    ).fetchall() == [("combo|m7",)]
+    ).fetchall() == [("combo|spot_stage_v12|m7",)]
     assert conn.execute(
         "SELECT name FROM sqlite_master WHERE type='table' AND name='stage_rank_manifest'"
     ).fetchall() == []

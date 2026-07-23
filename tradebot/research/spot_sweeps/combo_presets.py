@@ -160,6 +160,22 @@ class ComboPresetContext:
             short_mults=[float(value) for value in self.rows["short_mult"]],
         )
 
+    @cached_property
+    def run_total(self) -> int:
+        """One unified stage: Cartesian cells plus the canonical control."""
+        return int(self.total) + 1
+
+    def run_item_from_rank(self, rank: int) -> tuple[ConfigBundle, str, dict]:
+        if int(rank) < int(self.total):
+            return self.plan_item_from_rank(int(rank))
+        if int(rank) == int(self.total):
+            return self.base, "base", {"_mr_rank": int(rank)}
+        raise ValueError(f"run rank out of range: {rank} not in [0,{self.run_total - 1}]")
+
+    def iter_run_plan(self):
+        yield from self.iter_plan()
+        yield self.base, "base", {"_mr_rank": int(self.total)}
+
     def rank(self, indices: dict[str, int]) -> int:
         rank = 0
         for dim_name in self.ordered_dims:

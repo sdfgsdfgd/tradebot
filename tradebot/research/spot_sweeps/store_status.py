@@ -488,6 +488,43 @@ class SweepStatusStore:
         except Exception:
             return
 
+    def _cartesian_rank_manifest_reset(
+        self,
+        *,
+        stage_label: str,
+        window_signature: str,
+    ) -> None:
+        """Replay a stage when rank receipts exist without their result snapshot."""
+        conn = self._run_cfg_persistent_conn()
+        if conn is None:
+            return
+        stage_key = self._stage_cache_scope(stage_label)
+        window_key = str(window_signature).strip()
+        if not stage_key or not window_key:
+            return
+        try:
+            with self.run_cfg_persistent_lock:
+                conn.execute(
+                    "DELETE FROM cartesian_rank_manifest "
+                    "WHERE stage_label=? AND window_signature=?",
+                    (str(stage_key), str(window_key)),
+                )
+                conn.execute(
+                    "DELETE FROM cartesian_rank_cursor "
+                    "WHERE stage_label=? AND window_signature=?",
+                    (str(stage_key), str(window_key)),
+                )
+            self._stage_unresolved_summary_invalidate(
+                manifest_name="cartesian",
+                stage_label=str(stage_label),
+                window_signature=str(window_key),
+            )
+            applied = getattr(self, "rank_dominance_manifest_applied_seen", None)
+            if isinstance(applied, set):
+                applied.discard((str(stage_key), str(window_key)))
+        except Exception:
+            return
+
     def _cartesian_rank_manifest_get_many(
         self,
         *,

@@ -16,7 +16,10 @@ class SweepCacheStore:
         stage_key = str(stage_label).strip().lower()
         if not stage_key:
             return ""
-        return f"{stage_key}|m{int(self.run_min_trades)}"
+        return (
+            f"{stage_key}|{_RUN_CFG_CACHE_ENGINE_VERSION}|"
+            f"m{int(self.run_min_trades)}"
+        )
 
     def _run_cfg_persistent_conn(self) -> sqlite3.Connection | None:
         if not bool(self.run_cfg_persistent_enabled):
@@ -187,7 +190,6 @@ class SweepCacheStore:
             "strategy_fingerprint": str(strategy_fingerprint),
             "axis_dimension_fingerprint": str(axis_dimension_fingerprint),
             "window_signature": str(window_signature),
-            "run_min_trades": int(self.run_min_trades),
         }
         return hashlib.sha1(
             json.dumps(raw, sort_keys=True, default=str).encode("utf-8")

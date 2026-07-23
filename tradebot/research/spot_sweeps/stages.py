@@ -153,13 +153,30 @@ class SweepStages:
                 payloads = parallel_payloads_builder(pending_plan)
             else:
                 payloads = parallel_payloads_builder()
+            parallel_kept = 0
+
+            def _on_parallel_row(
+                cfg: ConfigBundle,
+                row: dict,
+                note: str,
+            ) -> None:
+                nonlocal parallel_kept
+                parallel_kept += 1
+                _on_row_local(cfg, row, note)
+
             tested_parallel = self._collect_stage_rows_from_payloads(
                 payloads=payloads,
                 default_note=str(parallel_default_note or stage_label),
-                on_row=_on_row_local,
+                on_row=_on_parallel_row,
                 dedupe_by_milestone_key=bool(parallel_dedupe_by_milestone_key),
             )
             self.run_calls_total += int(tested_parallel)
+            if bool(self.axis_progress_state.get("active")):
+                self.axis_progress_state["kept"] = (
+                    int(self.axis_progress_state.get("kept") or 0)
+                    + int(parallel_kept)
+                )
+                self._axis_progress_record(kept=False)
             return int(prefetched_tested) + int(tested_parallel)
 
         tested, serial_rows = self._run_stage_serial(

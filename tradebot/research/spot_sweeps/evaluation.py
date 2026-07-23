@@ -98,9 +98,13 @@ class SweepEvaluation:
         if source == "persistent":
             self.run_cfg_persistent_hits += 1
             self.run_cfg_cache[cache_key] = payload
-        row = dict(payload) if isinstance(payload, dict) else None
-        self._axis_progress_record(kept=bool(row))
-        return row
+        if not isinstance(payload, dict):
+            return None
+        try:
+            eligible = int(payload.get("trades") or 0) >= int(self.run_min_trades)
+        except (TypeError, ValueError):
+            eligible = False
+        return dict(payload) if eligible else None
 
     def _stage_partition_plan_by_cache(
         self,
@@ -365,14 +369,12 @@ class SweepEvaluation:
                     )
                     probe_cached = self._run_cfg_persistent_get(cache_key=str(probe_key))
                     if probe_cached is not self._RUN_CFG_CACHE_MISS:
-                        self.run_cfg_cache_hits += 1
-                        self.run_cfg_persistent_hits += 1
-                        self.run_cfg_cache[cache_key] = probe_cached if isinstance(probe_cached, dict) else None
-                        self.run_cfg_fingerprint_cache[cfg_key] = (
-                            ctx_sig,
-                            probe_cached if isinstance(probe_cached, dict) else None,
+                        resolved_row = self._materialize_cache_hit(
+                            probe_cached,
+                            ctx_sig=ctx_sig,
+                            cache_key=cache_key,
+                            source="persistent",
                         )
-                        resolved_row = dict(probe_cached) if isinstance(probe_cached, dict) else None
 
                 _append_resolution(
                     resolved_row,
@@ -478,16 +480,19 @@ class SweepEvaluation:
         fp_cached = self.run_cfg_fingerprint_cache.get(cfg_key)
         if fp_cached is not None and fp_cached[0] == ctx_sig:
             row = self._materialize_cache_hit(fp_cached[1], ctx_sig=ctx_sig, cache_key=cache_key, source="fingerprint")
+            self._axis_progress_record(kept=bool(row))
             _emit_cfg_progress(phase="cfg.cache_hit", cached=True, kept=bool(row))
             return row
         cached = self.run_cfg_cache.get(cache_key, self._RUN_CFG_CACHE_MISS)
         if cached is not self._RUN_CFG_CACHE_MISS:
             row = self._materialize_cache_hit(cached, ctx_sig=ctx_sig, cache_key=cache_key, source="memory")
+            self._axis_progress_record(kept=bool(row))
             _emit_cfg_progress(phase="cfg.cache_hit", cached=True, kept=bool(row))
             return row
         persisted = self._run_cfg_persistent_get(cache_key=str(persistent_key))
         if persisted is not self._RUN_CFG_CACHE_MISS:
             row = self._materialize_cache_hit(persisted, ctx_sig=ctx_sig, cache_key=cache_key, source="persistent")
+            self._axis_progress_record(kept=bool(row))
             _emit_cfg_progress(phase="cfg.cache_hit", cached=True, kept=bool(row))
             return row
         _emit_cfg_progress(
@@ -534,13 +539,6 @@ class SweepEvaluation:
             payload_json=str(axis_dim_fp),
             est_cost=float(eval_elapsed),
         )
-        if int(s.trades) < int(self.run_min_trades):
-            self.run_cfg_cache[cache_key] = None
-            self.run_cfg_fingerprint_cache[cfg_key] = (ctx_sig, None)
-            self._run_cfg_persistent_set(cache_key=str(persistent_key), payload=None)
-            self.run_cfg_persistent_writes += 1
-            self._axis_progress_record(kept=False)
-            return None
         pnl = float(s.total_pnl or 0.0)
         dd = float(s.max_drawdown or 0.0)
         roi = float(getattr(s, "roi", 0.0) or 0.0)
@@ -558,8 +556,9 @@ class SweepEvaluation:
         self.run_cfg_fingerprint_cache[cfg_key] = (ctx_sig, out)
         self._run_cfg_persistent_set(cache_key=str(persistent_key), payload=out)
         self.run_cfg_persistent_writes += 1
-        self._axis_progress_record(kept=True)
-        return dict(out)
+        eligible = int(s.trades) >= int(self.run_min_trades)
+        self._axis_progress_record(kept=bool(eligible))
+        return dict(out) if eligible else None
 
     def _run_sweep(
         self,

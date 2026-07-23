@@ -877,6 +877,9 @@ _SWEEP_RUNTIME_POLICY: dict[str, dict[str, object]] = {
             # Auto-downshift worker fanout for tiny stages to reduce spawn overhead.
             "enabled": 1,
             "min_items_per_worker": 8,
+            # Full-combo cells are multi-second causal simulations, so parallelize
+            # even a tiny cold slice; cache-complete slices launch no workers.
+            "min_items_per_worker_by_stage": {"combo_full_cartesian": 1},
             # 0 means "no explicit max", only clamp by detected CPUs and stage size.
             "max_workers": 0,
             # Soft caps discovered from local benchmarks:

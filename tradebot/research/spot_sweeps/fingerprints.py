@@ -12,7 +12,7 @@ from ...backtest.sweep_fingerprint import _canonicalize_fingerprint_value
 from ...chart_data.series import BarSeriesSignature
 from .catalog import _COMBO_FULL_CARTESIAN_DIM_ORDER
 
-_RUN_CFG_CACHE_ENGINE_VERSION = "spot_stage_v11"
+_RUN_CFG_CACHE_ENGINE_VERSION = "spot_stage_v12"
 _RANK_BIN_SIZE = 2048
 
 

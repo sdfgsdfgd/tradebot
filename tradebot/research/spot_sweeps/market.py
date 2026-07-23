@@ -300,8 +300,12 @@ class SweepMarketData:
         include_combo_baseline = not bool(getattr(self.args, "combo_full_cartesian_stage", None))
         if axis == "combo_full":
             preset = _combo_full_preset_key(str(getattr(self.args, "combo_full_preset", "") or ""))
-            total = self._combo_full_context(preset).total
-            return int(total) + (1 if include_combo_baseline else 0)
+            context = self._combo_full_context(preset)
+            return (
+                int(context.run_total)
+                if include_combo_baseline
+                else int(context.total)
+            )
         spec = _AXIS_EXECUTION_SPEC_BY_NAME.get(str(axis))
         hint_static = int(spec.total_hint_static) if isinstance(spec, AxisExecutionSpec) and isinstance(spec.total_hint_static, int) else None
         hint_mode = str(spec.total_hint_mode or "").strip().lower() if isinstance(spec, AxisExecutionSpec) else ""
