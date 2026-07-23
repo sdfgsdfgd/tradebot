@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import csv
-from dataclasses import dataclass
-from datetime import datetime, timezone
+from dataclasses import dataclass, replace
+from datetime import date, datetime, timezone
 import json
 from pathlib import Path
 import sys
@@ -14,10 +14,13 @@ from unittest.mock import patch
 
 from ib_insync import Bag, ComboLeg, Contract, Future, Stock
 
+from tradebot.backtest.engine import _spot_strategy_sec_type
+from tradebot.backtest.spot_codec import spot_strategy_payload, strategy_from_payload
 from tradebot.client import BrokerOrderPreview, IBKRClient, _session_flags
 from tradebot.config import IBKRConfig
 from tradebot.option_package import OptionPackageRisk
 from tradebot.order_admission import evaluate_order_admission
+from tradebot.research.spot_sweeps.support import _bundle_base
 from tradebot.spot.gates import flip_exit_gate_blocked, signal_filter_checks
 
 _UI_DIR = Path(__file__).resolve().parents[1] / "tradebot" / "ui"
@@ -739,6 +742,103 @@ def test_entry_weekday_allows_numeric_entry_days_from_champion_payload() -> None
     sunday_overnight = datetime(2026, 2, 8, 23, 32)
     assert harness._entry_weekday_for_ts(instance, sunday_overnight) == 0
     assert harness._can_order_now(instance, now_et=sunday_overnight) is True
+
+
+def test_mcl_research_codec_preserves_futures_identity_for_backtest_and_live_weekday() -> None:
+    base = _bundle_base(
+        symbol="MCL",
+        start=date(2025, 1, 8),
+        end=date(2025, 1, 10),
+        bar_size="5 mins",
+        use_rth=False,
+        cache_dir=Path("db"),
+        offline=True,
+        filters=None,
+        entry_signal="ema",
+    )
+    source = spot_strategy_payload(
+        base,
+        meta=SimpleNamespace(exchange="NYMEX"),
+    )
+    source.update(
+        {
+            "spot_sec_type": "FUT",
+            "spot_exchange": "NYMEX",
+            "spot_next_open_session": "tradable_24x5",
+        }
+    )
+
+    typed = strategy_from_payload(dict(source), filters=base.strategy.filters)
+    encoded = spot_strategy_payload(
+        replace(base, strategy=typed),
+        meta=SimpleNamespace(exchange="NYMEX"),
+    )
+    instance = _new_instance(strategy=encoded)
+    sunday_overnight = datetime(2026, 2, 8, 23, 32)
+
+    observed = {
+        "typed_sec_type": getattr(typed, "spot_sec_type", None),
+        "typed_exchange": getattr(typed, "spot_exchange", None),
+        "encoded_sec_type": encoded.get("spot_sec_type"),
+        "encoded_exchange": encoded.get("spot_exchange"),
+        "backtest_sec_type": _spot_strategy_sec_type(strategy=typed),
+        "live_weekday": _EntryDayHarness()._entry_weekday_for_ts(
+            instance,
+            sunday_overnight,
+        ),
+    }
+    assert observed == {
+        "typed_sec_type": "FUT",
+        "typed_exchange": "NYMEX",
+        "encoded_sec_type": "FUT",
+        "encoded_exchange": "NYMEX",
+        "backtest_sec_type": "FUT",
+        "live_weekday": 6,
+    }
+
+
+def test_bot_config_defaults_mcl_spot_identity_from_canonical_registry() -> None:
+    from tradebot.ui.bot_screen.config import BotConfigScreen
+
+    def _build(symbol: str, *, supplied: str | None = None) -> str:
+        strategy = {"instrument": "spot", "symbol": symbol}
+        if supplied is not None:
+            strategy["spot_sec_type"] = supplied
+        holder = SimpleNamespace(
+            _strategy=strategy,
+            _symbol=symbol,
+            _filters={},
+            _fields=[],
+        )
+        BotConfigScreen._build_fields(holder)
+        return str(holder._strategy.get("spot_sec_type") or "")
+
+    assert _build("MCL") == "FUT"
+    assert _build("MNQ") == "FUT"
+    assert _build("SLV") == "STK"
+    assert _build("MCL", supplied="STK") == "STK"
+
+
+def test_canonical_contract_identity_registry_covers_mcl_mnq_and_equity_controls() -> None:
+    from tradebot.contract_identity import (
+        future_exchange_for_symbol,
+        future_multiplier_for_symbol,
+        is_future_symbol,
+        normalize_contract_symbol,
+    )
+
+    assert normalize_contract_symbol(" mcl ") == "MCL"
+    assert future_exchange_for_symbol("mcl") == "NYMEX"
+    assert is_future_symbol("MCL") is True
+    assert future_multiplier_for_symbol("MCL") == 100.0
+
+    assert future_exchange_for_symbol("mnq") == "CME"
+    assert is_future_symbol("MNQ") is True
+    assert future_multiplier_for_symbol("MNQ") == 2.0
+
+    assert future_exchange_for_symbol("slv") is None
+    assert is_future_symbol("SLV") is False
+    assert future_multiplier_for_symbol("SLV") == 1.0
 
 
 def test_signal_preflight_requires_regime2_supertrend_warmup_for_tqqq_hf_style_payload() -> None:

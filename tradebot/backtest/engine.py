@@ -12,6 +12,7 @@ from datetime import date, datetime, time, timedelta
 from pathlib import Path
 from typing import NamedTuple, Union
 
+from ..contract_identity import future_exchange_for_symbol, future_multiplier_for_symbol, is_future_symbol
 from .config import ConfigBundle, SpotLegConfig
 from .data import IBKRHistoricalData, ContractMeta, load_backtest_series
 from .models import (
@@ -712,28 +713,41 @@ def _spot_exec_profile(strategy: object) -> _SpotExecProfile:
 def _resolve_backtest_contract_meta(
     *, data: IBKRHistoricalData, cfg: ConfigBundle
 ) -> ContractMeta:
-    is_future = cfg.strategy.symbol in ("MNQ", "MBT")
+    symbol = str(cfg.strategy.symbol or "").strip().upper()
+    is_spot = cfg.strategy.instrument == "spot"
+    is_future = (
+        _spot_strategy_sec_type(strategy=cfg.strategy) == "FUT"
+        if is_spot
+        else is_future_symbol(symbol)
+    )
     if cfg.backtest.offline:
-        exchange = "CME" if is_future else "SMART"
-        if cfg.strategy.instrument == "spot":
-            multiplier = _spot_multiplier(cfg.strategy.symbol, is_future)
-        else:
-            multiplier = 1.0 if is_future else 100.0
+        exchange = "SMART"
+        if is_future:
+            explicit_exchange = getattr(cfg.strategy, "spot_exchange", None) if is_spot else None
+            exchange = str(
+                explicit_exchange or future_exchange_for_symbol(symbol) or "CME"
+            ).strip().upper()
+        multiplier = (
+            _spot_multiplier(symbol, is_future)
+            if is_spot
+            else (1.0 if is_future else 100.0)
+        )
         return ContractMeta(
-            symbol=cfg.strategy.symbol,
+            symbol=symbol,
             exchange=exchange,
             multiplier=multiplier,
             min_tick=0.01,
         )
 
-    _, resolved = data.resolve_contract(cfg.strategy.symbol, cfg.strategy.exchange)
-    if cfg.strategy.instrument == "spot":
+    requested_exchange = cfg.strategy.exchange
+    if is_spot:
+        requested_exchange = getattr(cfg.strategy, "spot_exchange", None) or requested_exchange
+    _, resolved = data.resolve_contract(symbol, requested_exchange)
+    if is_spot:
         return ContractMeta(
             symbol=resolved.symbol,
             exchange=resolved.exchange,
-            multiplier=_spot_multiplier(
-                cfg.strategy.symbol, is_future, default=resolved.multiplier
-            ),
+            multiplier=_spot_multiplier(symbol, is_future, default=resolved.multiplier),
             min_tick=resolved.min_tick,
         )
     if (not is_future) and resolved.exchange == "SMART":
@@ -896,11 +910,7 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
 def _spot_multiplier(symbol: str, is_future: bool, default: float = 1.0) -> float:
     if not is_future:
         return 1.0
-    overrides = {
-        "MNQ": 2.0,  # Micro E-mini Nasdaq-100
-        "MBT": 0.1,  # Micro Bitcoin (0.1 BTC)
-    }
-    return overrides.get(symbol, default if default > 0 else 1.0)
+    return future_multiplier_for_symbol(symbol, default=default)
 
 
 def _spot_liquidation_value(
@@ -1028,10 +1038,7 @@ def _spot_strategy_sec_type(*, strategy) -> str:
     raw = str(getattr(strategy, "spot_sec_type", "") or "").strip().upper()
     if raw:
         return raw
-    symbol = str(getattr(strategy, "symbol", "") or "").strip().upper()
-    if symbol in {"MNQ", "MES", "ES", "NQ", "YM", "RTY", "M2K"}:
-        return "FUT"
-    return "STK"
+    return "FUT" if is_future_symbol(getattr(strategy, "symbol", "")) else "STK"
 
 
 def _spot_fill_due_ts(

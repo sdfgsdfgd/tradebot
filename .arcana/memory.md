@@ -423,3 +423,17 @@ Safety constraints:
 Next cycle: recursively map existing combination-contract, option-leg, margin, backtest-strategy, optimizer and promotion surfaces before extending the machine denominator.
 
 <!-- END: TRADEBOT_ARCHITECTURE_PRIORITY_QUEUE_V1 -->
+
+<!-- BEGIN: TRADEBOT_SPOT_CONTRACT_IDENTITY_V1 -->
+
+<!-- anchor: @strategy.spot-contract-identity-v1 -->
+## Spot Contract Identity v1
+
+- Covered contract: `unit.strategy.spot-contract-identity-parity` in `live-execution-orders`.
+- Canonical owner: `tradebot/contract_identity.py`; nullable typed `spot_sec_type` and `spot_exchange` preserve explicit identity while absent values delegate to the registry.
+- MCL is `FUT` / `NYMEX` / multiplier `100.0`; MNQ is `FUT` / `CME` / multiplier `2.0`; unknown equity symbols remain non-futures and use stock defaults.
+- Centralized consumers: research payloads, historical/calibration/backtest/options, offline sweeps, UI configuration/live signal contracts, and client exchange/order normalization.
+- TDD receipts: remaining-consumer RED `052c62529c638aba416855c4ca640663335e942d3ea96a43a3ac773441cf0dc6`; duplicate-free transport-clean GREEN `14a700706d3a06907620bcae474d4f01f39a559ddbf6c880bcef7f021b13bc11` (`2` exact and `243` collected/passed, zero sockets). Direct canonical-registry evidence: `tests/test_live_signal_exit_continuum.py::test_canonical_contract_identity_registry_covers_mcl_mnq_and_equity_controls`.
+- Full deterministic verification: `601 passed, 4 deselected`; selected denominator `601`; focused coverage `10 passed`; zero sockets.
+
+<!-- END: TRADEBOT_SPOT_CONTRACT_IDENTITY_V1 -->

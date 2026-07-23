@@ -10,6 +10,7 @@ from typing import Iterable
 
 from ib_insync import IB, ContFuture, Option, FuturesOption, Stock, util
 
+from ..contract_identity import future_exchange_for_symbol
 from .config import ConfigBundle
 from ..config import load_config
 from ..engine import realized_vol_from_closes
@@ -106,10 +107,6 @@ DEFAULT_BUCKETS: list[tuple[int, int]] = [
     (121, 3650),
 ]
 
-_FUTURE_EXCHANGES = {
-    "MNQ": "CME",
-    "MBT": "CME",
-}
 
 
 def load_calibration(calibration_dir: Path, symbol: str) -> CalibrationBook | None:
@@ -245,8 +242,8 @@ class _Sample:
 
 
 def _resolve_chain(ib: IB, symbol: str, exchange: str | None) -> tuple[float | None, object | None, bool]:
-    if exchange is None and symbol in _FUTURE_EXCHANGES:
-        exchange = _FUTURE_EXCHANGES[symbol]
+    if exchange is None:
+        exchange = future_exchange_for_symbol(symbol)
     if exchange and exchange != "SMART":
         cont = ContFuture(symbol, exchange, "USD")
         ib.qualifyContracts(cont)

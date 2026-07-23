@@ -8,6 +8,7 @@ import math
 from collections import deque
 from datetime import date, datetime
 
+from ..contract_identity import is_future_symbol
 from .calibration import ensure_calibration, load_calibration
 from .config import ConfigBundle, OptionsStrategyConfig
 from .data import ContractMeta, IBKRHistoricalData, load_backtest_series
@@ -38,7 +39,7 @@ def run_options_backtest(
     if not isinstance(cfg.strategy, OptionsStrategyConfig):
         raise ValueError("run_options_backtest requires an options strategy config")
 
-    is_future = cfg.strategy.symbol in ("MNQ", "MBT")
+    is_future = is_future_symbol(cfg.strategy.symbol)
     surface_params = IVSurfaceParams(
         rv_lookback=cfg.synthetic.rv_lookback,
         rv_ewma_lambda=cfg.synthetic.rv_ewma_lambda,

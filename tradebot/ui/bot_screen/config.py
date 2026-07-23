@@ -11,6 +11,7 @@ from textual.app import ComposeResult
 from textual.screen import Screen
 from textual.widgets import DataTable, Footer, Header, Static
 
+from ...contract_identity import is_future_symbol
 from ..bot_models import _BotConfigField, _BotConfigResult
 from ..common import _parse_float
 from .formatting import (
@@ -130,9 +131,7 @@ class BotConfigScreen(Screen[Optional[_BotConfigResult]]):
 
         if instrument == "spot":
             sym = str(self._symbol or self._strategy.get("symbol") or "").strip().upper()
-            default_sec_type = (
-                "FUT" if sym in {"MNQ", "MES", "ES", "NQ", "YM", "RTY", "M2K"} else "STK"
-            )
+            default_sec_type = "FUT" if is_future_symbol(sym) else "STK"
             self._strategy.setdefault("spot_sec_type", default_sec_type)
             self._strategy.setdefault("spot_exchange", "")
             self._strategy.setdefault("spot_close_eod", False)

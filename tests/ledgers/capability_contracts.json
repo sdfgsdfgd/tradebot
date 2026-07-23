@@ -916,6 +916,47 @@
       "next": "Retain coverage while centralizing remaining canonical strategy and execution semantics."
     },
     {
+      "id": "unit.strategy.spot-contract-identity-parity",
+      "subsystem": "live-execution-orders",
+      "layer": "unit",
+      "phase": "strategy-spot-contract-identity-parity",
+      "capability": "Research, backtest, UI, and live/order consumers share one canonical spot contract identity law for security type, exchange, and multiplier.",
+      "fixtures": [
+        "explicit and inferred MCL futures identity across typed hydration, canonical research payloads, backtest valuation, UI defaults, live weekday semantics, and order normalization",
+        "canonical MCL, MNQ, and equity controls with transport-guarded consumer delegation and duplicate-classifier audit"
+      ],
+      "evidence": [
+        "tests/test_live_signal_exit_continuum.py::test_mcl_research_codec_preserves_futures_identity_for_backtest_and_live_weekday",
+        "tests/test_live_signal_exit_continuum.py::test_bot_config_defaults_mcl_spot_identity_from_canonical_registry",
+        "tests/test_spot_combo_full_signature.py::test_spot_strategy_payload_infers_mcl_futures_identity_from_contract_meta",
+        "tests/test_option_package_economics.py::test_options_backtest_delegates_mcl_futures_classification_to_canonical_identity",
+        "tests/test_live_signal_exit_continuum.py::test_canonical_contract_identity_registry_covers_mcl_mnq_and_equity_controls"
+      ],
+      "owner_surface": [
+        "tradebot/contract_identity.py",
+        "tradebot/knobs/models.py",
+        "tradebot/backtest/config_values.py",
+        "tradebot/backtest/config.py",
+        "tradebot/backtest/spot_codec.py",
+        "tradebot/backtest/data.py",
+        "tradebot/backtest/calibration.py",
+        "tradebot/backtest/engine.py",
+        "tradebot/backtest/engine_options.py",
+        "tradebot/research/spot_sweeps/runtime.py",
+        "tradebot/ui/bot_screen/config.py",
+        "tradebot/ui/bot_screen/signal_data.py",
+        "tradebot/client.py"
+      ],
+      "oracle": [
+        "explicit spot security type and exchange survive typed hydration and canonical serialization without being erased",
+        "missing identity delegates to the dependency-free canonical registry across research, backtest, UI, live contract construction, and order normalization",
+        "MCL resolves as FUT on NYMEX with multiplier 100, MNQ resolves as FUT on CME with multiplier 2, and unknown equity symbols remain non-futures",
+        "legacy local futures classifiers are absent and all executable evidence passes before provider interaction"
+      ],
+      "status": "covered",
+      "next": "Retain coverage while extending the canonical research/backtest/live strategy-execution model without conflating XSP, full-size SPX, MCL, or provider-owned qualification semantics."
+    },
+    {
       "id": "unit.strategy.option-package-entry-intent",
       "layer": "unit",
       "subsystem": "live-execution-orders",

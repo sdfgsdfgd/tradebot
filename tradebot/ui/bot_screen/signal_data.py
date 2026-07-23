@@ -8,6 +8,7 @@ from datetime import datetime, time, timedelta
 
 from ib_insync import Contract, Stock
 
+from ...contract_identity import future_exchange_for_symbol, is_future_symbol
 from ...chart_data.series import BarSeries, BarSeriesMeta
 from ...client import IBKRClient, _session_flags
 from ...engines.market import full24_post_close_time_et, is_trading_day, session_label_et
@@ -28,10 +29,7 @@ class BotSignalDataMixin:
         cleaned = str(raw or "").strip().upper()
         if cleaned in ("STK", "FUT"):
             return cleaned
-        sym = str(symbol or "").strip().upper()
-        if sym in {"MNQ", "MES", "ES", "NQ", "YM", "RTY", "M2K"}:
-            return "FUT"
-        return "STK"
+        return "FUT" if is_future_symbol(symbol) else "STK"
 
     def _spot_exchange(self, instance: _BotInstance, symbol: str, *, sec_type: str) -> str:
         raw = (instance.strategy or {}).get("spot_exchange")
@@ -39,10 +37,7 @@ class BotSignalDataMixin:
         if cleaned:
             return cleaned
         if sec_type == "FUT":
-            sym = str(symbol or "").strip().upper()
-            if sym in ("YM", "MYM"):
-                return "CBOT"
-            return "CME"
+            return future_exchange_for_symbol(symbol) or "CME"
         return "SMART"
 
     async def _spot_contract(self, instance: _BotInstance, symbol: str) -> Contract | None:

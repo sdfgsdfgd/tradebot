@@ -9,6 +9,7 @@ from pathlib import Path
 from ib_insync import IB, ContFuture, Index, Stock, util
 from zoneinfo import ZoneInfo
 
+from ..contract_identity import future_exchange_for_symbol, is_future_symbol
 from .config import ConfigBundle
 from .models import Bar
 from ..chart_data.series import BarSeries, BarSeriesMeta, bars_list
@@ -33,10 +34,6 @@ from .cache import (
     write_cache,
 )
 
-_FUTURE_EXCHANGES = {
-    "MNQ": "CME",
-    "MBT": "CME",
-}
 _INDEX_EXCHANGES = {
     "TICK-NYSE": "NYSE",
     "TICK-AMEX": "AMEX",
@@ -149,14 +146,14 @@ class IBKRHistoricalData:
             self._ib.disconnect()
 
     def resolve_contract(self, symbol: str, exchange: str | None) -> tuple[object, ContractMeta]:
+        future_exchange = future_exchange_for_symbol(symbol)
         if exchange is None:
-            exchange = _FUTURE_EXCHANGES.get(symbol) or _INDEX_EXCHANGES.get(symbol) or "SMART"
+            exchange = future_exchange or _INDEX_EXCHANGES.get(symbol) or "SMART"
         if symbol in _INDEX_EXCHANGES:
             contract = Index(symbol=symbol, exchange=exchange, currency="USD")
-        elif exchange != "SMART" and symbol in _FUTURE_EXCHANGES:
+        elif exchange != "SMART" and is_future_symbol(symbol):
             contract = ContFuture(symbol=symbol, exchange=exchange, currency="USD")
         else:
-            # For stocks we usually use SMART, but explicit overrides (e.g. OVERNIGHT) must be honored.
             stock_exchange = str(exchange or "SMART").strip() or "SMART"
             contract = Stock(symbol=symbol, exchange=stock_exchange, currency="USD")
         self.connect()
@@ -740,17 +737,8 @@ def _parse_float(value) -> float | None:
 
 def _daily_close_time_et(*, symbol: str, use_rth: bool) -> time:
     sym = str(symbol or "").strip().upper()
-    # Our entire codebase treats tz-naive timestamps as UTC (see `_ts_to_et` in engine).
-    # So for daily bars, we:
-    #   1) interpret the bar's date as an ET trade date,
-    #   2) pick a session-close time in ET,
-    #   3) convert that close timestamp to UTC (still stored tz-naive).
-    #
-    # This prevents multi-timeframe gates from "seeing" the day's OHLC before the session is complete.
-    if sym in _FUTURE_EXCHANGES:
-        # CME index futures: Globex daily break is 17:00 ET. For RTH-only daily bars, align to 16:00 ET.
+    if is_future_symbol(sym):
         return time(16, 0) if use_rth else time(17, 0)
-    # Equities / indices: RTH close is 16:00 ET; extended session ends 20:00 ET.
     return time(16, 0) if use_rth else time(20, 0)
 
 

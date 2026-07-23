@@ -31,6 +31,7 @@ from ib_insync import (
     util,
 )
 
+from .contract_identity import future_exchange_for_symbol
 from .engines.market import expected_sessions, session_label_et
 from .config import IBKRConfig
 from .live.execution import order_ids
@@ -3115,11 +3116,7 @@ class IBKRClient:
 
         def _add(exchange: str) -> None:
             value = str(exchange or "").strip().upper()
-            if not value:
-                return
-            if value in ("SMART", "IDEALPRO"):
-                return
-            if value in out:
+            if not value or value in ("SMART", "IDEALPRO") or value in out:
                 return
             out.append(value)
 
@@ -3127,6 +3124,7 @@ class IBKRClient:
             _add(exchange)
         for exchange in _FUT_EXCHANGE_HINTS.get(sym, ()):
             _add(exchange)
+        _add(future_exchange_for_symbol(sym) or "")
         for exchange in ("COMEX", "NYMEX", "GLOBEX", "CME", "CBOT", "ECBOT"):
             _add(exchange)
         if not out:
@@ -6706,17 +6704,16 @@ def _normalize_order_contract(contract: Contract) -> Contract:
         return contract
     normalized = copy.copy(contract)
     sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
-    if sec_type == "FUT":
+    if sec_type in ("FUT", "FOP"):
         symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
         exchange_hints = _FUT_EXCHANGE_HINTS.get(symbol, ())
         primary_exchange = str(getattr(contract, "primaryExchange", "") or "").strip().upper()
-        normalized.exchange = primary_exchange or (exchange_hints[0] if exchange_hints else "CME")
-        return normalized
-    if sec_type == "FOP":
-        symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
-        exchange_hints = _FUT_EXCHANGE_HINTS.get(symbol, ())
-        primary_exchange = str(getattr(contract, "primaryExchange", "") or "").strip().upper()
-        normalized.exchange = primary_exchange or (exchange_hints[0] if exchange_hints else "CME")
+        normalized.exchange = (
+            primary_exchange
+            or (exchange_hints[0] if exchange_hints else "")
+            or future_exchange_for_symbol(symbol)
+            or "CME"
+        )
         return normalized
     if sec_type in ("STK", "OPT"):
         normalized.exchange = "SMART"

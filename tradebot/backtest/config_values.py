@@ -502,6 +502,24 @@ def _parse_supertrend_source(value) -> str:
     return "hl2"
 
 
+def _parse_spot_sec_type(value) -> str | None:
+    if value is None:
+        return None
+    cleaned = str(value).strip().upper()
+    if not cleaned:
+        return None
+    if cleaned not in {"STK", "FUT"}:
+        raise ValueError(f"Invalid spot_sec_type: {value!r} (expected 'STK' or 'FUT')")
+    return cleaned
+
+
+def _parse_spot_exchange(value) -> str | None:
+    if value is None:
+        return None
+    cleaned = str(value).strip().upper()
+    return cleaned or None
+
+
 def _parse_instrument(value) -> str:
     if value is None:
         return "options"
