@@ -115,6 +115,7 @@
     "tests/test_option_package_economics.py": "live-execution-orders",
     "tests/test_option_package_risk.py": "live-execution-orders",
     "tests/test_option_search_qualification.py": "live-market-data-contracts",
+    "tests/test_options_prepared_tape.py": "backtest-data-cache",
     "tests/test_order_admission_policy.py": "live-execution-orders",
     "tests/test_order_contract_normalize.py": "live-market-data-contracts",
     "tests/test_order_pricing_guards.py": "live-execution-orders",
@@ -425,15 +426,16 @@
       "subsystem": "backtest-data-cache",
       "layer": "unit",
       "phase": "backtest-data-cache",
-      "capability": "Historical cache coverage, integrity, repair, stitching, and resampling remain correct.",
+      "capability": "Historical cache coverage, integrity, repair, stitching, resampling, and exact prepared-tape reuse remain correct.",
       "fixtures": [
-        "current proof surfaces for backtest-data-cache"
+        "historical cache proof surfaces and exact option-tape reuse/invalidation cases"
       ],
       "evidence": [
         "tests/test_backtest_data_timezone.py",
         "tests/test_bar_series_contract.py",
         "tests/test_cache_fetch_mend.py",
-        "tests/test_offline_cache_preflight.py"
+        "tests/test_offline_cache_preflight.py",
+        "tests/test_options_prepared_tape.py"
       ],
       "owner_surface": [
         "tradebot/backtest/cache.py",
@@ -442,7 +444,8 @@
         "tradebot/backtest/cache_ops/repair.py",
         "tradebot/backtest/cache_ops/resample.py",
         "tradebot/backtest/cache_ops/sync.py",
-        "tradebot/backtest/data.py"
+        "tradebot/backtest/data.py",
+        "tradebot/backtest/engine_options.py"
       ],
       "oracle": [
         "all evidence assigned to backtest-data-cache passes",

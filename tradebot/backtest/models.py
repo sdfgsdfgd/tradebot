@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, date
+from functools import cached_property
 
 from ..option_package import OptionPackage, OptionPackageRisk, ResolvedOptionLeg
 
@@ -37,7 +38,7 @@ class OptionTrade:
     def legs(self) -> tuple[ResolvedOptionLeg, ...]:
         return self.package.legs
 
-    @property
+    @cached_property
     def expiry(self) -> date:
         raw = self.package.legs[0].expiry
         return (

@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import math
 from collections import deque
+from dataclasses import dataclass
 from datetime import date, datetime
 
 from .calibration import ensure_calibration, load_calibration
@@ -14,6 +15,8 @@ from .data import ContractMeta, IBKRHistoricalData, load_backtest_series
 from .models import BacktestResult, Bar, EquityPoint, OptionTrade, summarize
 from .strategy import OptionPackageStrategy, TradeSpec
 from .synth import IVSurfaceParams, black_76, black_scholes, iv_atm, iv_for_strike, mid_edge_quote
+from ..chart_data.cache import series_cache_service
+from ..chart_data.series import BarSeriesSignature
 from ..engines.signals import EmaDecisionEngine, EmaDecisionSnapshot, SupertrendEngine
 from ..option_package import (
     OptionPackage,
@@ -34,6 +37,336 @@ from ..engine import (
 )
 from ..signals import ema_next, ema_periods, parse_bar_size
 from ..utils.date_utils import business_days_until
+
+
+_OPTIONS_MARKET_TAPE_NAMESPACE = "options.market_tape.v1"
+_OPTIONS_SIGNAL_TAPE_NAMESPACE = "options.signal_tape.v1"
+_OPTIONS_TAPE_NAMESPACE = "options.prepared_tape.v2"
+_OPTIONS_TAPE_CACHE = series_cache_service()
+
+
+@dataclass(frozen=True)
+class _OptionsMarketTape:
+    revision: BarSeriesSignature
+    bars: tuple[Bar, ...]
+    trade_dates: tuple[date, ...]
+    bars_in_day: tuple[int, ...]
+    is_last_bar: tuple[bool, ...]
+    realized_vol: tuple[float, ...]
+    volume_ema: tuple[float | None, ...]
+    volume_ema_ready: tuple[bool, ...]
+
+
+@dataclass(frozen=True)
+class _OptionsSignalTape:
+    signals: tuple[EmaDecisionSnapshot | None, ...]
+    ema_needed: bool
+
+
+@dataclass(frozen=True)
+class PreparedOptionsTape:
+    revision: BarSeriesSignature
+    bars: tuple[Bar, ...]
+    trade_dates: tuple[date, ...]
+    bars_in_day: tuple[int, ...]
+    is_last_bar: tuple[bool, ...]
+    realized_vol: tuple[float, ...]
+    volume_ema: tuple[float | None, ...]
+    volume_ema_ready: tuple[bool, ...]
+    signals: tuple[EmaDecisionSnapshot | None, ...]
+    ema_needed: bool
+
+
+def prepare_options_tape(
+    *,
+    cfg: ConfigBundle,
+    bars: list[Bar] | tuple[Bar, ...],
+    data: IBKRHistoricalData,
+    start_dt: datetime,
+    end_dt: datetime,
+) -> PreparedOptionsTape:
+    """Reuse immutable market facts and signal state across option combinations."""
+
+    if not isinstance(cfg.strategy, OptionsStrategyConfig):
+        raise ValueError("prepare_options_tape requires an options strategy config")
+
+    filters = cfg.strategy.filters
+    periods = ema_periods(cfg.strategy.ema_preset)
+    needs_direction = cfg.strategy.directional_legs is not None
+    ema_needed = bool(
+        periods is not None
+        or needs_direction
+        or (
+            filters
+            and (
+                filters.ema_spread_min_pct is not None
+                or filters.ema_slope_min_pct is not None
+            )
+        )
+    )
+    ema_entry_mode = getattr(cfg.strategy, "ema_entry_mode", None)
+    entry_confirm_bars = int(getattr(cfg.strategy, "entry_confirm_bars", 0) or 0)
+    volume_period = None
+    if filters is not None and filters.volume_ratio_min is not None:
+        try:
+            volume_period = int(filters.volume_ema_period or 20)
+        except (TypeError, ValueError):
+            volume_period = 20
+        volume_period = max(1, volume_period)
+
+    revision = _OPTIONS_TAPE_CACHE.revision(bars)
+    market_key = (
+        revision,
+        int(cfg.synthetic.rv_lookback),
+        float(cfg.synthetic.rv_ewma_lambda),
+        str(cfg.backtest.bar_size),
+        bool(cfg.backtest.use_rth),
+        volume_period,
+    )
+    market = _OPTIONS_TAPE_CACHE.get(
+        namespace=_OPTIONS_MARKET_TAPE_NAMESPACE,
+        key=market_key,
+    )
+    if not isinstance(market, _OptionsMarketTape):
+        rows = tuple(bars)
+        trade_dates = tuple(_trade_date(bar.ts) for bar in rows)
+        bars_in_day: list[int] = []
+        current_count = 0
+        prior_day = None
+        for trade_day in trade_dates:
+            current_count = current_count + 1 if trade_day == prior_day else 1
+            bars_in_day.append(current_count)
+            prior_day = trade_day
+
+        returns = deque(maxlen=max(0, int(cfg.synthetic.rv_lookback)))
+        realized_vol: list[float] = []
+        volume_values: list[float | None] = []
+        volume_ready: list[bool] = []
+        volume_ema = None
+        volume_count = 0
+        previous = None
+        for bar in rows:
+            if previous is not None and previous.close > 0:
+                returns.append(math.log(bar.close / previous.close))
+            realized_vol.append(
+                annualized_ewma_vol(
+                    returns,
+                    lam=float(cfg.synthetic.rv_ewma_lambda),
+                    bar_size=str(cfg.backtest.bar_size),
+                    use_rth=bool(cfg.backtest.use_rth),
+                )
+            )
+            if volume_period is not None:
+                volume_ema = ema_next(volume_ema, float(bar.volume), volume_period)
+                volume_count += 1
+            volume_values.append(volume_ema)
+            volume_ready.append(
+                volume_period is None or volume_count >= volume_period
+            )
+            previous = bar
+
+        market = _OptionsMarketTape(
+            revision=revision,
+            bars=rows,
+            trade_dates=trade_dates,
+            bars_in_day=tuple(bars_in_day),
+            is_last_bar=tuple(
+                idx + 1 == len(rows) or trade_dates[idx + 1] != trade_day
+                for idx, trade_day in enumerate(trade_dates)
+            ),
+            realized_vol=tuple(realized_vol),
+            volume_ema=tuple(volume_values),
+            volume_ema_ready=tuple(volume_ready),
+        )
+        _OPTIONS_TAPE_CACHE.set(
+            namespace=_OPTIONS_MARKET_TAPE_NAMESPACE,
+            key=market_key,
+            value=market,
+        )
+
+    regime_mode = str(
+        getattr(cfg.strategy, "regime_mode", "ema") or "ema"
+    ).strip().lower()
+    if regime_mode not in {"ema", "supertrend"}:
+        regime_mode = "ema"
+    regime_preset = cfg.strategy.regime_ema_preset
+    regime_bar = cfg.strategy.regime_bar_size or cfg.backtest.bar_size
+    use_mtf_regime = (
+        str(regime_bar) != str(cfg.backtest.bar_size)
+        if regime_mode == "supertrend"
+        else bool(regime_preset)
+        and str(regime_bar) != str(cfg.backtest.bar_size)
+    )
+    regime_bars = (
+        load_backtest_series(
+            data=data,
+            cfg=cfg,
+            symbol=cfg.strategy.symbol,
+            exchange=cfg.strategy.exchange,
+            start=start_dt,
+            end=end_dt,
+            bar_size=str(regime_bar),
+            use_rth=cfg.backtest.use_rth,
+        ).as_list()
+        if use_mtf_regime
+        else None
+    )
+
+    regime_revision = (
+        _OPTIONS_TAPE_CACHE.revision(regime_bars)
+        if regime_bars is not None
+        else None
+    )
+    signal_key = (
+        revision,
+        regime_revision,
+        cfg.strategy.ema_preset,
+        ema_entry_mode,
+        entry_confirm_bars,
+        regime_mode,
+        regime_preset,
+        str(regime_bar),
+        int(getattr(cfg.strategy, "supertrend_atr_period", 10) or 10),
+        float(getattr(cfg.strategy, "supertrend_multiplier", 3.0) or 3.0),
+        str(getattr(cfg.strategy, "supertrend_source", "hl2") or "hl2"),
+        ema_needed,
+    )
+    signal_tape = _OPTIONS_TAPE_CACHE.get(
+        namespace=_OPTIONS_SIGNAL_TAPE_NAMESPACE,
+        key=signal_key,
+    )
+    if not isinstance(signal_tape, _OptionsSignalTape):
+        signal_engine = (
+            EmaDecisionEngine(
+                ema_preset=str(cfg.strategy.ema_preset),
+                ema_entry_mode=ema_entry_mode,
+                entry_confirm_bars=entry_confirm_bars,
+                regime_ema_preset=(
+                    None
+                    if (use_mtf_regime or regime_mode == "supertrend")
+                    else cfg.strategy.regime_ema_preset
+                ),
+            )
+            if periods is not None
+            else None
+        )
+        regime_engine = (
+            EmaDecisionEngine(
+                ema_preset=str(regime_preset),
+                ema_entry_mode="trend",
+                entry_confirm_bars=0,
+                regime_ema_preset=None,
+            )
+            if use_mtf_regime and regime_mode == "ema"
+            else None
+        )
+        supertrend_engine = (
+            SupertrendEngine(
+                atr_period=int(
+                    getattr(cfg.strategy, "supertrend_atr_period", 10) or 10
+                ),
+                multiplier=float(
+                    getattr(cfg.strategy, "supertrend_multiplier", 3.0) or 3.0
+                ),
+                source=str(
+                    getattr(cfg.strategy, "supertrend_source", "hl2") or "hl2"
+                ),
+            )
+            if regime_mode == "supertrend"
+            else None
+        )
+        signals: list[EmaDecisionSnapshot | None] = []
+        regime_idx = 0
+        last_regime = None
+        last_supertrend = None
+        for bar in market.bars:
+            signal = (
+                signal_engine.update(bar.close)
+                if signal_engine is not None
+                else None
+            )
+            if supertrend_engine is not None:
+                if use_mtf_regime and regime_bars is not None:
+                    while (
+                        regime_idx < len(regime_bars)
+                        and regime_bars[regime_idx].ts <= bar.ts
+                    ):
+                        regime_bar_row = regime_bars[regime_idx]
+                        last_supertrend = supertrend_engine.update(
+                            high=float(regime_bar_row.high),
+                            low=float(regime_bar_row.low),
+                            close=float(regime_bar_row.close),
+                        )
+                        regime_idx += 1
+                else:
+                    last_supertrend = supertrend_engine.update(
+                        high=float(bar.high),
+                        low=float(bar.low),
+                        close=float(bar.close),
+                    )
+                signal = apply_regime_gate(
+                    signal,
+                    regime_dir=(
+                        last_supertrend.direction
+                        if last_supertrend is not None
+                        else None
+                    ),
+                    regime_ready=bool(last_supertrend and last_supertrend.ready),
+                )
+            elif (
+                use_mtf_regime
+                and signal is not None
+                and regime_engine is not None
+                and regime_bars is not None
+            ):
+                while (
+                    regime_idx < len(regime_bars)
+                    and regime_bars[regime_idx].ts <= bar.ts
+                ):
+                    last_regime = regime_engine.update(
+                        regime_bars[regime_idx].close
+                    )
+                    regime_idx += 1
+                signal = apply_regime_gate(
+                    signal,
+                    regime_dir=(
+                        last_regime.state if last_regime is not None else None
+                    ),
+                    regime_ready=bool(last_regime and last_regime.ema_ready),
+                )
+            signals.append(signal)
+        signal_tape = _OptionsSignalTape(
+            signals=tuple(signals),
+            ema_needed=ema_needed,
+        )
+        _OPTIONS_TAPE_CACHE.set(
+            namespace=_OPTIONS_SIGNAL_TAPE_NAMESPACE,
+            key=signal_key,
+            value=signal_tape,
+        )
+
+    key = (market_key, signal_key)
+    cached = _OPTIONS_TAPE_CACHE.get(namespace=_OPTIONS_TAPE_NAMESPACE, key=key)
+    if isinstance(cached, PreparedOptionsTape):
+        return cached
+    prepared = PreparedOptionsTape(
+        revision=market.revision,
+        bars=market.bars,
+        trade_dates=market.trade_dates,
+        bars_in_day=market.bars_in_day,
+        is_last_bar=market.is_last_bar,
+        realized_vol=market.realized_vol,
+        volume_ema=market.volume_ema,
+        volume_ema_ready=market.volume_ema_ready,
+        signals=signal_tape.signals,
+        ema_needed=signal_tape.ema_needed,
+    )
+    return _OPTIONS_TAPE_CACHE.set(
+        namespace=_OPTIONS_TAPE_NAMESPACE,
+        key=key,
+        value=prepared,
+    )
+
 
 def run_options_backtest(
     *,
@@ -68,7 +401,14 @@ def run_options_backtest(
         calibration = load_calibration(cfg.backtest.calibration_dir, cfg.strategy.symbol)
 
     strategy = OptionPackageStrategy(cfg.strategy)
-    returns = deque(maxlen=surface_params.rv_lookback)
+    tape = prepare_options_tape(
+        cfg=cfg,
+        bars=bars,
+        data=data,
+        start_dt=start_dt,
+        end_dt=end_dt,
+    )
+    bars = tape.bars
     cash = cfg.backtest.starting_cash
     margin_used = 0.0
     equity_curve: list[EquityPoint] = []
@@ -81,139 +421,19 @@ def run_options_backtest(
     needs_direction = cfg.strategy.directional_legs is not None
     if needs_direction and cfg.strategy.direction_source == "ema" and periods is None:
         raise ValueError("directional_legs requires ema_preset when direction_source='ema'")
-    ema_needed = periods is not None or (
-        filters
-        and (filters.ema_spread_min_pct is not None or filters.ema_slope_min_pct is not None)
-    )
-    if needs_direction:
-        ema_needed = True
-
-    regime_mode = str(getattr(cfg.strategy, "regime_mode", "ema") or "ema").strip().lower()
-    if regime_mode not in ("ema", "supertrend"):
-        regime_mode = "ema"
-    regime_preset = cfg.strategy.regime_ema_preset
-    regime_bar = cfg.strategy.regime_bar_size or cfg.backtest.bar_size
-    if regime_mode == "supertrend":
-        use_mtf_regime = str(regime_bar) != str(cfg.backtest.bar_size)
-    else:
-        use_mtf_regime = bool(regime_preset) and str(regime_bar) != str(cfg.backtest.bar_size)
-    regime_bars = None
-    if use_mtf_regime:
-        regime_bars = load_backtest_series(
-            data=data,
-            cfg=cfg,
-            symbol=cfg.strategy.symbol,
-            exchange=cfg.strategy.exchange,
-            start=start_dt,
-            end=end_dt,
-            bar_size=str(regime_bar),
-            use_rth=cfg.backtest.use_rth,
-        ).as_list()
-
-    signal_engine: EmaDecisionEngine | None = None
-    if periods is not None:
-        signal_engine = EmaDecisionEngine(
-            ema_preset=str(cfg.strategy.ema_preset),
-            ema_entry_mode=cfg.strategy.ema_entry_mode,
-            entry_confirm_bars=cfg.strategy.entry_confirm_bars,
-            regime_ema_preset=(
-                None if (use_mtf_regime or regime_mode == "supertrend") else cfg.strategy.regime_ema_preset
-            ),
-        )
-    regime_engine = (
-        EmaDecisionEngine(
-            ema_preset=str(regime_preset),
-            ema_entry_mode="trend",
-            entry_confirm_bars=0,
-            regime_ema_preset=None,
-        )
-        if use_mtf_regime and regime_mode == "ema"
-        else None
-    )
-    supertrend_engine = (
-        SupertrendEngine(
-            atr_period=int(getattr(cfg.strategy, "supertrend_atr_period", 10) or 10),
-            multiplier=float(getattr(cfg.strategy, "supertrend_multiplier", 3.0) or 3.0),
-            source=str(getattr(cfg.strategy, "supertrend_source", "hl2") or "hl2"),
-        )
-        if regime_mode == "supertrend"
-        else None
-    )
-    regime_idx = 0
-    last_regime = None
-    last_supertrend = None
-
-    volume_period = None
-    if filters is not None and getattr(filters, "volume_ratio_min", None) is not None:
-        raw_period = getattr(filters, "volume_ema_period", None)
-        try:
-            volume_period = int(raw_period) if raw_period is not None else 20
-        except (TypeError, ValueError):
-            volume_period = 20
-        volume_period = max(1, volume_period)
-    volume_ema = None
-    volume_count = 0
-
-    bars_in_day = 0
     last_entry_idx = None
-    last_date = None
     for idx, bar in enumerate(bars):
-        next_bar = bars[idx + 1] if idx + 1 < len(bars) else None
-        is_last_bar = next_bar is None or _trade_date(next_bar.ts) != _trade_date(bar.ts)
-        if prev_bar is not None and prev_bar.close > 0:
-            returns.append(math.log(bar.close / prev_bar.close))
-        rv = annualized_ewma_vol(
-            returns,
-            lam=float(surface_params.rv_ewma_lambda),
-            bar_size=str(cfg.backtest.bar_size),
-            use_rth=bool(cfg.backtest.use_rth),
-        )
-        if last_date != _trade_date(bar.ts):
-            bars_in_day = 0
-            last_date = _trade_date(bar.ts)
+        trade_day = tape.trade_dates[idx]
+        if idx == 0 or tape.trade_dates[idx - 1] != trade_day:
             entries_today = 0
-        bars_in_day += 1
-
-        if volume_period is not None:
-            volume_ema = ema_next(volume_ema, float(bar.volume), volume_period)
-            volume_count += 1
-        signal = signal_engine.update(bar.close) if signal_engine is not None else None
-        if supertrend_engine is not None:
-            if use_mtf_regime and regime_bars is not None:
-                while regime_idx < len(regime_bars) and regime_bars[regime_idx].ts <= bar.ts:
-                    reg_bar = regime_bars[regime_idx]
-                    last_supertrend = supertrend_engine.update(
-                        high=float(reg_bar.high),
-                        low=float(reg_bar.low),
-                        close=float(reg_bar.close),
-                    )
-                    regime_idx += 1
-            else:
-                last_supertrend = supertrend_engine.update(
-                    high=float(bar.high),
-                    low=float(bar.low),
-                    close=float(bar.close),
-                )
-            signal = apply_regime_gate(
-                signal,
-                regime_dir=last_supertrend.direction if last_supertrend is not None else None,
-                regime_ready=bool(last_supertrend and last_supertrend.ready),
-            )
-        elif use_mtf_regime and signal is not None and regime_engine is not None and regime_bars is not None:
-            while regime_idx < len(regime_bars) and regime_bars[regime_idx].ts <= bar.ts:
-                last_regime = regime_engine.update(regime_bars[regime_idx].close)
-                regime_idx += 1
-            signal = apply_regime_gate(
-                signal,
-                regime_dir=last_regime.state if last_regime is not None else None,
-                regime_ready=bool(last_regime and last_regime.ema_ready),
-            )
+        rv = tape.realized_vol[idx]
+        signal = tape.signals[idx]
         ema_ready = bool(signal and signal.ema_ready)
 
         if open_trades and prev_bar:
             still_open: list[OptionTrade] = []
             for trade in open_trades:
-                if _trade_date(bar.ts) > trade.expiry:
+                if trade_day > trade.expiry:
                     exit_debit = _trade_value_from_spec(
                         trade,
                         prev_bar,
@@ -224,6 +444,7 @@ def run_options_backtest(
                         product,
                         mode="exit",
                         calibration=calibration,
+                        trade_day=tape.trade_dates[idx - 1],
                     )
                     _close_trade(trade, prev_bar.ts, exit_debit, "expiry", trades)
                     cash += (
@@ -249,6 +470,7 @@ def run_options_backtest(
                     meta.min_tick,
                     product,
                     calibration,
+                    trade_day=trade_day,
                 )
                 should_close = False
                 reason = ""
@@ -259,13 +481,13 @@ def run_options_backtest(
                 elif _hit_stop(trade, current_value, cfg.strategy.stop_loss_basis):
                     should_close = True
                     reason = "stop"
-                elif _hit_exit_dte(cfg, trade, _trade_date(bar.ts)):
+                elif _hit_exit_dte(cfg, trade, trade_day):
                     should_close = True
                     reason = "exit_dte"
                 elif _hit_flip_exit(cfg, trade, bar, current_value, signal):
                     should_close = True
                     reason = "flip"
-                elif cfg.strategy.dte == 0 and is_last_bar:
+                elif cfg.strategy.dte == 0 and tape.is_last_bar[idx]:
                     should_close = True
                     reason = "eod"
 
@@ -280,6 +502,7 @@ def run_options_backtest(
                         product,
                         mode="exit",
                         calibration=calibration,
+                        trade_day=trade_day,
                     )
                     _close_trade(trade, bar.ts, exit_debit, reason, trades)
                     cash += (
@@ -302,7 +525,7 @@ def run_options_backtest(
         ema_gate_ok = True
         ema_right_override = None
         direction = None
-        if ema_needed and not ema_ready:
+        if tape.ema_needed and not ema_ready:
             ema_gate_ok = False
         elif ema_ready:
             if needs_direction:
@@ -347,11 +570,11 @@ def run_options_backtest(
         filters_ok = signal_filters_ok(
             filters,
             bar_ts=bar.ts,
-            bars_in_day=bars_in_day,
+            bars_in_day=tape.bars_in_day[idx],
             close=float(bar.close),
             volume=float(bar.volume),
-            volume_ema=float(volume_ema) if volume_ema is not None else None,
-            volume_ema_ready=bool(volume_count >= volume_period) if volume_period else True,
+            volume_ema=tape.volume_ema[idx],
+            volume_ema_ready=tape.volume_ema_ready[idx],
             rv=float(rv),
             signal=signal,
             cooldown_ok=cooldown_ok,
@@ -379,6 +602,7 @@ def run_options_backtest(
                 product,
                 mode="entry",
                 calibration=calibration,
+                trade_day=trade_day,
             )
             min_credit = cfg.strategy.min_credit if cfg.strategy.min_credit is not None else meta.min_tick
             if entry_price >= 0 and entry_price < min_credit:
@@ -394,6 +618,7 @@ def run_options_backtest(
                     product,
                     mode="mark",
                     calibration=calibration,
+                    trade_day=trade_day,
                 )
                 package = OptionPackage(
                     product=product,
@@ -439,6 +664,7 @@ def run_options_backtest(
                 product,
                 mode="exit",
                 calibration=calibration,
+                trade_day=tape.trade_dates[-1],
             )
             _close_trade(trade, prev_bar.ts, exit_debit, "end", trades)
             cash += (
@@ -503,6 +729,8 @@ def _trade_value(
     min_tick: float,
     product: OptionProductFacts,
     calibration,
+    *,
+    trade_day: date | None = None,
 ) -> float:
     return _trade_value_from_spec(
         trade,
@@ -514,6 +742,7 @@ def _trade_value(
         product,
         mode="mark",
         calibration=calibration,
+        trade_day=trade_day,
     )
 
 
@@ -527,8 +756,9 @@ def _trade_value_from_spec(
     product: OptionProductFacts,
     mode: str,
     calibration,
+    trade_day: date | None = None,
 ) -> float:
-    trade_day = _trade_date(bar.ts)
+    trade_day = trade_day or _trade_date(bar.ts)
     dte_days = max((spec.expiry - trade_day).days, 0)
     if calibration:
         surface_params = calibration.surface_params_asof(dte_days, trade_day.isoformat(), surface_params)
