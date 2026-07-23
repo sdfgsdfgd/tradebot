@@ -520,3 +520,63 @@ def test_backtest_pending_state_mutation_matches_shared_transition_table() -> No
         else:
             assert next_exit_reason == "", scenario
             assert next_exit_due_ts is None, scenario
+
+
+def test_backtest_entry_basis_reconciliation_matches_shared_fill_table() -> None:
+    import inspect
+    import math
+
+    from tradebot.backtest import engine as backtest_engine
+    from tradebot.spot import lifecycle as lifecycle_module
+
+    reconciler = getattr(lifecycle_module, "reconcile_spot_entry_basis", None)
+    assert callable(reconciler), "missing canonical reconcile_spot_entry_basis seam"
+
+    state_type = getattr(lifecycle_module, "SpotEntryBasisState", None)
+    assert state_type is not None, "missing typed SpotEntryBasisState contract"
+
+    cases = [
+        ("initial_long_fill", 0.0, None, 10.0, 100.0, None, None, 10.0, 100.0, "fill"),
+        ("initial_short_fill", 0.0, None, -4.0, 50.0, None, None, -4.0, 50.0, "fill"),
+        ("partial_entry_cancel_with_fill", 0.0, None, 3.0, 101.0, None, None, 3.0, 101.0, "fill"),
+        ("same_direction_scale_in", 10.0, 100.0, 3.0, 110.0, None, None, 13.0, (10.0 * 100.0 + 3.0 * 110.0) / 13.0, "fill"),
+        ("scale_out_preserves_basis", 10.0, 100.0, -4.0, 120.0, None, None, 6.0, 100.0, "fill"),
+        ("flat_clears_basis", 6.0, 100.0, -6.0, 121.0, None, None, 0.0, None, "flat"),
+        ("overclose_flip_resets_basis", 6.0, 100.0, -9.0, 121.0, None, None, -3.0, 121.0, "fill"),
+        ("reconnect_duplicate_fill_noop", 13.0, (10.0 * 100.0 + 3.0 * 110.0) / 13.0, 0.0, 110.0, None, None, 13.0, (10.0 * 100.0 + 3.0 * 110.0) / 13.0, "fill"),
+        ("broker_average_cost_authoritative", 13.0, (10.0 * 100.0 + 3.0 * 110.0) / 13.0, 0.0, None, 13.0, 102.5, 13.0, 102.5, "broker_average_cost"),
+    ]
+
+    for (
+        scenario,
+        previous_qty,
+        previous_basis,
+        fill_delta_qty,
+        fill_price,
+        broker_qty,
+        broker_average_cost,
+        expected_qty,
+        expected_basis,
+        expected_source,
+    ) in cases:
+        state = reconciler(
+            previous_qty=previous_qty,
+            previous_basis_price=previous_basis,
+            fill_delta_qty=fill_delta_qty,
+            fill_price=fill_price,
+            broker_qty=broker_qty,
+            broker_average_cost=broker_average_cost,
+        )
+        assert isinstance(state, state_type), scenario
+        assert math.isclose(float(state.quantity), expected_qty, rel_tol=0.0, abs_tol=1e-12), scenario
+        if expected_basis is None:
+            assert state.basis_price is None, scenario
+        else:
+            assert state.basis_price is not None, scenario
+            assert math.isclose(float(state.basis_price), expected_basis, rel_tol=0.0, abs_tol=1e-12), scenario
+        assert str(state.source) == expected_source, scenario
+
+    initial_source = inspect.getsource(backtest_engine._spot_try_open_entry)
+    resize_source = inspect.getsource(backtest_engine._spot_apply_resize_trade)
+    assert "reconcile_spot_entry_basis(" in initial_source
+    assert "reconcile_spot_entry_basis(" in resize_source

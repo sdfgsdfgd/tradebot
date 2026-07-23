@@ -143,7 +143,7 @@
         "tests/test_backtest_trade_date_semantics.py",
         "tests/test_live_signal_exit_continuum.py"
       ],
-      "next": "Add identical instant-based UTC\u2194ET paired cases across DST."
+      "next": "Add identical instant-based UTC↔ET paired cases across DST."
     },
     {
       "id": "spot-v1.deferred-entry-planning",
@@ -254,7 +254,7 @@
         "tests/test_client_market_data_fallbacks.py",
         "tests/test_ui_futures_detail_flow.py"
       ],
-      "next": "Add spot-specific staged\u2192send-error/cancel/inactive/partial/fill scenarios."
+      "next": "Add spot-specific staged→send-error/cancel/inactive/partial/fill scenarios."
     },
     {
       "id": "spot-v1.resize-mutation-accounting-adaptation",
@@ -324,17 +324,25 @@
       "id": "spot-v1.entry-basis-reconciliation",
       "subsystem": "backtest-simulation-accounting",
       "capability": "Maintain equivalent economic entry basis after fills and scale-ins.",
-      "classification": "unproven",
-      "status": "unproven",
-      "shared_surface": "position lifecycle trace",
-      "backtest_surface": "SpotTrade.entry_price weighted resize basis",
-      "live_surface": "execution fill, limit fallback and broker averageCost",
+      "classification": "shared-covered",
+      "status": "aligned",
+      "shared_surface": "reconcile_spot_entry_basis",
+      "backtest_surface": "_spot_try_open_entry and _spot_apply_resize_trade",
+      "live_surface": "fill cursor adapter and broker portfolio reconciliation",
       "evidence": [
+        "tradebot/spot/lifecycle.py::reconcile_spot_entry_basis",
+        "tradebot/backtest/engine.py::_spot_try_open_entry",
         "tradebot/backtest/engine.py::_spot_apply_resize_trade",
-        "tradebot/ui/bot_engine_runtime.py::BotEngineRuntimeMixin._chase_orders_tick"
+        "tradebot/ui/bot_engine_runtime.py::BotEngineRuntimeMixin._apply_spot_entry_basis_fill",
+        "tradebot/ui/bot_screen/positions.py::BotPositionsMixin._apply_spot_broker_entry_basis",
+        "tradebot/ui/bot_screen/positions.py::BotPositionsMixin._refresh_positions"
       ],
-      "tests": [],
-      "next": "Define normalized economic basis and test partial/multiple fills."
+      "tests": [
+        "tests/test_spot_summary_parity.py::test_backtest_entry_basis_reconciliation_matches_shared_fill_table",
+        "tests/test_live_signal_exit_continuum.py::test_live_entry_basis_reconciliation_matches_shared_fill_table",
+        "tests/test_live_signal_exit_continuum.py::test_live_broker_refresh_clears_entry_basis_without_open_position"
+      ],
+      "next": "Keep cumulative partial-fill, reconnect, scale-in/out, sign-flip, broker-average-cost and authoritative-flat receipts current."
     },
     {
       "id": "spot-v1.trace-projection-parity",

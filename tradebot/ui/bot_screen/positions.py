@@ -9,6 +9,7 @@ from ib_insync import Contract, PortfolioItem
 from rich.text import Text
 
 from ..bot_models import _BotInstance
+from ...spot.lifecycle import SpotEntryBasisState, reconcile_spot_entry_basis
 from ..common import (
     _SECTION_TYPES,
     _cost_basis,
@@ -93,6 +94,26 @@ class BotPositionsMixin:
             self._refresh_orders_table()
             self._refresh_logs_table()
 
+    @staticmethod
+    def _apply_spot_broker_entry_basis(
+        instance: _BotInstance,
+        item: PortfolioItem,
+    ) -> SpotEntryBasisState:
+        state = reconcile_spot_entry_basis(
+            previous_qty=float(instance.spot_entry_basis_qty or 0.0),
+            previous_basis_price=instance.spot_entry_basis_price,
+            fill_delta_qty=0.0,
+            fill_price=None,
+            broker_qty=getattr(item, "position", None),
+            broker_average_cost=getattr(item, "averageCost", None),
+        )
+        instance.spot_entry_basis_qty = float(state.quantity)
+        instance.spot_entry_basis_price = (
+            float(state.basis_price) if state.basis_price is not None else None
+        )
+        instance.spot_entry_basis_source = str(state.source)
+        return state
+
     async def _refresh_positions(self) -> None:
         try:
             items = await self._client.fetch_portfolio()
@@ -101,6 +122,43 @@ class BotPositionsMixin:
             return
         self._positions = [item for item in items if item.contract.secType in _SECTION_TYPES]
         self._positions.sort(key=_portfolio_sort_key, reverse=True)
+        for instance in list(getattr(self, "_instances", []) or []):
+            strategy = (
+                instance.strategy
+                if isinstance(instance.strategy, dict)
+                else {}
+            )
+            instrument = str(
+                strategy.get("instrument", "options") or "options"
+            ).strip().lower()
+            if instrument != "spot":
+                continue
+            matches = self._spot_instance_positions(instance)
+            if not matches:
+                flat_state = reconcile_spot_entry_basis(
+                    previous_qty=float(instance.spot_entry_basis_qty or 0.0),
+                    previous_basis_price=instance.spot_entry_basis_price,
+                    fill_delta_qty=0.0,
+                    fill_price=None,
+                    broker_qty=0.0,
+                    broker_average_cost=None,
+                )
+                instance.spot_entry_basis_qty = float(flat_state.quantity)
+                instance.spot_entry_basis_price = (
+                    float(flat_state.basis_price)
+                    if flat_state.basis_price is not None
+                    else None
+                )
+                instance.spot_entry_basis_source = str(flat_state.source)
+                continue
+            item = matches[0]
+            contract = getattr(item, "contract", None)
+            sec_type = str(
+                getattr(contract, "secType", "") or ""
+            ).strip().upper()
+            if sec_type != "STK":
+                continue
+            self._apply_spot_broker_entry_basis(instance, item)
         await self._prime_position_tickers()
         self._refresh_instances_table(refresh_dependents=False)
         self._refresh_orders_table()

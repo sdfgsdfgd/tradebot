@@ -15,6 +15,8 @@ with a normalized gate/result payload for consistent diagnostics.
 
 from __future__ import annotations
 
+import math
+
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import date, datetime
@@ -55,6 +57,116 @@ class SpotLifecycleDecision:
         if self.spot_intent is not None:
             payload["spot_intent"] = self.spot_intent.as_payload()
         return payload
+
+
+@dataclass(frozen=True)
+class SpotEntryBasisState:
+    quantity: float
+    basis_price: float | None
+    source: str
+
+
+def reconcile_spot_entry_basis(
+    *,
+    previous_qty: float,
+    previous_basis_price: float | None,
+    fill_delta_qty: float = 0.0,
+    fill_price: float | None = None,
+    broker_qty: float | None = None,
+    broker_average_cost: float | None = None,
+) -> SpotEntryBasisState:
+    epsilon = 1e-12
+
+    def _number(value: object) -> float | None:
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            return None
+        if not math.isfinite(number):
+            return None
+        return number
+
+    previous_quantity = _number(previous_qty) or 0.0
+    previous_basis = _number(previous_basis_price)
+    if previous_basis is not None and previous_basis <= 0.0:
+        previous_basis = None
+
+    authoritative_quantity = _number(broker_qty)
+    authoritative_basis = _number(broker_average_cost)
+    if authoritative_basis is not None and authoritative_basis <= 0.0:
+        authoritative_basis = None
+    if authoritative_quantity is not None:
+        if abs(authoritative_quantity) <= epsilon:
+            return SpotEntryBasisState(quantity=0.0, basis_price=None, source="flat")
+        if authoritative_basis is not None:
+            return SpotEntryBasisState(
+                quantity=float(authoritative_quantity),
+                basis_price=float(authoritative_basis),
+                source="broker_average_cost",
+            )
+        return SpotEntryBasisState(
+            quantity=float(authoritative_quantity),
+            basis_price=float(previous_basis) if previous_basis is not None else None,
+            source="fill" if previous_basis is not None else "broker_position",
+        )
+
+    delta = _number(fill_delta_qty) or 0.0
+    execution_basis = _number(fill_price)
+    if execution_basis is not None and execution_basis <= 0.0:
+        execution_basis = None
+    next_quantity = float(previous_quantity + delta)
+
+    if abs(delta) <= epsilon:
+        if abs(previous_quantity) <= epsilon:
+            return SpotEntryBasisState(quantity=0.0, basis_price=None, source="flat")
+        return SpotEntryBasisState(
+            quantity=float(previous_quantity),
+            basis_price=float(previous_basis) if previous_basis is not None else None,
+            source="fill" if previous_basis is not None else "unknown",
+        )
+    if abs(next_quantity) <= epsilon:
+        return SpotEntryBasisState(quantity=0.0, basis_price=None, source="flat")
+    if abs(previous_quantity) <= epsilon:
+        return SpotEntryBasisState(
+            quantity=float(next_quantity),
+            basis_price=float(execution_basis) if execution_basis is not None else None,
+            source="fill",
+        )
+
+    same_direction = (previous_quantity > 0.0 and next_quantity > 0.0) or (
+        previous_quantity < 0.0 and next_quantity < 0.0
+    )
+    if not same_direction:
+        return SpotEntryBasisState(
+            quantity=float(next_quantity),
+            basis_price=float(execution_basis) if execution_basis is not None else None,
+            source="fill",
+        )
+
+    previous_abs = abs(float(previous_quantity))
+    next_abs = abs(float(next_quantity))
+    if next_abs > previous_abs:
+        added_abs = float(next_abs - previous_abs)
+        if previous_basis is not None and execution_basis is not None:
+            weighted_basis = (
+                (float(previous_basis) * previous_abs)
+                + (float(execution_basis) * added_abs)
+            ) / next_abs
+        elif execution_basis is not None:
+            weighted_basis = float(execution_basis)
+        else:
+            weighted_basis = previous_basis
+        return SpotEntryBasisState(
+            quantity=float(next_quantity),
+            basis_price=float(weighted_basis) if weighted_basis is not None else None,
+            source="fill",
+        )
+
+    return SpotEntryBasisState(
+        quantity=float(next_quantity),
+        basis_price=float(previous_basis) if previous_basis is not None else None,
+        source="fill",
+    )
 
 
 @dataclass(frozen=True)

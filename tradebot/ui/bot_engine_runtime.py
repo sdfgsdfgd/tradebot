@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from ..spot.lifecycle import SpotEntryBasisState, reconcile_spot_entry_basis
+
 import asyncio
 from datetime import datetime, timedelta
 
@@ -155,6 +157,49 @@ class BotEngineRuntimeMixin:
             _safe_num(getattr(order, "ask", None)),
             _safe_num(getattr(order, "last", None)),
         )
+
+    @staticmethod
+    def _apply_spot_entry_basis_fill(
+        instance: _BotInstance,
+        order: _BotOrder,
+        *,
+        cumulative_filled: float,
+        fill_price: float | None,
+    ) -> SpotEntryBasisState:
+        try:
+            cumulative = max(0.0, float(cumulative_filled or 0.0))
+        except (TypeError, ValueError):
+            cumulative = 0.0
+        try:
+            applied = max(0.0, float(order.basis_applied_filled_qty or 0.0))
+        except (TypeError, ValueError):
+            applied = 0.0
+        incremental_abs = max(0.0, float(cumulative - applied))
+        action = str(order.action or "").strip().upper()
+        signed_delta = (
+            float(incremental_abs)
+            if action == "BUY"
+            else -float(incremental_abs)
+            if action == "SELL"
+            else 0.0
+        )
+        state = reconcile_spot_entry_basis(
+            previous_qty=float(instance.spot_entry_basis_qty or 0.0),
+            previous_basis_price=instance.spot_entry_basis_price,
+            fill_delta_qty=float(signed_delta),
+            fill_price=fill_price,
+            broker_qty=None,
+            broker_average_cost=None,
+        )
+        if incremental_abs > 1e-12:
+            instance.spot_entry_basis_qty = float(state.quantity)
+            instance.spot_entry_basis_price = (
+                float(state.basis_price) if state.basis_price is not None else None
+            )
+            instance.spot_entry_basis_source = str(state.source)
+            instance.spot_entry_basis_set_ts = _now_et_naive()
+            order.basis_applied_filled_qty = float(cumulative)
+        return state
 
     async def _chase_orders_tick(self) -> None:
         try:
@@ -448,8 +493,27 @@ class BotEngineRuntimeMixin:
                         done_data["resize_bar_ts"] = (
                             signal_bar_ts.isoformat() if signal_bar_ts is not None else None
                         )
-                    if status == "Filled" and sec_type == "STK":
-                        if intent == "enter":
+                    if sec_type == "STK" and intent in ("enter", "resize"):
+                        try:
+                            status_filled = max(
+                                0.0,
+                                float(
+                                    getattr(
+                                        getattr(trade, "orderStatus", None),
+                                        "filled",
+                                        0.0,
+                                    )
+                                    or 0.0
+                                ),
+                            )
+                        except (TypeError, ValueError):
+                            status_filled = 0.0
+                        cumulative_filled = max(
+                            float(order.filled_qty or 0.0),
+                            float(order.executed_qty or 0.0),
+                            float(status_filled),
+                        )
+                        if cumulative_filled > float(order.basis_applied_filled_qty or 0.0) + 1e-12:
                             basis_price = None
                             basis_source = None
                             for fill in reversed(list(getattr(trade, "fills", []) or [])):
@@ -463,19 +527,45 @@ class BotEngineRuntimeMixin:
                                     basis_source = "execution_fill"
                                     break
                             if basis_price is None:
+                                avg_fill = getattr(
+                                    getattr(trade, "orderStatus", None),
+                                    "avgFillPrice",
+                                    None,
+                                )
                                 try:
-                                    px_f = float(order.limit_price)
+                                    avg_fill_f = float(avg_fill) if avg_fill is not None else None
                                 except (TypeError, ValueError):
-                                    px_f = None
-                                if px_f is not None and px_f > 0:
-                                    basis_price = float(px_f)
+                                    avg_fill_f = None
+                                if avg_fill_f is not None and avg_fill_f > 0:
+                                    basis_price = float(avg_fill_f)
+                                    basis_source = "average_fill"
+                            if basis_price is None:
+                                try:
+                                    limit_f = float(order.limit_price)
+                                except (TypeError, ValueError):
+                                    limit_f = None
+                                if limit_f is not None and limit_f > 0:
+                                    basis_price = float(limit_f)
                                     basis_source = "order_limit"
                             if basis_price is not None:
-                                instance.spot_entry_basis_price = float(basis_price)
-                                instance.spot_entry_basis_source = str(basis_source or "entry_fill")
-                                instance.spot_entry_basis_set_ts = _now_et_naive()
-                                done_data["entry_basis_price"] = float(basis_price)
-                                done_data["entry_basis_source"] = str(instance.spot_entry_basis_source)
+                                basis_state = self._apply_spot_entry_basis_fill(
+                                    instance,
+                                    order,
+                                    cumulative_filled=float(cumulative_filled),
+                                    fill_price=float(basis_price),
+                                )
+                                done_data["entry_basis_qty"] = float(basis_state.quantity)
+                                done_data["entry_basis_price"] = (
+                                    float(basis_state.basis_price)
+                                    if basis_state.basis_price is not None
+                                    else None
+                                )
+                                done_data["entry_basis_source"] = str(basis_state.source)
+                                done_data["entry_basis_fill_source"] = str(
+                                    basis_source or "fill"
+                                )
+                    if status == "Filled" and sec_type == "STK":
+                        if intent == "enter":
                             journal = getattr(order, "journal", None)
                             entry_branch = None
                             if isinstance(journal, dict):
@@ -487,6 +577,7 @@ class BotEngineRuntimeMixin:
                         elif intent == "resize":
                             done_data["resize_applied"] = True
                         elif intent == "exit":
+                            instance.spot_entry_basis_qty = 0.0
                             instance.spot_entry_basis_price = None
                             instance.spot_entry_basis_source = None
                             instance.spot_entry_basis_set_ts = None

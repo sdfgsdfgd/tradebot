@@ -357,10 +357,10 @@ Source and references must be saturated before mutation, in this order:
 
 - Milestone base: `9261954424c4f1fe6f40a38bc3cf8aa9245737b5`.
 - Frozen capabilities: **20**.
-- Semantic alignment: **17/20 (85.0%)**.
-- Shared-covered: **11/20 (55.0%)**.
+- Semantic alignment: **18/20 (90.0%)**.
+- Shared-covered: **12/20 (60.0%)**.
 - Intentional adapters: **6/20 (30.0%)**.
-- Unproven: **3/20 (15.0%)**.
+- Unproven: **2/20 (10.0%)**.
 - Confirmed gaps: **0/20 (0.0%)**.
 - Machine-readable source: `tests/ledgers/parity_capabilities.json`.
 
@@ -382,7 +382,7 @@ Source and references must be saturated before mutation, in this order:
 | `spot-v1.resize-mutation-accounting-adaptation` | `backtest-simulation-accounting` | `intentional-adapter` | `aligned` | Add broker-replay partial/full resize position and basis receipts. |
 | `spot-v1.sizing-input-assembly-parity` | `policy-risk-sizing` | `shared-covered` | `aligned` | Add direct runtime capture for the backtest resize owner and non-default regime2/shock/risk value vectors. |
 | `spot-v1.pending-state-mutation-parity` | `live-execution-orders` | `shared-covered` | `aligned` | Extend paired transition vectors to partial-fill, reconnect and reconciliation states. |
-| `spot-v1.entry-basis-reconciliation` | `backtest-simulation-accounting` | `unproven` | `unproven` | Define normalized economic basis and test partial/multiple fills. |
+| `spot-v1.entry-basis-reconciliation` | `backtest-simulation-accounting` | `shared-covered` | `aligned` | Keep cumulative partial-fill, reconnect, scale-in/out, sign-flip, broker-average-cost and authoritative-flat receipts current. |
 | `spot-v1.trace-projection-parity` | `operator-ui-observability` | `unproven` | `unproven` | Normalize receipt schema and compare scenario snapshots. |
 | `spot-v1.exit-resize-adapter-receipts` | `verification-capability-evolution` | `unproven` | `unproven` | Build deterministic adapter harness and optional Gateway replay suite. |
 | `spot-v1.resize-cooldown-fill-ownership` | `live-execution-orders` | `intentional-adapter` | `aligned` | Extend successful-fill ownership receipts to partial fills, reconnect recovery and broker-position reconciliation. |
@@ -423,6 +423,20 @@ Source and references must be saturated before mutation, in this order:
 
 - Publication: pending-state milestone commit `29256f119f8c522b4dcc669246bd94e3a96e2328` (`Centralize spot pending state mutation`) advanced `origin/main` from `53ebd8e4a3de32f745ed711b8ca7eb58612dddfe`; explicit SSH push and an independent fresh fetch verified the same commit, parent, subject, exact seven-path scope and diff SHA `9052b5f4a59112e3fd95a7b7e0c16fa5f92bc5aac9e62ed626880c840e8823ef`.
 - Publication receipt: `62c78a3dfb5cffc7d5ce177f388ee090dc2724d45fa0164d442a022e6640419e`; independent pre-publication validation receipt `d17fb3c246973b51df3b91db500d118145e27dffa9ccc5ea310aa71b3235af4f`; the sibling workspace finished clean and the original five-path dirty workspace remained unchanged.
+
+### Wave 4 resolution: canonical entry-basis reconciliation
+
+- Canonical owner: `tradebot/spot/lifecycle.py::SpotEntryBasisState` and `tradebot/spot/lifecycle.py::reconcile_spot_entry_basis`.
+- Backtest adapters: `tradebot/backtest/engine.py::_spot_try_open_entry` and `tradebot/backtest/engine.py::_spot_apply_resize_trade`.
+- Live adapters: `tradebot/ui/bot_engine_runtime.py::BotEngineRuntimeMixin._apply_spot_entry_basis_fill`, `tradebot/ui/bot_screen/positions.py::BotPositionsMixin._apply_spot_broker_entry_basis`, and `tradebot/ui/bot_screen/positions.py::BotPositionsMixin._refresh_positions`.
+- The shared nine-row matrix covers initial long/short fills, terminal partial entry, same-direction scale-in, scale-out, flat, overclose sign flip, reconnect duplicate no-op, and broker-average-cost authority.
+- Live cumulative-fill application uses `_BotOrder.basis_applied_filled_qty`; signed increments derive from typed order action; `_BotInstance.spot_entry_basis_qty` provides the prior inventory state.
+- Successful broker snapshots project non-flat `position`/`averageCost`, explicit zero rows, and omitted positions; a failed portfolio fetch preserves prior basis and emits the existing status error.
+- Persistent evidence: `tests/test_spot_summary_parity.py::test_backtest_entry_basis_reconciliation_matches_shared_fill_table`, `tests/test_live_signal_exit_continuum.py::test_live_entry_basis_reconciliation_matches_shared_fill_table`, and `tests/test_live_signal_exit_continuum.py::test_live_broker_refresh_clears_entry_basis_without_open_position`.
+- TDD receipts: corrected paired RED `c01a766222592ae32c2bfb7e93010b9727cc39cd62cf81d18a0f4b1496995812`; initial implementation GREEN `cec2336d408242477042fb87d30e15eb9bb73f166b2475f6c290235e6b50833e`; broker-flat RED `a0efffeec1a77e7398c96c0add4fae2d32ef3633a80ca1f374aa4740d5db540f`; broker-flat GREEN `691b45d947ea8bc93a6fe8c5f1ac884decb44081ef971982cc7235de66d7e5db`; independent promotion boundary `31551d5218284a8c213e8ef20fb5fceb10e773dca795a8e720f89e5187744dcf`.
+- Full deterministic verification: `610 passed, 4 deselected`; zero sockets; test diff SHA `85602f6d84c7fd2540ac7e6ba135a78d4010f02993d300e5d9949e99c91c3f11`; production diff SHA `e4d5041fb8fadd871a478d08cb29e4835539ef7675e3d8e76a3e76d71596ec08`; combined implementation diff SHA `252c3b1de8822210fb479c2c98aabc8ee3e99e5d2b6423d04dc9c604d973a138`.
+- README remained a certified no-op because its crosswalk validator is backed by `tests/ledgers/capability_contracts.json`, not this parity ledger.
+- `spot-v1.entry-basis-reconciliation` moved from `unproven` to aligned `shared-covered`; the frozen denominator is now 18/20 aligned, 12/20 shared-covered, 6/20 intentional adapters and 2/20 unproven.
 
 <!-- END: TRADEBOT_PARITY_FIRST_SLICE_V1 -->
 

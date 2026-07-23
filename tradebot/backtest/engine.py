@@ -45,6 +45,7 @@ from ..spot.lifecycle import (
     decide_flat_position_intent,
     decide_open_position_intent,
     decide_pending_next_open,
+    reconcile_spot_entry_basis,
     SpotPendingMutationPlan,
     plan_pending_mutation,
 )
@@ -1586,11 +1587,24 @@ def _spot_try_open_entry(
     if not ok:
         return None
 
+    entry_basis = reconcile_spot_entry_basis(
+        previous_qty=0.0,
+        previous_basis_price=None,
+        fill_delta_qty=float(signed_qty),
+        fill_price=float(entry_price),
+        broker_qty=None,
+        broker_average_cost=None,
+    )
+
     candidate = SpotTrade(
         symbol=cfg.strategy.symbol,
-        qty=int(signed_qty),
+        qty=int(round(entry_basis.quantity)),
         entry_time=entry_time,
-        entry_price=float(entry_price),
+        entry_price=float(
+            entry_basis.basis_price
+            if entry_basis.basis_price is not None
+            else entry_price
+        ),
         entry_branch=str(entry_branch) if entry_branch in ("a", "b") else None,
         decision_trace=decision_trace_payload,
         base_profit_target_pct=base_profit_target_pct,
@@ -1641,21 +1655,17 @@ def _spot_apply_resize_trade(
     )
     next_cash = float(cash) - (int(delta) * float(resize_price) * float(multiplier))
 
-    old_abs = abs(int(old_qty))
-    new_abs = abs(int(new_qty))
-    if (
-        old_qty != 0
-        and ((old_qty > 0 and new_qty > 0) or (old_qty < 0 and new_qty < 0))
-        and new_abs > old_abs
-    ):
-        # Scale-in keeps weighted entry basis for remaining inventory.
-        weight_old = float(old_abs)
-        weight_add = float(new_abs - old_abs)
-        if (weight_old + weight_add) > 0:
-            trade.entry_price = (
-                (float(trade.entry_price) * weight_old)
-                + (float(resize_price) * weight_add)
-            ) / (weight_old + weight_add)
+    basis_state = reconcile_spot_entry_basis(
+        previous_qty=float(old_qty),
+        previous_basis_price=float(trade.entry_price),
+        fill_delta_qty=float(delta),
+        fill_price=float(resize_price),
+        broker_qty=None,
+        broker_average_cost=None,
+    )
+    new_qty = int(round(basis_state.quantity))
+    if basis_state.basis_price is not None:
+        trade.entry_price = float(basis_state.basis_price)
     trade.qty = int(new_qty)
 
     old_margin = float(trade.margin_required or 0.0)
