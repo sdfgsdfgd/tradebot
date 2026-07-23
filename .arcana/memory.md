@@ -357,10 +357,10 @@ Source and references must be saturated before mutation, in this order:
 
 - Milestone base: `9261954424c4f1fe6f40a38bc3cf8aa9245737b5`.
 - Frozen capabilities: **20**.
-- Semantic alignment: **16/20 (80.0%)**.
-- Shared-covered: **10/20 (50.0%)**.
+- Semantic alignment: **17/20 (85.0%)**.
+- Shared-covered: **11/20 (55.0%)**.
 - Intentional adapters: **6/20 (30.0%)**.
-- Unproven: **4/20 (20.0%)**.
+- Unproven: **3/20 (15.0%)**.
 - Confirmed gaps: **0/20 (0.0%)**.
 - Machine-readable source: `tests/ledgers/parity_capabilities.json`.
 
@@ -381,7 +381,7 @@ Source and references must be saturated before mutation, in this order:
 | `spot-v1.order-submission-status-adaptation` | `live-execution-orders` | `intentional-adapter` | `aligned` | Add spot-specific staged→send-error/cancel/inactive/partial/fill scenarios. |
 | `spot-v1.resize-mutation-accounting-adaptation` | `backtest-simulation-accounting` | `intentional-adapter` | `aligned` | Add broker-replay partial/full resize position and basis receipts. |
 | `spot-v1.sizing-input-assembly-parity` | `policy-risk-sizing` | `shared-covered` | `aligned` | Add direct runtime capture for the backtest resize owner and non-default regime2/shock/risk value vectors. |
-| `spot-v1.pending-state-mutation-parity` | `live-execution-orders` | `unproven` | `unproven` | Add identical pending-state transition tables for both adapters. |
+| `spot-v1.pending-state-mutation-parity` | `live-execution-orders` | `shared-covered` | `aligned` | Extend paired transition vectors to partial-fill, reconnect and reconciliation states. |
 | `spot-v1.entry-basis-reconciliation` | `backtest-simulation-accounting` | `unproven` | `unproven` | Define normalized economic basis and test partial/multiple fills. |
 | `spot-v1.trace-projection-parity` | `operator-ui-observability` | `unproven` | `unproven` | Normalize receipt schema and compare scenario snapshots. |
 | `spot-v1.exit-resize-adapter-receipts` | `verification-capability-evolution` | `unproven` | `unproven` | Build deterministic adapter harness and optional Gateway replay suite. |
@@ -409,6 +409,17 @@ Source and references must be saturated before mutation, in this order:
 - `spot-v1.sizing-input-assembly-parity` moved from `unproven` to aligned `shared-covered`.
 - Publication: code milestone commit `737ecb7fb1b00d4a5bdb55d1d479c463e5f1cd06` (`Centralize spot sizing inputs`) advanced `origin/main` from `bf593fe06afc61f5db42df3446bae5a0b763200f`; an independent fresh fetch verified the same commit, parent, subject, and exact nine-path scope.
 - Publication receipt: `976166f6b39f4eccacbefde29e7de501fa90735c2e2328c117f1202c41530663`; independent pre-publication validation receipt `4144f35c05fdd514f1100f91ed74595b677e871ede3909c1a175c58fe3bfc829`; the sibling workspace finished clean and the original five-path dirty workspace remained unchanged.
+
+### Wave 3 resolution: canonical pending-state mutation
+
+- Canonical owner: `tradebot/spot/lifecycle.py::SpotPendingMutationPlan` and `tradebot/spot/lifecycle.py::plan_pending_mutation`.
+- Adapter owners: `tradebot/backtest/engine.py::_spot_apply_pending_mutation` and `tradebot/ui/bot_signal_runtime.py::BotSignalRuntimeMixin._apply_pending_mutation`.
+- Ten identical pending-entry/exit scenarios proved UTC-backtest and ET-live plan parity, exact clear behavior, state preservation and queue projection.
+- Persistent evidence: `tests/test_spot_summary_parity.py::test_backtest_pending_state_mutation_matches_shared_transition_table` and `tests/test_live_signal_exit_continuum.py::test_live_pending_state_mutation_matches_shared_transition_table`.
+- TDD receipts: denominator `81433dc08dbbbcf45fab0b665a647e8e71a7a2fe22cea8d0a4b17a00fc2384c9`; semantic RED `a7018da57423f2700317b8393e4e1e521df6b215885901298cc2a6b675ccfcba`; implementation GREEN `3a73fbf4bc2896847700943e0f5b39e6ee66eef51ebd6236d80cdc0839a0a6c4`; value/full-suite GREEN `c1437db7b1d25d64aeacc6f6443294183bbec3a6d96bdcfc324e4eb56dcc88a0`.
+- Full deterministic verification: `606 passed, 4 deselected`; zero sockets; five-path implementation diff SHA `86942b1b459a5bf28ebc8cdd055dbfedff6b252cec6d53e5796189f771001cc4`.
+- Promotion boundary receipt: `38f85952542c44e660fa0a89560c3ed8e65e2b80f496e54b5da3f94251c72a53`; README remained a certified no-op because its crosswalk is owned by `tests/ledgers/capability_contracts.json`.
+- `spot-v1.pending-state-mutation-parity` moved from `unproven` to aligned `shared-covered`.
 
 <!-- END: TRADEBOT_PARITY_FIRST_SLICE_V1 -->
 

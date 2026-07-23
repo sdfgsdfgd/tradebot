@@ -413,3 +413,110 @@ def test_backtest_sizing_assemblies_delegate_via_typed_payload() -> None:
             "backtest sizing kernel still receives raw adapter fields: "
             f"{sorted(raw_keywords)}"
         )
+
+
+def test_backtest_pending_state_mutation_matches_shared_transition_table() -> None:
+    import inspect
+    from datetime import datetime, timedelta
+
+    from tradebot.backtest import engine as backtest_engine
+    from tradebot.spot import lifecycle as lifecycle_module
+
+    planner = getattr(lifecycle_module, "plan_pending_mutation", None)
+    assert callable(planner), "missing canonical plan_pending_mutation seam"
+
+    plan_type = getattr(lifecycle_module, "SpotPendingMutationPlan", None)
+    assert plan_type is not None, "missing typed SpotPendingMutationPlan contract"
+
+    apply_mutation = getattr(backtest_engine, "_spot_apply_pending_mutation", None)
+    assert callable(apply_mutation), "missing backtest pending-mutation adapter"
+
+    loop_source = inspect.getsource(backtest_engine._run_spot_backtest_exec_loop)
+    assert "plan_pending_mutation(" in loop_source
+    assert "_spot_apply_pending_mutation(" in loop_source
+
+    now = datetime(2026, 7, 20, 14, 0)
+    due_past = now - timedelta(minutes=1)
+    due_future = now + timedelta(minutes=1)
+    common = {
+        "now_ts": now,
+        "has_open": False,
+        "open_dir": None,
+        "pending_entry_dir": None,
+        "pending_entry_set_date": None,
+        "pending_entry_due_ts": None,
+        "pending_exit_reason": None,
+        "pending_exit_due_ts": None,
+        "risk_overlay_enabled": False,
+        "riskoff_today": False,
+        "riskpanic_today": False,
+        "riskpop_today": False,
+        "riskoff_mode": "hygiene",
+        "shock_dir_now": None,
+        "riskoff_end_hour": None,
+        "naive_ts_mode": "utc",
+    }
+    cases = [
+        ("no_pending", {}, {"clear_entry": False, "clear_exit": False, "queue_intent": None, "queue_direction": None, "queue_reason": None}),
+        ("exit_wait", {"has_open": True, "open_dir": "up", "pending_exit_reason": "flip", "pending_exit_due_ts": due_future}, {"clear_entry": False, "clear_exit": False, "queue_intent": None, "queue_direction": None, "queue_reason": None}),
+        ("exit_due_open", {"has_open": True, "open_dir": "up", "pending_exit_reason": "flip", "pending_exit_due_ts": due_past}, {"clear_entry": False, "clear_exit": True, "queue_intent": "exit", "queue_direction": "up", "queue_reason": "flip"}),
+        ("exit_due_flat", {"pending_exit_reason": "flip", "pending_exit_due_ts": due_past}, {"clear_entry": False, "clear_exit": True, "queue_intent": None, "queue_direction": None, "queue_reason": None}),
+        ("entry_wait", {"pending_entry_dir": "up", "pending_entry_set_date": now.date(), "pending_entry_due_ts": due_future}, {"clear_entry": False, "clear_exit": False, "queue_intent": None, "queue_direction": None, "queue_reason": None}),
+        ("entry_due_flat", {"pending_entry_dir": "up", "pending_entry_set_date": now.date(), "pending_entry_due_ts": due_past}, {"clear_entry": True, "clear_exit": False, "queue_intent": "enter", "queue_direction": "up", "queue_reason": "next_open"}),
+        ("entry_due_open", {"has_open": True, "open_dir": "up", "pending_entry_dir": "down", "pending_entry_set_date": now.date(), "pending_entry_due_ts": due_past}, {"clear_entry": True, "clear_exit": False, "queue_intent": None, "queue_direction": None, "queue_reason": None}),
+        ("entry_cancel_date_roll", {"pending_entry_dir": "up", "pending_entry_set_date": now.date() - timedelta(days=1), "pending_entry_due_ts": due_future, "risk_overlay_enabled": True, "riskoff_today": True}, {"clear_entry": True, "clear_exit": False, "queue_intent": None, "queue_direction": None, "queue_reason": None}),
+        ("entry_cancel_directional_mismatch", {"pending_entry_dir": "up", "pending_entry_set_date": now.date(), "pending_entry_due_ts": due_future, "risk_overlay_enabled": True, "riskoff_today": True, "riskoff_mode": "directional", "shock_dir_now": "down"}, {"clear_entry": True, "clear_exit": False, "queue_intent": None, "queue_direction": None, "queue_reason": None}),
+        ("entry_directional_match_wait", {"pending_entry_dir": "up", "pending_entry_set_date": now.date(), "pending_entry_due_ts": due_future, "risk_overlay_enabled": True, "riskoff_today": True, "riskoff_mode": "directional", "shock_dir_now": "up"}, {"clear_entry": False, "clear_exit": False, "queue_intent": None, "queue_direction": None, "queue_reason": None}),
+    ]
+
+    for scenario, overrides, expected in cases:
+        kwargs = dict(common)
+        kwargs.update(overrides)
+        decision = lifecycle_module.decide_pending_next_open(**kwargs)
+        mutation = planner(
+            decision,
+            pending_entry_direction=kwargs["pending_entry_dir"],
+            pending_exit_reason=kwargs["pending_exit_reason"],
+            open_dir=kwargs["open_dir"],
+        )
+        assert isinstance(mutation, plan_type), scenario
+        assert mutation.as_payload() == expected, scenario
+
+        if kwargs["pending_entry_dir"] in ("up", "down") and kwargs["pending_entry_due_ts"] is not None:
+            pending_entry = backtest_engine._SpotPendingEntry.from_signal(
+                direction=str(kwargs["pending_entry_dir"]),
+                branch=None,
+                set_date=kwargs["pending_entry_set_date"] or now.date(),
+                due_ts=kwargs["pending_entry_due_ts"],
+                snapshot=None,
+            )
+        else:
+            pending_entry = backtest_engine._SpotPendingEntry()
+
+        pending_exit_all = kwargs["pending_exit_due_ts"] is not None
+        pending_exit_reason = str(kwargs["pending_exit_reason"] or "")
+        pending_exit_due_ts = kwargs["pending_exit_due_ts"]
+
+        next_entry, next_exit_all, next_exit_reason, next_exit_due_ts = apply_mutation(
+            pending_entry=pending_entry,
+            pending_exit_all=pending_exit_all,
+            pending_exit_reason=pending_exit_reason,
+            pending_exit_due_ts=pending_exit_due_ts,
+            mutation=mutation,
+        )
+
+        assert next_entry.active is (pending_entry.active and not expected["clear_entry"]), scenario
+        if expected["clear_entry"]:
+            assert next_entry.direction is None and next_entry.due_ts is None, scenario
+        elif pending_entry.active:
+            assert next_entry.direction == pending_entry.direction, scenario
+            assert next_entry.due_ts == pending_entry.due_ts, scenario
+
+        expected_exit_active = pending_exit_all and not expected["clear_exit"]
+        assert next_exit_all is expected_exit_active, scenario
+        if expected_exit_active:
+            assert next_exit_reason == pending_exit_reason, scenario
+            assert next_exit_due_ts == pending_exit_due_ts, scenario
+        else:
+            assert next_exit_reason == "", scenario
+            assert next_exit_due_ts is None, scenario

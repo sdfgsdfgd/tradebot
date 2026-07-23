@@ -299,18 +299,26 @@
       "id": "spot-v1.pending-state-mutation-parity",
       "subsystem": "live-execution-orders",
       "capability": "Apply shared pending decisions to adapter state without stale or double-triggered entries/exits.",
-      "classification": "unproven",
-      "status": "unproven",
-      "shared_surface": "SpotLifecycleDecision pending_clear flags",
-      "backtest_surface": "pending local variables in canonical exec loop",
-      "live_surface": "_clear_pending_entry/_exit and queue-order mutation",
+      "classification": "shared-covered",
+      "status": "aligned",
+      "shared_surface": "SpotPendingMutationPlan and plan_pending_mutation",
+      "backtest_surface": "_spot_apply_pending_mutation in _run_spot_backtest_exec_loop",
+      "live_surface": "BotSignalRuntimeMixin._apply_pending_mutation in _auto_process_pending_next_open",
       "evidence": [
-        "Shared pending decision is consumed by both paths."
+        "tradebot/spot/lifecycle.py::SpotPendingMutationPlan",
+        "tradebot/spot/lifecycle.py::plan_pending_mutation",
+        "tradebot/backtest/engine.py::_spot_apply_pending_mutation",
+        "tradebot/ui/bot_signal_runtime.py::BotSignalRuntimeMixin._apply_pending_mutation",
+        "denominator receipt: 81433dc08dbbbcf45fab0b665a647e8e71a7a2fe22cea8d0a4b17a00fc2384c9",
+        "semantic RED receipt: a7018da57423f2700317b8393e4e1e521df6b215885901298cc2a6b675ccfcba",
+        "implementation GREEN receipt: 3a73fbf4bc2896847700943e0f5b39e6ee66eef51ebd6236d80cdc0839a0a6c4",
+        "value/full-suite GREEN receipt: c1437db7b1d25d64aeacc6f6443294183bbec3a6d96bdcfc324e4eb56dcc88a0"
       ],
       "tests": [
-        "tests/test_live_signal_exit_continuum.py"
+        "tests/test_spot_summary_parity.py::test_backtest_pending_state_mutation_matches_shared_transition_table",
+        "tests/test_live_signal_exit_continuum.py::test_live_pending_state_mutation_matches_shared_transition_table"
       ],
-      "next": "Add identical pending-state transition tables for both adapters."
+      "next": "Extend paired transition vectors to partial-fill, reconnect and reconciliation states."
     },
     {
       "id": "spot-v1.entry-basis-reconciliation",

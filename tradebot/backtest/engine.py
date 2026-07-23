@@ -45,6 +45,8 @@ from ..spot.lifecycle import (
     decide_flat_position_intent,
     decide_open_position_intent,
     decide_pending_next_open,
+    SpotPendingMutationPlan,
+    plan_pending_mutation,
 )
 from ..spot.fill_modes import (
     SPOT_FILL_MODE_CLOSE,
@@ -255,6 +257,24 @@ class _SpotPendingEntry:
             guard_inputs=dict(guard_inputs) if isinstance(guard_inputs, dict) else None,
         )
 
+
+def _spot_apply_pending_mutation(
+    *,
+    pending_entry: _SpotPendingEntry,
+    pending_exit_all: bool,
+    pending_exit_reason: str,
+    pending_exit_due_ts: datetime | None,
+    mutation: SpotPendingMutationPlan,
+) -> tuple[_SpotPendingEntry, bool, str, datetime | None]:
+    next_entry = _SpotPendingEntry() if mutation.clear_entry else pending_entry
+    if mutation.clear_exit:
+        return next_entry, False, "", None
+    return (
+        next_entry,
+        bool(pending_exit_all),
+        str(pending_exit_reason),
+        pending_exit_due_ts,
+    )
 
 @dataclass(frozen=True)
 class _SpotEntryEvidence:
@@ -2250,6 +2270,8 @@ def _run_spot_backtest_exec_loop(
             riskpop_today = False
 
         pending_decision = None
+        pending_mutation = None
+        filled_pending_entry = None
         if lifecycle_rows is not None or pending_entry.active or bool(pending_exit_all):
             open_dir_now = (
                 "up"
@@ -2293,14 +2315,33 @@ def _run_spot_backtest_exec_loop(
                 exec_idx=int(idx),
                 sig_idx=int(sig_idx) if sig_idx is not None else None,
             )
-        if pending_decision is not None and pending_decision.pending_clear_exit:
-            pending_exit_all = False
-            pending_exit_reason = ""
-            pending_exit_due_ts = None
+            pending_mutation = plan_pending_mutation(
+                pending_decision,
+                pending_entry_direction=pending_entry.direction,
+                pending_exit_reason=pending_exit_reason,
+                open_dir=open_dir_now,
+            )
+            filled_pending_entry = (
+                pending_entry
+                if pending_mutation.queue_intent == "enter" and pending_entry.active
+                else None
+            )
+            (
+                pending_entry,
+                pending_exit_all,
+                pending_exit_reason,
+                pending_exit_due_ts,
+            ) = _spot_apply_pending_mutation(
+                pending_entry=pending_entry,
+                pending_exit_all=pending_exit_all,
+                pending_exit_reason=pending_exit_reason,
+                pending_exit_due_ts=pending_exit_due_ts,
+                mutation=pending_mutation,
+            )
 
         if (
-            pending_decision is not None
-            and pending_decision.intent == "exit"
+            pending_mutation is not None
+            and pending_mutation.queue_intent == "exit"
             and open_trades
         ):
             exit_ref = float(bar.open)
@@ -2310,7 +2351,7 @@ def _run_spot_backtest_exec_loop(
                     exit_ref_price=exit_ref,
                     exit_time=bar.ts,
                     reason=str(
-                        pending_decision.reason or pending_exit_reason or "flip"
+                        pending_mutation.queue_reason or pending_exit_reason or "flip"
                     ),
                     apply_slippage=True,
                     exit_trace_payload={
@@ -2318,7 +2359,7 @@ def _run_spot_backtest_exec_loop(
                         "bar_ts": bar.ts.isoformat(),
                         "exit_ref_price": float(exit_ref),
                         "apply_slippage": True,
-                        "pending_exit_reason": str(pending_exit_reason or "") or None,
+                        "pending_exit_reason": str(pending_mutation.queue_reason or "") or None,
                         "signal_snapshot": _latest_signal_snapshot_probe(
                             exec_idx=int(idx)
                         ),
@@ -2329,9 +2370,9 @@ def _run_spot_backtest_exec_loop(
             open_trades = []
 
         if (
-            pending_decision is not None
-            and pending_decision.intent == "enter"
-            and pending_entry.active
+            pending_mutation is not None
+            and pending_mutation.queue_intent == "enter"
+            and filled_pending_entry is not None
         ):
             can_fill_pending = lifecycle_entry_capacity_ok(
                 open_count=len(open_trades),
@@ -2341,8 +2382,7 @@ def _run_spot_backtest_exec_loop(
                 entry_days=cfg.strategy.entry_days,
             )
             if can_fill_pending:
-                filled_entry = pending_entry
-                pending_entry = _SpotPendingEntry()
+                filled_entry = filled_pending_entry
 
                 entry_leg = _spot_entry_leg_for_direction(
                     strategy=cfg.strategy,
@@ -2392,12 +2432,6 @@ def _run_spot_backtest_exec_loop(
                         candidate, cash, margin_used = opened
                         open_trades.append(candidate)
                         entries_today += 1
-            else:
-                pending_entry = _SpotPendingEntry()
-
-        if pending_decision is not None and pending_decision.pending_clear_entry:
-            pending_entry = _SpotPendingEntry()
-
         # Dynamic shock SL/PT: apply the shock multipliers to *open* trades using the shock
         # state from the prior execution bar (no lookahead within this bar).
         if open_trades and filters is not None and evaluator.shock_enabled:

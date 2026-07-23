@@ -57,6 +57,60 @@ class SpotLifecycleDecision:
         return payload
 
 
+@dataclass(frozen=True)
+class SpotPendingMutationPlan:
+    clear_entry: bool = False
+    clear_exit: bool = False
+    queue_intent: str | None = None
+    queue_direction: str | None = None
+    queue_reason: str | None = None
+
+    def as_payload(self) -> dict[str, object]:
+        return asdict(self)
+
+
+def plan_pending_mutation(
+    decision: SpotLifecycleDecision,
+    *,
+    pending_entry_direction: str | None,
+    pending_exit_reason: str | None,
+    open_dir: str | None,
+) -> SpotPendingMutationPlan:
+    intent = str(decision.intent or "").strip().lower()
+    if intent == "enter":
+        queue_intent = "enter"
+        queue_direction = (
+            str(decision.direction)
+            if decision.direction in ("up", "down")
+            else str(pending_entry_direction)
+            if pending_entry_direction in ("up", "down")
+            else None
+        )
+        queue_reason = str(decision.reason or "next_open")
+    elif intent == "exit":
+        queue_intent = "exit"
+        queue_direction = (
+            str(decision.direction)
+            if decision.direction in ("up", "down")
+            else str(open_dir)
+            if open_dir in ("up", "down")
+            else None
+        )
+        queue_reason = str(decision.reason or pending_exit_reason or "flip")
+    else:
+        queue_intent = None
+        queue_direction = None
+        queue_reason = None
+
+    return SpotPendingMutationPlan(
+        clear_entry=bool(decision.pending_clear_entry),
+        clear_exit=bool(decision.pending_clear_exit),
+        queue_intent=queue_intent,
+        queue_direction=queue_direction,
+        queue_reason=queue_reason,
+    )
+
+
 def canonical_exit_reason(reason: str | None) -> str:
     return graph_canonical_exit_reason(reason)
 
