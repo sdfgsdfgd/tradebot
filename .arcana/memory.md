@@ -459,6 +459,8 @@ Source and references must be saturated before mutation, in this order:
 - **Full deterministic validation:** `635/635` passed, four deselected, zero sockets; validation receipt `01a21a21cd602cfb025e0ff28fc2ad37ceefc60dd2dc64013123934525e5dc60`.
 - **Coverage conclusion:** `spot-v1.trace-projection-parity` remains `shared-covered` and `aligned`; no capability-ledger classification change is required.
 - **Provider boundary:** no provider or IB Gateway interaction occurred in RED, GREEN or deterministic validation.
+- **Publication:** integrated commit `f5f1353d0e9f8fde2012c7b2faf95882d7d0593f` was pushed to `main` from `ab9139d8358ba719974fa5f237985019d20656f3` with tree `8b1ff63bf607d616d697170b538a94cc7a2094cf`; publication receipt `8e54e2ba5c447e317d604b42210d581162bd61a92376f7f057c2061e5505fcfd`.
+- **Published verification:** remote-only checkout passed focused `6/6`, capability `5/5`, and deterministic `648/648` with four deselections and zero sockets; independent pre-publication receipt `e747412a871022678d5f2524944cc2261cf7cf3d14d1accc79ed0a4f7c96f277`; no provider or IB Gateway access.
 <!-- END: TRADEBOT_PARITY_FIRST_SLICE_V1 -->
 
 <!-- BEGIN: TRADEBOT_ARCHITECTURE_PRIORITY_QUEUE_V1 -->
