@@ -189,12 +189,20 @@ def load_history_window(
         )
         for bar in bars
     }
-    missing_days = {
-        day
-        for day in _date_range(start_et.date(), end_et.date())
-        if _day_intersects_window(day, start_et=start_et, end_et=end_et, use_rth=use_rth)
-        and day not in present_days
-    }
+    missing_days: set[date] = set()
+    for day in _date_range(start_et.date(), end_et.date()):
+        if not _day_intersects_window(day, start_et=start_et, end_et=end_et, use_rth=use_rth):
+            continue
+        if (
+            use_rth
+            and bar_def is not None
+            and bar_def.duration < timedelta(days=1)
+        ):
+            session_minutes = 210 if is_early_close_day(day) else 390
+            if bar_def.duration > timedelta(minutes=session_minutes):
+                continue
+        if day not in present_days:
+            missing_days.add(day)
     missing_days.update(
         _incomplete_rth_days(
             bars,
