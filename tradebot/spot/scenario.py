@@ -12,6 +12,7 @@ from datetime import datetime
 from pathlib import Path
 
 from .lifecycle import SpotLifecycleDecision
+from copy import deepcopy
 
 
 def lifecycle_trace_row(
@@ -105,3 +106,40 @@ def write_rows_csv(
         for row in materialized:
             writer.writerow({k: row.get(k) for k in keys})
     return out
+
+
+def _project_spot_trace_dimension(
+    value: object,
+) -> dict[str, object] | None:
+    if value is None:
+        return None
+    if isinstance(value, Mapping):
+        payload = value
+    else:
+        as_payload = getattr(value, "as_payload", None)
+        if not callable(as_payload):
+            raise TypeError(
+                "trace receipt dimensions must be mappings, typed payload objects, or None"
+            )
+        payload = as_payload()
+    if not isinstance(payload, Mapping):
+        raise TypeError("trace payload object's as_payload() must return a mapping")
+    return deepcopy(dict(payload))
+
+
+def project_spot_trace_receipt(
+    *,
+    sizing: object = None,
+    intent: object = None,
+    lifecycle: object = None,
+    fill: object = None,
+    accounting: object = None,
+) -> dict[str, object]:
+    return {
+        "schema": "spot-trace-receipt-v1",
+        "sizing": _project_spot_trace_dimension(sizing),
+        "intent": _project_spot_trace_dimension(intent),
+        "lifecycle": _project_spot_trace_dimension(lifecycle),
+        "fill": _project_spot_trace_dimension(fill),
+        "accounting": _project_spot_trace_dimension(accounting),
+    }

@@ -348,19 +348,26 @@
       "id": "spot-v1.trace-projection-parity",
       "subsystem": "operator-ui-observability",
       "capability": "Expose equivalent sizing, intent, lifecycle, fill and accounting explanations.",
-      "classification": "unproven",
-      "status": "unproven",
-      "shared_surface": "SpotDecisionTrace and SpotLifecycleDecision payloads",
-      "backtest_surface": "trade decision_trace and lifecycle trace rows",
-      "live_surface": "order journal and gate payloads",
+      "classification": "shared-covered",
+      "status": "aligned",
+      "shared_surface": "project_spot_trace_receipt",
+      "backtest_surface": "SpotTrade.decision_trace, BacktestResult.lifecycle_trace and scenario fill/accounting mappings",
+      "live_surface": "_BotOrder.journal, terminal fill counters and broker-reconciled _BotInstance entry basis",
       "evidence": [
-        "Both adapters persist shared decision/lifecycle payloads."
+        "tradebot/spot/scenario.py::project_spot_trace_receipt",
+        "tradebot/backtest/models.py::SpotTrade",
+        "tradebot/backtest/models.py::BacktestResult",
+        "tradebot/ui/bot_order_builder.py::BotOrderBuilderMixin._create_order_for_instance",
+        "tradebot/ui/bot_models.py::_BotOrder",
+        "tradebot/ui/bot_models.py::_BotInstance",
+        "tradebot/ui/bot_engine_runtime.py::BotEngineRuntimeMixin._chase_orders_tick",
+        "tradebot/ui/bot_screen/positions.py::BotPositionsMixin._apply_spot_broker_entry_basis"
       ],
       "tests": [
-        "tests/test_spot_scenario_runner.py",
-        "tests/test_live_signal_exit_continuum.py::test_journal_gate_formats_filter_map_and_lifecycle_context"
+        "tests/test_spot_scenario_runner.py::test_backtest_trace_receipt_projection_matches_shared_schema",
+        "tests/test_live_signal_exit_continuum.py::test_live_trace_receipt_projection_matches_shared_schema"
       ],
-      "next": "Normalize receipt schema and compare scenario snapshots."
+      "next": "Keep the versioned sizing, intent, lifecycle, fill and accounting receipt schema equivalent across adapters."
     },
     {
       "id": "spot-v1.exit-resize-adapter-receipts",
