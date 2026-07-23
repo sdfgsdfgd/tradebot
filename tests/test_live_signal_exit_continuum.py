@@ -4151,3 +4151,89 @@ def test_live_broker_refresh_clears_entry_basis_without_open_position(
     assert instance.spot_entry_basis_source == "flat", (
         f"{portfolio_mode}: broker refresh must clear stale spot entry basis when flat"
     )
+
+
+def test_live_trace_receipt_projection_matches_shared_schema() -> None:
+    import json
+
+    from tradebot.spot.scenario import project_spot_trace_receipt
+
+    order_journal = {
+        "spot_decision": {
+            "action": "BUY",
+            "sizing_mode": "fixed",
+            "signed_qty_final": 2,
+            "signed_qty_after_branch": 2,
+            "graph_overlay_trace": {
+                "policy": "neutral",
+                "nested": {"risk_mult": 1.0},
+            },
+        },
+        "spot_intent": {
+            "intent": "enter",
+            "reason": "entry_allowed",
+            "gate": "TRIGGER_ENTRY",
+            "action": "BUY",
+            "order_qty": 2,
+            "delta_qty": 2,
+            "target_qty": 2,
+        },
+        "spot_lifecycle": {
+            "intent": "enter",
+            "reason": "entry_allowed",
+            "gate": "TRIGGER_ENTRY",
+            "direction": "up",
+            "fill_mode": "close",
+            "trace": {
+                "stage": "flat",
+                "path": "enter",
+                "graph_entry": {
+                    "gate": "TRIGGER_ENTRY",
+                    "trace": {"policy": "slope_tr_guard", "threshold": 1.3},
+                },
+            },
+        },
+        "size_funnel": {
+            "signed_qty_final": 2,
+            "signed_qty_after_branch": 2,
+            "intent_qty": 2,
+        },
+    }
+    fill = {
+        "status": "filled",
+        "filled_qty": 2.0,
+        "remaining_qty": 0.0,
+        "executed_qty": 2.0,
+        "basis_applied_filled_qty": 2.0,
+        "details": {"avg_fill_price": 101.25},
+    }
+    accounting = {
+        "entry_basis_qty": 2.0,
+        "entry_basis_price": 101.25,
+        "entry_basis_source": "broker_average_cost",
+    }
+
+    receipt = project_spot_trace_receipt(
+        sizing=order_journal["spot_decision"],
+        intent=order_journal["spot_intent"],
+        lifecycle=order_journal["spot_lifecycle"],
+        fill=fill,
+        accounting=accounting,
+    )
+
+    assert receipt == {
+        "schema": "spot-trace-receipt-v1",
+        "sizing": order_journal["spot_decision"],
+        "intent": order_journal["spot_intent"],
+        "lifecycle": order_journal["spot_lifecycle"],
+        "fill": fill,
+        "accounting": accounting,
+    }
+    assert json.loads(json.dumps(receipt, sort_keys=True)) == receipt
+
+    order_journal["spot_decision"]["graph_overlay_trace"]["nested"]["risk_mult"] = 9.0
+    fill["details"]["avg_fill_price"] = 999.0
+    accounting["entry_basis_price"] = 999.0
+    assert receipt["sizing"]["graph_overlay_trace"]["nested"]["risk_mult"] == 1.0
+    assert receipt["fill"]["details"]["avg_fill_price"] == 101.25
+    assert receipt["accounting"]["entry_basis_price"] == 101.25

@@ -357,10 +357,10 @@ Source and references must be saturated before mutation, in this order:
 
 - Milestone base: `9261954424c4f1fe6f40a38bc3cf8aa9245737b5`.
 - Frozen capabilities: **20**.
-- Semantic alignment: **18/20 (90.0%)**.
-- Shared-covered: **12/20 (60.0%)**.
+- Semantic alignment: **19/20 (95.0%)**.
+- Shared-covered: **13/20 (65.0%)**.
 - Intentional adapters: **6/20 (30.0%)**.
-- Unproven: **2/20 (10.0%)**.
+- Unproven: **1/20 (5.0%)**.
 - Confirmed gaps: **0/20 (0.0%)**.
 - Machine-readable source: `tests/ledgers/parity_capabilities.json`.
 
@@ -383,7 +383,7 @@ Source and references must be saturated before mutation, in this order:
 | `spot-v1.sizing-input-assembly-parity` | `policy-risk-sizing` | `shared-covered` | `aligned` | Add direct runtime capture for the backtest resize owner and non-default regime2/shock/risk value vectors. |
 | `spot-v1.pending-state-mutation-parity` | `live-execution-orders` | `shared-covered` | `aligned` | Extend paired transition vectors to partial-fill, reconnect and reconciliation states. |
 | `spot-v1.entry-basis-reconciliation` | `backtest-simulation-accounting` | `shared-covered` | `aligned` | Keep cumulative partial-fill, reconnect, scale-in/out, sign-flip, broker-average-cost and authoritative-flat receipts current. |
-| `spot-v1.trace-projection-parity` | `operator-ui-observability` | `unproven` | `unproven` | Normalize receipt schema and compare scenario snapshots. |
+| `spot-v1.trace-projection-parity` | `operator-ui-observability` | `shared-covered` | `aligned` | Keep the versioned sizing, intent, lifecycle, fill and accounting receipt schema equivalent across adapters. |
 | `spot-v1.exit-resize-adapter-receipts` | `verification-capability-evolution` | `unproven` | `unproven` | Build deterministic adapter harness and optional Gateway replay suite. |
 | `spot-v1.resize-cooldown-fill-ownership` | `live-execution-orders` | `intentional-adapter` | `aligned` | Extend successful-fill ownership receipts to partial fills, reconnect recovery and broker-position reconciliation. |
 
@@ -445,6 +445,16 @@ Source and references must be saturated before mutation, in this order:
 - Independent fresh fetch verified the exact nine-path scope and promoted diff SHA `ffb3d5046da99b991e256aa6ce25b0f65a97a4c00d978e53c405059cfc29d718`.
 - Published verification: focused `16 passed`; capability validators `5 passed`; full deterministic suite `610 passed, 4 deselected`; zero sockets.
 - Independent publication receipt: `338f92416919b1298250e330f542eda98679a99ee0605ede02140452551c7bdf`.
+
+
+### Wave 5 — trace projection parity
+- capability: `spot-v1.trace-projection-parity` promoted to `shared-covered` / `aligned`.
+- shared owner: `tradebot/spot/scenario.py::project_spot_trace_receipt` (`spot-trace-receipt-v1`).
+- adapter evidence: backtest `SpotTrade.decision_trace` + `BacktestResult.lifecycle_trace`; live `_BotOrder.journal` + terminal fill counters + broker-reconciled `_BotInstance` basis.
+- verification: native deterministic non-live `630 passed, 4 deselected`; promoted deterministic non-live `632 passed, 4 deselected`; focused `8 passed`; capability validators `5 passed`; outbound sockets `0`.
+- hashes: tests `50d38caee7d6a377f55ee664f2f74c8ef436e150bd9226e01e4e1a964093bb43`; production `324d3504a0c53932f4291c2146702e56415beb19f5d7b4ed7cda4eaefc2d36a8`; combined `8be776a448263b8a29de88bef57924e6a7c4dac0b14dc11d936b588f97c8107c`.
+- receipts: ownership `171eb17d5fbd0d995a48fa96591e83a1631daf576cb5c4421d619dfd8e623b67`; paired RED `5227be080106268e64e6a37d27f323b0abd4edab1ba176cdbd73f5c4f673d3c2`; dynamic overlay `470a801f7275bfe97275cc3a3ccecbed06a99f197a2bc8f753a492dd4bfb38ab`; engine semantic `813f8f65d18fdc3806085d6fe804f36681ba9f7364f6b9703ce8d2abc0c33872`; marker correction `db3a472e68306d61513c805ce58f87e215e8e75f05f683a29035493552733df3`; denominator correction `dccffdcd2918026628be26a9ed583e0afcf3bb415f88b071d19115a8b44d2ba9`.
+- certified trace-semantic base: `652e9ab4a7c0fdb32eb9ebb2f63eaa7ddca1ff11`; integration base: `ea43fcaa5152a70a8009f1afa4613d994dc82fdf`.
 
 <!-- END: TRADEBOT_PARITY_FIRST_SLICE_V1 -->
 
