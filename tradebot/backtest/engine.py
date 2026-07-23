@@ -29,6 +29,7 @@ from .spot_context import (
     load_spot_context_bars,
     spot_signal_warmup_days_from_strategy,
 )
+from .spot_tape import prepare_spot_evaluator_tape
 from ..chart_data.cache import series_cache_service
 from ..chart_data.series import BarSeries, BarSeriesSignature, bars_list
 from ..engines.risk import risk_overlay_policy_from_filters
@@ -1390,7 +1391,6 @@ def _spot_try_open_entry(
     entry_time: datetime,
     entry_ref_price: float,
     mark_ref_price: float,
-    orb_engine,
     evidence: _SpotEntryEvidence,
     exec_profile: _SpotExecProfile,
     cash: float,
@@ -1433,9 +1433,9 @@ def _spot_try_open_entry(
     profit_target_pct = cfg.strategy.spot_profit_target_pct
     stop_loss_pct = cfg.strategy.spot_stop_loss_pct
 
-    if entry_signal == "orb" and orb_engine is not None and entry_dir in ("up", "down"):
-        orb_high = orb_engine.or_high
-        orb_low = orb_engine.or_low
+    if entry_signal == "orb" and entry_dir in ("up", "down"):
+        orb_high = getattr(snapshot, "or_high", None)
+        orb_low = getattr(snapshot, "or_low", None)
         if (
             orb_high is not None
             and orb_low is not None
@@ -1662,7 +1662,7 @@ def _spot_try_open_entry(
         slippage_per_share=float(exec_profile.slippage_per_share),
     )
 
-    if entry_signal == "orb" and orb_engine is not None and entry_dir in ("up", "down"):
+    if entry_signal == "orb" and entry_dir in ("up", "down"):
         if stop_price is not None:
             rr = float(getattr(cfg.strategy, "orb_risk_reward", 2.0) or 2.0)
             target_mode = (
@@ -2063,24 +2063,8 @@ def _run_spot_backtest_exec_loop(
         )
     use_mtf_regime2 = bool(regime2_bars) and bool(use_mtf_regime2_cfg)
 
-    from ..spot_engine import SpotSignalEvaluator
-
-    evaluator = SpotSignalEvaluator(
-        strategy=cfg.strategy,
-        filters=filters,
-        bar_size=str(cfg.backtest.bar_size),
-        use_rth=bool(cfg.backtest.use_rth),
-        naive_ts_mode="utc",
-        rv_lookback=int(cfg.synthetic.rv_lookback),
-        rv_ewma_lambda=float(cfg.synthetic.rv_ewma_lambda),
-        regime_bars=regime_bars if use_mtf_regime else None,
-        regime2_bars=regime2_bars if use_mtf_regime2 else None,
-        regime2_bear_hard_bars=regime2_bear_hard_bars,
-    )
-    orb_engine = evaluator.orb_engine
     last_sig_snap: SpotSignalSnapshot | None = None
     last_sig_exec_idx = -1
-    shock_prev, shock_dir_prev, shock_atr_pct_prev = evaluator.shock_view
 
     (
         tick_mode,
@@ -2108,6 +2092,16 @@ def _run_spot_backtest_exec_loop(
     align = series_pack.align
     tick_series = series_pack.tick_series
     exec_dates = series_pack.exec_dates
+    evaluator_tape = prepare_spot_evaluator_tape(
+        cfg=cfg,
+        signal_bars=signal_bars,
+        exec_bars=exec_bars,
+        sig_idx_by_exec_idx=align.sig_idx_by_exec_idx,
+        exec_dates=exec_dates,
+        regime_bars=regime_bars if use_mtf_regime else None,
+        regime2_bars=regime2_bars if use_mtf_regime2 else None,
+        regime2_bear_hard_bars=regime2_bear_hard_bars,
+    )
 
     exec_profile = _spot_exec_profile(cfg.strategy)
     exit_mode = str(exec_profile.exit_mode)
@@ -2315,7 +2309,7 @@ def _run_spot_backtest_exec_loop(
         riskpop_long_factor,
         riskpop_short_factor,
     ) = risk_overlay_policy_from_filters(filters)
-    risk_overlay_enabled = bool(evaluator.risk_overlay_enabled)
+    risk_overlay_enabled = bool(evaluator_tape.risk_overlay_enabled)
     riskoff_today = False
     riskpanic_today = False
     riskpop_today = False
@@ -2331,17 +2325,6 @@ def _run_spot_backtest_exec_loop(
     start_exec_idx = bisect_left([bar.ts for bar in exec_bars], score_start_dt)
     if start_exec_idx > 0:
         for warm_idx in range(int(start_exec_idx)):
-            warm_bar = exec_bars[int(warm_idx)]
-            warm_next = (
-                exec_bars[int(warm_idx) + 1]
-                if int(warm_idx) + 1 < len(exec_bars)
-                else None
-            )
-            warm_is_last_bar = (
-                warm_next is None
-                or exec_dates[int(warm_idx) + 1] != exec_dates[int(warm_idx)]
-            )
-            evaluator.update_exec_bar(warm_bar, is_last_bar=bool(warm_is_last_bar))
             warm_sig_map_idx = (
                 align.sig_idx_by_exec_idx[int(warm_idx)]
                 if int(warm_idx) < len(align.sig_idx_by_exec_idx)
@@ -2349,19 +2332,17 @@ def _run_spot_backtest_exec_loop(
             )
             warm_sig_idx = int(warm_sig_map_idx) if int(warm_sig_map_idx) >= 0 else None
             if warm_sig_idx is None or int(warm_sig_idx) >= len(signal_bars):
-                shock_prev, shock_dir_prev, shock_atr_pct_prev = evaluator.shock_view
                 continue
             warm_sig_bar = signal_bars[int(warm_sig_idx)]
             if warm_sig_bar.ts >= score_start_dt:
-                shock_prev, shock_dir_prev, shock_atr_pct_prev = evaluator.shock_view
                 continue
-            warm_sig_snap = evaluator.update_signal_bar(warm_sig_bar)
+            warm_sig_snap = evaluator_tape.signals[int(warm_idx)]
             if warm_sig_snap is not None:
                 last_sig_snap = warm_sig_snap
-            shock_prev, shock_dir_prev, shock_atr_pct_prev = evaluator.shock_view
 
     for idx in range(int(start_exec_idx), len(exec_bars)):
         bar = exec_bars[int(idx)]
+        evaluator_risk = evaluator_tape.risks[int(idx)]
         next_bar = exec_bars[idx + 1] if idx + 1 < len(exec_bars) else None
         bar_day = exec_dates[int(idx)]
         is_last_bar = next_bar is None or exec_dates[int(idx) + 1] != bar_day
@@ -2399,15 +2380,14 @@ def _run_spot_backtest_exec_loop(
         if exec_last_date != bar_day:
             exec_last_date = bar_day
             entries_today = 0
-        shock_now_prev = shock_prev
-        shock_dir_prev_now = shock_dir_prev
-        shock_atr_pct_prev_now = shock_atr_pct_prev
+        shock_now_prev, shock_dir_prev_now, shock_atr_pct_prev_now = (
+            evaluator_tape.prior_shocks[int(idx)]
+        )
 
-        evaluator.update_exec_bar(bar, is_last_bar=bool(is_last_bar))
-        if evaluator.last_risk is not None:
-            riskoff_today = bool(evaluator.last_risk.riskoff)
-            riskpanic_today = bool(evaluator.last_risk.riskpanic)
-            riskpop_today = bool(getattr(evaluator.last_risk, "riskpop", False))
+        if evaluator_risk is not None:
+            riskoff_today = bool(evaluator_risk.riskoff)
+            riskpanic_today = bool(evaluator_risk.riskpanic)
+            riskpop_today = bool(getattr(evaluator_risk, "riskpop", False))
         else:
             riskoff_today = False
             riskpanic_today = False
@@ -2545,7 +2525,6 @@ def _run_spot_backtest_exec_loop(
                         entry_time=bar.ts,
                         entry_ref_price=float(bar.open),
                         mark_ref_price=float(bar.open),
-                        orb_engine=orb_engine,
                         evidence=_SpotEntryEvidence.from_signal(
                             snapshot=last_sig_snap,
                             shock=shock_now_prev,
@@ -2554,7 +2533,7 @@ def _run_spot_backtest_exec_loop(
                             riskoff=riskoff_today,
                             riskpanic=riskpanic_today,
                             riskpop=riskpop_today,
-                            risk_snapshot=evaluator.last_risk
+                            risk_snapshot=evaluator_risk
                             if risk_overlay_enabled
                             else None,
                             pending=filled_entry,
@@ -2583,7 +2562,7 @@ def _run_spot_backtest_exec_loop(
                         entries_today += 1
         # Dynamic shock SL/PT: apply the shock multipliers to *open* trades using the shock
         # state from the prior execution bar (no lookahead within this bar).
-        if open_trades and filters is not None and evaluator.shock_enabled:
+        if open_trades and filters is not None and evaluator_tape.shock_enabled:
             shock_now = bool(shock_now_prev) if shock_now_prev is not None else False
             sl_mult, pt_mult = spot_shock_exit_pct_multipliers(filters, shock=shock_now)
             for trade in open_trades:
@@ -2600,7 +2579,7 @@ def _run_spot_backtest_exec_loop(
 
         # Signals advance only on their closes. Router ownership remains sticky across
         # faster execution bars so host-managed lanes never regain local exits.
-        sig_snap = evaluator.update_signal_bar(sig_bar) if sig_bar is not None else None
+        sig_snap = evaluator_tape.signals[int(idx)] if sig_bar is not None else None
         if sig_snap is not None:
             last_sig_snap = sig_snap
             last_sig_exec_idx = int(idx)
@@ -2922,7 +2901,6 @@ def _run_spot_backtest_exec_loop(
         _record_equity_point(bar.ts, cash + liquidation)
 
         if sig_bar is None or sig_idx is None:
-            shock_prev, shock_dir_prev, shock_atr_pct_prev = evaluator.shock_view
             continue
 
         direction, _ = _spot_resolve_entry_dir(
@@ -3099,7 +3077,6 @@ def _run_spot_backtest_exec_loop(
                         entry_time=sig_bar.ts,
                         entry_ref_price=float(bar.close),
                         mark_ref_price=float(bar.close),
-                        orb_engine=orb_engine,
                         evidence=_SpotEntryEvidence.from_signal(
                             snapshot=sig_snap,
                             shock=sig_snap.shock if sig_snap is not None else None,
@@ -3112,7 +3089,7 @@ def _run_spot_backtest_exec_loop(
                             riskoff=riskoff_today,
                             riskpanic=riskpanic_today,
                             riskpop=riskpop_today,
-                            risk_snapshot=evaluator.last_risk
+                            risk_snapshot=evaluator_risk
                             if risk_overlay_enabled
                             else None,
                             guard_probe=entry_guard_probe_now,
@@ -3249,7 +3226,7 @@ def _run_spot_backtest_exec_loop(
                     risk_dir=sig_snap.shock_dir if sig_snap is not None else None,
                     riskpanic=bool(riskpanic_today),
                     riskpop=bool(riskpop_today),
-                    risk=evaluator.last_risk if risk_overlay_enabled else None,
+                    risk=evaluator_risk if risk_overlay_enabled else None,
                     signal_entry_dir=signal_inputs.get("signal_entry_dir"),
                     signal_regime_dir=(
                         sig_snap.signal.regime_dir
@@ -3410,8 +3387,6 @@ def _run_spot_backtest_exec_loop(
                                 exit_exec_idx=int(idx),
                             )
                             open_trades = []
-
-        shock_prev, shock_dir_prev, shock_atr_pct_prev = evaluator.shock_view
 
     if open_trades:
         last_bar = exec_bars[-1]

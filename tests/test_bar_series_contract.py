@@ -346,6 +346,20 @@ def test_series_cache_service_roundtrip_memory_and_persistent() -> None:
     assert loaded_many == {"abc": {"x": 1}, "def": {"x": 2}}
 
 
+def test_series_cache_service_bounds_each_namespace_by_recency() -> None:
+    cache = SeriesCacheService()
+    cache.set(namespace="bounded", key="a", value=1, max_entries=2)
+    cache.set(namespace="other", key="x", value=9, max_entries=1)
+    cache.set(namespace="bounded", key="b", value=2, max_entries=2)
+    assert cache.get(namespace="bounded", key="a") == 1
+    cache.set(namespace="bounded", key="c", value=3, max_entries=2)
+
+    assert cache.get(namespace="bounded", key="a") == 1
+    assert cache.get(namespace="bounded", key="b") is None
+    assert cache.get(namespace="bounded", key="c") == 3
+    assert cache.get(namespace="other", key="x") == 9
+
+
 def test_series_cache_revision_covers_interior_market_data() -> None:
     start = datetime(2025, 1, 6, 14, 30)
     original = _bars(start, n=5, minutes=15)

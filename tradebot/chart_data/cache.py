@@ -26,7 +26,9 @@ _CACHE_SCHEMA = (
 
 @dataclass
 class SeriesCacheService:
-    _memory: dict[tuple[str, object], object] = field(default_factory=dict)
+    _memory: OrderedDict[tuple[str, object], object] = field(
+        default_factory=OrderedDict
+    )
     _revisions: OrderedDict[int, tuple[object, BarSeriesSignature]] = field(
         default_factory=OrderedDict
     )
@@ -52,11 +54,35 @@ class SeriesCacheService:
 
     def get(self, *, namespace: str, key: object) -> object | None:
         with self._lock:
-            return self._memory.get((str(namespace), key))
+            cache_key = (str(namespace), key)
+            value = self._memory.get(cache_key)
+            if value is not None:
+                self._memory.move_to_end(cache_key)
+            return value
 
-    def set(self, *, namespace: str, key: object, value: object) -> object:
+    def set(
+        self,
+        *,
+        namespace: str,
+        key: object,
+        value: object,
+        max_entries: int | None = None,
+    ) -> object:
         with self._lock:
-            self._memory[(str(namespace), key)] = value
+            ns = str(namespace)
+            cache_key = (ns, key)
+            self._memory.pop(cache_key, None)
+            self._memory[cache_key] = value
+            if max_entries is not None:
+                excess = sum(cached_ns == ns for cached_ns, _ in self._memory) - max(
+                    1, int(max_entries)
+                )
+                for old_key in tuple(self._memory):
+                    if excess <= 0:
+                        break
+                    if old_key[0] == ns:
+                        self._memory.pop(old_key, None)
+                        excess -= 1
         return value
 
     def clear(self, *, namespace: str | None = None) -> None:

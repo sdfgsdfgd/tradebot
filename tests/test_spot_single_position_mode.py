@@ -9,9 +9,18 @@ import pytest
 
 from tradebot.backtest.config import load_config
 from tradebot.backtest.data import ContractMeta
-from tradebot.backtest.engine import _run_spot_backtest_summary
+from tradebot.backtest.engine import (
+    _run_spot_backtest_summary,
+    _spot_exec_alignment,
+    _trade_date,
+)
 from tradebot.backtest.models import Bar
 from tradebot.backtest.spot_codec import filters_from_payload, strategy_from_payload
+from tradebot.backtest.spot_tape import (
+    _SPOT_EVALUATOR_TAPE_CACHE,
+    _SPOT_EVALUATOR_TAPE_NAMESPACE,
+    prepare_spot_evaluator_tape,
+)
 from tradebot.knobs.models import BacktestConfig, ConfigBundle, SpotLegConfig, SpotStrategyConfig, SyntheticConfig
 
 
@@ -124,6 +133,56 @@ def _base_cfg(day: date) -> ConfigBundle:
         min_spread_pct=0.0,
     )
     return ConfigBundle(backtest=backtest, strategy=strategy, synthetic=synthetic)
+
+
+def test_spot_evaluator_tape_reuses_exit_variants_and_invalidates_signal_inputs() -> None:
+    day = date(2024, 1, 1)
+    exec_bars = _bars_5m(
+        start=datetime(2024, 1, 1, 14),
+        end=datetime(2024, 1, 1, 15),
+        start_price=100.0,
+        end_price=102.0,
+    )
+    signal_bars = _extract_signal_bars(exec_bars, every_minutes=30)
+    cfg = _base_cfg(day)
+    align = _spot_exec_alignment(signal_bars, exec_bars)
+    kwargs = {
+        "signal_bars": signal_bars,
+        "exec_bars": exec_bars,
+        "sig_idx_by_exec_idx": align.sig_idx_by_exec_idx,
+        "exec_dates": [_trade_date(bar.ts) for bar in exec_bars],
+    }
+    _SPOT_EVALUATOR_TAPE_CACHE.clear(namespace=_SPOT_EVALUATOR_TAPE_NAMESPACE)
+
+    first = prepare_spot_evaluator_tape(cfg=cfg, **kwargs)
+    exit_variant = replace(
+        cfg,
+        strategy=replace(
+            cfg.strategy,
+            spot_close_eod=True,
+            spot_short_risk_mult=2.0,
+            spot_stop_loss_pct=0.5,
+        ),
+    )
+    assert prepare_spot_evaluator_tape(cfg=exit_variant, **kwargs) is first
+
+    signal_variant = replace(
+        cfg,
+        strategy=replace(cfg.strategy, ema_preset="2/3"),
+    )
+    assert prepare_spot_evaluator_tape(cfg=signal_variant, **kwargs) is not first
+
+    changed_bars = list(exec_bars)
+    changed_bars[1] = replace(changed_bars[1], close=changed_bars[1].close + 0.1)
+    changed_align = _spot_exec_alignment(signal_bars, changed_bars)
+    changed = prepare_spot_evaluator_tape(
+        cfg=cfg,
+        signal_bars=signal_bars,
+        exec_bars=changed_bars,
+        sig_idx_by_exec_idx=changed_align.sig_idx_by_exec_idx,
+        exec_dates=[_trade_date(bar.ts) for bar in changed_bars],
+    )
+    assert changed is not first
 
 
 def test_spot_strategy_ignores_legacy_unknown_field() -> None:
