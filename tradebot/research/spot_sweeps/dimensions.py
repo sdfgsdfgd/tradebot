@@ -876,7 +876,7 @@ _SWEEP_RUNTIME_POLICY: dict[str, dict[str, object]] = {
         "jobs_tuner": {
             # Auto-downshift worker fanout for tiny stages to reduce spawn overhead.
             "enabled": 1,
-            "min_items_per_worker": 64,
+            "min_items_per_worker": 8,
             # 0 means "no explicit max", only clamp by detected CPUs and stage size.
             "max_workers": 0,
             # Soft caps discovered from local benchmarks:
@@ -888,7 +888,7 @@ _SWEEP_RUNTIME_POLICY: dict[str, dict[str, object]] = {
             # Adaptive claim span for dynamic-claim workers (balance overhead vs stragglers).
             "enabled": 1,
             "target_claims_per_worker": 24,
-            "min_claim_span": 32,
+            "min_claim_span": 1,
             "max_claim_span": 2048,
             "max_batch_multiple": 8,
         },

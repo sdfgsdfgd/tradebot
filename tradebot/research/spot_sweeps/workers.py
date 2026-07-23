@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-import math
 import time as pytime
 from pathlib import Path
 from ...backtest.config import (
@@ -20,8 +19,7 @@ from .milestones import (
     _milestone_key,
 )
 from .support import (
-    _registry_float,
-    _runtime_policy,
+    _tuned_claim_span,
 )
 
 
@@ -127,42 +125,11 @@ class SweepWorkers:
             claimed_ranks = 0
             records: list[dict] = []
             batch_size_i = max(1, int(batch_size))
-            small_total_threshold = int(max(1, int(workers) * int(batch_size_i) * 2))
-            if int(total_ranks) <= int(small_total_threshold):
-                claim_span_default = max(
-                    4,
-                    int(math.ceil(float(max(1, int(total_ranks))) / float(max(1, int(workers) * 3)))),
-                )
-                claim_span_default = min(int(batch_size_i), int(claim_span_default))
-            else:
-                claim_span_default = max(
-                    int(batch_size_i),
-                    min(
-                        int(batch_size_i * 8),
-                        int(math.ceil(float(max(1, int(total_ranks))) / float(max(1, int(workers) * 64)))),
-                    ),
-                )
-            claim_span_i = int(claim_span_default)
-            claim_cfg = _runtime_policy("claim_span_tuner")
-            if bool(_registry_float(claim_cfg.get("enabled"), 1.0) > 0.0):
-                target_claims = max(
-                    2,
-                    int(_registry_float(claim_cfg.get("target_claims_per_worker"), 24.0)),
-                )
-                min_claim_span = max(1, int(_registry_float(claim_cfg.get("min_claim_span"), 32.0)))
-                max_claim_span = max(
-                    int(min_claim_span),
-                    int(_registry_float(claim_cfg.get("max_claim_span"), 2048.0)),
-                )
-                max_batch_multiple = max(1, int(_registry_float(claim_cfg.get("max_batch_multiple"), 8.0)))
-                tuned_span = int(math.ceil(float(max(1, int(total_ranks))) / float(max(1, int(workers) * int(target_claims)))))
-                tuned_span = max(int(min_claim_span), min(int(max_claim_span), int(tuned_span)))
-                tuned_span = min(
-                    int(tuned_span),
-                    int(max(1, int(batch_size_i)) * int(max_batch_multiple)),
-                )
-                claim_span_i = max(1, int(tuned_span))
-            claim_span_i = max(1, int(claim_span_i))
+            claim_span_i = _tuned_claim_span(
+                total=int(total_ranks),
+                workers=int(workers),
+                batch_size=int(batch_size_i),
+            )
             if bool(dynamic_claim_mode):
                 print(
                     f"{stage_label} worker {int(worker_id) + 1}/{int(workers)} dynamic-claim enabled "
@@ -261,7 +228,11 @@ class SweepWorkers:
                         plan=(pending_plan[idx] for idx in range(len(pending_plan))),
                         bars=bars,
                         total=len(pending_plan),
-                        progress_label=f"{stage_label} worker {int(worker_id) + 1}/{int(workers)}",
+                        progress_label=(
+                            None
+                            if bool(dynamic_claim_mode) and len(pending_plan) == 1
+                            else f"{stage_label} worker {int(worker_id) + 1}/{int(workers)}"
+                        ),
                         report_every=0,
                         heartbeat_sec=float(heartbeat_eff),
                         record_milestones=False,

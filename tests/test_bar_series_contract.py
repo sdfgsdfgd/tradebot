@@ -246,19 +246,31 @@ def test_read_cache_window_materializes_only_requested_rows() -> None:
     start = datetime(2025, 1, 6, 14, 30)
     bars = _bars(start, n=8, minutes=5)
     with TemporaryDirectory() as tmpdir:
-        path = Path(tmpdir) / "bars.csv"
+        root = Path(tmpdir)
+        path = cache_path(root, "SLV", start, bars[-1].ts, "5 mins", use_rth=True)
+        path.parent.mkdir(parents=True, exist_ok=True)
         write_cache(path, bars)
-        window = read_cache(
-            path,
-            start=start + timedelta(minutes=10),
-            end=start + timedelta(minutes=20),
+        full = read_cache(path)
+        bounds = (
+            (start - timedelta(minutes=10), start - timedelta(minutes=5)),
+            (start + timedelta(minutes=10), start + timedelta(minutes=20)),
+            (start + timedelta(minutes=25), start + timedelta(minutes=35)),
+            (start + timedelta(minutes=40), start + timedelta(minutes=45)),
+            (None, start + timedelta(minutes=15)),
+            (start + timedelta(minutes=20), None),
         )
+        windows = [read_cache(path, start=lower, end=upper) for lower, upper in bounds]
+        legacy_path = root / "bars.csv"
+        write_cache(legacy_path, bars)
+        legacy_windows = [read_cache(legacy_path, start=lower, end=upper) for lower, upper in bounds]
 
-    assert [bar.ts for bar in window] == [
-        start + timedelta(minutes=10),
-        start + timedelta(minutes=15),
-        start + timedelta(minutes=20),
-    ]
+    for (lower, upper), window, legacy_window in zip(bounds, windows, legacy_windows, strict=True):
+        expected = [
+            bar
+            for bar in full
+            if (lower is None or bar.ts >= lower) and (upper is None or bar.ts <= upper)
+        ]
+        assert window == legacy_window == expected
 
 
 def test_spot_signal_evaluator_accepts_bar_series_inputs() -> None:

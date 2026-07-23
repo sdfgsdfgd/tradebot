@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import hashlib
+import mmap
 import os
 import re
 from dataclasses import dataclass
@@ -163,8 +164,14 @@ def _read_cache_cached(
 ) -> tuple[Bar, ...]:
     start = datetime.fromisoformat(_start_iso) if _start_iso else None
     end = datetime.fromisoformat(_end_iso) if _end_iso else None
+    cache_path = Path(path)
+    if (start is not None or end is not None) and parse_cache_filename(cache_path) is not None:
+        sorted_window = _read_sorted_cache_window(cache_path, start=start, end=end)
+        if sorted_window is not None:
+            return sorted_window
+
     rows: list[Bar] = []
-    with Path(path).open("r", newline="") as handle:
+    with cache_path.open("r", newline="") as handle:
         reader = csv.DictReader(handle)
         for row in reader:
             ts = datetime.fromisoformat(row["ts"])
@@ -200,6 +207,63 @@ def _read_cache_cached(
                 deduped.append(bar)
                 last_ts = bar.ts
         rows = deduped
+    return tuple(rows)
+
+
+def _read_sorted_cache_window(
+    path: Path,
+    *,
+    start: datetime | None,
+    end: datetime | None,
+) -> tuple[Bar, ...] | None:
+    """Seek canonical sorted tapes; return None to retain the repair-capable reader."""
+    if path.stat().st_size == 0:
+        return ()
+    rows: list[Bar] = []
+    with path.open("rb") as handle, mmap.mmap(handle.fileno(), 0, access=mmap.ACCESS_READ) as tape:
+        header = tape.readline().rstrip(b"\r\n")
+        if header != b"ts,open,high,low,close,volume":
+            return None
+        data_start = tape.tell()
+
+        if start is not None:
+            lo, hi = data_start, len(tape)
+            while lo < hi:
+                mid = (lo + hi) // 2
+                prior_break = tape.rfind(b"\n", data_start, mid)
+                row_start = data_start if prior_break < 0 else prior_break + 1
+                row_end = tape.find(b"\n", row_start)
+                if row_end < 0:
+                    row_end = len(tape)
+                comma = tape.find(b",", row_start, row_end)
+                if comma < 0:
+                    return None
+                ts = datetime.fromisoformat(tape[row_start:comma].decode("ascii"))
+                if ts < start:
+                    lo = min(len(tape), row_end + 1)
+                else:
+                    hi = row_start
+            tape.seek(lo)
+        else:
+            tape.seek(data_start)
+
+        for line in iter(tape.readline, b""):
+            fields = line.rstrip(b"\r\n").split(b",")
+            if len(fields) != 6:
+                return None
+            ts = datetime.fromisoformat(fields[0].decode("ascii"))
+            if end is not None and ts > end:
+                break
+            rows.append(
+                Bar(
+                    ts=ts,
+                    open=float(fields[1]),
+                    high=float(fields[2]),
+                    low=float(fields[3]),
+                    close=float(fields[4]),
+                    volume=float(fields[5]),
+                )
+            )
     return tuple(rows)
 
 

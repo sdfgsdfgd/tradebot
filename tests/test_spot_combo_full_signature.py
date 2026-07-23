@@ -39,7 +39,11 @@ from tradebot.research.spot_sweeps.combo import SweepCartesian, _objective_short
 from tradebot.research.spot_sweeps.milestones import _rank_cfg_rows, _spot_strategy_payload
 from tradebot.research.spot_sweeps.runtime import SpotSweepRuntime
 from tradebot.research.spot_sweeps.stages import SweepStages
-from tradebot.research.spot_sweeps.support import _bundle_base
+from tradebot.research.spot_sweeps.support import (
+    _bundle_base,
+    _tuned_claim_span,
+    _tuned_parallel_jobs,
+)
 
 
 def _signature(
@@ -391,6 +395,22 @@ def test_sweep_policy_is_not_mixed_into_strategy_dimensions() -> None:
     assert "cost_model" not in _AXIS_DIMENSION_REGISTRY
     assert "base" in _SWEEP_COST_MODEL
     assert "jobs_tuner" in _SWEEP_RUNTIME_POLICY
+
+
+def test_cartesian_worker_policy_balances_small_stages() -> None:
+    assert _tuned_parallel_jobs(
+        stage_label="combo_full_cartesian",
+        jobs_requested=12,
+        total=4,
+        default_jobs=12,
+    ) == 1
+    assert _tuned_parallel_jobs(
+        stage_label="combo_full_cartesian",
+        jobs_requested=12,
+        total=32,
+        default_jobs=12,
+    ) == 3
+    assert _tuned_claim_span(total=32, workers=3, batch_size=2048) == 1
 
 
 def test_ema_signal_presets_have_one_canonical_catalog() -> None:

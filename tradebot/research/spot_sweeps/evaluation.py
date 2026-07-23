@@ -743,27 +743,6 @@ class SweepEvaluation:
 
         try:
             for cfg, note, meta_item in plan:
-                tested += 1
-                if progress_label:
-                    now = pytime.perf_counter()
-                    hit_report_every = int(report_every) > 0 and (tested % int(report_every) == 0)
-                    hit_total = total_i is not None and tested == int(total_i)
-                    hit_heartbeat = float(heartbeat_sec) > 0 and (now - last) >= float(heartbeat_sec)
-                    if hit_report_every or hit_total or hit_heartbeat:
-                        print(
-                            _progress_line(
-                                label=str(progress_label),
-                                tested=int(tested),
-                                total=total_i,
-                                kept=len(kept),
-                                started_at=t0,
-                                rate_unit="s",
-                            ),
-                            flush=True,
-                        )
-                        last = float(now)
-                        _emit_progress(done=False)
-
                 prepared_context = None
                 if bool(use_prepared_context):
                     context_pc = self._context_bars_for_cfg(cfg=cfg, bars=bars)
@@ -805,6 +784,7 @@ class SweepEvaluation:
                 finally:
                     eval_inflight_active = False
                     eval_inflight_started_at = 0.0
+                tested += 1
                 eval_elapsed = max(1e-6, float(pytime.perf_counter()) - float(eval_started))
                 cache_hit_eval = 1 if int(self.run_cfg_cache_hits) > int(cache_hits_before) else 0
                 if frontier_stage_label:
@@ -894,16 +874,34 @@ class SweepEvaluation:
                                 )
                         if len(dimension_utility_updates) >= 768:
                             _flush_dimension_utility_updates()
-                if not row:
-                    continue
+                if row:
+                    note_s = str(note or "")
+                    row = dict(row)
+                    if note_s:
+                        row["note"] = note_s
+                        if bool(record_milestones):
+                            self._record_milestone(cfg, row, note_s)
+                    kept.append((cfg, row, note_s, meta_item))
 
-                note_s = str(note or "")
-                row = dict(row)
-                if note_s:
-                    row["note"] = note_s
-                    if bool(record_milestones):
-                        self._record_milestone(cfg, row, note_s)
-                kept.append((cfg, row, note_s, meta_item))
+                if progress_label:
+                    now = pytime.perf_counter()
+                    hit_report_every = int(report_every) > 0 and (tested % int(report_every) == 0)
+                    hit_total = total_i is not None and tested == int(total_i)
+                    hit_heartbeat = float(heartbeat_sec) > 0 and (now - last) >= float(heartbeat_sec)
+                    if hit_report_every or hit_total or hit_heartbeat:
+                        print(
+                            _progress_line(
+                                label=str(progress_label),
+                                tested=int(tested),
+                                total=total_i,
+                                kept=len(kept),
+                                started_at=t0,
+                                rate_unit="s",
+                            ),
+                            flush=True,
+                        )
+                        last = float(now)
+                        _emit_progress(done=False)
         finally:
             sweep_heartbeat_stop.set()
             if sweep_heartbeat_thread is not None:

@@ -295,6 +295,27 @@ def _tuned_parallel_jobs(
     return max(1, int(jobs_eff))
 
 
+def _tuned_claim_span(*, total: int, workers: int, batch_size: int) -> int:
+    """Balance dynamic Cartesian claims without letting one worker own a small stage."""
+    total_i = max(1, int(total))
+    workers_i = max(1, int(workers))
+    batch_i = max(1, int(batch_size))
+    small_total_threshold = workers_i * batch_i * 2
+    if total_i <= small_total_threshold:
+        default = min(batch_i, max(4, math.ceil(total_i / (workers_i * 3))))
+    else:
+        default = max(batch_i, min(batch_i * 8, math.ceil(total_i / (workers_i * 64))))
+
+    cfg = _runtime_policy("claim_span_tuner")
+    if not bool(_registry_float(cfg.get("enabled"), 1.0) > 0.0):
+        return max(1, int(default))
+    target_claims = max(2, int(_registry_float(cfg.get("target_claims_per_worker"), 24.0)))
+    minimum = max(1, int(_registry_float(cfg.get("min_claim_span"), 1.0)))
+    maximum = max(minimum, int(_registry_float(cfg.get("max_claim_span"), 2048.0)))
+    maximum = min(maximum, batch_i * max(1, int(_registry_float(cfg.get("max_batch_multiple"), 8.0))))
+    return max(minimum, min(maximum, math.ceil(total_i / (workers_i * target_claims))))
+
+
 def _axis_cost_hint(axis_name: str, key: str, default: float) -> float:
     axis_dims = _AXIS_DIMENSION_REGISTRY.get(str(axis_name), {})
     hints = axis_dims.get("cost_hints")
