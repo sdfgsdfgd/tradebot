@@ -438,6 +438,14 @@ Source and references must be saturated before mutation, in this order:
 - README remained a certified no-op because its crosswalk validator is backed by `tests/ledgers/capability_contracts.json`, not this parity ledger.
 - `spot-v1.entry-basis-reconciliation` moved from `unproven` to aligned `shared-covered`; the frozen denominator is now 18/20 aligned, 12/20 shared-covered, 6/20 intentional adapters and 2/20 unproven.
 
+### Wave 4 publication: canonical entry-basis reconciliation
+
+- Code milestone: `180582b76ebe6a1b11540183446fdbcbc894d1fb` (`Centralize spot entry basis reconciliation`), parent `0a2176530206747ef857665ec45fa5cc8568abc3`.
+- Explicit SSH push advanced `origin/main` from `0a2176530206747ef857665ec45fa5cc8568abc3` to `180582b76ebe6a1b11540183446fdbcbc894d1fb` without changing origin configuration.
+- Independent fresh fetch verified the exact nine-path scope and promoted diff SHA `ffb3d5046da99b991e256aa6ce25b0f65a97a4c00d978e53c405059cfc29d718`.
+- Published verification: focused `16 passed`; capability validators `5 passed`; full deterministic suite `610 passed, 4 deselected`; zero sockets.
+- Independent publication receipt: `338f92416919b1298250e330f542eda98679a99ee0605ede02140452551c7bdf`.
+
 <!-- END: TRADEBOT_PARITY_FIRST_SLICE_V1 -->
 
 <!-- BEGIN: TRADEBOT_ARCHITECTURE_PRIORITY_QUEUE_V1 -->
