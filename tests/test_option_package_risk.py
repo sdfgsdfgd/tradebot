@@ -58,6 +58,7 @@ def test_option_package_risk_prices_credit_and_debit_verticals_in_dollars() -> N
         "multiplier": 100.0,
         "quantity": 1,
         "max_loss": 400.0,
+        "max_profit": 100.0,
     }
 
     debit = evaluate(
@@ -80,6 +81,7 @@ def test_option_package_risk_prices_credit_and_debit_verticals_in_dollars() -> N
         "multiplier": 100.0,
         "quantity": 2,
         "max_loss": 250.0,
+        "max_profit": 750.0,
     }
 
 
@@ -107,6 +109,7 @@ def test_option_package_risk_prices_defined_risk_multi_leg_packages() -> None:
         "multiplier": 100.0,
         "quantity": 2,
         "max_loss": 600.0,
+        "max_profit": 400.0,
     }
 
     butterfly = evaluate(
@@ -122,6 +125,7 @@ def test_option_package_risk_prices_defined_risk_multi_leg_packages() -> None:
     assert isinstance(butterfly, risk_type)
     assert butterfly.structure == "butterfly_debit"
     assert butterfly.max_loss == pytest.approx(200.0)
+    assert butterfly.max_profit == pytest.approx(800.0)
 
 
 def test_option_package_risk_rejects_mixed_expiry_and_unbounded_loss() -> None:

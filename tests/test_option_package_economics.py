@@ -21,6 +21,7 @@ import pytest
 from tradebot.backtest.models import OptionTrade
 import tradebot.backtest.engine_options as backtest_engine
 from tradebot.backtest.synth import IVSurfaceParams
+import tradebot.live.options as live_options_module
 from tradebot.live.options import QualifiedOptionLeg, resolve_live_option_package
 
 
@@ -94,6 +95,7 @@ def _option_order_fixture() -> tuple[_BotOrder, dict[int, SimpleNamespace]]:
     )
     short.conId = 1001
     short.minTick = 0.01
+    short.multiplier = "100"
     long = Option(
         symbol="XSP",
         lastTradeDateOrContractMonth="20260209",
@@ -104,6 +106,7 @@ def _option_order_fixture() -> tuple[_BotOrder, dict[int, SimpleNamespace]]:
     )
     long.conId = 1002
     long.minTick = 0.01
+    long.multiplier = "100"
     underlying = Stock(symbol="XSP", exchange="SMART", currency="USD")
     underlying.conId = 900
     bag = Bag(symbol="XSP", exchange="SMART", currency="USD", comboLegs=[])
@@ -162,7 +165,7 @@ def test_live_combo_reprice_consumes_canonical_package_kernel(monkeypatch) -> No
     order, tickers = _option_order_fixture()
     calls: list[list[tuple[str, int, float | None]]] = []
     monkeypatch.setattr(
-        bot_orders_module,
+        live_options_module,
         "option_package_debit_value",
         _recording_kernel(calls),
     )
@@ -179,7 +182,7 @@ def test_live_combo_reprice_consumes_canonical_package_kernel(monkeypatch) -> No
     assert changed is True
     assert order.action == "BUY"
     assert order.limit_price == pytest.approx(-1.00)
-    assert (order.bid, order.ask, order.last) == pytest.approx((-1.00, -1.00, -1.00))
+    assert (order.bid, order.ask, order.last) == pytest.approx((-1.20, -0.80, -1.00))
     assert order.package is not None
     assert order.package.debit_value == pytest.approx(-1.00)
     assert order.package_risk is not None
@@ -271,7 +274,7 @@ def test_live_combo_quote_signature_consumes_canonical_package_kernel(monkeypatc
 def test_option_builder_stages_native_credit_bag_through_canonical_kernel(monkeypatch) -> None:
     calls: list[list[tuple[str, int, float | None]]] = []
     monkeypatch.setattr(
-        bot_order_builder_module,
+        live_options_module,
         "option_package_debit_value",
         _recording_kernel(calls),
     )
@@ -428,6 +431,7 @@ def test_option_builder_stages_native_credit_bag_through_canonical_kernel(monkey
         "multiplier": 100.0,
         "quantity": 2,
         "max_loss": 800.0,
+        "max_profit": 200.0,
     }
     assert len(calls) == 4
 
@@ -624,7 +628,7 @@ def _run_xsp_capacity_builder_case(
     package_calls: list[list[tuple[str, int, float | None]]] = []
     capacity_calls: list[tuple[object, object]] = []
     monkeypatch.setattr(
-        bot_order_builder_module,
+        live_options_module,
         "option_package_debit_value",
         _recording_kernel(package_calls),
     )

@@ -10,6 +10,7 @@ from ib_insync import Contract, PortfolioItem
 from rich.text import Text
 
 from ..common import _SyntheticPortfolioItem
+from ..position_detail.package import OptionPackageDetailScreen
 from ..positions import PositionDetailScreen
 
 
@@ -553,7 +554,7 @@ class PortfolioSearchRuntime:
         elif not self._search_query.strip():
             lines.append(
                 Text(
-                    "Tab/Shift+Tab mode | Up/Down scroll | Enter details | Esc close",
+                    "Tab mode | Up/Down row | Enter details | Esc close",
                     style="dim",
                 )
             )
@@ -617,6 +618,12 @@ class PortfolioSearchRuntime:
                     side_line.append("[PUT]", style="bold #0d1117 on #8fbfff")
                 side_line.append("  (left/right)", style="dim")
                 lines.append(side_line)
+                lines.append(
+                    Text(
+                        "Space: □ → BUY → SELL → □  |  +/- ratio  |  Enter: package details",
+                        style="dim",
+                    )
+                )
                 rows = self._option_pair_rows()
                 total = len(rows)
                 start = min(self._search_scroll, max(0, total - self._SEARCH_LIMIT))
@@ -634,12 +641,18 @@ class PortfolioSearchRuntime:
                 selected_contract = self._selected_opt_contract()
                 if selected_contract is not None:
                     selected_label = self._search_label_for_contract(selected_contract)
-                    selected_line = Text("Selected ", style="dim")
+                    selected_line = Text("Cursor ", style="dim")
                     selected_line.append(
                         self._search_contract_description(selected_contract, label=selected_label),
                         style="bold #9fd7ff",
                     )
                     lines.append(selected_line)
+                package_line = self._search_option_package_line()
+                if package_line is not None:
+                    lines.append(package_line)
+                notice = str(getattr(self, "_search_option_notice", "") or "").strip()
+                if notice:
+                    lines.append(Text(f"Package: {notice}", style="bold #ff9a9a"))
                 if total > self._SEARCH_LIMIT:
                     lines.append(Text(f"Rows {start + 1}-{end}/{total}", style="dim"))
         else:
@@ -726,8 +739,8 @@ class PortfolioSearchRuntime:
         if active and self._search_side == 1:
             right_style = f"{right_style} on #1d2a38"
 
-        call_text = self._clip_cell(self._search_option_cell_text("C", call_contract), 10)
-        put_text = self._clip_cell(self._search_option_cell_text("P", put_contract), 10)
+        call_text = self._clip_cell(self._search_option_cell_text("C", call_contract), 13)
+        put_text = self._clip_cell(self._search_option_cell_text("P", put_contract), 13)
         line = Text(f"{idx + 1}. ", style="dim")
         line.append(call_text, style=left_style)
         line.append("  |  ", style="dim")
@@ -735,6 +748,37 @@ class PortfolioSearchRuntime:
         line.append("  |  ", style="dim")
         line.append(put_text, style=right_style)
         return line
+
+    def _search_option_package_line(self) -> Text | None:
+        draft = self._option_draft()
+        if not draft.legs:
+            return None
+        summary = Text(
+            f"Package {len(draft.legs)} leg{'s' if len(draft.legs) != 1 else ''}",
+            style="bold #d9bcff",
+        )
+        quote = self._search_option_package_quote()
+        if quote is None:
+            summary.append(
+                "  |  awaiting a valid same-expiry package + live quotes",
+                style="dim",
+            )
+            return summary
+        risk = quote.live.risk
+        summary.append(
+            f"  |  {risk.structure.replace('_', ' ')}",
+            style="bold #86dca9",
+        )
+        summary.append(
+            f"  |  bid {quote.bid_value:+.2f}  mid {quote.mid_value:+.2f}  ask {quote.ask_value:+.2f}",
+            style="#b7cadc",
+        )
+        max_profit = "∞" if risk.max_profit is None else f"${risk.max_profit:,.0f}"
+        summary.append(
+            f"  |  max +{max_profit} / -${risk.max_loss:,.0f}",
+            style="bold #ffcc84",
+        )
+        return summary
 
     @staticmethod
     def _search_contract_description(contract: Contract, *, label: str = "") -> str:
@@ -799,6 +843,23 @@ class PortfolioSearchRuntime:
         return self._search_results[index]
 
     def _open_search_selection(self) -> None:
+        draft = self._option_draft()
+        if len(draft.legs) >= 2:
+            if self._search_option_package_quote() is None:
+                self._search_option_notice = (
+                    "selected legs do not yet form a priced, defined-risk package"
+                )
+                self._render_search()
+                return
+            self._close_search()
+            self.push_screen(
+                OptionPackageDetailScreen(
+                    self._client,
+                    draft,
+                    self._config.detail_refresh_sec,
+                )
+            )
+            return
         contract = self._selected_search_contract()
         if contract is None:
             return

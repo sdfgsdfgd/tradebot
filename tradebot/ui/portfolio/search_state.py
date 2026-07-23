@@ -8,6 +8,7 @@ import time
 from ib_insync import Contract, Ticker
 from rich.text import Text
 
+from ...live.options import LiveOptionPackageDraft, LiveOptionPackageQuote, quote_live_option_package
 from ..common import _safe_num
 
 
@@ -28,6 +29,7 @@ class PortfolioSearchState:
         self._search_opt_chain_cache = {}
         self._search_opt_chain_page_cache = {}
         self._search_timing = {}
+        self._clear_search_option_draft()
         self._reset_search_expiry_paging()
         self._search_loading = False
         self._search_error = None
@@ -52,6 +54,7 @@ class PortfolioSearchState:
         self._search_opt_chain_cache = {}
         self._search_opt_chain_page_cache = {}
         self._search_timing = {}
+        self._clear_search_option_draft()
         self._reset_search_expiry_paging()
         self._search_loading = False
         self._search_error = None
@@ -98,6 +101,7 @@ class PortfolioSearchState:
         self._search_opt_chain_cache = {}
         self._search_opt_chain_page_cache = {}
         self._search_timing = {}
+        self._clear_search_option_draft()
         self._reset_search_expiry_paging()
         self._queue_search()
 
@@ -121,6 +125,51 @@ class PortfolioSearchState:
     def _search_option_sec_type(self) -> str | None:
         mode = self._search_mode()
         return mode if self._is_option_search_mode(mode) else None
+
+    def _option_draft(self) -> LiveOptionPackageDraft:
+        draft = getattr(self, "_search_option_draft", None)
+        return draft if isinstance(draft, LiveOptionPackageDraft) else LiveOptionPackageDraft()
+
+    def _clear_search_option_draft(self) -> None:
+        self._search_option_draft = LiveOptionPackageDraft()
+        self._search_option_notice = None
+
+    def _cycle_selected_option_leg(self) -> None:
+        contract = self._selected_opt_contract()
+        if contract is None:
+            return
+        try:
+            self._search_option_draft = self._option_draft().cycle(contract)
+            self._search_option_notice = None
+        except ValueError as exc:
+            self._search_option_notice = str(exc)
+        self._render_search()
+
+    def _adjust_selected_option_leg_ratio(self, delta: int) -> None:
+        contract = self._selected_opt_contract()
+        if contract is None:
+            return
+        try:
+            self._search_option_draft = self._option_draft().adjust_ratio(contract, delta)
+            self._search_option_notice = None
+        except ValueError as exc:
+            self._search_option_notice = str(exc)
+        self._render_search()
+
+    def _search_option_package_quote(self, *, mode: str = "MID") -> LiveOptionPackageQuote | None:
+        draft = self._option_draft()
+        if len(draft.legs) < 2:
+            return None
+        tickers = tuple(
+            self._client.ticker_for_con_id(int(getattr(leg.contract, "conId", 0) or 0))
+            for leg in draft.legs
+        )
+        if any(ticker is None for ticker in tickers):
+            return None
+        symbol = str(getattr(draft.legs[0].contract, "symbol", "") or "")
+        return quote_live_option_package(
+            symbol=symbol, legs=draft.legs, tickers=tickers, quantity=1, intent="enter", mode=mode
+        )
 
     def _search_opt_expiries(self) -> list[str]:
         option_sec_type = self._search_option_sec_type()
@@ -254,6 +303,7 @@ class PortfolioSearchState:
         self._search_generation += 1
         self._cancel_search_task()
         self._search_opt_underlyer_index = (self._search_opt_underlyer_index + int(step)) % count
+        self._clear_search_option_draft()
         self._search_selected = 0
         self._search_scroll = 0
         self._search_side = 0
@@ -374,8 +424,12 @@ class PortfolioSearchState:
                 if contract is None:
                     continue
                 con_id = int(getattr(contract, "conId", 0) or 0)
-                if con_id and con_id not in contracts:
-                    contracts[con_id] = contract
+                if con_id:
+                    contracts.setdefault(con_id, contract)
+        for leg in self._option_draft().legs:
+            con_id = int(getattr(leg.contract, "conId", 0) or 0)
+            if con_id:
+                contracts.setdefault(con_id, leg.contract)
         return contracts
 
     def _sync_search_option_tickers(self) -> None:
@@ -437,18 +491,18 @@ class PortfolioSearchState:
         return None
 
     def _search_option_cell_text(self, right: str, contract: Contract | None) -> str:
-        if contract is None:
-            return f"{right} --"
-        con_id = int(getattr(contract, "conId", 0) or 0)
+        con_id = int(getattr(contract, "conId", 0) or 0) if contract is not None else 0
         if not con_id:
-            return f"{right} --"
+            return f"□ {right} --"
+        selected = self._option_draft().leg_for(contract)
+        marker = "□" if selected is None else f"{selected.action[0]}{selected.ratio}"
         ticker = self._client.ticker_for_con_id(con_id)
         quote = self._option_quote_value(ticker)
         if quote is not None:
-            return f"{right} {quote:.2f}"
+            return f"{marker} {right} {quote:.2f}"
         if con_id in self._search_ticker_loading:
-            return f"{right} ..."
-        return f"{right} --"
+            return f"{marker} {right} ..."
+        return f"{marker} {right} --"
 
     @staticmethod
     def _option_row_strike(

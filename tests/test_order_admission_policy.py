@@ -97,11 +97,13 @@ def test_complete_xsp_credit_bag_is_admitted_from_empirical_preview_without_stat
         "quantity": 1,
         "limit_price": -1.00,
         "max_loss": 400.00,
+        "status": "PreSubmitted",
         "init_margin_change": 500.00,
         "init_margin_after": 1700.00,
         "equity_with_loan_after": 2197.50,
         "commission": 2.50,
         "commission_currency": "USD",
+        "warning_text": "",
     }
 
 
@@ -186,9 +188,11 @@ def test_complete_xsp_iron_condor_resize_is_admitted_from_empirical_preview() ->
     ("request_changes", "fact_changes", "expected_reason"),
     [
         ({"max_loss": None}, {}, "max_loss_unknown"),
-        ({}, {"init_margin_change": None}, "preview_incomplete"),
-        ({}, {"equity_with_loan_after": None}, "preview_incomplete"),
-        ({}, {"warning_text": "Order exceeds a broker constraint"}, "broker_warning"),
+        ({}, {"status": None}, "preview_incomplete"),
+        ({}, {"status": "Inactive"}, "broker_status_blocked"),
+        ({}, {"status": "PendingSubmit"}, "broker_status_unproven"),
+        ({}, {"commission_currency": "CAD"}, "currency_mismatch"),
+        ({}, {"equity_with_loan_after": -1.0}, "broker_capacity_exceeded"),
         ({"product_domain": "SPX"}, {}, "identity_mismatch"),
         ({"product_domain": "MCL", "symbol": "MCL", "sec_type": "BAG"}, {}, "product_policy_unavailable"),
     ],
@@ -228,3 +232,38 @@ def test_order_admission_fails_closed_with_explicit_evidence_reason(
     assert decision.allow is False
     assert decision.reason == expected_reason
     assert decision.as_payload()["trace"]["product_domain"] == request_values["product_domain"]
+
+
+def test_sparse_ibkr_preview_with_advisory_warning_preserves_bounded_risk_admission() -> None:
+    module = _policy_module()
+    evaluate = _require_owner(module, "evaluate_order_admission")
+    warning = (
+        "If your order is not immediately executable, our systems may reject "
+        "the order based on its limit price."
+    )
+
+    decision = evaluate(
+        _complete_xsp_request(module),
+        _complete_preview_facts(
+            module,
+            init_margin_before=None,
+            init_margin_change=None,
+            init_margin_after=None,
+            maintenance_margin_before=None,
+            maintenance_margin_change=None,
+            maintenance_margin_after=None,
+            equity_with_loan_before=None,
+            equity_with_loan_change=None,
+            equity_with_loan_after=None,
+            commission=0.0,
+            min_commission=None,
+            max_commission=None,
+            commission_currency=None,
+            warning_text=warning,
+        ),
+    )
+
+    assert decision.allow is True
+    assert decision.reason == "broker_preview_admitted"
+    assert decision.trace["status"] == "PreSubmitted"
+    assert decision.trace["warning_text"] == warning

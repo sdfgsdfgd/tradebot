@@ -431,6 +431,7 @@ class OptionPackageRisk:
     multiplier: float
     quantity: int
     max_loss: float
+    max_profit: float | None = None
 
     def as_payload(self) -> dict[str, object]:
         return asdict(self)
@@ -543,10 +544,18 @@ def option_package_risk(
         return None
 
     strikes = sorted({leg.strike for leg in package.legs})
-    max_loss_units = max(0.0, -min(_terminal_profit(spot) for spot in [0.0, *strikes]))
+    terminal_profits = [_terminal_profit(spot) for spot in [0.0, *strikes]]
+    max_loss_units = max(0.0, -min(terminal_profits))
     max_loss = max_loss_units * package.product.multiplier * package.quantity
     if not math.isfinite(max_loss) or max_loss <= 0:
         return None
+    max_profit = (
+        None
+        if upper_slope > 0
+        else max(0.0, max(terminal_profits))
+        * package.product.multiplier
+        * package.quantity
+    )
 
     rights = {leg.right for leg in package.legs}
     right = next(iter(rights)) if len(rights) == 1 else "MIXED"
@@ -568,6 +577,7 @@ def option_package_risk(
         multiplier=package.product.multiplier,
         quantity=package.quantity,
         max_loss=float(max_loss),
+        max_profit=float(max_profit) if max_profit is not None else None,
     )
 
 

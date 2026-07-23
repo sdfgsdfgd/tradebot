@@ -13,6 +13,7 @@ from textual.widgets import DataTable, Footer, Header, Static
 
 from ..client import IBKRClient
 from ..config import load_config
+from ..live.options import LiveOptionPackageDraft
 from .bot_runtime import BotRuntime
 from .favorites import FavoritesScreen
 from .portfolio.market import PortfolioMarketValues
@@ -309,6 +310,8 @@ class PositionsApp(
         self._search_expiry_prefetch_generation = -1
         self._search_timing: dict[str, object] = {}
         self._search_task: asyncio.Task | None = None
+        self._search_option_draft = LiveOptionPackageDraft()
+        self._search_option_notice: str | None = None
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -503,6 +506,21 @@ class PositionsApp(
                 event.prevent_default()
                 event.stop()
                 return
+            if event.key == "space" and self._search_option_sec_type() is not None:
+                self._cycle_selected_option_leg()
+                event.prevent_default()
+                event.stop()
+                return
+            if (
+                event.character in ("+", "-")
+                and self._search_option_sec_type() is not None
+            ):
+                self._adjust_selected_option_leg_ratio(
+                    1 if event.character == "+" else -1
+                )
+                event.prevent_default()
+                event.stop()
+                return
             if event.key == "tab":
                 self._cycle_search_mode(1)
                 event.prevent_default()
@@ -576,6 +594,7 @@ class PositionsApp(
                     return
             if event.key == "backspace":
                 if self._search_query:
+                    self._clear_search_option_draft()
                     self._search_query = self._search_query[:-1]
                     self._queue_search()
                 else:
@@ -587,6 +606,7 @@ class PositionsApp(
                 char = event.character
                 if char.isalpha():
                     char = char.upper()
+                self._clear_search_option_draft()
                 self._search_query += char
                 self._queue_search()
                 event.prevent_default()

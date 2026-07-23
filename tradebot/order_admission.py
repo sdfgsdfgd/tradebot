@@ -89,11 +89,13 @@ def _trace(
         "quantity": int(request.quantity),
         "limit_price": _finite(request.limit_price),
         "max_loss": _finite(request.max_loss),
+        "status": str(facts.status or "").strip(),
         "init_margin_change": _finite(facts.init_margin_change),
         "init_margin_after": _finite(facts.init_margin_after),
         "equity_with_loan_after": _finite(facts.equity_with_loan_after),
         "commission": _finite(facts.commission),
         "commission_currency": _token(facts.commission_currency),
+        "warning_text": str(facts.warning_text or "").strip(),
     }
 
 
@@ -111,7 +113,10 @@ def _decision(
     )
 
 
-def _xsp_defined_risk_bag_identity_valid(request: OrderAdmissionRequest) -> bool:
+_DEFINED_RISK_INDEX_OPTION_PRODUCTS = frozenset({"SPX", "XSP"})
+
+
+def _defined_risk_bag_identity_valid(request: OrderAdmissionRequest) -> bool:
     if _token(request.sec_type) != "BAG":
         return False
     if _token(request.currency) != "USD":
@@ -164,7 +169,7 @@ def evaluate_order_admission(
     if not product_domain or not symbol or product_domain != symbol:
         return _decision(request, facts, allow=False, reason="identity_mismatch")
 
-    if product_domain != "XSP":
+    if product_domain not in _DEFINED_RISK_INDEX_OPTION_PRODUCTS:
         return _decision(
             request,
             facts,
@@ -175,7 +180,7 @@ def evaluate_order_admission(
     if intent not in {"enter", "exit", "resize"}:
         return _decision(request, facts, allow=False, reason="intent_invalid")
 
-    if not _xsp_defined_risk_bag_identity_valid(request):
+    if not _defined_risk_bag_identity_valid(request):
         return _decision(request, facts, allow=False, reason="structure_invalid")
 
     max_loss = _finite(request.max_loss)
@@ -184,45 +189,23 @@ def evaluate_order_admission(
     if max_loss <= 0:
         return _decision(request, facts, allow=False, reason="max_loss_invalid")
 
-    warning_text = str(facts.warning_text or "").strip()
-    if warning_text:
-        return _decision(request, facts, allow=False, reason="broker_warning")
-
-    required_numeric = (
-        facts.init_margin_before,
-        facts.init_margin_change,
-        facts.init_margin_after,
-        facts.maintenance_margin_before,
-        facts.maintenance_margin_change,
-        facts.maintenance_margin_after,
-        facts.equity_with_loan_before,
-        facts.equity_with_loan_change,
-        facts.equity_with_loan_after,
-        facts.commission,
-        facts.min_commission,
-        facts.max_commission,
-    )
-    if (
-        not str(facts.status or "").strip()
-        or not _token(facts.commission_currency)
-        or any(_finite(value) is None for value in required_numeric)
-    ):
+    status = _token(facts.status)
+    if not status:
         return _decision(request, facts, allow=False, reason="preview_incomplete")
 
-    if _token(facts.commission_currency) != _token(request.currency):
-        return _decision(request, facts, allow=False, reason="currency_mismatch")
-
-    status = _token(facts.status)
     if status in {"INACTIVE", "REJECTED", "CANCELLED", "APICANCELLED"}:
         return _decision(request, facts, allow=False, reason="broker_status_blocked")
+    if status not in {"PRESUBMITTED", "SUBMITTED"}:
+        return _decision(request, facts, allow=False, reason="broker_status_unproven")
+
+    commission_currency = _token(facts.commission_currency)
+    if commission_currency and commission_currency != _token(request.currency):
+        return _decision(request, facts, allow=False, reason="currency_mismatch")
 
     init_margin_after = _finite(facts.init_margin_after)
     equity_with_loan_after = _finite(facts.equity_with_loan_after)
-    if (
-        init_margin_after is None
-        or equity_with_loan_after is None
-        or init_margin_after < 0
-        or equity_with_loan_after < 0
+    if (init_margin_after is not None and init_margin_after < 0) or (
+        equity_with_loan_after is not None and equity_with_loan_after < 0
     ):
         return _decision(request, facts, allow=False, reason="broker_capacity_exceeded")
 

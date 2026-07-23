@@ -732,6 +732,7 @@ class IBKRClient:
         ] = {}
         self._front_future_cache: dict[tuple[str, str], tuple[Contract, float]] = {}
         self._future_root_name_cache: dict[str, tuple[str, float]] = {}
+        self._option_underlyer_cache: dict[str, Contract] = {}
         self._update_callback: Callable[[], None] | None = None
         self._stream_listeners: set[Callable[[], None]] = set()
         self._pnl: PnL | None = None
@@ -1672,13 +1673,20 @@ class IBKRClient:
                 order_contract.exchange = "OVERNIGHT"
                 # IBKR rejects STK OVERNIGHT orders with GTC; DAY is required.
                 tif = "DAY"
-        if str(getattr(order_contract, "secType", "") or "").strip().upper() in ("OPT", "FOP", "FUT"):
+        if str(getattr(order_contract, "secType", "") or "").strip().upper() in (
+            "OPT",
+            "FOP",
+            "FUT",
+        ):
             try:
                 await self._prime_contract_price_increments(order_contract)
             except Exception:
                 pass
         limit_price = self._normalize_limit_price_increment(order_contract, float(limit_price))
         order = LimitOrder(action, quantity, limit_price, tif=tif)
+        account = self._resolve_account(self._config.account)
+        if account:
+            order.account = account
         if sec_type == "STK" and outside_rth and outside_session and not include_overnight:
             order.outsideRth = True
         order_contract = _normalize_order_contract(order_contract)
@@ -3247,8 +3255,8 @@ class IBKRClient:
                 )
         return out
 
-    @staticmethod
     def _rank_opt_underlyer_symbols(
+        self,
         matches: Iterable[object],
         *,
         term_set: set[str],
@@ -3265,7 +3273,8 @@ class IBKRClient:
             contract = getattr(desc, "contract", None)
             if not contract:
                 continue
-            if str(getattr(contract, "secType", "") or "").strip().upper() != "STK":
+            sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
+            if sec_type not in {"IND", "STK"}:
                 continue
             deriv = {
                 str(sec).strip().upper()
@@ -3277,6 +3286,7 @@ class IBKRClient:
             if not symbol or symbol in seen_symbols:
                 continue
             seen_symbols.add(symbol)
+            self._option_underlyer_cache[symbol] = contract
             desc_text = IBKRClient._desc_text(desc)
             if symbol in term_set and not (token_is_alias_seed and symbol == token):
                 exact_symbols.append(symbol)
@@ -3418,7 +3428,10 @@ class IBKRClient:
             contract = getattr(desc, "contract", None)
             if not contract:
                 continue
-            if str(getattr(contract, "secType", "") or "").strip().upper() != "STK":
+            if str(getattr(contract, "secType", "") or "").strip().upper() not in {
+                "IND",
+                "STK",
+            }:
                 continue
             symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
             if not symbol or symbol in label_by_symbol:
@@ -4413,8 +4426,29 @@ class IBKRClient:
         return out
 
     async def stock_option_chain(self, symbol: str):
-        """Return (qualified_underlying, chain) for an equity option underlyer."""
-        candidate = Stock(symbol=symbol, exchange="SMART", currency="USD")
+        """Return a chain for a broker-discovered stock or index option underlyer."""
+        symbol_key = str(symbol or "").strip().upper()
+        candidate = self._option_underlyer_cache.get(symbol_key)
+        if candidate is None:
+            try:
+                matches = await self._matching_symbols(
+                    symbol_key,
+                    use_proxy=True,
+                    mode="OPT",
+                    raise_on_error=True,
+                )
+            except Exception:
+                matches = []
+            self._rank_opt_underlyer_symbols(
+                matches,
+                term_set={symbol_key},
+                token=symbol_key,
+                token_is_alias_seed=False,
+                max_symbols=20,
+            )
+            candidate = self._option_underlyer_cache.get(symbol_key)
+        if candidate is None:
+            candidate = Stock(symbol=symbol_key, exchange="SMART", currency="USD")
         underlying = await self._qualify_contract(candidate, use_proxy=True) or candidate
         try:
             await self.connect_proxy()

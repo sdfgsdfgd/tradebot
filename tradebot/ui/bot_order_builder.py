@@ -21,10 +21,9 @@ from ..engines.execution import (
     _sanitize_nbbo,
     _tick_size,
 )
-from ..live.options import QualifiedOptionLeg, resolve_live_option_package
+from ..live.options import QualifiedOptionLeg, quote_live_option_package
 from ..option_package import (
     normalize_option_legs,
-    option_package_debit_value,
     option_package_entry_intent,
 )
 from ..spot.lifecycle import decide_open_position_intent
@@ -503,63 +502,23 @@ class BotOrderBuilderMixin:
             if not leg_orders:
                 return _fail("Order: no legs configured")
 
-            # Compute net price in "debit units": BUY adds, SELL subtracts.
-            mid_rows: list[tuple[str, int, float]] = []
-            bid_rows: list[tuple[str, int, float]] = []
-            ask_rows: list[tuple[str, int, float]] = []
-            desired_rows: list[tuple[str, int, float]] = []
-            tick = None
-            for leg_order, (bid, ask, last, ticker) in zip(leg_orders, leg_quotes):
-                mid = _midpoint(bid, ask)
-                leg_mid = mid or last
-                if leg_mid is None:
-                    return _fail(
-                        "Quote: missing mid/last (cannot price)",
-                        quote_payload=_quote_failure_payload(ticker=ticker, bid=bid, ask=ask, last=last, mid=mid),
-                    )
-                leg_bid = bid or mid or last
-                leg_ask = ask or mid or last
-                if leg_bid is None or leg_ask is None:
-                    return _fail(
-                        "Quote: missing bid/ask (cannot price)",
-                        quote_payload=_quote_failure_payload(ticker=ticker, bid=bid, ask=ask, last=last, mid=mid),
-                    )
-                leg_desired = _leg_price(bid, ask, last, leg_order.action)
-                if leg_desired is None:
-                    return _fail(
-                        "Quote: missing bid/ask/last (cannot price)",
-                        quote_payload=_quote_failure_payload(ticker=ticker, bid=bid, ask=ask, last=last, mid=mid),
-                    )
-                leg_tick = _tick_size(leg_order.contract, ticker, leg_desired)
-                tick = leg_tick if tick is None else min(tick, leg_tick)
-                action = "BUY" if leg_order.action == "BUY" else "SELL"
-                mid_rows.append((action, leg_order.ratio, float(leg_mid)))
-                bid_rows.append((action, leg_order.ratio, float(leg_bid)))
-                ask_rows.append((action, leg_order.ratio, float(leg_ask)))
-                desired_rows.append(
-                    (action, leg_order.ratio, float(leg_desired))
-                )
-
-            debit_mid = option_package_debit_value(mid_rows)
-            debit_bid = option_package_debit_value(bid_rows)
-            debit_ask = option_package_debit_value(ask_rows)
-            desired_debit = option_package_debit_value(desired_rows)
-            assert debit_mid is not None
-            assert debit_bid is not None
-            assert debit_ask is not None
-            assert desired_debit is not None
-
-            tick = tick or 0.01
-
             if len(leg_orders) == 1:
                 single = leg_orders[0]
                 (bid, ask, last, ticker) = leg_quotes[0]
+                mid = _midpoint(bid, ask)
                 limit = _leg_price(bid, ask, last, single.action)
                 if limit is None:
                     return _fail(
                         "Quote: no bid/ask/last (cannot price)",
-                        quote_payload=_quote_failure_payload(ticker=ticker, bid=bid, ask=ask, last=last),
+                        quote_payload=_quote_failure_payload(
+                            ticker=ticker,
+                            bid=bid,
+                            ask=ask,
+                            last=last,
+                            mid=mid,
+                        ),
                     )
+                tick = _tick_size(single.contract, ticker, limit) or 0.01
                 limit = _round_to_tick(float(limit), tick)
                 single_quantity = single.ratio
                 if intent_clean == "enter":
@@ -601,14 +560,38 @@ class BotOrderBuilderMixin:
                 )
                 return
 
-            # Multi-leg combo: use IBKR's native encoding (can be negative for credits).
+            package_quantity = 1
+            if intent_clean == "enter":
+                if entry_intent is None:
+                    return _fail("Order: option entry intent unavailable")
+                package_quantity = entry_intent.quantity
+            else:
+                try:
+                    package_quantity = int(strat.get("quantity", 1) or 1)
+                except (TypeError, ValueError):
+                    package_quantity = 1
+                package_quantity = max(1, package_quantity)
+            package_quote = quote_live_option_package(
+                symbol=symbol,
+                legs=leg_orders,
+                tickers=[quote[3] for quote in leg_quotes],
+                quantity=package_quantity,
+                intent=intent_clean,
+                mode=mode,
+            )
+            if package_quote is None:
+                return _fail(
+                    "Quote: package legs are not jointly executable",
+                    retry_reason="package_quote_unavailable",
+                )
+
+            # Multi-leg combos use IBKR's native signed debit encoding.
             order_action = "BUY"
-            order_bid = debit_bid
-            order_ask = debit_ask
-            order_last = debit_mid
-            order_limit = _round_to_tick(float(desired_debit), tick)
-            if not order_limit:
-                return _fail("Quote: combo price is 0 (cannot price)")
+            order_bid = package_quote.bid_value
+            order_ask = package_quote.ask_value
+            order_last = package_quote.mid_value
+            order_limit = package_quote.limit_value
+            tick = package_quote.tick
 
             if intent_clean == "enter" and order_limit < 0:
                 if entry_intent is None:
@@ -632,28 +615,7 @@ class BotOrderBuilderMixin:
                         retry_reason="minimum_credit_not_met",
                     )
 
-            if intent_clean == "enter":
-                if entry_intent is None:
-                    return _fail("Order: option entry intent unavailable")
-                package_quantity = entry_intent.quantity
-            else:
-                try:
-                    package_quantity = int(strat.get("quantity", 1) or 1)
-                except (TypeError, ValueError):
-                    package_quantity = 1
-                package_quantity = max(1, package_quantity)
-            live_package = resolve_live_option_package(
-                symbol=symbol,
-                legs=leg_orders,
-                quantity=package_quantity,
-                debit_value=float(order_limit),
-                intent=intent_clean,
-            )
-            if live_package is None:
-                return _fail(
-                    "Order: package identity or defined risk unavailable",
-                    retry_reason="package_risk_unavailable",
-                )
+            live_package = package_quote.live
 
             if (
                 intent_clean in {"enter", "resize"}

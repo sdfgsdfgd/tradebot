@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import math
-from dataclasses import replace
 from datetime import date
 
 from ib_insync import Contract, PortfolioItem
@@ -17,8 +16,7 @@ from ...engines.execution import (
     _sanitize_nbbo,
     _tick_size,
 )
-from ...live.options import preview_and_admit_option_order
-from ...option_package import option_package_debit_value, option_package_risk
+from ...live.options import preview_and_admit_option_order, quote_live_option_package
 from ...order_reservation import (
     OrderReservation,
     OrderReservationSummary,
@@ -72,69 +70,37 @@ class BotOrdersMixin:
             order.last = last
             return changed or mode_changed
 
-        mid_rows: list[tuple[str, int, float]] = []
-        bid_rows: list[tuple[str, int, float]] = []
-        ask_rows: list[tuple[str, int, float]] = []
-        desired_rows: list[tuple[str, int, float]] = []
-        tick = None
+        tickers: list[object] = []
         for leg in legs:
             ticker = await self._client.ensure_ticker(leg.contract, owner="bot")
-            bid, ask, last = _sanitize_nbbo(
-                getattr(ticker, "bid", None),
-                getattr(ticker, "ask", None),
-                getattr(ticker, "last", None),
-            )
-            mid = _midpoint(bid, ask)
-            leg_mid = mid or last
-            if leg_mid is None:
-                return False
-            leg_bid = bid or mid or last
-            leg_ask = ask or mid or last
-            leg_desired = _limit_price_for_mode(bid, ask, last, action=leg.action, mode=mode)
-            if leg_bid is None or leg_ask is None or leg_desired is None:
-                return False
-            leg_tick = _tick_size(leg.contract, ticker, leg_desired)
-            tick = leg_tick if tick is None else min(tick, leg_tick)
-            action = "BUY" if leg.action == "BUY" else "SELL"
-            mid_rows.append((action, leg.ratio, float(leg_mid)))
-            bid_rows.append((action, leg.ratio, float(leg_bid)))
-            ask_rows.append((action, leg.ratio, float(leg_ask)))
-            desired_rows.append((action, leg.ratio, float(leg_desired)))
-
-        debit_mid = option_package_debit_value(mid_rows)
-        debit_bid = option_package_debit_value(bid_rows)
-        debit_ask = option_package_debit_value(ask_rows)
-        desired_debit = option_package_debit_value(desired_rows)
-        assert debit_mid is not None
-        assert debit_bid is not None
-        assert debit_ask is not None
-        assert desired_debit is not None
-
-        tick = tick or 0.01
-        order.action = "BUY"
-        new_limit = _round_to_tick(float(desired_debit), tick)
-        if not new_limit:
+            tickers.append(ticker)
+        product = getattr(getattr(order, "package", None), "product", None)
+        symbol = getattr(product, "underlying_symbol", None) or getattr(
+            order.order_contract, "symbol", ""
+        )
+        package_quote = quote_live_option_package(
+            symbol=str(symbol),
+            legs=legs,
+            tickers=tickers,
+            quantity=int(order.quantity),
+            intent=str(order.intent or "enter"),
+            mode=mode,
+        )
+        if package_quote is None:
             return False
-        repriced_package = None
-        repriced_risk = None
-        if order.package is not None:
-            repriced_package = replace(order.package, debit_value=float(new_limit))
-            repriced_risk = option_package_risk(repriced_package)
-            if repriced_risk is None:
-                return False
-        new_bid = float(debit_bid)
-        new_ask = float(debit_ask)
-        new_last = float(debit_mid)
+
+        tick = package_quote.tick
+        order.action = "BUY"
+        new_limit = package_quote.limit_value
         changed = not math.isclose(
             new_limit, order.limit_price, rel_tol=0, abs_tol=tick / 2.0
         )
         order.limit_price = float(new_limit)
-        order.bid = new_bid
-        order.ask = new_ask
-        order.last = new_last
-        if repriced_package is not None:
-            order.package = repriced_package
-            order.package_risk = repriced_risk
+        order.bid = package_quote.bid_value
+        order.ask = package_quote.ask_value
+        order.last = package_quote.mid_value
+        order.package = package_quote.live.package
+        order.package_risk = package_quote.live.risk
         return changed or mode_changed
 
     def _reset_daily_counters_if_needed(self, instance: _BotInstance) -> None:
