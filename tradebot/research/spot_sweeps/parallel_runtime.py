@@ -136,7 +136,6 @@ class SweepParallelRuntime:
             hb_rows = self._planner_heartbeat_get_many(stage_label=str(stage_label), worker_ids=worker_ids)
             tested_sum = 0
             cached_sum = 0
-            eta_vals: list[float] = []
             stale_names: list[str] = []
             now_ts = float(pytime.time())
             for worker_name, worker_id in worker_id_by_name.items():
@@ -144,14 +143,6 @@ class SweepParallelRuntime:
                 if isinstance(row, dict):
                     tested_sum += int(row.get("tested") or 0)
                     cached_sum += int(row.get("cached_hits") or 0)
-                    eta_raw = row.get("eta_sec")
-                    if eta_raw is not None:
-                        try:
-                            eta_f = float(eta_raw)
-                        except (TypeError, ValueError):
-                            eta_f = -1.0
-                        if eta_f >= 0.0:
-                            eta_vals.append(float(eta_f))
                     status_s = str(row.get("status") or "").strip().lower()
                     try:
                         last_seen = float(row.get("last_seen") or 0.0)
@@ -169,12 +160,20 @@ class SweepParallelRuntime:
             if stale_names:
                 self.planner_heartbeat_stale_candidates += int(len(stale_names))
             total_eff = max(0, int(stage_total))
-            eta_max = max(eta_vals) if eta_vals else 0.0
+            elapsed_sec = max(0.0, float(now_ts - stage_started_at))
+            tested_eff = min(int(total_eff), max(0, int(tested_sum))) if int(total_eff) > 0 else max(0, int(tested_sum))
+            rate = (float(tested_eff) / float(elapsed_sec)) if elapsed_sec > 0.0 else 0.0
+            remaining = max(0, int(total_eff) - int(tested_eff))
+            eta = (float(remaining) / float(rate)) if rate > 0.0 else None
+            progress_state = getattr(self, "axis_progress_state", None)
+            if isinstance(progress_state, dict) and bool(progress_state.get("active")):
+                progress_state["last_report"] = float(pytime.perf_counter())
+            eta_s = f"{float(eta) / 60.0:0.1f}m" if eta is not None else "?"
             line = (
                 f"{stage_label} planner heartbeat running={len(worker_id_by_name)} "
                 f"pending={int(pending_count)} hb_rows={len(hb_rows)} "
-                f"tested={int(tested_sum)}/{int(total_eff)} cached_hits={int(cached_sum)} "
-                f"eta~{float(eta_max) / 60.0:0.1f}m stale={len(stale_names)}"
+                f"tested={int(tested_eff)}/{int(total_eff)} cached_hits={int(cached_sum)} "
+                f"eta~{eta_s} stale={len(stale_names)}"
             )
             return {"line": line, "stale": tuple(stale_names)}
 
@@ -510,7 +509,8 @@ class SweepParallelRuntime:
             total_hint_s = str(total_hint) if total_hint is not None else "?"
             axis_watchdog_stop = threading.Event()
             axis_watchdog_thread: threading.Thread | None = None
-            axis_watchdog_sec = 30.0
+            # Trail the 30s planner heartbeat; this watchdog is only its stalled-axis fallback.
+            axis_watchdog_sec = 35.0
             if bool(timed_local):
                 print(f"START {axis_name} total={total_hint_s}", flush=True)
             else:
@@ -548,8 +548,9 @@ class SweepParallelRuntime:
                     line += " heartbeat=axis"
                     print(line, flush=True)
 
-            axis_watchdog_thread = threading.Thread(target=_axis_watchdog, daemon=True)
-            axis_watchdog_thread.start()
+            if bool(axis_progress_enabled):
+                axis_watchdog_thread = threading.Thread(target=_axis_watchdog, daemon=True)
+                axis_watchdog_thread.start()
             if bool(axis_progress_enabled):
                 self._axis_progress_begin(axis_name=str(axis_name))
             try:

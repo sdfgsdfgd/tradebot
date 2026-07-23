@@ -14,6 +14,7 @@ from tradebot.backtest.models import SummaryStats
 from tradebot.backtest.spot_context import SpotContextBars
 import tradebot.backtest.sweep_parallel as sweep_parallel
 import tradebot.research.spot_sweeps.evaluation as sweep_evaluation
+import tradebot.research.spot_sweeps.parallel_runtime as sweep_parallel_runtime
 from tradebot.research.spot_sweeps.axes_hf import _orb_candidates
 from tradebot.research.spot_sweeps.catalog import (
     _AXIS_CHOICES,
@@ -38,6 +39,7 @@ import tradebot.research.spot_sweeps.combo as sweep_combo
 from tradebot.research.spot_sweeps.combo import SweepCartesian, _objective_shortlist
 from tradebot.research.spot_sweeps.milestones import _rank_cfg_rows, _spot_strategy_payload
 from tradebot.research.spot_sweeps.runtime import SpotSweepRuntime
+from tradebot.research.spot_sweeps.parallel_runtime import SweepParallelRuntime
 from tradebot.research.spot_sweeps.stages import SweepStages
 from tradebot.research.spot_sweeps.support import (
     _bundle_base,
@@ -1118,3 +1120,57 @@ def test_stage_grid_materializes_fully_cached_plan() -> None:
         ("b", {"key": "b"}, "B"),
         ("c", {"key": "c"}, "C"),
     ]
+
+
+def test_planner_heartbeat_owns_parallel_progress_and_eta(monkeypatch) -> None:
+    class Harness(SweepParallelRuntime):
+        planner_heartbeat_stale_candidates = 0
+        axis_progress_state = {"active": True, "last_report": 0.0}
+
+        @staticmethod
+        def _planner_heartbeat_get_many(*, stage_label, worker_ids):
+            assert stage_label == "combo_full"
+            assert worker_ids == [0, 1]
+            return {
+                0: {"tested": 280, "cached_hits": 20, "last_seen": 1_029.0},
+                1: {"tested": 320, "cached_hits": 30, "last_seen": 1_029.0},
+            }
+
+    wall_times = iter((1_000.0, 1_030.0))
+    monkeypatch.setattr(sweep_parallel_runtime.pytime, "time", lambda: next(wall_times))
+    monkeypatch.setattr(sweep_parallel_runtime.pytime, "perf_counter", lambda: 500.0)
+
+    probe = SweepParallelRuntime._planner_parallel_status_probe(
+        Harness(),
+        stage_label="combo_full",
+        stage_total=1_200,
+    )
+    result = probe([("cfc:0", 30.0), ("cfc:1", 30.0)], 0)
+
+    assert "tested=600/1200 cached_hits=50 eta~0.5m" in result["line"]
+    assert result["stale"] == ()
+    assert Harness.axis_progress_state["last_report"] == 500.0
+
+
+def test_worker_stage_uses_planner_heartbeat_without_axis_watchdog(
+    monkeypatch,
+) -> None:
+    class Harness:
+        args = SimpleNamespace(cfg_worker=0, combo_full_cartesian_worker=None)
+        run_calls_total = 0
+        axis_registry = {"combo_full": lambda: None}
+
+        @staticmethod
+        def _axis_total_hint(_axis_name):
+            return 1_153
+
+    monkeypatch.setattr(
+        sweep_parallel_runtime.threading,
+        "Thread",
+        lambda *_args, **_kwargs: pytest.fail("worker stage started an axis watchdog"),
+    )
+
+    SweepParallelRuntime._run_axis_plan_serial(
+        Harness(),
+        [("combo_full", "single", False)],
+    )
