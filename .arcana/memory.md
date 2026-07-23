@@ -1,3 +1,21 @@
+# Remaining Work
+
+TradeBot work is intentionally paused at a verified milestone. The actionable handoff is maintained in root-level `q_remaining_work.md`.
+
+## Highest-value queue
+
+1. Finish `spot-v1.exit-resize-adapter-receipts` only if parity work resumes: direct backtest-resize and live-filled-exit receipt evidence remain the clearest gaps.
+2. Complete broker-native atomic multi-leg option execution, prioritizing empirically admitted defined-risk XSP structures for the approximately USD 2,200 account.
+3. Continue the canonical research/backtest/live strategy-execution model, weekly walk-forward loop, promotion/calibration ladder, and capability-ledger discipline.
+
+## Stop checkpoint
+
+- Published code and metadata through `35271e4de5a83e67eeed602f71f27f1348661678`.
+- Publication receipt `8860e264e1d0906dc728514a5661720d652fbfbc91542e3f2309a19b77c02201`.
+- Detailed resume instructions: `q_remaining_work.md`.
+
+# ARCHIVE
+
 <!-- BEGIN: TRADEBOT_CAPABILITY_LEDGER_CHARTER -->
 
 <!-- anchor: @charter.primary-goals -->
