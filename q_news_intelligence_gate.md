@@ -351,8 +351,8 @@ coalescing; it is not a 15-minute poll.
 Final validation evidence:
 
 - focused news + capability-ledger + architecture suite: `25 passed`;
-- complete repository suite under Python 3.12: `704 passed, 4 deselected,
-  1 warning` in `10.58s`;
+- complete repository suite under Python 3.12 after integrating concurrent
+  `origin/main`: `708 passed, 4 deselected, 1 warning` in `10.83s`;
 - both production modules remain below the 1,000-line architecture ceiling:
   `tradebot/news.py` 701 lines and `tradebot/news_contract.py` 754 lines;
 - q `systemd-analyze --user verify` passed with no diagnostics;
