@@ -266,9 +266,17 @@ def _assert_int(
     return value
 
 
-def _assert_text(value: object, *, label: str, limit: int) -> str:
+def _assert_text(
+    value: object,
+    *,
+    label: str,
+    limit: int,
+    complete_sentence: bool = False,
+) -> str:
     if not isinstance(value, str) or not value.strip() or len(value) > limit:
         raise NewsError(f"{label} must be non-empty and at most {limit} characters")
+    if complete_sentence and value.rstrip()[-1] not in ".!?":
+        raise NewsError(f"{label} must end with a complete sentence")
     return value
 
 
@@ -346,7 +354,12 @@ def _validate_score(
     )
     if total != impact or (direction == 0) != (impact == 0):
         raise NewsError(f"{label} score is internally inconsistent")
-    _assert_text(value["calibration"], label=f"{label}.calibration", limit=200)
+    _assert_text(
+        value["calibration"],
+        label=f"{label}.calibration",
+        limit=200,
+        complete_sentence=True,
+    )
     if impact > {"summary_only": 49, "single_content": 79, "cross_source_content": 100}[basis]:
         raise NewsError(f"{label} exceeds its evidence-basis ceiling")
     if status == "rhetoric" and impact > 30:
@@ -400,8 +413,18 @@ def _validate_active_event(
         raise NewsError(f"{label}.id must be stable lowercase kebab-case")
     _assert_text(event["umbrella"], label=f"{label}.umbrella", limit=80)
     _assert_text(event["event"], label=f"{label}.event", limit=120)
-    _assert_text(event["mechanism"], label=f"{label}.mechanism", limit=240)
-    _assert_text(event["invalidation"], label=f"{label}.invalidation", limit=240)
+    _assert_text(
+        event["mechanism"],
+        label=f"{label}.mechanism",
+        limit=240,
+        complete_sentence=True,
+    )
+    _assert_text(
+        event["invalidation"],
+        label=f"{label}.invalidation",
+        limit=240,
+        complete_sentence=True,
+    )
     if (
         event["state"] not in EVENT_STATES
         or event["status"] not in EVENT_STATUSES
@@ -556,7 +579,12 @@ def validate_analysis(
             raise NewsError(f"removal {index} must be an object")
         _assert_exact_keys(removal, {"id", "reason", "resolved_at_utc"}, f"removal {index}")
         event_id = _assert_text(removal["id"], label=f"removal {index}.id", limit=64)
-        _assert_text(removal["reason"], label=f"removal {index}.reason", limit=240)
+        _assert_text(
+            removal["reason"],
+            label=f"removal {index}.reason",
+            limit=240,
+            complete_sentence=True,
+        )
         if event_id not in previous_by_id or event_id in active_ids or event_id in removed_ids:
             raise NewsError(f"removal {index} does not identify one omitted prior event")
         if _parse_utc(
@@ -595,8 +623,18 @@ def validate_analysis(
         _assert_int(signal["horizon_hours"], allowed=HORIZONS)
         if signal["change"] not in SIGNAL_CHANGES:
             raise NewsError(f"{symbol}.change is invalid")
-        _assert_text(signal["mechanism"], label=f"{symbol}.mechanism", limit=240)
-        _assert_text(signal["calibration"], label=f"{symbol}.calibration", limit=200)
+        _assert_text(
+            signal["mechanism"],
+            label=f"{symbol}.mechanism",
+            limit=240,
+            complete_sentence=True,
+        )
+        _assert_text(
+            signal["calibration"],
+            label=f"{symbol}.calibration",
+            limit=200,
+            complete_sentence=True,
+        )
         drivers = _assert_references(
             signal["drivers"],
             allowed=active_ids,

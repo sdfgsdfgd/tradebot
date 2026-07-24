@@ -230,6 +230,10 @@ implementation. Prefer exact supplied URLs. For due_event_ids, an exact event se
 source are allowed even without a new article. Copy exact browser-returned evidence URLs. A search
 snippet is not page content. Do not wander.
 
+Use primary authorities or established original-reporting outlets for evidence. SEO mirrors,
+anonymous aggregators, fact-check wrappers, and republishers must not upgrade basis, status, or
+confidence; when original content is unavailable, keep the item summary_only.
+
 Use this compact causal ontology, not a keyword checklist:
 - XSP: expected cash flows, inflation, discount rates, liquidity/credit, systemic function,
   index concentration, and risk premium.
@@ -287,8 +291,10 @@ memory, not an event log:
 - Merge, compress, correct, or delete anything that no longer earns space. Target under 100 lines;
   hard limits are 160 lines and 32 KiB.
 
-Keep event names under 120 and mechanisms/calibrations concise. Never emit buy/sell/order advice.
-Return only schema-required JSON.
+Keep event names under 120. Write every mechanism, invalidation, removal reason, and calibration as
+a complete sentence; target at most 200 characters for mechanisms and 160 for calibrations so no
+word or thought is truncated at the schema boundary. Never emit buy/sell/order advice. Return only
+schema-required JSON.
 
 INPUT:
 {json.dumps(inputs, ensure_ascii=False, separators=(",", ":"))}

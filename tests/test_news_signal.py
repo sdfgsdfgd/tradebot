@@ -212,6 +212,15 @@ def test_maximum_mcl_rejects_headline_only_claims() -> None:
         validate_analysis(value, previous_events=[], as_of=NOW)
 
 
+def test_truncated_causal_prose_is_rejected() -> None:
+    articles = parse_finviz_news(_html(), observed_at=NOW)
+    value = _analysis([article.url for article in articles])
+    value["assets"]["XSP"]["calibration"] = "Below the systemic ceiling because systemic U"
+
+    with pytest.raises(NewsError, match="complete sentence"):
+        validate_analysis(value, previous_events=[], as_of=NOW)
+
+
 def test_prior_event_cannot_disappear_without_explicit_removal() -> None:
     articles = parse_finviz_news(_html(), observed_at=NOW)
     prior = _event([article.url for article in articles])
@@ -320,7 +329,9 @@ def test_prompt_contains_state_paths_and_compact_causal_contract() -> None:
     assert "/Users/x/.codex/trade-events.jsonl" in prompt
     assert "There is no topical keyword\nfilter" in prompt
     assert "Open at most eight substantive pages" in prompt
+    assert "republishers must not upgrade basis" in prompt
     assert "fact -> changed physical/economic variable -> contract transmission" in prompt
+    assert "no\nword or thought is truncated" in prompt
     assert "complete replacement" in prompt
     assert "Every old ID omitted" not in prompt
     assert "Never emit buy/sell/order advice" in prompt
