@@ -13,11 +13,15 @@ journalctl --user -u tradebot-news.service -n 100 --no-pager
 systemctl --user enable --now tradebot-news.timer
 ```
 
-The default is approximately one run every four hours. To test a temporary
-two-hour cadence, create a timer drop-in and change only `OnUnitInactiveSec`:
+Enabling the timer starts a four-hour clock; it does not immediately repeat the
+manual validation run. Subsequent runs remain spaced from the previous run's
+completion. To test a temporary two-hour cadence, create a timer drop-in and
+change both clock values:
 
 ```ini
 [Timer]
+OnActiveSec=
+OnActiveSec=2h
 OnUnitInactiveSec=
 OnUnitInactiveSec=2h
 ```

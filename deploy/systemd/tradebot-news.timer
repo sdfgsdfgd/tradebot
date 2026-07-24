@@ -2,7 +2,7 @@
 Description=Run the tradebot XSP/MCL news inference approximately every four hours
 
 [Timer]
-OnBootSec=15min
+OnActiveSec=4h
 OnUnitInactiveSec=4h
 AccuracySec=15min
 Unit=tradebot-news.service
