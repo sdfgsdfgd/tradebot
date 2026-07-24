@@ -599,6 +599,19 @@ Preregister `xsp.directional-debit.discovery.v1` before inspecting outcomes:
   without reading validation. Do not add a permanent strategy catalog entry
   unless this discovery contract passes.
 
+Preregister the matched condor incremental-value audit before reading pairwise
+outcomes:
+
+- use only the already-open `2025-07-24..2026-01-22` discovery artifacts;
+  adverse friction is authoritative and baseline friction is descriptive;
+- match each filtered/unfiltered iron-condor cell to the put-credit vertical
+  with identical DTE, moneyness, target, stop, EMA, entry, and exit semantics;
+- a condor adds value only if it independently passes every safe-income gate,
+  exceeds its matched vertical's net P&L and pooled daily LCB, and is no worse
+  on maximum drawdown or worst session after its four-leg costs;
+- require at least two immediate matched parameter neighbors to do the same.
+  Otherwise reject the condor extension without reading validation or holdout.
+
 For the first possible live canary, canonical maximum loss plus conservative
 round-trip fees must be no more than `10%` of the lesser of fresh usable
 capacity and the USD `1,000` design envelope. Only one package may be open;
