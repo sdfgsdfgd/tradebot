@@ -1,0 +1,17 @@
+[Unit]
+Description=Tradebot one-shot XSP/MCL news inference
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/Desktop/py/tradebot
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 -m tradebot.news --codex /usr/local/bin/codex --model gpt-5.6-sol --data-dir %h/.local/state/tradebot/news --memory %h/.codex/trade-research.md
+TimeoutStartSec=15min
+Nice=10
+IOSchedulingClass=idle
+PrivateTmp=true
+NoNewPrivileges=true
+UMask=0077

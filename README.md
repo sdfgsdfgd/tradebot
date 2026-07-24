@@ -44,6 +44,7 @@ Minimal IBKR TUI trading client & bot
 - `tradebot/engines/` — shared market, signal, risk, shock, and execution truth.
 - `tradebot/spot/` — canonical spot payload, policy, sizing, graph, and lifecycle semantics.
 - `tradebot/backtest/cache_ops/` — cache coverage, repair, resampling, sync, and CLI orchestration.
+- `tradebot/news.py` — one-fetch, one-Codex-run XSP/MCL causal news signal.
 - `tradebot/store.py` — in‑memory portfolio snapshot.
 - `tradebot/main.py` — entrypoint.
 - `tradebot/gpt/` — reserved for future GPT workflows.
@@ -69,6 +70,25 @@ Optional env vars:
 - `IBKR_CLIENT_ID_BACKOFF_MULTIPLIER` (default `2.0`)
 - `IBKR_CLIENT_ID_BACKOFF_JITTER_RATIO` (default `0.15`)
 - `IBKR_CLIENT_ID_STATE_FILE` (default `${TMPDIR:-/tmp}/tradebot_ib_client_ids.json`)
+
+The experimental news signal is an independent one-shot command:
+
+```bash
+python -m tradebot.news
+```
+
+It writes `db/news/latest.json`, `history.jsonl`, bounded `state.json`, and the
+atomically curated `~/.codex/trade-research.md`, then exits. Its versioned
+0–100 causal score is the exact sum of magnitude, contract transmission,
+surprise, immediacy, and persistence; confidence remains separate. The same
+Markdown retains bounded umbrella high-water comparisons plus curated
+1D/1W/1M/1Y themes. It has no order authority.
+
+The one infrequent analysis is explicitly pinned to `gpt-5.6-sol` with `max`
+reasoning, ephemeral state, read-only sandboxing, and native live page search.
+`TRADEBOT_NEWS_DATA_DIR`, `TRADEBOT_NEWS_CODEX`, `TRADEBOT_NEWS_MODEL`, and
+`TRADEBOT_NEWS_MEMORY` override its output directory, Codex executable, pinned
+model, and memory path.
 
 ## Controls
 - **Arrow keys** — navigate rows

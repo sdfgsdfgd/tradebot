@@ -111,6 +111,7 @@
     "tests/test_engine_time_semantics.py": "market-time-series-semantics",
     "tests/test_live_signal_exit_continuum.py": "live-execution-orders",
     "tests/test_live_execution_registry.py": "live-execution-orders",
+    "tests/test_news_signal.py": "signal-regime-intelligence",
     "tests/test_offline_cache_preflight.py": "backtest-data-cache",
     "tests/test_option_package_economics.py": "live-execution-orders",
     "tests/test_option_package_risk.py": "live-execution-orders",
@@ -214,18 +215,20 @@
       "subsystem": "signal-regime-intelligence",
       "layer": "unit",
       "phase": "signal-regime-intelligence",
-      "capability": "Signals, shocks, regime routing, and required market context remain deterministic.",
+      "capability": "Signals, shocks, causal news reduction, regime routing, and required market context remain deterministic.",
       "fixtures": [
         "current proof surfaces for signal-regime-intelligence"
       ],
       "evidence": [
         "tests/test_daily_climate_router.py",
+        "tests/test_news_signal.py",
         "tests/test_spot_context_requirements.py",
         "tests/test_spot_signal_time_mode.py"
       ],
       "owner_surface": [
         "tradebot/engines/shock.py",
         "tradebot/engines/signals.py",
+        "tradebot/news.py",
         "tradebot/spot_engine.py"
       ],
       "oracle": [

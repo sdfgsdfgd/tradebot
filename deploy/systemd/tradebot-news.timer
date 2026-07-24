@@ -1,0 +1,11 @@
+[Unit]
+Description=Run the tradebot XSP/MCL news inference once per hour
+
+[Timer]
+OnBootSec=15min
+OnUnitInactiveSec=1h
+AccuracySec=5min
+Unit=tradebot-news.service
+
+[Install]
+WantedBy=timers.target
