@@ -357,9 +357,15 @@ def quote_captured_option_package(
     mode: str = "MID",
     max_age_sec: float | None = None,
     require_live: bool = False,
+    require_provenance: bool = True,
 ) -> CapturedPackageQuote | None:
     """Project exact captured legs through the canonical live-intended quote kernel."""
 
+    if require_provenance and (
+        not _snapshot_has_provenance(snapshot)
+        or any(leg.expiry != snapshot.target_expiry for leg in legs)
+    ):
+        return None
     observed_at = _parse_datetime(snapshot.ts)
     selected: list[QuoteContract] = []
     for leg in legs:
@@ -465,6 +471,9 @@ def snapshot_quality(
     *,
     max_age_sec: float | None = None,
     require_live: bool = False,
+    require_provenance: bool = False,
+    require_all_options: bool = False,
+    require_greeks: bool = False,
 ) -> dict[str, object]:
     observed_at = _parse_datetime(snapshot.ts)
     rows = []
@@ -493,15 +502,53 @@ def snapshot_quality(
         option.con_id is not None and option.con_id > 0
         for option in snapshot.options
     ]
+    qualified_count = sum(qualified)
+    eligible_count = sum(
+        is_qualified and bool(row["eligible"])
+        for is_qualified, row in zip(qualified, rows)
+    )
+    full_greek_count = sum(
+        is_qualified
+        and all(
+            value is not None
+            for value in (
+                option.model_iv,
+                option.model_delta,
+                option.model_gamma,
+                option.model_vega,
+                option.model_theta,
+                option.model_under_price,
+            )
+        )
+        for option, is_qualified in zip(snapshot.options, qualified)
+    )
+    total = len(snapshot.options)
+    reasons: list[str] = []
+    if eligible_count <= 0:
+        reasons.append("no_eligible_options")
+    if require_provenance and not _snapshot_has_provenance(snapshot):
+        reasons.append("provenance_incomplete")
+    if require_all_options and qualified_count != total:
+        reasons.append("unqualified_options")
+    if require_all_options and eligible_count != total:
+        reasons.append("ineligible_options")
+    if require_greeks and full_greek_count != total:
+        reasons.append("greeks_incomplete")
     return {
         "requirements": {
             "require_nbbo": True,
             "require_streaming_live": require_live,
             "max_age_sec": max_age_sec,
+            "require_provenance": require_provenance,
+            "require_all_options": require_all_options,
+            "require_greeks": require_greeks,
         },
-        "total_options": len(snapshot.options),
-        "qualified_options": sum(qualified),
-        "invalid_options": len(snapshot.options) - sum(qualified),
+        "complete": not reasons,
+        "reasons": tuple(reasons),
+        "provenance_complete": _snapshot_has_provenance(snapshot),
+        "total_options": total,
+        "qualified_options": qualified_count,
+        "invalid_options": total - qualified_count,
         "timestamped_options": sum(
             is_qualified and option.quote_time is not None
             for option, is_qualified in zip(snapshot.options, qualified)
@@ -510,10 +557,7 @@ def snapshot_quality(
             is_qualified and bool(row["has_nbbo"])
             for is_qualified, row in zip(qualified, rows)
         ),
-        "eligible_options": sum(
-            is_qualified and bool(row["eligible"])
-            for is_qualified, row in zip(qualified, rows)
-        ),
+        "eligible_options": eligible_count,
         "live_options": sum(
             is_qualified and bool(row["live"])
             for is_qualified, row in zip(qualified, rows)
@@ -526,23 +570,25 @@ def snapshot_quality(
             is_qualified and bool(row["delayed"])
             for is_qualified, row in zip(qualified, rows)
         ),
-        "full_greek_options": sum(
-            is_qualified
-            and all(
-                value is not None
-                for value in (
-                    option.model_iv,
-                    option.model_delta,
-                    option.model_gamma,
-                    option.model_vega,
-                    option.model_theta,
-                    option.model_under_price,
-                )
-            )
-            for option, is_qualified in zip(snapshot.options, qualified)
-        ),
+        "full_greek_options": full_greek_count,
         "errors": len(snapshot.errors),
     }
+
+
+def _snapshot_has_provenance(snapshot: QuoteSnapshot) -> bool:
+    fingerprint = str(snapshot.chain_fingerprint or "").strip().lower()
+    expiry = str(snapshot.target_expiry or "").strip()
+    underlying_id = snapshot.underlying.con_id
+    return (
+        len(fingerprint) == 64
+        and all(char in "0123456789abcdef" for char in fingerprint)
+        and len(expiry) == 8
+        and expiry.isdigit()
+        and underlying_id is not None
+        and underlying_id > 0
+        and str(snapshot.underlying.symbol or "").strip().upper()
+        == str(snapshot.symbol or "").strip().upper()
+    )
 
 
 def _safe_int(value) -> int | None:

@@ -960,8 +960,10 @@ Receipt fingerprints:
 - [ ] Bind synthetic calibration to explicit source/effective intervals.
 - [~] Add completeness and freshness gates consumed identically by research,
       replay, evaluation, and live admission. Capture, captured replay,
-      execution, UI, and journal share one quote classifier; evaluation binding
-      remains.
+      execution, UI, and journal share one quote classifier. The recorder now
+      emits a strict provenance/NBBO/freshness/live/Greeks verdict and captured
+      package replay refuses missing or mismatched chain provenance; evaluation
+      binding remains.
 
 **Phase exit:** identical evidence fingerprints can hydrate backtest, replay,
 shadow, and live comparison without refetching complete cached ranges.
@@ -1193,7 +1195,8 @@ Add rows; never rewrite an unfavorable receipt.
 | E-022 | 2026-07-24 10:56 UTC | 1 | Official-rule-aware historical retry contract | Git `957ef10` | focused `43 passed`; full `687 passed, 4 deselected` | Minute-and-larger tapes retain bounded independent-contract parallelism; same-contract requests serialize and day repairs descend to one worker. Ambiguous failures retry with smaller windows and exponential delay; explicit pacing waits 15/30 seconds. `reqHeadTimestamp` proof is reused for one hour and failed probes cool down for 15 seconds because IBKR subjects head requests to strict small-bar pacing. Only rejection, expiry, or request-before-head is called unavailable; repeated broker no-data remains unresolved and cannot delete or bless a cache gap |
 | E-023 | 2026-07-24 11:02 UTC | 2 | Preregistered directional-debit discovery | This document at pushed preregistration anchor | `xsp.directional-debit.discovery.v1` | Frozen 3,456-cell filtered/unfiltered one-point CALL-up/PUT-down vertical family, adverse friction, exact discovery/validation/holdout boundary, two-half repeatability, alpha risk, concentration, and neighborhood gates. No permanent catalog entry exists before evidence |
 | E-024 | 2026-07-24 11:05 UTC | 2 | Directional-debit discovery verdict | `/tmp/xsp-directional-debit-discovery-adverse-v1.json`; persistent receipts `/tmp/xsp-directional-debit-discovery-adverse-v1b.sqlite3` | semantic `886861ec…` | 3,456 adverse-friction cells completed in 82.29 seconds cold and 0.26 seconds warm; 2,049 sample-retained rows, zero positive daily LCBs, therefore zero alpha-gate passes. Validation/holdout remain sealed and no permanent strategy catalog entry is born |
-| E-025 | 2026-07-24 11:15 UTC | 1 | Historical pacing-flexibility refinement | Git current WIP | focused `48 passed`; full `689 passed, 4 deselected` | Bars at or below 30 seconds now obey IBKR's 15-second identical-request floor before any pacing error, while minute-and-larger XSP tapes retain the faster ordinary retry ladder. Explicit pacing escalates cooldown; broker no-data without head proof remains retryable across adaptive passes. Same-contract serialization and the normal two-independent-contract ceiling remain unchanged; no global token bucket or extra cache subsystem was added |
+| E-025 | 2026-07-24 11:15 UTC | 1 | Historical pacing-flexibility refinement | Git `e66f82b` | focused `48 passed`; full `689 passed, 4 deselected` | Bars at or below 30 seconds now obey IBKR's 15-second identical-request floor before any pacing error, while minute-and-larger XSP tapes retain the faster ordinary retry ladder. Explicit pacing escalates cooldown; broker no-data without head proof remains retryable across adaptive passes. Same-contract serialization and the normal two-independent-contract ceiling remain unchanged; no global token bucket or extra cache subsystem was added |
+| E-026 | 2026-07-24 11:24 UTC | 1 | Strict forward-tape admission profile | Git current WIP; prior tapes `/tmp/xsp-forward-{restart-proof.BCWo2l,capture-smoke-v4}/XSP/2026-07-24.jsonl` | focused `26 passed`; full `691 passed, 4 deselected` | One shared quote classifier now produces a declared complete/incomplete snapshot verdict from chain provenance, qualification, NBBO, age, actual live/delayed provenance, and Greeks. Exact package replay rejects missing or mismatched chain expiry before canonical pricing. Both premarket tapes correctly fail the new live profile: zero eligible streaming-live rows; the older smoke also lacks chain provenance. No historical artifact was relabeled or promoted |
 
 ---
 
