@@ -3,7 +3,8 @@
 - **Status:** `[WIP] Phase 0.4 — freeze realistic economics, score, and risk`
 - **Management role:** canonical task tree, evidence ledger, decision journal, and resume source
 - **Code baseline:** `25513267225908b7288530c1ec0762f7656bbf5b`
-- **Management-brain commit:** `3c38af635fcc6ce8b3b0a88e1f2de567345d1bf0`
+- **Current verified head:** `49f517eb29a5ce3a935eb444aaff69addd7d74ca`
+- **Management brain introduced:** `3c38af635fcc6ce8b3b0a88e1f2de567345d1bf0`
 - **Instrument scope:** XSP first; no expansion until its data, economics, execution, and live drift are mastered
 - **Capital premise:** user-reported net liquidity near USD 1,000; re-read broker truth before every capital decision
 **Operating rule:** update this file before stopping, changing phase, promoting a strategy, or changing live risk
@@ -650,6 +651,31 @@ are quantified; no option result is mislabeled as authentic.
   for bounded package economics, conservative fees, fresh quotes, permissions,
   and explicit account-capacity proof.
 
+**Corrected synthetic baseline**
+
+- Canonical leg intent now supports additive `otm_offset_points`; percentage
+  moneyness remains the short-strike anchor while both deterministic replay and
+  live chain resolution derive a fixed-point wing from the same target.
+- Synthetic option execution now keeps slippage in package-price ticks and
+  commissions in cash/P&L, including liquidation marks, drawdown, and
+  conservative credit-package capital. Research assumptions remain explicit
+  CLI/config inputs.
+- One mission-shaped receipt used USD `1,000`, one-point wings, USD `1.00`
+  commission per contract per side, and one extra slippage tick:
+  - full mixed grid: `31,104` cells, `1:21` cold;
+  - safe-income-only grid: `4,608` cells, `12.3 s` cold and `<0.6 s` warm;
+  - safe-income cold/warm semantic fingerprint:
+    `2622c16b246a0ad3948e0eee212da705d8ba2a58858db07b52835b5c33eb20bf`.
+- The safe-income sleeve contains only put-credit vertical and iron-condor
+  families, filtered and unfiltered. It removes unreachable credit profit
+  targets above `1.0`; legacy `all` remains available for reproduction.
+- Repricing was material. For example, the best unfiltered put-credit row moved
+  from synthetic `+504.73`, `100%` wins to `+51.43`, `75%`; the best
+  unfiltered condor moved from `+1,056.49`, `100%` to `+121.64`, `80%`.
+  This is not an ablation and proves no edge: geometry, capital, commissions,
+  and slippage all changed together, while the sample still contains only
+  16 sessions and synthetic options.
+
 ### Phase 1 — Authentic XSP data spine `[TODO]`
 
 - [ ] Centralize interval-aware cache ownership and gap hydration.
@@ -837,6 +863,8 @@ Add rows; never rewrite an unfavorable receipt.
 | E-003 | 2026-07-24 | 0.3 | Options-runner smoke | `/tmp/xsp-options-smoke.json` + result cache | `5588cf17…` | 31,104 cells; ~60 s cold/1.78 s warm; synthetic, cost-free, wrong wing geometry |
 | E-004 | 2026-07-24 | 0.2 | XSP vertical broker preview | 734/735P `20260727`, no submit | qualified conIds + sparse `PreSubmitted` | Canonical max +20/-80; broker commission/capacity proof missing; not live-eligible |
 | E-005 | pending | 0.4 | Frozen score/risk contract | pending | pending | pending |
+| E-006 | 2026-07-24 | 0.4 | Canonical one-point wings | Git `521f16c` | focused tests `60/60` | Shared percentage anchor plus point offset reaches replay and live resolution |
+| E-007 | 2026-07-24 | 0.4 | Explicit friction and safe-income smoke | Git `eddb3bd`, `49f517e`; `/tmp/xsp-safe-income-smoke.json` | `2622c16…` | 4,608 cells; 12.3 s cold/<0.6 s warm; 240 synthetic rows remain quarantined |
 
 ---
 
@@ -860,6 +888,10 @@ Add rows; never rewrite an unfavorable receipt.
 | D-014 | Do not run the current one-year 31K-cell options grid | It omits realistic friction and maps `1%` to about 7.4 XSP points, so scale would amplify invalid evidence | Canonical point geometry, costs, and fill realism are proven |
 | D-015 | Missing XSP index volume is not zero-volume evidence | The index tape does not carry authentic volume | A separately provenance-bound context tape is admitted |
 | D-016 | Sparse `what-if` status alone is not enough for this live canary | `PreSubmitted` did not return usable commission, margin, or buying-power effects | Canonical risk plus conservative fees, fresh quotes, permissions, and capacity are jointly proven |
+| D-017 | Percentage anchor plus additive OTM point offset is the canonical wing geometry | It preserves scale-aware strike placement while producing exact one-point defined-risk wings in replay and live | Authentic chains prove a better shared selector |
+| D-018 | Model slippage in fill price and commission in cash/P&L | Combining them would obscure execution drift and corrupt payoff geometry | Never |
+| D-019 | Safe-income research excludes unbounded legacy families | Naked puts and risk reversals violate this sleeve's defined-risk mandate | A separately governed sleeve explicitly admits them |
+| D-020 | Credit profit targets above `1.0` are not distinct candidates | A credit package cannot earn more than its entry credit; higher thresholds only duplicate other exit paths | Payoff semantics change |
 
 ---
 
