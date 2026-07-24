@@ -966,7 +966,10 @@ Receipt fingerprints:
 - [x] Establish separately provenance-bound SPY participation and VIX
       volatility-context tapes. Both cover the same 501 RTH sessions as XSP;
       SPY volume is observed while XSP/VIX volume remains explicitly absent.
-- [ ] Admit the 5-year window only for comparable, complete evidence.
+- [x] Admit the 5-year underlying window as comparable, complete 5-minute RTH
+      evidence. It contains 1,254 sessions with exact normal/early-close row
+      counts, no effective gaps or duplicates, and still carries no authentic
+      XSP volume or historical option evidence.
 - [~] Capture forward XSP chains/NBBO/Greeks with provenance and restart safety.
       Two-process append, repair, and manifest reuse are proven premarket;
       fresh RTH evidence remains pending.
@@ -1218,6 +1221,7 @@ Add rows; never rewrite an unfavorable receipt.
 | E-026 | 2026-07-24 11:24 UTC | 1 | Strict forward-tape admission profile | Git `c99d31f`; prior tapes `/tmp/xsp-forward-{restart-proof.BCWo2l,capture-smoke-v4}/XSP/2026-07-24.jsonl` | focused `26 passed`; full `691 passed, 4 deselected` | One shared quote classifier now produces a declared complete/incomplete snapshot verdict from chain provenance, qualification, NBBO, age, actual live/delayed provenance, and Greeks. Exact package replay rejects missing or mismatched chain expiry before canonical pricing. Both premarket tapes correctly fail the new live profile: zero eligible streaming-live rows; the older smoke also lacks chain provenance. No historical artifact was relabeled or promoted |
 | E-027 | 2026-07-24 11:28 UTC | 2 | Matched condor incremental-value audit | `/tmp/xsp-condor-incremental-value-v1.json`; preregistration `5fc6d26` | artifact `e54a19b8…`; adverse source `80154859…` | `1,152` filtered and `1,152` unfiltered condors were matched exactly to put-credit verticals after USD `1.50`/contract and two ticks. Zero condors passed the safe-income gate, so zero met the preregistered incremental-value contract or its two-neighbor rule. All unfiltered condors had negative daily LCB; filtered rows were primarily sample-, concentration-, P&L-, and profit-factor-limited. Validation and holdout remain sealed; the four-leg extension is rejected |
 | E-028 | 2026-07-24 11:46 UTC | 1 | Calibration provenance and effective boundary | Git this commit | focused `16 passed`; full `693 passed, 4 deselected` | Schema-v2 records bind the delayed broker observation to source kind, actual first/last underlying bars, and a next-date effective boundary. A caller-provided RV without both source bounds is rejected; same-day replay cannot consume a newly observed surface; legacy `asof` records remain readable |
+| E-029 | 2026-07-24 11:55 UTC | 1 | Five-year XSP underlying admission | `db/XSP/*5mins_rth.csv` | stitched-source manifest `591e581f…`; new 3-year shard `b7b90395…` | Canonical sparse hydration reused the existing two years and fetched only `2021-07-26..2024-07-23`: 36/36 sequential month requests, 244.18 seconds, no retries/fallbacks. The complete `2021-07-26..2026-07-23` tape has 97,452 bars/1,254 sessions, 1,244×78 normal and 10×42 early-close rows, zero unexpected counts/duplicates/effective gaps, strict timestamp order, and no nonzero XSP volume |
 
 ---
 
@@ -1261,6 +1265,7 @@ Add rows; never rewrite an unfavorable receipt.
 | D-034 | SPY/VIX context remains evidence, not strategy authority | A preregistered 768-cell extension produced no corrected, neighborhood-stable edge and no durable rescue of the opening-state family | A new causal feature contract passes development before the sealed holdout is read |
 | D-035 | A no-data message is not proof of global unavailability | IBKR can return no rows for a valid contract/range under transport, farm, session, entitlement, or sparse-history conditions; only permanent broker rejection, expiry, or a requested end before `reqHeadTimestamp` proves absence | Never advance a cursor, erase a gap, or promote cache completeness from an unresolved empty response |
 | D-036 | Calibration becomes effective after its observed date | A same-day date-only record can leak later broker evidence into earlier replay; explicit source bounds and next-date eligibility preserve causality while live orders continue to use broker quotes | Authentic timestamped option replay replaces synthetic calibration |
+| D-037 | Admit five-year XSP only as underlying RTH evidence | The hydrated tape is complete and comparable, but IBKR still supplies no historical expired-option chain/NBBO/Greek tape and XSP index volume remains absent | A provenance-complete option provider or accumulated forward tape supplies the missing evidence |
 
 ---
 
@@ -1333,9 +1338,10 @@ promote/hold/revise/stop verdict with its remaining-risk register.
   found no family-wise edge; SPY/VIX context did not rescue it, and the first
   directional-credit singleton failed chronological repeatability. The
   preregistered directional-debit family produced zero positive daily LCBs.
-  All family-specific holdouts remain unobserved. Phase 1 calibration records
-  now carry enforced source/effective boundaries; fresh RTH forward evidence
-  remains the active time-gated seam.
+  All family-specific holdouts remain unobserved. Phase 1 now has a complete
+  five-year XSP underlying tape and calibration records with enforced
+  source/effective boundaries; fresh RTH forward option evidence remains the
+  active time-gated seam.
 - **Next action:** capture fresh RTH XSP chain/NBBO/Greeks evidence and bind its
   completeness verdict to same-tape replay. Continue bounded preregistered
   safe-income and alpha discovery without tuning rejected families against
