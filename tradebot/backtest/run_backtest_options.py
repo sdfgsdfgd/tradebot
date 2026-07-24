@@ -29,9 +29,10 @@ from .config import (
 from .engine import OptionsBacktestSourcePool, run_backtest
 from .sweeps import Progress, count_total_combos, fmt_duration, normalize_jobs, write_json
 from ..chart_data.cache import series_cache_service
+from ..research.evidence import backtest_evidence, research_rank_key
 
 
-_OPTIONS_RESULT_NAMESPACE = "options.sweep_result.v1"
+_OPTIONS_RESULT_NAMESPACE = "options.sweep_result.v2"
 _OPTIONS_RESULT_CACHE = series_cache_service()
 
 
@@ -61,7 +62,6 @@ def _combo_cache_key(
     backtest: BacktestConfig,
     synthetic: SyntheticConfig,
     group: dict,
-    min_trades: int,
     combo: tuple,
 ) -> str:
     payload = json.dumps(
@@ -71,7 +71,6 @@ def _combo_cache_key(
             "backtest": asdict(backtest),
             "synthetic": asdict(synthetic),
             "group": group,
-            "min_trades": int(min_trades),
             "combo": combo,
         },
         default=str,
@@ -390,7 +389,7 @@ def options_leaderboard_main() -> None:
         "backtest": base_backtest,
         "synthetic": synthetic,
         "groups": tuple(
-            (group, _filters_cfg(group.get("filters")), int(grid["min_trades"]))
+            (group, _filters_cfg(group.get("filters")))
             for group in groups
         ),
     }
@@ -529,7 +528,6 @@ def _run_group(
                 backtest=backtest,
                 synthetic=synthetic,
                 group=group,
-                min_trades=min_trades,
                 combo=combo,
             )
             if revision is not None and result_db is not None
@@ -556,14 +554,7 @@ def _run_group(
             results.append(entry)
 
     if not pending:
-        results.sort(
-            key=lambda row: (
-                row["metrics"]["pnl"],
-                row["metrics"]["win_rate"],
-            ),
-            reverse=True,
-        )
-        return results[:top_n]
+        return _shortlist(results, min_trades=min_trades, top_n=top_n)
 
     writes: dict[str, object] = {}
     if jobs == 1:
@@ -578,7 +569,6 @@ def _run_group(
                     synthetic=synthetic,
                     group=group,
                     filters_cfg=filters_cfg,
-                    min_trades=min_trades,
                     dte=dte,
                     moneyness=moneyness,
                     profit_target=pt,
@@ -611,7 +601,7 @@ def _run_group(
                         "symbol": symbol,
                         "backtest": backtest,
                         "synthetic": synthetic,
-                        "groups": ((group, filters_cfg, min_trades),),
+                        "groups": ((group, filters_cfg),),
                     },
                 ),
             )
@@ -636,8 +626,17 @@ def _run_group(
         values=writes,
     )
 
-    results.sort(key=lambda row: (row["metrics"]["pnl"], row["metrics"]["win_rate"]), reverse=True)
-    return results[:top_n]
+    return _shortlist(results, min_trades=min_trades, top_n=top_n)
+
+
+def _shortlist(results: list[dict], *, min_trades: int, top_n: int) -> list[dict]:
+    eligible = [
+        row
+        for row in results
+        if int((row.get("metrics") or {}).get("trades") or 0) >= min_trades
+    ]
+    eligible.sort(key=research_rank_key, reverse=True)
+    return eligible[:top_n]
 
 
 # endregion
@@ -666,7 +665,6 @@ def _run_combo(
     synthetic: SyntheticConfig,
     group: dict,
     filters_cfg: FiltersConfig | None,
-    min_trades: int,
     dte: int,
     moneyness: float,
     profit_target: float,
@@ -757,10 +755,6 @@ def _run_combo(
         options_source=source_pool.source_for(cfg) if source_pool is not None else None,
     )
     summary = result.summary
-    if summary.trades < min_trades:
-        return None
-    if summary.total_pnl <= 0:
-        return None
 
     strategy_payload = {
         "instrument": "options",
@@ -819,6 +813,11 @@ def _run_combo(
                 for trade in result.trades
             ),
         },
+        "evidence": backtest_evidence(
+            result,
+            starting_cash=backtest.starting_cash,
+            multiplier=1.0,
+        ),
         "strategy": strategy_payload,
     }
 
@@ -844,7 +843,7 @@ def _run_combo_worker(task: tuple[int, tuple]) -> dict | None:
     if _WORKER_CTX is None or _WORKER_SOURCES is None:
         raise RuntimeError("Worker context not initialized")
     group_idx, combo = task
-    group, filters_cfg, min_trades = _WORKER_CTX["groups"][group_idx]
+    group, filters_cfg = _WORKER_CTX["groups"][group_idx]
     dte, moneyness, pt, sl, ema, entry_mode, flip, hold, only_profit = combo
     return _run_combo(
         symbol=_WORKER_CTX["symbol"],
@@ -852,7 +851,6 @@ def _run_combo_worker(task: tuple[int, tuple]) -> dict | None:
         synthetic=_WORKER_CTX["synthetic"],
         group=group,
         filters_cfg=filters_cfg,
-        min_trades=min_trades,
         dte=dte,
         moneyness=moneyness,
         profit_target=pt,

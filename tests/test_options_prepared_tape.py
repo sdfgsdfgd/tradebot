@@ -206,15 +206,23 @@ def test_option_sweep_warm_cache_skips_work_and_small_delta_runs_only_miss(
         progress=delta_progress,
         **common,
     )
+    threshold_progress = _Progress()
+    threshold = options_sweep._run_group(
+        grid={**_grid(), "min_trades": 2},
+        progress=threshold_progress,
+        **common,
+    )
 
     assert first == warm
     assert len(delta) == 2
+    assert threshold == []
     assert calls == [0.5, 0.6]
     assert (
         first_progress.advanced,
         warm_progress.advanced,
         delta_progress.advanced,
-    ) == (1, 1, 2)
+        threshold_progress.advanced,
+    ) == (1, 1, 2, 1)
 
 
 def test_option_sweep_revision_tracks_calibration_content(tmp_path) -> None:
