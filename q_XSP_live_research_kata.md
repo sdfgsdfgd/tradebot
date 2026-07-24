@@ -1064,6 +1064,49 @@ Observed v1 verdict:
   boundary/horizon path only once, and regenerated the original artifact with
   identical SHA-256 `29c4d73b…`.
 
+#### Phase 2.2 — Causal XSP credit-eligibility screen v1
+
+Preregister before computing conditional outcomes. This asks whether a compact,
+observable `NO_TRADE` filter can reduce short-strike risk; it remains an
+underlying-risk screen and cannot establish historical option expectancy.
+
+- Source: the same admitted five-year XSP 5-minute RTH tape and fingerprint.
+- Family-specific chronological boundaries:
+  - discovery: `2021-07-26..2024-07-23`;
+  - validation: `2024-07-24..2025-07-23`;
+  - locked holdout: `2025-07-24..2026-07-23`.
+  Only discovery may be read initially. These are family-specific boundaries,
+  not globally untouched data; the unconditional annual barrier rates are
+  already known.
+- Geometry: decision times `10:30/11:30` ET, short offsets `0.75/1.00%`,
+  same-session and next-session horizons, both credit sides, one-point width,
+  and the exact v1 strike/path/friction semantics.
+- Compute exactly eight matched causal contexts:
+  `unfiltered`, `direction`, `gap`, `direction+gap`, `quiet`,
+  `quiet+direction`, `quiet+gap`, and `quiet+direction+gap`.
+- `direction` means boundary close is at or above the session open for a put
+  credit and at or below it for a call credit. `gap` applies the same
+  side-aware sign to session open versus the previous session close.
+- `quiet` means the current open-to-boundary high-low range divided by the
+  previous close is no greater than the median from the prior 60 complete
+  sessions at that exact boundary. Fewer than 60 prior sessions abstains.
+- The fixed family contains `128` cells:
+  `2 times × 2 offsets × 2 horizons × 2 sides × 8 contexts`.
+- Report observations, touches, expiration breaches, Wilson upper bounds,
+  annual point rates, worst adverse excursion, and required credit exactly as
+  in the parent census.
+- A discovery context passes only with at least `120` observations and `30`
+  in every included July-to-July block; pooled required credit at least `0.05`
+  below its matched unfiltered parent; pooled touch upper bound lower than its
+  parent; expiration-breach point rate no worse in every block; and one
+  immediate time/offset neighbor passing the same rules.
+- If no discovery context passes, reject this eligibility family without
+  reading validation or holdout. If one passes, freeze the frontier and require
+  the same directional improvement in validation before opening the holdout.
+- Even a full pass only defines an eligibility/abstention fact. A fresh
+  strict-admission RTH package quote must clear its registered credit hurdle,
+  followed by authentic replay and execution/economic gates.
+
 - [ ] Encode `NO_TRADE` and event/liquidity vetoes.
 - [ ] Remove dominated or redundant candidates; keep the frontier compact.
 
@@ -1274,6 +1317,7 @@ Add rows; never rewrite an unfavorable receipt.
 | E-029 | 2026-07-24 11:55 UTC | 1 | Five-year XSP underlying admission | `db/XSP/*5mins_rth.csv` | stitched-source manifest `591e581f…`; new 3-year shard `b7b90395…` | Canonical sparse hydration reused the existing two years and fetched only `2021-07-26..2024-07-23`: 36/36 sequential month requests, 244.18 seconds, no retries/fallbacks. The complete `2021-07-26..2026-07-23` tape has 97,452 bars/1,254 sessions, 1,244×78 normal and 10×42 early-close rows, zero unexpected counts/duplicates/effective gaps, strict timestamp order, and no nonzero XSP volume |
 | E-030 | 2026-07-24 12:01 UTC | 2 | Preregistered five-year XSP credit-barrier census | This document at pushed preregistration anchor | `xsp.credit-barrier-census.v1` | Frozen 128-cell descriptive matrix: four decision times × four OTM distances × four expiration horizons × two sides; conservative whole-point geometry, touch/expiration/adverse-excursion evidence, Wilson upper bounds, annual stability, and adverse USD 10 round-trip friction. No filtering, tuning, option-PnL claim, or promotion authority |
 | E-031 | 2026-07-24 12:10 UTC | 2 | Reproducible five-year XSP credit-barrier verdict | `/tmp/xsp-credit-barrier-census-v1.json`; Git this commit | artifact `29c4d73b…`; source `591e581f…`; full suite `694 passed, 4 deselected` | Shared research evidence regenerated the prior 128-cell artifact byte-identically from 97,452 bars in 1.80 seconds. Best one-percent Wilson-plus-friction hurdles were `0.1620..0.1831` same-session, `0.3026..0.3267` next-session, `0.3659..0.4461` three-session, and `0.3935..0.5059` five-session. Annual breach dispersion remains material; this screens strict-admission quotes but proves no historical option expectancy |
+| E-032 | 2026-07-24 12:16 UTC | 2 | Preregistered causal XSP credit-eligibility screen | This document at pushed preregistration anchor | `xsp.credit-eligibility-screen.v1` | Frozen 128-cell discovery family over two times, two offsets, two horizons, two sides, and eight nested side-aware direction/gap/rolling-quiet contexts. Discovery must materially beat its matched unconditional barrier with block stability and neighbor support before validation or locked holdout can be read |
 
 ---
 
