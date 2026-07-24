@@ -77,18 +77,26 @@ The experimental news signal is an independent one-shot command:
 python -m tradebot.news
 ```
 
-It writes `db/news/latest.json`, `history.jsonl`, bounded `state.json`, and the
-atomically curated `~/.codex/trade-research.md`, then exits. Its versioned
-0–100 causal score is the exact sum of magnitude, contract transmission,
-surprise, immediacy, and persistence; confidence remains separate. The same
-Markdown retains bounded umbrella high-water comparisons plus curated
-1D/1W/1M/1Y themes. It has no order authority.
+It writes `db/news/latest.json`, monthly 13-month audit history, bounded
+`state.json`, and atomically curated `~/.codex/trade-research.md` plus
+`~/.codex/trade-events.jsonl`, then exits. The Markdown retains compact
+historical calibration anchors, active umbrella regimes, and causal priors.
+The JSONL is a complete replacement containing at most 24 active events; it is
+not an append log. `latest.json` groups those events into exclusive
+breaking/day/week/month/persistent windows for a future tradebot consumer.
+
+Its versioned 0–100 causal score is the exact sum of magnitude, contract
+transmission, surprise, immediacy, and persistence; confidence remains
+separate. Every unseen mainstream Finviz link reaches Codex without a Python
+topic or keyword sieve. The model may open at most eight pages and must compare
+material events with the retained historical anchors. It has no order authority.
 
 The one infrequent analysis is explicitly pinned to `gpt-5.6-sol` with `max`
 reasoning, ephemeral state, read-only sandboxing, and native live page search.
-`TRADEBOT_NEWS_DATA_DIR`, `TRADEBOT_NEWS_CODEX`, `TRADEBOT_NEWS_MODEL`, and
-`TRADEBOT_NEWS_MEMORY` override its output directory, Codex executable, pinned
-model, and memory path.
+`TRADEBOT_NEWS_DATA_DIR`, `TRADEBOT_NEWS_CODEX`, `TRADEBOT_NEWS_MODEL`,
+`TRADEBOT_NEWS_MEMORY`, and `TRADEBOT_NEWS_EVENTS` override its output
+directory, Codex executable, pinned model, Markdown path, and active-event
+ledger path.
 
 ## Controls
 - **Arrow keys** — navigate rows

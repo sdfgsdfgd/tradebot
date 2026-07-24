@@ -229,6 +229,7 @@
         "tradebot/engines/shock.py",
         "tradebot/engines/signals.py",
         "tradebot/news.py",
+        "tradebot/news_contract.py",
         "tradebot/spot_engine.py"
       ],
       "oracle": [

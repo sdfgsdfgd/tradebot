@@ -8,7 +8,7 @@ Type=oneshot
 WorkingDirectory=%h/Desktop/py/tradebot
 Environment=PATH=/usr/local/bin:/usr/bin:/bin
 Environment=PYTHONUNBUFFERED=1
-ExecStart=/usr/bin/python3 -m tradebot.news --codex /usr/local/bin/codex --model gpt-5.6-sol --data-dir %h/.local/state/tradebot/news --memory %h/.codex/trade-research.md
+ExecStart=/usr/bin/python3 -m tradebot.news --codex /usr/local/bin/codex --model gpt-5.6-sol --data-dir %h/.local/state/tradebot/news --memory %h/.codex/trade-research.md --events %h/.codex/trade-events.jsonl
 TimeoutStartSec=15min
 Nice=10
 IOSchedulingClass=idle

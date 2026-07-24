@@ -13,8 +13,8 @@ journalctl --user -u tradebot-news.service -n 100 --no-pager
 systemctl --user enable --now tradebot-news.timer
 ```
 
-The default is one run per hour. For a two- or four-hour cadence, create a
-timer drop-in and change only `OnUnitInactiveSec`:
+The default is approximately one run every four hours. To test a temporary
+two-hour cadence, create a timer drop-in and change only `OnUnitInactiveSec`:
 
 ```ini
 [Timer]
@@ -22,10 +22,12 @@ OnUnitInactiveSec=
 OnUnitInactiveSec=2h
 ```
 
-Use `4h` instead for four-hour cadence. `AccuracySec=5min` lets systemd coalesce
-wakeups; it is not polling or a five-minute loop.
+Remove the drop-in to restore four-hour cadence. `AccuracySec=15min` lets
+systemd coalesce wakeups; it is not polling or a fifteen-minute loop.
 
 The service pins `gpt-5.6-sol`; the application pins `max` reasoning with
 strict Codex config validation. Native reasoning summaries and page-search
 progress stay on stderr and therefore appear in this unit's journal, while
-stdout remains the final command receipt.
+stdout remains the final command receipt. The service atomically curates
+`~/.codex/trade-research.md` and `~/.codex/trade-events.jsonl`; do not point
+multiple concurrent service instances at those files.
