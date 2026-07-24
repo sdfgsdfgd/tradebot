@@ -297,6 +297,27 @@ Reuse the existing capability spine instead of creating a parallel framework:
   tail thresholds. No option or live promotion follows directly from this
   underlying event study.
 
+**Frozen causal-context extension — `xsp.opening_context.study.v1`**
+
+Registered before reading contextual outcomes. Reuse the same discovery
+cutoff, holdout, rolling 60-session reference, observation boundaries, XSP
+tails, branches, horizons, temporal blocks, and gates above. Join only exact
+same-timestamp, provenance-bound 5-minute RTH bars from XSP, SPY, and VIX.
+At each frozen boundary, compute SPY cumulative volume relative to the median
+of the prior 60 complete sessions at that boundary and VIX return from that
+session's open. Test exactly three causal contexts per branch:
+
+- downside branches: SPY participation at or above its rolling median; VIX
+  rising; and both together;
+- upside branches: SPY participation at or above its rolling median; VIX
+  falling; and both together.
+
+This is one 768-cell family (`4 windows × 4 tails × 4 branches × 4 horizons ×
+3 contexts`) with one family-wise correction. A contextual cell must also beat
+its unconditional parent mean and retain neighboring-tail support. Missing or
+misaligned context abstains. No combinations, thresholds, or holdout outcomes
+may be added after results are read under this version.
+
 ### 3.3 Horizon families
 
 Maintain distinct evidence and crowns:
