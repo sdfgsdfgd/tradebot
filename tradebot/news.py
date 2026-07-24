@@ -27,7 +27,6 @@ from .news_contract import (
     _events_text,
     _parse_utc,
     _utc_iso,
-    canonicalize_lifecycle_timestamps,
     canonical_url,
     load_events,
     output_schema,
@@ -498,7 +497,7 @@ def run_once(
     fetcher: Callable[..., str] = fetch_html,
     grader: Callable[..., tuple[dict[str, object], dict[str, object]]] = invoke_codex,
 ) -> dict[str, object]:
-    observed_at = now or datetime.now(timezone.utc)
+    observed_at = (now or datetime.now(timezone.utc)).replace(microsecond=0)
     as_of = _utc_iso(observed_at)
     state_path = data_dir / "state.json"
     latest_path = data_dir / "latest.json"
@@ -583,11 +582,7 @@ def run_once(
         timeout_sec=timeout_sec,
     )
     response = validate_analysis(
-        canonicalize_lifecycle_timestamps(
-            raw_analysis,
-            previous_events=active_events,
-            as_of=observed_at,
-        ),
+        raw_analysis,
         previous_events=active_events,
         as_of=observed_at,
     )

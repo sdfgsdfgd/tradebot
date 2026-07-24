@@ -401,22 +401,20 @@ def test_run_once_publishes_then_refreshes_without_second_codex_session(tmp_path
     assert len((tmp_path / "history" / "2026-07.jsonl").read_text().splitlines()) == 1
 
 
-def test_run_once_makes_runtime_authoritative_for_model_clock_drift(
+def test_run_once_normalizes_runtime_clock_to_schema_precision(
     tmp_path: Path,
 ) -> None:
     def grader(prompt: str, _schema: dict, **_kwargs) -> tuple[dict, dict]:
         inputs = json.loads(prompt.split("INPUT:\n", 1)[1])
-        value = _analysis([article["url"] for article in inputs["articles"]])
-        drifted = _iso(NOW + timedelta(seconds=1))
-        event = value["active_events"][0]
-        event["first_seen_utc"] = drifted
-        event["last_material_change_utc"] = drifted
-        event["last_verified_utc"] = drifted
-        return value, {"version": "test"}
+        as_of = datetime.fromisoformat(inputs["as_of_utc"].replace("Z", "+00:00"))
+        return _analysis(
+            [article["url"] for article in inputs["articles"]],
+            as_of=as_of,
+        ), {"version": "test"}
 
     run_once(
         data_dir=tmp_path,
-        now=NOW,
+        now=NOW + timedelta(microseconds=999_999),
         fetcher=lambda *_args, **_kwargs: _html(),
         grader=grader,
     )
