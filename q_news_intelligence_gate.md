@@ -1,6 +1,6 @@
 # Quest I — Causal News Memory Gate
 
-- **Status:** `[LOCAL VALIDATION PASSED — REBASE AND q DEPLOYMENT PENDING]`
+- **Status:** `[LIVE ON q — INITIAL SIGNAL PUBLISHED — FOUR-HOUR TIMER ACTIVE]`
 - **Worktree:** `/Users/x/Desktop/py/tradebot-news-intelligence`
 - **Branch:** `codex/news-intelligence-gate`
 - **Runtime host:** `q` (`192.168.1.4`)
@@ -138,6 +138,10 @@ The model may read at most eight pages chosen for maximum information gain:
 physical status, official implementation, independent corroboration,
 contradiction, or rhetoric-versus-reality. Due events may use exact-name live
 search and primary sources even when the current Finviz page has no new link.
+Primary authorities and established original-reporting outlets may upgrade an
+event's evidence basis. SEO mirrors, anonymous aggregators, fact-check wrappers,
+and republishers may not. All mechanisms and calibrations must end as complete
+sentences and target well below their schema ceiling.
 
 ## 5. Scoring
 
@@ -281,6 +285,7 @@ modified.
 ## 9. Systemd contract
 
 - `Type=oneshot`
+- `OnActiveSec=4h`
 - `OnUnitInactiveSec=4h`
 - `AccuracySec=15min`
 - `Nice=10`
@@ -290,8 +295,10 @@ modified.
 - `UMask=0077`
 - 15-minute service timeout
 
-The four-hour interval begins after the previous run becomes inactive, avoiding
-overlap. Timer accuracy permits wakeup coalescing; it is not a 15-minute poll.
+The first four-hour interval begins when the timer is enabled; later intervals
+also remain four hours after the previous run becomes inactive, avoiding both
+an immediate duplicate run and overlap. Timer accuracy permits wakeup
+coalescing; it is not a 15-minute poll.
 
 ## 10. Validation contract
 
@@ -302,6 +309,7 @@ overlap. Timer accuracy permits wakeup coalescing; it is not a 15-minute poll.
 - missing removals fail closed;
 - event IDs and first-seen times are stable;
 - unchanged events cannot falsify material-change time;
+- runtime time is normalized to the schema's whole-second precision;
 - review deadlines are impact-bounded;
 - cross-source basis requires distinct hosts;
 - MCL 100 requires confirmed physical evidence;
@@ -311,6 +319,8 @@ overlap. Timer accuracy permits wakeup coalescing; it is not a 15-minute poll.
 - no unseen links and no due event skip Codex;
 - due events invoke Codex even without new links;
 - failed inference preserves latest, state, memory, and event ledger;
+- truncated causal sentences fail validation;
+- mirrors and republishers cannot upgrade evidence in the prompt contract;
 - Sol and max reasoning are command- and receipt-tested;
 - systemd units must pass q's `systemd-analyze verify`;
 - focused and full repository suites must pass before deployment.
@@ -328,23 +338,55 @@ overlap. Timer accuracy permits wakeup coalescing; it is not a 15-minute poll.
 - [x] set four-hour timer and 15-minute accuracy;
 - [x] pin `gpt-5.6-sol` and `max`;
 - [x] finish focused and full validation;
-- [ ] rebase onto current `origin/main` and preserve concurrent ledger changes;
-- [ ] push `codex/news-intelligence-gate`;
-- [ ] clone exact branch on q;
-- [ ] seed q Markdown;
-- [ ] install and verify user units;
-- [ ] run one manual service while watching stderr;
-- [ ] inspect exact persistent artifacts and causal output;
-- [ ] enable timer only after the manual run succeeds;
-- [ ] record final commit, runtime, and journal evidence here.
+- [x] rebase onto current `origin/main` and preserve concurrent ledger changes;
+- [x] push `codex/news-intelligence-gate`;
+- [x] clone exact branch on q;
+- [x] seed q Markdown;
+- [x] install and verify user units;
+- [x] run one manual service while watching stderr;
+- [x] inspect exact persistent artifacts and causal output;
+- [x] enable timer only after the manual output validates and publishes;
+- [x] record runtime and journal evidence here.
 
-Local validation evidence before rebase:
+Final validation evidence:
 
-- focused news + capability-ledger + architecture suite: `23 passed`;
-- complete repository suite under Python 3.12: `681 passed, 4 deselected,
-  1 warning` in `10.65s`;
+- focused news + capability-ledger + architecture suite: `25 passed`;
+- complete repository suite under Python 3.12: `704 passed, 4 deselected,
+  1 warning` in `10.58s`;
 - both production modules remain below the 1,000-line architecture ceiling:
-  `tradebot/news.py` 695 lines and `tradebot/news_contract.py` 716 lines.
+  `tradebot/news.py` 701 lines and `tradebot/news_contract.py` 754 lines;
+- q `systemd-analyze --user verify` passed with no diagnostics;
+- runtime implementation commit: `20ea509`.
+
+### q runtime evidence — 2026-07-24
+
+- checkout: `/home/x/Desktop/py/tradebot`, branch
+  `codex/news-intelligence-gate`;
+- systemd session: `019f93d6-47af-7bf2-874a-aeed81250026`;
+- journal-proven runtime: Codex `0.144.1`, `gpt-5.6-sol`, reasoning `max`,
+  ephemeral read-only sandbox, native live search;
+- exact first batch: 81 articles, no topical sieve, zero deferred;
+- reasoning trace opened substantive sources, separated fund-flow noise,
+  assessed tariff/rate/AI channels, and explicitly tested the Gulf
+  physical-closure boundary;
+- the first service process returned a complete response after `188,133` total
+  session tokens, then failed closed because the runtime compared whole-second
+  model timestamps with an internal microsecond timestamp;
+- no state was written by that failed validation. Commit `8108d9c` normalized
+  the runtime clock to whole seconds. The exact journal-retained input and
+  response were reconstructed, article-for-article checked, passed the fixed
+  production validator, and published without paying for a second Sol run;
+- published aggregate: XSP `-1 / 76 / confidence .91 / 4h`; MCL
+  `+1 / 86 / confidence .93 / 4h`;
+- persistent state: six event records, 60 Markdown lines / 5,477 bytes, 81
+  bounded seen identities, one monthly audit record, and six breaking-bucket
+  events;
+- quality follow-up `32f9548` rejects truncated causal prose and prevents
+  low-authority republishers from upgrading evidence;
+- a read-only pre-enable check found five newer links. They remain unseen for
+  the next batch instead of provoking an immediate duplicate session;
+- timer is enabled and waiting; first scheduled activation is
+  `2026-07-25 01:32:09 AEST`.
 
 ## 12. Decision journal
 
@@ -365,12 +407,17 @@ Local validation evidence before rebase:
 | N-013 | Physical consequence outranks rhetoric | Contract transmission, not language intensity, moves scores |
 | N-014 | Audit is not model memory | Preserve calibration evidence without prompt bloat |
 | N-015 | No policy integration | A research signal must earn authority empirically |
+| N-016 | Runtime owns timestamp precision | Generative semantics must not fail on hidden microseconds |
+| N-017 | Delayed first timer tick | Enabling after validation must not duplicate an expensive run |
+| N-018 | Original reporting upgrades evidence | A republisher is discovery, not corroboration |
 
 ## Conclusion
 
 - **Quest:** Quest I — Causal News Memory Gate
-- **Status:** `[LOCAL VALIDATION PASSED — REBASE AND q DEPLOYMENT PENDING]`
+- **Status:** `[LIVE ON q — INITIAL SIGNAL PUBLISHED — FOUR-HOUR TIMER ACTIVE]`
 - **Current seam:** one schema-bound research publisher producing a stable file
   contract for the future tradebot service.
-- **Predictive observation:** the active-event ledger, not headline volume, will
-  become the decisive interface between causal research and later policy.
+- **Predictive observation:** the first live run already shows that the
+  active-event ledger, source-quality boundary, and historical comparators—not
+  headline volume—will become the decisive interface between causal research
+  and later policy.
