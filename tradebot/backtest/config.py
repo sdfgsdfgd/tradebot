@@ -523,6 +523,14 @@ def _synthetic_schema() -> dict[str, _FieldSpec]:
         "term_slope": _field(float, 0.02),
         "skew": _field(float, -0.25),
         "min_spread_pct": _field(float, 0.1),
+        "commission_per_contract": _field(
+            lambda value: _parse_non_negative_float(value, default=0.0),
+            0.0,
+        ),
+        "slippage_ticks": _field(
+            lambda value: _parse_non_negative_float(value, default=0.0),
+            0.0,
+        ),
     }
 
 

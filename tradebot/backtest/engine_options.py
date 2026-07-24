@@ -451,7 +451,7 @@ def run_options_backtest(
                         -exit_debit
                         * product.multiplier
                         * trade.package.quantity
-                    )
+                    ) - trade.exit_commission
                     margin_used = max(0.0, margin_used - trade.margin_required)
                 else:
                     still_open.append(trade)
@@ -509,7 +509,7 @@ def run_options_backtest(
                         -exit_debit
                         * product.multiplier
                         * trade.package.quantity
-                    )
+                    ) - trade.exit_commission
                     margin_used = max(0.0, margin_used - trade.margin_required)
                 else:
                     still_open.append(trade)
@@ -517,7 +517,7 @@ def run_options_backtest(
                         -current_value
                         * product.multiplier
                         * trade.package.quantity
-                    )
+                    ) - trade.exit_commission
             open_trades = still_open
 
         entry_signal_dir = signal.entry_dir if signal is not None else None
@@ -631,24 +631,43 @@ def run_options_backtest(
                     continue
                 scale = product.multiplier * package.quantity
                 mark_liquidation = -mark_price * scale
+                entry_commission = _option_commission(spec, cfg)
+                exit_commission = _option_commission(spec, cfg)
                 candidate = OptionTrade(
                     package=package,
                     risk=package_risk,
                     entry_time=bar.ts,
                     stop_loss=cfg.strategy.stop_loss,
                     profit_target=cfg.strategy.profit_target,
-                    margin_required=package_risk.max_loss if entry_price > 0 else 0.0,
+                    margin_required=(
+                        package_risk.max_loss
+                        + entry_commission
+                        + exit_commission
+                        if entry_price > 0
+                        else 0.0
+                    ),
+                    entry_commission=entry_commission,
+                    exit_commission=exit_commission,
                 )
-                cash_after = cash + (entry_price * scale)
+                cash_after = (
+                    cash
+                    + (entry_price * scale)
+                    - candidate.entry_commission
+                )
                 margin_after = margin_used + candidate.margin_required
-                equity_after = cash_after + liquidation + mark_liquidation
+                equity_after = (
+                    cash_after
+                    + liquidation
+                    + mark_liquidation
+                    - candidate.exit_commission
+                )
                 if cash_after >= 0 and equity_after >= margin_after:
                     open_trades.append(candidate)
                     cash = cash_after
                     margin_used = margin_after
                     entries_today += 1
                     last_entry_idx = idx
-                    liquidation += mark_liquidation
+                    liquidation += mark_liquidation - candidate.exit_commission
         equity_curve.append(EquityPoint(ts=bar.ts, equity=cash + liquidation))
         prev_bar = bar
 
@@ -671,7 +690,7 @@ def run_options_backtest(
                 -exit_debit
                 * product.multiplier
                 * trade.package.quantity
-            )
+            ) - trade.exit_commission
             margin_used = max(0.0, margin_used - trade.margin_required)
 
     summary = summarize(
@@ -721,6 +740,38 @@ def _direction_from_legs(legs: tuple[ResolvedOptionLeg, ...]) -> str | None:
     if pair in (("BUY", "PUT"), ("SELL", "CALL")):
         return "down"
     return None
+
+
+def _option_commission(
+    spec: TradeSpec | OptionTrade,
+    cfg: ConfigBundle,
+) -> float:
+    quantity = (
+        spec.quantity
+        if isinstance(spec, TradeSpec)
+        else spec.package.quantity
+    )
+    return (
+        float(getattr(cfg.synthetic, "commission_per_contract", 0.0))
+        * int(quantity)
+        * sum(int(leg.ratio) for leg in spec.legs)
+    )
+
+
+def _option_fill_slippage(
+    value: float,
+    *,
+    mode: str,
+    cfg: ConfigBundle,
+    min_tick: float,
+) -> float:
+    if mode == "mark":
+        return float(value)
+    slippage = (
+        float(getattr(cfg.synthetic, "slippage_ticks", 0.0))
+        * float(min_tick)
+    )
+    return float(value) - slippage if mode == "entry" else float(value) + slippage
 
 
 def _trade_value(
@@ -798,7 +849,12 @@ def _trade_value_from_spec(
             rows.append((action, qty, price))
         debit_value = option_package_debit_value(rows)
         assert debit_value is not None
-        return -float(debit_value)
+        return _option_fill_slippage(
+            -float(debit_value),
+            mode=mode,
+            cfg=cfg,
+            min_tick=min_tick,
+        )
 
     debit_mid = option_package_debit_value(mid_rows)
     assert debit_mid is not None
@@ -810,8 +866,15 @@ def _trade_value_from_spec(
     if mode == "mark":
         return mid_signed
     if mode == "entry":
-        return bid_signed if net_mid >= 0 else ask_signed
-    return ask_signed if net_mid >= 0 else bid_signed
+        value = bid_signed if net_mid >= 0 else ask_signed
+    else:
+        value = ask_signed if net_mid >= 0 else bid_signed
+    return _option_fill_slippage(
+        value,
+        mode=mode,
+        cfg=cfg,
+        min_tick=min_tick,
+    )
 
 
 def _hit_profit(trade: OptionTrade, current_value: float) -> bool:

@@ -39,6 +39,8 @@ class SyntheticConfig:
     term_slope: float
     skew: float
     min_spread_pct: float
+    commission_per_contract: float = 0.0
+    slippage_ticks: float = 0.0
 
 
 @dataclass(frozen=True)

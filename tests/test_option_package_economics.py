@@ -1452,6 +1452,57 @@ def test_backtest_multi_quantity_credit_vertical_risk_matches_canonical_package_
     assert backtest_engine._hit_stop(trade, 3.0, "max_loss") is True
 
 
+def test_backtest_option_friction_is_explicit_in_fill_and_realized_economics() -> None:
+    package = OptionPackage(
+        product=option_product_facts("XSP"),
+        legs=(
+            _resolved_leg(action="SELL", right="PUT", strike=100.0),
+            _resolved_leg(action="BUY", right="PUT", strike=99.0),
+        ),
+        debit_value=-0.20,
+        quantity=1,
+    )
+    risk = option_package_risk(package)
+    assert risk is not None
+    trade = OptionTrade(
+        package=package,
+        risk=risk,
+        entry_time=datetime(2026, 7, 23, 10, 0),
+        stop_loss=0.5,
+        profit_target=0.5,
+        entry_commission=2.0,
+        exit_commission=2.0,
+        exit_price=0.10,
+    )
+    cfg = SimpleNamespace(
+        synthetic=SimpleNamespace(
+            commission_per_contract=1.0,
+            slippage_ticks=2.0,
+        )
+    )
+
+    assert backtest_engine._option_commission(trade, cfg) == pytest.approx(2.0)
+    assert backtest_engine._option_fill_slippage(
+        0.20,
+        mode="entry",
+        cfg=cfg,
+        min_tick=0.01,
+    ) == pytest.approx(0.18)
+    assert backtest_engine._option_fill_slippage(
+        0.10,
+        mode="exit",
+        cfg=cfg,
+        min_tick=0.01,
+    ) == pytest.approx(0.12)
+    assert backtest_engine._option_fill_slippage(
+        0.15,
+        mode="mark",
+        cfg=cfg,
+        min_tick=0.01,
+    ) == pytest.approx(0.15)
+    assert trade.pnl(100.0) == pytest.approx(6.0)
+
+
 def test_backtest_option_exit_thresholds_disable_when_non_positive() -> None:
     def _trade(*, profit_target: float = 0.5, stop_loss: float = 0.5) -> SimpleNamespace:
         return SimpleNamespace(

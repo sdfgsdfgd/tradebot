@@ -17,6 +17,8 @@ class OptionTrade:
     stop_loss: float
     profit_target: float
     margin_required: float = 0.0
+    entry_commission: float = 0.0
+    exit_commission: float = 0.0
     exit_time: datetime | None = None
     exit_price: float | None = None
     exit_reason: str | None = None
@@ -58,6 +60,8 @@ class OptionTrade:
             (self.entry_price - self.exit_price)
             * self.package.product.multiplier
             * self.package.quantity
+            - self.entry_commission
+            - self.exit_commission
         )
 
 

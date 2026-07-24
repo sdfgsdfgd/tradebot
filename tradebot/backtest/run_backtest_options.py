@@ -97,6 +97,9 @@ def options_leaderboard_main() -> None:
     parser.add_argument("--end", default="2026-01-02")
     parser.add_argument("--bar-size", default="1 hour")
     parser.add_argument("--use-rth", action="store_true")
+    parser.add_argument("--starting-cash", type=float, default=10_000.0)
+    parser.add_argument("--commission-per-contract", type=float, default=0.0)
+    parser.add_argument("--slippage-ticks", type=float, default=0.0)
     parser.add_argument(
         "--wing-points",
         type=float,
@@ -125,6 +128,12 @@ def options_leaderboard_main() -> None:
         help="Disable appending spot milestones into the generated output",
     )
     args = parser.parse_args()
+    if float(args.starting_cash) <= 0:
+        parser.error("--starting-cash must be positive")
+    if float(args.commission_per_contract) < 0:
+        parser.error("--commission-per-contract must be non-negative")
+    if float(args.slippage_ticks) < 0:
+        parser.error("--slippage-ticks must be non-negative")
     if args.wing_points is not None and float(args.wing_points) <= 0:
         parser.error("--wing-points must be positive")
 
@@ -166,7 +175,7 @@ def options_leaderboard_main() -> None:
         end=end,
         bar_size=args.bar_size,
         use_rth=bool(args.use_rth),
-        starting_cash=10000.0,
+        starting_cash=float(args.starting_cash),
         risk_free_rate=0.02,
         cache_dir=Path("db"),
         calibration_dir=Path("db/calibration"),
@@ -183,6 +192,8 @@ def options_leaderboard_main() -> None:
         term_slope=0.02,
         skew=-0.25,
         min_spread_pct=0.1,
+        commission_per_contract=float(args.commission_per_contract),
+        slippage_ticks=float(args.slippage_ticks),
     )
     wing = (
         {"otm_offset_points": float(args.wing_points)}
@@ -329,6 +340,11 @@ def options_leaderboard_main() -> None:
         "end": end.isoformat(),
         "bar_size": args.bar_size,
         "use_rth": bool(args.use_rth),
+        "starting_cash": base_backtest.starting_cash,
+        "friction": {
+            "commission_per_contract": synthetic.commission_per_contract,
+            "slippage_ticks": synthetic.slippage_ticks,
+        },
         "grid": grid,
         "groups": [],
     }
@@ -767,6 +783,10 @@ def _run_combo(
             "trades": summary.trades,
             "avg_hold_hours": summary.avg_hold_hours,
             "max_drawdown": summary.max_drawdown,
+            "commission": sum(
+                trade.entry_commission + trade.exit_commission
+                for trade in result.trades
+            ),
         },
         "strategy": strategy_payload,
     }
