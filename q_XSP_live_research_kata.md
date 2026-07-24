@@ -3,7 +3,7 @@
 - **Status:** `[WIP] Phase 1 — authentic XSP evidence spine`
 - **Management role:** canonical task tree, evidence ledger, decision journal, and resume source
 - **Code baseline:** `25513267225908b7288530c1ec0762f7656bbf5b`
-- **Resumable pushed anchor before current WIP:** `acbf684cafa78dc168a3cc66d60e072b5f395004`
+- **Resumable pushed anchor before current WIP:** `957ef1070ea6c903f9ee6a5275a84abeb0540302`
 - **Management brain introduced:** `3c38af635fcc6ce8b3b0a88e1f2de567345d1bf0`
 - **Instrument scope:** XSP first; no expansion until its data, economics, execution, and live drift are mastered
 - **Capital premise:** user-reported net liquidity near USD 1,000; re-read broker truth before every capital decision
@@ -581,6 +581,23 @@ USD `1,000` envelope; worst session no worse than `-10%`; and top-five wins no
 more than `50%` of gross wins. The alpha sleeve may use a `20%` drawdown and
 `1.10` adverse profit-factor floor, but retains the `-10%` worst-session
 limit. These are rejection gates, not profit promises.
+
+Preregister `xsp.directional-debit.discovery.v1` before inspecting outcomes:
+
+- discovery remains `2025-07-24..2026-01-22`; validation and holdout stay
+  sealed;
+- compare filtered and unfiltered EMA-directed one-point verticals: BUY CALL /
+  SELL the next higher CALL on up evidence, BUY PUT / SELL the next lower PUT
+  on down evidence;
+- search DTE `0/5/10/20`, anchors `0/0.5/1%`, profit targets
+  `0.25/0.5/0.75/1`, stops `0.25/0.5/0.75`, EMA `3/7`, `9/21`, `20/50`,
+  trend/cross entry, and fixed/eligible profitable-flip exit: `3,456` cells;
+- use adverse USD `1.50` per contract per side plus two package-price ticks;
+- a candidate must pass all alpha gates, remain positive-LCB in both exact
+  chronological discovery halves, and have at least two immediate
+  target/stop/EMA/DTE neighbors with positive LCB. Otherwise reject the family
+  without reading validation. Do not add a permanent strategy catalog entry
+  unless this discovery contract passes.
 
 For the first possible live canary, canonical maximum loss plus conservative
 round-trip fees must be no more than `10%` of the lesser of fresh usable
@@ -1173,6 +1190,7 @@ Add rows; never rewrite an unfavorable receipt.
 | E-020 | 2026-07-24 10:42 UTC | 1/2 | Same-tape safe-income and alpha package baselines | `/tmp/xsp-same-tape-package-baselines-v1.json` | `6ec25b2e…`; source tape `c091adf4…` | One delayed snapshot priced both sleeves through the shared live-intended kernel: 734/733P credit vertical at `-0.25`, max +25/-75 USD; 741/742C debit vertical at `+0.65`, max +35/-65 USD. Geometry/economics parity is proven; delayed premarket quotes prove neither edge nor live eligibility |
 | E-021 | 2026-07-24 10:47 UTC | 2 | Adverse-cost directional-credit discovery + chronological halves | `/tmp/xsp-directional-credit-discovery-adverse-v1.json`; `/tmp/xsp-directional-credit-discovery-halves-v1.json` | `f2b45a91…`; halves `7ccc10b6…` | 5,184 synthetic cells at USD 1.50/contract and two ticks retained 2,255 sample rows. One filtered DTE5/EMA3-7/PT0.5/SL0.35 cell had 38 trades, +117.61 PnL and +0.117 daily LCB, but no stable parameter neighborhood. Its exact early half had 15 trades, -0.537 LCB and 55.2% top-five-win concentration; late had 23 trades and +0.092 LCB. The singleton is rejected as a champion; validation and holdout stay sealed |
 | E-022 | 2026-07-24 10:56 UTC | 1 | Official-rule-aware historical retry contract | Git current WIP | focused `43 passed`; full `687 passed, 4 deselected` | Minute-and-larger tapes retain bounded independent-contract parallelism; same-contract requests serialize and day repairs descend to one worker. Ambiguous failures retry with smaller windows and exponential delay; explicit pacing waits 15/30 seconds. `reqHeadTimestamp` proof is reused for one hour and failed probes cool down for 15 seconds because IBKR subjects head requests to strict small-bar pacing. Only rejection, expiry, or request-before-head is called unavailable; repeated broker no-data remains unresolved and cannot delete or bless a cache gap |
+| E-023 | 2026-07-24 11:02 UTC | 2 | Preregistered directional-debit discovery | This document at pushed preregistration anchor | `xsp.directional-debit.discovery.v1` | Frozen 3,456-cell filtered/unfiltered one-point CALL-up/PUT-down vertical family, adverse friction, exact discovery/validation/holdout boundary, two-half repeatability, alpha risk, concentration, and neighborhood gates. No permanent catalog entry exists before evidence |
 
 ---
 
