@@ -100,11 +100,18 @@ def options_leaderboard_main() -> None:
     parser.add_argument("--starting-cash", type=float, default=10_000.0)
     parser.add_argument("--commission-per-contract", type=float, default=0.0)
     parser.add_argument("--slippage-ticks", type=float, default=0.0)
+    parser.add_argument("--min-trades", type=int, default=8)
+    parser.add_argument(
+        "--sleeve",
+        choices=("all", "safe-income", "alpha"),
+        default="all",
+        help="Limit research to one explicit strategy sleeve",
+    )
     parser.add_argument(
         "--wing-points",
         type=float,
         default=None,
-        help="Use a fixed OTM point offset for defined-risk wings instead of the legacy 1% offset",
+        help="Use a fixed OTM point offset for defined-risk wings instead of the legacy 1%% offset",
     )
     parser.add_argument("--jobs", type=int, default=0, help="Worker processes (0 = auto)")
     parser.add_argument(
@@ -134,6 +141,8 @@ def options_leaderboard_main() -> None:
         parser.error("--commission-per-contract must be non-negative")
     if float(args.slippage_ticks) < 0:
         parser.error("--slippage-ticks must be non-negative")
+    if int(args.min_trades) < 0:
+        parser.error("--min-trades must be non-negative")
     if args.wing_points is not None and float(args.wing_points) <= 0:
         parser.error("--wing-points must be positive")
 
@@ -156,7 +165,7 @@ def options_leaderboard_main() -> None:
         "exit_on_signal_flip": [False, True],
         "flip_exit_min_hold_bars": [6],
         "flip_exit_only_if_profit": [True],
-        "min_trades": 8,
+        "min_trades": int(args.min_trades),
     }
 
     filters = {
@@ -208,6 +217,7 @@ def options_leaderboard_main() -> None:
             [{"action": "BUY", "right": "CALL", "qty": 1}],
             None,
             ema_entry_mode="trend",
+            sleeve="alpha",
         ),
         _group_spec(
             "Long CALL (filtered)",
@@ -215,6 +225,7 @@ def options_leaderboard_main() -> None:
             [{"action": "BUY", "right": "CALL", "qty": 1}],
             filters,
             ema_entry_mode="trend",
+            sleeve="alpha",
         ),
         _group_spec(
             "Short PUT (unfiltered)",
@@ -222,6 +233,7 @@ def options_leaderboard_main() -> None:
             [{"action": "SELL", "right": "PUT", "qty": 1}],
             None,
             ema_entry_mode="trend",
+            sleeve="legacy",
         ),
         _group_spec(
             "Short PUT (filtered)",
@@ -229,6 +241,7 @@ def options_leaderboard_main() -> None:
             [{"action": "SELL", "right": "PUT", "qty": 1}],
             filters,
             ema_entry_mode="trend",
+            sleeve="legacy",
         ),
         _group_spec(
             "Risk Reversal (unfiltered) [BUY CALL + SELL PUT]",
@@ -239,6 +252,7 @@ def options_leaderboard_main() -> None:
             ],
             None,
             ema_entry_mode="trend",
+            sleeve="legacy",
         ),
         _group_spec(
             "Risk Reversal (filtered) [BUY CALL + SELL PUT]",
@@ -249,6 +263,7 @@ def options_leaderboard_main() -> None:
             ],
             filters,
             ema_entry_mode="trend",
+            sleeve="legacy",
         ),
         _group_spec(
             "Put Credit Spread (unfiltered)",
@@ -259,6 +274,7 @@ def options_leaderboard_main() -> None:
             ],
             None,
             ema_entry_mode="trend",
+            sleeve="safe-income",
         ),
         _group_spec(
             "Put Credit Spread (filtered)",
@@ -269,6 +285,7 @@ def options_leaderboard_main() -> None:
             ],
             filters,
             ema_entry_mode="trend",
+            sleeve="safe-income",
         ),
         _group_spec(
             "Iron Condor (unfiltered)",
@@ -281,6 +298,7 @@ def options_leaderboard_main() -> None:
             ],
             None,
             ema_entry_mode="trend",
+            sleeve="safe-income",
         ),
         _group_spec(
             "Iron Condor (filtered)",
@@ -293,6 +311,7 @@ def options_leaderboard_main() -> None:
             ],
             filters,
             ema_entry_mode="trend",
+            sleeve="safe-income",
         ),
     ]
 
@@ -303,6 +322,7 @@ def options_leaderboard_main() -> None:
             {
                 "name": "Directional Flip Credit Spreads (unfiltered) [PUT up / CALL down]",
                 "right": "PUT",
+                "sleeve": "alpha",
                 "filters": None,
                 "directional_leg_templates": {
                     "up": [
@@ -318,6 +338,7 @@ def options_leaderboard_main() -> None:
             {
                 "name": "Directional Flip Credit Spreads (filtered) [PUT up / CALL down]",
                 "right": "PUT",
+                "sleeve": "alpha",
                 "filters": filters,
                 "directional_leg_templates": {
                     "up": [
@@ -332,6 +353,13 @@ def options_leaderboard_main() -> None:
             },
         ]
     )
+    if args.sleeve != "all":
+        groups = [
+            group for group in groups
+            if group.get("sleeve") == args.sleeve
+        ]
+    if args.sleeve == "safe-income":
+        grid["profit_target"] = [0.25, 0.5, 0.75, 1.0]
 
     payload = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -402,6 +430,7 @@ def options_leaderboard_main() -> None:
                 payload["groups"].append(
                     {
                         "name": group["name"],
+                        "sleeve": group.get("sleeve"),
                         "filters": group["filters"],
                         "entries": entries,
                     }
@@ -440,10 +469,12 @@ def _group_spec(
     filters: dict | None,
     *,
     ema_entry_mode: str,
+    sleeve: str = "legacy",
 ) -> dict:
     return {
         "name": name,
         "right": right,
+        "sleeve": sleeve,
         "leg_templates": leg_templates,
         "filters": filters,
         "ema_entry_mode": ema_entry_mode,
