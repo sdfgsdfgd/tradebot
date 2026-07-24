@@ -14,6 +14,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from ib_insync import IB, ContFuture, Index, Stock
+
+from ..contract_identity import (
+    future_exchange_for_symbol,
+    index_exchange_for_symbol,
+    select_option_chain,
+)
+
 
 def _none_if_nan(value) -> float | None:
     if value is None:
@@ -25,6 +33,56 @@ def _none_if_nan(value) -> float | None:
     if math.isnan(number) or math.isinf(number):
         return None
     return number
+
+
+def _nonnegative_or_none(value) -> float | None:
+    number = _none_if_nan(value)
+    return number if number is not None and number >= 0 else None
+
+
+def resolve_option_chain(
+    ib: IB,
+    symbol: str,
+    exchange: str | None,
+) -> tuple[object, float | None, object | None, bool]:
+    """Resolve one qualified underlyer and its most complete option chain."""
+    symbol = str(symbol).strip().upper()
+    future_exchange = future_exchange_for_symbol(symbol)
+    index_exchange = index_exchange_for_symbol(symbol)
+    if future_exchange is not None:
+        underlying = ContFuture(symbol, exchange or future_exchange, "USD")
+        is_future = True
+    elif index_exchange is not None:
+        underlying = Index(symbol, exchange or index_exchange, "USD")
+        is_future = False
+    else:
+        underlying = Stock(symbol, exchange or "SMART", "USD")
+        is_future = False
+
+    qualified = ib.qualifyContracts(underlying)
+    underlying = qualified[0] if qualified else underlying
+    ticker = ib.reqTickers(underlying)[0]
+    spot = None
+    for value in (ticker.marketPrice(), ticker.last, ticker.close):
+        try:
+            candidate = float(value)
+        except (TypeError, ValueError):
+            continue
+        if math.isfinite(candidate) and candidate > 0:
+            spot = candidate
+            break
+    chains = ib.reqSecDefOptParams(
+        underlying.symbol,
+        str(getattr(underlying, "exchange", "") or "") if is_future else "",
+        "FUT" if is_future else underlying.secType,
+        underlying.conId,
+    )
+    return (
+        underlying,
+        spot,
+        select_option_chain(chains, symbol, prefer_smart=not is_future),
+        is_future,
+    )
 
 
 @dataclass(frozen=True)
@@ -53,6 +111,13 @@ class QuoteContract:
 
     model_iv: float | None = None
     model_delta: float | None = None
+    model_gamma: float | None = None
+    model_vega: float | None = None
+    model_theta: float | None = None
+    model_under_price: float | None = None
+
+    market_data_type: int | None = None
+    quote_time: str | None = None
 
 
 @dataclass(frozen=True)
@@ -91,16 +156,22 @@ def contract_from_ticker(contract, ticker) -> QuoteContract:
         right=getattr(contract, "right", None),
         trading_class=getattr(contract, "tradingClass", None),
         multiplier=getattr(contract, "multiplier", None),
-        bid=_none_if_nan(getattr(ticker, "bid", None)),
-        ask=_none_if_nan(getattr(ticker, "ask", None)),
-        last=_none_if_nan(getattr(ticker, "last", None)),
-        close=_none_if_nan(getattr(ticker, "close", None)),
-        bid_size=_none_if_nan(getattr(ticker, "bidSize", None)),
-        ask_size=_none_if_nan(getattr(ticker, "askSize", None)),
-        last_size=_none_if_nan(getattr(ticker, "lastSize", None)),
-        volume=_none_if_nan(getattr(ticker, "volume", None)),
+        bid=_nonnegative_or_none(getattr(ticker, "bid", None)),
+        ask=_nonnegative_or_none(getattr(ticker, "ask", None)),
+        last=_nonnegative_or_none(getattr(ticker, "last", None)),
+        close=_nonnegative_or_none(getattr(ticker, "close", None)),
+        bid_size=_nonnegative_or_none(getattr(ticker, "bidSize", None)),
+        ask_size=_nonnegative_or_none(getattr(ticker, "askSize", None)),
+        last_size=_nonnegative_or_none(getattr(ticker, "lastSize", None)),
+        volume=_nonnegative_or_none(getattr(ticker, "volume", None)),
         model_iv=_none_if_nan(getattr(model, "impliedVol", None)),
         model_delta=_none_if_nan(getattr(model, "delta", None)),
+        model_gamma=_none_if_nan(getattr(model, "gamma", None)),
+        model_vega=_none_if_nan(getattr(model, "vega", None)),
+        model_theta=_none_if_nan(getattr(model, "theta", None)),
+        model_under_price=_none_if_nan(getattr(model, "undPrice", None)),
+        market_data_type=_safe_int(getattr(ticker, "marketDataType", None)),
+        quote_time=_iso_or_none(getattr(ticker, "time", None)),
     )
 
 
@@ -146,3 +217,9 @@ def _safe_int(value) -> int | None:
     except (TypeError, ValueError):
         return None
 
+
+def _iso_or_none(value) -> str | None:
+    if value is None:
+        return None
+    isoformat = getattr(value, "isoformat", None)
+    return str(isoformat()) if callable(isoformat) else None

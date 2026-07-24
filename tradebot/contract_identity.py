@@ -51,6 +51,42 @@ def index_exchange_for_symbol(symbol: object) -> str | None:
     return INDEX_EXCHANGES.get(normalize_contract_symbol(symbol))
 
 
+def select_option_chain(
+    chains: object,
+    symbol: object,
+    *,
+    prefer_smart: bool = True,
+) -> object | None:
+    """Choose the most complete matching chain without provider-specific imports."""
+    rows = list(chains or [])
+    if prefer_smart:
+        smart = [
+            row
+            for row in rows
+            if normalize_contract_symbol(getattr(row, "exchange", None)) == "SMART"
+        ]
+        rows = smart or rows
+    symbol_key = "".join(char for char in normalize_contract_symbol(symbol) if char.isalnum())
+
+    def score(row: object) -> tuple[int, int, int, int, int]:
+        expirations = getattr(row, "expirations", ()) or ()
+        strikes = getattr(row, "strikes", ()) or ()
+        trading_class = "".join(
+            char
+            for char in normalize_contract_symbol(getattr(row, "tradingClass", None))
+            if char.isalnum()
+        )
+        return (
+            len(expirations) * len(strikes),
+            int(trading_class == symbol_key),
+            int(normalize_contract_symbol(getattr(row, "exchange", None)) == "SMART"),
+            len(expirations),
+            len(strikes),
+        )
+
+    return max(rows, key=score) if rows else None
+
+
 def future_multiplier_for_symbol(symbol: object, *, default: float = 1.0) -> float:
     normalized = normalize_contract_symbol(symbol)
     if normalized in _FUTURE_MULTIPLIERS:

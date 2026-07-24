@@ -331,7 +331,10 @@
         "tests/test_ui_signal_timeout_fallback_ladder.py"
       ],
       "owner_surface": [
-        "tradebot/client.py"
+        "tradebot/client.py",
+        "tradebot/contract_identity.py",
+        "tradebot/backtest/quotes.py",
+        "tradebot/backtest/tools/record_quotes.py"
       ],
       "oracle": [
         "all evidence assigned to live-market-data-contracts passes",
@@ -585,22 +588,27 @@
       "subsystem": "market-realism-parity",
       "layer": "benchmark",
       "phase": "future-capability",
-      "capability": "Score behavioural drift between replayed live traces and backtest decisions/fills.",
+      "capability": "Freeze expected behaviour before each decision and score live-versus-replay calibration without allowing lucky PnL or noisy context switching to hide drift.",
       "fixtures": [
-        "planned fixture for benchmark.future.live-backtest-drift-score"
+        "XSP 24-hour, 48-hour, and five-session append-only live-calibration ledgers",
+        "selected and counterfactual champions replayed over one identical normalized tape"
       ],
       "evidence": [
-        "README.md"
+        "q_XSP_live_research_kata.md"
       ],
       "owner_surface": [
-        "tradebot/backtest/engine.py"
+        "tradebot/backtest/engine.py",
+        "tradebot/option_package.py",
+        "tradebot/ui/bot_journal.py"
       ],
       "oracle": [
-        "a measurable pass/fail outcome exists",
-        "promotion requires executable evidence"
+        "forecast identity, decision or abstention, PnL distribution, risk, costs, and fill assumptions are immutable before the outcome",
+        "package, leg, and account PnL remain separate from data, decision, pricing, execution, buying-power, and safety drift",
+        "actual PnL is never the sole score and hard evidence or safety failures veto promotion",
+        "hourly context explains drift while strategy promotion remains sample-gated, hysteretic, and forbidden from re-owning an open position"
       ],
       "status": "planned",
-      "next": "Design the smallest falsifiable TDD birth for benchmark.future.live-backtest-drift-score."
+      "next": "Implement live_calibration.v1 after forward XSP quote capture and same-tape shadow replay are durable."
     },
     {
       "id": "unit.future.content-addressed-cache-provenance",

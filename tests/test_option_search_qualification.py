@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from types import SimpleNamespace
 
 import pytest
-from ib_insync import Contract
+from ib_insync import Contract, Index
 
+from tradebot.backtest.calibration import _sample_contracts
+from tradebot.backtest.quotes import contract_from_ticker, resolve_option_chain
 from tradebot.client import IBKRClient
 from tradebot.config import IBKRConfig
 
@@ -146,6 +148,165 @@ def test_search_contracts_opt_drops_unqualified_rows() -> None:
 
     assert len(results) == 1
     assert int(getattr(results[0], "conId", 0) or 0) == 900001
+
+
+def test_xsp_option_chain_fallback_uses_canonical_index() -> None:
+    client = _client()
+
+    async def _matching_symbols(*_args, **_kwargs):
+        raise AssertionError("known index identity must not depend on symbol search")
+
+    async def _qualify_contract(contract: Contract, use_proxy: bool):
+        assert use_proxy is True
+        assert contract.secType == "IND"
+        assert contract.symbol == "XSP"
+        assert contract.exchange == "CBOE"
+        contract.conId = 11004968
+        return contract
+
+    async def _connect_proxy() -> None:
+        return None
+
+    async def _req_secdef(symbol: str, exchange: str, sec_type: str, con_id: int):
+        assert (symbol, exchange, sec_type, con_id) == ("XSP", "", "IND", 11004968)
+        return [
+            SimpleNamespace(
+                exchange="SMART",
+                tradingClass="XSP",
+                expirations=("20260724",),
+                strikes=(620.0, 621.0, 622.0),
+            )
+        ]
+
+    client._matching_symbols = _matching_symbols
+    client._qualify_contract = _qualify_contract
+    client.connect_proxy = _connect_proxy
+    client._ib_proxy = SimpleNamespace(reqSecDefOptParamsAsync=_req_secdef)
+
+    underlying, chain = asyncio.run(client.stock_option_chain("xsp"))
+
+    assert underlying.secType == "IND"
+    assert underlying.exchange == "CBOE"
+    assert chain.tradingClass == "XSP"
+
+
+def test_forward_quote_resolution_preserves_xsp_index_identity() -> None:
+    class _IB:
+        def qualifyContracts(self, contract):
+            assert isinstance(contract, Index)
+            contract.conId = 11004968
+            return [contract]
+
+        @staticmethod
+        def reqTickers(contract):
+            assert contract.secType == "IND"
+            return [
+                SimpleNamespace(
+                    marketPrice=lambda: float("nan"),
+                    last=625.25,
+                    close=624.5,
+                )
+            ]
+
+        @staticmethod
+        def reqSecDefOptParams(symbol, exchange, sec_type, con_id):
+            assert (symbol, exchange, sec_type, con_id) == ("XSP", "", "IND", 11004968)
+            return [
+                SimpleNamespace(
+                    exchange="SMART",
+                    tradingClass="XSP",
+                    expirations=("20260724",),
+                    strikes=(624.0, 625.0),
+                ),
+                SimpleNamespace(
+                    exchange="CBOE",
+                    tradingClass="XSP",
+                    expirations=("20260724", "20260727"),
+                    strikes=(623.0, 624.0, 625.0, 626.0),
+                ),
+            ]
+
+    underlying, spot, chain, is_future = resolve_option_chain(_IB(), "xsp", None)
+
+    assert underlying.secType == "IND"
+    assert underlying.exchange == "CBOE"
+    assert spot == 625.25
+    assert chain.exchange == "SMART"
+    assert is_future is False
+
+
+def test_forward_quote_schema_records_actual_provenance_and_full_greeks() -> None:
+    contract = Contract(
+        secType="OPT",
+        symbol="XSP",
+        exchange="SMART",
+        currency="USD",
+        lastTradeDateOrContractMonth="20260724",
+        strike=625.0,
+        right="C",
+        tradingClass="XSP",
+        multiplier="100",
+        conId=123,
+    )
+    ticker = SimpleNamespace(
+        bid=-1,
+        ask=1.3,
+        last=1.25,
+        close=1.1,
+        bidSize=10,
+        askSize=12,
+        lastSize=2,
+        volume=100,
+        marketDataType=1,
+        time=datetime(2026, 7, 24, 14, 30, tzinfo=timezone.utc),
+        modelGreeks=SimpleNamespace(
+            impliedVol=0.18,
+            delta=0.51,
+            gamma=0.02,
+            vega=0.12,
+            theta=-0.08,
+            undPrice=625.1,
+        ),
+    )
+
+    row = contract_from_ticker(contract, ticker)
+
+    assert row.bid is None
+    assert row.market_data_type == 1
+    assert row.quote_time == "2026-07-24T14:30:00+00:00"
+    assert (row.model_iv, row.model_delta, row.model_gamma) == (0.18, 0.51, 0.02)
+    assert (row.model_vega, row.model_theta, row.model_under_price) == (0.12, -0.08, 625.1)
+
+
+def test_calibration_quotes_only_broker_qualified_expiry_strikes() -> None:
+    class _IB:
+        @staticmethod
+        def qualifyContracts(*contracts):
+            contracts[0].conId = 123
+            return [contracts[0]]
+
+        @staticmethod
+        def reqTickers(*contracts):
+            assert [contract.conId for contract in contracts] == [123]
+            return [SimpleNamespace(last=1.25)]
+
+    chain = SimpleNamespace(
+        exchange="SMART",
+        tradingClass="XSP",
+        strikes=(625.0,),
+    )
+
+    samples = _sample_contracts(
+        _IB(),
+        "XSP",
+        chain,
+        "20260731",
+        625.0,
+        False,
+    )
+
+    assert len(samples) == 1
+    assert samples[0].last == 1.25
 
 
 def test_search_terms_opt_expands_bitcoin_aliases() -> None:

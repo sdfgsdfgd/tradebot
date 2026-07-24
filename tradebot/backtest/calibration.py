@@ -8,15 +8,15 @@ from datetime import datetime, date, timedelta
 from pathlib import Path
 from typing import Iterable
 
-from ib_insync import IB, ContFuture, Option, FuturesOption, Stock, util
+from ib_insync import IB, FuturesOption, Option, util
 
-from ..contract_identity import future_exchange_for_symbol
 from .config import ConfigBundle
 from ..config import load_config
 from ..engine import realized_vol_from_closes
 from ..time_utils import UTC as _UTC
 from ..time_utils import now_et as _now_et
 from .data import IBKRHistoricalData
+from .quotes import resolve_option_chain
 from .synth import IVSurfaceParams, black_76, black_scholes, iv_atm, iv_for_strike
 
 
@@ -197,7 +197,11 @@ def calibrate_symbol(
     ib.connect(ibkr.host, ibkr.port, clientId=ibkr.client_id + 80, timeout=8)
     ib.reqMarketDataType(3)
 
-    spot, chain, is_future = _resolve_chain(ib, symbol, cfg.strategy.exchange)
+    _underlying, spot, chain, is_future = resolve_option_chain(
+        ib,
+        symbol,
+        cfg.strategy.exchange,
+    )
     if spot is None or chain is None:
         ib.disconnect()
         return book
@@ -239,26 +243,6 @@ class _Sample:
     right: str
     expiry: date
     last: float
-
-
-def _resolve_chain(ib: IB, symbol: str, exchange: str | None) -> tuple[float | None, object | None, bool]:
-    if exchange is None:
-        exchange = future_exchange_for_symbol(symbol)
-    if exchange and exchange != "SMART":
-        cont = ContFuture(symbol, exchange, "USD")
-        ib.qualifyContracts(cont)
-        ticker = ib.reqTickers(cont)[0]
-        spot = ticker.marketPrice() or ticker.last or ticker.close
-        chains = ib.reqSecDefOptParams(cont.symbol, exchange, "FUT", cont.conId)
-        chain = chains[0] if chains else None
-        return spot, chain, True
-    underlying = Stock(symbol, "SMART", "USD")
-    ib.qualifyContracts(underlying)
-    ticker = ib.reqTickers(underlying)[0]
-    spot = ticker.marketPrice() or ticker.last or ticker.close
-    chains = ib.reqSecDefOptParams(underlying.symbol, "", underlying.secType, underlying.conId)
-    chain = next((c for c in chains if c.exchange == "SMART"), chains[0] if chains else None)
-    return spot, chain, False
 
 
 def _pick_expiry(
@@ -328,7 +312,9 @@ def _sample_contracts(ib: IB, symbol: str, chain, expiry: str, spot: float, is_f
 
     if not contracts:
         return []
-    ib.qualifyContracts(*contracts)
+    contracts = list(ib.qualifyContracts(*contracts) or [])
+    if not contracts:
+        return []
     tickers = ib.reqTickers(*contracts)
     samples: list[_Sample] = []
     for contract, ticker in zip(contracts, tickers):

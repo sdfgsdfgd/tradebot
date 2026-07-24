@@ -21,6 +21,7 @@ from ib_insync import (
     Forex,
     Future,
     IB,
+    Index,
     LimitOrder,
     PnL,
     PnLSingle,
@@ -31,7 +32,11 @@ from ib_insync import (
     util,
 )
 
-from .contract_identity import future_exchange_for_symbol
+from .contract_identity import (
+    future_exchange_for_symbol,
+    index_exchange_for_symbol,
+    select_option_chain,
+)
 from .chart_data.history import (
     duration_window_et,
     load_history_window,
@@ -4593,7 +4598,12 @@ class IBKRClient:
     async def stock_option_chain(self, symbol: str):
         """Return a chain for a broker-discovered stock or index option underlyer."""
         symbol_key = str(symbol or "").strip().upper()
-        candidate = self._option_underlyer_cache.get(symbol_key)
+        index_exchange = index_exchange_for_symbol(symbol_key)
+        candidate = (
+            Index(symbol=symbol_key, exchange=index_exchange, currency="USD")
+            if index_exchange is not None
+            else self._option_underlyer_cache.get(symbol_key)
+        )
         if candidate is None:
             try:
                 matches = await self._matching_symbols(
@@ -4630,33 +4640,10 @@ class IBKRClient:
             chains = []
         if not chains:
             return None
-        underlying_symbol = str(getattr(underlying, "symbol", "") or symbol).strip().upper()
-        underlying_symbol_key = re.sub(r"[^A-Z0-9]", "", underlying_symbol)
-        chain_candidates = [
-            chain for chain in chains if str(getattr(chain, "exchange", "") or "").strip().upper() == "SMART"
-        ] or list(chains)
-
-        def _chain_score(chain: object) -> tuple[int, int, int, int, int]:
-            expirations = getattr(chain, "expirations", ()) or ()
-            strikes = getattr(chain, "strikes", ()) or ()
-            try:
-                exp_count = len(expirations)
-            except TypeError:
-                exp_count = 0
-            try:
-                strike_count = len(strikes)
-            except TypeError:
-                strike_count = 0
-            trading_class = str(getattr(chain, "tradingClass", "") or "").strip().upper()
-            trading_class_key = re.sub(r"[^A-Z0-9]", "", trading_class)
-            completeness = int(exp_count) * int(strike_count)
-            trading_class_match = 1 if trading_class_key and trading_class_key == underlying_symbol_key else 0
-            exchange_smart = (
-                1 if str(getattr(chain, "exchange", "") or "").strip().upper() == "SMART" else 0
-            )
-            return (completeness, trading_class_match, exchange_smart, exp_count, strike_count)
-
-        chain = max(chain_candidates, key=_chain_score)
+        chain = select_option_chain(
+            chains,
+            getattr(underlying, "symbol", None) or symbol,
+        )
         return underlying, chain
 
     async def qualify_proxy_contracts(self, *contracts: Contract) -> list[Contract]:

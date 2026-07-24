@@ -10,15 +10,14 @@ entire chains; it records a small strike set around spot.
 from __future__ import annotations
 
 import argparse
-import math
 from datetime import datetime, timezone
 from pathlib import Path
 
-from ib_insync import IB, ContFuture, FuturesOption, Option, Stock
+from ib_insync import IB, FuturesOption, Option
 
 from ...config import load_config
-from ..calibration import _nearest_strike, _pick_expiry, _resolve_chain
-from ..quotes import QuoteError, append_snapshot, make_snapshot
+from ..calibration import _nearest_strike, _pick_expiry
+from ..quotes import QuoteError, append_snapshot, make_snapshot, resolve_option_chain
 
 
 def main() -> None:
@@ -27,7 +26,7 @@ def main() -> None:
     parser.add_argument(
         "--exchange",
         default=None,
-        help="Exchange override (e.g. CME for MNQ). Defaults to SMART for equities.",
+        help="Exchange override. Defaults to the canonical future/index exchange or SMART for stocks.",
     )
     parser.add_argument(
         "--md-type",
@@ -111,12 +110,16 @@ def main() -> None:
             errors.clear()
 
             ib.reqMarketDataType(int(args.md_type))
-            spot, chain, is_future = _resolve_chain(ib, symbol, args.exchange)
-            if spot is None or (isinstance(spot, float) and math.isnan(spot)) or not chain:
+            under_contract, spot, chain, is_future = resolve_option_chain(
+                ib,
+                symbol,
+                args.exchange,
+            )
+            if spot is None or not chain:
                 snap = make_snapshot(
                     symbol=symbol,
                     md_type=int(args.md_type),
-                    underlying_contract=Stock(symbol, "SMART", "USD"),
+                    underlying_contract=under_contract,
                     underlying_ticker=type("T", (), {"bid": None, "ask": None, "last": None, "close": None})(),
                     option_contracts=[],
                     option_tickers=[],
@@ -166,16 +169,10 @@ def main() -> None:
                             )
                         )
 
-            ib.qualifyContracts(*contracts)
-            tickers = ib.reqTickers(*contracts)
+            contracts = list(ib.qualifyContracts(*contracts) or [])
+            tickers = ib.reqTickers(*contracts) if contracts else []
 
-            # Re-resolve underlying ticker after contract qualification to keep
-            # a consistent timestamp near the option snapshot.
-            if is_future:
-                under_contract = ContFuture(symbol=symbol, exchange=chain.exchange, currency="USD")
-            else:
-                under_contract = Stock(symbol, "SMART", "USD")
-            ib.qualifyContracts(under_contract)
+            # Re-snapshot the exact qualified underlyer beside the option quotes.
             [under_ticker] = ib.reqTickers(under_contract)
 
             snap = make_snapshot(

@@ -427,7 +427,11 @@ Use IB Gateway now to determine and record what can be captured legitimately:
 - broker preview commission and buying-power effect.
 
 Do not assume IBKR provides a complete multi-year historical option-chain tape.
-If it does not, separate:
+IBKR explicitly excludes expired options and option EOD data from historical
+retrieval and does not store native combo history. Therefore a weekly or 0DTE
+XSP contract disappears as historical evidence after expiry; current
+longer-dated contracts expose only their own finite listed life, not a
+chain-as-of archive. Separate:
 
 - **forward authentic capture** for ongoing evaluation;
 - **approved historical provider data** if acquired;
@@ -435,6 +439,13 @@ If it does not, separate:
 
 Synthetic evidence can prune ideas; only authentic replay, broker preview,
 paper/canary behavior, and drift receipts can graduate them.
+
+Multi-year XSP underlying RTH bars remain useful only after explicit coverage,
+calendar, revision, and fingerprint checks. Their availability does not prove
+after-hours completeness, historical NBBO, option-chain membership, or
+executable spread economics. The XSP index tape has no authentic volume and
+IBKR's index historical surface does not provide bid/ask bars; separately
+proven context is mandatory for any volume, breadth, or overnight claim.
 
 ### 6.3 Fill and economics realism
 
@@ -664,6 +675,38 @@ Demotion rules:
 - material model/live drift: quarantine;
 - statistical decay: slow demotion after confidence threshold;
 - temporary data outage: fail closed, do not rewrite the leaderboard.
+
+### 9.1 Frozen live-calibration benchmark
+
+Reuse `benchmark.future.live-backtest-drift-score`; do not create an
+XSP-specific parallel scorer. Each `live_calibration.v1` result is
+content-addressed and append-only, with the forecast frozen before its outcome:
+
+```text
+identity       strategy/version, tape/config fingerprints, capital sleeve
+forecast       decision/no-trade, package, P&L distribution, risk, costs, fills
+observed       package/leg/account P&L, drawdown, fills, chase, fees, margin
+drift          data, decision, pricing, execution, economic and safety deltas
+context        causal hourly/session facts and long-horizon state observations
+counterfactual every eligible champion replayed on the exact same live tape
+gates          evidence completeness, hard vetoes, calibration and uncertainty
+verdict        PROMOTE | HOLD | REVISE | QUARANTINE | STOP
+```
+
+The benchmark is veto-first, not one opaque scalar. It reports five independent
+axes: data/decision parity; execution and buying-power drift; net package P&L
+and drawdown calibration; safety/tail behavior; and counterfactual opportunity
+cost. Actual P&L is never sufficient by itself. A profitable but miscalibrated
+fill can fail; a correctly predicted `NO_TRADE` session can pass.
+
+Record causal market-state facts at decision and approximately hourly
+boundaries—opening extension/liquidation/neutral, gap, realized volatility,
+trend/excursion, context freshness, and material-event vetoes—so drift can be
+explained across intraday, daily, and longer-horizon changes. These observations
+do not directly swap strategies. Promotion/demotion runs only at frozen daily
+and weekly cadences after minimum samples, with hysteresis and an open-position
+ownership guard. This preserves responsiveness without recreating noisy regime
+routing.
 
 ---
 
@@ -950,7 +993,13 @@ and advance only the lanes that remain valid.
 - all runs carry ETA and remain under 20 minutes;
 - current gaps, blockers, and next 24-hour sequence written here.
 
-**Live-capital requirement:** none.
+**Economic target:** one complete 24-hour selected-strategy shadow or paper
+evaluation closes net positive after modeled/observed fees and execution costs,
+with bounded drawdown and reconciled package/leg/account economics. A safe
+`NO_TRADE` preserves capital but does not satisfy this profitable-run target.
+
+**Live-capital requirement:** none; the first 24-hour economic proof may remain
+shadow/paper.
 
 ### Within 48 hours or two eligible market sessions, whichever is later
 
@@ -979,8 +1028,17 @@ and advance only the lanes that remain valid.
   reconciled;
 - the remaining-risk register and next weekly kata are frozen.
 
-**Success is not "profitable every day."** Success is a repeatable evidence
-loop, preserved capital discipline, and a strategy decision we can defend.
+**Economic target:** the selected strategy's complete five-session ledger is
+net positive after all observed costs, stays inside the frozen drawdown/loss
+limits, and is not carried by one lucky fill. If a live canary was admissible,
+its actual realized economics—not synthetic or shadow P&L—must be reported
+separately and be net positive for the live-profit target to pass.
+
+**Success is not "profitable every day."** The required target is positive
+aggregate 24-hour and one-week economics with a repeatable evidence loop,
+preserved capital discipline, and a strategy decision we can defend. A loss,
+an uneconomic no-fill, or a week of correct abstention is valuable evidence but
+does not get relabeled as achievement of the profitable-run objective.
 
 ### Four-week mastery extension
 
@@ -1046,6 +1104,7 @@ Add rows; never rewrite an unfavorable receipt.
 | E-011 | 2026-07-24 | 0.4 | Causal research and parity implementation | Git `743ef06` | full suite `662 passed`; `engine_options.py` 992 lines | Exact intraday OPT expiry clock, causal reclaim mode, frozen research groups, ledger ownership, and architecture ratchet pass; threshold-only rerank reused all 4,608 receipts in 0.66 s with no workers |
 | E-012 | 2026-07-24 | 1 | Two-year XSP underlying hydration | `/tmp/xsp-cache-sync-2y.json`; six stitched cache shards | canonical rows `a1154bba…` | 38,898 bars; 501 complete sessions; 496×78 bars plus five half-days×42; zero missing ranges; volume absent throughout |
 | E-013 | 2026-07-24 | 2 | Preregistered opening-state matrix | `/tmp/xsp-opening-state-study-v1.json` | `03af6fb1…` | 256 cells; 316 eligible sessions/boundary; zero family-wise passes; narrow 90m downside/30m rebound hint fails corrected and neighborhood gates; holdout sealed |
+| E-014 | 2026-07-24 08:48 UTC | 1 | XSP forward quote-capture smoke | `/tmp/xsp-forward-capture-smoke-v4/XSP/2026-07-24.jsonl` | `dcf24c2e…` | Exact `IND/CBOE` underlier; 12 qualified option rows, zero invalid conIds, six NBBO/full-Greek rows; requested delayed mode and preserved actual `1/3` provenance; subscription/definition errors retained; premarket plumbing evidence only |
 
 ---
 
@@ -1082,6 +1141,7 @@ Add rows; never rewrite an unfavorable receipt.
 | D-027 | OPT replay uses exact intraday time to expiration close | A constant full-session 0DTE clock suppresses theta and can manufacture option P&L | Authentic option replay replaces synthetic valuation |
 | D-028 | Pre-register the opening-state matrix before reading outcomes | Opening folklore is easy to hindsight-label; rolling prior-session thresholds and a sealed family-specific holdout preserve causality | Only through a new versioned research contract before viewing new outcomes |
 | D-029 | Do not bank on opening folklore as a daily law | The first causal two-year matrix found no corrected, neighborhood-stable edge; one narrow downside-rebound hint is insufficient | A new predeclared feature family passes development and sealed holdout |
+| D-030 | IBKR is not a historical XSP option-chain archive | Expired options and option EOD data are unavailable; native combo history is not stored, so successful underlying requests cannot authenticate old spread economics | A provenance-complete specialist dataset is admitted or sufficient forward tape accumulates |
 
 ---
 
@@ -1093,7 +1153,7 @@ an existing contract where it already owns the outcome.
 - `benchmark.future.xsp-data-authenticity`
 - `integration.replay.future.xsp-option-chain-replay`
 - `benchmark.future.xsp-champion-tournament`
-- `benchmark.future.xsp-live-backtest-drift`
+- reuse `benchmark.future.live-backtest-drift-score` for XSP live calibration
 - `e2e.live.future.xsp-bounded-canary`
 - reuse the existing shadow-order digital-twin, walk-forward overfit-defense,
   package-economics, live admission, and restart-recovery capabilities.
@@ -1136,7 +1196,8 @@ register.
   <https://ibkrcampus.com/campus/ibkr-api-page/order-types/>
 - IBKR Client Portal API combination and `what-if` behavior:
   <https://ibkrcampus.com/campus/ibkr-api-page/cpapi-v1/>
-- IBKR TWS API and Gateway documentation:
+- IBKR TWS API and Gateway documentation, including historical-data
+  limitations:
   <https://ibkrcampus.com/campus/ibkr-api-page/twsapi-doc/>
 
 ---
