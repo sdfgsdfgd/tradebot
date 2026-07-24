@@ -1132,6 +1132,46 @@ Observed v1 verdict:
   policy. The rejected one-off driver was removed rather than adding another
   permanent research surface.
 
+#### Phase 2.3 — Fresh RTH XSP package screen v1
+
+Preregister before the `2026-07-24` RTH capture begins:
+
+- Sources are the opening, exact-boundary, and durable five-minute quote tapes
+  already scheduled above. Preserve their independent files, append order,
+  chain manifests, errors, actual market-data types, and content fingerprints.
+- Opening `09:31..09:40` observations prove live-session capture health only;
+  they cannot satisfy a `10:00..11:30` strategy decision.
+- At each exact boundary construct only the `0.75%` and `1.00%` one-point
+  put-credit and call-credit verticals using the frozen whole-point,
+  toward-spot short-strike rule. Monday expiry maps to the next-session
+  historical barrier. Once selected, package legs and conIds remain fixed
+  through follow-up replay; never roll strikes after seeing the path.
+- A boundary package is evidence-eligible only when the snapshot has exact
+  chain provenance, every captured contract is qualified, both selected legs
+  have streaming-live NBBO no older than 30 seconds and complete model Greeks,
+  and the canonical package kernel produces identical captured/live-intended
+  geometry and risk.
+- Natural executable entry credit—not midpoint—must meet the registered
+  Wilson-plus-friction hurdle. Midpoint and optimistic credit remain
+  diagnostics. Natural-to-mid credit difference may not exceed `0.10`, ten
+  percent of a one-point width.
+- The exact boundary and at least one of its fixed-leg neighboring
+  five-minute snapshots must independently retain strict quote evidence and
+  natural credit at or above the same hurdle. A transient one-snapshot cross
+  does not qualify.
+- Canonical maximum loss plus conservative remaining round-trip fees must fit
+  the frozen USD `100` first-canary ceiling. Broker preview/capacity evidence
+  may only tighten that limit.
+- For any package that clears, freeze its boundary forecast, then replay its
+  fixed legs through subsequent snapshots. Record natural liquidation cost,
+  midpoint, package/leg Greeks, quote loss/staleness, spread, maximum favorable
+  and adverse excursion, and end-of-tape state. This is mark/replay evidence,
+  never a fabricated fill.
+- One fresh session can birth a shadow candidate only. It cannot satisfy the
+  24-hour, 48-hour, five-session, paper, or live-profit gates.
+- If no package clears, retain the complete tape and rejection reasons; do not
+  relax the historical hurdle or quote requirements post hoc.
+
 - [ ] Encode `NO_TRADE` and event/liquidity vetoes.
 - [ ] Remove dominated or redundant candidates; keep the frontier compact.
 
@@ -1344,6 +1384,7 @@ Add rows; never rewrite an unfavorable receipt.
 | E-031 | 2026-07-24 12:10 UTC | 2 | Reproducible five-year XSP credit-barrier verdict | `/tmp/xsp-credit-barrier-census-v1.json`; Git this commit | artifact `29c4d73b…`; source `591e581f…`; full suite `694 passed, 4 deselected` | Shared research evidence regenerated the prior 128-cell artifact byte-identically from 97,452 bars in 1.80 seconds. Best one-percent Wilson-plus-friction hurdles were `0.1620..0.1831` same-session, `0.3026..0.3267` next-session, `0.3659..0.4461` three-session, and `0.3935..0.5059` five-session. Annual breach dispersion remains material; this screens strict-admission quotes but proves no historical option expectancy |
 | E-032 | 2026-07-24 12:16 UTC | 2 | Preregistered causal XSP credit-eligibility screen | This document at pushed preregistration anchor | `xsp.credit-eligibility-screen.v1` | Frozen 128-cell discovery family over two times, two offsets, two horizons, two sides, and eight nested side-aware direction/gap/rolling-quiet contexts. Discovery must materially beat its matched unconditional barrier with block stability and neighbor support before validation or locked holdout can be read |
 | E-033 | 2026-07-24 12:20 UTC | 2 | Causal XSP credit-eligibility rejection | `/tmp/xsp-credit-eligibility-screen-v1.json`; preregistration `40f2541` | artifact `e8e2e657…`; source `591e581f…` | Discovery-only run completed 128 cells over 58,554 bars/753 sessions in 1.49 seconds. Zero cells reached the frozen `0.05` required-credit improvement, so zero passed before or after neighbor support. The nearest row improved `0.0493` with only 113 observations and remains rejected; validation/holdout stay sealed |
+| E-034 | 2026-07-24 12:29 UTC | 1/2 | Preregistered fresh-RTH XSP package screen | This document at pushed preregistration anchor | `xsp.forward-package-screen.v1` | Frozen interpretation of the already-scheduled opening, exact-boundary, and five-minute tapes: fixed one-point legs, live/provenance/NBBO/age/Greek gates, executable natural credit versus registered barrier, 0.10 natural-to-mid ceiling, adjacent-snapshot persistence, USD 100 risk ceiling, and fixed-leg forward replay. One session can birth only a shadow candidate |
 
 ---
 
