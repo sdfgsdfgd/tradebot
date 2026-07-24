@@ -358,7 +358,7 @@ Final validation evidence:
 
 - focused news + capability-ledger + architecture suite: `26 passed`;
 - complete repository suite under Python 3.12 after integrating concurrent
-  `origin/main`: `709 passed, 4 deselected, 1 warning` in `10.62s`;
+  `origin/main`: `711 passed, 4 deselected, 1 warning` in `10.53s`;
 - both production modules remain below the 1,000-line architecture ceiling:
   `tradebot/news/pipeline.py` 698 lines and `tradebot/news/contract.py` 754
   lines;
