@@ -1,9 +1,9 @@
 # XSP Mastery — Live Research Kata
 
-- **Status:** `[WIP] Phase 0.4 — apply frozen score/risk contract`
+- **Status:** `[WIP] Phase 1 — authentic XSP evidence spine`
 - **Management role:** canonical task tree, evidence ledger, decision journal, and resume source
 - **Code baseline:** `25513267225908b7288530c1ec0762f7656bbf5b`
-- **Current verified code head:** `5308293f23e56cbd06d9cdb2b14b6711f4d4fe38`
+- **Current verified code head:** `743ef063dd31fb6d265c66be253d56d906ba1f4e`
 - **Management brain introduced:** `3c38af635fcc6ce8b3b0a88e1f2de567345d1bf0`
 - **Instrument scope:** XSP first; no expansion until its data, economics, execution, and live drift are mastered
 - **Capital premise:** user-reported net liquidity near USD 1,000; re-read broker truth before every capital decision
@@ -63,6 +63,12 @@ Candidate ideas include:
 - a precisely defined opening-volatility reversal that observes an early
   breakdown/bear trap and participates in a causal reclaim rather than
   hindsight-labeling the day's low;
+- a causal opening-state matrix over separately frozen 30-, 60-, 90-, and
+  120-minute observation windows: test whether an extreme upside extension
+  tends to fade through the remaining session, whether an extreme downside
+  liquidation tends to rebound quickly and/or continue recovering slowly, and
+  whether the middle state should abstain. These are hypotheses to falsify,
+  never assumed daily laws;
 - a separate opening continuation candidate for days where no reversal is
   confirmed;
 - highly selective, defined-risk premium selling when implied compensation
@@ -241,6 +247,29 @@ Operational bear-trap research must define, before running:
 - earliest legal entry timestamp;
 - maximum wait and explicit invalidation;
 - contract selection without future IV or strike knowledge.
+
+The broader opening-state family must remain a compact causal classifier, not a
+new regime router:
+
+- freeze the observation boundary before seeing the outcome;
+- measure opening return, range expansion, excursion, gap, realized volatility,
+  and separately provenance-bound breadth/volume context when available;
+- classify only explicit `UPSIDE_EXTENSION`, `DOWNSIDE_LIQUIDATION`, or
+  `NEUTRAL/AMBIGUOUS` facts;
+- test fade, fast rebound, slow rebound, and continuation as separate strategy
+  owners with separate attribution—never silently swap their meaning;
+- compare each branch with `NO_TRADE`, unconditional time-of-day baselines, and
+  stable neighboring thresholds;
+- keep direction, option structure, exit horizon, and execution policy outside
+  the classifier so backtest, shadow, and live can share the same facts.
+
+Reuse the existing capability spine instead of creating a parallel framework:
+
+- `signal-regime-intelligence` owns causal opening facts/classification;
+- `research-optimization-calibration` owns branch/threshold tournaments;
+- `market-realism-parity` proves identical live and replay classification;
+- `backtest-simulation-accounting` owns fill/P&L consequences;
+- `live-execution-orders` owns the admitted package and chase lifecycle.
 
 ### 3.3 Horizon families
 
@@ -740,7 +769,53 @@ are quantified; no option result is mislabeled as authentic.
   and slippage all changed together, while the sample still contains only
   16 sessions and synthetic options.
 
-### Phase 1 — Authentic XSP data spine `[TODO]`
+**Chronological discovery verdicts**
+
+- The frozen discovery window is `2025-07-24..2026-01-22` (`126` complete
+  sessions). Validation (`2026-01-23..2026-04-23`) and locked holdout
+  (`2026-04-24..2026-07-23`) remain unopened because no family passed its
+  discovery gates.
+- The refreshed safe-income baseline evaluated `4,608` cells with USD `1.00`
+  per contract per side and one slippage tick. Only three rows passed sample
+  plus positive-LCB gates; all three are the same filtered `5`-DTE,
+  two-percent-anchor iron-condor path repeated by stop settings that never
+  activated: `30` trades, synthetic P&L `+106.83`, daily LCB `+0.5277`,
+  drawdown `18.34`, top-five win share `31.5%`.
+- The identical `4,608` cells under adverse friction—USD `1.50` per contract
+  per side and two ticks—produced **zero** rows with both the sample gate and a
+  positive daily LCB. The baseline condor therefore fails the frozen
+  safe-income contract before validation, irrespective of its visually perfect
+  synthetic baseline win rate.
+- The first causal opening-reclaim alpha family evaluated `1,728` cells across
+  opening windows, breakdown depth, reclaim persistence, deadline, DTE,
+  moneyness, and exits. It produced zero positive daily LCBs; all `109`
+  sample-qualified rows were negative. The most seductive low-sample row
+  reported synthetic `+426.73` over only `16` trades, daily LCB `-0.1768`,
+  `147.39` drawdown, and `67.4%` of gross wins in its top five wins. It is
+  rejected, not promoted.
+- Timestamp-audited replay proved those `16` entries exactly match `16` causal
+  signal events on the canonical `9,756`-bar tape. At fixed 15-, 30-, and
+  60-minute horizons, underlying-return 95% lower bounds were `-2.22`,
+  `-7.49`, and `-11.74` bps; EOD was `-29.35` bps. The synthetic option result
+  is path-dependent hypothesis evidence, not an underlying edge or live claim.
+- Two generic simulator defects were found while challenging the result:
+  warmup bars could previously enter trades before the requested scoring
+  boundary, and every 0DTE option retained a full `6.5` hours of time value at
+  every intraday bar. Execution/equity are now bounded to the requested window,
+  while OPT valuation counts exact ET time to the 4:00 p.m. expiration close
+  (`1:00 p.m.` on half-days). The result-cache namespace is bumped so stale
+  economics cannot masquerade as current evidence.
+
+Receipt fingerprints:
+
+- safe-income baseline:
+  `e4a325ffdb15532850a973811819fac3538364d132eaff815ed069e0c9aea733`;
+- safe-income adverse:
+  `801548592728c6c1ca14c2e3584bdcd3078a17a53677f1658d6b612b9f11953a`;
+- opening-reclaim baseline:
+  `dab6f0b9ac166027f08551e5207301ca781e25139ff3630abfba4bcd4bec7f41`.
+
+### Phase 1 — Authentic XSP data spine `[WIP]`
 
 - [ ] Centralize interval-aware cache ownership and gap hydration.
 - [ ] Establish authenticated 1-year and 2-year underlying/context tapes.
@@ -758,6 +833,9 @@ shadow, and live comparison without refetching complete cached ranges.
 - [ ] Establish safe-income vertical baselines.
 - [ ] Test whether iron condors add net value after four-leg friction.
 - [ ] Formalize opening bear-trap reversal without hindsight.
+- [ ] Build the frozen-window opening-state matrix; falsify upside-fade,
+      downside-fast-rebound, downside-slow-rebound, continuation, and
+      `NO_TRADE` branches independently.
 - [ ] Formalize opening continuation as a separate candidate.
 - [ ] Establish LF directional/premium baselines.
 - [ ] Partition HF/LF and safe-income/alpha crowns.
@@ -901,12 +979,15 @@ extreme reliability. Continue for four or more weeks before materially scaling:
    - cache inventory and sparse hydration verified;
    - current runner cold/warm smoke measured;
    - synthetic-only boundary and incorrect spread geometry frozen.
-4. **Phase 0.4 — Metrics and risk freeze `[WIP]`**
-   - scorecard;
-   - walk-forward;
-   - stress matrix and realistic one-point XSP economics;
-   - conservative capacity and canary eligibility.
-5. **Phase 1 — Data spine `[TODO]`**
+4. **Phase 0.4 — Metrics and risk freeze `[DONE]`**
+   - daily scorecard, zero-session accounting, concentration, and confidence
+     bounds frozen;
+   - threshold-independent economic receipts and near-instant warm reuse proven;
+   - baseline/adverse friction, one-point XSP economics, conservative capacity,
+     and canary eligibility frozen;
+   - failed opening-reclaim and safe-income discovery families rejected without
+     opening validation or holdout.
+5. **Phase 1 — Data spine `[WIP]`**
 6. **Phase 2 — Candidate frontier `[TODO]`**
 7. **Phase 3 — Research tournament `[TODO]`**
 8. **Phase 4 — Shadow/paper `[TODO]`**
@@ -929,6 +1010,10 @@ Add rows; never rewrite an unfavorable receipt.
 | E-005 | 2026-07-24 | 0.4 | Frozen score/risk contract | Git `5308293`; `research.daily.v1` | focused tests `74/74` | Daily zero-session-aware evidence; threshold-independent cache; win rate removed from authority |
 | E-006 | 2026-07-24 | 0.4 | Canonical one-point wings | Git `521f16c` | focused tests `60/60` | Shared percentage anchor plus point offset reaches replay and live resolution |
 | E-007 | 2026-07-24 | 0.4 | Explicit friction and safe-income smoke | Git `eddb3bd`, `49f517e`; `/tmp/xsp-safe-income-smoke.json` | `2622c16…` | 4,608 cells; 12.3 s cold/<0.6 s warm; 240 synthetic rows remain quarantined |
+| E-008 | 2026-07-24 | 0.4 | Chronological safe-income discovery | `/tmp/xsp-safe-income-discovery-{baseline,adverse}-v3.json` | `e4a325ff…`, `80154859…` | Baseline has 3 duplicate sample+LCB rows; adverse has 0; validation/holdout sealed |
+| E-009 | 2026-07-24 | 0.4 | Canonical hypothetical iron-condor economics | 733P/734P/746C/747C, expiry `20260727`, no submit | shared package kernel | USD 0.40 credit gives +40/-60 before costs; conservative USD 8 round-trip fees gives +32/-68; arithmetic only |
+| E-010 | 2026-07-24 | 0.4 | Causal opening-reclaim discovery | `/tmp/xsp-opening-reclaim-discovery-baseline-v3.json` | `dab6f0b9…` | 1,728 cells; 0 positive LCB; 109 sample-qualified rows all negative; validation/holdout sealed |
+| E-011 | 2026-07-24 | 0.4 | Causal research and parity implementation | Git `743ef06` | full suite `662 passed`; `engine_options.py` 992 lines | Exact intraday OPT expiry clock, causal reclaim mode, frozen research groups, ledger ownership, and architecture ratchet pass; threshold-only rerank reused all 4,608 receipts in 0.66 s with no workers |
 
 ---
 
@@ -960,6 +1045,9 @@ Add rows; never rewrite an unfavorable receipt.
 | D-022 | Shortlist thresholds do not belong in economic cache identity | Changing `min_trades` must reuse identical simulations | Economic semantics change |
 | D-023 | Synthetic ordering is exploratory only | Underlying-derived option prices cannot prove execution or live expectancy | Authentic replay and paper drift agree |
 | D-024 | First canary loss plus fees is capped at 10% of the conservative envelope | One-point width is already material near USD 1,000 | Fresh account truth or repeated canaries justify a lower limit; never loosen from recent profit alone |
+| D-025 | Opening context is an observable classifier, not strategy authority | Explicit extension/liquidation/neutral facts can be shared and falsified without reviving opaque regime routing | Shadow evidence proves a more compact fact vocabulary |
+| D-026 | Discovery failure keeps validation and holdout sealed | Repeatedly inspecting future windows converts research into selection leakage | A predeclared discovery family passes its frozen gates |
+| D-027 | OPT replay uses exact intraday time to expiration close | A constant full-session 0DTE clock suppresses theta and can manufacture option P&L | Authentic option replay replaces synthetic valuation |
 
 ---
 
@@ -1022,13 +1110,17 @@ register.
 ## Conclusion
 
 - **Quest:** XSP Mastery — Live Research Kata
-- **Current status:** Phase 0.4 realistic economics and score frozen; applying
-  the contract to bounded chronological research
-- **Next action:** produce deterministic 1-year discovery/validation/locked
-  receipts under baseline/adverse friction, complete iron-condor economics,
-  and retry fresh broker-preview evidence during an eligible XSP session.
+- **Current status:** Phase 0.4 is complete. The first bounded chronological
+  tournaments rejected both the opening-reclaim alpha family and the
+  baseline-only safe-income condor; validation and holdout remain unobserved.
+- **Next action:** build the authentic XSP evidence spine: forward
+  chain/NBBO/Greeks capture, explicit provenance and completeness gates, and a
+  causal underlying opening-state study over frozen 30/60/90/120-minute
+  windows. Retry fresh broker-preview economics during an eligible XSP session;
+  do not promote synthetic option evidence.
 
-**Predictive observation:** once full-session lower bounds and concentration
-replace raw P&L/win-rate ordering, many visually perfect low-sample rows should
-fall below `NO_TRADE`; that is evidence quality improving, not strategy
-performance getting worse.
+**Predictive observation:** the opening-state matrix may reveal separate,
+stable downside-rebound and upside-fade facts even though the first
+opening-reclaim strategy failed. If it does not beat unconditional and
+`NO_TRADE` baselines across neighboring thresholds, abstention—not a more
+complicated selector—is the correct champion.
