@@ -970,7 +970,10 @@ Receipt fingerprints:
 - [~] Capture forward XSP chains/NBBO/Greeks with provenance and restart safety.
       Two-process append, repair, and manifest reuse are proven premarket;
       fresh RTH evidence remains pending.
-- [ ] Bind synthetic calibration to explicit source/effective intervals.
+- [x] Bind synthetic calibration to explicit source/effective intervals. New
+      records retain broker observation time, actual underlying-tape bounds,
+      source kind, and a next-date effective boundary; source-less RV
+      overrides fail closed and legacy records remain readable.
 - [~] Add completeness and freshness gates consumed identically by research,
       replay, evaluation, and live admission. Capture, captured replay,
       execution, UI, and journal share one quote classifier. The recorder now
@@ -1214,6 +1217,7 @@ Add rows; never rewrite an unfavorable receipt.
 | E-025 | 2026-07-24 11:15 UTC | 1 | Historical pacing-flexibility refinement | Git `e66f82b` | focused `48 passed`; full `689 passed, 4 deselected` | Bars at or below 30 seconds now obey IBKR's 15-second identical-request floor before any pacing error, while minute-and-larger XSP tapes retain the faster ordinary retry ladder. Explicit pacing escalates cooldown; broker no-data without head proof remains retryable across adaptive passes. Same-contract serialization and the normal two-independent-contract ceiling remain unchanged; no global token bucket or extra cache subsystem was added |
 | E-026 | 2026-07-24 11:24 UTC | 1 | Strict forward-tape admission profile | Git `c99d31f`; prior tapes `/tmp/xsp-forward-{restart-proof.BCWo2l,capture-smoke-v4}/XSP/2026-07-24.jsonl` | focused `26 passed`; full `691 passed, 4 deselected` | One shared quote classifier now produces a declared complete/incomplete snapshot verdict from chain provenance, qualification, NBBO, age, actual live/delayed provenance, and Greeks. Exact package replay rejects missing or mismatched chain expiry before canonical pricing. Both premarket tapes correctly fail the new live profile: zero eligible streaming-live rows; the older smoke also lacks chain provenance. No historical artifact was relabeled or promoted |
 | E-027 | 2026-07-24 11:28 UTC | 2 | Matched condor incremental-value audit | `/tmp/xsp-condor-incremental-value-v1.json`; preregistration `5fc6d26` | artifact `e54a19b8…`; adverse source `80154859…` | `1,152` filtered and `1,152` unfiltered condors were matched exactly to put-credit verticals after USD `1.50`/contract and two ticks. Zero condors passed the safe-income gate, so zero met the preregistered incremental-value contract or its two-neighbor rule. All unfiltered condors had negative daily LCB; filtered rows were primarily sample-, concentration-, P&L-, and profit-factor-limited. Validation and holdout remain sealed; the four-leg extension is rejected |
+| E-028 | 2026-07-24 11:46 UTC | 1 | Calibration provenance and effective boundary | Git this commit | focused `16 passed`; full `693 passed, 4 deselected` | Schema-v2 records bind the delayed broker observation to source kind, actual first/last underlying bars, and a next-date effective boundary. A caller-provided RV without both source bounds is rejected; same-day replay cannot consume a newly observed surface; legacy `asof` records remain readable |
 
 ---
 
@@ -1256,6 +1260,7 @@ Add rows; never rewrite an unfavorable receipt.
 | D-033 | Historical ambiguity fails closed | IBKR timeouts return an empty container indistinguishable from absent bars unless errors, retries, and availability are retained; cursor-skipping silently created two month-scale SPY holes | Never accept an empty response as coverage: retry the same cursor with bounded backoff and smaller windows, classify broker rejection/unavailability, consult earliest availability, then fail with evidence if unresolved |
 | D-034 | SPY/VIX context remains evidence, not strategy authority | A preregistered 768-cell extension produced no corrected, neighborhood-stable edge and no durable rescue of the opening-state family | A new causal feature contract passes development before the sealed holdout is read |
 | D-035 | A no-data message is not proof of global unavailability | IBKR can return no rows for a valid contract/range under transport, farm, session, entitlement, or sparse-history conditions; only permanent broker rejection, expiry, or a requested end before `reqHeadTimestamp` proves absence | Never advance a cursor, erase a gap, or promote cache completeness from an unresolved empty response |
+| D-036 | Calibration becomes effective after its observed date | A same-day date-only record can leak later broker evidence into earlier replay; explicit source bounds and next-date eligibility preserve causality while live orders continue to use broker quotes | Authentic timestamped option replay replaces synthetic calibration |
 
 ---
 
@@ -1328,7 +1333,9 @@ promote/hold/revise/stop verdict with its remaining-risk register.
   found no family-wise edge; SPY/VIX context did not rescue it, and the first
   directional-credit singleton failed chronological repeatability. The
   preregistered directional-debit family produced zero positive daily LCBs.
-  All family-specific holdouts remain unobserved.
+  All family-specific holdouts remain unobserved. Phase 1 calibration records
+  now carry enforced source/effective boundaries; fresh RTH forward evidence
+  remains the active time-gated seam.
 - **Next action:** capture fresh RTH XSP chain/NBBO/Greeks evidence and bind its
   completeness verdict to same-tape replay. Continue bounded preregistered
   safe-income and alpha discovery without tuning rejected families against

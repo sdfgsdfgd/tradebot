@@ -485,7 +485,12 @@ def run_options_backtest(
     )
     calibration = None
     if cfg.backtest.calibrate:
-        calibration = ensure_calibration(cfg, rv_override=_rv_from_bars(bars, cfg))
+        calibration = ensure_calibration(
+            cfg,
+            rv_override=_rv_from_bars(bars, cfg),
+            source_start=bars[0].ts if bars else None,
+            source_end=bars[-1].ts if bars else None,
+        )
     else:
         calibration = load_calibration(cfg.backtest.calibration_dir, cfg.strategy.symbol)
 

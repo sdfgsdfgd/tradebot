@@ -113,6 +113,7 @@
     "tests/test_live_execution_registry.py": "live-execution-orders",
     "tests/test_news_signal.py": "signal-regime-intelligence",
     "tests/test_offline_cache_preflight.py": "backtest-data-cache",
+    "tests/test_option_calibration_provenance.py": "research-optimization-calibration",
     "tests/test_option_package_economics.py": "live-execution-orders",
     "tests/test_option_package_risk.py": "live-execution-orders",
     "tests/test_option_quote_capture.py": "live-market-data-contracts",
@@ -503,11 +504,13 @@
         "current proof surfaces for research-optimization-calibration"
       ],
       "evidence": [
+        "tests/test_option_calibration_provenance.py",
         "tests/test_research_evidence.py",
         "tests/test_spot_combo_full_signature.py",
         "tests/test_spot_scenario_runner.py"
       ],
       "owner_surface": [
+        "tradebot/backtest/calibration.py",
         "tradebot/backtest/sweeps.py",
         "tradebot/research/climate.py",
         "tradebot/research/evidence.py",

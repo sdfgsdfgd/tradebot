@@ -35,6 +35,11 @@ class CalibrationRecord:
     mae: float
     mape: float
     samples: int
+    observed_at: str | None = None
+    source: str | None = None
+    source_start: str | None = None
+    source_end: str | None = None
+    effective_from: str | None = None
 
 
 @dataclass
@@ -56,17 +61,13 @@ class CalibrationBook:
         return None
 
     def params_asof(self, dte: int, asof: str) -> CalibrationParams | None:
-        """Return the latest params for the given dte bucket as-of a date (YYYY-MM-DD).
-
-        This is used to avoid lookahead bias in backtests by not applying calibration
-        records from the future relative to the simulated timestamp.
-        """
+        """Return the latest eligible params without crossing its effective boundary."""
         for bucket in self.buckets:
             if not (bucket.min_dte <= dte <= bucket.max_dte):
                 continue
             chosen: CalibrationRecord | None = None
             for rec in bucket.records:
-                if rec.asof <= asof:
+                if (rec.effective_from or rec.asof) <= asof:
                     chosen = rec
             return chosen.params if chosen else None
         return None
@@ -123,6 +124,11 @@ def load_calibration(calibration_dir: Path, symbol: str) -> CalibrationBook | No
                 mae=rec["mae"],
                 mape=rec["mape"],
                 samples=rec["samples"],
+                observed_at=rec.get("observed_at"),
+                source=rec.get("source"),
+                source_start=rec.get("source_start"),
+                source_end=rec.get("source_end"),
+                effective_from=rec.get("effective_from"),
             )
             for rec in bucket.get("records", [])
         ]
@@ -139,6 +145,7 @@ def load_calibration(calibration_dir: Path, symbol: str) -> CalibrationBook | No
 def save_calibration(calibration_dir: Path, book: CalibrationBook) -> None:
     calibration_dir.mkdir(parents=True, exist_ok=True)
     payload = {
+        "schema_version": 2,
         "symbol": book.symbol,
         "buckets": [
             {
@@ -156,6 +163,11 @@ def save_calibration(calibration_dir: Path, book: CalibrationBook) -> None:
                         "mae": rec.mae,
                         "mape": rec.mape,
                         "samples": rec.samples,
+                        "observed_at": rec.observed_at,
+                        "source": rec.source,
+                        "source_start": rec.source_start,
+                        "source_end": rec.source_end,
+                        "effective_from": rec.effective_from,
                     }
                     for rec in bucket.records
                 ],
@@ -167,13 +179,26 @@ def save_calibration(calibration_dir: Path, book: CalibrationBook) -> None:
     path.write_text(json.dumps(payload, indent=2))
 
 
-def ensure_calibration(cfg: ConfigBundle, rv_override: float | None = None) -> CalibrationBook | None:
+def ensure_calibration(
+    cfg: ConfigBundle,
+    rv_override: float | None = None,
+    *,
+    source_start: datetime | None = None,
+    source_end: datetime | None = None,
+) -> CalibrationBook | None:
     symbol = cfg.strategy.symbol
     book = load_calibration(cfg.backtest.calibration_dir, symbol)
     asof = _now_et().date().isoformat()
     if book and all(_has_record_today(bucket, asof) for bucket in book.buckets):
         return book
-    updated = calibrate_symbol(cfg, book, asof, rv_override=rv_override)
+    updated = calibrate_symbol(
+        cfg,
+        book,
+        asof,
+        rv_override=rv_override,
+        source_start=source_start,
+        source_end=source_end,
+    )
     if updated:
         save_calibration(cfg.backtest.calibration_dir, updated)
     return updated
@@ -184,8 +209,13 @@ def calibrate_symbol(
     book: CalibrationBook | None,
     asof: str,
     rv_override: float | None = None,
+    *,
+    source_start: datetime | None = None,
+    source_end: datetime | None = None,
 ) -> CalibrationBook | None:
     symbol = cfg.strategy.symbol
+    if rv_override is not None and (source_start is None or source_end is None):
+        raise ValueError("rv_override requires source_start and source_end")
     if book is None:
         book = CalibrationBook(
             symbol=symbol,
@@ -206,7 +236,20 @@ def calibrate_symbol(
         ib.disconnect()
         return book
 
-    rv = rv_override if rv_override is not None else _recent_realized_vol(cfg, symbol, cfg.strategy.exchange)
+    if rv_override is None:
+        rv, source_start, source_end = _recent_realized_vol(
+            cfg,
+            symbol,
+            cfg.strategy.exchange,
+        )
+        source = "ibkr_delayed_last+canonical_underlying_history"
+    else:
+        rv = float(rv_override)
+        source = "ibkr_delayed_last+prepared_underlying_tape"
+    observed_at = _now_et()
+    effective_from = (
+        date.fromisoformat(asof) + timedelta(days=1)
+    ).isoformat()
 
     for bucket in book.buckets:
         if _has_record_today(bucket, asof):
@@ -230,6 +273,11 @@ def calibrate_symbol(
                 mae=mae,
                 mape=mape,
                 samples=count,
+                observed_at=observed_at.isoformat(),
+                source=source,
+                source_start=source_start.isoformat() if source_start is not None else None,
+                source_end=source_end.isoformat() if source_end is not None else None,
+                effective_from=effective_from,
             )
         )
 
@@ -407,7 +455,11 @@ def _nearest_strike(strikes: list[float], target: float) -> float:
     return min(strikes, key=lambda s: abs(s - target))
 
 
-def _recent_realized_vol(cfg: ConfigBundle, symbol: str, exchange: str | None) -> float:
+def _recent_realized_vol(
+    cfg: ConfigBundle,
+    symbol: str,
+    exchange: str | None,
+) -> tuple[float, datetime, datetime]:
     data = IBKRHistoricalData()
     end = datetime.now(tz=_UTC).replace(tzinfo=None)
     start = end - timedelta(days=10)
@@ -420,6 +472,8 @@ def _recent_realized_vol(cfg: ConfigBundle, symbol: str, exchange: str | None) -
         use_rth=cfg.backtest.use_rth,
         cache_dir=cfg.backtest.cache_dir,
     )
+    source_start = bars[0].ts if bars else start
+    source_end = bars[-1].ts if bars else end
     closes = [float(bar.close) for bar in bars if bar.close and float(bar.close) > 0]
     rv = realized_vol_from_closes(
         closes,
@@ -428,7 +482,11 @@ def _recent_realized_vol(cfg: ConfigBundle, symbol: str, exchange: str | None) -
         bar_size=str(cfg.backtest.bar_size),
         use_rth=bool(cfg.backtest.use_rth),
     )
-    return float(cfg.synthetic.iv_floor) if rv is None else float(rv)
+    return (
+        float(cfg.synthetic.iv_floor) if rv is None else float(rv),
+        source_start,
+        source_end,
+    )
 
 
 def _has_record_today(bucket: CalibrationBucket, asof: str) -> bool:
