@@ -993,6 +993,9 @@ shadow, and live comparison without refetching complete cached ranges.
       rejected under adverse friction; one exact delayed captured vertical now
       proves replay/live pricing and risk parity, while authentic RTH
       time-series evidence remains pending.
+- [~] Establish a five-year short-strike barrier census before proposing
+      another credit family. The fixed v1 contract below is preregistered;
+      outcomes remain unread at this anchor.
 - [~] Establish alpha defined-risk baselines. The exact same delayed captured
       snapshot now prices a one-point call-debit vertical through the canonical
       package kernel. A 5,184-cell adverse-cost directional-credit family
@@ -1014,6 +1017,35 @@ shadow, and live comparison without refetching complete cached ranges.
 - [ ] Formalize opening continuation as a separate candidate.
 - [ ] Establish LF directional/premium baselines.
 - [ ] Partition HF/LF and safe-income/alpha crowns.
+
+#### Phase 2.1 — Fixed XSP credit-barrier census v1
+
+This is an underlying-risk screen, not an option-PnL backtest or strategy
+promotion. It asks what executable credit a one-point vertical would minimally
+need to compensate for historically observed expiration breach risk.
+
+- Evidence: complete `2021-07-26..2026-07-23` XSP 5-minute RTH tape.
+- Decision boundaries: `10:00`, `10:30`, `11:00`, and `11:30` ET, exactly
+  30/60/90/120 minutes after the open.
+- Sides: put-credit and call-credit, independently.
+- Short-strike distances: `0.25%`, `0.50%`, `0.75%`, and `1.00%` from spot at
+  the decision boundary.
+- Geometry: one-point width; put shorts round upward and call shorts downward
+  to the nearest whole XSP point, conservatively toward spot.
+- Expiration horizons: same-session close, then `1`, `3`, and `5` subsequent
+  trading-session closes. The intervening RTH path includes opening gaps.
+- Outcomes: short-strike touch, expiration beyond the short strike, maximum
+  adverse excursion, pooled and annual rates, Wilson 95% upper bounds, and
+  exact eligible-session counts.
+- Adverse friction: USD `1.50` per contract per side plus two package ticks on
+  both entry and exit: USD `10` round trip for one two-leg spread.
+- Conservative price-unit hurdle:
+  `required_credit = breach_rate_upper95 * 1.00 + 0.10`. Any expiration beyond
+  the short strike is treated as a full-width loss even when settlement inside
+  the long strike would produce only a partial loss.
+- No cell is a candidate unless a fresh, strict-admission RTH package quote
+  offers at least its required credit after tick rounding. Barrier evidence
+  alone cannot open validation, claim expectancy, or control capital.
 - [ ] Encode `NO_TRADE` and event/liquidity vetoes.
 - [ ] Remove dominated or redundant candidates; keep the frontier compact.
 
@@ -1222,6 +1254,7 @@ Add rows; never rewrite an unfavorable receipt.
 | E-027 | 2026-07-24 11:28 UTC | 2 | Matched condor incremental-value audit | `/tmp/xsp-condor-incremental-value-v1.json`; preregistration `5fc6d26` | artifact `e54a19b8…`; adverse source `80154859…` | `1,152` filtered and `1,152` unfiltered condors were matched exactly to put-credit verticals after USD `1.50`/contract and two ticks. Zero condors passed the safe-income gate, so zero met the preregistered incremental-value contract or its two-neighbor rule. All unfiltered condors had negative daily LCB; filtered rows were primarily sample-, concentration-, P&L-, and profit-factor-limited. Validation and holdout remain sealed; the four-leg extension is rejected |
 | E-028 | 2026-07-24 11:46 UTC | 1 | Calibration provenance and effective boundary | Git this commit | focused `16 passed`; full `693 passed, 4 deselected` | Schema-v2 records bind the delayed broker observation to source kind, actual first/last underlying bars, and a next-date effective boundary. A caller-provided RV without both source bounds is rejected; same-day replay cannot consume a newly observed surface; legacy `asof` records remain readable |
 | E-029 | 2026-07-24 11:55 UTC | 1 | Five-year XSP underlying admission | `db/XSP/*5mins_rth.csv` | stitched-source manifest `591e581f…`; new 3-year shard `b7b90395…` | Canonical sparse hydration reused the existing two years and fetched only `2021-07-26..2024-07-23`: 36/36 sequential month requests, 244.18 seconds, no retries/fallbacks. The complete `2021-07-26..2026-07-23` tape has 97,452 bars/1,254 sessions, 1,244×78 normal and 10×42 early-close rows, zero unexpected counts/duplicates/effective gaps, strict timestamp order, and no nonzero XSP volume |
+| E-030 | 2026-07-24 12:01 UTC | 2 | Preregistered five-year XSP credit-barrier census | This document at pushed preregistration anchor | `xsp.credit-barrier-census.v1` | Frozen 128-cell descriptive matrix: four decision times × four OTM distances × four expiration horizons × two sides; conservative whole-point geometry, touch/expiration/adverse-excursion evidence, Wilson upper bounds, annual stability, and adverse USD 10 round-trip friction. No filtering, tuning, option-PnL claim, or promotion authority |
 
 ---
 
@@ -1266,6 +1299,7 @@ Add rows; never rewrite an unfavorable receipt.
 | D-035 | A no-data message is not proof of global unavailability | IBKR can return no rows for a valid contract/range under transport, farm, session, entitlement, or sparse-history conditions; only permanent broker rejection, expiry, or a requested end before `reqHeadTimestamp` proves absence | Never advance a cursor, erase a gap, or promote cache completeness from an unresolved empty response |
 | D-036 | Calibration becomes effective after its observed date | A same-day date-only record can leak later broker evidence into earlier replay; explicit source bounds and next-date eligibility preserve causality while live orders continue to use broker quotes | Authentic timestamped option replay replaces synthetic calibration |
 | D-037 | Admit five-year XSP only as underlying RTH evidence | The hydrated tape is complete and comparable, but IBKR still supplies no historical expired-option chain/NBBO/Greek tape and XSP index volume remains absent | A provenance-complete option provider or accumulated forward tape supplies the missing evidence |
+| D-038 | Barrier evidence screens credit geometry but cannot prove option expectancy | Historical XSP spot can authenticate touches and settlement breaches, but not old NBBO, IV, fill probability, commissions, or executable package credit | Fresh strict-admission package quotes and forward replay clear the empirical required-credit hurdle |
 
 ---
 
