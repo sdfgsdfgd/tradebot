@@ -115,6 +115,7 @@
     "tests/test_option_package_economics.py": "live-execution-orders",
     "tests/test_option_package_risk.py": "live-execution-orders",
     "tests/test_option_quote_capture.py": "live-market-data-contracts",
+    "tests/test_option_quote_parity.py": "market-realism-parity",
     "tests/test_option_search_qualification.py": "live-market-data-contracts",
     "tests/test_options_prepared_tape.py": "backtest-data-cache",
     "tests/test_order_admission_policy.py": "live-execution-orders",
@@ -275,12 +276,17 @@
         "current proof surfaces for market-realism-parity"
       ],
       "evidence": [
+        "tests/test_option_quote_parity.py",
         "tests/test_spot_summary_parity.py",
         "tests/test_ui_bot_live_unreal_consistency.py",
         "tests/test_ui_signal_gap_calendar.py"
       ],
       "owner_surface": [
-        "tradebot/backtest/engine.py"
+        "tradebot/backtest/engine.py",
+        "tradebot/backtest/quotes.py",
+        "tradebot/engines/execution.py",
+        "tradebot/live/options.py",
+        "tradebot/option_package.py"
       ],
       "oracle": [
         "all evidence assigned to market-realism-parity passes",

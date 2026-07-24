@@ -9,6 +9,8 @@ from dataclasses import dataclass
 from datetime import time
 from time import monotonic
 
+from ..option_package import option_package_debit_value
+
 
 def _quote_num_actionable(value: float | None) -> float | None:
     if value is None:
@@ -219,12 +221,18 @@ def _tick_size(contract: object, ticker: object | None, ref_price: float | None)
         if source is None:
             continue
         try:
-            tick = float(getattr(source, "minTick", None))
+            tick = float(
+                getattr(source, "minTick", None)
+                or getattr(source, "min_tick", None)
+            )
         except (TypeError, ValueError):
             continue
         if tick > 0:
             return tick
-    if getattr(contract, "secType", None) in ("OPT", "FOP"):
+    if (
+        getattr(contract, "secType", None)
+        or getattr(contract, "sec_type", None)
+    ) in ("OPT", "FOP"):
         return 0.05 if ref_price is not None and ref_price >= 3 else 0.01
     return 0.01
 
@@ -400,6 +408,85 @@ def _limit_price_for_mode(
         value = mid
     value = value if value is not None else (mid if mid is not None else last)
     return value if value is not None and value > 0 else None
+
+
+@dataclass(frozen=True, slots=True)
+class OptionPackageQuote:
+    bid_value: float
+    ask_value: float
+    mid_value: float
+    limit_value: float
+    tick: float
+
+
+def quote_option_package(
+    rows: Iterable[
+        tuple[
+            str,
+            int,
+            float | None,
+            float | None,
+            float | None,
+        ]
+    ],
+    *,
+    mode: str,
+    tick: float,
+) -> OptionPackageQuote | None:
+    """Price one package identically for captured replay and live BAG orders."""
+
+    bid_rows: list[tuple[str, int, float]] = []
+    ask_rows: list[tuple[str, int, float]] = []
+    mid_rows: list[tuple[str, int, float]] = []
+    limit_rows: list[tuple[str, int, float]] = []
+    for action, ratio, raw_bid, raw_ask, raw_last in rows:
+        action = str(action or "").strip().upper()
+        if action not in {"BUY", "SELL"}:
+            return None
+        bid, ask, last = _sanitize_nbbo(raw_bid, raw_ask, raw_last)
+        reference = _midpoint(bid, ask) or last
+        if reference is None:
+            return None
+        leg_bid = bid or reference
+        leg_ask = ask or reference
+        desired = _limit_price_for_mode(
+            bid,
+            ask,
+            last,
+            action=action,
+            mode=mode,
+        )
+        if desired is None:
+            return None
+        bid_rows.append((action, ratio, leg_bid if action == "BUY" else leg_ask))
+        ask_rows.append((action, ratio, leg_ask if action == "BUY" else leg_bid))
+        mid_rows.append((action, ratio, reference))
+        limit_rows.append((action, ratio, desired))
+
+    values = tuple(
+        option_package_debit_value(value_rows)
+        for value_rows in (bid_rows, ask_rows, mid_rows, limit_rows)
+    )
+    if not values or any(value is None for value in values):
+        return None
+    bid_value, ask_value, mid_value, limit_value = (
+        float(value) for value in values if value is not None
+    )
+    resolved_tick = _quote_num_actionable(tick) or 0.01
+    rounded_limit = _round_to_tick(limit_value, resolved_tick)
+    if rounded_limit is None or math.isclose(
+        rounded_limit,
+        0.0,
+        abs_tol=resolved_tick / 2,
+    ):
+        return None
+    return OptionPackageQuote(
+        bid_value=min(bid_value, ask_value),
+        ask_value=max(bid_value, ask_value),
+        mid_value=mid_value,
+        limit_value=float(rounded_limit),
+        tick=float(resolved_tick),
+    )
 
 
 _PRICE_HINT_RE = re.compile(r"(?<!\d)(\d[\d,]*\.\d+)")

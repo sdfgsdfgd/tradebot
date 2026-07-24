@@ -257,6 +257,7 @@ def test_forward_quote_schema_records_actual_provenance_and_full_greeks() -> Non
         askSize=12,
         lastSize=2,
         volume=100,
+        minTick=0.05,
         marketDataType=1,
         time=datetime(2026, 7, 24, 14, 30, tzinfo=timezone.utc),
         modelGreeks=SimpleNamespace(
@@ -272,6 +273,7 @@ def test_forward_quote_schema_records_actual_provenance_and_full_greeks() -> Non
     row = contract_from_ticker(contract, ticker)
 
     assert row.bid is None
+    assert row.min_tick == 0.05
     assert row.market_data_type == 1
     assert row.quote_time == "2026-07-24T14:30:00+00:00"
     assert (row.model_iv, row.model_delta, row.model_gamma) == (0.18, 0.51, 0.02)

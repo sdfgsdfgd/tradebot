@@ -21,6 +21,7 @@ import pytest
 from tradebot.backtest.models import OptionTrade
 import tradebot.backtest.engine_options as backtest_engine
 from tradebot.backtest.synth import IVSurfaceParams
+import tradebot.engines.execution as execution_module
 import tradebot.live.options as live_options_module
 from tradebot.live.options import (
     QualifiedOptionLeg,
@@ -169,7 +170,7 @@ def test_live_combo_reprice_consumes_canonical_package_kernel(monkeypatch) -> No
     order, tickers = _option_order_fixture()
     calls: list[list[tuple[str, int, float | None]]] = []
     monkeypatch.setattr(
-        live_options_module,
+        execution_module,
         "option_package_debit_value",
         _recording_kernel(calls),
     )
@@ -453,7 +454,7 @@ def test_live_combo_quote_signature_consumes_canonical_package_kernel(monkeypatc
 def test_option_builder_stages_native_credit_bag_through_canonical_kernel(monkeypatch) -> None:
     calls: list[list[tuple[str, int, float | None]]] = []
     monkeypatch.setattr(
-        live_options_module,
+        execution_module,
         "option_package_debit_value",
         _recording_kernel(calls),
     )
@@ -804,7 +805,7 @@ def _run_xsp_capacity_builder_case(
     package_calls: list[list[tuple[str, int, float | None]]] = []
     capacity_calls: list[tuple[object, object]] = []
     monkeypatch.setattr(
-        live_options_module,
+        execution_module,
         "option_package_debit_value",
         _recording_kernel(package_calls),
     )

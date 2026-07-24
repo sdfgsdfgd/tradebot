@@ -25,7 +25,20 @@ from ..contract_identity import (
     index_exchange_for_symbol,
     select_option_chain,
 )
-from ..engines.execution import quote_health
+from ..engines.execution import (
+    OptionPackageQuote,
+    _midpoint,
+    _tick_size,
+    quote_health,
+    quote_option_package,
+)
+from ..option_package import (
+    OptionPackage,
+    OptionPackageRisk,
+    ResolvedOptionLeg,
+    option_package_risk,
+    option_product_facts,
+)
 
 
 def _none_if_nan(value) -> float | None:
@@ -123,6 +136,7 @@ class QuoteContract:
 
     market_data_type: int | None = None
     quote_time: str | None = None
+    min_tick: float | None = None
 
 
 @dataclass(frozen=True)
@@ -164,11 +178,22 @@ class QuoteSnapshot:
     errors: list[QuoteError]
     chain_fingerprint: str | None = None
     target_expiry: str | None = None
-    schema_version: int = 2
+    schema_version: int = 3
+
+
+@dataclass(frozen=True)
+class CapturedPackageQuote:
+    package: OptionPackage
+    risk: OptionPackageRisk
+    quote: OptionPackageQuote
 
 
 def contract_from_ticker(contract, ticker) -> QuoteContract:
     model = getattr(ticker, "modelGreeks", None)
+    bid = _nonnegative_or_none(getattr(ticker, "bid", None))
+    ask = _nonnegative_or_none(getattr(ticker, "ask", None))
+    last = _nonnegative_or_none(getattr(ticker, "last", None))
+    reference = _midpoint(bid, ask) or last
     return QuoteContract(
         con_id=_safe_int(getattr(contract, "conId", None)),
         sec_type=getattr(contract, "secType", None),
@@ -181,9 +206,9 @@ def contract_from_ticker(contract, ticker) -> QuoteContract:
         right=getattr(contract, "right", None),
         trading_class=getattr(contract, "tradingClass", None),
         multiplier=getattr(contract, "multiplier", None),
-        bid=_nonnegative_or_none(getattr(ticker, "bid", None)),
-        ask=_nonnegative_or_none(getattr(ticker, "ask", None)),
-        last=_nonnegative_or_none(getattr(ticker, "last", None)),
+        bid=bid,
+        ask=ask,
+        last=last,
         close=_nonnegative_or_none(getattr(ticker, "close", None)),
         bid_size=_nonnegative_or_none(getattr(ticker, "bidSize", None)),
         ask_size=_nonnegative_or_none(getattr(ticker, "askSize", None)),
@@ -197,6 +222,7 @@ def contract_from_ticker(contract, ticker) -> QuoteContract:
         model_under_price=_none_if_nan(getattr(model, "undPrice", None)),
         market_data_type=_safe_int(getattr(ticker, "marketDataType", None)),
         quote_time=_iso_or_none(getattr(ticker, "time", None)),
+        min_tick=_tick_size(contract, ticker, reference),
     )
 
 
@@ -302,6 +328,136 @@ def iter_snapshot_payloads(path: Path) -> Iterator[dict[str, object]]:
             if not isinstance(payload, dict):
                 raise ValueError(f"{path}:{line_no}: snapshot must be an object")
             yield payload
+
+
+def iter_snapshots(path: Path) -> Iterator[QuoteSnapshot]:
+    for payload in iter_snapshot_payloads(path):
+        yield QuoteSnapshot(
+            **{
+                **payload,
+                "underlying": QuoteContract(**payload["underlying"]),
+                "options": [
+                    QuoteContract(**option)
+                    for option in payload.get("options", [])
+                ],
+                "errors": [
+                    QuoteError(**error)
+                    for error in payload.get("errors", [])
+                ],
+            }
+        )
+
+
+def quote_captured_option_package(
+    snapshot: QuoteSnapshot,
+    legs: tuple[ResolvedOptionLeg, ...],
+    *,
+    quantity: int = 1,
+    intent: str = "enter",
+    mode: str = "MID",
+    max_age_sec: float | None = None,
+    require_live: bool = False,
+) -> CapturedPackageQuote | None:
+    """Project exact captured legs through the canonical live-intended quote kernel."""
+
+    observed_at = _parse_datetime(snapshot.ts)
+    selected: list[QuoteContract] = []
+    for leg in legs:
+        right = "P" if leg.right == "PUT" else "C"
+        matches = [
+            option
+            for option in snapshot.options
+            if option.con_id is not None
+            and option.con_id > 0
+            and option.expiry == leg.expiry
+            and str(option.right or "").strip().upper()[:1] == right
+            and option.strike is not None
+            and math.isclose(option.strike, leg.strike, abs_tol=1e-9)
+        ]
+        if len(matches) != 1:
+            return None
+        option = matches[0]
+        quote_at = _parse_datetime(option.quote_time)
+        age_sec = (
+            max(0.0, (observed_at - quote_at).total_seconds())
+            if observed_at is not None and quote_at is not None
+            else None
+        )
+        if not quote_health(
+            bid=option.bid,
+            ask=option.ask,
+            last=option.last,
+            close=option.close,
+            market_data_type=option.market_data_type,
+            age_sec=age_sec,
+            max_age_sec=max_age_sec,
+            require_live=require_live,
+            require_nbbo=True,
+            require_age=max_age_sec is not None,
+        )["eligible"]:
+            return None
+        selected.append(option)
+
+    if len({option.con_id for option in selected}) != len(selected):
+        return None
+    identities = {
+        (
+            option.symbol,
+            option.sec_type,
+            option.exchange,
+            option.currency,
+            option.multiplier,
+            option.trading_class,
+        )
+        for option in selected
+    }
+    if len(identities) != 1:
+        return None
+    symbol, sec_type, exchange, currency, multiplier, trading_class = identities.pop()
+    quote = quote_option_package(
+        (
+            (leg.action, leg.ratio, option.bid, option.ask, option.last)
+            for leg, option in zip(legs, selected)
+        ),
+        mode=mode,
+        tick=min(
+            (
+                _tick_size(
+                    option,
+                    None,
+                    _midpoint(option.bid, option.ask) or option.last,
+                )
+                for option in selected
+            ),
+            default=0.01,
+        ),
+    )
+    if quote is None:
+        return None
+    try:
+        package = OptionPackage(
+            product=option_product_facts(
+                str(symbol or snapshot.symbol),
+                security_type=str(sec_type or "OPT"),
+                exchange=str(exchange or "SMART"),
+                currency=str(currency or "USD"),
+                multiplier=float(multiplier or 0),
+                trading_class=str(trading_class or "") or None,
+                source="captured",
+            ),
+            legs=legs,
+            quantity=quantity,
+            debit_value=quote.limit_value,
+            intent=intent,
+        )
+    except (TypeError, ValueError):
+        return None
+    risk = option_package_risk(package)
+    return (
+        CapturedPackageQuote(package=package, risk=risk, quote=quote)
+        if risk is not None
+        else None
+    )
 
 
 def snapshot_quality(

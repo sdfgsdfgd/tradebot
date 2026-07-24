@@ -9,6 +9,7 @@ from tradebot.backtest.quotes import (
     QuoteSnapshot,
     append_snapshot,
     iter_snapshot_payloads,
+    iter_snapshots,
     make_chain_manifest,
     persist_chain_manifest,
     snapshot_quality,
@@ -97,6 +98,11 @@ def test_snapshot_append_repairs_valid_and_partial_jsonl_tails(tmp_path) -> None
     append_snapshot(path, _snapshot("2026-07-24T14:32:00+00:00"))
 
     assert [row["ts"] for row in iter_snapshot_payloads(path)] == [
+        "2026-07-24T14:30:00+00:00",
+        "2026-07-24T14:31:00+00:00",
+        "2026-07-24T14:32:00+00:00",
+    ]
+    assert [snapshot.ts for snapshot in iter_snapshots(path)] == [
         "2026-07-24T14:30:00+00:00",
         "2026-07-24T14:31:00+00:00",
         "2026-07-24T14:32:00+00:00",

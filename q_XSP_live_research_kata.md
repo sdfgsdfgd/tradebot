@@ -3,7 +3,7 @@
 - **Status:** `[WIP] Phase 1 — authentic XSP evidence spine`
 - **Management role:** canonical task tree, evidence ledger, decision journal, and resume source
 - **Code baseline:** `25513267225908b7288530c1ec0762f7656bbf5b`
-- **Resumable pushed anchor before current WIP:** `8c2e65968785b8dbf98f51fc1fb9c4b48b90f135`
+- **Resumable pushed anchor before current WIP:** `e2e4a6de433e5b171ad6f890287120da3f741ef9`
 - **Management brain introduced:** `3c38af635fcc6ce8b3b0a88e1f2de567345d1bf0`
 - **Instrument scope:** XSP first; no expansion until its data, economics, execution, and live drift are mastered
 - **Capital premise:** user-reported net liquidity near USD 1,000; re-read broker truth before every capital decision
@@ -911,15 +911,19 @@ Receipt fingerprints:
       fresh RTH evidence remains pending.
 - [ ] Bind synthetic calibration to explicit source/effective intervals.
 - [~] Add completeness and freshness gates consumed identically by research,
-      replay, evaluation, and live admission. Capture, execution, UI, and
-      journal now share one quote classifier; replay/evaluation binding remains.
+      replay, evaluation, and live admission. Capture, captured replay,
+      execution, UI, and journal share one quote classifier; evaluation binding
+      remains.
 
 **Phase exit:** identical evidence fingerprints can hydrate backtest, replay,
 shadow, and live comparison without refetching complete cached ranges.
 
 ### Phase 2 — Candidate birth and causal tournament `[TODO]`
 
-- [ ] Establish safe-income vertical baselines.
+- [~] Establish safe-income vertical baselines. Synthetic discovery was
+      rejected under adverse friction; one exact delayed captured vertical now
+      proves replay/live pricing and risk parity, while authentic RTH
+      time-series evidence remains pending.
 - [ ] Test whether iron condors add net value after four-leg friction.
 - [ ] Formalize opening bear-trap reversal without hindsight.
 - [ ] Build the frozen-window opening-state matrix; falsify upside-fade,
@@ -1122,6 +1126,7 @@ Add rows; never rewrite an unfavorable receipt.
 | E-013 | 2026-07-24 | 2 | Preregistered opening-state matrix | `/tmp/xsp-opening-state-study-v1.json` | `03af6fb1…` | 256 cells; 316 eligible sessions/boundary; zero family-wise passes; narrow 90m downside/30m rebound hint fails corrected and neighborhood gates; holdout sealed |
 | E-014 | 2026-07-24 08:48 UTC | 1 | XSP forward quote-capture smoke | `/tmp/xsp-forward-capture-smoke-v4/XSP/2026-07-24.jsonl` | `dcf24c2e…` | Exact `IND/CBOE` underlier; 12 qualified option rows, zero invalid conIds, six NBBO/full-Greek rows; requested delayed mode and preserved actual `1/3` provenance; subscription/definition errors retained; premarket plumbing evidence only |
 | E-015 | 2026-07-24 09:16 UTC | 1 | XSP capture restart continuity | `/tmp/xsp-forward-restart-proof.BCWo2l/XSP/` | tape `c091adf4…`; chain `ae4679a…` | Two independent recorder processes appended two schema-v2 snapshots to one valid JSONL tape; one content-addressed chain manifest reused; 28 qualified contracts/snapshot, zero invalid conIds; actual `1/3` provenance and errors preserved; premarket delayed evidence, not RTH admission |
+| E-016 | 2026-07-24 09:34 UTC | 1/2 | Captured/live XSP package parity | `/tmp/xsp-forward-restart-proof.BCWo2l/XSP/2026-07-24.jsonl` | tape `c091adf4…`; full suite `671 passed` | The exact delayed `20260731` 734/733 put-credit vertical replayed through the shared live-intended quote kernel at `-0.24` debit units: max profit USD 24, max loss USD 76; 28/28 qualified fresh delayed NBBO/Greek rows. Adapter parity is exact, but premarket delayed evidence cannot promote a strategy |
 
 ---
 
@@ -1160,6 +1165,7 @@ Add rows; never rewrite an unfavorable receipt.
 | D-029 | Do not bank on opening folklore as a daily law | The first causal two-year matrix found no corrected, neighborhood-stable edge; one narrow downside-rebound hint is insufficient | A new predeclared feature family passes development and sealed holdout |
 | D-030 | IBKR is not a historical XSP option-chain archive | Expired options and option EOD data are unavailable; native combo history is not stored, so successful underlying requests cannot authenticate old spread economics | A provenance-complete specialist dataset is admitted or sufficient forward tape accumulates |
 | D-031 | Chain expiry and strike sets are discovery unions, not exact pairs | IBKR returned chain-wide strikes that lacked a security definition for the selected expiry; only broker-qualified contracts prove exact membership | A provider supplies an authenticated expiry-by-strike matrix with equivalent broker proof |
+| D-032 | Neutral package quote arithmetic belongs to canonical execution | Captured replay and live BAG pricing must share signed debit units, quote modes, ticks, and payoff risk; replay binds tape provenance while live owns qualification and broker projection | The ownership model changes |
 
 ---
 
