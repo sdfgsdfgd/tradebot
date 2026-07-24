@@ -383,6 +383,9 @@ Final validation evidence:
   events;
 - quality follow-up `32f9548` rejects truncated causal prose and prevents
   low-authority republishers from upgrading evidence;
+- the one 200-character first-run XSP calibration was editorially compressed
+  to a complete 179-character sentence in `latest.json`; the append-only audit
+  retains the raw response rather than rewriting history;
 - a read-only pre-enable check found five newer links. They remain unseen for
   the next batch instead of provoking an immediate duplicate session;
 - timer is enabled and waiting; first scheduled activation is
