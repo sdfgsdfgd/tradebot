@@ -12,12 +12,53 @@ from tradebot.backtest.cache_ops.sync import (
     _repo_root,
 )
 from tradebot.backtest.cache_ops.coverage import _intra_session_gap_days
+from tradebot.backtest.cache_ops.repair import _fetch_day_from_ibkr
 from tradebot.chart_data.history import _read_cache_cached, cache_path, read_cache, write_cache
 from tradebot.backtest.models import Bar
 
 
 def test_cache_ops_repo_root_resolves_checkout() -> None:
     assert _repo_root() == Path(__file__).resolve().parents[1]
+
+
+def test_day_repair_uses_canonical_index_without_overnight(monkeypatch) -> None:
+    class _Contract:
+        secType = "IND"
+
+    class _Provider:
+        resolve_calls: list[tuple[str, str | None]] = []
+
+        def __init__(self, *, client_id_offset: int) -> None:
+            assert client_id_offset == 17
+
+        def resolve_contract(self, symbol: str, exchange: str | None):
+            self.resolve_calls.append((symbol, exchange))
+            return _Contract(), object()
+
+        def _fetch_bars(self, *_args, **_kwargs):
+            return [_bar(datetime(2025, 1, 15, 14, 30))]
+
+        def disconnect(self) -> None:
+            return
+
+    monkeypatch.setattr(
+        "tradebot.backtest.cache_ops.repair.IBKRHistoricalData",
+        _Provider,
+    )
+
+    out = _fetch_day_from_ibkr(
+        symbol="VIX",
+        bar_size="5 mins",
+        day=date(2025, 1, 15),
+        use_rth=False,
+        timeout_sec=1.0,
+        retries=1,
+        client_id_offset=17,
+    )
+
+    assert out.ok is True
+    assert _Provider.resolve_calls == [("VIX", None)]
+    assert out.overnight_rows == 0
 
 
 class _DummyProvider:
@@ -66,6 +107,32 @@ def test_one_minute_rth_accepts_complete_early_close() -> None:
     ) == {}
 
 
+def test_five_minute_rth_rejects_post_early_close_index_bars() -> None:
+    start = datetime(2025, 11, 28, 14, 30)
+    rows = [_bar(start + timedelta(minutes=5 * offset)) for offset in range(45)]
+
+    assert _intra_session_gap_days(
+        rows,
+        start_utc_date=date(2025, 11, 28),
+        end_utc_date=date(2025, 11, 28),
+        session_mode="rth",
+        bar_size="5 mins",
+    ) == {"2025-11-28": ["RTH"]}
+
+
+def test_five_minute_rth_accepts_complete_early_close() -> None:
+    start = datetime(2025, 11, 28, 14, 30)
+    rows = [_bar(start + timedelta(minutes=5 * offset)) for offset in range(42)]
+
+    assert _intra_session_gap_days(
+        rows,
+        start_utc_date=date(2025, 11, 28),
+        end_utc_date=date(2025, 11, 28),
+        session_mode="rth",
+        bar_size="5 mins",
+    ) == {}
+
+
 def test_fetch_single_request_auto_mends_existing_1min_gap(monkeypatch, tmp_path) -> None:
     req = _CacheFetchRequest(
         symbol="SLV",
@@ -88,29 +155,19 @@ def test_fetch_single_request_auto_mends_existing_1min_gap(monkeypatch, tmp_path
         ],
     )
 
-    monkeypatch.setattr("tradebot.backtest.cache_ops.sync.IBKRHistoricalData", _DummyProvider)
+    class _SparseProvider(_DummyProvider):
+        calls = 0
 
-    def _fake_overlay_adaptive(**kwargs):
-        by_ts = kwargs["by_ts"]
-        by_ts[datetime(2025, 1, 15, 14, 32)] = _bar(datetime(2025, 1, 15, 14, 32))
-        return {
-            "days_considered": 1,
-            "threads": 1,
-            "adaptive_threads_enabled": False,
-            "thread_plan": [1],
-            "pass_stats": [],
-            "retries": 1,
-            "timeout_sec": 1.0,
-            "fetched_ok": 1,
-            "fetched_fail": 0,
-            "days_replaced": 1,
-            "fetched": [],
-            "replaced": [],
-        }
+        def load_or_fetch_bars(self, **_kwargs):
+            type(self).calls += 1
+            write_cache(path, _rth_day(date(2025, 1, 15)))
 
+    monkeypatch.setattr("tradebot.backtest.cache_ops.sync.IBKRHistoricalData", _SparseProvider)
     monkeypatch.setattr(
         "tradebot.backtest.cache_ops.sync._ibkr_overlay_adaptive",
-        _fake_overlay_adaptive,
+        lambda **_kwargs: (_ for _ in ()).throw(
+            AssertionError("day overlay should not run after sparse hydration")
+        ),
     )
 
     out = _fetch_single_request(
@@ -127,6 +184,7 @@ def test_fetch_single_request_auto_mends_existing_1min_gap(monkeypatch, tmp_path
     assert out.ok is True
     assert out.from_cache is False
     assert out.rows == 390
+    assert _SparseProvider.calls == 1
     _read_cache_cached.cache_clear()
     rows = read_cache(path)
     assert any(row.ts == datetime(2025, 1, 15, 14, 32) for row in rows)
@@ -397,7 +455,10 @@ def test_cache_sync_keeps_target_windows_as_views(monkeypatch, tmp_path) -> None
         ],
     )
 
-    def _fake_run(*, batches, **_kwargs):
+    run_kwargs: list[dict[str, object]] = []
+
+    def _fake_run(*, batches, **kwargs):
+        run_kwargs.append(kwargs)
         req = batches[0].primary
         return [
             _CacheFetchOutcome(
@@ -428,6 +489,8 @@ def test_cache_sync_keeps_target_windows_as_views(monkeypatch, tmp_path) -> None
         ]
     )
 
+    assert run_kwargs[0]["threads"] == 2
+    assert run_kwargs[0]["mend_threads"] == 1
     assert primary_path.exists()
     assert not cache_path(
         tmp_path,

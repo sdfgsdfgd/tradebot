@@ -17,7 +17,12 @@ from ...time_utils import (
     NaiveTsSourceMode,
     to_et as _to_et_shared,
 )
-from ...chart_data.history import cache_path, read_cache, write_cache
+from ...chart_data.history import (
+    cache_path,
+    load_history_window,
+    read_cache,
+    write_cache,
+)
 from ..data import IBKRHistoricalData
 from ..models import Bar
 from ..spot_context import SpotBarRequirement, spot_bar_requirements_from_strategy
@@ -454,11 +459,48 @@ def _fetch_single_request(
                 candidate_days_count = int(len(candidate_days))
                 tz_canon = mode_before != NaiveTsSourceMode.UTC_NAIVE.value
 
+                # Let the canonical history owner fill contiguous holes first; the
+                # per-day overlay below is reserved for residual quality anomalies.
+                sparse_healed = False
+                if candidate_days and not tz_canon:
+                    history_before = load_history_window(
+                        cache_dir=cache_dir,
+                        symbol=req.symbol,
+                        start_et=start_dt,
+                        end_et=end_dt,
+                        bar_size=req.bar_size,
+                        use_rth=req.use_rth,
+                        naive_ts_mode=NaiveTsMode.UTC,
+                    )
+                    if history_before.missing_ranges:
+                        provider.load_or_fetch_bars(
+                            symbol=req.symbol,
+                            exchange=None,
+                            start=start_dt,
+                            end=end_dt,
+                            bar_size=req.bar_size,
+                            use_rth=req.use_rth,
+                            cache_dir=cache_dir,
+                        )
+                        history_after = load_history_window(
+                            cache_dir=cache_dir,
+                            symbol=req.symbol,
+                            start_et=start_dt,
+                            end_et=end_dt,
+                            bar_size=req.bar_size,
+                            use_rth=req.use_rth,
+                            naive_ts_mode=NaiveTsMode.UTC,
+                        )
+                        if history_after.bars:
+                            canonical_rows = list(history_after.bars)
+                            sparse_healed = not bool(history_after.missing_ranges)
+                            _, _, candidate_days, _, _ = _coverage_days(canonical_rows)
+
                 final_rows = canonical_rows
                 if candidate_days:
                     final_rows = _overlay_days(canonical_rows, candidate_days)
 
-                changed = bool(tz_canon)
+                changed = bool(tz_canon or sparse_healed)
                 if len(final_rows) != len(canonical_rows):
                     changed = True
                 elif not changed:

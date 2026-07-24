@@ -1,7 +1,10 @@
 """IBKR historical-data acquisition and canonical bar normalization."""
 from __future__ import annotations
 
+import asyncio
 import os
+from threading import Lock
+from time import monotonic
 from dataclasses import dataclass
 from datetime import datetime, timedelta, time, date
 from pathlib import Path
@@ -14,6 +17,7 @@ from ..contract_identity import (
     index_exchange_for_symbol,
     is_future_symbol,
 )
+from ..engines.market import is_early_close_day
 from .config import ConfigBundle
 from .models import Bar
 from ..chart_data.history import (
@@ -48,6 +52,21 @@ _IBKR_DURATION_BY_BAR_TOKEN = {
     "4hours": "1 M",
     "1day": "1 Y",
 }
+
+_HISTORICAL_LOCK_GUARD = Lock()
+_HISTORICAL_CONTRACT_LOCKS: dict[tuple[object, ...], object] = {}
+
+
+def _historical_contract_lock(contract: object) -> object:
+    """Serialize one IBKR contract while allowing independent tapes in parallel."""
+    key = (
+        getattr(contract, "conId", None),
+        getattr(contract, "secType", None),
+        getattr(contract, "symbol", None),
+        getattr(contract, "exchange", None),
+    )
+    with _HISTORICAL_LOCK_GUARD:
+        return _HISTORICAL_CONTRACT_LOCKS.setdefault(key, Lock())
 
 
 def _ibkr_bar_zone() -> ZoneInfo:
@@ -501,6 +520,159 @@ class IBKRHistoricalData:
             cache_dir=cache_dir,
         ).as_list()
 
+    def _historical_head_timestamp(
+        self,
+        contract: object,
+        *,
+        use_rth: bool,
+        timeout_sec: float,
+    ) -> datetime | None:
+        """Return broker-declared availability without leaving a live request."""
+        client = getattr(self._ib, "client", None)
+        wrapper = getattr(self._ib, "wrapper", None)
+        runner = getattr(self._ib, "_run", None)
+        if client is None or wrapper is None or runner is None:
+            return None
+        req_id = client.getReqId()
+        future = wrapper.startReq(req_id, contract)
+        client.reqHeadTimeStamp(req_id, contract, "TRADES", bool(use_rth), 2)
+        try:
+            value = runner(
+                asyncio.wait_for(
+                    future,
+                    timeout=max(1.0, min(float(timeout_sec), 15.0)),
+                )
+            )
+            return _as_utc_aware(value) if isinstance(value, datetime) else None
+        except Exception:
+            return None
+        finally:
+            try:
+                client.cancelHeadTimeStamp(req_id)
+            except Exception:
+                pass
+
+    def _request_historical_chunk(
+        self,
+        contract: object,
+        *,
+        end: datetime | str,
+        duration: str,
+        bar_size: str,
+        use_rth: bool,
+        timeout_sec: float,
+    ) -> tuple[list[object], str]:
+        """Fetch one chunk without ever treating transport ambiguity as absent data."""
+        ladder = ("2 Y", "1 Y", "6 M", "3 M", "1 M", "2 W", "1 W", "3 D", "1 D")
+        if duration in ladder:
+            start = ladder.index(duration)
+            attempts = list(ladder[start : start + 3])
+            attempts.extend([attempts[-1]] * (3 - len(attempts)))
+        else:
+            attempts = [duration] * 3
+        errors: list[tuple[int, str]] = []
+
+        def _capture_error(
+            _req_id: int,
+            code: int,
+            message: str,
+            _contract: object,
+        ) -> None:
+            if int(code) not in {2104, 2106, 2107, 2108, 2158}:
+                errors.append((int(code), str(message or "").strip()))
+
+        error_event = getattr(self._ib, "errorEvent", None)
+        lock = _historical_contract_lock(contract)
+        with lock:
+            if error_event is not None:
+                error_event += _capture_error
+            try:
+                for attempt, request_duration in enumerate(attempts, start=1):
+                    before = len(errors)
+                    started = monotonic()
+                    try:
+                        chunk = self._ib.reqHistoricalData(
+                            contract,
+                            endDateTime=end,
+                            durationStr=request_duration,
+                            barSizeSetting=bar_size,
+                            whatToShow="TRADES",
+                            useRTH=1 if use_rth else 0,
+                            formatDate=1,
+                            keepUpToDate=False,
+                            timeout=(
+                                float(timeout_sec)
+                                if attempt == 1
+                                else max(15.0, float(timeout_sec) * (1.0 - 0.25 * (attempt - 1)))
+                            ),
+                        )
+                    except Exception as exc:
+                        chunk = []
+                        errors.append((-1, f"{type(exc).__name__}: {exc}"))
+                    elapsed = monotonic() - started
+                    attempt_errors = errors[before:]
+                    error_text = " | ".join(text for _, text in attempt_errors).lower()
+                    error_codes = {code for code, _ in attempt_errors}
+
+                    if chunk:
+                        return list(chunk), request_duration
+                    if error_codes & {200, 321, 354, 10089, 10167} or any(
+                        token in error_text
+                        for token in ("permission", "subscription", "security definition")
+                    ):
+                        raise RuntimeError(
+                            "historical_request_rejected: "
+                            + (" | ".join(text for _, text in attempt_errors) or "broker rejection")
+                        )
+                    if 166 in error_codes:
+                        raise RuntimeError(
+                            "historical_unavailable: "
+                            + (" | ".join(text for _, text in attempt_errors) or "expired contract")
+                        )
+                    if attempt < len(attempts):
+                        delay = (1.0, 3.0)[attempt - 1]
+                        con_id = int(getattr(contract, "conId", 0) or 0)
+                        delay += ((con_id + attempt) % 4) * 0.1
+                        print(
+                            f"[IBKR]  ↳ empty/failed {request_duration} response "
+                            f"after {elapsed:.1f}s; retry {attempt + 1}/{len(attempts)} "
+                            f"in {delay:.1f}s",
+                            flush=True,
+                        )
+                        self._ib.sleep(delay)
+
+                head = self._historical_head_timestamp(
+                    contract,
+                    use_rth=use_rth,
+                    timeout_sec=timeout_sec,
+                )
+                end_utc = _as_utc_aware(end) if isinstance(end, datetime) else None
+                evidence = " | ".join(
+                    f"{code}:{message}" for code, message in errors[-6:]
+                )
+                if end_utc is not None and head is not None and end_utc < head:
+                    raise RuntimeError(
+                        "historical_unavailable_before_head: "
+                        f"requested_end={end_utc.isoformat()} earliest={head.isoformat()}"
+                    )
+                if any(
+                    code == 165 or "no data" in message.lower()
+                    for code, message in errors
+                ):
+                    raise RuntimeError(
+                        "historical_unavailable_reported_by_ibkr: "
+                        f"head={head.isoformat() if head else 'unknown'}"
+                        + (f" errors={evidence}" if evidence else "")
+                    )
+                raise RuntimeError(
+                    "historical_fetch_exhausted: "
+                    f"head={head.isoformat() if head else 'unknown'}"
+                    + (f" errors={evidence}" if evidence else " no broker error evidence")
+                )
+            finally:
+                if error_event is not None:
+                    error_event -= _capture_error
+
     def _fetch_bars(
         self,
         contract: object,
@@ -513,6 +685,19 @@ class IBKRHistoricalData:
         start_utc_aware = _as_utc_aware(start)
         end_utc_aware = _as_utc_aware(end)
         duration = _duration_for_bar_size(bar_size)
+        span_seconds = max(0.0, (end - start).total_seconds())
+        span_days_ceil = max(1, int((span_seconds + 86_399) // 86_400))
+        range_duration = (
+            "1 D"
+            if span_days_ceil <= 1
+            else "1 W"
+            if span_days_ceil <= 7
+            else "2 W"
+            if span_days_ceil <= 14
+            else "1 M"
+        )
+        if _duration_to_timedelta(range_duration) < _duration_to_timedelta(duration):
+            duration = range_duration
         span_days = max(int((end - start).total_seconds() // 86400), 0)
         wants_progress = span_days >= 14 or "min" in str(bar_size).lower()
         contract_sym = str(getattr(contract, "symbol", "") or getattr(contract, "localSymbol", "") or "").strip() or "?"
@@ -553,64 +738,40 @@ class IBKRHistoricalData:
                 duration = "1 Y"
             else:
                 duration = "2 Y"
-            chunk = self._ib.reqHistoricalData(
+            chunk, _ = self._request_historical_chunk(
                 contract,
-                endDateTime="",
-                durationStr=duration,
-                barSizeSetting=bar_size,
-                whatToShow="TRADES",
-                useRTH=1 if use_rth else 0,
-                formatDate=1,
-                keepUpToDate=False,
-                timeout=timeout_sec,
+                end="",
+                duration=duration,
+                bar_size=bar_size,
+                use_rth=use_rth,
+                timeout_sec=timeout_sec,
             )
-            if not chunk:
-                return []
             bars = [_convert_bar(bar) for bar in chunk]
-            return [bar for bar in bars if start <= bar.ts <= end]
+            return _filter_requested_session(
+                [bar for bar in bars if start <= bar.ts <= end],
+                contract=contract,
+                bar_size=bar_size,
+                use_rth=use_rth,
+            )
         cursor = end_utc_aware
         collected: list[Bar] = []
         req_idx = 0
-        empty_streak = 0
-        is_overnight_contract = str(getattr(contract, "exchange", "") or "").strip().upper() == "OVERNIGHT"
         while cursor >= start_utc_aware:
             req_idx += 1
+            request_end = cursor
             if wants_progress:
                 print(
                     f"[IBKR] reqHistoricalData #{req_idx} end={cursor.date().isoformat()} dur={duration} bar={bar_size}",
                     flush=True,
                 )
-            chunk = self._ib.reqHistoricalData(
+            chunk, duration = self._request_historical_chunk(
                 contract,
-                endDateTime=cursor,
-                durationStr=duration,
-                barSizeSetting=bar_size,
-                whatToShow="TRADES",
-                useRTH=1 if use_rth else 0,
-                formatDate=1,
-                keepUpToDate=False,
-                timeout=timeout_sec,
+                end=cursor,
+                duration=duration,
+                bar_size=bar_size,
+                use_rth=use_rth,
+                timeout_sec=timeout_sec,
             )
-            if not chunk:
-                empty_streak += 1
-                if is_overnight_contract and empty_streak >= 2:
-                    if wants_progress:
-                        print(
-                            "[IBKR]  ↳ overnight returned empty repeatedly; short-circuiting this leg",
-                            flush=True,
-                        )
-                    break
-                step = _duration_to_timedelta(duration)
-                if step <= timedelta(0):
-                    break
-                cursor = cursor - step
-                if wants_progress:
-                    print(
-                        f"[IBKR]  ↳ empty chunk; stepping cursor back by {step}",
-                        flush=True,
-                    )
-                continue
-            empty_streak = 0
             bars = [_convert_bar(bar) for bar in chunk]
             collected = bars + collected
             earliest = bars[0].ts
@@ -621,9 +782,17 @@ class IBKRHistoricalData:
                     f"[IBKR]  ↳ got {len(bars)} bars; earliest={earliest.date().isoformat()}",
                     flush=True,
                 )
-            if earliest_utc_aware <= start_utc_aware:
+            if (
+                earliest_utc_aware <= start_utc_aware
+                or request_end - _duration_to_timedelta(duration) <= start_utc_aware
+            ):
                 break
-        return [bar for bar in collected if start <= bar.ts <= end]
+        return _filter_requested_session(
+            [bar for bar in collected if start <= bar.ts <= end],
+            contract=contract,
+            bar_size=bar_size,
+            use_rth=use_rth,
+        )
 
 
 def _duration_for_bar_size(bar_size: str) -> str:
@@ -658,6 +827,31 @@ def _duration_to_timedelta(duration: str) -> timedelta:
     if unit == "Y":
         return timedelta(days=366 * qty)
     return timedelta(0)
+
+
+def _filter_requested_session(
+    bars: list[Bar],
+    *,
+    contract: object,
+    bar_size: str,
+    use_rth: bool,
+) -> list[Bar]:
+    """Normalize IBKR's extended index stream to the requested US RTH window."""
+    parsed = parse_bar_size(str(bar_size))
+    if (
+        not use_rth
+        or str(getattr(contract, "secType", "") or "").upper() != "IND"
+        or parsed is None
+        or parsed.duration >= timedelta(days=1)
+    ):
+        return bars
+    out: list[Bar] = []
+    for bar in bars:
+        stamp_et = _to_et_shared(bar.ts, naive_ts_mode=NaiveTsMode.UTC)
+        session_end = time(13, 0) if is_early_close_day(stamp_et.date()) else time(16, 0)
+        if time(9, 30) <= stamp_et.time() < session_end:
+            out.append(bar)
+    return out
 
 
 

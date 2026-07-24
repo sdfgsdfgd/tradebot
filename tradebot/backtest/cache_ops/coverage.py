@@ -186,12 +186,15 @@ def _supports_session_audit(bar_size: str) -> bool:
     return bar_def.duration < timedelta(days=1)
 
 
-def _is_one_minute_bar_size(bar_size: str) -> bool:
+def _auditable_intraday_step(bar_size: str) -> timedelta | None:
     bar_def = parse_bar_size(str(bar_size))
-    if bar_def is None:
-        token = str(bar_size or "").strip().lower().replace(" ", "")
-        return token in {"1m", "1min", "1mins", "1minute", "1minutes"}
-    return bar_def.duration == timedelta(minutes=1)
+    if (
+        bar_def is None
+        or bar_def.duration < timedelta(minutes=1)
+        or bar_def.duration > timedelta(minutes=30)
+    ):
+        return None
+    return bar_def.duration
 
 
 def _intra_session_gap_days(
@@ -202,7 +205,8 @@ def _intra_session_gap_days(
     session_mode: str,
     bar_size: str,
 ) -> dict[str, list[str]]:
-    if not _is_one_minute_bar_size(bar_size):
+    step = _auditable_intraday_step(bar_size)
+    if step is None:
         return {}
     start_utc = datetime.combine(start_utc_date, time(0, 0))
     end_utc = datetime.combine(end_utc_date, time(23, 59))
@@ -224,10 +228,15 @@ def _intra_session_gap_days(
     for (day, sess), values in by_day_session.items():
         seq = sorted(set(values))
         if session_mode == "rth" and sess == "RTH":
-            expected_end = time(12, 59) if _is_early_close_day(day) else time(15, 59)
+            session_end = datetime.combine(
+                day,
+                time(13, 0) if _is_early_close_day(day) else time(16, 0),
+            )
+            expected_end = (session_end - step).time()
             first_et = _to_et_shared(seq[0], naive_ts_mode=NaiveTsMode.UTC).time()
             last_et = _to_et_shared(seq[-1], naive_ts_mode=NaiveTsMode.UTC).time()
-            expected_rows = 210 if _is_early_close_day(day) else 390
+            session_minutes = 210 if _is_early_close_day(day) else 390
+            expected_rows = int(session_minutes * 60 // step.total_seconds())
             if (
                 len(seq) != expected_rows
                 or first_et != time(9, 30)
@@ -240,7 +249,7 @@ def _intra_session_gap_days(
         prev = seq[0]
         has_gap = False
         for cur in seq[1:]:
-            if (cur - prev).total_seconds() > 60.0:
+            if cur - prev > step:
                 has_gap = True
                 break
             prev = cur

@@ -320,7 +320,7 @@ def main_fetch(argv: list[str]) -> None:
             timeout_sec=timeout_sec,
             threads=pass_threads,
             client_id_base=int(args.client_id_base) + (pass_idx * 1000),
-            mend_threads=max(1, min(4, 8 // max(1, int(pass_threads)))),
+            mend_threads=1,
             mend_retries=max(1, int(mend_retries)),
             mend_adaptive_threads=not bool(args.no_adaptive_shards),
         )

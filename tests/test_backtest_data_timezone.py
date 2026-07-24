@@ -2,6 +2,7 @@ import unittest
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 
 from tradebot.chart_data.history import (
     cache_path,
@@ -28,6 +29,22 @@ class _RawBar:
         self.low = low
         self.close = close
         self.volume = volume
+
+
+class _HistoricalIB:
+    def __init__(self, *responses: list[_RawBar]) -> None:
+        self.responses = list(responses)
+        self.calls: list[dict[str, object]] = []
+
+    def isConnected(self) -> bool:
+        return True
+
+    def sleep(self, _seconds: float) -> None:
+        return
+
+    def reqHistoricalData(self, _contract, **kwargs):
+        self.calls.append(kwargs)
+        return self.responses.pop(0) if self.responses else []
 
 
 def _day_bars(start_day: date, end_day: date, *, hour: int = 14, minute: int = 30) -> list[Bar]:
@@ -85,6 +102,112 @@ class BacktestDataTimezoneTests(unittest.TestCase):
         self.assertEqual(contract.symbol, "XSP")
         self.assertEqual(contract.exchange, "CBOE")
         self.assertEqual(meta.exchange, "CBOE")
+
+    def test_vix_resolves_as_cboe_index(self) -> None:
+        data = IBKRHistoricalData()
+        data.connect = lambda: None
+        data._ib.qualifyContracts = lambda contract: [contract]
+
+        contract, meta = data.resolve_contract("vix", None)
+
+        self.assertEqual(contract.secType, "IND")
+        self.assertEqual(contract.exchange, "CBOE")
+        self.assertEqual(meta.exchange, "CBOE")
+
+    def test_one_day_fetch_uses_one_day_window_and_retries_empty_cursor(self) -> None:
+        data = IBKRHistoricalData()
+        data._ib = _HistoricalIB(
+            [],
+            [_RawBar(ts=datetime(2025, 1, 15, 14, 30, tzinfo=timezone.utc))],
+        )
+        bars = data._fetch_bars(
+            SimpleNamespace(symbol="VIX", exchange="CBOE", secType="IND"),
+            datetime(2025, 1, 15, 14, 30),
+            datetime(2025, 1, 15, 21, 0),
+            "5 mins",
+            use_rth=True,
+        )
+
+        self.assertEqual(len(bars), 1)
+        self.assertEqual(len(data._ib.calls), 2)
+        self.assertEqual(
+            [call["durationStr"] for call in data._ib.calls],
+            ["1 D", "1 D"],
+        )
+
+    def test_fetch_never_steps_past_unexplained_empty_history(self) -> None:
+        data = IBKRHistoricalData()
+        data._ib = _HistoricalIB([], [], [])
+
+        with self.assertRaisesRegex(RuntimeError, "historical_fetch_exhausted"):
+            data._fetch_bars(
+                SimpleNamespace(conId=13455763, symbol="VIX", exchange="CBOE", secType="IND"),
+                datetime(2025, 1, 15, 14, 30),
+                datetime(2025, 1, 15, 21, 0),
+                "5 mins",
+                use_rth=True,
+            )
+
+        self.assertEqual(len(data._ib.calls), 3)
+        self.assertEqual(
+            [call["durationStr"] for call in data._ib.calls],
+            ["1 D", "1 D", "1 D"],
+        )
+
+    def test_one_day_rth_fetch_does_not_request_the_prior_session(self) -> None:
+        data = IBKRHistoricalData()
+        data._ib = _HistoricalIB(
+            [_RawBar(ts=datetime(2025, 1, 15, 14, 30, tzinfo=timezone.utc))]
+        )
+        bars = data._fetch_bars(
+            SimpleNamespace(conId=756733, symbol="SPY", exchange="SMART", secType="STK"),
+            datetime(2025, 1, 15, 4, 0),
+            datetime(2025, 1, 16, 3, 59),
+            "5 mins",
+            use_rth=True,
+        )
+
+        self.assertEqual(len(bars), 1)
+        self.assertEqual(len(data._ib.calls), 1)
+
+    def test_month_timeout_shrinks_later_chunks(self) -> None:
+        data = IBKRHistoricalData()
+        data._ib = _HistoricalIB(
+            [],
+            [_RawBar(ts=datetime(2025, 1, 1, 14, 30, tzinfo=timezone.utc))],
+        )
+        bars = data._fetch_bars(
+            SimpleNamespace(conId=756733, symbol="SPY", exchange="SMART", secType="STK"),
+            datetime(2025, 1, 1, 14, 30),
+            datetime(2025, 3, 1, 21, 0),
+            "5 mins",
+            use_rth=True,
+        )
+
+        self.assertEqual(len(bars), 1)
+        self.assertEqual(
+            [call["durationStr"] for call in data._ib.calls],
+            ["1 M", "2 W"],
+        )
+
+    def test_index_rth_fetch_discards_ibkr_extended_index_bars(self) -> None:
+        data = IBKRHistoricalData()
+        data._ib = _HistoricalIB(
+            [
+                _RawBar(ts=datetime(2025, 7, 24, 8, 0, tzinfo=timezone.utc)),
+                _RawBar(ts=datetime(2025, 7, 24, 13, 30, tzinfo=timezone.utc)),
+                _RawBar(ts=datetime(2025, 7, 24, 20, 55, tzinfo=timezone.utc)),
+            ]
+        )
+        bars = data._fetch_bars(
+            SimpleNamespace(conId=13455763, symbol="VIX", exchange="CBOE", secType="IND"),
+            datetime(2025, 7, 24, 4, 0),
+            datetime(2025, 7, 25, 3, 59),
+            "5 mins",
+            use_rth=True,
+        )
+
+        self.assertEqual([bar.ts for bar in bars], [datetime(2025, 7, 24, 13, 30)])
 
     def test_as_utc_aware_marks_naive_as_utc(self) -> None:
         ts = _as_utc_aware(datetime(2025, 1, 15, 9, 30))

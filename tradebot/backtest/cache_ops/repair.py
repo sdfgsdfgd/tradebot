@@ -63,16 +63,26 @@ def _fetch_day_from_ibkr(
             attempts += 1
             provider = IBKRHistoricalData(client_id_offset=client_id_offset)
             try:
-                contract_smart, _ = provider.resolve_contract(symbol, exchange="SMART")
+                contract_primary, _ = provider.resolve_contract(symbol, exchange=None)
                 if bool(use_rth):
-                    smart = provider._fetch_bars(contract_smart, start_utc, end_utc, bar_size, use_rth=True)
+                    smart = provider._fetch_bars(contract_primary, start_utc, end_utc, bar_size, use_rth=True)
                     overnight = []
                     merged = list(smart)
                 else:
-                    contract_overnight, _ = provider.resolve_contract(symbol, exchange="OVERNIGHT")
-                    smart = provider._fetch_bars(contract_smart, start_utc, end_utc, bar_size, use_rth=False)
-                    overnight = provider._fetch_bars(contract_overnight, start_utc, end_utc, bar_size, use_rth=False)
-                    merged = _merge_smart_overnight(smart, overnight)
+                    smart = provider._fetch_bars(contract_primary, start_utc, end_utc, bar_size, use_rth=False)
+                    if str(getattr(contract_primary, "secType", "") or "") == "STK":
+                        contract_overnight, _ = provider.resolve_contract(symbol, exchange="OVERNIGHT")
+                        overnight = provider._fetch_bars(
+                            contract_overnight,
+                            start_utc,
+                            end_utc,
+                            bar_size,
+                            use_rth=False,
+                        )
+                        merged = _merge_smart_overnight(smart, overnight)
+                    else:
+                        overnight = []
+                        merged = list(smart)
                 smart_rows = len(smart)
                 overnight_rows = len(overnight)
                 merged_rows = len(merged)

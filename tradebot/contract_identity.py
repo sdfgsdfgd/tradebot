@@ -24,6 +24,7 @@ FUTURE_EXCHANGES: dict[str, str] = {
 INDEX_EXCHANGES: dict[str, str] = {
     "XSP": "CBOE",
     "SPX": "CBOE",
+    "VIX": "CBOE",
     "TICK-NYSE": "NYSE",
     "TICK-AMEX": "AMEX",
 }
