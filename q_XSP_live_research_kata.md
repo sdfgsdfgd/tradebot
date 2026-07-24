@@ -271,6 +271,26 @@ Reuse the existing capability spine instead of creating a parallel framework:
 - `backtest-simulation-accounting` owns fill/P&L consequences;
 - `live-execution-orders` owns the admitted package and chase lifecycle.
 
+**Frozen opening-state discovery contract**
+
+- source: canonical XSP 5-minute RTH bar-close tape;
+- research cutoff: `2026-01-22`; the family-specific
+  `2026-01-23..2026-07-23` holdout remains unread;
+- observation boundaries: 30, 60, 90, and 120 minutes after 9:30 a.m. ET;
+- state: boundary close return is compared only with the prior 60 complete
+  sessions for that same boundary; lower/upper empirical 10%, 15%, 20%, and
+  25% tails define downside liquidation/upside extension, otherwise abstain;
+- branches: upside fade, upside continuation, downside rebound, and downside
+  continuation remain separately attributed;
+- outcomes: 15-, 30-, and 60-minute forward return plus session close;
+- temporal stability: report `2024-10-24..2025-07-23` and
+  `2025-07-24..2026-01-22` separately;
+- discovery gate: at least 30 total observations, at least 12 per temporal
+  block, positive means in both blocks, positive ordinary 95% lower bound,
+  positive family-wise Bonferroni lower bound, and support from neighboring
+  tail thresholds. No option or live promotion follows directly from this
+  underlying event study.
+
 ### 3.3 Horizon families
 
 Maintain distinct evidence and crowns:
@@ -1014,6 +1034,7 @@ Add rows; never rewrite an unfavorable receipt.
 | E-009 | 2026-07-24 | 0.4 | Canonical hypothetical iron-condor economics | 733P/734P/746C/747C, expiry `20260727`, no submit | shared package kernel | USD 0.40 credit gives +40/-60 before costs; conservative USD 8 round-trip fees gives +32/-68; arithmetic only |
 | E-010 | 2026-07-24 | 0.4 | Causal opening-reclaim discovery | `/tmp/xsp-opening-reclaim-discovery-baseline-v3.json` | `dab6f0b9…` | 1,728 cells; 0 positive LCB; 109 sample-qualified rows all negative; validation/holdout sealed |
 | E-011 | 2026-07-24 | 0.4 | Causal research and parity implementation | Git `743ef06` | full suite `662 passed`; `engine_options.py` 992 lines | Exact intraday OPT expiry clock, causal reclaim mode, frozen research groups, ledger ownership, and architecture ratchet pass; threshold-only rerank reused all 4,608 receipts in 0.66 s with no workers |
+| E-012 | 2026-07-24 | 1 | Two-year XSP underlying hydration | `/tmp/xsp-cache-sync-2y.json`; six stitched cache shards | canonical rows `a1154bba…` | 38,898 bars; 501 complete sessions; 496×78 bars plus five half-days×42; zero missing ranges; volume absent throughout |
 
 ---
 
@@ -1048,6 +1069,7 @@ Add rows; never rewrite an unfavorable receipt.
 | D-025 | Opening context is an observable classifier, not strategy authority | Explicit extension/liquidation/neutral facts can be shared and falsified without reviving opaque regime routing | Shadow evidence proves a more compact fact vocabulary |
 | D-026 | Discovery failure keeps validation and holdout sealed | Repeatedly inspecting future windows converts research into selection leakage | A predeclared discovery family passes its frozen gates |
 | D-027 | OPT replay uses exact intraday time to expiration close | A constant full-session 0DTE clock suppresses theta and can manufacture option P&L | Authentic option replay replaces synthetic valuation |
+| D-028 | Pre-register the opening-state matrix before reading outcomes | Opening folklore is easy to hindsight-label; rolling prior-session thresholds and a sealed family-specific holdout preserve causality | Only through a new versioned research contract before viewing new outcomes |
 
 ---
 
