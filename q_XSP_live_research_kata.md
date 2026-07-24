@@ -972,7 +972,12 @@ Receipt fingerprints:
       XSP volume or historical option evidence.
 - [~] Capture forward XSP chains/NBBO/Greeks with provenance and restart safety.
       Two-process append, repair, and manifest reuse are proven premarket;
-      fresh RTH evidence remains pending.
+      fresh RTH evidence remains pending. Native caffeinated jobs are armed for
+      ten opening snapshots from `09:31` ET and one exact snapshot at each
+      registered `10:00/10:30/11:00/11:30` boundary. They write separately to
+      `/tmp/xsp-rth-forward-20260724` and
+      `/tmp/xsp-rth-boundaries-20260724`; all requests are sequential and no
+      order is submitted.
 - [x] Bind synthetic calibration to explicit source/effective intervals. New
       records retain broker observation time, actual underlying-tape bounds,
       source kind, and a next-date effective boundary; source-less RV
