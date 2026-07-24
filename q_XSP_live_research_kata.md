@@ -34,7 +34,11 @@ This kata gives equal weight to three truths:
    justified iron-condor extension, and a separate alpha-hunting sleeve using
    bounded directional/debit structures. Execution must use the right
    patient-to-relentless chase policy for the order's intent, not one ladder
-   blindly applied everywhere.
+   blindly applied everywhere. The live system is session-aware across XSP
+   Global Trading Hours (`20:15..09:25` ET), RTH (`09:30..16:15` ET), and Curb
+   (`16:15..17:00` ET), subject to holidays, broker permissions, current market
+   state, and evidence-based liquidity admission. Opening-hour research is one
+   specialist alpha hypothesis; it never narrows the product mandate to RTH.
 3. **Evaluation:** continuously compare expected behavior with broker-qualified
    quotes, previews, fills, commissions, slippage, Greeks, buying-power effects,
    position state, and realized outcomes. Every divergence must improve either
@@ -86,6 +90,13 @@ Candidate ideas include:
 The desired blend is not one universal strategy. It is a small set of real
 champions, separated by horizon and risk sleeve, that share one canonical data,
 economics, execution, and evaluation spine.
+
+The target operating envelope is XSP's nearly continuous `24x5` exchange
+surface, not forced continuous exposure. Every quote, forecast, preview, chase,
+fill, and outcome is labeled `GTH`, `RTH`, or `CURB`; each session earns its own
+liquidity, spread, fill, and drift calibration. A champion may abstain or be
+session-specific. Evidence from RTH cannot silently authorize GTH/Curb capital,
+and thinner overnight markets require tighter—not looser—execution admission.
 
 ---
 
@@ -452,6 +463,12 @@ Use IB Gateway now to determine and record what can be captured legitimately:
 - underlying/index reference;
 - trading-class, multiplier, exchange, session, and settlement metadata;
 - broker preview commission and buying-power effect.
+
+Capture forward evidence across GTH, RTH, and Curb whenever the exchange and
+Gateway are available. Requested market-data type is not provenance: preserve
+the actual type returned per contract, and separate contract/chain continuity
+from executable live-NBBO eligibility. A mixed or delayed snapshot remains
+useful research evidence but cannot pass a streaming-live capital gate.
 
 Do not assume IBKR provides a complete multi-year historical option-chain tape.
 IBKR explicitly excludes expired options and option EOD data from historical
@@ -1172,6 +1189,12 @@ Preregister before the `2026-07-24` RTH capture begins:
 - If no package clears, retain the complete tape and rejection reasons; do not
   relax the historical hurdle or quote requirements post hoc.
 
+This preregistration is intentionally RTH-only because it tests the U.S.-open
+behavioral hypothesis. In parallel, accumulate separately labeled GTH and Curb
+forward tapes and build session-conditioned baselines from them. Do not reuse
+RTH thresholds, fill assumptions, or quote-quality distributions outside RTH
+until same-session evidence supports them.
+
 - [ ] Encode `NO_TRADE` and event/liquidity vetoes.
 - [ ] Remove dominated or redundant candidates; keep the frontier compact.
 
@@ -1208,7 +1231,8 @@ receipts agree with canonical expectations.
 ### Phase 5 — Tightly bounded live canary `[BLOCKED: Phases 0–4]`
 
 - [ ] Freeze package, maximum loss, maximum debit/minimum credit, daily/weekly
-      shutdowns, allowed session, chase ceiling, and rollback triggers.
+      shutdowns, allowed session(s), session-specific liquidity/chase ceilings,
+      and rollback triggers.
 - [ ] Re-read account/permissions/capacity and obtain a fresh broker preview.
 - [ ] Submit at most one smallest eligible XSP package.
 - [ ] Observe and reconcile without strategy mutation.
@@ -1254,7 +1278,8 @@ and advance only the lanes that remain valid.
 - current gaps, blockers, and next 24-hour sequence written here.
 
 **Economic target:** one complete 24-hour selected-strategy shadow or paper
-evaluation closes net positive after modeled/observed fees and execution costs,
+evaluation spans every available GTH, RTH, and Curb interval in that wall-clock
+window and closes net positive after modeled/observed fees and execution costs,
 with bounded drawdown and reconciled package/leg/account economics. A safe
 `NO_TRADE` preserves capital but does not satisfy this profitable-run target.
 
@@ -1322,7 +1347,9 @@ extreme reliability. Continue for four or more weeks before materially scaling:
    - repository, Gateway, contract, data, and runner receipts recorded.
 2. **Phase 0.2 — XSP broker and account census `[WIP]`**
    - contract, account currency, delayed data, chain, and sparse preview proven;
-   - next: fresh RTH option quotes/Greeks and complete preview economics.
+   - next: session-conditioned GTH/RTH/Curb option quotes/Greeks and complete
+     preview economics; requested-live but actually delayed/mixed data remains
+     non-executable evidence.
 3. **Phase 0.3 — Backtest authenticity census `[DONE]`**
    - cache inventory and sparse hydration verified;
    - current runner cold/warm smoke measured;
@@ -1385,6 +1412,8 @@ Add rows; never rewrite an unfavorable receipt.
 | E-032 | 2026-07-24 12:16 UTC | 2 | Preregistered causal XSP credit-eligibility screen | This document at pushed preregistration anchor | `xsp.credit-eligibility-screen.v1` | Frozen 128-cell discovery family over two times, two offsets, two horizons, two sides, and eight nested side-aware direction/gap/rolling-quiet contexts. Discovery must materially beat its matched unconditional barrier with block stability and neighbor support before validation or locked holdout can be read |
 | E-033 | 2026-07-24 12:20 UTC | 2 | Causal XSP credit-eligibility rejection | `/tmp/xsp-credit-eligibility-screen-v1.json`; preregistration `40f2541` | artifact `e8e2e657…`; source `591e581f…` | Discovery-only run completed 128 cells over 58,554 bars/753 sessions in 1.49 seconds. Zero cells reached the frozen `0.05` required-credit improvement, so zero passed before or after neighbor support. The nearest row improved `0.0493` with only 113 observations and remains rejected; validation/holdout stay sealed |
 | E-034 | 2026-07-24 12:29 UTC | 1/2 | Preregistered fresh-RTH XSP package screen | This document at pushed preregistration anchor | `xsp.forward-package-screen.v1` | Frozen interpretation of the already-scheduled opening, exact-boundary, and five-minute tapes: fixed one-point legs, live/provenance/NBBO/age/Greek gates, executable natural credit versus registered barrier, 0.10 natural-to-mid ceiling, adjacent-snapshot persistence, USD 100 risk ceiling, and fixed-leg forward replay. One session can birth only a shadow candidate |
+| E-035 | 2026-07-24 12:35 UTC | 1 | XSP GTH availability and provenance probe | `/tmp/xsp-gth-{forward,delayed}-20260724/XSP/2026-07-24.jsonl` | chain `ae4679a1…` | At `08:34..08:35` ET, inside XSP GTH, requested-live underlier data returned IBKR `354` and no strike-selection price. An explicit delayed request qualified and timestamped 44 Monday-expiry options with 44 NBBO rows and 36 full-Greek rows; actual per-option provenance was mixed (`36` delayed, `8` live), with `10090` subscription warnings retained. This proves GTH chain/quote availability but fails the strict all-contract live/Greek capital gate |
+| E-036 | 2026-07-24 12:38 UTC | 1 | Canonical XSP session provenance | Git this commit | focused `15 passed`; full `696 passed, 4 deselected` | Quote schema v4 records the centralized weekly Cboe session label (`GTH`, `RTH`, `CURB`, or closed) while reading schema-v3 tapes unchanged. The label explicitly does not override holiday, halt, permission, expiry-specific close, or actual quote provenance evidence |
 
 ---
 
@@ -1432,6 +1461,7 @@ Add rows; never rewrite an unfavorable receipt.
 | D-038 | Barrier evidence screens credit geometry but cannot prove option expectancy | Historical XSP spot can authenticate touches and settlement breaches, but not old NBBO, IV, fill probability, commissions, or executable package credit | Fresh strict-admission package quotes and forward replay clear the empirical required-credit hurdle |
 | D-039 | Reject unconditional multi-session XSP credit carry at current evidence | Even the best one-percent next-session cells require `0.3026..0.3267` executable credit after a deliberately conservative full-loss model, with substantial annual breach dispersion; longer holds require more | A fresh strict-admission package quote clears the registered hurdle and forward replay then passes calibration, execution, safety, and economic gates |
 | D-040 | Do not turn simple direction/gap/quiet facts into a premium-selling selector | No preregistered discovery cell materially lowered matched required credit; moving the `0.05` or sample gates for a near miss would be post-result tuning | A new causal feature family is preregistered from independent rationale or authentic forward option evidence reveals a specific execution-compensation mechanism |
+| D-041 | XSP mastery is 24x5 and session-conditioned, not RTH-only | Cboe supports XSP in GTH, RTH, and Curb; the opening-volatility study is only one edge hypothesis, while liquidity, spread, fill, and data provenance differ materially by session | Never collapse sessions; widen a strategy only after same-session replay, preview, and drift evidence passes |
 
 ---
 
@@ -1490,6 +1520,8 @@ promote/hold/revise/stop verdict with its remaining-risk register.
 - IBKR TWS API and Gateway documentation, including historical-data
   limitations:
   <https://ibkrcampus.com/campus/ibkr-api-page/twsapi-doc/>
+- Cboe current U.S. options hours, including XSP GTH/RTH/Curb:
+  <https://www.cboe.com/about/hours/us-options>
 
 ---
 
@@ -1509,13 +1541,17 @@ promote/hold/revise/stop verdict with its remaining-risk register.
   128-cell credit-barrier census. The census rejects unconditional
   multi-session carry at current evidence; the subsequent preregistered
   direction/gap/rolling-quiet eligibility family also produced zero discovery
-  passes without opening validation or holdout. Fresh RTH package quotes retain
-  explicit minimum-credit hurdles; neither study claims historical option P&L.
-  Fresh RTH forward option evidence remains the active time-gated seam.
-- **Next action:** capture fresh RTH XSP chain/NBBO/Greeks evidence and bind its
-  completeness verdict to same-tape replay. Continue bounded preregistered
-  safe-income and alpha discovery without tuning rejected families against
-  sealed holdouts or promoting synthetic option evidence.
+  passes without opening validation or holdout. The first GTH probe confirmed
+  qualified chain/quote availability but returned mixed live/delayed provenance,
+  so it remains non-executable evidence. Fresh session-conditioned forward
+  option evidence is the active seam; the RTH boundary study remains only the
+  preregistered U.S.-open hypothesis.
+- **Next action:** accumulate GTH, RTH, and Curb XSP chain/NBBO/Greeks evidence,
+  bind each snapshot's actual session/provenance verdict to same-tape replay,
+  and execute the frozen RTH boundary screen without broadening its authority.
+  Continue bounded preregistered safe-income and alpha discovery without tuning
+  rejected families against sealed holdouts or promoting synthetic option
+  evidence.
 
 **Predictive observation:** authentic option quotes may show that execution
 friction dominates the small underlying effects seen so far. If so, the best

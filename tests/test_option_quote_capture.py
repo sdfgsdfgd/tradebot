@@ -11,6 +11,7 @@ from tradebot.backtest.quotes import (
     iter_snapshot_payloads,
     iter_snapshots,
     make_chain_manifest,
+    make_snapshot,
     persist_chain_manifest,
     snapshot_quality,
 )
@@ -84,6 +85,49 @@ def test_chain_manifest_is_canonical_and_content_addressed(tmp_path) -> None:
     assert payload["symbol"] == "XSP"
     assert payload["expirations"] == ["20260724", "20260727"]
     assert payload["strikes"] == [624.0, 625.0, 626.0]
+
+
+def test_xsp_snapshot_records_exchange_session() -> None:
+    contract = SimpleNamespace(
+        conId=137851301,
+        secType="IND",
+        symbol="XSP",
+        localSymbol="XSP",
+        exchange="CBOE",
+        currency="USD",
+        lastTradeDateOrContractMonth="",
+        strike=0.0,
+        right="",
+        tradingClass="",
+        multiplier="",
+        minTick=0.01,
+    )
+    ticker = SimpleNamespace(
+        bid=740.0,
+        ask=740.1,
+        last=740.05,
+        close=739.0,
+        bidSize=1,
+        askSize=1,
+        lastSize=1,
+        volume=None,
+        modelGreeks=None,
+        marketDataType=1,
+        time=datetime(2026, 7, 24, 12, 34, tzinfo=timezone.utc),
+    )
+
+    snapshot = make_snapshot(
+        symbol="XSP",
+        md_type=1,
+        underlying_contract=contract,
+        underlying_ticker=ticker,
+        option_contracts=[],
+        option_tickers=[],
+        ts=datetime(2026, 7, 24, 12, 34, tzinfo=timezone.utc),
+    )
+
+    assert snapshot.session == "GTH"
+    assert snapshot.schema_version == 4
 
 
 def test_snapshot_append_repairs_valid_and_partial_jsonl_tails(tmp_path) -> None:

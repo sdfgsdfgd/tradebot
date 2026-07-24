@@ -32,6 +32,7 @@ from ..engines.execution import (
     quote_health,
     quote_option_package,
 )
+from ..engines.market import xsp_session_label_et
 from ..option_package import (
     OptionPackage,
     OptionPackageRisk,
@@ -178,7 +179,8 @@ class QuoteSnapshot:
     errors: list[QuoteError]
     chain_fingerprint: str | None = None
     target_expiry: str | None = None
-    schema_version: int = 3
+    session: str | None = None
+    schema_version: int = 4
 
 
 @dataclass(frozen=True)
@@ -253,6 +255,11 @@ def make_snapshot(
         errors=snap_errors,
         chain_fingerprint=chain_fingerprint,
         target_expiry=target_expiry,
+        session=(
+            xsp_session_label_et(now)
+            if str(symbol).strip().upper() == "XSP"
+            else None
+        ),
     )
 
 

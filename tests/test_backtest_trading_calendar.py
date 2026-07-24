@@ -10,6 +10,7 @@ from tradebot.engines.market import (
     is_trading_day,
     session_label_et,
     utc_bounds_for_et_day,
+    xsp_session_label_et,
 )
 
 
@@ -21,6 +22,15 @@ class BacktestTradingCalendarTests(unittest.TestCase):
         self.assertEqual(session_label_et(time(9, 30)), "RTH")
         self.assertEqual(session_label_et(time(16, 0)), "POST")
         self.assertEqual(session_label_et(time(20, 0)), "OVERNIGHT_LATE")
+
+    def test_xsp_weekly_sessions_are_gth_rth_and_curb(self) -> None:
+        self.assertEqual(xsp_session_label_et(datetime(2026, 7, 24, 8, 34)), "GTH")
+        self.assertIsNone(xsp_session_label_et(datetime(2026, 7, 24, 9, 25)))
+        self.assertEqual(xsp_session_label_et(datetime(2026, 7, 24, 9, 30)), "RTH")
+        self.assertEqual(xsp_session_label_et(datetime(2026, 7, 24, 16, 15)), "CURB")
+        self.assertIsNone(xsp_session_label_et(datetime(2026, 7, 24, 17, 0)))
+        self.assertIsNone(xsp_session_label_et(datetime(2026, 7, 24, 20, 15)))
+        self.assertEqual(xsp_session_label_et(datetime(2026, 7, 26, 20, 15)), "GTH")
 
     def test_special_closed_day_not_trading(self) -> None:
         self.assertFalse(is_trading_day(date(2025, 1, 9)))

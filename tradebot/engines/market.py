@@ -48,6 +48,27 @@ def session_label_et(t: time) -> str | None:
     return "OVERNIGHT_LATE"
 
 
+def xsp_session_label_et(now: datetime) -> str | None:
+    """Return XSP's normal weekly Cboe session; holidays/halts need live proof."""
+    if now.tzinfo is not None:
+        now = now.astimezone(ET_ZONE)
+    weekday = now.weekday()
+    current = now.time().replace(tzinfo=None)
+    if weekday == 6:
+        return "GTH" if current >= time(20, 15) else None
+    if weekday == 5:
+        return None
+    if current < time(9, 25):
+        return "GTH"
+    if time(9, 30) <= current < time(16, 15):
+        return "RTH"
+    if time(16, 15) <= current < time(17, 0):
+        return "CURB"
+    if weekday < 4 and current >= time(20, 15):
+        return "GTH"
+    return None
+
+
 def _nth_weekday(year: int, month: int, weekday: int, n: int) -> date:
     first = date(year, month, 1)
     offset = (weekday - first.weekday()) % 7
