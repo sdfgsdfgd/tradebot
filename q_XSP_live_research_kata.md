@@ -1107,6 +1107,23 @@ underlying-risk screen and cannot establish historical option expectancy.
   strict-admission RTH package quote must clear its registered credit hurdle,
   followed by authentic replay and execution/economic gates.
 
+Observed v1 verdict:
+
+- Discovery evaluated all `128` cells over `58,554` bars and `753` sessions in
+  `1.49` seconds. All structural, nested-context, parent, block, and gate
+  invariants passed independently.
+- Zero conditional cells achieved the preregistered `0.05` required-credit
+  improvement, so zero reached the neighbor gate. Validation and the locked
+  holdout remain unread.
+- The nearest apparent improvement was the `11:30` ET, `0.75%`, same-session
+  put-credit cell under `quiet+direction+gap`: `0.0493` lower required credit,
+  but only `113` observations. It fails both the `0.05` and `120` gates; neither
+  threshold is moved after seeing the result.
+- Simple side-aware direction, gap, and rolling-quiet facts therefore do not
+  justify an XSP premium-selling selector. They remain diagnostics, not live
+  policy. The rejected one-off driver was removed rather than adding another
+  permanent research surface.
+
 - [ ] Encode `NO_TRADE` and event/liquidity vetoes.
 - [ ] Remove dominated or redundant candidates; keep the frontier compact.
 
@@ -1318,6 +1335,7 @@ Add rows; never rewrite an unfavorable receipt.
 | E-030 | 2026-07-24 12:01 UTC | 2 | Preregistered five-year XSP credit-barrier census | This document at pushed preregistration anchor | `xsp.credit-barrier-census.v1` | Frozen 128-cell descriptive matrix: four decision times × four OTM distances × four expiration horizons × two sides; conservative whole-point geometry, touch/expiration/adverse-excursion evidence, Wilson upper bounds, annual stability, and adverse USD 10 round-trip friction. No filtering, tuning, option-PnL claim, or promotion authority |
 | E-031 | 2026-07-24 12:10 UTC | 2 | Reproducible five-year XSP credit-barrier verdict | `/tmp/xsp-credit-barrier-census-v1.json`; Git this commit | artifact `29c4d73b…`; source `591e581f…`; full suite `694 passed, 4 deselected` | Shared research evidence regenerated the prior 128-cell artifact byte-identically from 97,452 bars in 1.80 seconds. Best one-percent Wilson-plus-friction hurdles were `0.1620..0.1831` same-session, `0.3026..0.3267` next-session, `0.3659..0.4461` three-session, and `0.3935..0.5059` five-session. Annual breach dispersion remains material; this screens strict-admission quotes but proves no historical option expectancy |
 | E-032 | 2026-07-24 12:16 UTC | 2 | Preregistered causal XSP credit-eligibility screen | This document at pushed preregistration anchor | `xsp.credit-eligibility-screen.v1` | Frozen 128-cell discovery family over two times, two offsets, two horizons, two sides, and eight nested side-aware direction/gap/rolling-quiet contexts. Discovery must materially beat its matched unconditional barrier with block stability and neighbor support before validation or locked holdout can be read |
+| E-033 | 2026-07-24 12:20 UTC | 2 | Causal XSP credit-eligibility rejection | `/tmp/xsp-credit-eligibility-screen-v1.json`; preregistration `40f2541` | artifact `e8e2e657…`; source `591e581f…` | Discovery-only run completed 128 cells over 58,554 bars/753 sessions in 1.49 seconds. Zero cells reached the frozen `0.05` required-credit improvement, so zero passed before or after neighbor support. The nearest row improved `0.0493` with only 113 observations and remains rejected; validation/holdout stay sealed |
 
 ---
 
@@ -1364,6 +1382,7 @@ Add rows; never rewrite an unfavorable receipt.
 | D-037 | Admit five-year XSP only as underlying RTH evidence | The hydrated tape is complete and comparable, but IBKR still supplies no historical expired-option chain/NBBO/Greek tape and XSP index volume remains absent | A provenance-complete option provider or accumulated forward tape supplies the missing evidence |
 | D-038 | Barrier evidence screens credit geometry but cannot prove option expectancy | Historical XSP spot can authenticate touches and settlement breaches, but not old NBBO, IV, fill probability, commissions, or executable package credit | Fresh strict-admission package quotes and forward replay clear the empirical required-credit hurdle |
 | D-039 | Reject unconditional multi-session XSP credit carry at current evidence | Even the best one-percent next-session cells require `0.3026..0.3267` executable credit after a deliberately conservative full-loss model, with substantial annual breach dispersion; longer holds require more | A fresh strict-admission package quote clears the registered hurdle and forward replay then passes calibration, execution, safety, and economic gates |
+| D-040 | Do not turn simple direction/gap/quiet facts into a premium-selling selector | No preregistered discovery cell materially lowered matched required credit; moving the `0.05` or sample gates for a near miss would be post-result tuning | A new causal feature family is preregistered from independent rationale or authentic forward option evidence reveals a specific execution-compensation mechanism |
 
 ---
 
@@ -1439,8 +1458,10 @@ promote/hold/revise/stop verdict with its remaining-risk register.
   All family-specific holdouts remain unobserved. Phase 1 now has a complete
   five-year XSP underlying tape, causal calibration records, and a reproducible
   128-cell credit-barrier census. The census rejects unconditional
-  multi-session carry at current evidence and gives fresh RTH package quotes
-  explicit minimum-credit hurdles; it does not claim historical option P&L.
+  multi-session carry at current evidence; the subsequent preregistered
+  direction/gap/rolling-quiet eligibility family also produced zero discovery
+  passes without opening validation or holdout. Fresh RTH package quotes retain
+  explicit minimum-credit hurdles; neither study claims historical option P&L.
   Fresh RTH forward option evidence remains the active time-gated seam.
 - **Next action:** capture fresh RTH XSP chain/NBBO/Greeks evidence and bind its
   completeness verdict to same-tape replay. Continue bounded preregistered
