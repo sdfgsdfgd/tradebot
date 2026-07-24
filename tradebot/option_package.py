@@ -20,6 +20,7 @@ class LegConfig:
     moneyness_pct: float
     qty: int
     delta: float | None = None
+    otm_offset_points: float = 0.0
 
 
 OptionLegSpec = LegConfig
@@ -85,12 +86,18 @@ def normalize_option_leg(raw: object, *, path: str = "leg") -> LegConfig:
         if not 0 < abs(delta) <= 1:
             raise ValueError(f"{path}.delta must satisfy 0 < abs(delta) <= 1")
 
+    otm_offset_points = _option_leg_finite_float(
+        raw.get("otm_offset_points", 0.0),
+        path=f"{path}.otm_offset_points",
+    )
+
     return LegConfig(
         action=action,
         right=right,
         moneyness_pct=moneyness_pct,
         qty=qty,
         delta=delta,
+        otm_offset_points=otm_offset_points,
     )
 
 
@@ -202,10 +209,15 @@ class OptionPackageEntryIntent:
         price = _option_leg_finite_float(spot, path="spot")
         if price <= 0:
             raise ValueError("spot must be positive")
-        return price * (
+        percent_target = price * (
             1 - leg.moneyness_pct / 100.0
             if leg.right == "PUT"
             else 1 + leg.moneyness_pct / 100.0
+        )
+        return percent_target + (
+            -leg.otm_offset_points
+            if leg.right == "PUT"
+            else leg.otm_offset_points
         )
 
     def resolved_legs(

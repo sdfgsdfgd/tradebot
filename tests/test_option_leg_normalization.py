@@ -38,6 +38,7 @@ def test_option_package_owns_the_legacy_named_canonical_leg_model():
         qty=1,
     )
     assert legacy.delta is None
+    assert legacy.otm_offset_points == 0.0
 
 
 def test_valid_leg_is_normalized_once_and_delta_survives_hydration():
@@ -47,6 +48,7 @@ def test_valid_leg_is_normalized_once_and_delta_survives_hydration():
         moneyness_pct="1.25",
         qty="2",
         delta="-0.30",
+        otm_offset_points="1.0",
     )
     expected = option_package.normalize_option_leg(raw, path="leg")
 
@@ -55,6 +57,7 @@ def test_valid_leg_is_normalized_once_and_delta_survives_hydration():
     assert expected.moneyness_pct == pytest.approx(1.25)
     assert expected.qty == 2
     assert expected.delta == pytest.approx(-0.30)
+    assert expected.otm_offset_points == pytest.approx(1.0)
     assert config_values._parse_legs([raw]) == (expected,)
     assert spot_codec.leg_from_payload(raw) == expected
 
@@ -98,6 +101,61 @@ def test_invalid_or_nonfinite_moneyness_is_rejected_everywhere(value):
         config_values._parse_legs([raw])
     with pytest.raises(ValueError, match="moneyness_pct"):
         spot_codec.leg_from_payload(raw)
+
+
+@pytest.mark.parametrize(
+    "value",
+    [None, "bad", float("nan"), float("inf"), float("-inf")],
+)
+def test_invalid_or_nonfinite_otm_point_offset_is_rejected_everywhere(value):
+    raw = _valid_leg(otm_offset_points=value)
+
+    with pytest.raises(ValueError, match="otm_offset_points"):
+        option_package.normalize_option_leg(raw, path="leg")
+    with pytest.raises(ValueError, match="otm_offset_points"):
+        config_values._parse_legs([raw])
+    with pytest.raises(ValueError, match="otm_offset_points"):
+        spot_codec.leg_from_payload(raw)
+
+
+def test_point_offset_preserves_percentage_anchor_and_exact_wing_width():
+    intent = option_package.option_package_entry_intent(
+        {
+            "legs": [
+                _valid_leg(moneyness_pct=1.0, otm_offset_points=0.0),
+                _valid_leg(
+                    action="BUY",
+                    moneyness_pct=1.0,
+                    otm_offset_points=1.0,
+                ),
+            ]
+        }
+    )
+
+    put_strikes = [
+        leg.strike
+        for leg in intent.resolved_legs(spot=740.0, expiry="20260727")
+    ]
+    assert put_strikes == pytest.approx([732.6, 731.6])
+
+    call_intent = option_package.option_package_entry_intent(
+        {
+            "legs": [
+                _valid_leg(right="CALL", moneyness_pct=1.0),
+                _valid_leg(
+                    action="BUY",
+                    right="CALL",
+                    moneyness_pct=1.0,
+                    otm_offset_points=1.0,
+                ),
+            ]
+        }
+    )
+    call_strikes = [
+        leg.strike
+        for leg in call_intent.resolved_legs(spot=740.0, expiry="20260727")
+    ]
+    assert call_strikes == pytest.approx([747.4, 748.4])
 
 
 @pytest.mark.parametrize(

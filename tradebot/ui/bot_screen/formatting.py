@@ -74,7 +74,12 @@ def _legs_label(legs: list[dict]) -> str:
             m = float(m)
         except (TypeError, ValueError):
             m = 0.0
-        parts.append(f"{action}{right} {m:+.1f}%")
+        try:
+            points = float(leg.get("otm_offset_points", 0.0) or 0.0)
+        except (TypeError, ValueError):
+            points = 0.0
+        suffix = f"{points:+g}pt" if points else ""
+        parts.append(f"{action}{right} {m:+.1f}%{suffix}")
     return " + ".join(parts)
 
 

@@ -284,6 +284,7 @@ class BotConfigScreen(Screen[Optional[_BotConfigResult]]):
                     _BotConfigField(f"Leg {idx+1} action", "enum", prefix + "action", options=("BUY", "SELL")),
                     _BotConfigField(f"Leg {idx+1} right", "enum", prefix + "right", options=("CALL", "PUT")),
                     _BotConfigField(f"Leg {idx+1} moneyness %", "float", prefix + "moneyness_pct"),
+                    _BotConfigField(f"Leg {idx+1} OTM offset pts", "float", prefix + "otm_offset_points"),
                     _BotConfigField(f"Leg {idx+1} delta", "float", prefix + "delta"),
                     _BotConfigField(f"Leg {idx+1} qty", "int", prefix + "qty"),
                 ]

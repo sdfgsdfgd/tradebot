@@ -97,6 +97,12 @@ def options_leaderboard_main() -> None:
     parser.add_argument("--end", default="2026-01-02")
     parser.add_argument("--bar-size", default="1 hour")
     parser.add_argument("--use-rth", action="store_true")
+    parser.add_argument(
+        "--wing-points",
+        type=float,
+        default=None,
+        help="Use a fixed OTM point offset for defined-risk wings instead of the legacy 1% offset",
+    )
     parser.add_argument("--jobs", type=int, default=0, help="Worker processes (0 = auto)")
     parser.add_argument(
         "--progress-sec",
@@ -119,6 +125,8 @@ def options_leaderboard_main() -> None:
         help="Disable appending spot milestones into the generated output",
     )
     args = parser.parse_args()
+    if args.wing_points is not None and float(args.wing_points) <= 0:
+        parser.error("--wing-points must be positive")
 
     start = _parse_date(args.start)
     end = _parse_date(args.end)
@@ -176,6 +184,11 @@ def options_leaderboard_main() -> None:
         skew=-0.25,
         min_spread_pct=0.1,
     )
+    wing = (
+        {"otm_offset_points": float(args.wing_points)}
+        if args.wing_points is not None
+        else {"moneyness_offset_pct": 1.0}
+    )
 
     groups = [
         _group_spec(
@@ -231,7 +244,7 @@ def options_leaderboard_main() -> None:
             "PUT",
             [
                 {"action": "SELL", "right": "PUT", "qty": 1, "moneyness_offset_pct": 0.0},
-                {"action": "BUY", "right": "PUT", "qty": 1, "moneyness_offset_pct": 1.0},
+                {"action": "BUY", "right": "PUT", "qty": 1, **wing},
             ],
             None,
             ema_entry_mode="trend",
@@ -241,7 +254,7 @@ def options_leaderboard_main() -> None:
             "PUT",
             [
                 {"action": "SELL", "right": "PUT", "qty": 1, "moneyness_offset_pct": 0.0},
-                {"action": "BUY", "right": "PUT", "qty": 1, "moneyness_offset_pct": 1.0},
+                {"action": "BUY", "right": "PUT", "qty": 1, **wing},
             ],
             filters,
             ema_entry_mode="trend",
@@ -251,9 +264,9 @@ def options_leaderboard_main() -> None:
             "PUT",
             [
                 {"action": "SELL", "right": "PUT", "qty": 1, "moneyness_offset_pct": 0.0},
-                {"action": "BUY", "right": "PUT", "qty": 1, "moneyness_offset_pct": 1.0},
+                {"action": "BUY", "right": "PUT", "qty": 1, **wing},
                 {"action": "SELL", "right": "CALL", "qty": 1, "moneyness_offset_pct": 0.0},
-                {"action": "BUY", "right": "CALL", "qty": 1, "moneyness_offset_pct": 1.0},
+                {"action": "BUY", "right": "CALL", "qty": 1, **wing},
             ],
             None,
             ema_entry_mode="trend",
@@ -263,9 +276,9 @@ def options_leaderboard_main() -> None:
             "PUT",
             [
                 {"action": "SELL", "right": "PUT", "qty": 1, "moneyness_offset_pct": 0.0},
-                {"action": "BUY", "right": "PUT", "qty": 1, "moneyness_offset_pct": 1.0},
+                {"action": "BUY", "right": "PUT", "qty": 1, **wing},
                 {"action": "SELL", "right": "CALL", "qty": 1, "moneyness_offset_pct": 0.0},
-                {"action": "BUY", "right": "CALL", "qty": 1, "moneyness_offset_pct": 1.0},
+                {"action": "BUY", "right": "CALL", "qty": 1, **wing},
             ],
             filters,
             ema_entry_mode="trend",
@@ -283,11 +296,11 @@ def options_leaderboard_main() -> None:
                 "directional_leg_templates": {
                     "up": [
                         {"action": "SELL", "right": "PUT", "qty": 1, "moneyness_offset_pct": 0.0},
-                        {"action": "BUY", "right": "PUT", "qty": 1, "moneyness_offset_pct": 1.0},
+                        {"action": "BUY", "right": "PUT", "qty": 1, **wing},
                     ],
                     "down": [
                         {"action": "SELL", "right": "CALL", "qty": 1, "moneyness_offset_pct": 0.0},
-                        {"action": "BUY", "right": "CALL", "qty": 1, "moneyness_offset_pct": 1.0},
+                        {"action": "BUY", "right": "CALL", "qty": 1, **wing},
                     ],
                 },
             },
@@ -298,11 +311,11 @@ def options_leaderboard_main() -> None:
                 "directional_leg_templates": {
                     "up": [
                         {"action": "SELL", "right": "PUT", "qty": 1, "moneyness_offset_pct": 0.0},
-                        {"action": "BUY", "right": "PUT", "qty": 1, "moneyness_offset_pct": 1.0},
+                        {"action": "BUY", "right": "PUT", "qty": 1, **wing},
                     ],
                     "down": [
                         {"action": "SELL", "right": "CALL", "qty": 1, "moneyness_offset_pct": 0.0},
-                        {"action": "BUY", "right": "CALL", "qty": 1, "moneyness_offset_pct": 1.0},
+                        {"action": "BUY", "right": "CALL", "qty": 1, **wing},
                     ],
                 },
             },
@@ -634,6 +647,7 @@ def _run_combo(
                     right=leg["right"],
                     moneyness_pct=float(moneyness) + float(leg.get("moneyness_offset_pct", 0.0)),
                     qty=int(leg["qty"]),
+                    otm_offset_points=float(leg.get("otm_offset_points", 0.0)),
                 )
                 for leg in templates
             )
@@ -646,6 +660,7 @@ def _run_combo(
                 right=leg["right"],
                 moneyness_pct=float(moneyness) + float(leg.get("moneyness_offset_pct", 0.0)),
                 qty=int(leg["qty"]),
+                otm_offset_points=float(leg.get("otm_offset_points", 0.0)),
             )
             for leg in group["leg_templates"]
         )
@@ -716,6 +731,11 @@ def _run_combo(
                 "right": leg.right,
                 "moneyness_pct": leg.moneyness_pct,
                 "qty": leg.qty,
+                **(
+                    {"otm_offset_points": leg.otm_offset_points}
+                    if leg.otm_offset_points
+                    else {}
+                ),
             }
             for leg in legs_for_display
         ],
@@ -729,6 +749,11 @@ def _run_combo(
                     "right": leg.right,
                     "moneyness_pct": leg.moneyness_pct,
                     "qty": leg.qty,
+                    **(
+                        {"otm_offset_points": leg.otm_offset_points}
+                        if leg.otm_offset_points
+                        else {}
+                    ),
                 }
                 for leg in dlegs
             ]
