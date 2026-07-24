@@ -242,6 +242,9 @@ class StrategyConfigBase:
     orb_risk_reward: float = 2.0
     orb_target_mode: str = "rr"
     orb_open_time_et: str | None = None
+    opening_reclaim_break_range_fraction: float = 0.25
+    opening_reclaim_confirm_bars: int = 1
+    opening_reclaim_deadline_et: str | None = "11:30"
     spot_exit_mode: str = "pct"
     spot_atr_period: int = 14
     spot_pt_atr_mult: float = 1.5

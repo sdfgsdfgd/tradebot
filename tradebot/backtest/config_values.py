@@ -194,6 +194,13 @@ def _parse_entry_signal(value) -> str:
             return "ema"
         if cleaned in ("orb", "opening_range", "opening_range_breakout", "opening-range"):
             return "orb"
+        if cleaned in (
+            "opening_reclaim",
+            "opening-reclaim",
+            "bear_trap",
+            "bear-trap",
+        ):
+            return "opening_reclaim"
     return "ema"
 
 

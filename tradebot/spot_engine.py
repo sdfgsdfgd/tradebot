@@ -349,7 +349,27 @@ class SpotSignalEvaluator(
                 window = 15
             window = max(1, int(window))
             orb_open = parse_time_hhmm(_get(strategy, "orb_open_time_et", None), default=time(9, 30)) or time(9, 30)
-            self._orb_engine = OrbDecisionEngine(window_mins=window, open_time_et=orb_open)
+            deadline = parse_time_hhmm(
+                _get(strategy, "opening_reclaim_deadline_et", None),
+                default=time(11, 30),
+            ) or time(11, 30)
+            self._orb_engine = OrbDecisionEngine(
+                window_mins=window,
+                open_time_et=orb_open,
+                mode="reclaim" if entry_signal == "opening_reclaim" else "breakout",
+                break_range_fraction=float(
+                    _get(
+                        strategy,
+                        "opening_reclaim_break_range_fraction",
+                        0.25,
+                    )
+                    or 0.0
+                ),
+                reclaim_confirm_bars=int(
+                    _get(strategy, "opening_reclaim_confirm_bars", 1) or 1
+                ),
+                deadline_et=deadline,
+            )
 
         # Primary regime engines
         self._regime_engine: EmaDecisionEngine | None = None

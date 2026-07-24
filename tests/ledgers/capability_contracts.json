@@ -122,6 +122,7 @@
     "tests/test_order_reservation_policy.py": "live-execution-orders",
     "tests/test_readme_retrievers.py": "operator-ui-observability",
     "tests/test_realtime_chart_data.py": "market-time-series-semantics",
+    "tests/test_research_evidence.py": "research-optimization-calibration",
     "tests/test_selected_strategy_exec_bar_state_persistence.py": "backtest-simulation-accounting",
     "tests/test_spot_combo_full_signature.py": "research-optimization-calibration",
     "tests/test_spot_context_requirements.py": "signal-regime-intelligence",
@@ -487,12 +488,14 @@
         "current proof surfaces for research-optimization-calibration"
       ],
       "evidence": [
+        "tests/test_research_evidence.py",
         "tests/test_spot_combo_full_signature.py",
         "tests/test_spot_scenario_runner.py"
       ],
       "owner_surface": [
         "tradebot/backtest/sweeps.py",
         "tradebot/research/climate.py",
+        "tradebot/research/evidence.py",
         "tradebot/research/spot_sweeps/combo.py",
         "tradebot/spot/champions.py"
       ],

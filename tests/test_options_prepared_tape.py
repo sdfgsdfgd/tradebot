@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import json
 from dataclasses import replace
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time, timezone
 
 import tradebot.backtest.engine as backtest_engine
 import tradebot.backtest.run_backtest_options as options_sweep
 from tradebot.chart_data.history import cache_path, write_cache
 from tradebot.backtest.config import load_config
+from tradebot.backtest.data import ContractMeta
 from tradebot.backtest.engine import OptionsBacktestSourcePool
 from tradebot.backtest.engine_options import (
     _OPTIONS_MARKET_TAPE_NAMESPACE,
@@ -15,8 +16,11 @@ from tradebot.backtest.engine_options import (
     _OPTIONS_TAPE_CACHE,
     _OPTIONS_TAPE_NAMESPACE,
     prepare_options_tape,
+    run_options_backtest,
 )
 from tradebot.backtest.models import Bar
+from tradebot.engines.signals import OrbDecisionEngine
+from tradebot.spot_engine import SpotSignalEvaluator
 
 
 def _options_config(tmp_path):
@@ -83,6 +87,165 @@ class _Progress:
 
     def advance(self) -> None:
         self.advanced += 1
+
+
+def _opening_reclaim_bars() -> list[Bar]:
+    start = datetime(2026, 7, 24, 13, 35, tzinfo=timezone.utc)
+    values = (
+        (100.0, 101.0, 99.0, 100.0),
+        (100.0, 100.5, 98.5, 99.0),
+        (99.0, 100.0, 98.8, 99.2),
+        (98.0, 98.2, 97.6, 97.8),
+        (98.4, 98.8, 98.3, 98.6),
+        (98.6, 98.9, 98.5, 98.7),
+        (98.7, 99.2, 98.6, 99.0),
+    )
+    return [
+        Bar(
+            ts=start + timedelta(minutes=5 * index),
+            open=open_,
+            high=high,
+            low=low,
+            close=close,
+            volume=0.0,
+        )
+        for index, (open_, high, low, close) in enumerate(values)
+    ]
+
+
+def test_opening_reclaim_requires_causal_breakdown_and_confirmed_reclaim() -> None:
+    engine = OrbDecisionEngine(
+        window_mins=15,
+        mode="reclaim",
+        break_range_fraction=0.25,
+        reclaim_confirm_bars=2,
+        deadline_et=time(11, 30),
+    )
+
+    directions = [
+        engine.update(
+            ts=bar.ts,
+            high=bar.high,
+            low=bar.low,
+            close=bar.close,
+        ).entry_dir
+        for bar in _opening_reclaim_bars()
+    ]
+
+    assert directions == [None, None, None, None, None, "up", None]
+
+
+def test_orb_default_remains_the_legacy_breakout_mode() -> None:
+    bars = _opening_reclaim_bars()
+    default = OrbDecisionEngine(window_mins=15)
+    explicit = OrbDecisionEngine(window_mins=15, mode="breakout")
+
+    def directions(engine):
+        return [
+            engine.update(ts=bar.ts, high=bar.high, low=bar.low, close=bar.close).entry_dir
+            for bar in bars
+        ]
+
+    assert directions(default) == directions(explicit) == [
+        None, None, None, "down", None, None, None
+    ]
+
+
+def test_opening_reclaim_signal_is_identical_in_live_evaluator_and_options_tape(
+    tmp_path,
+) -> None:
+    cfg = _options_config(tmp_path)
+    cfg = replace(
+        cfg,
+        strategy=replace(
+            cfg.strategy,
+            entry_signal="opening_reclaim",
+            ema_preset=None,
+            orb_window_mins=15,
+            opening_reclaim_break_range_fraction=0.25,
+            opening_reclaim_confirm_bars=2,
+            opening_reclaim_deadline_et="11:30",
+        ),
+    )
+    bars = _opening_reclaim_bars()
+    prepared = prepare_options_tape(
+        cfg=cfg,
+        bars=bars,
+        data=object(),
+        start_dt=bars[0].ts,
+        end_dt=bars[-1].ts,
+    )
+    evaluator = SpotSignalEvaluator(
+        strategy=cfg.strategy,
+        filters=cfg.strategy.filters,
+        bar_size=cfg.backtest.bar_size,
+        use_rth=True,
+    )
+
+    live_directions = [
+        snapshot.entry_dir if snapshot is not None else None
+        for snapshot in (evaluator.update_signal_bar(bar) for bar in bars)
+    ]
+    replay_directions = [
+        signal.entry_dir if signal is not None else None
+        for signal in prepared.signals
+    ]
+
+    assert live_directions == replay_directions == [
+        None,
+        None,
+        None,
+        None,
+        None,
+        "up",
+        None,
+    ]
+
+
+def test_options_warmup_bars_build_signals_but_never_trade_or_score(
+    tmp_path,
+) -> None:
+    cfg = _options_config(tmp_path)
+    start = datetime(2026, 2, 2)
+    bars = [
+        Bar(
+            ts=datetime(2026, 1, 30, 14) + timedelta(hours=index),
+            open=100.0 + index,
+            high=100.5 + index,
+            low=99.5 + index,
+            close=100.25 + index,
+            volume=1000.0,
+        )
+        for index in range(5)
+    ] + [
+        Bar(
+            ts=start + timedelta(hours=14 + index),
+            open=105.0 + index,
+            high=105.5 + index,
+            low=104.5 + index,
+            close=105.25 + index,
+            volume=1000.0,
+        )
+        for index in range(5)
+    ]
+
+    result = run_options_backtest(
+        cfg=cfg,
+        bars=bars,
+        meta=ContractMeta(
+            symbol="XSP",
+            exchange="CBOE",
+            multiplier=100.0,
+            min_tick=0.01,
+        ),
+        data=object(),
+        start_dt=start,
+        end_dt=datetime(2026, 2, 2, 23, 59),
+    )
+
+    assert result.equity
+    assert all(point.ts >= start for point in result.equity)
+    assert all(trade.entry_time >= start for trade in result.trades)
 
 
 def test_prepared_options_tape_reuses_exact_facts_and_invalidates_content(

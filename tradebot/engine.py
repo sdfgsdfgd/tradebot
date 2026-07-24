@@ -98,7 +98,7 @@ def parse_time_hhmm(value: object, *, default: time | None = None) -> time | Non
 # region Spot Strategy Parsing
 def normalize_spot_entry_signal(entry_signal_raw: object | None) -> str:
     entry_signal = str(entry_signal_raw or "ema").strip().lower()
-    if entry_signal not in ("ema", "orb"):
+    if entry_signal not in ("ema", "orb", "opening_reclaim"):
         return "ema"
     return entry_signal
 

@@ -7,17 +7,32 @@ from __future__ import annotations
 import math
 from collections import deque
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, time
 
 from .calibration import ensure_calibration, load_calibration
 from .config import ConfigBundle, OptionsStrategyConfig
 from .data import ContractMeta, IBKRHistoricalData, load_backtest_series
 from .models import BacktestResult, Bar, EquityPoint, OptionTrade, summarize
 from .strategy import OptionPackageStrategy, TradeSpec
-from .synth import IVSurfaceParams, black_76, black_scholes, iv_atm, iv_for_strike, mid_edge_quote
+from .synth import (
+    IVSurfaceParams,
+    _option_commission,
+    _option_fill_slippage,
+    _option_time_to_expiry_years,
+    black_76,
+    black_scholes,
+    iv_atm,
+    iv_for_strike,
+    mid_edge_quote,
+)
 from ..chart_data.cache import series_cache_service
 from ..chart_data.series import BarSeriesSignature
-from ..engines.signals import EmaDecisionEngine, EmaDecisionSnapshot, SupertrendEngine
+from ..engines.signals import (
+    EmaDecisionEngine,
+    EmaDecisionSnapshot,
+    OrbDecisionEngine,
+    SupertrendEngine,
+)
 from ..option_package import (
     OptionPackage,
     OptionProductFacts,
@@ -33,6 +48,8 @@ from ..engine import (
     _trade_date,
     annualized_ewma_vol,
     cooldown_ok_by_index,
+    normalize_spot_entry_signal,
+    parse_time_hhmm,
     realized_vol_from_closes,
 )
 from ..signals import bar_sizes_equal, ema_next, ema_periods, parse_bar_size
@@ -91,10 +108,18 @@ def prepare_options_tape(
         raise ValueError("prepare_options_tape requires an options strategy config")
 
     filters = cfg.strategy.filters
-    periods = ema_periods(cfg.strategy.ema_preset)
+    entry_signal = normalize_spot_entry_signal(
+        getattr(cfg.strategy, "entry_signal", "ema")
+    )
+    periods = (
+        ema_periods(cfg.strategy.ema_preset)
+        if entry_signal == "ema"
+        else None
+    )
     needs_direction = cfg.strategy.directional_legs is not None
     ema_needed = bool(
         periods is not None
+        or entry_signal != "ema"
         or needs_direction
         or (
             filters
@@ -220,9 +245,22 @@ def prepare_options_tape(
     signal_key = (
         revision,
         regime_revision,
+        entry_signal,
         cfg.strategy.ema_preset,
         ema_entry_mode,
         entry_confirm_bars,
+        int(getattr(cfg.strategy, "orb_window_mins", 15) or 15),
+        str(getattr(cfg.strategy, "orb_open_time_et", None)),
+        float(
+            getattr(
+                cfg.strategy,
+                "opening_reclaim_break_range_fraction",
+                0.25,
+            )
+            or 0.0
+        ),
+        int(getattr(cfg.strategy, "opening_reclaim_confirm_bars", 1) or 1),
+        str(getattr(cfg.strategy, "opening_reclaim_deadline_et", "11:30")),
         regime_mode,
         regime_preset,
         str(regime_bar),
@@ -248,6 +286,50 @@ def prepare_options_tape(
                 ),
             )
             if periods is not None
+            else None
+        )
+        opening_engine = (
+            OrbDecisionEngine(
+                window_mins=int(
+                    getattr(cfg.strategy, "orb_window_mins", 15) or 15
+                ),
+                open_time_et=(
+                    parse_time_hhmm(
+                        getattr(cfg.strategy, "orb_open_time_et", None),
+                        default=time(9, 30),
+                    )
+                    or time(9, 30)
+                ),
+                mode="reclaim" if entry_signal == "opening_reclaim" else "breakout",
+                break_range_fraction=float(
+                    getattr(
+                        cfg.strategy,
+                        "opening_reclaim_break_range_fraction",
+                        0.25,
+                    )
+                    or 0.0
+                ),
+                reclaim_confirm_bars=int(
+                    getattr(
+                        cfg.strategy,
+                        "opening_reclaim_confirm_bars",
+                        1,
+                    )
+                    or 1
+                ),
+                deadline_et=(
+                    parse_time_hhmm(
+                        getattr(
+                            cfg.strategy,
+                            "opening_reclaim_deadline_et",
+                            "11:30",
+                        ),
+                        default=time(11, 30),
+                    )
+                    or time(11, 30)
+                ),
+            )
+            if entry_signal != "ema"
             else None
         )
         regime_engine = (
@@ -283,6 +365,13 @@ def prepare_options_tape(
             signal = (
                 signal_engine.update(bar.close)
                 if signal_engine is not None
+                else opening_engine.update(
+                    ts=bar.ts,
+                    high=bar.high,
+                    low=bar.low,
+                    close=bar.close,
+                )
+                if opening_engine is not None
                 else None
             )
             if supertrend_engine is not None:
@@ -426,6 +515,11 @@ def run_options_backtest(
         trade_day = tape.trade_dates[idx]
         if idx == 0 or tape.trade_dates[idx - 1] != trade_day:
             entries_today = 0
+        if bar.ts < start_dt:
+            prev_bar = bar
+            continue
+        if bar.ts > end_dt:
+            break
         rv = tape.realized_vol[idx]
         signal = tape.signals[idx]
         ema_ready = bool(signal and signal.ema_ready)
@@ -742,38 +836,6 @@ def _direction_from_legs(legs: tuple[ResolvedOptionLeg, ...]) -> str | None:
     return None
 
 
-def _option_commission(
-    spec: TradeSpec | OptionTrade,
-    cfg: ConfigBundle,
-) -> float:
-    quantity = (
-        spec.quantity
-        if isinstance(spec, TradeSpec)
-        else spec.package.quantity
-    )
-    return (
-        float(getattr(cfg.synthetic, "commission_per_contract", 0.0))
-        * int(quantity)
-        * sum(int(leg.ratio) for leg in spec.legs)
-    )
-
-
-def _option_fill_slippage(
-    value: float,
-    *,
-    mode: str,
-    cfg: ConfigBundle,
-    min_tick: float,
-) -> float:
-    if mode == "mark":
-        return float(value)
-    slippage = (
-        float(getattr(cfg.synthetic, "slippage_ticks", 0.0))
-        * float(min_tick)
-    )
-    return float(value) - slippage if mode == "entry" else float(value) + slippage
-
-
 def _trade_value(
     trade: OptionTrade,
     bar: Bar,
@@ -818,12 +880,11 @@ def _trade_value_from_spec(
         surface_params = calibration.surface_params_asof(dte_days, trade_day.isoformat(), surface_params)
     atm_iv = iv_atm(rv, dte_days, surface_params)
     forward = bar.close
-    bar_def = parse_bar_size(cfg.backtest.bar_size)
-    bar_hours = bar_def.duration.total_seconds() / 3600.0 if bar_def is not None else 1.0
-    min_time = bar_hours / (24.0 * 365.0)
-    t = max(
-        (6.5 if cfg.backtest.use_rth else 24.0) / (24.0 * 365.0) if dte_days == 0 else dte_days / 365.0,
-        min_time,
+    t = _option_time_to_expiry_years(
+        expiry=spec.expiry,
+        bar=bar,
+        cfg=cfg,
+        product=product,
     )
 
     mid_rows: list[tuple[str, int, float]] = []

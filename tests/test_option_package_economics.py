@@ -1347,6 +1347,30 @@ def test_backtest_package_value_explicitly_inverts_canonical_debit_value(monkeyp
     assert calls == [[("SELL", 1, 2.0), ("BUY", 1, 1.0)]]
 
 
+def test_xsp_zero_dte_time_value_decays_toward_expiration_close() -> None:
+    cfg = SimpleNamespace(
+        backtest=SimpleNamespace(use_rth=True, bar_size="5 mins"),
+    )
+    product = option_product_facts("XSP")
+    expiry = date(2026, 7, 24)
+
+    morning = backtest_engine._option_time_to_expiry_years(
+        expiry=expiry,
+        bar=SimpleNamespace(ts=datetime(2026, 7, 24, 14, 0)),
+        cfg=cfg,
+        product=product,
+    )
+    afternoon = backtest_engine._option_time_to_expiry_years(
+        expiry=expiry,
+        bar=SimpleNamespace(ts=datetime(2026, 7, 24, 19, 0)),
+        cfg=cfg,
+        product=product,
+    )
+
+    assert morning == pytest.approx(6.0 / (24.0 * 365.0))
+    assert afternoon == pytest.approx(1.0 / (24.0 * 365.0))
+
+
 def test_options_backtest_delegates_mcl_economics_to_canonical_product_facts(monkeypatch) -> None:
     product_calls: list[tuple[str, dict[str, object]]] = []
 

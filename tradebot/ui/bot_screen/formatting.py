@@ -131,6 +131,14 @@ def _preset_lines(preset: _BotPreset) -> list[Text]:
             if tgt_mode not in ("rr", "or_range"):
                 tgt_mode = "rr"
             mode_parts.append(f"ORB: {window}m {tgt_mode} rr={rr}")
+        elif entry_signal == "opening_reclaim":
+            window = strat.get("orb_window_mins", "?")
+            depth = strat.get("opening_reclaim_break_range_fraction", "?")
+            confirm = strat.get("opening_reclaim_confirm_bars", "?")
+            deadline = strat.get("opening_reclaim_deadline_et", "?")
+            mode_parts.append(
+                f"RECLAIM: {window}m break={depth}r c{confirm} by {deadline}"
+            )
         else:
             mode_parts.append(f"EMA: {strat.get('ema_preset', '')} cross c{confirm}")
         if regime_mode == "supertrend":

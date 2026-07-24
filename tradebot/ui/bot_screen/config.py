@@ -110,6 +110,9 @@ class BotConfigScreen(Screen[Optional[_BotConfigResult]]):
         self._strategy.setdefault("orb_risk_reward", 2.0)
         self._strategy.setdefault("orb_target_mode", "rr")
         self._strategy.setdefault("orb_open_time_et", "")
+        self._strategy.setdefault("opening_reclaim_break_range_fraction", 0.25)
+        self._strategy.setdefault("opening_reclaim_confirm_bars", 1)
+        self._strategy.setdefault("opening_reclaim_deadline_et", "11:30")
         self._strategy.setdefault("spot_exit_mode", "pct")
         self._strategy.setdefault("spot_atr_period", 14)
         self._strategy.setdefault("spot_pt_atr_mult", 1.5)
@@ -170,7 +173,12 @@ class BotConfigScreen(Screen[Optional[_BotConfigResult]]):
             _BotConfigField("Entry days", "text", "entry_days"),
             _BotConfigField("Max entries/day", "int", "max_entries_per_day"),
             _BotConfigField("Order stage timeout sec", "int", "order_stage_timeout_sec"),
-            _BotConfigField("Entry signal", "enum", "entry_signal", options=("ema", "orb")),
+            _BotConfigField(
+                "Entry signal",
+                "enum",
+                "entry_signal",
+                options=("ema", "orb", "opening_reclaim"),
+            ),
             _BotConfigField("EMA preset", "text", "ema_preset"),
             _BotConfigField("EMA entry mode", "enum", "ema_entry_mode", options=("trend", "cross")),
             _BotConfigField("Entry confirm bars", "int", "entry_confirm_bars"),
@@ -178,6 +186,21 @@ class BotConfigScreen(Screen[Optional[_BotConfigResult]]):
             _BotConfigField("ORB risk reward", "float", "orb_risk_reward"),
             _BotConfigField("ORB target mode", "enum", "orb_target_mode", options=("rr", "or_range")),
             _BotConfigField("ORB open time (ET)", "text", "orb_open_time_et"),
+            _BotConfigField(
+                "Reclaim break / range",
+                "float",
+                "opening_reclaim_break_range_fraction",
+            ),
+            _BotConfigField(
+                "Reclaim confirm bars",
+                "int",
+                "opening_reclaim_confirm_bars",
+            ),
+            _BotConfigField(
+                "Reclaim deadline (ET)",
+                "text",
+                "opening_reclaim_deadline_et",
+            ),
             _BotConfigField("Regime mode", "enum", "regime_mode", options=("ema", "supertrend")),
             _BotConfigField("Regime EMA preset", "text", "regime_ema_preset"),
             _BotConfigField(

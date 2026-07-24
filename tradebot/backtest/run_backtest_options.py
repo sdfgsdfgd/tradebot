@@ -32,7 +32,7 @@ from ..chart_data.cache import series_cache_service
 from ..research.evidence import backtest_evidence, research_rank_key
 
 
-_OPTIONS_RESULT_NAMESPACE = "options.sweep_result.v2"
+_OPTIONS_RESULT_NAMESPACE = "options.sweep_result.v3"
 _OPTIONS_RESULT_CACHE = series_cache_service()
 
 
@@ -105,6 +105,11 @@ def options_leaderboard_main() -> None:
         choices=("all", "safe-income", "alpha"),
         default="all",
         help="Limit research to one explicit strategy sleeve",
+    )
+    parser.add_argument(
+        "--group",
+        default=None,
+        help="Run only groups whose name contains this text",
     )
     parser.add_argument(
         "--wing-points",
@@ -352,11 +357,58 @@ def options_leaderboard_main() -> None:
             },
         ]
     )
+    opening_grid = {
+        "dte": [0, 5],
+        "moneyness_pct": [0.0, 0.5, 1.0],
+        "profit_target": [0.25, 0.5, 1.0, 2.0],
+        "stop_loss": [0.25, 0.5, 0.75],
+        "ema_preset": [None],
+        "ema_entry_mode": ["trend"],
+        "exit_on_signal_flip": [False],
+        "flip_exit_min_hold_bars": [0],
+        "flip_exit_only_if_profit": [False],
+    }
+    for window, depth, confirm, deadline in product(
+        (15, 30),
+        (0.10, 0.25, 0.50),
+        (1, 2),
+        ("10:30", "11:30"),
+    ):
+        groups.append(
+            _group_spec(
+                (
+                    "Opening Reclaim Long CALL "
+                    f"[{window}m/{depth:g}r/c{confirm}/{deadline}]"
+                ),
+                "CALL",
+                [{"action": "BUY", "right": "CALL", "qty": 1}],
+                None,
+                ema_entry_mode="trend",
+                sleeve="alpha",
+                entry_signal="opening_reclaim",
+                signal_params={
+                    "orb_window_mins": window,
+                    "opening_reclaim_break_range_fraction": depth,
+                    "opening_reclaim_confirm_bars": confirm,
+                    "opening_reclaim_deadline_et": deadline,
+                },
+                grid=opening_grid,
+            )
+        )
     if args.sleeve != "all":
         groups = [
             group for group in groups
             if group.get("sleeve") == args.sleeve
         ]
+    if args.group:
+        needle = str(args.group).strip().casefold()
+        groups = [
+            group
+            for group in groups
+            if needle in str(group.get("name") or "").casefold()
+        ]
+        if not groups:
+            parser.error(f"--group matched no strategy group: {args.group!r}")
     if args.sleeve == "safe-income":
         grid["profit_target"] = [0.25, 0.5, 0.75, 1.0]
 
@@ -376,8 +428,12 @@ def options_leaderboard_main() -> None:
         "groups": [],
     }
 
+    group_totals = [
+        count_total_combos(_group_grid(grid, group))
+        for group in groups
+    ]
     progress = Progress(
-        total=count_total_combos(grid) * len(groups),
+        total=sum(group_totals),
         interval_sec=interval_sec,
         groups=len(groups),
     )
@@ -409,7 +465,7 @@ def options_leaderboard_main() -> None:
                 progress.start_group(
                     group_idx + 1,
                     group["name"],
-                    total=count_total_combos(grid),
+                    total=group_totals[group_idx],
                 )
                 entries = _run_group(
                     symbol=args.symbol,
@@ -431,6 +487,8 @@ def options_leaderboard_main() -> None:
                         "name": group["name"],
                         "sleeve": group.get("sleeve"),
                         "filters": group["filters"],
+                        "grid": group.get("grid"),
+                        "entry_signal": group.get("entry_signal", "ema"),
                         "entries": entries,
                     }
                 )
@@ -454,7 +512,7 @@ def options_leaderboard_main() -> None:
     write_json(out_path, payload, sort_keys=True)
 
     elapsed = time.monotonic() - sweep_start
-    total = count_total_combos(grid) * len(groups)
+    total = sum(group_totals)
     kept = sum(len(g.get("entries", [])) for g in payload.get("groups", []))
     print(f"Done: {kept}/{total} kept | jobs={jobs} | elapsed {fmt_duration(elapsed)}", flush=True)
 # endregion
@@ -469,6 +527,9 @@ def _group_spec(
     *,
     ema_entry_mode: str,
     sleeve: str = "legacy",
+    entry_signal: str = "ema",
+    signal_params: dict | None = None,
+    grid: dict | None = None,
 ) -> dict:
     return {
         "name": name,
@@ -477,7 +538,14 @@ def _group_spec(
         "leg_templates": leg_templates,
         "filters": filters,
         "ema_entry_mode": ema_entry_mode,
+        "entry_signal": entry_signal,
+        "signal_params": signal_params or {},
+        "grid": grid,
     }
+
+
+def _group_grid(grid: dict, group: dict) -> dict:
+    return {**grid, **(group.get("grid") or {})}
 
 
 def _run_group(
@@ -498,10 +566,11 @@ def _run_group(
 ) -> list[dict]:
     jobs = normalize_jobs(int(jobs))
     filters_cfg = _filters_cfg(group.get("filters"))
-    min_trades = int(grid["min_trades"])
+    group_grid = _group_grid(grid, group)
+    min_trades = int(group_grid["min_trades"])
 
     def _combos():
-        g = grid
+        g = group_grid
         base_combos = product(
             g["dte"],
             g["moneyness_pct"],
@@ -747,6 +816,8 @@ def _run_combo(
         spot_profit_target_pct=None,
         spot_stop_loss_pct=None,
         spot_close_eod=False,
+        entry_signal=str(group.get("entry_signal") or "ema"),
+        **dict(group.get("signal_params") or {}),
     )
 
     cfg = ConfigBundle(backtest=backtest, strategy=strategy, synthetic=synthetic)
@@ -781,7 +852,23 @@ def _run_combo(
             for leg in legs_for_display
         ],
         "entry_days": ["Mon", "Tue", "Wed", "Thu", "Fri"],
+        "entry_signal": strategy.entry_signal,
     }
+    if strategy.entry_signal == "opening_reclaim":
+        strategy_payload.update(
+            {
+                "orb_window_mins": strategy.orb_window_mins,
+                "opening_reclaim_break_range_fraction": (
+                    strategy.opening_reclaim_break_range_fraction
+                ),
+                "opening_reclaim_confirm_bars": (
+                    strategy.opening_reclaim_confirm_bars
+                ),
+                "opening_reclaim_deadline_et": (
+                    strategy.opening_reclaim_deadline_et
+                ),
+            }
+        )
     if directional_legs:
         strategy_payload["directional_legs"] = {
             key: [

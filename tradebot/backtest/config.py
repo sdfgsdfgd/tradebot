@@ -221,6 +221,15 @@ def _strategy_schema_common() -> dict[str, _FieldSpec]:
         "orb_risk_reward": _field(lambda value: _parse_positive_float(value, default=2.0), 2.0),
         "orb_target_mode": _field(_parse_orb_target_mode, None),
         "orb_open_time_et": _field(_identity, None),
+        "opening_reclaim_break_range_fraction": _field(
+            lambda value: _parse_non_negative_float_or_default(value, default=0.25),
+            0.25,
+        ),
+        "opening_reclaim_confirm_bars": _field(
+            lambda value: _parse_positive_int(value, default=1),
+            1,
+        ),
+        "opening_reclaim_deadline_et": _field(_identity, "11:30"),
         "spot_exit_mode": _field(_parse_spot_exit_mode, None),
         "spot_atr_period": _field(lambda value: _parse_positive_int(value, default=14), 14),
         "spot_pt_atr_mult": _field(lambda value: _parse_non_negative_float_or_default(value, default=1.5), 1.5),

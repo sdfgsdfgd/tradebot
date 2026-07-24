@@ -180,10 +180,10 @@ class EmaDecisionEngine:
 
 
 class OrbDecisionEngine:
-    """Opening Range Breakout (ORB) entry signal.
+    """Opening-range breakout or breakdown/reclaim entry signal.
 
     OR is defined as the high/low in the first N minutes after 9:30am ET.
-    Emits a one-shot entry_dir ("up" or "down") when close breaks out of that range.
+    Both modes are causal, session-scoped, and emit at most one entry.
     """
 
     def __init__(
@@ -191,6 +191,10 @@ class OrbDecisionEngine:
         *,
         window_mins: int = 15,
         open_time_et: time = time(9, 30),
+        mode: str = "breakout",
+        break_range_fraction: float = 0.25,
+        reclaim_confirm_bars: int = 1,
+        deadline_et: time = time(11, 30),
     ) -> None:
         try:
             mins = int(window_mins)
@@ -198,12 +202,26 @@ class OrbDecisionEngine:
             mins = 15
         self._window_mins = max(1, mins)
         self._open_time_et = open_time_et
+        self._mode = "reclaim" if str(mode).strip().lower() == "reclaim" else "breakout"
+        try:
+            break_fraction = float(break_range_fraction)
+        except (TypeError, ValueError):
+            break_fraction = 0.25
+        self._break_range_fraction = max(0.0, break_fraction)
+        try:
+            confirm_bars = int(reclaim_confirm_bars)
+        except (TypeError, ValueError):
+            confirm_bars = 1
+        self._reclaim_confirm_bars = max(1, confirm_bars)
+        self._deadline_et = deadline_et
 
         self._session_date = None
         self._or_high: float | None = None
         self._or_low: float | None = None
         self._or_ready = False
         self._breakout_fired = False
+        self._breakdown_seen = False
+        self._reclaim_bars = 0
 
     @property
     def or_high(self) -> float | None:
@@ -227,6 +245,8 @@ class OrbDecisionEngine:
             self._or_low = None
             self._or_ready = False
             self._breakout_fired = False
+            self._breakdown_seen = False
+            self._reclaim_bars = 0
 
         start = datetime.combine(session_date, self._open_time_et, tzinfo=_ET_ZONE)
         end = start + timedelta(minutes=int(self._window_mins))
@@ -242,11 +262,32 @@ class OrbDecisionEngine:
             self._or_ready = True
 
         entry_dir = None
-        if self._or_ready and not self._breakout_fired and self._or_high is not None and self._or_low is not None:
-            if float(close) > float(self._or_high):
-                entry_dir = "up"
-            elif float(close) < float(self._or_low):
-                entry_dir = "down"
+        if (
+            self._or_ready
+            and not self._breakout_fired
+            and self._or_high is not None
+            and self._or_low is not None
+        ):
+            if self._mode == "breakout":
+                if float(close) > float(self._or_high):
+                    entry_dir = "up"
+                elif float(close) < float(self._or_low):
+                    entry_dir = "down"
+            elif ts_et.time() <= self._deadline_et:
+                opening_range = max(0.0, float(self._or_high) - float(self._or_low))
+                breakdown = float(self._or_low) - (
+                    opening_range * self._break_range_fraction
+                )
+                if not self._breakdown_seen and float(close) <= breakdown:
+                    self._breakdown_seen = True
+                elif self._breakdown_seen:
+                    self._reclaim_bars = (
+                        self._reclaim_bars + 1
+                        if float(close) >= float(self._or_low)
+                        else 0
+                    )
+                    if self._reclaim_bars >= self._reclaim_confirm_bars:
+                        entry_dir = "up"
             if entry_dir is not None:
                 self._breakout_fired = True
 
