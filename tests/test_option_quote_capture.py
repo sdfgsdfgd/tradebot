@@ -132,7 +132,13 @@ def test_snapshot_quality_requires_qualification_fresh_nbbo_and_streaming_live()
             "require_nbbo": True,
             "require_streaming_live": True,
             "max_age_sec": 30,
+            "require_provenance": False,
+            "require_all_options": False,
+            "require_greeks": False,
         },
+        "complete": True,
+        "reasons": (),
+        "provenance_complete": False,
         "total_options": 4,
         "qualified_options": 3,
         "invalid_options": 1,
@@ -145,3 +151,17 @@ def test_snapshot_quality_requires_qualification_fresh_nbbo_and_streaming_live()
         "full_greek_options": 1,
         "errors": 0,
     }
+
+
+def test_strict_snapshot_quality_requires_complete_provenance_quotes_and_greeks() -> None:
+    quality = snapshot_quality(
+        _snapshot("2026-07-24T14:30:00+00:00"),
+        max_age_sec=30,
+        require_live=True,
+        require_provenance=True,
+        require_all_options=True,
+        require_greeks=True,
+    )
+
+    assert quality["complete"] is False
+    assert quality["reasons"] == ("provenance_incomplete", "greeks_incomplete")

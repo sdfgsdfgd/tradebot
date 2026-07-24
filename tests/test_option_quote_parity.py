@@ -61,6 +61,8 @@ def test_captured_and_live_package_quotes_share_exact_pricing_and_risk() -> None
         ),
         options=list(rows),
         errors=[],
+        chain_fingerprint="a" * 64,
+        target_expiry="20260731",
     )
     resolved = (
         ResolvedOptionLeg("SELL", "PUT", 735.0, 1, "20260731"),
@@ -128,3 +130,33 @@ def test_captured_and_live_package_quotes_share_exact_pricing_and_risk() -> None
     assert captured.package.product.source == "captured"
     assert live.live.package.product.source == "broker"
     assert captured.risk == live.live.risk
+
+
+def test_captured_package_rejects_missing_or_mismatched_chain_provenance() -> None:
+    snapshot = QuoteSnapshot(
+        ts="2026-07-24T14:30:00+00:00",
+        md_type=1,
+        symbol="XSP",
+        underlying=QuoteContract(
+            con_id=11004968,
+            sec_type="IND",
+            symbol="XSP",
+            local_symbol="XSP",
+            exchange="CBOE",
+            currency="USD",
+        ),
+        options=[_option(101, 735.0, bid=2.0, ask=2.2, last=2.1)],
+        errors=[],
+    )
+    leg = (ResolvedOptionLeg("SELL", "PUT", 735.0, 1, "20260731"),)
+
+    assert quote_captured_option_package(snapshot, leg) is None
+
+    snapshot = QuoteSnapshot(
+        **{
+            **snapshot.__dict__,
+            "chain_fingerprint": "a" * 64,
+            "target_expiry": "20260807",
+        }
+    )
+    assert quote_captured_option_package(snapshot, leg) is None
