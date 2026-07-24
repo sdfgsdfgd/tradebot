@@ -910,6 +910,12 @@ are quantified; no option result is mislabeled as authentic.
   `-5.27` bps and no neighboring-threshold support. The family-specific
   `2026-01-23..2026-07-23` holdout remains unopened. This is a research hint,
   not a strategy or option-edge receipt.
+- The preregistered SPY/VIX causal-context extension evaluated `768` additional
+  cells without opening that holdout and also produced **zero** passes. Same-
+  boundary SPY participation and VIX direction did not stabilize the original
+  XSP states: every contextual cell retained a negative family-wise lower
+  bound, and the best-looking cases lacked neighboring-tail support or durable
+  later-block strength. No context strategy knob or selector was born.
 
 Receipt fingerprints:
 
@@ -951,9 +957,11 @@ shadow, and live comparison without refetching complete cached ranges.
       time-series evidence remains pending.
 - [ ] Test whether iron condors add net value after four-leg friction.
 - [ ] Formalize opening bear-trap reversal without hindsight.
-- [ ] Build the frozen-window opening-state matrix; falsify upside-fade,
+- [x] Build the frozen-window opening-state matrix; falsify upside-fade,
       downside-fast-rebound, downside-slow-rebound, continuation, and
-      `NO_TRADE` branches independently.
+      `NO_TRADE` branches independently. Both the 256-cell XSP family and its
+      preregistered 768-cell SPY/VIX causal-context extension produced zero
+      corrected passes; the holdout remains sealed.
 - [ ] Formalize opening continuation as a separate candidate.
 - [ ] Establish LF directional/premium baselines.
 - [ ] Partition HF/LF and safe-income/alpha crowns.
@@ -1154,6 +1162,7 @@ Add rows; never rewrite an unfavorable receipt.
 | E-016 | 2026-07-24 09:34 UTC | 1/2 | Captured/live XSP package parity | `/tmp/xsp-forward-restart-proof.BCWo2l/XSP/2026-07-24.jsonl` | tape `c091adf4…`; full suite `671 passed` | The exact delayed `20260731` 734/733 put-credit vertical replayed through the shared live-intended quote kernel at `-0.24` debit units: max profit USD 24, max loss USD 76; 28/28 qualified fresh delayed NBBO/Greek rows. Adapter parity is exact, but premarket delayed evidence cannot promote a strategy |
 | E-017 | 2026-07-24 10:23 UTC | 1 | Two-year causal context tapes + fail-closed hydration | `/tmp/xsp-context-sync-2y.json`; `/tmp/xsp-vix-context-refresh-2y.json`; `db/{SPY,VIX}/*5mins_rth.csv` | SPY `c47f19e9…`; VIX `1797fc3e…`; focused `36 passed` | Exact canonical `STK/SMART` SPY and `IND/CBOE` VIX tapes: each 38,898 bars/501 sessions, 496×78 full days + 5×42 half-days, zero missing ranges/anomalies/duplicates. SPY healed 41 missing sessions using two contiguous requests; VIX was independently regenerated after extended-index bars exposed a half-day audit defect. Historical acquisition now uses one-day-sized repairs, adaptive duration fallback, per-contract serialization, bounded backoff, IBKR error/head-timestamp evidence, and never skips an ambiguous empty response. A live 2004 VIX negative probe retained three HMDS no-data errors and failed closed against IBKR's exact `2005-10-03T13:30Z` head |
 | E-018 | 2026-07-24 10:32 UTC | 1 | Monotonic IBKR concurrency backoff | Git this commit | full suite `681 passed` | The shared adaptive planner previously widened a retry from ceilings `1` or `2` to `3`; it now emits only strictly descending concurrency (`1`; `2→1`; `6→3→1`; `10→5→3→1`). Independent primary contracts retain bounded parallelism while residual day repairs remain serialized |
+| E-019 | 2026-07-24 10:37 UTC | 2 | Preregistered XSP/SPY/VIX opening-context study | `/tmp/xsp-opening-context-study-v1.json` | `6ef12945…`; preregistration `521230c` | 768 cells over 316 eligible discovery sessions/boundary; zero passes; zero positive family-wise lower bounds. SPY cumulative participation and VIX direction did not rescue the failed XSP opening families; holdout remained sealed |
 
 ---
 
@@ -1194,6 +1203,7 @@ Add rows; never rewrite an unfavorable receipt.
 | D-031 | Chain expiry and strike sets are discovery unions, not exact pairs | IBKR returned chain-wide strikes that lacked a security definition for the selected expiry; only broker-qualified contracts prove exact membership | A provider supplies an authenticated expiry-by-strike matrix with equivalent broker proof |
 | D-032 | Neutral package quote arithmetic belongs to canonical execution | Captured replay and live BAG pricing must share signed debit units, quote modes, ticks, and payoff risk; replay binds tape provenance while live owns qualification and broker projection | The ownership model changes |
 | D-033 | Historical ambiguity fails closed | IBKR timeouts return an empty container indistinguishable from absent bars unless errors, retries, and availability are retained; cursor-skipping silently created two month-scale SPY holes | Never accept an empty response as coverage: retry the same cursor with bounded backoff and smaller windows, classify broker rejection/unavailability, consult earliest availability, then fail with evidence if unresolved |
+| D-034 | SPY/VIX context remains evidence, not strategy authority | A preregistered 768-cell extension produced no corrected, neighborhood-stable edge and no durable rescue of the opening-state family | A new causal feature contract passes development before the sealed holdout is read |
 
 ---
 
