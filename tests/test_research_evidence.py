@@ -1,9 +1,16 @@
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
 from types import SimpleNamespace
 
 import pytest
 
-from tradebot.research.evidence import backtest_evidence, research_rank_key
+from tradebot.chart_data.series import OhlcvBar
+from tradebot.research.evidence import (
+    XSP_CREDIT_BARRIER_SCHEMA,
+    backtest_evidence,
+    research_rank_key,
+    xsp_credit_barrier_census,
+)
+from tradebot.time_utils import ET_ZONE
 
 
 def _result(*, daily_equity: list[float], trade_pnls: list[float]):
@@ -68,3 +75,81 @@ def test_research_rank_never_uses_win_rate_as_an_authority() -> None:
     }
 
     assert research_rank_key(robust) > research_rank_key(fragile)
+
+
+def test_xsp_credit_barrier_census_is_fixed_causal_and_monotonic() -> None:
+    bars = []
+    day = datetime(2026, 1, 5)
+    for session in range(10):
+        while day.weekday() >= 5:
+            day += timedelta(days=1)
+        base = 100.0 + session * 0.25
+        for boundary in (time(10), time(10, 30), time(11), time(11, 30), time(15, 55)):
+            price = base + (boundary.hour * 60 + boundary.minute - 600) / 600.0
+            bars.append(
+                OhlcvBar(
+                    datetime.combine(day.date(), boundary, tzinfo=ET_ZONE),
+                    price,
+                    price + 0.1,
+                    price - 0.1,
+                    price,
+                    0.0,
+                )
+            )
+        day += timedelta(days=1)
+
+    result = xsp_credit_barrier_census(
+        bars,
+        source_fingerprint="admitted-source",
+    )
+
+    assert result["schema"] == XSP_CREDIT_BARRIER_SCHEMA
+    assert result["source"] == {
+        "symbol": "XSP",
+        "bar_size": "5 mins",
+        "use_rth": True,
+        "start": "2026-01-05",
+        "end": "2026-01-16",
+        "bars": 50,
+        "sessions": 10,
+        "stitched_source_manifest_sha256": "admitted-source",
+    }
+    cells = result["cells"]
+    assert len(cells) == 128
+    assert len(
+        {
+            (
+                row["decision_time_et"],
+                row["offset_pct"],
+                row["horizon_sessions"],
+                row["side"],
+            )
+            for row in cells
+        }
+    ) == 128
+    for row in cells:
+        assert row["touches"] >= row["expiration_breaches"]
+        assert row["required_credit_price"] == pytest.approx(
+            row["expiration_breach_rate_upper95"] + 0.10
+        )
+        assert sum(
+            cohort["observations"] for cohort in row["annual"].values()
+        ) == row["observations"]
+
+    for boundary in ("10:00", "10:30", "11:00", "11:30"):
+        for horizon in (0, 1, 3, 5):
+            for side in ("put_credit", "call_credit"):
+                comparable = sorted(
+                    (
+                        row
+                        for row in cells
+                        if row["decision_time_et"] == boundary
+                        and row["horizon_sessions"] == horizon
+                        and row["side"] == side
+                    ),
+                    key=lambda row: row["offset_pct"],
+                )
+                risks = [
+                    row["expiration_breach_rate"] for row in comparable
+                ]
+                assert risks == sorted(risks, reverse=True)

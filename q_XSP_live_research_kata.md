@@ -993,9 +993,10 @@ shadow, and live comparison without refetching complete cached ranges.
       rejected under adverse friction; one exact delayed captured vertical now
       proves replay/live pricing and risk parity, while authentic RTH
       time-series evidence remains pending.
-- [~] Establish a five-year short-strike barrier census before proposing
-      another credit family. The fixed v1 contract below is preregistered;
-      outcomes remain unread at this anchor.
+- [x] Establish a five-year short-strike barrier census before proposing
+      another credit family. The fixed v1 contract reproduced all 128 cells
+      from the admitted tape byte-for-byte in 1.80 seconds. It sets empirical
+      quote hurdles but cannot promote historical option expectancy.
 - [~] Establish alpha defined-risk baselines. The exact same delayed captured
       snapshot now prices a one-point call-debit vertical through the canonical
       package kernel. A 5,184-cell adverse-cost directional-credit family
@@ -1046,6 +1047,23 @@ need to compensate for historically observed expiration breach risk.
 - No cell is a candidate unless a fresh, strict-admission RTH package quote
   offers at least its required credit after tick rounding. Barrier evidence
   alone cannot open validation, claim expectancy, or control capital.
+
+Observed v1 verdict:
+
+- The most conservative same-session one-percent cells were the `11:30` ET
+  put-credit and call-credit barriers. Their Wilson-plus-friction minimum
+  credits were `0.1831` and `0.1620`.
+- For the next-session horizon closest to the scheduled Friday-to-Monday
+  capture, the best one-percent barriers still required `0.3026` put credit
+  at `10:30` and `0.3267` call credit at `11:00`.
+- Three- and five-session one-percent hurdles rose to `0.3659..0.5059`.
+  Annual breach rates varied materially, so pooled performance is not stable
+  enough to waive the fresh-quote or forward-replay gates.
+- The census is now one reproducible function in the shared research-evidence
+  owner. It consumes the admitted tape and its fingerprint, computes each
+  boundary/horizon path only once, and regenerated the original artifact with
+  identical SHA-256 `29c4d73b…`.
+
 - [ ] Encode `NO_TRADE` and event/liquidity vetoes.
 - [ ] Remove dominated or redundant candidates; keep the frontier compact.
 
@@ -1255,6 +1273,7 @@ Add rows; never rewrite an unfavorable receipt.
 | E-028 | 2026-07-24 11:46 UTC | 1 | Calibration provenance and effective boundary | Git this commit | focused `16 passed`; full `693 passed, 4 deselected` | Schema-v2 records bind the delayed broker observation to source kind, actual first/last underlying bars, and a next-date effective boundary. A caller-provided RV without both source bounds is rejected; same-day replay cannot consume a newly observed surface; legacy `asof` records remain readable |
 | E-029 | 2026-07-24 11:55 UTC | 1 | Five-year XSP underlying admission | `db/XSP/*5mins_rth.csv` | stitched-source manifest `591e581f…`; new 3-year shard `b7b90395…` | Canonical sparse hydration reused the existing two years and fetched only `2021-07-26..2024-07-23`: 36/36 sequential month requests, 244.18 seconds, no retries/fallbacks. The complete `2021-07-26..2026-07-23` tape has 97,452 bars/1,254 sessions, 1,244×78 normal and 10×42 early-close rows, zero unexpected counts/duplicates/effective gaps, strict timestamp order, and no nonzero XSP volume |
 | E-030 | 2026-07-24 12:01 UTC | 2 | Preregistered five-year XSP credit-barrier census | This document at pushed preregistration anchor | `xsp.credit-barrier-census.v1` | Frozen 128-cell descriptive matrix: four decision times × four OTM distances × four expiration horizons × two sides; conservative whole-point geometry, touch/expiration/adverse-excursion evidence, Wilson upper bounds, annual stability, and adverse USD 10 round-trip friction. No filtering, tuning, option-PnL claim, or promotion authority |
+| E-031 | 2026-07-24 12:10 UTC | 2 | Reproducible five-year XSP credit-barrier verdict | `/tmp/xsp-credit-barrier-census-v1.json`; Git this commit | artifact `29c4d73b…`; source `591e581f…`; full suite `694 passed, 4 deselected` | Shared research evidence regenerated the prior 128-cell artifact byte-identically from 97,452 bars in 1.80 seconds. Best one-percent Wilson-plus-friction hurdles were `0.1620..0.1831` same-session, `0.3026..0.3267` next-session, `0.3659..0.4461` three-session, and `0.3935..0.5059` five-session. Annual breach dispersion remains material; this screens strict-admission quotes but proves no historical option expectancy |
 
 ---
 
@@ -1300,6 +1319,7 @@ Add rows; never rewrite an unfavorable receipt.
 | D-036 | Calibration becomes effective after its observed date | A same-day date-only record can leak later broker evidence into earlier replay; explicit source bounds and next-date eligibility preserve causality while live orders continue to use broker quotes | Authentic timestamped option replay replaces synthetic calibration |
 | D-037 | Admit five-year XSP only as underlying RTH evidence | The hydrated tape is complete and comparable, but IBKR still supplies no historical expired-option chain/NBBO/Greek tape and XSP index volume remains absent | A provenance-complete option provider or accumulated forward tape supplies the missing evidence |
 | D-038 | Barrier evidence screens credit geometry but cannot prove option expectancy | Historical XSP spot can authenticate touches and settlement breaches, but not old NBBO, IV, fill probability, commissions, or executable package credit | Fresh strict-admission package quotes and forward replay clear the empirical required-credit hurdle |
+| D-039 | Reject unconditional multi-session XSP credit carry at current evidence | Even the best one-percent next-session cells require `0.3026..0.3267` executable credit after a deliberately conservative full-loss model, with substantial annual breach dispersion; longer holds require more | A fresh strict-admission package quote clears the registered hurdle and forward replay then passes calibration, execution, safety, and economic gates |
 
 ---
 
@@ -1373,9 +1393,11 @@ promote/hold/revise/stop verdict with its remaining-risk register.
   directional-credit singleton failed chronological repeatability. The
   preregistered directional-debit family produced zero positive daily LCBs.
   All family-specific holdouts remain unobserved. Phase 1 now has a complete
-  five-year XSP underlying tape and calibration records with enforced
-  source/effective boundaries; fresh RTH forward option evidence remains the
-  active time-gated seam.
+  five-year XSP underlying tape, causal calibration records, and a reproducible
+  128-cell credit-barrier census. The census rejects unconditional
+  multi-session carry at current evidence and gives fresh RTH package quotes
+  explicit minimum-credit hurdles; it does not claim historical option P&L.
+  Fresh RTH forward option evidence remains the active time-gated seam.
 - **Next action:** capture fresh RTH XSP chain/NBBO/Greeks evidence and bind its
   completeness verdict to same-tape replay. Continue bounded preregistered
   safe-income and alpha discovery without tuning rejected families against
