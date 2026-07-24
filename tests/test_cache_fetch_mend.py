@@ -12,13 +12,23 @@ from tradebot.backtest.cache_ops.sync import (
     _repo_root,
 )
 from tradebot.backtest.cache_ops.coverage import _intra_session_gap_days
-from tradebot.backtest.cache_ops.repair import _fetch_day_from_ibkr
+from tradebot.backtest.cache_ops.repair import (
+    _adaptive_thread_plan,
+    _fetch_day_from_ibkr,
+)
 from tradebot.chart_data.history import _read_cache_cached, cache_path, read_cache, write_cache
 from tradebot.backtest.models import Bar
 
 
 def test_cache_ops_repo_root_resolves_checkout() -> None:
     assert _repo_root() == Path(__file__).resolve().parents[1]
+
+
+def test_adaptive_thread_plan_only_reduces_concurrency() -> None:
+    assert _adaptive_thread_plan(1) == [1]
+    assert _adaptive_thread_plan(2) == [2, 1]
+    assert _adaptive_thread_plan(6) == [6, 3, 1]
+    assert _adaptive_thread_plan(10) == [10, 5, 3, 1]
 
 
 def test_day_repair_uses_canonical_index_without_overnight(monkeypatch) -> None:

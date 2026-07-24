@@ -602,14 +602,10 @@ def _process_cache_file(
 def _adaptive_thread_plan(base_threads: int) -> list[int]:
     base = max(1, int(base_threads))
     plan = [base]
-    plan.append(max(1, min(8, base // 2)))
-    plan.append(3)
-    plan.append(1)
-    out: list[int] = []
-    for t in plan:
-        if t not in out:
-            out.append(t)
-    return out
+    for candidate in (max(1, min(8, base // 2)), 3, 1):
+        if candidate < plan[-1]:
+            plan.append(candidate)
+    return plan
 
 
 def _is_retryable_ibkr_error(err: str | None) -> bool:
