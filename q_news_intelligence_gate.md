@@ -266,8 +266,10 @@ memory and are retained for 13 months.
 ## 8. Repository surfaces
 
 ```text
-tradebot/news.py
-tradebot/news_contract.py
+tradebot/news/__init__.py
+tradebot/news/__main__.py
+tradebot/news/contract.py
+tradebot/news/pipeline.py
 tests/test_news_signal.py
 tests/fixtures/news/finviz_news.html
 deploy/systemd/tradebot-news.service
@@ -276,6 +278,10 @@ deploy/systemd/README.md
 README.md
 tests/ledgers/capability_contracts.json
 ```
+
+`pipeline.py` and `contract.py` are the only substantive news modules.
+`__init__.py` exposes the narrow programmatic API, while `__main__.py`
+preserves the deployed `python -m tradebot.news` command.
 
 Primary capability ownership: `signal-regime-intelligence`.
 
@@ -350,11 +356,12 @@ coalescing; it is not a 15-minute poll.
 
 Final validation evidence:
 
-- focused news + capability-ledger + architecture suite: `25 passed`;
+- focused news + capability-ledger + architecture suite: `26 passed`;
 - complete repository suite under Python 3.12 after integrating concurrent
-  `origin/main`: `708 passed, 4 deselected, 1 warning` in `10.83s`;
+  `origin/main`: `709 passed, 4 deselected, 1 warning` in `10.62s`;
 - both production modules remain below the 1,000-line architecture ceiling:
-  `tradebot/news.py` 701 lines and `tradebot/news_contract.py` 754 lines;
+  `tradebot/news/pipeline.py` 698 lines and `tradebot/news/contract.py` 754
+  lines;
 - q `systemd-analyze --user verify` passed with no diagnostics;
 - runtime implementation commit: `20ea509`.
 
@@ -413,6 +420,7 @@ Final validation evidence:
 | N-016 | Runtime owns timestamp precision | Generative semantics must not fail on hidden microseconds |
 | N-017 | Delayed first timer tick | Enabling after validation must not duplicate an expensive run |
 | N-018 | Original reporting upgrades evidence | A republisher is discovery, not corroboration |
+| N-019 | Dedicated news package | Preserve the CLI identity while preventing root-module accretion |
 
 ## Conclusion
 

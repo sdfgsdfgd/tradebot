@@ -44,7 +44,7 @@ Minimal IBKR TUI trading client & bot
 - `tradebot/engines/` — shared market, signal, risk, shock, and execution truth.
 - `tradebot/spot/` — canonical spot payload, policy, sizing, graph, and lifecycle semantics.
 - `tradebot/backtest/cache_ops/` — cache coverage, repair, resampling, sync, and CLI orchestration.
-- `tradebot/news.py` — one-fetch, one-Codex-run XSP/MCL causal news signal.
+- `tradebot/news/` — one-fetch, one-Codex-run XSP/MCL causal news service.
 - `tradebot/store.py` — in‑memory portfolio snapshot.
 - `tradebot/main.py` — entrypoint.
 - `tradebot/gpt/` — reserved for future GPT workflows.

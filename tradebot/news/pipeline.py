@@ -16,7 +16,7 @@ from typing import Callable
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
-from .news_contract import (
+from .contract import (
     EMPTY_MEMORY,
     SCHEMA,
     SCORE_COMPONENT_LIMITS,
@@ -652,7 +652,8 @@ def run_once(
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Fetch one Finviz batch and publish one schema-bound XSP/MCL news signal."
+        prog="python -m tradebot.news",
+        description="Fetch one Finviz batch and publish one schema-bound XSP/MCL news signal.",
     )
     parser.add_argument(
         "--data-dir",
@@ -695,7 +696,3 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     print(json.dumps(result, sort_keys=True))
     return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

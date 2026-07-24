@@ -7,17 +7,21 @@ from types import SimpleNamespace
 
 import pytest
 
-import tradebot.news as news
-from tradebot.news import (
-    DEFAULT_MODEL,
+import tradebot.news as news_package
+from tradebot.news import __main__ as news_entrypoint
+from tradebot.news import pipeline as news
+from tradebot.news.contract import (
     NewsError,
-    build_prompt,
     output_schema,
+    validate_analysis,
+    validate_memory_markdown,
+)
+from tradebot.news.pipeline import (
+    DEFAULT_MODEL,
+    build_prompt,
     parse_finviz_news,
     run_once,
     select_candidates,
-    validate_analysis,
-    validate_memory_markdown,
 )
 
 
@@ -180,6 +184,13 @@ def test_finviz_parser_keeps_mainstream_rows_and_canonicalizes_tracking() -> Non
     )
     assert articles[2].url == "https://bbc.co.uk/news/articles/fed-rates"
     assert all(article.observed_at_utc == "2026-07-24T09:00:00Z" for article in articles)
+
+
+def test_news_package_preserves_public_and_module_entrypoints() -> None:
+    assert news_package.NewsError is NewsError
+    assert news_package.run_once is run_once
+    assert news_entrypoint.main is news.main
+    assert news._parser().prog == "python -m tradebot.news"
 
 
 def test_candidate_selection_has_no_topical_keyword_sieve() -> None:

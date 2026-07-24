@@ -228,8 +228,8 @@
       "owner_surface": [
         "tradebot/engines/shock.py",
         "tradebot/engines/signals.py",
-        "tradebot/news.py",
-        "tradebot/news_contract.py",
+        "tradebot/news/contract.py",
+        "tradebot/news/pipeline.py",
         "tradebot/spot_engine.py"
       ],
       "oracle": [
