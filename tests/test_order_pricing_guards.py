@@ -13,6 +13,7 @@ if "tradebot.ui" not in sys.modules:
     sys.modules["tradebot.ui"] = ui_pkg
 
 from tradebot.engines.execution import (
+    ExecutionPolicy,
     _exec_chase_should_reprice,
     _limit_price_for_mode,
     _sanitize_nbbo,
@@ -65,6 +66,25 @@ def test_quote_health_detects_one_sided_quote() -> None:
     assert out["has_one_sided"] is True
     assert out["has_nbbo"] is False
     assert out["has_actionable"] is False
+
+
+def test_execution_quote_staleness_preserves_unknown_age_and_enforces_known_age() -> None:
+    policy = ExecutionPolicy(stale_top_age_sec=2.0)
+
+    assert policy.quote_is_stale(
+        ticker=None,
+        bid=1.0,
+        ask=1.1,
+        last=None,
+        now_sec=10.0,
+    ) is False
+    assert policy.quote_is_stale(
+        ticker=types.SimpleNamespace(tbTopQuoteUpdatedMono=7.9),
+        bid=1.0,
+        ask=1.1,
+        last=None,
+        now_sec=10.0,
+    ) is True
 
 
 def test_ticker_line_can_use_display_fallback_price() -> None:

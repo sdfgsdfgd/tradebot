@@ -20,6 +20,7 @@ from tradebot.engines.execution import (
     _sanitize_nbbo_extremes,
     _ticker_close,
     _ticker_price,
+    quote_health as _quote_health,
 )
 from tradebot.ui.time_compat import now_et as _now_et
 
@@ -696,32 +697,6 @@ def _safe_num(value: float | None) -> float | None:
     if math.isnan(num) or num == 0:
         return None
     return num
-
-
-def _quote_health(
-    *,
-    bid: float | None,
-    ask: float | None,
-    last: float | None,
-    close: float | None = None,
-) -> dict[str, bool]:
-    clean_bid, clean_ask, clean_last = _sanitize_nbbo(bid, ask, last)
-    clean_close = _quote_num_display(close)
-    has_bid = bool(clean_bid is not None)
-    has_ask = bool(clean_ask is not None)
-    has_nbbo = bool(clean_bid is not None and clean_ask is not None and clean_bid <= clean_ask)
-    has_one_sided = bool((has_bid or has_ask) and not has_nbbo)
-    has_last = bool(clean_last is not None)
-    has_close_only = bool((not has_nbbo) and (not has_last) and clean_close is not None)
-    return {
-        "has_bid": has_bid,
-        "has_ask": has_ask,
-        "has_nbbo": has_nbbo,
-        "has_one_sided": has_one_sided,
-        "has_last": has_last,
-        "has_close_only": has_close_only,
-        "has_actionable": bool(has_nbbo or has_last),
-    }
 
 
 def _mark_price(item: PortfolioItem) -> float | None:

@@ -7,12 +7,16 @@ These snapshots are meant to be:
 """
 from __future__ import annotations
 
+import fcntl
+import hashlib
 import json
 import math
+import os
+import tempfile
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 from ib_insync import IB, ContFuture, Index, Stock
 
@@ -21,6 +25,7 @@ from ..contract_identity import (
     index_exchange_for_symbol,
     select_option_chain,
 )
+from ..engines.execution import quote_health
 
 
 def _none_if_nan(value) -> float | None:
@@ -133,6 +138,23 @@ class QuoteError:
 
 
 @dataclass(frozen=True)
+class OptionChainManifest:
+    """Broker-reported expiry/strike sets; qualification proves exact pairs."""
+
+    underlying_con_id: int | None
+    underlying_sec_type: str | None
+    symbol: str
+    underlying_exchange: str | None
+    currency: str | None
+    option_exchange: str | None
+    trading_class: str | None
+    multiplier: str | None
+    expirations: tuple[str, ...]
+    strikes: tuple[float, ...]
+    schema_version: int = 1
+
+
+@dataclass(frozen=True)
 class QuoteSnapshot:
     ts: str
     md_type: int
@@ -140,6 +162,9 @@ class QuoteSnapshot:
     underlying: QuoteContract
     options: list[QuoteContract]
     errors: list[QuoteError]
+    chain_fingerprint: str | None = None
+    target_expiry: str | None = None
+    schema_version: int = 2
 
 
 def contract_from_ticker(contract, ticker) -> QuoteContract:
@@ -184,6 +209,8 @@ def make_snapshot(
     option_tickers: list[Any],
     errors: list[QuoteError] | None = None,
     ts: datetime | None = None,
+    chain_fingerprint: str | None = None,
+    target_expiry: str | None = None,
 ) -> QuoteSnapshot:
     now = ts or datetime.now(timezone.utc)
     snap_errors = list(errors or [])
@@ -198,15 +225,168 @@ def make_snapshot(
         underlying=underlying,
         options=options,
         errors=snap_errors,
+        chain_fingerprint=chain_fingerprint,
+        target_expiry=target_expiry,
     )
+
+
+def make_chain_manifest(underlying: object, chain: object) -> OptionChainManifest:
+    return OptionChainManifest(
+        underlying_con_id=_safe_int(getattr(underlying, "conId", None)),
+        underlying_sec_type=getattr(underlying, "secType", None),
+        symbol=str(getattr(underlying, "symbol", "") or "").strip().upper(),
+        underlying_exchange=getattr(underlying, "exchange", None),
+        currency=getattr(underlying, "currency", None),
+        option_exchange=getattr(chain, "exchange", None),
+        trading_class=getattr(chain, "tradingClass", None),
+        multiplier=getattr(chain, "multiplier", None),
+        expirations=tuple(
+            sorted(str(value) for value in (getattr(chain, "expirations", ()) or ()))
+        ),
+        strikes=tuple(
+            sorted(float(value) for value in (getattr(chain, "strikes", ()) or ()))
+        ),
+    )
+
+
+def persist_chain_manifest(directory: Path, manifest: OptionChainManifest) -> str:
+    payload = json.dumps(
+        asdict(manifest),
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode()
+    fingerprint = hashlib.sha256(payload).hexdigest()
+    path = directory / "chains" / f"{fingerprint}.json"
+    if path.exists():
+        return fingerprint
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as handle:
+        temporary = Path(handle.name)
+        handle.write(payload)
+        handle.write(b"\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.chmod(temporary, 0o644)
+    try:
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+    return fingerprint
 
 
 def append_snapshot(path: Path, snapshot: QuoteSnapshot) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    payload = asdict(snapshot)
-    with path.open("a") as handle:
-        handle.write(json.dumps(payload, separators=(",", ":"), sort_keys=True))
-        handle.write("\n")
+    line = (
+        json.dumps(asdict(snapshot), separators=(",", ":"), sort_keys=True).encode()
+        + b"\n"
+    )
+    with path.open("a+b") as handle:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        _repair_jsonl_tail(handle)
+        handle.seek(0, os.SEEK_END)
+        handle.write(line)
+        handle.flush()
+        os.fsync(handle.fileno())
+        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
+def iter_snapshot_payloads(path: Path) -> Iterator[dict[str, object]]:
+    with path.open("rb") as handle:
+        for line_no, line in enumerate(handle, 1):
+            if not line.strip():
+                continue
+            try:
+                payload = json.loads(line)
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"{path}:{line_no}: invalid snapshot JSON") from exc
+            if not isinstance(payload, dict):
+                raise ValueError(f"{path}:{line_no}: snapshot must be an object")
+            yield payload
+
+
+def snapshot_quality(
+    snapshot: QuoteSnapshot,
+    *,
+    max_age_sec: float | None = None,
+    require_live: bool = False,
+) -> dict[str, object]:
+    observed_at = _parse_datetime(snapshot.ts)
+    rows = []
+    for option in snapshot.options:
+        quote_at = _parse_datetime(option.quote_time)
+        age_sec = (
+            max(0.0, (observed_at - quote_at).total_seconds())
+            if observed_at is not None and quote_at is not None
+            else None
+        )
+        rows.append(
+            quote_health(
+                bid=option.bid,
+                ask=option.ask,
+                last=option.last,
+                close=option.close,
+                market_data_type=option.market_data_type,
+                age_sec=age_sec,
+                max_age_sec=max_age_sec,
+                require_live=require_live,
+                require_nbbo=True,
+                require_age=max_age_sec is not None,
+            )
+        )
+    qualified = [
+        option.con_id is not None and option.con_id > 0
+        for option in snapshot.options
+    ]
+    return {
+        "requirements": {
+            "require_nbbo": True,
+            "require_streaming_live": require_live,
+            "max_age_sec": max_age_sec,
+        },
+        "total_options": len(snapshot.options),
+        "qualified_options": sum(qualified),
+        "invalid_options": len(snapshot.options) - sum(qualified),
+        "timestamped_options": sum(
+            is_qualified and option.quote_time is not None
+            for option, is_qualified in zip(snapshot.options, qualified)
+        ),
+        "nbbo_options": sum(
+            is_qualified and bool(row["has_nbbo"])
+            for is_qualified, row in zip(qualified, rows)
+        ),
+        "eligible_options": sum(
+            is_qualified and bool(row["eligible"])
+            for is_qualified, row in zip(qualified, rows)
+        ),
+        "live_options": sum(
+            is_qualified and bool(row["live"])
+            for is_qualified, row in zip(qualified, rows)
+        ),
+        "streaming_options": sum(
+            is_qualified and bool(row["streaming"])
+            for is_qualified, row in zip(qualified, rows)
+        ),
+        "delayed_options": sum(
+            is_qualified and bool(row["delayed"])
+            for is_qualified, row in zip(qualified, rows)
+        ),
+        "full_greek_options": sum(
+            is_qualified
+            and all(
+                value is not None
+                for value in (
+                    option.model_iv,
+                    option.model_delta,
+                    option.model_gamma,
+                    option.model_vega,
+                    option.model_theta,
+                    option.model_under_price,
+                )
+            )
+            for option, is_qualified in zip(snapshot.options, qualified)
+        ),
+        "errors": len(snapshot.errors),
+    }
 
 
 def _safe_int(value) -> int | None:
@@ -223,3 +403,45 @@ def _iso_or_none(value) -> str | None:
         return None
     isoformat = getattr(value, "isoformat", None)
     return str(isoformat()) if callable(isoformat) else None
+
+
+def _parse_datetime(value: object) -> datetime | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _repair_jsonl_tail(handle) -> None:
+    handle.seek(0, os.SEEK_END)
+    end = handle.tell()
+    if end <= 0:
+        return
+    handle.seek(end - 1)
+    if handle.read(1) == b"\n":
+        return
+    start = end
+    while start > 0:
+        size = min(8192, start)
+        start -= size
+        handle.seek(start)
+        chunk = handle.read(size)
+        newline = chunk.rfind(b"\n")
+        if newline >= 0:
+            start += newline + 1
+            break
+    handle.seek(start)
+    tail = handle.read(end - start)
+    try:
+        json.loads(tail)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        handle.truncate(start)
+    else:
+        handle.seek(0, os.SEEK_END)
+        handle.write(b"\n")

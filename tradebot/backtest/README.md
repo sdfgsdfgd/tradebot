@@ -89,6 +89,8 @@ Use `--no-write` to skip CSV output. Add `--calibrate` to refresh the synthetic 
 - Record option quote snapshots (JSONL) for calibration / sanity checks:
   - `python -m tradebot.backtest.tools.record_quotes --symbol SLV --count 10 --interval 60`
   - Output default: `db/quotes/<SYMBOL>/<YYYY-MM-DD>.jsonl`
+  - `--count 0` runs until interrupted; chain manifests are deduplicated under
+    `db/quotes/<SYMBOL>/chains/`, and interrupted JSONL tails self-repair on resume.
 - Unified cache tool (`tradebot.backtest.tools.cache_ops`) subcommands:
   - `repair`: `python -m tradebot.backtest.tools.cache_ops repair --cache-file db/SLV/SLV_2025-01-08_2026-01-08_1min_full24.csv --heal --aggressive`
   - `sync`: `python -m tradebot.backtest.tools.cache_ops sync --champion-current --aggressive --force-refresh`

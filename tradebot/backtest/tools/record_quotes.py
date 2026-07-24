@@ -10,14 +10,24 @@ entire chains; it records a small strike set around spot.
 from __future__ import annotations
 
 import argparse
+import json
 from datetime import datetime, timezone
+from itertools import count
 from pathlib import Path
 
 from ib_insync import IB, FuturesOption, Option
 
 from ...config import load_config
 from ..calibration import _nearest_strike, _pick_expiry
-from ..quotes import QuoteError, append_snapshot, make_snapshot, resolve_option_chain
+from ..quotes import (
+    QuoteError,
+    append_snapshot,
+    make_chain_manifest,
+    make_snapshot,
+    persist_chain_manifest,
+    resolve_option_chain,
+    snapshot_quality,
+)
 
 
 def main() -> None:
@@ -55,7 +65,7 @@ def main() -> None:
         "--count",
         type=int,
         default=1,
-        help="Number of snapshots to record.",
+        help="Number of snapshots to record; 0 runs until interrupted.",
     )
     parser.add_argument(
         "--out-dir",
@@ -90,9 +100,8 @@ def main() -> None:
     ib.connect(cfg.host, cfg.port, clientId=cfg.client_id + 90, timeout=10)
 
     try:
-        symbol = args.symbol
+        symbol = str(args.symbol).strip().upper()
         out_dir = Path(args.out_dir) / symbol
-        out_path = out_dir / f"{datetime.now(timezone.utc).date().isoformat()}.jsonl"
 
         moneyness = []
         for part in str(args.moneyness).split(","):
@@ -106,7 +115,9 @@ def main() -> None:
         if not moneyness:
             moneyness = [1.0, 2.5, 5.0]
 
-        for _ in range(max(1, int(args.count))):
+        snapshot_count = int(args.count)
+        iterations = range(max(1, snapshot_count)) if snapshot_count else count()
+        for iteration in iterations:
             errors.clear()
 
             ib.reqMarketDataType(int(args.md_type))
@@ -115,66 +126,56 @@ def main() -> None:
                 symbol,
                 args.exchange,
             )
-            if spot is None or not chain:
-                snap = make_snapshot(
-                    symbol=symbol,
-                    md_type=int(args.md_type),
-                    underlying_contract=under_contract,
-                    underlying_ticker=type("T", (), {"bid": None, "ask": None, "last": None, "close": None})(),
-                    option_contracts=[],
-                    option_tickers=[],
-                    errors=list(errors),
-                )
-                append_snapshot(out_path, snap)
-                ib.sleep(args.interval)
-                continue
-
-            expiry = _pick_expiry(chain.expirations, 0, 3650, int(args.dte))
-            if not expiry:
-                ib.sleep(args.interval)
-                continue
-
-            strikes = sorted(chain.strikes)
-            selections = set()
-            selections.add(_nearest_strike(strikes, spot))
-            for pct in moneyness:
-                selections.add(_nearest_strike(strikes, spot * (1 - pct / 100.0)))
-                selections.add(_nearest_strike(strikes, spot * (1 + pct / 100.0)))
-
+            expiry = None
+            chain_fingerprint = None
             contracts = []
-            for strike in sorted(selections):
-                for right in ("P", "C"):
-                    if is_future:
-                        contracts.append(
-                            FuturesOption(
-                                symbol,
-                                expiry,
-                                float(strike),
-                                right,
-                                exchange=chain.exchange,
-                                currency="USD",
-                                tradingClass=chain.tradingClass,
-                            )
-                        )
-                    else:
-                        contracts.append(
-                            Option(
-                                symbol,
-                                expiry,
-                                float(strike),
-                                right,
-                                exchange=chain.exchange,
-                                currency="USD",
-                                tradingClass=chain.tradingClass,
+            tickers = []
+            if chain:
+                chain_fingerprint = persist_chain_manifest(
+                    out_dir,
+                    make_chain_manifest(under_contract, chain),
+                )
+            if spot is not None and chain:
+                expiry = _pick_expiry(chain.expirations, 0, 3650, int(args.dte))
+                strikes = sorted(chain.strikes)
+                if expiry and strikes:
+                    targets = {float(spot)}
+                    for pct in moneyness:
+                        targets.add(spot * (1 - pct / 100.0))
+                        targets.add(spot * (1 + pct / 100.0))
+
+                    selected_indices: set[int] = set()
+                    for target in targets:
+                        nearest_index = strikes.index(_nearest_strike(strikes, target))
+                        selected_indices.update(
+                            range(
+                                max(0, nearest_index - 1),
+                                min(len(strikes), nearest_index + 2),
                             )
                         )
 
-            contracts = list(ib.qualifyContracts(*contracts) or [])
-            tickers = ib.reqTickers(*contracts) if contracts else []
+                    for index in sorted(selected_indices):
+                        for right in ("P", "C"):
+                            option_type = FuturesOption if is_future else Option
+                            contracts.append(
+                                option_type(
+                                    symbol,
+                                    expiry,
+                                    float(strikes[index]),
+                                    right,
+                                    exchange=chain.exchange,
+                                    currency="USD",
+                                    tradingClass=chain.tradingClass,
+                                )
+                            )
+
+                    contracts = list(ib.qualifyContracts(*contracts) or [])
+                    tickers = ib.reqTickers(*contracts) if contracts else []
 
             # Re-snapshot the exact qualified underlyer beside the option quotes.
             [under_ticker] = ib.reqTickers(under_contract)
 
+            captured_at = datetime.now(timezone.utc)
             snap = make_snapshot(
                 symbol=symbol,
                 md_type=int(args.md_type),
@@ -183,10 +184,28 @@ def main() -> None:
                 option_contracts=contracts,
                 option_tickers=tickers,
                 errors=list(errors),
-                ts=datetime.now(timezone.utc),
+                ts=captured_at,
+                chain_fingerprint=chain_fingerprint,
+                target_expiry=expiry,
             )
+            out_path = out_dir / f"{captured_at.date().isoformat()}.jsonl"
             append_snapshot(out_path, snap)
-            ib.sleep(args.interval)
+            print(
+                json.dumps(
+                    {
+                        "path": str(out_path),
+                        "ts": snap.ts,
+                        "chain_fingerprint": chain_fingerprint,
+                        "target_expiry": expiry,
+                        **snapshot_quality(snap),
+                    },
+                    sort_keys=True,
+                ),
+                flush=True,
+            )
+            if snapshot_count and iteration + 1 >= max(1, snapshot_count):
+                break
+            ib.sleep(max(0.0, float(args.interval)))
     finally:
         try:
             ib.disconnect()

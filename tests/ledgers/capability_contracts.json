@@ -114,6 +114,7 @@
     "tests/test_offline_cache_preflight.py": "backtest-data-cache",
     "tests/test_option_package_economics.py": "live-execution-orders",
     "tests/test_option_package_risk.py": "live-execution-orders",
+    "tests/test_option_quote_capture.py": "live-market-data-contracts",
     "tests/test_option_search_qualification.py": "live-market-data-contracts",
     "tests/test_options_prepared_tape.py": "backtest-data-cache",
     "tests/test_order_admission_policy.py": "live-execution-orders",
@@ -322,6 +323,7 @@
         "current proof surfaces for live-market-data-contracts"
       ],
       "evidence": [
+        "tests/test_option_quote_capture.py",
         "tests/test_option_search_qualification.py",
         "tests/test_order_contract_normalize.py",
         "tests/test_ui_contract_binding.py",

@@ -3,7 +3,7 @@
 - **Status:** `[WIP] Phase 1 — authentic XSP evidence spine`
 - **Management role:** canonical task tree, evidence ledger, decision journal, and resume source
 - **Code baseline:** `25513267225908b7288530c1ec0762f7656bbf5b`
-- **Current verified code head:** `743ef063dd31fb6d265c66be253d56d906ba1f4e`
+- **Resumable pushed anchor before current WIP:** `8c2e65968785b8dbf98f51fc1fb9c4b48b90f135`
 - **Management brain introduced:** `3c38af635fcc6ce8b3b0a88e1f2de567345d1bf0`
 - **Instrument scope:** XSP first; no expansion until its data, economics, execution, and live drift are mastered
 - **Capital premise:** user-reported net liquidity near USD 1,000; re-read broker truth before every capital decision
@@ -48,6 +48,12 @@ reliability, but it must never claim certainty, guaranteed profit, or treat one
 lucky trade as success. The measurable target is stable net expectancy with
 bounded drawdown, calibrated confidence, repeatable execution, and explicit
 evidence about when **not** to trade.
+
+The concrete economic objective is stricter than infrastructure readiness: the
+selected strategy must finish one complete 24-hour shadow/paper run and one
+complete five-session week net positive after all applicable costs, inside
+frozen drawdown limits, with package/leg/account attribution. Neither a passing
+calibration benchmark nor correct abstention alone completes those targets.
 
 Before any live-capital activation, spend at least 2–4 hours on extensive,
 novel but reproducible backtesting and the necessary improvements to its data,
@@ -682,6 +688,13 @@ Reuse `benchmark.future.live-backtest-drift-score`; do not create an
 XSP-specific parallel scorer. Each `live_calibration.v1` result is
 content-addressed and append-only, with the forecast frozen before its outcome:
 
+This benchmark governs and authenticates the live runs; it does not replace
+their economic objective. Completion still requires an actual net-positive
+24-hour selected-strategy run and an actual net-positive one-week/five-session
+run after all applicable costs. A complete, well-calibrated benchmark attached
+to a flat, losing, or abstaining run remains valuable evidence, but it is not
+achievement of either profitable-run milestone.
+
 ```text
 identity       strategy/version, tape/config fingerprints, capital sleeve
 forecast       decision/no-trade, package, P&L distribution, risk, costs, fills
@@ -893,10 +906,13 @@ Receipt fingerprints:
 - [ ] Establish separately provenance-bound context tapes; XSP index volume is
       absent and must never be treated as observed zero activity.
 - [ ] Admit the 5-year window only for comparable, complete evidence.
-- [ ] Capture forward XSP chains/NBBO/Greeks with provenance and restart safety.
+- [~] Capture forward XSP chains/NBBO/Greeks with provenance and restart safety.
+      Two-process append, repair, and manifest reuse are proven premarket;
+      fresh RTH evidence remains pending.
 - [ ] Bind synthetic calibration to explicit source/effective intervals.
-- [ ] Add completeness and freshness gates consumed identically by research,
-      replay, evaluation, and live admission.
+- [~] Add completeness and freshness gates consumed identically by research,
+      replay, evaluation, and live admission. Capture, execution, UI, and
+      journal now share one quote classifier; replay/evaluation binding remains.
 
 **Phase exit:** identical evidence fingerprints can hydrate backtest, replay,
 shadow, and live comparison without refetching complete cached ranges.
@@ -1105,6 +1121,7 @@ Add rows; never rewrite an unfavorable receipt.
 | E-012 | 2026-07-24 | 1 | Two-year XSP underlying hydration | `/tmp/xsp-cache-sync-2y.json`; six stitched cache shards | canonical rows `a1154bba…` | 38,898 bars; 501 complete sessions; 496×78 bars plus five half-days×42; zero missing ranges; volume absent throughout |
 | E-013 | 2026-07-24 | 2 | Preregistered opening-state matrix | `/tmp/xsp-opening-state-study-v1.json` | `03af6fb1…` | 256 cells; 316 eligible sessions/boundary; zero family-wise passes; narrow 90m downside/30m rebound hint fails corrected and neighborhood gates; holdout sealed |
 | E-014 | 2026-07-24 08:48 UTC | 1 | XSP forward quote-capture smoke | `/tmp/xsp-forward-capture-smoke-v4/XSP/2026-07-24.jsonl` | `dcf24c2e…` | Exact `IND/CBOE` underlier; 12 qualified option rows, zero invalid conIds, six NBBO/full-Greek rows; requested delayed mode and preserved actual `1/3` provenance; subscription/definition errors retained; premarket plumbing evidence only |
+| E-015 | 2026-07-24 09:16 UTC | 1 | XSP capture restart continuity | `/tmp/xsp-forward-restart-proof.BCWo2l/XSP/` | tape `c091adf4…`; chain `ae4679a…` | Two independent recorder processes appended two schema-v2 snapshots to one valid JSONL tape; one content-addressed chain manifest reused; 28 qualified contracts/snapshot, zero invalid conIds; actual `1/3` provenance and errors preserved; premarket delayed evidence, not RTH admission |
 
 ---
 
@@ -1142,6 +1159,7 @@ Add rows; never rewrite an unfavorable receipt.
 | D-028 | Pre-register the opening-state matrix before reading outcomes | Opening folklore is easy to hindsight-label; rolling prior-session thresholds and a sealed family-specific holdout preserve causality | Only through a new versioned research contract before viewing new outcomes |
 | D-029 | Do not bank on opening folklore as a daily law | The first causal two-year matrix found no corrected, neighborhood-stable edge; one narrow downside-rebound hint is insufficient | A new predeclared feature family passes development and sealed holdout |
 | D-030 | IBKR is not a historical XSP option-chain archive | Expired options and option EOD data are unavailable; native combo history is not stored, so successful underlying requests cannot authenticate old spread economics | A provenance-complete specialist dataset is admitted or sufficient forward tape accumulates |
+| D-031 | Chain expiry and strike sets are discovery unions, not exact pairs | IBKR returned chain-wide strikes that lacked a security definition for the selected expiry; only broker-qualified contracts prove exact membership | A provider supplies an authenticated expiry-by-strike matrix with equivalent broker proof |
 
 ---
 
@@ -1180,9 +1198,10 @@ Before stopping or changing phase:
 5. Preserve partial data/cache work atomically and restartably.
 6. Keep the repository and this management brain synchronized.
 
-No objective completion is valid until the one-week receipt exists and the
-system issues an honest promote/hold/revise/stop verdict with its remaining-risk
-register.
+No objective completion is valid until both the net-positive 24-hour and
+net-positive one-week/five-session economic receipts exist, the one-week
+calibration receipt is complete, and the system issues an honest
+promote/hold/revise/stop verdict with its remaining-risk register.
 
 ---
 

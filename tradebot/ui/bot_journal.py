@@ -10,6 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
+from ..engines.execution import quote_health
 from ..time_utils import UTC as _UTC
 from ..time_utils import now_et as _now_et
 from .bot_journal_diagnostics import JournalDiagnostics
@@ -94,11 +95,6 @@ def order_quote_failure_payload(
     mid: float | None = None,
     proxy_error: object = None,
 ) -> dict[str, object]:
-    md_type_raw = getattr(ticker, "marketDataType", None) if ticker is not None else None
-    try:
-        md_type = int(md_type_raw) if md_type_raw is not None else None
-    except (TypeError, ValueError):
-        md_type = None
     age_ms = None
     ticker_ts = getattr(ticker, "time", None) if ticker is not None else None
     if isinstance(ticker_ts, datetime):
@@ -111,20 +107,26 @@ def order_quote_failure_payload(
             age_ms = max(0, int((now_ts - ticker_ts).total_seconds() * 1000.0))
         except Exception:
             age_ms = None
+    health = quote_health(
+        bid=bid,
+        ask=ask,
+        last=last,
+        market_data_type=getattr(ticker, "marketDataType", None)
+        if ticker is not None
+        else None,
+        age_sec=(float(age_ms) / 1000.0) if age_ms is not None else None,
+    )
     return {
         "quote": {
             "bid": float(bid) if bid is not None else None,
             "ask": float(ask) if ask is not None else None,
             "last": float(last) if last is not None else None,
             "mid": float(mid) if mid is not None else None,
-            "market_data_type": md_type,
-            "live": md_type in (1, 2),
-            "delayed": md_type in (3, 4),
-            "frozen": md_type in (2, 4),
-            "md_ok": any(
-                value is not None and float(value) > 0
-                for value in (bid, ask, last)
-            ),
+            "market_data_type": health["market_data_type"],
+            "live": health["live"],
+            "delayed": health["delayed"],
+            "frozen": health["frozen"],
+            "md_ok": health["has_actionable"],
             "ticker_age_ms": age_ms,
             "proxy_error": proxy_error,
         }
