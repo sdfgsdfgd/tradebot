@@ -15,6 +15,7 @@ from tradebot.backtest.cache_ops.coverage import _intra_session_gap_days
 from tradebot.backtest.cache_ops.repair import (
     _adaptive_thread_plan,
     _fetch_day_from_ibkr,
+    _is_retryable_ibkr_error,
 )
 from tradebot.chart_data.history import _read_cache_cached, cache_path, read_cache, write_cache
 from tradebot.backtest.models import Bar
@@ -29,6 +30,13 @@ def test_adaptive_thread_plan_only_reduces_concurrency() -> None:
     assert _adaptive_thread_plan(2) == [2, 1]
     assert _adaptive_thread_plan(6) == [6, 3, 1]
     assert _adaptive_thread_plan(10) == [10, 5, 3, 1]
+
+
+def test_retryable_ibkr_errors_include_ambiguous_and_incomplete_fetches() -> None:
+    assert _is_retryable_ibkr_error("historical_fetch_exhausted: head=unknown")
+    assert _is_retryable_ibkr_error("incomplete_after_fetch: dates=2025-01-16")
+    assert _is_retryable_ibkr_error("connection reset by peer")
+    assert not _is_retryable_ibkr_error("historical_unavailable_before_head: earliest=2025-01-17")
 
 
 def test_day_repair_uses_canonical_index_without_overnight(monkeypatch) -> None:
@@ -69,6 +77,94 @@ def test_day_repair_uses_canonical_index_without_overnight(monkeypatch) -> None:
     assert out.ok is True
     assert _Provider.resolve_calls == [("VIX", None)]
     assert out.overnight_rows == 0
+
+
+def test_day_repair_does_not_retry_proven_unavailability(monkeypatch) -> None:
+    class _Provider:
+        instances = 0
+
+        def __init__(self, *, client_id_offset: int) -> None:
+            type(self).instances += 1
+
+        def resolve_contract(self, symbol: str, exchange: str | None):
+            return object(), object()
+
+        def _fetch_bars(self, *_args, **_kwargs):
+            raise RuntimeError(
+                "historical_unavailable_before_head: "
+                "requested_end=2025-01-15 earliest=2025-01-16"
+            )
+
+        def disconnect(self) -> None:
+            return
+
+    sleeps: list[float] = []
+    monkeypatch.setattr(
+        "tradebot.backtest.cache_ops.repair.IBKRHistoricalData",
+        _Provider,
+    )
+    monkeypatch.setattr(
+        "tradebot.backtest.cache_ops.repair.sleep",
+        sleeps.append,
+    )
+
+    out = _fetch_day_from_ibkr(
+        symbol="VIX",
+        bar_size="5 mins",
+        day=date(2025, 1, 15),
+        use_rth=True,
+        timeout_sec=1.0,
+        retries=3,
+        client_id_offset=17,
+    )
+
+    assert out.ok is False
+    assert out.attempts == 1
+    assert _Provider.instances == 1
+    assert sleeps == []
+
+
+def test_day_repair_backs_off_ambiguous_failures(monkeypatch) -> None:
+    class _Provider:
+        instances = 0
+
+        def __init__(self, *, client_id_offset: int) -> None:
+            type(self).instances += 1
+
+        def resolve_contract(self, symbol: str, exchange: str | None):
+            return object(), object()
+
+        def _fetch_bars(self, *_args, **_kwargs):
+            if type(self).instances < 3:
+                raise RuntimeError("historical_fetch_exhausted: head=unknown")
+            return [_bar(datetime(2025, 1, 15, 14, 30))]
+
+        def disconnect(self) -> None:
+            return
+
+    sleeps: list[float] = []
+    monkeypatch.setattr(
+        "tradebot.backtest.cache_ops.repair.IBKRHistoricalData",
+        _Provider,
+    )
+    monkeypatch.setattr(
+        "tradebot.backtest.cache_ops.repair.sleep",
+        sleeps.append,
+    )
+
+    out = _fetch_day_from_ibkr(
+        symbol="VIX",
+        bar_size="5 mins",
+        day=date(2025, 1, 15),
+        use_rth=True,
+        timeout_sec=1.0,
+        retries=3,
+        client_id_offset=17,
+    )
+
+    assert out.ok is True
+    assert out.attempts == 3
+    assert sleeps == [1.5, 3.1]
 
 
 class _DummyProvider:

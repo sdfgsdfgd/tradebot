@@ -8,6 +8,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
+from time import sleep
 
 from ...time_utils import UTC as _UTC
 from ...chart_data.history import read_cache, write_cache
@@ -59,7 +60,8 @@ def _fetch_day_from_ibkr(
     last_error: str | None = None
     start_utc, end_utc = _utc_bounds_for_et_day(day)
     try:
-        for _ in range(max(1, int(retries))):
+        retry_limit = max(1, int(retries))
+        for _ in range(retry_limit):
             attempts += 1
             provider = IBKRHistoricalData(client_id_offset=client_id_offset)
             try:
@@ -105,6 +107,21 @@ def _fetch_day_from_ibkr(
                     provider.disconnect()
                 except Exception:
                     pass
+            if attempts >= retry_limit:
+                continue
+            error_text = str(last_error or "").strip().lower()
+            if error_text.startswith(
+                (
+                    "historical_request_rejected:",
+                    "historical_unavailable:",
+                    "historical_unavailable_before_head:",
+                )
+            ):
+                break
+            pacing = "pacing violation" in error_text or "maximum allowed message rate" in error_text
+            delay = (15.0 if pacing else 1.5 * (2 ** (attempts - 1)))
+            delay += ((day.toordinal() + int(client_id_offset) + attempts) % 4) * 0.1
+            sleep(delay)
 
         return _FetchResult(
             day=day,
@@ -614,7 +631,15 @@ def _is_retryable_ibkr_error(err: str | None) -> bool:
         return False
     return (
         "timeout" in txt
+        or "timed out" in txt
         or "historical market data service error message:api historical data query cancelled" in txt
+        or "historical_fetch_exhausted:" in txt
+        or "incomplete_after_fetch:" in txt
         or "pacing" in txt
         or "socket" in txt
+        or "broken pipe" in txt
+        or "connection reset" in txt
+        or "connection refused" in txt
+        or "not connected" in txt
+        or "peer closed" in txt
     )

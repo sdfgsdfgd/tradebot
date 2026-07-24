@@ -1,3 +1,4 @@
+import asyncio
 import unittest
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -13,6 +14,7 @@ from tradebot.chart_data.history import (
 from tradebot.backtest.data import (
     ContractMeta,
     IBKRHistoricalData,
+    _HISTORICAL_HEAD_CACHE,
     _as_utc_aware,
     _convert_bar,
     _duration_for_bar_size,
@@ -45,6 +47,41 @@ class _HistoricalIB:
     def reqHistoricalData(self, _contract, **kwargs):
         self.calls.append(kwargs)
         return self.responses.pop(0) if self.responses else []
+
+
+class _ErrorEvent:
+    def __init__(self) -> None:
+        self.handlers = []
+
+    def __iadd__(self, handler):
+        self.handlers.append(handler)
+        return self
+
+    def __isub__(self, handler):
+        self.handlers.remove(handler)
+        return self
+
+    def emit(self, code: int, message: str) -> None:
+        for handler in tuple(self.handlers):
+            handler(1, code, message, None)
+
+
+class _HistoricalErrorIB(_HistoricalIB):
+    def __init__(self, code: int, message: str, *responses: list[_RawBar]) -> None:
+        super().__init__(*responses)
+        self.code = int(code)
+        self.message = str(message)
+        self.errorEvent = _ErrorEvent()
+        self.sleeps: list[float] = []
+
+    def sleep(self, seconds: float) -> None:
+        self.sleeps.append(float(seconds))
+
+    def reqHistoricalData(self, contract, **kwargs):
+        out = super().reqHistoricalData(contract, **kwargs)
+        if not out:
+            self.errorEvent.emit(self.code, self.message)
+        return out
 
 
 def _day_bars(start_day: date, end_day: date, *, hour: int = 14, minute: int = 30) -> list[Bar]:
@@ -153,6 +190,96 @@ class BacktestDataTimezoneTests(unittest.TestCase):
             [call["durationStr"] for call in data._ib.calls],
             ["1 D", "1 D", "1 D"],
         )
+
+    def test_no_data_message_remains_unresolved_without_head_proof(self) -> None:
+        data = IBKRHistoricalData()
+        data._ib = _HistoricalErrorIB(
+            165,
+            "Historical Market Data Service query message: No data",
+            [],
+            [],
+            [],
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "historical_no_data_observed"):
+            data._fetch_bars(
+                SimpleNamespace(conId=13455763, symbol="VIX", exchange="CBOE", secType="IND"),
+                datetime(2025, 1, 15, 14, 30),
+                datetime(2025, 1, 15, 21, 0),
+                "5 mins",
+                use_rth=True,
+            )
+
+    def test_pacing_violation_uses_fifteen_second_retry_floor(self) -> None:
+        data = IBKRHistoricalData()
+        data._ib = _HistoricalErrorIB(
+            162,
+            "Historical Market Data Service error message: pacing violation",
+            [],
+            [_RawBar(ts=datetime(2025, 1, 15, 14, 30, tzinfo=timezone.utc))],
+        )
+
+        bars = data._fetch_bars(
+            SimpleNamespace(conId=3, symbol="VIX", exchange="CBOE", secType="IND"),
+            datetime(2025, 1, 15, 14, 30),
+            datetime(2025, 1, 15, 21, 0),
+            "5 mins",
+            use_rth=True,
+        )
+
+        self.assertEqual(len(bars), 1)
+        self.assertEqual(data._ib.sleeps, [15.0])
+
+    def test_head_timestamp_reuses_recent_broker_proof(self) -> None:
+        data = IBKRHistoricalData()
+        contract = SimpleNamespace(
+            conId=13455763,
+            symbol="VIX",
+            exchange="CBOE",
+            secType="IND",
+        )
+        key = (13455763, "IND", "VIX", "CBOE", True)
+        _HISTORICAL_HEAD_CACHE.pop(key, None)
+        loop = asyncio.new_event_loop()
+
+        class _Wrapper:
+            future = None
+
+            def startReq(self, _req_id, _contract):
+                self.future = loop.create_future()
+                return self.future
+
+        class _Client:
+            requests = 0
+            cancels = 0
+
+            def getReqId(self):
+                return 1
+
+            def reqHeadTimeStamp(self, *_args):
+                self.requests += 1
+                wrapper.future.set_result(datetime(2005, 10, 3, 13, 30, tzinfo=timezone.utc))
+
+            def cancelHeadTimeStamp(self, _req_id):
+                self.cancels += 1
+
+        wrapper = _Wrapper()
+        client = _Client()
+        data._ib = SimpleNamespace(
+            client=client,
+            wrapper=wrapper,
+            _run=loop.run_until_complete,
+        )
+        try:
+            first = data._historical_head_timestamp(contract, use_rth=True, timeout_sec=1.0)
+            second = data._historical_head_timestamp(contract, use_rth=True, timeout_sec=1.0)
+        finally:
+            loop.close()
+            _HISTORICAL_HEAD_CACHE.pop(key, None)
+
+        self.assertEqual(first, second)
+        self.assertEqual(client.requests, 1)
+        self.assertEqual(client.cancels, 1)
 
     def test_one_day_rth_fetch_does_not_request_the_prior_session(self) -> None:
         data = IBKRHistoricalData()

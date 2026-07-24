@@ -55,16 +55,24 @@ _IBKR_DURATION_BY_BAR_TOKEN = {
 
 _HISTORICAL_LOCK_GUARD = Lock()
 _HISTORICAL_CONTRACT_LOCKS: dict[tuple[object, ...], object] = {}
+_HISTORICAL_HEAD_GUARD = Lock()
+_HISTORICAL_HEAD_CACHE: dict[
+    tuple[object, ...], tuple[float, datetime | None]
+] = {}
 
 
-def _historical_contract_lock(contract: object) -> object:
-    """Serialize one IBKR contract while allowing independent tapes in parallel."""
-    key = (
+def _historical_contract_key(contract: object) -> tuple[object, ...]:
+    return (
         getattr(contract, "conId", None),
         getattr(contract, "secType", None),
         getattr(contract, "symbol", None),
         getattr(contract, "exchange", None),
     )
+
+
+def _historical_contract_lock(contract: object) -> object:
+    """Serialize one IBKR contract while allowing independent tapes in parallel."""
+    key = _historical_contract_key(contract)
     with _HISTORICAL_LOCK_GUARD:
         return _HISTORICAL_CONTRACT_LOCKS.setdefault(key, Lock())
 
@@ -527,30 +535,43 @@ class IBKRHistoricalData:
         use_rth: bool,
         timeout_sec: float,
     ) -> datetime | None:
-        """Return broker-declared availability without leaving a live request."""
+        """Return broker-declared availability without pacing duplicate probes."""
         client = getattr(self._ib, "client", None)
         wrapper = getattr(self._ib, "wrapper", None)
         runner = getattr(self._ib, "_run", None)
         if client is None or wrapper is None or runner is None:
             return None
+        key = (*_historical_contract_key(contract), bool(use_rth))
+        now = monotonic()
+        with _HISTORICAL_HEAD_GUARD:
+            cached = _HISTORICAL_HEAD_CACHE.get(key)
+            if cached is not None:
+                cached_at, value = cached
+                ttl = 3600.0 if value is not None else 15.0
+                if now - cached_at < ttl:
+                    return value
         req_id = client.getReqId()
-        future = wrapper.startReq(req_id, contract)
-        client.reqHeadTimeStamp(req_id, contract, "TRADES", bool(use_rth), 2)
+        value: datetime | None = None
         try:
-            value = runner(
+            future = wrapper.startReq(req_id, contract)
+            client.reqHeadTimeStamp(req_id, contract, "TRADES", bool(use_rth), 2)
+            result = runner(
                 asyncio.wait_for(
                     future,
                     timeout=max(1.0, min(float(timeout_sec), 15.0)),
                 )
             )
-            return _as_utc_aware(value) if isinstance(value, datetime) else None
+            value = _as_utc_aware(result) if isinstance(result, datetime) else None
         except Exception:
-            return None
+            value = None
         finally:
             try:
                 client.cancelHeadTimeStamp(req_id)
             except Exception:
                 pass
+        with _HISTORICAL_HEAD_GUARD:
+            _HISTORICAL_HEAD_CACHE[key] = (monotonic(), value)
+        return value
 
     def _request_historical_chunk(
         self,
@@ -630,7 +651,12 @@ class IBKRHistoricalData:
                             + (" | ".join(text for _, text in attempt_errors) or "expired contract")
                         )
                     if attempt < len(attempts):
-                        delay = (1.0, 3.0)[attempt - 1]
+                        pacing = (
+                            100 in error_codes
+                            or "pacing violation" in error_text
+                            or "maximum allowed message rate" in error_text
+                        )
+                        delay = ((15.0, 30.0) if pacing else (1.0, 3.0))[attempt - 1]
                         con_id = int(getattr(contract, "conId", 0) or 0)
                         delay += ((con_id + attempt) % 4) * 0.1
                         print(
@@ -660,7 +686,8 @@ class IBKRHistoricalData:
                     for code, message in errors
                 ):
                     raise RuntimeError(
-                        "historical_unavailable_reported_by_ibkr: "
+                        "historical_no_data_observed: "
+                        f"requested_end={end_utc.isoformat() if end_utc else 'latest'} "
                         f"head={head.isoformat() if head else 'unknown'}"
                         + (f" errors={evidence}" if evidence else "")
                     )
