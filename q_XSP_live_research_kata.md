@@ -825,6 +825,14 @@ are quantified; no option result is mislabeled as authentic.
   while OPT valuation counts exact ET time to the 4:00 p.m. expiration close
   (`1:00 p.m.` on half-days). The result-cache namespace is bumped so stale
   economics cannot masquerade as current evidence.
+- The preregistered two-year opening-state study evaluated `256` causal cells
+  over `316` eligible sessions per boundary and produced **zero** family-wise
+  discovery passes. The only ordinary positive 95% lower bound was a
+  bottom-decile 90-minute liquidation followed by a 30-minute rebound:
+  `42` events, mean `+6.93` bps, ordinary LCB `+0.19` bps, but Bonferroni LCB
+  `-5.27` bps and no neighboring-threshold support. The family-specific
+  `2026-01-23..2026-07-23` holdout remains unopened. This is a research hint,
+  not a strategy or option-edge receipt.
 
 Receipt fingerprints:
 
@@ -838,7 +846,9 @@ Receipt fingerprints:
 ### Phase 1 — Authentic XSP data spine `[WIP]`
 
 - [ ] Centralize interval-aware cache ownership and gap hydration.
-- [ ] Establish authenticated 1-year and 2-year underlying/context tapes.
+- [x] Establish authenticated 1-year and 2-year XSP underlying tapes.
+- [ ] Establish separately provenance-bound context tapes; XSP index volume is
+      absent and must never be treated as observed zero activity.
 - [ ] Admit the 5-year window only for comparable, complete evidence.
 - [ ] Capture forward XSP chains/NBBO/Greeks with provenance and restart safety.
 - [ ] Bind synthetic calibration to explicit source/effective intervals.
@@ -1035,6 +1045,7 @@ Add rows; never rewrite an unfavorable receipt.
 | E-010 | 2026-07-24 | 0.4 | Causal opening-reclaim discovery | `/tmp/xsp-opening-reclaim-discovery-baseline-v3.json` | `dab6f0b9…` | 1,728 cells; 0 positive LCB; 109 sample-qualified rows all negative; validation/holdout sealed |
 | E-011 | 2026-07-24 | 0.4 | Causal research and parity implementation | Git `743ef06` | full suite `662 passed`; `engine_options.py` 992 lines | Exact intraday OPT expiry clock, causal reclaim mode, frozen research groups, ledger ownership, and architecture ratchet pass; threshold-only rerank reused all 4,608 receipts in 0.66 s with no workers |
 | E-012 | 2026-07-24 | 1 | Two-year XSP underlying hydration | `/tmp/xsp-cache-sync-2y.json`; six stitched cache shards | canonical rows `a1154bba…` | 38,898 bars; 501 complete sessions; 496×78 bars plus five half-days×42; zero missing ranges; volume absent throughout |
+| E-013 | 2026-07-24 | 2 | Preregistered opening-state matrix | `/tmp/xsp-opening-state-study-v1.json` | `03af6fb1…` | 256 cells; 316 eligible sessions/boundary; zero family-wise passes; narrow 90m downside/30m rebound hint fails corrected and neighborhood gates; holdout sealed |
 
 ---
 
@@ -1070,6 +1081,7 @@ Add rows; never rewrite an unfavorable receipt.
 | D-026 | Discovery failure keeps validation and holdout sealed | Repeatedly inspecting future windows converts research into selection leakage | A predeclared discovery family passes its frozen gates |
 | D-027 | OPT replay uses exact intraday time to expiration close | A constant full-session 0DTE clock suppresses theta and can manufacture option P&L | Authentic option replay replaces synthetic valuation |
 | D-028 | Pre-register the opening-state matrix before reading outcomes | Opening folklore is easy to hindsight-label; rolling prior-session thresholds and a sealed family-specific holdout preserve causality | Only through a new versioned research contract before viewing new outcomes |
+| D-029 | Do not bank on opening folklore as a daily law | The first causal two-year matrix found no corrected, neighborhood-stable edge; one narrow downside-rebound hint is insufficient | A new predeclared feature family passes development and sealed holdout |
 
 ---
 
@@ -1134,15 +1146,15 @@ register.
 - **Quest:** XSP Mastery — Live Research Kata
 - **Current status:** Phase 0.4 is complete. The first bounded chronological
   tournaments rejected both the opening-reclaim alpha family and the
-  baseline-only safe-income condor; validation and holdout remain unobserved.
+  baseline-only safe-income condor. The preregistered opening-state matrix also
+  found no family-wise edge; all family-specific holdouts remain unobserved.
 - **Next action:** build the authentic XSP evidence spine: forward
-  chain/NBBO/Greeks capture, explicit provenance and completeness gates, and a
-  causal underlying opening-state study over frozen 30/60/90/120-minute
-  windows. Retry fresh broker-preview economics during an eligible XSP session;
-  do not promote synthetic option evidence.
+  chain/NBBO/Greeks capture, separately provenance-bound context, and explicit
+  completeness gates. Retry fresh broker-preview economics during an eligible
+  XSP session; do not tune the failed matrix against its sealed holdout or
+  promote synthetic option evidence.
 
-**Predictive observation:** the opening-state matrix may reveal separate,
-stable downside-rebound and upside-fade facts even though the first
-opening-reclaim strategy failed. If it does not beat unconditional and
-`NO_TRADE` baselines across neighboring thresholds, abstention—not a more
-complicated selector—is the correct champion.
+**Predictive observation:** authentic option quotes may show that execution
+friction dominates the small underlying effects seen so far. If so, the best
+near-term XSP champion will be a rarer, wider-margin opportunity—or
+`NO_TRADE`—rather than a busier selector.
