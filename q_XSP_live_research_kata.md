@@ -977,7 +977,10 @@ Receipt fingerprints:
       registered `10:00/10:30/11:00/11:30` boundary. They write separately to
       `/tmp/xsp-rth-forward-20260724` and
       `/tmp/xsp-rth-boundaries-20260724`; all requests are sequential and no
-      order is submitted.
+      order is submitted. A third caffeinated job collects `71` fixed
+      five-minute, non-boundary snapshots from `09:45..15:55` ET into durable
+      `db/quotes/XSP/2026-07-24.jsonl`. Each subprocess has a 150-second bound;
+      captures never overlap by design.
 - [x] Bind synthetic calibration to explicit source/effective intervals. New
       records retain broker observation time, actual underlying-tape bounds,
       source kind, and a next-date effective boundary; source-less RV
