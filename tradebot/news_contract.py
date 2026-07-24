@@ -384,6 +384,49 @@ def _material_event_view(event: dict[str, object]) -> dict[str, object]:
     return {key: value for key, value in event.items() if key not in NON_MATERIAL_EVENT_KEYS}
 
 
+def canonicalize_lifecycle_timestamps(
+    value: object,
+    *,
+    previous_events: list[dict[str, object]],
+    as_of: datetime,
+) -> object:
+    """Make the runtime, rather than the model, authoritative for event clocks."""
+    if not isinstance(value, dict):
+        return value
+    events = value.get("active_events")
+    if not isinstance(events, list):
+        return value
+    current = _utc_iso(as_of)
+    previous_by_id = {str(event["id"]): event for event in previous_events}
+    for event in events:
+        if not isinstance(event, dict) or not isinstance(event.get("id"), str):
+            continue
+        previous = previous_by_id.get(event["id"])
+        if previous is None:
+            event["first_seen_utc"] = current
+            event["last_material_change_utc"] = current
+            if event.get("last_verified_utc") is not None:
+                event["last_verified_utc"] = current
+            continue
+        event["first_seen_utc"] = previous["first_seen_utc"]
+        event["last_material_change_utc"] = (
+            current
+            if _material_event_view(event) != _material_event_view(previous)
+            else previous["last_material_change_utc"]
+        )
+        if (
+            event.get("last_verified_utc") is not None
+            and event["last_verified_utc"] != previous["last_verified_utc"]
+        ):
+            event["last_verified_utc"] = current
+    removals = value.get("removals")
+    if isinstance(removals, list):
+        for removal in removals:
+            if isinstance(removal, dict):
+                removal["resolved_at_utc"] = current
+    return value
+
+
 def _validate_active_event(
     event: object,
     *,

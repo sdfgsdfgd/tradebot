@@ -401,6 +401,34 @@ def test_run_once_publishes_then_refreshes_without_second_codex_session(tmp_path
     assert len((tmp_path / "history" / "2026-07.jsonl").read_text().splitlines()) == 1
 
 
+def test_run_once_makes_runtime_authoritative_for_model_clock_drift(
+    tmp_path: Path,
+) -> None:
+    def grader(prompt: str, _schema: dict, **_kwargs) -> tuple[dict, dict]:
+        inputs = json.loads(prompt.split("INPUT:\n", 1)[1])
+        value = _analysis([article["url"] for article in inputs["articles"]])
+        drifted = _iso(NOW + timedelta(seconds=1))
+        event = value["active_events"][0]
+        event["first_seen_utc"] = drifted
+        event["last_material_change_utc"] = drifted
+        event["last_verified_utc"] = drifted
+        return value, {"version": "test"}
+
+    run_once(
+        data_dir=tmp_path,
+        now=NOW,
+        fetcher=lambda *_args, **_kwargs: _html(),
+        grader=grader,
+    )
+
+    event = json.loads(
+        (tmp_path / "trade-events.jsonl").read_text(encoding="utf-8")
+    )
+    assert event["first_seen_utc"] == _iso(NOW)
+    assert event["last_material_change_utc"] == _iso(NOW)
+    assert event["last_verified_utc"] == _iso(NOW)
+
+
 def test_due_event_runs_codex_without_new_articles(tmp_path: Path) -> None:
     calls: list[dict[str, object]] = []
 

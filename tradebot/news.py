@@ -27,6 +27,7 @@ from .news_contract import (
     _events_text,
     _parse_utc,
     _utc_iso,
+    canonicalize_lifecycle_timestamps,
     canonical_url,
     load_events,
     output_schema,
@@ -582,7 +583,11 @@ def run_once(
         timeout_sec=timeout_sec,
     )
     response = validate_analysis(
-        raw_analysis,
+        canonicalize_lifecycle_timestamps(
+            raw_analysis,
+            previous_events=active_events,
+            as_of=observed_at,
+        ),
         previous_events=active_events,
         as_of=observed_at,
     )
