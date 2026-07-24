@@ -1,8 +1,9 @@
 # XSP Mastery — Live Research Kata
 
-- **Status:** `[WIP] Phase 0 — truth, data, and execution baseline`
+- **Status:** `[WIP] Phase 0.4 — freeze realistic economics, score, and risk`
 - **Management role:** canonical task tree, evidence ledger, decision journal, and resume source
-- **Repository baseline:** `25513267225908b7288530c1ec0762f7656bbf5b`
+- **Code baseline:** `25513267225908b7288530c1ec0762f7656bbf5b`
+- **Management-brain commit:** `3c38af635fcc6ce8b3b0a88e1f2de567345d1bf0`
 - **Instrument scope:** XSP first; no expansion until its data, economics, execution, and live drift are mastered
 - **Capital premise:** user-reported net liquidity near USD 1,000; re-read broker truth before every capital decision
 **Operating rule:** update this file before stopping, changing phase, promoting a strategy, or changing live risk
@@ -556,20 +557,21 @@ Demotion rules:
 
 ### Phase 0 — Anchor reality `[WIP]`
 
-- [ ] Re-read repository, ledger, existing leader archives, and canonical option
+- [x] Re-read repository, ledger, existing leader archives, and canonical option
       owners from baseline `2551326`.
-- [ ] Connect read-only to the available IB Gateway; record account,
+- [x] Connect read-only to the available IB Gateway; record account,
       permissions, market-data type, XSP contract identity, multiplier,
       exchange, valid expiries, and session facts.
-- [ ] Inventory every underlying, option, feature, and calibration cache,
+- [x] Inventory every underlying, option, feature, and calibration cache,
       including provenance, intervals, gaps, and authenticity.
-- [ ] Smoke-test the existing options runner before trusting any output; record
+- [x] Smoke-test the existing options runner before trusting any output; record
       every generated family, count, runtime, exclusion, and failure.
-- [ ] Produce one canonical XSP vertical and one iron-condor economics receipt
+- [~] Produce one canonical XSP vertical and one iron-condor economics receipt
       from known legs; prove maximum profit/loss and package/leg/account
-      attribution.
-- [ ] Produce read-only broker `what-if` previews for the smallest realistic
-      packages; do not submit.
+      attribution. Vertical complete; condor remains pending.
+- [~] Produce broker `what-if` previews for the smallest realistic packages;
+      do not submit. Contract and status proof exists, but commission and
+      buying-power fields were absent and therefore do not satisfy admission.
 - [ ] Freeze the initial research metrics, walk-forward boundaries, stress
       matrix, and run-time budget.
 - [ ] Accumulate at least 2–4 hours of meaningful research/backtesting evidence
@@ -577,6 +579,76 @@ Demotion rules:
 
 **Phase exit:** data and broker truth are known; current simulator limitations
 are quantified; no option result is mislabeled as authentic.
+
+#### Phase 0 measured truth — 2026-07-24
+
+**Broker and contract**
+
+- IB Gateway server version `176` was reached through isolated probe clients;
+  every client disconnected after its receipt and no order was submitted.
+- The account identity is retained only as fingerprint `bddaf5682a86`.
+  Broker values were denominated in AUD and were above the deliberately
+  conservative USD 1,000 design envelope. Exact balances are not persisted in
+  the repository. The snapshot had seven positions, zero XSP positions, and no
+  visible open orders.
+- XSP qualified as index contract `137851301`, CBOE, USD, multiplier `100`.
+  The chain exposed `45` expirations and `509` strikes across CBOE, SMART, and
+  IBUSOPT parameters.
+- Real-time market data was not subscribed. Explicit delayed data supplied XSP
+  close `740.83` and historical index bars. Pre-RTH option snapshots qualified
+  the legs but supplied no usable bid, ask, last, or Greeks; repeat capture
+  during RTH remains mandatory.
+
+**Underlying and cache**
+
+- The existing canonical historical loader already owns interval-aware sparse
+  hydration: it reuses covered bars and fetches only missing ranges. Do not
+  duplicate that behavior.
+- XSP 5-minute RTH history now covers `2025-07-24` through `2026-07-23`:
+  `19,506` valid bars over `251` sessions, no missing session ranges, `249`
+  normal sessions with `78` bars and two early closes with `42`.
+- Raw cache fingerprints:
+  - `2026-07-01..2026-07-23`:
+    `eaa6da6c015c8b26c9935c1ce3091902053e5daf5ba2818eaa98c0f566ca7e98`
+  - `2025-07-24..2026-06-30`:
+    `dfcf7bf27fbf75fc4536abeea71404c7edbbcdc32a61bdf77dd44130cc9c20db`
+- All XSP index volume values are zero. Any opening-volume or bear-trap
+  confirmation must use a separately sourced, provenance-bound context tape
+  such as SPY, ES, or breadth; it must never reinterpret absent XSP volume.
+- The local cache root is roughly `39 GiB`, dominated by a `25 GiB` packed
+  series cache and `12 GiB` core-series database. No authentic historical XSP
+  option-chain, NBBO, Greek, or fill tape exists yet.
+
+**Existing options runner**
+
+- The hardcoded smoke grid evaluates `12` strategy groups and `31,104`
+  configurations against synthetic Black-Scholes/mid-edge option prices,
+  USD `10,000` starting cash, no option commissions, and no realistic
+  no-fill/slippage model.
+- On the 16-session July slice, the cold run completed in about `60 s`; exact
+  warm reuse completed in `1.78 s`. Economic outputs were byte-equivalent after
+  removing generation time. Output fingerprint:
+  `5588cf170959abfa7d6903e185695b06a264d49db1f8a73a486a263d58727667`.
+- The synthetic leaders reported implausibly clean results, including several
+  `100%` win rates over only `8–19` trades. They are speed/cache receipts, not
+  candidate evidence.
+- Current leg geometry uses percentage moneyness. A `1%` wing near XSP `740`
+  creates roughly `7.4` points or USD `740` gross width—not the intended
+  one-point, USD `100` package. A one-year full grid would therefore spend
+  hundreds of millions of bar/config evaluations testing the wrong mission.
+
+**Vertical preview**
+
+- A canonical hypothetical `2026-07-27` XSP `734/735` put-credit vertical at
+  USD `0.20` credit produced USD `20` maximum profit and USD `80` maximum loss.
+- IBKR qualified both legs and returned `PreSubmitted` from `what-if`, but
+  commission, margin change, equity-with-loan, and buying-power evidence were
+  absent/sentinel values. The result repeated with a non-readonly probe, so it
+  was not caused by read-only mode.
+- Current admission policy deliberately allows this sparse preview. For this
+  kata that is **insufficient live evidence**: broker status cannot substitute
+  for bounded package economics, conservative fees, fresh quotes, permissions,
+  and explicit account-capacity proof.
 
 ### Phase 1 — Authentic XSP data spine `[TODO]`
 
@@ -728,22 +800,22 @@ extreme reliability. Continue for four or more weeks before materially scaling:
 
 ## 12. Active task tree
 
-1. **Phase 0.1 — Management and truth freeze `[WIP]`**
+1. **Phase 0.1 — Management and truth freeze `[DONE]`**
    - this artifact created from the full mission;
    - goal points here as the canonical resume source;
-   - next: record fresh repo/Gateway/data receipts.
-2. **Phase 0.2 — XSP broker and account census `[TODO]`**
-   - read-only Gateway;
-   - contract, permissions, data type, chain, quote, preview.
-3. **Phase 0.3 — Backtest authenticity census `[TODO]`**
-   - cache inventory;
-   - current runner smoke;
-   - synthetic-versus-authentic boundary.
-4. **Phase 0.4 — Metrics and risk freeze `[TODO]`**
+   - repository, Gateway, contract, data, and runner receipts recorded.
+2. **Phase 0.2 — XSP broker and account census `[WIP]`**
+   - contract, account currency, delayed data, chain, and sparse preview proven;
+   - next: fresh RTH option quotes/Greeks and complete preview economics.
+3. **Phase 0.3 — Backtest authenticity census `[DONE]`**
+   - cache inventory and sparse hydration verified;
+   - current runner cold/warm smoke measured;
+   - synthetic-only boundary and incorrect spread geometry frozen.
+4. **Phase 0.4 — Metrics and risk freeze `[WIP]`**
    - scorecard;
    - walk-forward;
-   - stress matrix;
-   - canary eligibility.
+   - stress matrix and realistic one-point XSP economics;
+   - conservative capacity and canary eligibility.
 5. **Phase 1 — Data spine `[TODO]`**
 6. **Phase 2 — Candidate frontier `[TODO]`**
 7. **Phase 3 — Research tournament `[TODO]`**
@@ -759,11 +831,11 @@ Add rows; never rewrite an unfavorable receipt.
 
 | ID | Time | Phase | Evidence | Source / artifact | Fingerprint | Result |
 |---|---|---|---|---|---|---|
-| E-000 | 2026-07-24 | 0.1 | Repository baseline | Git `main` | `2551326` | Clean starting anchor |
-| E-001 | pending | 0.2 | Gateway/account census | pending | pending | pending |
-| E-002 | pending | 0.3 | Data/cache census | pending | pending | pending |
-| E-003 | pending | 0.3 | Options-runner smoke | pending | pending | pending |
-| E-004 | pending | 0.2 | XSP vertical broker preview | pending | pending | pending |
+| E-000 | 2026-07-24 | 0.1 | Repository baseline | Git `main` | `2551326` | Clean code anchor; management added at `3c38af6` |
+| E-001 | 2026-07-24 06:35 UTC | 0.2 | Gateway/account census | IB Gateway `176` | account `bddaf5682a86` | AUD account above conservative design envelope; 7 positions; no XSP/open order |
+| E-002 | 2026-07-24 | 0.3 | XSP data/cache census | `db/XSP/*.csv` | `eaa6da6…`, `dfcf7bf…` | 19,506 bars/251 sessions/no gaps; volume absent; no option replay tape |
+| E-003 | 2026-07-24 | 0.3 | Options-runner smoke | `/tmp/xsp-options-smoke.json` + result cache | `5588cf17…` | 31,104 cells; ~60 s cold/1.78 s warm; synthetic, cost-free, wrong wing geometry |
+| E-004 | 2026-07-24 | 0.2 | XSP vertical broker preview | 734/735P `20260727`, no submit | qualified conIds + sparse `PreSubmitted` | Canonical max +20/-80; broker commission/capacity proof missing; not live-eligible |
 | E-005 | pending | 0.4 | Frozen score/risk contract | pending | pending | pending |
 
 ---
@@ -784,6 +856,10 @@ Add rows; never rewrite an unfavorable receipt.
 | D-010 | Iron condor must beat vertical net of four-leg friction | Complexity is not value | Authentic execution proves value |
 | D-011 | Rare news begins as defensive veto/sizing evidence | Causality and historical availability are fragile | Forward evidence proves incremental value |
 | D-012 | `NO_TRADE` is a first-class champion action | Capital preservation outranks activity | Never |
+| D-013 | Keep a USD 1,000 design envelope despite a higher broker snapshot | Account values drift and are AUD-denominated; the mission should remain robust under the user's conservative premise | User explicitly changes the envelope after a fresh broker census |
+| D-014 | Do not run the current one-year 31K-cell options grid | It omits realistic friction and maps `1%` to about 7.4 XSP points, so scale would amplify invalid evidence | Canonical point geometry, costs, and fill realism are proven |
+| D-015 | Missing XSP index volume is not zero-volume evidence | The index tape does not carry authentic volume | A separately provenance-bound context tape is admitted |
+| D-016 | Sparse `what-if` status alone is not enough for this live canary | `PreSubmitted` did not return usable commission, margin, or buying-power effects | Canonical risk plus conservative fees, fresh quotes, permissions, and capacity are jointly proven |
 
 ---
 
@@ -846,11 +922,12 @@ register.
 ## Conclusion
 
 - **Quest:** XSP Mastery — Live Research Kata
-- **Current status:** Phase 0.1 management/truth freeze
-- **Next action:** establish fresh Gateway/account, XSP contract, cache, and
-  options-runner receipts before designing or promoting a candidate.
+- **Current status:** Phase 0.4 realistic economics, score, and risk freeze
+- **Next action:** centralize one-point XSP package geometry and realistic
+  fees/fills, then require conservative package-plus-broker capacity evidence
+  before any candidate can enter the real research tournament.
 
-**Predictive observation:** the likely decisive edge will not be a single
-indicator. It will come from the combination of authentic XSP execution data,
-strict abstention, separate risk sleeves, stable parameter neighborhoods, and a
-shadow tournament that detects strategy decay before capital does.
+**Predictive observation:** the first major gain is likely to come from making
+the experiment truthful, not adding a signal. Correct one-point geometry,
+authentic option evidence, explicit friction, and strict abstention can reverse
+the current synthetic leaderboard before any indicator changes.
