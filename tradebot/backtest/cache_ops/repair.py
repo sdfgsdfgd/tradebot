@@ -12,7 +12,7 @@ from time import sleep
 
 from ...time_utils import UTC as _UTC
 from ...chart_data.history import read_cache, write_cache
-from ..data import IBKRHistoricalData
+from ..data import IBKRHistoricalData, historical_retry_floor_sec
 from ..models import Bar
 from ...engines.market import utc_bounds_for_et_day as _utc_bounds_for_et_day
 from .coverage import (
@@ -119,7 +119,10 @@ def _fetch_day_from_ibkr(
             ):
                 break
             pacing = "pacing violation" in error_text or "maximum allowed message rate" in error_text
-            delay = (15.0 if pacing else 1.5 * (2 ** (attempts - 1)))
+            delay = max(
+                (15.0 if pacing else 1.5) * (2 ** (attempts - 1)),
+                historical_retry_floor_sec(bar_size),
+            )
             delay += ((day.toordinal() + int(client_id_offset) + attempts) % 4) * 0.1
             sleep(delay)
 
@@ -634,6 +637,7 @@ def _is_retryable_ibkr_error(err: str | None) -> bool:
         or "timed out" in txt
         or "historical market data service error message:api historical data query cancelled" in txt
         or "historical_fetch_exhausted:" in txt
+        or "historical_no_data_observed:" in txt
         or "incomplete_after_fetch:" in txt
         or "pacing" in txt
         or "socket" in txt

@@ -19,6 +19,7 @@ from tradebot.backtest.data import (
     _convert_bar,
     _duration_for_bar_size,
     _duration_to_timedelta,
+    historical_retry_floor_sec,
 )
 from tradebot.backtest.models import Bar
 
@@ -229,6 +230,30 @@ class BacktestDataTimezoneTests(unittest.TestCase):
 
         self.assertEqual(len(bars), 1)
         self.assertEqual(data._ib.sleeps, [15.0])
+
+    def test_small_bar_retry_obeys_identical_request_floor_without_pacing_error(self) -> None:
+        data = IBKRHistoricalData()
+        data._ib = _HistoricalErrorIB(
+            165,
+            "Historical Market Data Service query message: No data",
+            [],
+            [_RawBar(ts=datetime(2025, 1, 15, 14, 30, tzinfo=timezone.utc))],
+        )
+
+        bars = data._fetch_bars(
+            SimpleNamespace(conId=3, symbol="VIX", exchange="CBOE", secType="IND"),
+            datetime(2025, 1, 15, 14, 30),
+            datetime(2025, 1, 15, 21, 0),
+            "30 secs",
+            use_rth=True,
+        )
+
+        self.assertEqual(len(bars), 1)
+        self.assertEqual(data._ib.sleeps, [15.0])
+
+    def test_minute_bars_do_not_inherit_small_bar_retry_floor(self) -> None:
+        self.assertEqual(historical_retry_floor_sec("30 secs"), 15.0)
+        self.assertEqual(historical_retry_floor_sec("1 min"), 0.0)
 
     def test_head_timestamp_reuses_recent_broker_proof(self) -> None:
         data = IBKRHistoricalData()

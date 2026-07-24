@@ -34,6 +34,7 @@ def test_adaptive_thread_plan_only_reduces_concurrency() -> None:
 
 def test_retryable_ibkr_errors_include_ambiguous_and_incomplete_fetches() -> None:
     assert _is_retryable_ibkr_error("historical_fetch_exhausted: head=unknown")
+    assert _is_retryable_ibkr_error("historical_no_data_observed: head=unknown")
     assert _is_retryable_ibkr_error("incomplete_after_fetch: dates=2025-01-16")
     assert _is_retryable_ibkr_error("connection reset by peer")
     assert not _is_retryable_ibkr_error("historical_unavailable_before_head: earliest=2025-01-17")

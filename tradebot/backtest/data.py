@@ -77,6 +77,19 @@ def _historical_contract_lock(contract: object) -> object:
         return _HISTORICAL_CONTRACT_LOCKS.setdefault(key, Lock())
 
 
+def historical_retry_floor_sec(bar_size: str) -> float:
+    """Respect IBKR's identical-request floor only for bars of 30 seconds or less."""
+    token = _canonical_bar_token(bar_size)
+    for suffix in ("seconds", "second", "secs", "sec", "s"):
+        if token.endswith(suffix):
+            try:
+                seconds = int(token[: -len(suffix)])
+            except ValueError:
+                break
+            return 15.0 if 0 < seconds <= 30 else 0.0
+    return 0.0
+
+
 def _ibkr_bar_zone() -> ZoneInfo:
     raw = str(os.environ.get("TRADEBOT_IBKR_BAR_TZ", "America/New_York") or "").strip()
     if not raw:
@@ -656,7 +669,10 @@ class IBKRHistoricalData:
                             or "pacing violation" in error_text
                             or "maximum allowed message rate" in error_text
                         )
-                        delay = ((15.0, 30.0) if pacing else (1.0, 3.0))[attempt - 1]
+                        delay = max(
+                            ((15.0, 30.0) if pacing else (1.0, 3.0))[attempt - 1],
+                            historical_retry_floor_sec(bar_size),
+                        )
                         con_id = int(getattr(contract, "conId", 0) or 0)
                         delay += ((con_id + attempt) % 4) * 0.1
                         print(
