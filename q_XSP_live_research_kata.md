@@ -3,7 +3,7 @@
 - **Status:** `[WIP] Phase 1 — authentic XSP evidence spine`
 - **Management role:** canonical task tree, evidence ledger, decision journal, and resume source
 - **Code baseline:** `25513267225908b7288530c1ec0762f7656bbf5b`
-- **Resumable pushed anchor before current WIP:** `957ef1070ea6c903f9ee6a5275a84abeb0540302`
+- **Resumable pushed anchor before current WIP:** `b8ce7b90096a4b47dfe89c30db85623017a10fc8`
 - **Management brain introduced:** `3c38af635fcc6ce8b3b0a88e1f2de567345d1bf0`
 - **Instrument scope:** XSP first; no expansion until its data, economics, execution, and live drift are mastered
 - **Capital premise:** user-reported net liquidity near USD 1,000; re-read broker truth before every capital decision
@@ -977,8 +977,9 @@ shadow, and live comparison without refetching complete cached ranges.
       package kernel. A 5,184-cell adverse-cost directional-credit family
       produced one aggregate positive-LCB singleton, but its early chronological
       half failed sample, concentration, and LCB gates; validation and holdout
-      remain sealed. Decision edge, RTH execution, and authentic time-series
-      replay remain pending.
+      remain sealed. A preregistered 3,456-cell directional-debit family then
+      produced zero positive daily LCBs under adverse friction. Decision edge,
+      RTH execution, and authentic time-series replay remain pending.
 - [ ] Test whether iron condors add net value after four-leg friction.
 - [ ] Formalize opening bear-trap reversal without hindsight.
 - [x] Build the frozen-window opening-state matrix; falsify upside-fade,
@@ -1191,6 +1192,7 @@ Add rows; never rewrite an unfavorable receipt.
 | E-021 | 2026-07-24 10:47 UTC | 2 | Adverse-cost directional-credit discovery + chronological halves | `/tmp/xsp-directional-credit-discovery-adverse-v1.json`; `/tmp/xsp-directional-credit-discovery-halves-v1.json` | `f2b45a91…`; halves `7ccc10b6…` | 5,184 synthetic cells at USD 1.50/contract and two ticks retained 2,255 sample rows. One filtered DTE5/EMA3-7/PT0.5/SL0.35 cell had 38 trades, +117.61 PnL and +0.117 daily LCB, but no stable parameter neighborhood. Its exact early half had 15 trades, -0.537 LCB and 55.2% top-five-win concentration; late had 23 trades and +0.092 LCB. The singleton is rejected as a champion; validation and holdout stay sealed |
 | E-022 | 2026-07-24 10:56 UTC | 1 | Official-rule-aware historical retry contract | Git current WIP | focused `43 passed`; full `687 passed, 4 deselected` | Minute-and-larger tapes retain bounded independent-contract parallelism; same-contract requests serialize and day repairs descend to one worker. Ambiguous failures retry with smaller windows and exponential delay; explicit pacing waits 15/30 seconds. `reqHeadTimestamp` proof is reused for one hour and failed probes cool down for 15 seconds because IBKR subjects head requests to strict small-bar pacing. Only rejection, expiry, or request-before-head is called unavailable; repeated broker no-data remains unresolved and cannot delete or bless a cache gap |
 | E-023 | 2026-07-24 11:02 UTC | 2 | Preregistered directional-debit discovery | This document at pushed preregistration anchor | `xsp.directional-debit.discovery.v1` | Frozen 3,456-cell filtered/unfiltered one-point CALL-up/PUT-down vertical family, adverse friction, exact discovery/validation/holdout boundary, two-half repeatability, alpha risk, concentration, and neighborhood gates. No permanent catalog entry exists before evidence |
+| E-024 | 2026-07-24 11:05 UTC | 2 | Directional-debit discovery verdict | `/tmp/xsp-directional-debit-discovery-adverse-v1.json`; persistent receipts `/tmp/xsp-directional-debit-discovery-adverse-v1b.sqlite3` | semantic `886861ec…` | 3,456 adverse-friction cells completed in 82.29 seconds cold and 0.26 seconds warm; 2,049 sample-retained rows, zero positive daily LCBs, therefore zero alpha-gate passes. Validation/holdout remain sealed and no permanent strategy catalog entry is born |
 
 ---
 
@@ -1301,8 +1303,9 @@ promote/hold/revise/stop verdict with its remaining-risk register.
   tournaments rejected both the opening-reclaim alpha family and the
   baseline-only safe-income condor. The preregistered opening-state matrix also
   found no family-wise edge; SPY/VIX context did not rescue it, and the first
-  directional-credit singleton failed chronological repeatability. All
-  family-specific holdouts remain unobserved.
+  directional-credit singleton failed chronological repeatability. The
+  preregistered directional-debit family produced zero positive daily LCBs.
+  All family-specific holdouts remain unobserved.
 - **Next action:** capture fresh RTH XSP chain/NBBO/Greeks evidence and bind its
   completeness verdict to same-tape replay. Continue bounded preregistered
   safe-income and alpha discovery without tuning rejected families against
