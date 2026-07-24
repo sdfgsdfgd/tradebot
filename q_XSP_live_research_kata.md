@@ -995,7 +995,10 @@ shadow, and live comparison without refetching complete cached ranges.
       remain sealed. A preregistered 3,456-cell directional-debit family then
       produced zero positive daily LCBs under adverse friction. Decision edge,
       RTH execution, and authentic time-series replay remain pending.
-- [ ] Test whether iron condors add net value after four-leg friction.
+- [x] Test whether iron condors add net value after four-leg friction. Across
+      `2,304` exact adverse-friction matched cells, no condor independently
+      passed the safe-income gate; therefore none could add stable incremental
+      value over its vertical counterpart.
 - [ ] Formalize opening bear-trap reversal without hindsight.
 - [x] Build the frozen-window opening-state matrix; falsify upside-fade,
       downside-fast-rebound, downside-slow-rebound, continuation, and
@@ -1209,7 +1212,8 @@ Add rows; never rewrite an unfavorable receipt.
 | E-023 | 2026-07-24 11:02 UTC | 2 | Preregistered directional-debit discovery | This document at pushed preregistration anchor | `xsp.directional-debit.discovery.v1` | Frozen 3,456-cell filtered/unfiltered one-point CALL-up/PUT-down vertical family, adverse friction, exact discovery/validation/holdout boundary, two-half repeatability, alpha risk, concentration, and neighborhood gates. No permanent catalog entry exists before evidence |
 | E-024 | 2026-07-24 11:05 UTC | 2 | Directional-debit discovery verdict | `/tmp/xsp-directional-debit-discovery-adverse-v1.json`; persistent receipts `/tmp/xsp-directional-debit-discovery-adverse-v1b.sqlite3` | semantic `886861ec…` | 3,456 adverse-friction cells completed in 82.29 seconds cold and 0.26 seconds warm; 2,049 sample-retained rows, zero positive daily LCBs, therefore zero alpha-gate passes. Validation/holdout remain sealed and no permanent strategy catalog entry is born |
 | E-025 | 2026-07-24 11:15 UTC | 1 | Historical pacing-flexibility refinement | Git `e66f82b` | focused `48 passed`; full `689 passed, 4 deselected` | Bars at or below 30 seconds now obey IBKR's 15-second identical-request floor before any pacing error, while minute-and-larger XSP tapes retain the faster ordinary retry ladder. Explicit pacing escalates cooldown; broker no-data without head proof remains retryable across adaptive passes. Same-contract serialization and the normal two-independent-contract ceiling remain unchanged; no global token bucket or extra cache subsystem was added |
-| E-026 | 2026-07-24 11:24 UTC | 1 | Strict forward-tape admission profile | Git current WIP; prior tapes `/tmp/xsp-forward-{restart-proof.BCWo2l,capture-smoke-v4}/XSP/2026-07-24.jsonl` | focused `26 passed`; full `691 passed, 4 deselected` | One shared quote classifier now produces a declared complete/incomplete snapshot verdict from chain provenance, qualification, NBBO, age, actual live/delayed provenance, and Greeks. Exact package replay rejects missing or mismatched chain expiry before canonical pricing. Both premarket tapes correctly fail the new live profile: zero eligible streaming-live rows; the older smoke also lacks chain provenance. No historical artifact was relabeled or promoted |
+| E-026 | 2026-07-24 11:24 UTC | 1 | Strict forward-tape admission profile | Git `c99d31f`; prior tapes `/tmp/xsp-forward-{restart-proof.BCWo2l,capture-smoke-v4}/XSP/2026-07-24.jsonl` | focused `26 passed`; full `691 passed, 4 deselected` | One shared quote classifier now produces a declared complete/incomplete snapshot verdict from chain provenance, qualification, NBBO, age, actual live/delayed provenance, and Greeks. Exact package replay rejects missing or mismatched chain expiry before canonical pricing. Both premarket tapes correctly fail the new live profile: zero eligible streaming-live rows; the older smoke also lacks chain provenance. No historical artifact was relabeled or promoted |
+| E-027 | 2026-07-24 11:28 UTC | 2 | Matched condor incremental-value audit | `/tmp/xsp-condor-incremental-value-v1.json`; preregistration `5fc6d26` | artifact `e54a19b8…`; adverse source `80154859…` | `1,152` filtered and `1,152` unfiltered condors were matched exactly to put-credit verticals after USD `1.50`/contract and two ticks. Zero condors passed the safe-income gate, so zero met the preregistered incremental-value contract or its two-neighbor rule. All unfiltered condors had negative daily LCB; filtered rows were primarily sample-, concentration-, P&L-, and profit-factor-limited. Validation and holdout remain sealed; the four-leg extension is rejected |
 
 ---
 
@@ -1318,7 +1322,9 @@ promote/hold/revise/stop verdict with its remaining-risk register.
 - **Quest:** XSP Mastery — Live Research Kata
 - **Current status:** Phase 0.4 is complete. The first bounded chronological
   tournaments rejected both the opening-reclaim alpha family and the
-  baseline-only safe-income condor. The preregistered opening-state matrix also
+  baseline-only safe-income condor; a later exact matched audit confirmed that
+  none of `2,304` adverse-friction condors passed the safe-income gate or added
+  stable value over a vertical. The preregistered opening-state matrix also
   found no family-wise edge; SPY/VIX context did not rescue it, and the first
   directional-credit singleton failed chronological repeatability. The
   preregistered directional-debit family produced zero positive daily LCBs.
