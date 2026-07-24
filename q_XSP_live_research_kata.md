@@ -1,9 +1,9 @@
 # XSP Mastery — Live Research Kata
 
-- **Status:** `[WIP] Phase 0.4 — freeze realistic economics, score, and risk`
+- **Status:** `[WIP] Phase 0.4 — apply frozen score/risk contract`
 - **Management role:** canonical task tree, evidence ledger, decision journal, and resume source
 - **Code baseline:** `25513267225908b7288530c1ec0762f7656bbf5b`
-- **Current verified head:** `49f517eb29a5ce3a935eb444aaff69addd7d74ca`
+- **Current verified code head:** `5308293f23e56cbd06d9cdb2b14b6711f4d4fe38`
 - **Management brain introduced:** `3c38af635fcc6ce8b3b0a88e1f2de567345d1bf0`
 - **Instrument scope:** XSP first; no expansion until its data, economics, execution, and live drift are mastered
 - **Capital premise:** user-reported net liquidity near USD 1,000; re-read broker truth before every capital decision
@@ -438,6 +438,70 @@ No single metric may crown a champion. The promotion score must expose:
 
 Win rate and total P&L remain diagnostics, not authorities.
 
+#### Frozen Phase-0 score/risk contract — `research.daily.v1`
+
+The atomic statistical unit is a complete market session's close-to-close
+economic equity change, including zero-activity sessions. Closed-package P&L
+is net of the run's explicit commission and slippage model. This prevents a
+high-frequency or highly selective strategy from improving its apparent sample
+by omitting the days on which it abstained.
+
+Every run exposes, without collapsing them into one magic number:
+
+- sessions, active sessions, closed packages, and net P&L;
+- mean daily P&L and its conservative normal `95%` lower bound;
+- daily volatility, worst session, and worst-`5%` daily CVaR;
+- maximum drawdown and net-P&L/drawdown;
+- profit factor and payoff ratio;
+- the share of gross wins contributed by the largest five trades;
+- commission, holding time, and the existing strategy identity.
+
+The per-fold evidence floor is `60` complete sessions and `30` closed
+packages. Exploration ordering first asks whether that floor and a positive
+daily lower bound both pass, then compares the lower bound, P&L/drawdown,
+profit factor, low concentration, and net P&L. Win rate is deliberately absent.
+This ordering is only a shortlist aid: **no synthetic row is promotable** and
+no one-run ordering can crown a champion.
+
+Freeze time boundaries before opening results:
+
+1. **Recent 1-year development:** first `50%` of sessions for discovery, next
+   `25%` for validation, final `25%` as a locked holdout. Any parameter or
+   rule changed after seeing the locked holdout becomes a new candidate and
+   restarts the split.
+2. **2-year robustness:** run the unchanged candidate over four sequential
+   half-year blocks. At least three of four and the final block must be net
+   positive; pooled out-of-sample daily LCB must remain positive.
+3. **Selective 5-year stress:** yearly/context blocks with no retuning; use
+   only when tape provenance and product comparability are defensible.
+
+Freeze the first friction matrix:
+
+| Level | Commission / contract / side | Extra package-price slippage |
+|---|---:|---:|
+| Baseline | USD `1.00` | `1` tick |
+| Adverse | USD `1.50` | `2` ticks |
+| Severe diagnostic | USD `2.00` | `3` ticks |
+
+Authentic replay must additionally stress no-fill, stale/wide quotes,
+cancel/replace delay, IV error, gap/settlement behavior, and missing evidence.
+Those cannot be fabricated from underlying-only synthetic bars.
+
+Initial safe-income research gates, all required on validation and locked
+evidence, are: net P&L positive after adverse friction; positive pooled daily
+LCB; profit factor at least `1.20`; maximum drawdown no more than `15%` of the
+USD `1,000` envelope; worst session no worse than `-10%`; and top-five wins no
+more than `50%` of gross wins. The alpha sleeve may use a `20%` drawdown and
+`1.10` adverse profit-factor floor, but retains the `-10%` worst-session
+limit. These are rejection gates, not profit promises.
+
+For the first possible live canary, canonical maximum loss plus conservative
+round-trip fees must be no more than `10%` of the lesser of fresh usable
+capacity and the USD `1,000` design envelope. Only one package may be open;
+the first daily and weekly loss shutdowns are `10%` and `15%` respectively.
+Fresh broker identity, permission, quotes, preview, capacity, and complete
+paper/replay receipts remain mandatory and may impose stricter limits.
+
 ### 7.3 Runtime contract
 
 - Every run prints ETA before expensive work.
@@ -573,7 +637,7 @@ Demotion rules:
 - [~] Produce broker `what-if` previews for the smallest realistic packages;
       do not submit. Contract and status proof exists, but commission and
       buying-power fields were absent and therefore do not satisfy admission.
-- [ ] Freeze the initial research metrics, walk-forward boundaries, stress
+- [x] Freeze the initial research metrics, walk-forward boundaries, stress
       matrix, and run-time budget.
 - [ ] Accumulate at least 2–4 hours of meaningful research/backtesting evidence
       before live-capital eligibility.
@@ -862,7 +926,7 @@ Add rows; never rewrite an unfavorable receipt.
 | E-002 | 2026-07-24 | 0.3 | XSP data/cache census | `db/XSP/*.csv` | `eaa6da6…`, `dfcf7bf…` | 19,506 bars/251 sessions/no gaps; volume absent; no option replay tape |
 | E-003 | 2026-07-24 | 0.3 | Options-runner smoke | `/tmp/xsp-options-smoke.json` + result cache | `5588cf17…` | 31,104 cells; ~60 s cold/1.78 s warm; synthetic, cost-free, wrong wing geometry |
 | E-004 | 2026-07-24 | 0.2 | XSP vertical broker preview | 734/735P `20260727`, no submit | qualified conIds + sparse `PreSubmitted` | Canonical max +20/-80; broker commission/capacity proof missing; not live-eligible |
-| E-005 | pending | 0.4 | Frozen score/risk contract | pending | pending | pending |
+| E-005 | 2026-07-24 | 0.4 | Frozen score/risk contract | Git `5308293`; `research.daily.v1` | focused tests `74/74` | Daily zero-session-aware evidence; threshold-independent cache; win rate removed from authority |
 | E-006 | 2026-07-24 | 0.4 | Canonical one-point wings | Git `521f16c` | focused tests `60/60` | Shared percentage anchor plus point offset reaches replay and live resolution |
 | E-007 | 2026-07-24 | 0.4 | Explicit friction and safe-income smoke | Git `eddb3bd`, `49f517e`; `/tmp/xsp-safe-income-smoke.json` | `2622c16…` | 4,608 cells; 12.3 s cold/<0.6 s warm; 240 synthetic rows remain quarantined |
 
@@ -892,6 +956,10 @@ Add rows; never rewrite an unfavorable receipt.
 | D-018 | Model slippage in fill price and commission in cash/P&L | Combining them would obscure execution drift and corrupt payoff geometry | Never |
 | D-019 | Safe-income research excludes unbounded legacy families | Naked puts and risk reversals violate this sleeve's defined-risk mandate | A separately governed sleeve explicitly admits them |
 | D-020 | Credit profit targets above `1.0` are not distinct candidates | A credit package cannot earn more than its entry credit; higher thresholds only duplicate other exit paths | Payoff semantics change |
+| D-021 | Score complete sessions, including abstentions | Trade-only samples hide opportunity cost and selection frequency | Never |
+| D-022 | Shortlist thresholds do not belong in economic cache identity | Changing `min_trades` must reuse identical simulations | Economic semantics change |
+| D-023 | Synthetic ordering is exploratory only | Underlying-derived option prices cannot prove execution or live expectancy | Authentic replay and paper drift agree |
+| D-024 | First canary loss plus fees is capped at 10% of the conservative envelope | One-point width is already material near USD 1,000 | Fresh account truth or repeated canaries justify a lower limit; never loosen from recent profit alone |
 
 ---
 
@@ -954,12 +1022,13 @@ register.
 ## Conclusion
 
 - **Quest:** XSP Mastery — Live Research Kata
-- **Current status:** Phase 0.4 realistic economics, score, and risk freeze
-- **Next action:** centralize one-point XSP package geometry and realistic
-  fees/fills, then require conservative package-plus-broker capacity evidence
-  before any candidate can enter the real research tournament.
+- **Current status:** Phase 0.4 realistic economics and score frozen; applying
+  the contract to bounded chronological research
+- **Next action:** produce deterministic 1-year discovery/validation/locked
+  receipts under baseline/adverse friction, complete iron-condor economics,
+  and retry fresh broker-preview evidence during an eligible XSP session.
 
-**Predictive observation:** the first major gain is likely to come from making
-the experiment truthful, not adding a signal. Correct one-point geometry,
-authentic option evidence, explicit friction, and strict abstention can reverse
-the current synthetic leaderboard before any indicator changes.
+**Predictive observation:** once full-session lower bounds and concentration
+replace raw P&L/win-rate ordering, many visually perfect low-sample rows should
+fall below `NO_TRADE`; that is evidence quality improving, not strategy
+performance getting worse.
