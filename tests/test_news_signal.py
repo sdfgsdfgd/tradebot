@@ -373,8 +373,8 @@ def test_memory_contract_rejects_growth_and_old_horizon_sections() -> None:
     with pytest.raises(NewsError, match="exactly one"):
         validate_memory_markdown("# Trade Research Memory\n\n## Mission\n")
 
-    too_long = _memory() + "\n".join(f"- line {index}" for index in range(160))
-    with pytest.raises(NewsError, match="160 lines"):
+    too_long = _memory() + "\n".join(f"- line {index}" for index in range(400))
+    with pytest.raises(NewsError, match="400 lines"):
         validate_memory_markdown(too_long)
 
     with pytest.raises(NewsError, match="unexpected section"):

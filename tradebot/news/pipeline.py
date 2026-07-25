@@ -281,13 +281,6 @@ Return memory_markdown as the complete replacement for memory_path. It is compac
 memory, not an event log:
 - Preserve exactly one Mission, Calibration Anchors, Active Regimes, and Durable Causal Priors
   section in that order.
-- Treat Calibration Anchors, Active Regimes, and Durable Causal Priors as one coherent causal
-  model. When verified evidence changes that model, reconcile every affected section in this
-  replacement: grow, trim, merge, correct, or retire the relevant entries together. Leave every
-  genuinely unaffected entry verbatim; never duplicate the same fact across sections.
-- Make the smallest semantic edit consistent with verified evidence. Do not rewrite merely for
-  style, but correct, invalidate, supersede, or compress a claim when the evidence or bounded
-  memory requires it.
 - Preserve both 100-point reference ceilings.
 - Calibration Anchors: at most 16 asset-specific historical high-water or boundary comparators,
   including singular precedents. Record score/components, evidence quality, realized response when
@@ -296,8 +289,9 @@ memory, not an event log:
 - Active Regimes: at most 10 umbrella syntheses that change how active events transmit. Reference
   event IDs instead of duplicating their details.
 - Durable Causal Priors: at most 12 falsifiable transmission rules earned by evidence.
-- Merge, compress, correct, or delete anything that no longer earns space. Target under 100 lines;
-  hard limits are 160 lines and 32 KiB.
+- Merge, compress, change, trim, grow, or keep most content the same as the evidence warrants.
+  Make no unnecessary changes. Target under 400 lines; hard limits are 400 lines and 64,000
+  characters.
 
 Keep event names under 120. Write every mechanism, invalidation, removal reason, and calibration as
 a complete sentence; target at most 200 characters for mechanisms and 160 for calibrations so no

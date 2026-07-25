@@ -10,8 +10,8 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 SCHEMA = "tradebot.news-signal.v3"
 SCORE_VERSION = "causal-impact-100.v2"
-MAX_MEMORY_LINES = 160
-MAX_MEMORY_CHARS = 32_000
+MAX_MEMORY_LINES = 400
+MAX_MEMORY_CHARS = 64_000
 MAX_ACTIVE_EVENTS = 24
 MAX_EVIDENCE_URLS = 3
 TRACKING_QUERY_KEYS = {"at_campaign", "at_medium", "mod", "output", "rss", "siteid"}
