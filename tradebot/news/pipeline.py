@@ -47,9 +47,9 @@ DEFAULT_MEMORY_PATH = Path("~/.codex/trade-research.md").expanduser()
 DEFAULT_EVENTS_PATH = Path("~/.codex/trade-events.jsonl").expanduser()
 DEFAULT_MODEL = "gpt-5.6-sol"
 DEFAULT_MAX_ARTICLES = 128
-# The timer serializes runs from completion.  Research is intentionally not
-# capped by an arbitrary child-process wall; only individual network reads are.
-DEFAULT_TIMEOUT_SEC: int | None = None
+# Keep discovery independently tight while leaving a measured fourteen-minute
+# research window and publication grace beneath the service wall.
+DEFAULT_TIMEOUT_SEC = 14 * 60
 DEFAULT_FETCH_TIMEOUT_SEC = 30
 MAX_RESPONSE_BYTES = 3_000_000
 MAX_SEEN = 5_000

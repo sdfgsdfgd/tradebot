@@ -331,9 +331,9 @@ def test_systemd_budget_leaves_atomic_publication_grace() -> None:
 
     assert "--timeout-sec" not in unit
     assert DEFAULT_FETCH_TIMEOUT_SEC == 30
-    assert DEFAULT_TIMEOUT_SEC is None
+    assert DEFAULT_TIMEOUT_SEC == 840
     assert "--codex %h/.local/bin/codex" in unit
-    assert "TimeoutStartSec=infinity" in unit
+    assert "TimeoutStartSec=16min" in unit
     assert "StartLimitIntervalSec=2h" in unit
     assert "StartLimitBurst=31" in unit
     assert "Restart=on-failure" in unit
