@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from io import StringIO
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -281,13 +282,35 @@ def test_codex_schema_avoids_unsupported_unique_items_keyword() -> None:
 def test_codex_invocation_pins_sol_and_max_reasoning(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[list[str]] = []
 
+    class FakeProcess:
+        returncode = 0
+
+        def __init__(self) -> None:
+            self.stdin = StringIO()
+            self.stdout = StringIO("{}")
+            self.stderr = StringIO()
+
+        def wait(self, *, timeout: int | None = None) -> int:
+            return self.returncode
+
+        def terminate(self) -> None:
+            self.returncode = -15
+
+        def kill(self) -> None:
+            self.returncode = -9
+
+    process = FakeProcess()
+
     def fake_run(command: list[str], **_kwargs) -> SimpleNamespace:
         calls.append(command)
-        if command[-1] == "--version":
-            return SimpleNamespace(returncode=0, stdout="codex-cli test\n")
-        return SimpleNamespace(returncode=0, stdout="{}")
+        return SimpleNamespace(returncode=0, stdout="codex-cli test\n")
 
     monkeypatch.setattr(news.subprocess, "run", fake_run)
+    monkeypatch.setattr(
+        news.subprocess,
+        "Popen",
+        lambda command, **_kwargs: (calls.append(command), process)[1],
+    )
     _, receipt = news.invoke_codex(
         "probe", {"type": "object"}, codex="codex", model=DEFAULT_MODEL, timeout_sec=30
     )
@@ -299,6 +322,39 @@ def test_codex_invocation_pins_sol_and_max_reasoning(monkeypatch: pytest.MonkeyP
     assert "--strict-config" in calls[0]
     assert receipt["model"] == "gpt-5.6-sol"
     assert receipt["reasoning_effort"] == "max"
+
+
+def test_codex_upstream_refusal_exits_for_systemd_retry(monkeypatch: pytest.MonkeyPatch) -> None:
+    class RefusedProcess:
+        returncode = 0
+
+        def __init__(self) -> None:
+            self.stdin = StringIO()
+            self.stdout = StringIO()
+            self.stderr = StringIO(
+                'ERROR: {"detail":{"source":"concurrency_limit"}}\n'
+            )
+
+        def wait(self, *, timeout: int | None = None) -> int:
+            return self.returncode
+
+        def terminate(self) -> None:
+            self.returncode = -15
+
+        def kill(self) -> None:
+            self.returncode = -9
+
+    monkeypatch.setattr(news.subprocess, "Popen", lambda *_args, **_kwargs: RefusedProcess())
+    monkeypatch.setattr(
+        news.subprocess,
+        "run",
+        lambda *_args, **_kwargs: SimpleNamespace(returncode=0, stdout="codex-cli test\n"),
+    )
+
+    with pytest.raises(NewsError, match="upstream capacity refused"):
+        news.invoke_codex(
+            "probe", {"type": "object"}, codex="codex", model=DEFAULT_MODEL, timeout_sec=None
+        )
 
 
 def test_memory_contract_rejects_growth_and_old_horizon_sections() -> None:

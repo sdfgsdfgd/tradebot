@@ -12,6 +12,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import threading
 from typing import Callable
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
@@ -364,20 +365,48 @@ def invoke_codex(
         ]
         command.append("-")
         try:
-            completed = subprocess.run(
+            process = subprocess.Popen(
                 command,
-                input=prompt,
-                text=True,
+                stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
-                timeout=timeout_sec,
-                check=False,
+                stderr=subprocess.PIPE,
+                text=True,
             )
         except (OSError, subprocess.TimeoutExpired) as exc:
             raise NewsError(f"Codex invocation failed: {exc}") from exc
-        if completed.returncode:
-            raise NewsError(f"Codex exited {completed.returncode}; stderr was streamed")
+        refused = threading.Event()
+
+        def stream_stderr() -> None:
+            assert process.stderr is not None
+            for line in process.stderr:
+                print(line, end="", file=sys.stderr, flush=True)
+                if (
+                    '"source":"concurrency_limit"' in line
+                    or "biscuit_baker_service_me_circuit_open" in line
+                ):
+                    refused.set()
+                    process.terminate()
+
+        reader = threading.Thread(target=stream_stderr, daemon=True)
+        reader.start()
         try:
-            analysis = json.loads(completed.stdout)
+            assert process.stdin is not None
+            process.stdin.write(prompt)
+            process.stdin.close()
+            assert process.stdout is not None
+            stdout = process.stdout.read()
+            returncode = process.wait(timeout=timeout_sec)
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            process.kill()
+            process.wait()
+            raise NewsError(f"Codex invocation failed: {exc}") from exc
+        finally:
+            reader.join()
+        if returncode or refused.is_set():
+            reason = "upstream capacity refused the request" if refused.is_set() else "stderr was streamed"
+            raise NewsError(f"Codex exited {returncode}; {reason}")
+        try:
+            analysis = json.loads(stdout)
         except json.JSONDecodeError as exc:
             raise NewsError(f"Codex returned invalid JSON: {exc}") from exc
 
