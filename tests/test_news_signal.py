@@ -272,6 +272,16 @@ def test_unchanged_event_preserves_material_timestamp() -> None:
     assert validated["active_events"][0]["last_material_change_utc"] == prior["last_material_change_utc"]
 
 
+def test_unknown_asset_driver_is_dropped_from_the_model_cross_reference() -> None:
+    articles = parse_finviz_news(_html(), observed_at=NOW)
+    value = _analysis([article.url for article in articles], as_of=NOW)
+    value["assets"]["XSP"]["drivers"].append("not-an-active-event")
+
+    validated = validate_analysis(value, previous_events=[], as_of=NOW)
+
+    assert validated["assets"]["XSP"]["drivers"] == ["bab-el-mandeb-closure"]
+
+
 def test_codex_schema_avoids_unsupported_unique_items_keyword() -> None:
     schema = json.dumps(output_schema())
     assert "uniqueItems" not in schema

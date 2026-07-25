@@ -649,6 +649,11 @@ def validate_analysis(
             limit=200,
             complete_sentence=True,
         )
+        raw_drivers = signal["drivers"]
+        if isinstance(raw_drivers, list):
+            signal["drivers"] = [
+                driver for driver in raw_drivers if isinstance(driver, str) and driver in active_ids
+            ]
         drivers = _assert_references(
             signal["drivers"],
             allowed=active_ids,
