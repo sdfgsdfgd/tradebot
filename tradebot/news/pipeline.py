@@ -246,7 +246,11 @@ For each material event reason fact -> changed physical/economic variable -> con
 probability, or confidence. Confidence is evidentiary certainty.
 
 Return active_events as the complete replacement for events_path, with at most 24 genuinely
-trend-bearing events. Reuse stable IDs. The program, not you, owns first_seen_utc and
+trend-bearing events.
+If capacity still requires a choice after merging duplicates and resolving obsolete events, retain
+the event with the more distinct unresolved causal channel and greater expected future
+distributional information; do not choose solely by current impact.
+Reuse stable IDs. The program, not you, owns first_seen_utc and
 last_material_change_utc from the prior ledger plus the exact semantic event diff. Set
 last_verified_utc to as_of_utc only when substantive page content was read; otherwise preserve it
 or use null for a new summary-only event. Every event needs 1..3 exact evidence URLs. Duplicate coverage increases
