@@ -19,19 +19,19 @@
 - **Capital authority:** none. XSP is a non-tradable index; do not fabricate a
   spot fill. Debit options, credit spreads, condors, and live option capital are
   evidence-only in this kata and graduate in a later quest.
-- **Combined local source:** pushed base `9546bad`; the large verified WIP now
-  semantically absorbs every unique behavior from q's eleven-commit
-  `f837e21..b094ce6` news delta. No separate incoming work remains.
-- **q execution source:** clean news-only `b094ce6` until the verified combined
-  revision is published and activated; no persistent XSP producer, observer,
-  managed runtime, or q-local Gateway tunnel is installed.
+- **Combined source:** Mac, GitHub `main`, and q are clean at
+  `b943ea4fcd911022704278424bcb3450c5fc7d94`; this revision semantically
+  absorbs every unique behavior from q's eleven-commit `f837e21..b094ce6`
+  news delta.
+- **q execution runtime:** pinned Python `3.13.7`, `ib-insync 0.9.86`, and
+  `textual 6.12.0`; all seven installed user units verify against `b943ea4`.
 - **q news runtime:** the timer launches one process approximately four hours
   after completion. Its `04:02..04:06 AEST` natural run published successfully
-  with zero restarts; current XSP context is `-1/76/.94/24h`. The eleven-commit
-  delta and the local combined publication/runtime work overlap and must be
-  reconciled semantically, not merged or deployed independently.
-- **Immediate frontier:** publish and activate the one combined revision; arm
-  the read-only producer before Sunday `20:15 ET` / Monday `10:15 AEST`;
+  with zero restarts; current XSP context is `-1/76/.94/24h`. That last-good
+  publication remains intact; the next natural run uses the reconciled
+  combined source.
+- **Immediate frontier:** validate the next natural combined-source news run;
+  the read-only producer is armed for Sunday `20:15 ET` / Monday `10:15 AEST`;
   manually prove Monday's first `EVALUATED`, `order_authority=none` checkpoint
   at `09:37 ET` / `23:37 AEST`; then enable `09:42..16:02 ET`.
 - **Do not:** trigger an extra news run, deploy mixed revisions, backfill forward
@@ -248,10 +248,11 @@ behavior but leaves the profit objective open.
 8. `[DONE]` Semantically absorb q's complete eleven-commit news delta into the
    stronger local transactional publication owner; no separate incoming work
    or missing q behavior remains.
-9. `[WIP]` Publish the full-suite-green combined tree and content-address the
-   final integration manifest as one clean revision.
-10. `[TODO]` Execute the one-revision q activation order above before Sunday
-   `20:15 ET`; preserve GTH capture and prove restart continuity.
+9. `[DONE]` Publish the full-suite-green combined tree and content-address the
+   final integration manifest as clean revision `b943ea4`.
+10. `[WIP]` q is clean at `b943ea4`; pinned runtime and units verify, news and
+   the read-only producer are armed, and the shadow timer is disabled. Prove
+   the next natural news run and producer restart continuity.
 11. `[TODO]` Prove Monday's first manual checkpoint, then collect every canonical
    RTH slot and exact option/news context without backfill.
 12. `[TODO]` Accumulate preregistered parity, pre-open, news, and microstructure
@@ -271,7 +272,8 @@ behavior but leaves the profit objective open.
   clean under Python `3.12.7`.
 - Calibration remains `999` lines, broker shadow `952`, pure benchmarks `881`,
   and entry control `503`; no new architecture-debt exception exists.
-- No combined commit/push/deploy/order has yet followed this final verification.
+- Mac, GitHub `main`, and q are clean at `b943ea4`; runtime imports and unit
+  verification pass. No selection, clock start, broker query, or order occurred.
 
 ---
 
@@ -455,6 +457,7 @@ Add rows; never rewrite an unfavorable receipt.
 | E-139 | 2026-07-26 06:35 AEST | 2/4 | Receipt-bound profitability policy | `tradebot/research/xsp_benchmarks.py`; `tests/test_live_calibration.py` | benchmark `70a25d5d…`; test `d585f2ab…`; focused `53 passed`; full `824 passed, 4 deselected` | The selected-run receipt now owns the canonical profitability `run_id` and policy; manual identity, altered receipt, or policy substitution is refused. The content-addressed selection remains non-submitting and the profitability clock remains stopped. No selection, economics, service, broker call, order, commit, or push was created. |
 | E-140 | 2026-07-26 06:48 AEST | management/1/4 | Sunday pre-session truth census and timeout-boundary repair | local combined WIP; q `b094ce6`; systemd/Gateway/Cboe clocks; `tradebot/news/pipeline.py` | q clean; natural news `04:02..04:06 AEST`, status `published`, zero restarts; Mac `4001` listening; q `4001/4002` closed; zero XSP q units; pipeline `1a995808…`; news `25 passed`; full `824 passed, 4 deselected` | q has eleven newer news-only commits whose retry, clock, CLI, memory, channel, and capacity behavior overlaps the local publication/runtime work; no pull, merge, source switch, or deployment occurred. The census also caught six local failures caused by passing optional inference timeout `None` into the independently bounded HTTP fetch. One owner-local correction retains a `30s` discovery ceiling while allowing the intended unbounded inference policy; all six failures and the full suite now pass. Cboe's next ordinary XSP GTH open is Sunday `20:15 ET` / Monday `10:15 AEST`, about `27.5h` after census—not Sunday evening AEST; the first eligible RTH observer proof is Monday `09:37 ET` / `23:37 AEST`. No additional retrospective slope/OHLC tuning is justified before the independent prospective tape exists. |
 | E-141 | 2026-07-26 07:12 AEST | management/1/4 | Complete q news-delta absorption and combined verification | local combined WIP; q commits `d58b6ee..b094ce6`; `tradebot/news/{pipeline.py,contract.py}`; `deploy/systemd/tradebot-news.service`; `tests/test_news_signal.py` | pipeline `0dc994e2…`; contract `6022c2ee…`; unit `799b8eed…`; test `cc807958…`; news `27 passed`; cross-boundary `145 passed`; full `826 passed, 4 deselected` | Every unique behavior in q's eleven-commit delta is now represented once inside the stronger local architecture: code-owned lifecycle clocks, canonical active drivers, stable `400`-line/`64 KiB` memory, distinct-channel capacity feedback, user Codex CLI, bounded systemd retry, and immediate capacity-refusal detection. Local content-addressed pending-publication recovery, append-time history, timestamp-correct consumers, and independent `30s` discovery budget remain intact. The q subprocess implementation was strengthened while integrating it: stdout and stderr drain concurrently, so large output cannot block timeout enforcement. No q source switch, runtime install, selection, clock start, broker call, or order occurred. |
+| E-142 | 2026-07-26 07:21 AEST | 1/4 | One-revision publication and q activation preflight | Mac/GitHub/q Git identities; q pinned venv; installed systemd units and timers | all source `b943ea4fcd911022704278424bcb3450c5fc7d94`; Python `3.13.7`; `ib-insync 0.9.86`; `textual 6.12.0`; unit verify/import/help probes pass | The clean combined revision is now identical on Mac, GitHub `main`, and q. q's news and XSP quote timers are enabled; the quote producer is scheduled for Monday `10:15 AEST`; the shadow timer and all three one-shot services remain inactive. All installed unit templates are byte-identical to source and the runtime imports each entrypoint. The switch occurred while the old news one-shot was inactive. No extra news session, early capture, Gateway connection, shadow evaluation, profitability clock, broker call, or order was triggered. |
 
 ---
 
@@ -692,13 +695,13 @@ promote/hold/revise/stop verdict with its remaining-risk register.
   cannot rewrite them. The combined WIP is green at
   `826 passed, 4 deselected`, and every unique behavior in q's eleven-commit
   news delta has been absorbed into the stronger combined publication
-  architecture. q still runs the separate news-only `b094ce6` revision
-  and no persistent XSP producer/shadow runtime has been installed. Therefore
+  architecture. Mac, GitHub `main`, and q are clean at `b943ea4`; q's pinned
+  runtime and installed units verify, news and the read-only quote producer are
+  armed, and the shadow timer remains disabled. Therefore
   `NO_TRADE` remains selected and the `24h → 48h → five-session` economic
   clock remains exactly `NOT_STARTED`.
-- **Next action:** publish and activate the one combined source revision, provision the
-  already-proven pinned q runtime, and install—but do not retroactively
-  backfill—the producer and observer. Arm the producer before Sunday
+- **Next action:** validate the next naturally scheduled combined-source news
+  run and let the already-armed producer begin without backfill at Sunday
   `20:15 ET` / Monday `10:15 AEST`; manually prove the first Monday
   `09:37 ET` / `23:37 AEST` non-submitting checkpoint, then arm the remaining
   observer slots. Accumulate the
