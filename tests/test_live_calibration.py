@@ -13,6 +13,7 @@ from tradebot.backtest.quotes import (
     QuoteSnapshot,
     option_parity_observation,
 )
+from tradebot.chart_data.history import duration_window_et
 from tradebot.news.contract import SCHEMA as NEWS_SCHEMA
 from tradebot.news.contract import SCORE_VERSION as NEWS_SCORE_VERSION
 from tradebot.research.live_calibration import (
@@ -31,6 +32,7 @@ from tradebot.research.xsp_benchmarks import (
     xsp_selected_shadow_run,
 )
 from tradebot.research.xsp_shadow import (
+    XSP_DIRECTIONAL_HISTORY_DURATION,
     advance_xsp_directional_shadow,
     advance_xsp_shadow_from_ibkr,
     replay_xsp_directional_shadow,
@@ -43,6 +45,17 @@ from tradebot.time_utils import ET_ZONE
 
 
 NOW = datetime(2026, 7, 27, 13, 35, tzinfo=timezone.utc)
+
+
+def test_shadow_history_window_keeps_prior_rth_warmup_across_weekend() -> None:
+    observed = datetime(2026, 7, 27, 9, 37, tzinfo=ET_ZONE)
+    start, end = duration_window_et(
+        XSP_DIRECTIONAL_HISTORY_DURATION,
+        end=observed,
+    )
+
+    assert end == observed.replace(tzinfo=None)
+    assert start <= datetime(2026, 7, 24, 9, 30)
 
 
 def _profitability_policy(
@@ -2604,7 +2617,7 @@ def test_ibkr_shadow_boundary_qualifies_and_close_aligns_xsp(tmp_path) -> None:
     )
 
     assert client.request == {
-        "duration_str": "2 D",
+        "duration_str": XSP_DIRECTIONAL_HISTORY_DURATION,
         "bar_size": "5 mins",
         "use_rth": True,
         "what_to_show": "TRADES",

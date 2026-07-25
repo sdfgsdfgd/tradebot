@@ -35,6 +35,7 @@ from .live_calibration import (
 
 XSP_DIRECTIONAL_HORIZONS_MINUTES = (30, 60, 120)
 XSP_DIRECTIONAL_FRICTION_POINTS = 0.10
+XSP_DIRECTIONAL_HISTORY_DURATION = "1 W"
 XSP_OPTION_CONTEXT_MAX_LAG = timedelta(minutes=7)
 XSP_OPTION_CHANGE_MAX_SPAN = timedelta(minutes=15)
 XSP_PREOPEN_PARITY_HORIZONS_MINUTES = (120, 240, 360)
@@ -696,7 +697,7 @@ async def advance_xsp_shadow_from_ibkr(
     *,
     client,
     observed_at: datetime,
-    duration_str: str = "2 D",
+    duration_str: str = XSP_DIRECTIONAL_HISTORY_DURATION,
     option_snapshots: Sequence[QuoteSnapshot] = (),
     news_snapshot: Mapping[str, object] | Sequence[Mapping[str, object]] | None = None,
 ) -> dict[str, object]:

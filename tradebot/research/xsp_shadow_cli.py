@@ -18,7 +18,10 @@ from .xsp_benchmarks import (
     xsp_fundamental_defensive_benchmark,
     xsp_option_parity_participation_benchmark,
 )
-from .xsp_shadow import advance_xsp_shadow_from_ibkr
+from .xsp_shadow import (
+    XSP_DIRECTIONAL_HISTORY_DURATION,
+    advance_xsp_shadow_from_ibkr,
+)
 
 
 async def _main_async(argv: Sequence[str] | None = None) -> int:
@@ -29,7 +32,7 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
         "--ledger",
         default="db/calibration/xsp_live_calibration.jsonl",
     )
-    parser.add_argument("--duration", default="2 D")
+    parser.add_argument("--duration", default=XSP_DIRECTIONAL_HISTORY_DURATION)
     parser.add_argument("--option-tape")
     parser.add_argument(
         "--news-signal",
