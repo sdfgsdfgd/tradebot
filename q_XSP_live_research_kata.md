@@ -19,20 +19,20 @@
 - **Capital authority:** none. XSP is a non-tradable index; do not fabricate a
   spot fill. Debit options, credit spreads, condors, and live option capital are
   evidence-only in this kata and graduate in a later quest.
-- **Combined source:** production code is frozen at
-  `b943ea4fcd911022704278424bcb3450c5fc7d94`, which semantically absorbs
-  every unique behavior from q's eleven-commit `f837e21..b094ce6` news delta;
-  Mac, GitHub `main`, and q were last proven identical at deployment receipt
-  `bb3e70e36b3cb279967aec23e02eb9af821a36cc`.
+- **Combined source:** production foundation
+  `b943ea4fcd911022704278424bcb3450c5fc7d94` semantically absorbs every
+  unique behavior from q's eleven-commit `f837e21..b094ce6` news delta;
+  operational corrections through `0af37a1540a077e9e6e7d9be928c8aa87dcd3136`
+  are exact on Mac, GitHub `main`, and q at E-149.
 - **q execution runtime:** pinned Python `3.13.7`, `ib-insync 0.9.86`, and
-  `textual 6.12.0`; all seven installed user units verify against `b943ea4`.
+  `textual 6.12.0`; all seven installed user units verify, with the changed
+  tunnel/producer units byte-identical to `0af37a1`.
 - **q news runtime:** the timer launches one process approximately four hours
-  after completion. Its `04:02..04:06 AEST` natural run published successfully
-  with zero restarts; current XSP context is `-1/76/.94/24h`. That last-good
-  publication remains intact; the next natural run uses the reconciled
-  combined source.
-- **Immediate frontier:** validate the next natural combined-source news run;
-  the read-only producer is armed for Sunday `20:15 ET` / Monday `10:15 AEST`;
+  after completion. Its first natural combined-source cycle at
+  `08:06:02..08:06:03 AEST` correctly published `no_new_evidence` without
+  opening Codex or aging the causal XSP `-1/76/.94/24h` signal.
+- **Immediate frontier:** let the resilient read-only producer begin Sunday
+  `20:15 ET` / Monday `10:15 AEST`; prove process start and restart continuity;
   manually prove Monday's first `EVALUATED`, `order_authority=none` checkpoint
   at `09:37 ET` / `23:37 AEST`; then enable `09:42..16:02 ET`.
 - **Do not:** trigger an extra news run, deploy mixed revisions, backfill forward
@@ -252,10 +252,10 @@ behavior but leaves the profit objective open.
 9. `[DONE]` Publish the full-suite-green combined tree and content-address the
    final integration manifest as clean revision `b943ea4`.
 10. `[WIP]` The natural combined-source news cycle passed at E-147. Producer
-   recovery is strengthened at E-148 so recorder-owned reconnect survives a
-   sleeping Mac/tunnel outage; publish and install that one revision, then
-   prove the Sunday process start and restart continuity. The shadow timer
-   remains disabled.
+   recovery was strengthened at E-148 and deployed exactly at E-149 so
+   recorder-owned reconnect survives a sleeping Mac/tunnel outage. Prove the
+   Sunday process start and restart continuity. The shadow timer remains
+   disabled.
 11. `[TODO]` Prove Monday's first manual checkpoint, then collect every canonical
    RTH slot and exact option/news context without backfill.
 12. `[TODO]` Accumulate preregistered parity, pre-open, news, and microstructure
@@ -275,9 +275,9 @@ behavior but leaves the profit objective open.
   clean under Python `3.12.7`.
 - Calibration remains `999` lines, broker shadow `952`, pure benchmarks `881`,
   and entry control `503`; no new architecture-debt exception exists.
-- Runtime imports and unit verification pass against production code
-  `b943ea4`; Mac, GitHub `main`, and q convergence is proven by receipt
-  `bb3e70e`. No selection, clock start, broker query, or order occurred.
+- Runtime imports and all installed units verify through `0af37a1`; Mac,
+  GitHub `main`, and q convergence is proven by E-149. No selection, clock
+  start, broker query, or order occurred.
 
 ---
 
@@ -468,6 +468,7 @@ Add rows; never rewrite an unfavorable receipt.
 | E-146 | 2026-07-26 07:55 AEST | 1/4 | Monday directional warm-up window | canonical `tradebot/research/xsp_{shadow,shadow_cli}.py`; authenticated XSP cache; `tests/test_live_calibration.py` | shared duration `1 W`; actual Monday window `2026-07-20 09:37..2026-07-27 09:37 ET`; `388` cached bars; only missing range `2026-07-27`; focused `137 passed`; full `827 passed, 4 deselected`; Ruff/diff clean | The former `2 D` default was literal calendar time: Monday's first observer began on Saturday, excluded Friday, and could append a fresh `EVALUATED` checkpoint while the 25-bar directional engine remained underwarmed. One shared `1 W` constant now gives the CLI and broker adapter the same window. Against the real cache it retains 388 prior close-aligned bars and delegates only Monday's live tail to the existing sparse fetcher. No sensor threshold, direction, permission gate, candidate, broker authority, schedule, or order semantics changed. |
 | E-147 | 2026-07-26 08:06 AEST | 1/4 | Natural combined-source no-evidence publication | q service `08:06:02..08:06:03 AEST`; synchronized `4df8a96`; exact pre-run hashes | success; zero restarts; `71` whitelisted, `10` active, `0` deferred; next timer `11:45 AEST`; no pending generation | The first natural cycle on the combined source found no unseen evidence and correctly opened no Codex session. It atomically advanced only `latest.json` and `state.json` to `run_status=no_new_evidence`; memory `8171c962…`, events `33964739…`, and history `6ed7b909…` remained byte- and mtime-identical. The causal signal retained its original `2026-07-25T18:02:10Z` timestamp and unchanged XSP `-1/76/.94/24h` plus MCL `+1/84/.95/24h` values rather than fabricating freshness. No broker, strategy, selector, clock, order, source, unit, or timer mutation occurred. |
 | E-148 | 2026-07-26 08:09 AEST | 1/4 | Recorder-owned tunnel recovery | canonical tunnel/quote units and deployment guide; recorder retry kernel; focused unit contracts | tunnel `30s` uncapped retry; producer soft dependency; shadow hard dependency retained; q systemd parser exit `0`; focused `84 passed`; full `827 passed, 4 deselected`; Ruff/diff clean | The recorder already reconnects indefinitely with exponential backoff, resumes the same trading-date tape, repairs torn tails, restores the retained option universe, and skips catch-up bursts. Its start transaction nevertheless hard-required a tunnel capped at three rapid attempts, so a sleeping Mac at Sunday GTH open could exhaust recovery before the application loop began. The tunnel now retries calmly without a start ceiling, while only the long-running producer soft-depends on it and therefore remains alive until Gateway returns. The bounded shadow one-shot still hard-requires the tunnel and fails closed. No capture cadence, market-data type, chain, quote, strategy, clock, broker write, or order semantics changed. |
+| E-149 | 2026-07-26 08:12 AEST | 1/4 | Exact producer-recovery deployment | Mac/GitHub/q `0af37a1540a077e9e6e7d9be928c8aa87dcd3136`; installed q tunnel/producer units | q clean; both units byte-identical; systemd verify clean; tunnel `RestartUSec=30s`, `StartLimitIntervalUSec=0`; producer `Wants` tunnel and has no tunnel `Requires`; services inactive; news/quote timers enabled; shadow timer disabled | The source switch and unit replacement occurred only after the natural news one-shot reached terminal and while tunnel/producer were inactive. The loaded manager now exposes the intended eventual-recovery properties without starting the tunnel, Gateway, producer, shadow, profitability clock, or any broker/order path. |
 
 ---
 
@@ -709,7 +710,7 @@ promote/hold/revise/stop verdict with its remaining-risk register.
   `827 passed, 4 deselected`, and every unique behavior in q's eleven-commit
   news delta has been absorbed into the stronger combined publication
   architecture. The production foundation at `b943ea4` and operational
-  corrections through E-146 are fully verified; q's pinned runtime and
+  corrections through E-149 are fully verified; q's pinned runtime and
   installed units verify, the completion-safe news wall is restored, the
   read-only quote producer is armed, Monday's shadow window retains
   prior-session warm-up, and the shadow timer remains disabled.
