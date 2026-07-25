@@ -93,6 +93,37 @@ def test_qualify_proxy_contracts_falls_back_to_single_retries() -> None:
     }
 
 
+def test_qualify_proxy_contracts_is_bounded(monkeypatch) -> None:
+    client = _client()
+
+    class _HungProxy:
+        calls = 0
+
+        async def qualifyContractsAsync(self, *_contracts):
+            self.calls += 1
+            await asyncio.sleep(60)
+
+    async def _connect_proxy() -> None:
+        return None
+
+    monkeypatch.setattr(
+        "tradebot.client._CONTRACT_QUALIFICATION_TIMEOUT_SEC",
+        0.01,
+    )
+    client._ib_proxy = _HungProxy()
+    client.connect_proxy = _connect_proxy
+
+    assert (
+        asyncio.run(
+            client.qualify_proxy_contracts(
+                Index("XSP", "CBOE", "USD"),
+            )
+        )
+        == []
+    )
+    assert client._ib_proxy.calls == 1
+
+
 def test_search_contracts_opt_drops_unqualified_rows() -> None:
     client = _client()
 

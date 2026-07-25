@@ -185,6 +185,14 @@ def _parse_legs(raw) -> tuple[LegConfig, ...] | None:
     return normalize_option_legs(raw, path="legs")
 
 
+def _parse_optional_object(raw) -> dict[str, object] | None:
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise ValueError(f"Expected object, got: {raw!r}")
+    return dict(raw)
+
+
 def _parse_entry_signal(value) -> str:
     if value is None:
         return "ema"
@@ -201,6 +209,12 @@ def _parse_entry_signal(value) -> str:
             "bear-trap",
         ):
             return "opening_reclaim"
+        if cleaned in (
+            "directional_impulse",
+            "directional-impulse",
+            "impulse",
+        ):
+            return "directional_impulse"
     return "ema"
 
 

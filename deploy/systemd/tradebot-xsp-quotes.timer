@@ -1,0 +1,12 @@
+[Unit]
+Description=Start the XSP forward-tape producer at each exchange session
+
+[Timer]
+OnCalendar=Sun,Mon,Tue,Wed,Thu *-*-* 20:15:00 America/New_York
+AccuracySec=15s
+RandomizedDelaySec=0
+Persistent=false
+Unit=tradebot-xsp-quotes.service
+
+[Install]
+WantedBy=timers.target

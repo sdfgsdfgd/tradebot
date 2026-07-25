@@ -66,6 +66,181 @@ class SpotEntryBasisState:
     source: str
 
 
+@dataclass(frozen=True)
+class SpotExcursionPolicy:
+    """Causal stop/trail/fizzle policy shared by replay and live runtimes."""
+
+    initial_stop_atr: float = 0.0
+    trail_activate_atr: float = 0.0
+    trail_distance_atr: float = 0.0
+    breakeven_atr: float = 0.0
+    fizzle_bars: int = 0
+    fizzle_mfe_atr: float = 0.0
+    max_hold_bars: int = 0
+
+    @property
+    def enabled(self) -> bool:
+        return self.initial_stop_atr > 0.0
+
+    @classmethod
+    def from_strategy(
+        cls,
+        strategy: Mapping[str, object] | object | None,
+    ) -> "SpotExcursionPolicy":
+        raw = _get(strategy, "spot_excursion_exit", None)
+        if not isinstance(raw, Mapping) or not bool(raw.get("enabled", True)):
+            return cls()
+
+        def _float(key: str) -> float:
+            try:
+                return max(0.0, float(raw.get(key, 0.0) or 0.0))
+            except (TypeError, ValueError):
+                return 0.0
+
+        def _int(key: str) -> int:
+            try:
+                return max(0, int(raw.get(key, 0) or 0))
+            except (TypeError, ValueError):
+                return 0
+
+        return cls(
+            initial_stop_atr=_float("initial_stop_atr"),
+            trail_activate_atr=_float("trail_activate_atr"),
+            trail_distance_atr=_float("trail_distance_atr"),
+            breakeven_atr=_float("breakeven_atr"),
+            fizzle_bars=_int("fizzle_bars"),
+            fizzle_mfe_atr=_float("fizzle_mfe_atr"),
+            max_hold_bars=_int("max_hold_bars"),
+        )
+
+    def as_payload(self) -> dict[str, object]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class SpotExcursionState:
+    """Completed-bar excursion state; a ratchet never affects its source bar."""
+
+    direction: str
+    entry_price: float
+    entry_atr: float
+    bars_held: int
+    best_price: float
+    worst_price: float
+    stop_price: float
+    stop_reason: str = "initial_stop"
+
+    @classmethod
+    def open(
+        cls,
+        *,
+        policy: SpotExcursionPolicy,
+        direction: str,
+        entry_price: float,
+        entry_atr: float,
+    ) -> "SpotExcursionState":
+        if not policy.enabled or direction not in ("up", "down"):
+            raise ValueError("excursion state requires an enabled policy and direction")
+        entry = float(entry_price)
+        atr = float(entry_atr)
+        if entry <= 0.0 or atr <= 0.0:
+            raise ValueError("excursion state requires positive entry price and ATR")
+        stop = entry - (policy.initial_stop_atr * atr)
+        if direction == "down":
+            stop = entry + (policy.initial_stop_atr * atr)
+        return cls(
+            direction=str(direction),
+            entry_price=entry,
+            entry_atr=atr,
+            bars_held=0,
+            best_price=entry,
+            worst_price=entry,
+            stop_price=float(stop),
+        )
+
+    @property
+    def mfe_points(self) -> float:
+        if self.direction == "up":
+            return max(0.0, self.best_price - self.entry_price)
+        return max(0.0, self.entry_price - self.best_price)
+
+    @property
+    def mae_points(self) -> float:
+        if self.direction == "up":
+            return max(0.0, self.entry_price - self.worst_price)
+        return max(0.0, self.worst_price - self.entry_price)
+
+    def advance(
+        self,
+        *,
+        policy: SpotExcursionPolicy,
+        high: float,
+        low: float,
+    ) -> tuple["SpotExcursionState", str | None]:
+        if self.direction == "up":
+            best = max(self.best_price, float(high))
+            worst = min(self.worst_price, float(low))
+        else:
+            best = min(self.best_price, float(low))
+            worst = max(self.worst_price, float(high))
+
+        bars = self.bars_held + 1
+        mfe = (
+            max(0.0, best - self.entry_price)
+            if self.direction == "up"
+            else max(0.0, self.entry_price - best)
+        )
+        stop = self.stop_price
+        stop_reason = self.stop_reason
+
+        if (
+            policy.breakeven_atr > 0.0
+            and mfe >= policy.breakeven_atr * self.entry_atr
+        ):
+            candidate = self.entry_price
+            tighter = candidate > stop if self.direction == "up" else candidate < stop
+            if tighter:
+                stop, stop_reason = candidate, "breakeven_stop"
+
+        if (
+            policy.trail_activate_atr > 0.0
+            and policy.trail_distance_atr > 0.0
+            and mfe >= policy.trail_activate_atr * self.entry_atr
+        ):
+            distance = policy.trail_distance_atr * self.entry_atr
+            candidate = best - distance if self.direction == "up" else best + distance
+            tighter = candidate > stop if self.direction == "up" else candidate < stop
+            if tighter:
+                stop, stop_reason = candidate, "trail_stop"
+
+        state = SpotExcursionState(
+            direction=self.direction,
+            entry_price=self.entry_price,
+            entry_atr=self.entry_atr,
+            bars_held=bars,
+            best_price=best,
+            worst_price=worst,
+            stop_price=float(stop),
+            stop_reason=stop_reason,
+        )
+        if (
+            policy.fizzle_bars > 0
+            and bars >= policy.fizzle_bars
+            and mfe < policy.fizzle_mfe_atr * self.entry_atr
+        ):
+            return state, "fizzle"
+        if policy.max_hold_bars > 0 and bars >= policy.max_hold_bars:
+            return state, "max_hold"
+        return state, None
+
+    def as_payload(self) -> dict[str, object]:
+        return {
+            **asdict(self),
+            "mfe_points": self.mfe_points,
+            "mae_points": self.mae_points,
+        }
+
+
 def reconcile_spot_entry_basis(
     *,
     previous_qty: float,
@@ -441,6 +616,8 @@ def decide_open_position_intent(
         fill_mode = (
             str(flip_fill)
             if exit_reason == "flip" and spot_fill_mode_is_deferred(flip_fill)
+            else SPOT_FILL_MODE_NEXT_TRADABLE_BAR
+            if exit_reason in ("fizzle", "max_hold")
             else SPOT_FILL_MODE_CLOSE
         )
 
@@ -604,6 +781,8 @@ def decide_flat_position_intent(
     preflight_ok: bool,
     filters_ok: bool,
     entry_capacity: bool,
+    entry_day_ok: bool = True,
+    filter_checks: Mapping[str, bool] | None = None,
     stale_signal: bool = False,
     gap_signal: bool = False,
     pending_exists: bool = False,
@@ -622,9 +801,22 @@ def decide_flat_position_intent(
     policy_graph: SpotPolicyGraph | None = None,
     capture_trace: bool = True,
 ) -> SpotLifecycleDecision:
-    flat_trace = (
-        {"stage": "flat", "bar_ts": bar_ts.isoformat()} if capture_trace else {}
-    )
+    flat_trace: dict[str, object] = {}
+    if capture_trace:
+        flat_trace = {"stage": "flat", "bar_ts": bar_ts.isoformat()}
+        if isinstance(entry_context, Mapping) and isinstance(
+            entry_context.get("entry_control"), Mapping
+        ):
+            flat_trace["entry_control"] = dict(entry_context["entry_control"])
+        if filter_checks is not None:
+            checks = {
+                str(name): bool(passed)
+                for name, passed in filter_checks.items()
+            }
+            flat_trace["filter_checks"] = checks
+            flat_trace["failed_filters"] = [
+                name for name, passed in checks.items() if not passed
+            ]
     if bool(stale_signal):
         return SpotLifecycleDecision(
             intent="hold",
@@ -662,6 +854,14 @@ def decide_flat_position_intent(
             intent="hold",
             reason="weekday_gate",
             gate="BLOCKED_WEEKDAY_NOW",
+            blocked=True,
+            trace=flat_trace,
+        )
+    if not bool(entry_day_ok):
+        return SpotLifecycleDecision(
+            intent="hold",
+            reason="entry_day",
+            gate="BLOCKED_ENTRY_DAY",
             blocked=True,
             trace=flat_trace,
         )
@@ -749,8 +949,7 @@ def decide_flat_position_intent(
             blocked=True,
             trace=(
                 {
-                    "stage": "flat",
-                    "bar_ts": bar_ts.isoformat(),
+                    **flat_trace,
                     "fill_mode": str(fill_mode),
                     "graph_entry": graph_payload,
                 }
@@ -767,8 +966,7 @@ def decide_flat_position_intent(
         blocked=False,
         trace=(
             {
-                "stage": "flat",
-                "bar_ts": bar_ts.isoformat(),
+                **flat_trace,
                 "fill_mode": str(fill_mode),
                 "graph_entry": graph_payload,
             }

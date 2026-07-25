@@ -81,6 +81,7 @@ _MAIN_CONTRACT_HISTORICAL_ATTEMPT_TIMEOUT_SEC = 4.5
 _HISTORICAL_REQUEST_TIMEOUT_SEC = 12.0
 _MAX_HISTORICAL_REQUEST_DIAG_ENTRIES = 256
 _ENTITLEMENT_ERROR_CODES = (10167, 354, 10089, 10090, 10091, 10168)
+_CONTRACT_QUALIFICATION_TIMEOUT_SEC = 15.0
 _PRICE_INCREMENT_DETAILS_TIMEOUT_SEC = 1.5
 _PRICE_INCREMENT_WAIT_TIMEOUT_SEC = 3.0
 _ORDER_RECONCILE_TIMEOUT_SEC = 1.5
@@ -262,6 +263,7 @@ class IBKRClient:
                 self._config.port,
                 clientId=int(client_id),
                 timeout=timeout,
+                readonly=bool(self._config.readonly),
             )
             return
         await asyncio.to_thread(
@@ -270,6 +272,7 @@ class IBKRClient:
             self._config.port,
             int(client_id),
             timeout,
+            bool(self._config.readonly),
         )
 
     @staticmethod
@@ -2952,6 +2955,24 @@ class IBKRClient:
                     is_live_tail = gap_end >= _now_et().date() and end_ts is None
                     gap_end_ts = None if is_live_tail else datetime.combine(gap_end, dtime(23, 59, 59))
                     gap_duration = f"{max(1, (gap_end - gap_start).days + 1)} D"
+                    if is_live_tail:
+                        bar_def = parse_bar_size(str(bar_size))
+                        tail_stamps = [
+                            bar.ts
+                            for bar in bars
+                            if bar.ts.date() == gap_end
+                        ]
+                        if bar_def is not None and tail_stamps:
+                            # Overlap two bars so a corrected last bar replaces its cached
+                            # value; never re-request the already-cached session prefix.
+                            tail_seconds = math.ceil(
+                                max(
+                                    0.0,
+                                    (end_et - max(tail_stamps)).total_seconds(),
+                                )
+                                + (2.0 * bar_def.duration.total_seconds())
+                            )
+                            gap_duration = f"{max(1800, tail_seconds)} S"
                     raw = await self._request_historical_data_for_stream(
                         contract,
                         end_ts=gap_end_ts,
@@ -4694,7 +4715,13 @@ class IBKRClient:
             if not batch:
                 return
             try:
-                qualified = list(await self._ib_proxy.qualifyContractsAsync(*batch) or [])
+                qualified = list(
+                    await asyncio.wait_for(
+                        self._ib_proxy.qualifyContractsAsync(*batch),
+                        timeout=float(_CONTRACT_QUALIFICATION_TIMEOUT_SEC),
+                    )
+                    or []
+                )
             except Exception:
                 qualified = []
             _add_qualified(qualified)
@@ -4721,7 +4748,7 @@ class IBKRClient:
             await _qualify_batch(cleaned)
 
         pending = _pending_candidates()
-        if pending:
+        if pending and len(cleaned) > 1:
             max_recovery_calls = max(2, min(6, len(cleaned) // 8))
             recovery_calls = 0
 

@@ -493,6 +493,43 @@ class JournalDiagnostics:
         return unique
 
     @staticmethod
+    def _entry_control_line(raw: object) -> str | None:
+        if not isinstance(raw, dict):
+            return None
+        tokens: list[str] = []
+        source = str(raw.get("source") or "").strip()
+        if source:
+            tokens.append(f"source={source}")
+        proposed = raw.get("proposed_direction")
+        direction = raw.get("direction")
+        if proposed in ("up", "down"):
+            tokens.append(f"proposed={JournalDiagnostics._dir_badge(proposed)}")
+        if direction in ("up", "down"):
+            tokens.append(f"final={JournalDiagnostics._dir_badge(direction)}")
+        blocker = str(raw.get("blocked_by") or "").strip()
+        if blocker:
+            tokens.append(f"blocked_by=[bold #ff5f87]{blocker}[/]")
+        controls = raw.get("controls")
+        if isinstance(controls, list) and controls:
+            tokens.append("chain=" + "→".join(str(value) for value in controls))
+        resolution = raw.get("resolution")
+        if isinstance(resolution, dict):
+            tick = resolution.get("tick_gate")
+            if (
+                isinstance(tick, dict)
+                and str(tick.get("configured") or "off") != "off"
+            ):
+                applied = bool(tick.get("applied"))
+                tokens.append(
+                    f"tick={tick.get('configured')}:{'applied' if applied else 'not-applied'}"
+                )
+        return (
+            "[dim]entry_control[/] " + JournalDiagnostics._join_tokens(tokens)
+            if tokens
+            else None
+        )
+
+    @staticmethod
     def _signal_message(*, detail: dict, extra: dict) -> str:
         sig = detail.get("signal") or {}
         meta = detail.get("meta") if isinstance(detail.get("meta"), dict) else {}
@@ -687,6 +724,34 @@ class JournalDiagnostics:
         )
         if active_line:
             lines.append(active_line)
+
+        entry_control_line = JournalDiagnostics._entry_control_line(detail.get("entry_control"))
+        if entry_control_line:
+            lines.append(entry_control_line)
+        impulse = detail.get("directional_impulse")
+        if isinstance(impulse, dict):
+            impulse_tokens: list[str] = []
+            direction = impulse.get("direction")
+            if direction in ("up", "down"):
+                impulse_tokens.append(
+                    f"dir={JournalDiagnostics._dir_badge(direction)}"
+                )
+            for label, key, fmt in (
+                ("score", "direction_score", "+.3f"),
+                ("coherence", "coherence", ".2f"),
+                ("conviction", "conviction", ".2f"),
+            ):
+                JournalDiagnostics._append_float(
+                    impulse_tokens, label=label, value=impulse.get(key), fmt=fmt
+                )
+            sequence = str(impulse.get("turn_sequence_order") or "").strip()
+            if sequence:
+                impulse_tokens.append(f"turn={sequence}")
+            if impulse_tokens:
+                lines.append(
+                    "[dim]impulse(observe)[/] "
+                    + JournalDiagnostics._join_tokens(impulse_tokens)
+                )
 
         checks = detail.get("filter_checks")
         if isinstance(checks, dict) and checks:
@@ -889,6 +954,10 @@ class JournalDiagnostics:
             line2.append(active_line)
         if line2:
             lines.append(JournalDiagnostics._join_tokens(line2))
+
+        entry_control_line = JournalDiagnostics._entry_control_line(detail.get("entry_control"))
+        if entry_control_line:
+            lines.append(entry_control_line)
 
         if isinstance(checks, dict) and checks:
             lines.append(f"[dim]filter_map[/] {JournalDiagnostics._filter_check_vector(checks)}")

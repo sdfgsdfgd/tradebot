@@ -2,12 +2,13 @@
 from __future__ import annotations
 
 import math
+from dataclasses import replace
 
 from ..engine import annualized_ewma_vol
 from ..signals import ema_next
+from ..time_utils import to_et
 from .evaluator_common import (
     BarLike,
-    SpotEntryCandidate,
     SpotEntryGateContext,
     SpotSignalSnapshot,
 )
@@ -26,6 +27,17 @@ class SpotSignalRuntimeMixin:
             self._sig_bars_in_day = 0
         self._sig_bars_in_day += 1
 
+        directional_impulse = (
+            self._directional_impulse_engine.update(
+                high=float(bar.high),
+                low=float(bar.low),
+                close=float(close),
+                session_key=self._sig_last_date if self._use_rth else None,
+                ts=to_et(bar.ts, naive_ts_mode=self._naive_ts_mode),
+            )
+            if self._directional_impulse_engine is not None
+            else None
+        )
         self._ratsv_update_bar_metrics(high=float(bar.high), low=float(bar.low), close=float(close))
 
         rv = None
@@ -77,7 +89,11 @@ class SpotSignalRuntimeMixin:
                 release_age_bars=self._clean_regime2_bear_hard_release_age_bars,
             )
 
-        selection = self._advance_entry_signal(bar=bar, close=close)
+        selection = self._advance_entry_signal(
+            bar=bar,
+            close=close,
+            directional_impulse=directional_impulse,
+        )
         signal = selection.signal
         entry_dir_for_entries = selection.candidate.direction
         entry_branch = selection.candidate.branch
@@ -110,7 +126,31 @@ class SpotSignalRuntimeMixin:
             self._ema_slope_up_streak_bars = 0
             self._ema_slope_down_streak_bars = 0
 
+        primary_before = getattr(signal, "entry_dir", None)
         signal = self._advance_primary_regime_and_shock(bar=bar, signal=signal)
+        primary_active = bool(
+            self._supertrend_engine is not None
+            or (
+                self._use_mtf_regime
+                and self._regime_engine is not None
+                and self._regime_bars
+            )
+        )
+        if primary_active:
+            primary_after = getattr(signal, "entry_dir", None)
+            primary_state = (
+                "pass"
+                if primary_before in ("up", "down")
+                and primary_after == primary_before
+                else "block"
+                if primary_before in ("up", "down")
+                else "idle"
+            )
+            selection = replace(
+                selection,
+                signal=signal,
+                controls=(*selection.controls, f"primary_regime:{primary_state}"),
+            )
 
         shock, shock_dir, shock_atr_pct = self._shock_view()
         regime = self._resolve_regime_state(
@@ -212,7 +252,7 @@ class SpotSignalRuntimeMixin:
             self._prev_shock_drawdown_dist_on_vel_pp = None
 
         candidate = self._apply_entry_gates(
-            SpotEntryCandidate(entry_dir_for_entries, entry_branch),
+            selection.candidate,
             SpotEntryGateContext(
                 bar_ts=bar.ts,
                 regime=regime,
@@ -222,6 +262,14 @@ class SpotSignalRuntimeMixin:
                 shock_drawdown_dist_on_vel_pp=shock_drawdown_dist_on_vel_pp,
             ),
         )
+        if candidate.blocked_by and candidate.blocked_by != selection.candidate.blocked_by:
+            selection = replace(
+                selection,
+                candidate=candidate,
+                controls=(*selection.controls, f"evaluator:block_{candidate.blocked_by}"),
+            )
+        else:
+            selection = replace(selection, candidate=candidate)
         entry_dir_for_entries, entry_branch = candidate.direction, candidate.branch
 
         if bool(shock) and shock_dir == "down":
@@ -535,6 +583,20 @@ class SpotSignalRuntimeMixin:
             shock_atr_accel_pct=float(shock_atr_accel_pct) if shock_atr_accel_pct is not None else None,
             shock_ramp=shock_ramp,
             regime=regime,
+            directional_impulse=directional_impulse,
+            entry_source=str(selection.source or "unknown"),
+            entry_proposed_dir=(
+                str(selection.proposed_direction)
+                if selection.proposed_direction in ("up", "down")
+                else None
+            ),
+            entry_blocked_by=(
+                str(selection.candidate.blocked_by)
+                if selection.candidate.blocked_by
+                else None
+            ),
+            entry_controls=tuple(selection.controls),
+            entry_control_plan=self._entry_control_plan.as_payload(),
         )
         self._last_signal = signal
         self._last_snapshot = snap

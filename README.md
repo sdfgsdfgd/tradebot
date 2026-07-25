@@ -44,6 +44,7 @@ Minimal IBKR TUI trading client & bot
 - `tradebot/engines/` — shared market, signal, risk, shock, and execution truth.
 - `tradebot/spot/` — canonical spot payload, policy, sizing, graph, and lifecycle semantics.
 - `tradebot/backtest/cache_ops/` — cache coverage, repair, resampling, sync, and CLI orchestration.
+- `tradebot/news/` — one-fetch, one-Codex-run XSP/MCL causal news service.
 - `tradebot/store.py` — in‑memory portfolio snapshot.
 - `tradebot/main.py` — entrypoint.
 - `tradebot/gpt/` — reserved for future GPT workflows.
@@ -69,6 +70,33 @@ Optional env vars:
 - `IBKR_CLIENT_ID_BACKOFF_MULTIPLIER` (default `2.0`)
 - `IBKR_CLIENT_ID_BACKOFF_JITTER_RATIO` (default `0.15`)
 - `IBKR_CLIENT_ID_STATE_FILE` (default `${TMPDIR:-/tmp}/tradebot_ib_client_ids.json`)
+
+The experimental news signal is an independent one-shot command:
+
+```bash
+python -m tradebot.news
+```
+
+It writes `db/news/latest.json`, monthly 13-month audit history, bounded
+`state.json`, and atomically curated `~/.codex/trade-research.md` plus
+`~/.codex/trade-events.jsonl`, then exits. The Markdown retains compact
+historical calibration anchors, active umbrella regimes, and causal priors.
+The JSONL is a complete replacement containing at most 24 active events; it is
+not an append log. `latest.json` groups those events into exclusive
+breaking/day/week/month/persistent windows for a future tradebot consumer.
+
+Its versioned 0–100 causal score is the exact sum of magnitude, contract
+transmission, surprise, immediacy, and persistence; confidence remains
+separate. Every unseen mainstream Finviz link reaches Codex without a Python
+topic or keyword sieve. The model may open at most eight pages and must compare
+material events with the retained historical anchors. It has no order authority.
+
+The one infrequent analysis is explicitly pinned to `gpt-5.6-sol` with `max`
+reasoning, ephemeral state, read-only sandboxing, and native live page search.
+`TRADEBOT_NEWS_DATA_DIR`, `TRADEBOT_NEWS_CODEX`, `TRADEBOT_NEWS_MODEL`,
+`TRADEBOT_NEWS_MEMORY`, and `TRADEBOT_NEWS_EVENTS` override its output
+directory, Codex executable, pinned model, Markdown path, and active-event
+ledger path.
 
 ## Controls
 - **Arrow keys** — navigate rows

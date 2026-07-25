@@ -1,0 +1,14 @@
+[Unit]
+Description=Advance the XSP shadow after each completed five-minute RTH bar
+
+[Timer]
+OnCalendar=Mon..Fri *-*-* 09:37/5:00 America/New_York
+OnCalendar=Mon..Fri *-*-* 10..15:02/5:00 America/New_York
+OnCalendar=Mon..Fri *-*-* 16:02:00 America/New_York
+AccuracySec=15s
+RandomizedDelaySec=0
+Persistent=false
+Unit=tradebot-xsp-shadow.service
+
+[Install]
+WantedBy=timers.target

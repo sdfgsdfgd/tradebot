@@ -23,7 +23,7 @@ SESSION_WEIGHTS = {
 # Known one-off NYSE full-closure dates (in addition to recurring holiday rules).
 NYSE_SPECIAL_CLOSED_DAYS = {
     date(2018, 12, 5),  # National Day of Mourning (George H. W. Bush)
-    date(2025, 1, 9),   # National Day of Mourning (Jimmy Carter)
+    date(2025, 1, 9),  # National Day of Mourning (Jimmy Carter)
 }
 
 _HOLIDAY_CACHE: dict[int, set[date]] = {}
@@ -66,6 +66,34 @@ def xsp_session_label_et(now: datetime) -> str | None:
         return "CURB"
     if weekday < 4 and current >= time(20, 15):
         return "GTH"
+    return None
+
+
+def xsp_trading_date(now: datetime) -> date | None:
+    """Map each normal XSP session instant to its exchange trading date."""
+
+    if now.tzinfo is not None:
+        now = now.astimezone(ET_ZONE)
+    session = xsp_session_label_et(now)
+    if session is None:
+        return None
+    current = now.time().replace(tzinfo=None)
+    return now.date() + timedelta(days=current >= time(20, 15))
+
+
+def xsp_capture_window_date(now: datetime) -> date | None:
+    """Map the scheduled 20:15–17:00 recorder window to its trading date."""
+
+    if now.tzinfo is not None:
+        now = now.astimezone(ET_ZONE)
+    weekday = now.weekday()
+    current = now.time().replace(tzinfo=None)
+    if weekday == 6 and current >= time(20, 15):
+        return now.date() + timedelta(days=1)
+    if weekday < 5 and current < time(17, 0):
+        return now.date()
+    if weekday < 4 and current >= time(20, 15):
+        return now.date() + timedelta(days=1)
     return None
 
 
@@ -174,6 +202,24 @@ def is_early_close_day(d: date) -> bool:
         cached = _nyse_early_closes(d.year)
         _EARLY_CLOSE_CACHE[d.year] = cached
     return d in cached
+
+
+def xsp_rth_evaluation_slots(day: date) -> tuple[datetime, ...]:
+    """Canonical two-minute-after-close cadence for five-minute XSP RTH bars."""
+
+    if not is_trading_day(day):
+        return ()
+    first = datetime.combine(day, time(9, 37), tzinfo=ET_ZONE)
+    last = datetime.combine(
+        day,
+        time(13, 2) if is_early_close_day(day) else time(16, 2),
+        tzinfo=ET_ZONE,
+    )
+    slots = []
+    while first <= last:
+        slots.append(first)
+        first += timedelta(minutes=5)
+    return tuple(slots)
 
 
 def full24_post_close_time_et(day: date) -> time:

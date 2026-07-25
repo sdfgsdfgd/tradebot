@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, time, timedelta
 
-from ..engine import _ts_to_et
 from ..signals import (
     ema_cross,
     ema_next,
@@ -15,7 +14,7 @@ from ..signals import (
     trend_confirmed_state,
     update_cross_confirm,
 )
-from ..time_utils import ET_ZONE as _ET_ZONE
+from ..time_utils import ET_ZONE as _ET_ZONE, to_et as _to_et
 
 # region Decision Engines (EMA / ORB)
 @dataclass(frozen=True)
@@ -236,7 +235,7 @@ class OrbDecisionEngine:
         return bool(self._or_ready)
 
     def update(self, *, ts: datetime, high: float, low: float, close: float) -> EmaDecisionSnapshot:
-        ts_et = _ts_to_et(ts)
+        ts_et = _to_et(ts, naive_ts_mode="utc")
         session_date = ts_et.date()
 
         if self._session_date != session_date:

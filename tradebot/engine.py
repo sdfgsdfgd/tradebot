@@ -98,14 +98,19 @@ def parse_time_hhmm(value: object, *, default: time | None = None) -> time | Non
 # region Spot Strategy Parsing
 def normalize_spot_entry_signal(entry_signal_raw: object | None) -> str:
     entry_signal = str(entry_signal_raw or "ema").strip().lower()
-    if entry_signal not in ("ema", "orb", "opening_reclaim"):
+    if entry_signal not in (
+        "ema",
+        "orb",
+        "opening_reclaim",
+        "directional_impulse",
+    ):
         return "ema"
     return entry_signal
 
 
 def normalize_spot_regime_mode(regime_mode_raw: object | None) -> str:
     regime_mode = str(regime_mode_raw or "ema").strip().lower()
-    if regime_mode not in ("ema", "supertrend"):
+    if regime_mode not in ("off", "ema", "supertrend"):
         return "ema"
     return regime_mode
 
@@ -130,7 +135,10 @@ def resolve_spot_regime_spec(
     regime_bar_size = str(regime_bar_size_raw or "").strip()
     if not regime_bar_size or regime_bar_size.lower() in ("same", "default"):
         regime_bar_size = base_bar_size
-    if regime_mode == "supertrend":
+    if regime_mode == "off":
+        regime_preset = None
+        use_mtf = False
+    elif regime_mode == "supertrend":
         use_mtf = not bar_sizes_equal(regime_bar_size, base_bar_size)
     else:
         use_mtf = bool(regime_preset) and not bar_sizes_equal(regime_bar_size, base_bar_size)

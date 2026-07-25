@@ -1,4 +1,5 @@
 """Calibration against delayed option LAST prices."""
+
 from __future__ import annotations
 
 import json
@@ -11,7 +12,7 @@ from typing import Iterable
 from ib_insync import IB, FuturesOption, Option, util
 
 from .config import ConfigBundle
-from ..config import load_config
+from ..config import auxiliary_client_id, load_config
 from ..engine import realized_vol_from_closes
 from ..time_utils import UTC as _UTC
 from ..time_utils import now_et as _now_et
@@ -85,7 +86,9 @@ class CalibrationBook:
             skew=override.skew,
         )
 
-    def surface_params_asof(self, dte: int, asof: str, base: IVSurfaceParams) -> IVSurfaceParams:
+    def surface_params_asof(
+        self, dte: int, asof: str, base: IVSurfaceParams
+    ) -> IVSurfaceParams:
         override = self.params_asof(dte, asof)
         if not override:
             return base
@@ -107,7 +110,6 @@ DEFAULT_BUCKETS: list[tuple[int, int]] = [
     (61, 120),
     (121, 3650),
 ]
-
 
 
 def load_calibration(calibration_dir: Path, symbol: str) -> CalibrationBook | None:
@@ -219,12 +221,20 @@ def calibrate_symbol(
     if book is None:
         book = CalibrationBook(
             symbol=symbol,
-            buckets=[CalibrationBucket(min_dte=a, max_dte=b, records=[]) for a, b in DEFAULT_BUCKETS],
+            buckets=[
+                CalibrationBucket(min_dte=a, max_dte=b, records=[])
+                for a, b in DEFAULT_BUCKETS
+            ],
         )
 
     ibkr = load_config()
     ib = IB()
-    ib.connect(ibkr.host, ibkr.port, clientId=ibkr.client_id + 80, timeout=8)
+    ib.connect(
+        ibkr.host,
+        ibkr.port,
+        clientId=auxiliary_client_id(ibkr, 80),
+        timeout=8,
+    )
     ib.reqMarketDataType(3)
 
     _underlying, spot, chain, is_future = resolve_option_chain(
@@ -247,9 +257,7 @@ def calibrate_symbol(
         rv = float(rv_override)
         source = "ibkr_delayed_last+prepared_underlying_tape"
     observed_at = _now_et()
-    effective_from = (
-        date.fromisoformat(asof) + timedelta(days=1)
-    ).isoformat()
+    effective_from = (date.fromisoformat(asof) + timedelta(days=1)).isoformat()
 
     for bucket in book.buckets:
         if _has_record_today(bucket, asof):
@@ -275,7 +283,9 @@ def calibrate_symbol(
                 samples=count,
                 observed_at=observed_at.isoformat(),
                 source=source,
-                source_start=source_start.isoformat() if source_start is not None else None,
+                source_start=source_start.isoformat()
+                if source_start is not None
+                else None,
                 source_end=source_end.isoformat() if source_end is not None else None,
                 effective_from=effective_from,
             )
@@ -298,8 +308,10 @@ def _pick_expiry(
     min_dte: int,
     max_dte: int,
     target_dte: int,
+    *,
+    as_of: date | None = None,
 ) -> str | None:
-    today = _now_et().date()
+    today = as_of or _now_et().date()
     candidates: list[tuple[int, str]] = []
     for exp in sorted(expirations):
         try:
@@ -318,7 +330,9 @@ def _pick_expiry(
     return candidates[0][1]
 
 
-def _sample_contracts(ib: IB, symbol: str, chain, expiry: str, spot: float, is_future: bool) -> list[_Sample]:
+def _sample_contracts(
+    ib: IB, symbol: str, chain, expiry: str, spot: float, is_future: bool
+) -> list[_Sample]:
     if spot is None:
         return []
     targets = [1.0, 2.5, 5.0]
@@ -380,7 +394,9 @@ def _sample_contracts(ib: IB, symbol: str, chain, expiry: str, spot: float, is_f
     return samples
 
 
-def _fit_params(samples: list[_Sample], spot: float, rv: float, cfg: ConfigBundle, is_future: bool) -> tuple[CalibrationParams, float, float, int]:
+def _fit_params(
+    samples: list[_Sample], spot: float, rv: float, cfg: ConfigBundle, is_future: bool
+) -> tuple[CalibrationParams, float, float, int]:
     base = cfg.synthetic
     iv_floors = _grid(base.iv_floor, [0.03, 0.05, 0.08, 0.1])
     risk_premiums = _grid(base.iv_risk_premium, [1.0, 1.2, 1.4, 1.6])
@@ -401,7 +417,12 @@ def _fit_params(samples: list[_Sample], spot: float, rv: float, cfg: ConfigBundl
         for risk in risk_premiums:
             for skew in skews:
                 for term in term_slopes:
-                    params = CalibrationParams(iv_floor=iv_floor, iv_risk_premium=risk, skew=skew, term_slope=term)
+                    params = CalibrationParams(
+                        iv_floor=iv_floor,
+                        iv_risk_premium=risk,
+                        skew=skew,
+                        term_slope=term,
+                    )
                     mae, mape = _score_params(samples, spot, rv, cfg, params, is_future)
                     if mae < best_mae:
                         best_mae = mae
@@ -435,9 +456,23 @@ def _score_params(
         opt_iv = iv_for_strike(atm_iv, spot, sample.strike, iv_params)
         t = max(dte / 365.0, 1 / (24 * 365))
         if is_future:
-            mid = black_76(spot, sample.strike, t, cfg.backtest.risk_free_rate, opt_iv, sample.right)
+            mid = black_76(
+                spot,
+                sample.strike,
+                t,
+                cfg.backtest.risk_free_rate,
+                opt_iv,
+                sample.right,
+            )
         else:
-            mid = black_scholes(spot, sample.strike, t, cfg.backtest.risk_free_rate, opt_iv, sample.right)
+            mid = black_scholes(
+                spot,
+                sample.strike,
+                t,
+                cfg.backtest.risk_free_rate,
+                opt_iv,
+                sample.right,
+            )
         abs_errors.append(abs(mid - sample.last))
         denom = max(sample.last, 0.01)
         pct_errors.append(abs(mid - sample.last) / denom)

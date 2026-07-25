@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Protocol
 
 from ..chart_data.series import BarSeries, bars_list
+from ..engines.directional_impulse import DirectionalImpulseSnapshot
 from ..engines.risk import RiskOverlaySnapshot
 from ..engines.signals import EmaDecisionSnapshot
 
@@ -85,6 +86,9 @@ class SpotSignalSelection:
     signal: EmaDecisionSnapshot | None
     candidate: SpotEntryCandidate
     branch_key: str | None = None
+    source: str = "unknown"
+    proposed_direction: str | None = None
+    controls: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -101,6 +105,10 @@ class SpotEntryGateContext:
 class SpotGateBand:
     minimum: float | int | None = None
     maximum: float | int | None = None
+
+    @property
+    def active(self) -> bool:
+        return self.minimum is not None and self.maximum is not None
 
     def contains(self, value: float | int | None) -> bool:
         return bool(
@@ -145,6 +153,44 @@ class SpotRegimeGatePolicy:
     continuation_branch_a_release_age_max: int | None
     continuation_branch_a_atr: SpotGateBand
     continuation_branch_a_ddv_max: float | None
+
+    def active_gates(self) -> tuple[str, ...]:
+        """Expose the exact ordered legacy veto families still able to block."""
+        branch_b = bool(
+            self.repair_branch_b_block
+            or self.repair_branch_b_atr_max is not None
+            or self.repair_branch_b_after_hour is not None
+            or self.upcorridor_branch_b_stale_age_min is not None
+            or self.upcorridor_branch_b_flat_low_atr_max is not None
+            or self.upcorridor_branch_b_flat_low_stale_age_min is not None
+            or self.upcorridor_branch_b_flat_atr_max is not None
+            or self.upcorridor_branch_b_flat_ddv_abs_max is not None
+            or self.trenddown_branch_b_release_age.active
+            or self.trenddown_branch_b_atr.active
+            or self.trenddown_branch_b_ddv.active
+            or self.trenddown_branch_b_recovery_atr.active
+            or self.trenddown_branch_b_recovery_ddv.active
+        )
+        branch_a = bool(
+            self.upcorridor_branch_a_mid_atr.active
+            or self.upcorridor_branch_a_extreme_atr_min is not None
+            or self.upcorridor_branch_a_fresh_age_max is not None
+            or self.upcorridor_branch_a_stale_age_min is not None
+        )
+        continuation = bool(
+            self.continuation_branch_b_release_age.active
+            or self.continuation_branch_a_release_age_max is not None
+            or self.continuation_branch_a_atr.active
+            or self.continuation_branch_a_ddv_max is not None
+        )
+        active = {
+            "crash": self.crash_block_longs,
+            "crash_prearm": self.crash_prearm_scope != "off",
+            "branch_b_regime": branch_b,
+            "branch_a_upcorridor": branch_a,
+            "continuation_confidence": continuation,
+        }
+        return tuple(name for name, enabled in active.items() if enabled)
 
 
 def _bars_input_list(
@@ -208,6 +254,12 @@ class SpotSignalSnapshot:
     shock_atr_accel_pct: float | None = None
     shock_ramp: dict[str, object] | None = None
     regime: SpotRegimeState = SpotRegimeState()
+    directional_impulse: DirectionalImpulseSnapshot | None = None
+    entry_source: str = "unknown"
+    entry_proposed_dir: str | None = None
+    entry_blocked_by: str | None = None
+    entry_controls: tuple[str, ...] = ()
+    entry_control_plan: dict[str, object] | None = None
 
     def regime_state(self) -> SpotRegimeState:
         return self.regime
@@ -245,10 +297,52 @@ class SpotSignalSnapshot:
         return self.regime.owner
 
     def entry_context(self) -> dict[str, object]:
+        impulse = self.directional_impulse
         return {
             "branch": self.entry_branch if self.entry_branch in ("a", "b") else None,
             "shock_dir": self.shock_dir if self.shock_dir in ("up", "down") else None,
+            "entry_control": self.entry_control_trace(),
+            "directional_impulse": (
+                {
+                    "direction": impulse.direction,
+                    "direction_score": impulse.direction_score,
+                    "coherence": impulse.coherence,
+                    "conviction": impulse.conviction,
+                }
+                if impulse is not None
+                else None
+            ),
             **self.regime_state().entry_context(),
+        }
+
+    def entry_control_trace(self) -> dict[str, object]:
+        """Actual signal-stage authority chain; later gates append to this trace."""
+        return {
+            "plan": (
+                dict(self.entry_control_plan)
+                if isinstance(self.entry_control_plan, dict)
+                else None
+            ),
+            "source": str(self.entry_source or "unknown"),
+            "proposed_direction": (
+                str(self.entry_proposed_dir)
+                if self.entry_proposed_dir in ("up", "down")
+                else None
+            ),
+            "controls": [str(value) for value in self.entry_controls],
+            "blocked_by": (
+                str(self.entry_blocked_by)
+                if self.entry_blocked_by
+                else None
+            ),
+            "direction": (
+                str(self.entry_dir) if self.entry_dir in ("up", "down") else None
+            ),
+            "branch": (
+                str(self.entry_branch)
+                if self.entry_branch in ("a", "b")
+                else None
+            ),
         }
 
     def lifecycle_inputs(self) -> dict[str, object]:
@@ -299,6 +393,12 @@ class SpotSignalSnapshot:
     def lifecycle_trace(self) -> dict[str, object]:
         values = self.lifecycle_inputs()
         return {
+            "entry_control": self.entry_control_trace(),
+            "directional_impulse": (
+                self.directional_impulse.as_payload()
+                if self.directional_impulse is not None
+                else None
+            ),
             "shock_atr_pct": values["shock_atr_pct"],
             "shock_atr_vel_pct": values["shock_atr_vel_pct"],
             "shock_atr_accel_pct": values["shock_atr_accel_pct"],

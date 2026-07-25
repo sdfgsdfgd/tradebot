@@ -24,6 +24,11 @@ from ..engine import (
     spot_stop_level,
 )
 from ..signals import bar_sizes_equal, ema_periods, parse_bar_size
+from ..spot.entry_control import (
+    SpotEntryControlPlan,
+    entry_day_allowed as lifecycle_entry_day_allowed,
+    normalize_tick_gate_mode,
+)
 from ..spot.gates import (
     deferred_entry_plan as lifecycle_deferred_entry_plan,
     fill_due_ts as lifecycle_fill_due_ts,
@@ -45,6 +50,7 @@ from ..spot.fill_modes import (
 )
 from ..time_utils import now_et as _now_et
 from ..time_utils import to_et as _to_et_shared
+from ..engines.directional_impulse import DIRECTIONAL_IMPULSE_WARMUP_BARS
 from ..engines.execution import _quote_num_display, _sanitize_nbbo, _ticker_price
 from .bot_journal import order_attempt_payload
 from .bot_models import _BotInstance
@@ -55,25 +61,6 @@ _DEFAULT_ORDER_STAGE_TIMEOUT_SEC = 20.0
 _DEFAULT_EXIT_RETRY_MAX_PER_BAR = 3
 _BID_TICK_TYPES = {1, 66}
 _ASK_TICK_TYPES = {2, 67}
-
-
-def _weekday_num(label: object) -> int:
-    if isinstance(label, bool):
-        return int(label)
-    if isinstance(label, int):
-        return label if 0 <= label <= 6 else 0
-    if isinstance(label, float) and label.is_integer():
-        value = int(label)
-        return value if 0 <= value <= 6 else 0
-    text = str(label or "").strip()
-    if not text:
-        return 0
-    if text.isdigit():
-        value = int(text)
-        return value if 0 <= value <= 6 else 0
-    key = text.upper()[:3]
-    mapping = {"MON": 0, "TUE": 1, "WED": 2, "THU": 3, "FRI": 4, "SAT": 5, "SUN": 6}
-    return mapping.get(key, 0)
 
 
 class BotSignalRuntimeMixin:
@@ -90,9 +77,13 @@ class BotSignalRuntimeMixin:
                 continue
 
             tick_hold_override: str | None = None
+            current_entry_control: dict[str, object] | None = None
 
             def _gate(status: str, data: dict | None = None) -> None:
                 nonlocal tick_hold_override
+                if current_entry_control is not None:
+                    data = dict(data or {})
+                    data.setdefault("entry_control", current_entry_control)
                 status_text = str(status or "")
                 prev_status = str(instance.last_gate_status or "")
                 if status_text.endswith("_HOLDING") and status_text != "HOLDING":
@@ -323,6 +314,13 @@ class BotSignalRuntimeMixin:
                     },
                 )
                 continue
+            snapshot_entry_context = getattr(snap, "entry_context", None)
+            current_entry_control = (
+                dict(snapshot_entry_context.get("entry_control"))
+                if isinstance(snapshot_entry_context, dict)
+                and isinstance(snapshot_entry_context.get("entry_control"), dict)
+                else None
+            )
 
             risk = snap.risk
             bar_health_raw = snap.bar_health if isinstance(snap.bar_health, dict) else None
@@ -479,6 +477,9 @@ class BotSignalRuntimeMixin:
                     (str(name), bool(ok))
                     for name, ok in signal_filter_checks_preview.items()
                 ),
+                json.dumps(current_entry_control, sort_keys=True, default=str)
+                if current_entry_control is not None
+                else None,
             )
             if instance.last_signal_fingerprint != signal_fingerprint:
                 instance.last_signal_fingerprint = signal_fingerprint
@@ -504,6 +505,13 @@ class BotSignalRuntimeMixin:
                             "ema_spread_pct": ema_spread_pct,
                             "ema_slope_pct": ema_slope_pct,
                         },
+                        "entry_control": current_entry_control,
+                        "directional_impulse": (
+                            getattr(snap, "directional_impulse").as_payload()
+                            if getattr(snap, "directional_impulse", None)
+                            is not None
+                            else None
+                        ),
                         "orb": {
                             "ready": bool(snap.or_ready),
                             "high": float(snap.or_high) if snap.or_high is not None else None,
@@ -795,34 +803,6 @@ class BotSignalRuntimeMixin:
                     break
                 continue
 
-            entry_weekday_now = self._entry_weekday_for_ts(instance, now_et)
-            if not self._can_order_now(instance, now_et=now_et):
-                _gate(
-                    "BLOCKED_WEEKDAY_NOW",
-                    {
-                        "now_weekday": int(now_et.weekday()),
-                        "entry_weekday": int(entry_weekday_now),
-                    },
-                )
-                continue
-
-            entry_days = instance.strategy.get("entry_days", [])
-            if entry_days:
-                allowed_days = {_weekday_num(day) for day in entry_days}
-            else:
-                allowed_days = {0, 1, 2, 3, 4}
-            signal_weekday = self._entry_weekday_for_ts(instance, snap.bar_ts)
-            if signal_weekday not in allowed_days:
-                _gate(
-                    "BLOCKED_ENTRY_DAY",
-                    {
-                        "signal_weekday": int(snap.bar_ts.weekday()),
-                        "entry_weekday": int(signal_weekday),
-                        "allowed_days": sorted(int(d) for d in allowed_days),
-                    },
-                )
-                continue
-
             cooldown_bars = 0
             if isinstance(instance.filters, dict):
                 raw = instance.filters.get("cooldown_bars", 0)
@@ -851,36 +831,13 @@ class BotSignalRuntimeMixin:
                 shock=snap.shock,
                 shock_dir=snap.shock_dir,
             )
-            if not all(bool(v) for v in filter_checks.values()):
-                failed_filters = [name for name, ok in filter_checks.items() if not bool(ok)]
-                _gate(
-                    "BLOCKED_FILTERS",
-                    {
-                        "symbol": symbol,
-                        "bar_ts": snap.bar_ts.isoformat(),
-                        "bar_ts_et": filter_bar_ts.isoformat(),
-                        "bar_hour_et": int(filter_bar_ts.hour),
-                        "bars_in_day": int(snap.bars_in_day),
-                        "cooldown_ok": bool(cooldown_ok),
-                        "cooldown_bars": int(cooldown_bars),
-                        "rv": float(snap.rv) if snap.rv is not None else None,
-                        "volume": float(snap.volume) if snap.volume is not None else None,
-                        "volume_ema": float(snap.volume_ema) if snap.volume_ema is not None else None,
-                        "volume_ema_ready": bool(snap.volume_ema_ready),
-                        "shock": snap.shock,
-                        "shock_dir": snap.shock_dir,
-                        "state": snap.signal.state,
-                        "entry_dir": snap.signal.entry_dir,
-                        "regime_dir": snap.signal.regime_dir,
-                        "ema_spread_pct": ema_spread_pct,
-                        "ema_slope_pct": ema_slope_pct,
-                        "filter_checks": filter_checks,
-                        "failed_filters": failed_filters,
-                    },
-                )
-                continue
-
-            if self._auto_try_queue_entry(instance=instance, snap=snap, gate=_gate, now_et=now_et):
+            if self._auto_try_queue_entry(
+                instance=instance,
+                snap=snap,
+                gate=_gate,
+                now_et=now_et,
+                filter_checks=filter_checks,
+            ):
                 break
 
     @staticmethod
@@ -910,6 +867,11 @@ class BotSignalRuntimeMixin:
         strategy = instance.strategy if isinstance(instance.strategy, dict) else {}
         filters = instance.filters if isinstance(instance.filters, dict) else {}
         bar_size = self._signal_bar_size(instance)
+        control = SpotEntryControlPlan.from_sources(
+            strategy=strategy,
+            filters=filters,
+            bar_size=bar_size,
+        )
 
         signal_need = 0
         regime_need = 0
@@ -929,7 +891,13 @@ class BotSignalRuntimeMixin:
                 regime2_need = max(regime2_need, need)
             active.append({"bucket": bucket, "name": label, "bars": need})
 
-        entry_signal = normalize_spot_entry_signal(strategy.get("entry_signal"))
+        _register(
+            "signal",
+            "directional_impulse_observe",
+            DIRECTIONAL_IMPULSE_WARMUP_BARS,
+        )
+
+        entry_signal = control.source
         if entry_signal == "ema":
             slow = self._ema_slow_period(strategy.get("ema_preset"))
             _register("signal", "entry_ema", slow)
@@ -2560,7 +2528,15 @@ class BotSignalRuntimeMixin:
         gate("TRIGGER_RESIZE", payload)
         return True
 
-    def _auto_try_queue_entry(self, *, instance: _BotInstance, snap, gate, now_et: datetime) -> bool:
+    def _auto_try_queue_entry(
+        self,
+        *,
+        instance: _BotInstance,
+        snap,
+        gate,
+        now_et: datetime,
+        filter_checks: dict[str, bool] | None = None,
+    ) -> bool:
         if instance.last_entry_bar_ts is not None and instance.last_entry_bar_ts == snap.bar_ts:
             gate("BLOCKED_ENTRY_SAME_BAR", {"bar_ts": snap.bar_ts.isoformat()})
             return False
@@ -2596,6 +2572,22 @@ class BotSignalRuntimeMixin:
 
         direction = self._entry_direction_for_instance(instance, snap)
         allowed_directions = tuple(self._allowed_entry_directions(instance))
+        configured_entry_days = instance.strategy.get("entry_days", [])
+        signal_weekday = self._entry_weekday_for_ts(instance, snap.bar_ts)
+        entry_day_ok = lifecycle_entry_day_allowed(
+            weekday=signal_weekday,
+            entry_days=configured_entry_days,
+        )
+        allowed_entry_days = [
+            weekday
+            for weekday in range(7)
+            if lifecycle_entry_day_allowed(
+                weekday=weekday,
+                entry_days=configured_entry_days,
+            )
+        ]
+        current_entry_weekday = self._entry_weekday_for_ts(instance, now_et)
+        can_order_now = self._can_order_now(instance, now_et=now_et)
         entry_capacity = bool(self._entry_limit_ok(instance))
         raw_max_entries = instance.strategy.get("max_entries_per_day", 1)
         try:
@@ -2603,21 +2595,61 @@ class BotSignalRuntimeMixin:
         except (TypeError, ValueError):
             max_entries_per_day = 1
         direction_ok = direction in set(allowed_directions) if direction in ("up", "down") else None
-        entry_context = {
-            "branch": getattr(snap, "entry_branch", None) if getattr(snap, "entry_branch", None) in ("a", "b") else None,
-            "regime4_state": str(getattr(snap, "regime4_state", None)) if getattr(snap, "regime4_state", None) else None,
-            "shock_dir": getattr(snap, "shock_dir", None) if getattr(snap, "shock_dir", None) in ("up", "down") else None,
-            "hard_dir": (
-                getattr(snap, "regime2_bear_hard_dir", None)
-                if getattr(snap, "regime2_bear_hard_dir", None) in ("up", "down")
-                else None
-            ),
-            "release_age_bars": (
-                int(getattr(snap, "regime2_bear_hard_release_age_bars", 0))
-                if getattr(snap, "regime2_bear_hard_release_age_bars", None) is not None
-                else None
-            ),
+        entry_context = dict(getattr(snap, "entry_context", None) or {})
+        if not entry_context:
+            entry_context = {
+                "branch": (
+                    getattr(snap, "entry_branch", None)
+                    if getattr(snap, "entry_branch", None) in ("a", "b")
+                    else None
+                ),
+                "regime4_state": (
+                    str(getattr(snap, "regime4_state"))
+                    if getattr(snap, "regime4_state", None)
+                    else None
+                ),
+                "shock_dir": (
+                    getattr(snap, "shock_dir", None)
+                    if getattr(snap, "shock_dir", None) in ("up", "down")
+                    else None
+                ),
+                "hard_dir": (
+                    getattr(snap, "regime2_bear_hard_dir", None)
+                    if getattr(snap, "regime2_bear_hard_dir", None)
+                    in ("up", "down")
+                    else None
+                ),
+                "release_age_bars": (
+                    int(getattr(snap, "regime2_bear_hard_release_age_bars"))
+                    if getattr(
+                        snap,
+                        "regime2_bear_hard_release_age_bars",
+                        None,
+                    )
+                    is not None
+                    else None
+                ),
+            }
+        entry_control = dict(entry_context.get("entry_control") or {})
+        plan = entry_control.get("plan")
+        tick_mode = (
+            str(plan.get("tick_gate"))
+            if isinstance(plan, dict) and plan.get("tick_gate")
+            else normalize_tick_gate_mode(instance.strategy.get("tick_gate_mode"))
+        )
+        entry_control["resolution"] = {
+            "runtime": "live",
+            "tick_gate": {
+                "configured": tick_mode,
+                "applied": False,
+                "reason": "backtest_only" if tick_mode != "off" else "disabled",
+            },
+            "allowed_direction": {
+                "direction": direction,
+                "allowed": direction_ok,
+            },
         }
+        entry_context["entry_control"] = entry_control
         entry_ctx = {
             "entry_dir": direction,
             "allowed_directions": [str(d) for d in sorted(str(v) for v in allowed_directions)],
@@ -2644,9 +2676,11 @@ class BotSignalRuntimeMixin:
             entry_dir=direction,
             entry_context=entry_context,
             allowed_directions=allowed_directions,
-            can_order_now=True,
+            can_order_now=bool(can_order_now),
+            entry_day_ok=bool(entry_day_ok),
             preflight_ok=True,
-            filters_ok=True,
+            filters_ok=all(bool(value) for value in (filter_checks or {}).values()),
+            filter_checks=filter_checks,
             entry_capacity=bool(entry_capacity),
             stale_signal=False,
             gap_signal=False,
@@ -2688,6 +2722,31 @@ class BotSignalRuntimeMixin:
                 payload["next_open_ctx"] = next_open_ctx
             if decision.gate == "BLOCKED_ENTRY_LIMIT":
                 payload["entries_today"] = int(instance.entries_today)
+            if decision.gate == "BLOCKED_WEEKDAY_NOW":
+                payload.update(
+                    {
+                        "now_weekday": int(now_et.weekday()),
+                        "entry_weekday": int(current_entry_weekday),
+                    }
+                )
+            if decision.gate == "BLOCKED_ENTRY_DAY":
+                payload.update(
+                    {
+                        "signal_weekday": int(snap.bar_ts.weekday()),
+                        "entry_weekday": int(signal_weekday),
+                        "allowed_days": allowed_entry_days,
+                    }
+                )
+            if decision.gate == "BLOCKED_FILTERS":
+                lifecycle_trace = (
+                    decision.trace if isinstance(decision.trace, dict) else {}
+                )
+                payload["filter_checks"] = dict(
+                    lifecycle_trace.get("filter_checks") or {}
+                )
+                payload["failed_filters"] = list(
+                    lifecycle_trace.get("failed_filters") or []
+                )
             if decision.gate == "BLOCKED_ATR_NOT_READY":
                 payload["atr"] = float(snap.atr or 0.0) if snap.atr is not None else 0.0
             if decision.gate == "WAITING_SIGNAL":
@@ -2822,12 +2881,9 @@ class BotSignalRuntimeMixin:
         return weekday
 
     def _can_order_now(self, instance: _BotInstance, *, now_et: datetime | None = None) -> bool:
-        entry_days = instance.strategy.get("entry_days", [])
-        if entry_days:
-            allowed = {_weekday_num(day) for day in entry_days}
-        else:
-            allowed = {0, 1, 2, 3, 4, 5, 6}
         now = now_et if now_et is not None else _now_et()
-        if self._entry_weekday_for_ts(instance, now) not in allowed:
-            return False
-        return True
+        return lifecycle_entry_day_allowed(
+            weekday=self._entry_weekday_for_ts(instance, now),
+            entry_days=instance.strategy.get("entry_days", []),
+            default=(0, 1, 2, 3, 4, 5, 6),
+        )

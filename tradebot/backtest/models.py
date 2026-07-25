@@ -77,6 +77,11 @@ class SpotTrade:
     stop_loss_pct: float | None = None
     profit_target_price: float | None = None
     stop_loss_price: float | None = None
+    stop_loss_reason: str | None = None
+    entry_atr: float | None = None
+    bars_held: int = 0
+    max_favorable_excursion: float = 0.0
+    max_adverse_excursion: float = 0.0
     entry_branch: str | None = None
     decision_trace: dict[str, object] | None = None
     margin_required: float = 0.0

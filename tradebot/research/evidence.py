@@ -5,15 +5,20 @@ import math
 import statistics
 from collections import defaultdict
 from collections.abc import Iterable, Sequence
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 
 from ..backtest.models import BacktestResult
 from ..chart_data.series import OhlcvBar
+from ..engines.directional_impulse import (
+    DirectionalImpulseEngine,
+    DirectionalTurnPolicy,
+)
 from ..time_utils import to_et
 
 
 SCORE_VERSION = "research.daily.v1"
 XSP_CREDIT_BARRIER_SCHEMA = "xsp.credit-barrier-census.v1"
+XSP_DIRECTIONAL_TURN_SCHEMA = "xsp.directional-turn-census.v1"
 
 _XSP_BARRIER_TIMES = (time(10), time(10, 30), time(11), time(11, 30))
 _XSP_BARRIER_OFFSETS = (0.0025, 0.005, 0.0075, 0.01)
@@ -304,4 +309,337 @@ def xsp_credit_barrier_census(
             "authority": "underlying_risk_screen_only",
         },
         "cells": cells,
+    }
+
+
+def xsp_directional_turn_census(
+    bars: Iterable[OhlcvBar],
+    *,
+    source_fingerprint: str,
+    include_session_ledger: bool = False,
+) -> dict[str, object]:
+    """Score the production XSP turn sensor against hindsight labels.
+
+    Material extrema are research-only labels. Direction and event timing come
+    exclusively from the causal engine used by live and backtest.
+    """
+
+    values = tuple(bars)
+    if not values:
+        raise ValueError("XSP turn census requires an admitted bar tape")
+    if not str(source_fingerprint).strip():
+        raise ValueError("XSP turn census requires a source fingerprint")
+
+    policy = DirectionalTurnPolicy()
+    by_day: dict[date, list[tuple[datetime, OhlcvBar]]] = defaultdict(list)
+    for bar in values:
+        et = to_et(bar.ts, naive_ts_mode="utc")
+        by_day[et.date()].append((et, bar))
+    for rows in by_day.values():
+        rows.sort(key=lambda row: row[0])
+
+    totals = {"labels": 0, "events": 0, "matches": 0}
+    lags: list[int] = []
+    absolute = {"labels": 0, "matches": 0, "boundary_censored": 0}
+    coverage = {
+        "complete_turn_window_sessions": 0,
+        "incomplete_turn_window_sessions": 0,
+        "events_below_required_horizons": 0,
+    }
+    event_horizons: dict[int, int] = defaultdict(int)
+    ledger: list[dict[str, object]] = []
+
+    for day, day_bars in sorted(by_day.items()):
+        turn_window = [
+            et
+            for et, _bar in day_bars
+            if policy.start_et <= et.time() <= policy.end_et
+        ]
+        complete_turn_window = bool(
+            len(turn_window) == 28
+            and turn_window[0].time() == policy.start_et
+            and turn_window[-1].time() == policy.end_et
+            and all(
+                right - left == policy.bar_duration
+                for left, right in zip(turn_window, turn_window[1:])
+            )
+        )
+        coverage[
+            (
+                "complete_turn_window_sessions"
+                if complete_turn_window
+                else "incomplete_turn_window_sessions"
+            )
+        ] += 1
+        engine = DirectionalImpulseEngine(
+            horizons=(1, 3, 6, 12, 24),
+            bar_duration=timedelta(minutes=5),
+            turn_policy=policy,
+        )
+        rows = []
+        events: list[dict[str, object]] = []
+        for index, (et, bar) in enumerate(day_bars):
+            snapshot = engine.update(
+                ts=et,
+                high=float(bar.high),
+                low=float(bar.low),
+                close=float(bar.close),
+                session_key=day,
+            )
+            tr_pct = (
+                float(snapshot.horizons[-1].tr_mean_pct)
+                if snapshot.horizons
+                else (
+                    max(0.0, float(bar.high) - float(bar.low))
+                    / max(float(bar.close), 1e-9)
+                    * 100.0
+                )
+            )
+            rows.append((index, et, bar, snapshot, tr_pct))
+            if snapshot.turn_event in ("up", "down"):
+                event_horizons[snapshot.observed_horizons] += 1
+                coverage["events_below_required_horizons"] += (
+                    snapshot.observed_horizons
+                    < policy.min_observed_horizons
+                )
+                events.append(
+                    {
+                        "direction": snapshot.turn_event,
+                        "index": index,
+                        "time_et": et.strftime("%H:%M"),
+                        "matched": False,
+                        "evidence": {
+                            "direction_score": snapshot.direction_score,
+                            "smoothed_direction_score": (
+                                snapshot.smoothed_direction_score
+                            ),
+                            "coherence": snapshot.coherence,
+                            "conviction": snapshot.conviction,
+                            "observed_horizons": snapshot.observed_horizons,
+                            "atr_ratio": snapshot.atr_ratio,
+                            "atr_velocity_pct": snapshot.atr_velocity_pct,
+                            "atr_acceleration_pct": (
+                                snapshot.atr_acceleration_pct
+                            ),
+                            "retrace_atr": snapshot.retrace_atr,
+                            "horizons": [
+                                row.as_payload() for row in snapshot.horizons
+                            ],
+                        },
+                    }
+                )
+
+        labels: list[dict[str, object]] = []
+        for index, et, bar, _snapshot, tr_pct in rows:
+            if not time(9, 45) <= et.time() <= time(11, 15):
+                continue
+            left = max(0, index - 3)
+            right = min(len(rows), index + 4)
+            neighborhood = rows[left:right]
+            future = rows[index + 1 : right]
+            if not future:
+                continue
+            up_excursion = (
+                max(float(row[2].high) for row in future) - float(bar.low)
+            ) / float(bar.close) * 100.0
+            down_excursion = (
+                float(bar.high) - min(float(row[2].low) for row in future)
+            ) / float(bar.close) * 100.0
+            threshold = max(float(tr_pct), 0.03)
+            if (
+                float(bar.low)
+                <= min(float(row[2].low) for row in neighborhood)
+                and up_excursion >= threshold
+            ):
+                labels.append(
+                    {
+                        "direction": "up",
+                        "index": index,
+                        "time_et": et.strftime("%H:%M"),
+                        "excursion_pct": up_excursion,
+                    }
+                )
+            if (
+                float(bar.high)
+                >= max(float(row[2].high) for row in neighborhood)
+                and down_excursion >= threshold
+            ):
+                labels.append(
+                    {
+                        "direction": "down",
+                        "index": index,
+                        "time_et": et.strftime("%H:%M"),
+                        "excursion_pct": down_excursion,
+                    }
+                )
+
+        deduplicated: list[dict[str, object]] = []
+        for label in labels:
+            if (
+                deduplicated
+                and deduplicated[-1]["direction"] == label["direction"]
+                and int(label["index"]) - int(deduplicated[-1]["index"]) <= 3
+            ):
+                old = deduplicated[-1]
+                old_bar = rows[int(old["index"])][2]
+                new_bar = rows[int(label["index"])][2]
+                more_extreme = (
+                    float(new_bar.low) < float(old_bar.low)
+                    if label["direction"] == "up"
+                    else float(new_bar.high) > float(old_bar.high)
+                )
+                if more_extreme:
+                    deduplicated[-1] = label
+            else:
+                deduplicated.append(label)
+
+        used_events: set[int] = set()
+        for label in deduplicated:
+            candidates = [
+                (event_index, event)
+                for event_index, event in enumerate(events)
+                if event_index not in used_events
+                and event["direction"] == label["direction"]
+                and -1
+                <= int(event["index"]) - int(label["index"])
+                <= 3
+            ]
+            if not candidates:
+                label["matched_event_time_et"] = None
+                label["lag_bars"] = None
+                continue
+            event_index, event = min(
+                candidates,
+                key=lambda item: abs(
+                    int(item[1]["index"]) - int(label["index"])
+                ),
+            )
+            lag = int(event["index"]) - int(label["index"])
+            used_events.add(event_index)
+            event["matched"] = True
+            label["matched_event_time_et"] = event["time_et"]
+            label["lag_bars"] = lag
+            lags.append(lag)
+
+        early = [
+            row
+            for row in rows
+            if time(9, 30) <= row[1].time() <= time(11, 30)
+        ]
+        absolute_rows = []
+        if early:
+            for direction, row in (
+                ("up", min(early, key=lambda item: float(item[2].low))),
+                ("down", max(early, key=lambda item: float(item[2].high))),
+            ):
+                index, et, _bar, _snapshot, _tr_pct = row
+                candidates = [
+                    event
+                    for event in events
+                    if event["direction"] == direction
+                    and -1 <= int(event["index"]) - index <= 3
+                ]
+                match = (
+                    min(
+                        candidates,
+                        key=lambda event: abs(int(event["index"]) - index),
+                    )
+                    if candidates
+                    else None
+                )
+                boundary_censored = (
+                    et.time() <= time(9, 35) or et.time() >= time(11, 25)
+                )
+                absolute_rows.append(
+                    {
+                        "direction": direction,
+                        "time_et": et.strftime("%H:%M"),
+                        "matched_event_time_et": (
+                            match["time_et"] if match is not None else None
+                        ),
+                        "boundary_censored": boundary_censored,
+                    }
+                )
+                absolute["labels"] += 1
+                absolute["matches"] += match is not None
+                absolute["boundary_censored"] += boundary_censored
+
+        totals["labels"] += len(deduplicated)
+        totals["events"] += len(events)
+        totals["matches"] += len(used_events)
+        if include_session_ledger:
+            ledger.append(
+                {
+                    "date": day.isoformat(),
+                    "material_extrema": deduplicated,
+                    "absolute_extrema": absolute_rows,
+                    "events": events,
+                }
+            )
+
+    precision = (
+        totals["matches"] / totals["events"] if totals["events"] else 0.0
+    )
+    recall = totals["matches"] / totals["labels"] if totals["labels"] else 0.0
+    return {
+        "schema": XSP_DIRECTIONAL_TURN_SCHEMA,
+        "source": {
+            "symbol": "XSP",
+            "bar_size": "5 mins",
+            "use_rth": True,
+            "start": min(by_day).isoformat(),
+            "end": max(by_day).isoformat(),
+            "bars": len(values),
+            "sessions": len(by_day),
+            "stitched_source_manifest_sha256": source_fingerprint,
+        },
+        "contract": {
+            "authority": "observation_only",
+            "direction_owner": "xsp_native",
+            "spy_role": "diagnostic_only",
+            "horizons_minutes": [5, 15, 30, 60, 120],
+            "turn_window_et": [
+                policy.start_et.strftime("%H:%M"),
+                policy.end_et.strftime("%H:%M"),
+            ],
+            "label_window_et": ["09:45", "11:15"],
+            "match_lag_bars": [-1, 3],
+            "labeling": "hindsight_material_local_extrema_scoring_only",
+            "policy": {
+                "smooth_alpha": policy.smooth_alpha,
+                "initial_score": policy.initial_score,
+                "turn_score": policy.turn_score,
+                "retrace_atr": policy.retrace_atr,
+                "min_state_bars": policy.min_state_bars,
+                "cooldown_bars": policy.cooldown_bars,
+                "min_observed_horizons": policy.min_observed_horizons,
+            },
+        },
+        "material_extrema": {
+            **totals,
+            "precision": precision,
+            "recall": recall,
+            "f1": (
+                2.0 * precision * recall / (precision + recall)
+                if precision + recall
+                else 0.0
+            ),
+            "median_lag_bars": statistics.median(lags) if lags else None,
+        },
+        "absolute_extrema": {
+            **absolute,
+            "recall": (
+                absolute["matches"] / absolute["labels"]
+                if absolute["labels"]
+                else 0.0
+            ),
+        },
+        "coverage": {
+            **coverage,
+            "event_horizon_counts": {
+                str(horizons): count
+                for horizons, count in sorted(event_horizons.items())
+            },
+        },
+        "sessions": ledger,
     }

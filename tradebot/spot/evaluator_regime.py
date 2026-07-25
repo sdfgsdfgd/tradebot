@@ -1,6 +1,8 @@
 """Regime and shock-state advancement for spot signals."""
 from __future__ import annotations
 
+from dataclasses import replace
+
 from ..engine import spot_regime_apply_matches_direction
 from ..engines.signals import EmaDecisionSnapshot, SupertrendEngine
 from .evaluator_common import (
@@ -246,16 +248,29 @@ class SpotSignalRegimeMixin:
         """Apply the configured confirmation/bear regime to one normalized signal."""
         signal = selection.signal
         candidate = selection.candidate
+        controls = list(selection.controls)
         if (self._supertrend2_engine is not None or self._regime2_engine is not None) and (
             spot_regime_apply_matches_direction(
-                apply_to_raw=_get(self._strategy, "regime2_apply_to", "both"),
+                apply_to_raw=self._entry_control_plan.confirmation_scope,
                 entry_dir=getattr(signal, "entry_dir", None),
             )
         ):
+            before = getattr(signal, "entry_dir", None)
             signal = apply_regime_gate(
                 signal,
                 regime_dir=regime.fast_dir,
                 regime_ready=regime.fast_ready,
+            )
+            after = getattr(signal, "entry_dir", None)
+            controls.append(
+                "regime2:"
+                + (
+                    "pass"
+                    if before in ("up", "down") and after == before
+                    else "block"
+                    if before in ("up", "down")
+                    else "idle"
+                )
             )
 
         if signal is not None and self._regime2_bear_entry_mode == "supertrend":
@@ -268,28 +283,52 @@ class SpotSignalRegimeMixin:
             )
             if bear_direction in ("up", "down"):
                 if self._dual_branch_enabled and candidate.branch not in ("a", "b"):
-                    candidate = SpotEntryCandidate(None)
+                    candidate = candidate.block("bear_supertrend_branch")
+                    controls.append("bear_supertrend:block")
                 else:
                     branch = candidate.branch
                     if branch not in ("a", "b") or getattr(signal, "entry_dir", None) != bear_direction:
                         branch = None
                     candidate = SpotEntryCandidate(str(bear_direction), branch)
+                    controls.append(f"bear_supertrend:takeover_{bear_direction}")
 
         if signal is None:
-            return SpotSignalSelection(None, candidate, selection.branch_key)
+            return replace(
+                selection,
+                signal=None,
+                candidate=candidate,
+                controls=tuple(controls),
+            )
 
         gated_direction = signal.entry_dir if signal.entry_dir in ("up", "down") else None
         direction = candidate.direction if candidate.direction in ("up", "down") else None
         branch = candidate.branch
         if direction is None or direction != gated_direction:
-            direction = None
-            branch = None
+            if direction in ("up", "down"):
+                blocker = next(
+                    (
+                        token.partition(":")[0]
+                        for token in reversed(controls)
+                        if token.endswith(":block")
+                    ),
+                    "signal_confirmation",
+                )
+                candidate = candidate.block(blocker)
+            else:
+                candidate = SpotEntryCandidate(
+                    None,
+                    None,
+                    candidate.blocked_by,
+                )
         elif not self._dual_branch_enabled:
-            branch = None
-        return SpotSignalSelection(
+            candidate = SpotEntryCandidate(direction, None, candidate.blocked_by)
+        else:
+            candidate = SpotEntryCandidate(direction, branch, candidate.blocked_by)
+        return replace(
+            selection,
             signal=signal,
-            candidate=SpotEntryCandidate(direction, branch),
-            branch_key=selection.branch_key,
+            candidate=candidate,
+            controls=tuple(controls),
         )
 
     def _shock_view(self) -> tuple[bool | None, str | None, float | None]:

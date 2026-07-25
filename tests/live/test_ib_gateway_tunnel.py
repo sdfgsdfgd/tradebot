@@ -181,8 +181,10 @@ def test_tradebot_three_client_stack_through_ssh_tunnel(
         client_id_state_file=str(state_path),
         connect_timeout_sec=8.0,
         client_id_quarantine_sec=10.0,
+        readonly=True,
     )
     client = IBKRClient(config)
+    assert config.readonly is True
 
     async def probe() -> dict[str, object]:
         try:

@@ -11,24 +11,11 @@ from typing import TYPE_CHECKING
 from ..signals import ema_next
 from ..spot.policy_contract import parse_float as _parse_float
 from ..spot.policy_contract import parse_int as _parse_int
+from ..spot.policy_contract import normalize_shock_gate_mode
 from ..spot.policy_contract import source_value as _filters_get
 from .signals import SupertrendEngine
 
 # region Shock Gate / Engine Factory
-def normalize_shock_gate_mode(filters: Mapping[str, object] | object | None) -> str:
-    raw = _filters_get(filters, "shock_gate_mode")
-    if raw is None:
-        raw = _filters_get(filters, "shock_mode")
-    if isinstance(raw, bool):
-        raw = "block" if raw else "off"
-    mode = str(raw or "off").strip().lower()
-    if mode in ("", "0", "false", "none", "null"):
-        mode = "off"
-    if mode not in ("off", "detect", "block", "block_longs", "block_shorts", "surf"):
-        mode = "off"
-    return mode
-
-
 def normalize_shock_detector(filters: Mapping[str, object] | object | None) -> str:
     raw = str(_filters_get(filters, "shock_detector") or "atr_ratio").strip().lower()
     if raw in ("daily", "daily_atr", "daily_atr_pct", "daily_atr14", "daily_atr%"):

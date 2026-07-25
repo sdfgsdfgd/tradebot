@@ -250,6 +250,7 @@ class StrategyConfigBase:
     spot_pt_atr_mult: float = 1.5
     spot_sl_atr_mult: float = 1.0
     spot_exit_time_et: str | None = None
+    spot_excursion_exit: dict[str, object] | None = None
     spot_exec_bar_size: str | None = None
     regime_mode: str = "ema"
     regime2_mode: str = "off"

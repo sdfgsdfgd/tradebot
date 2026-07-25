@@ -129,6 +129,27 @@ class _StubHistoricalData(IBKRHistoricalData):
 
 
 class BacktestDataTimezoneTests(unittest.TestCase):
+    def test_historical_client_connects_read_only(self) -> None:
+        calls = []
+
+        class _DisconnectedIB:
+            @staticmethod
+            def isConnected() -> bool:
+                return False
+
+            @staticmethod
+            def connect(*args, **kwargs) -> None:
+                calls.append((args, kwargs))
+
+        data = IBKRHistoricalData(client_id_offset=1100)
+        data._ib = _DisconnectedIB()
+
+        data.connect()
+
+        self.assertEqual(calls[0][0], ("127.0.0.1", 4001))
+        self.assertEqual(calls[0][1]["clientId"], 1999)
+        self.assertIs(calls[0][1]["readonly"], True)
+
     def test_xsp_resolves_as_cboe_index(self) -> None:
         data = IBKRHistoricalData()
         data.connect = lambda: None
@@ -151,6 +172,17 @@ class BacktestDataTimezoneTests(unittest.TestCase):
         self.assertEqual(contract.secType, "IND")
         self.assertEqual(contract.exchange, "CBOE")
         self.assertEqual(meta.exchange, "CBOE")
+
+    def test_nasdaq_breadth_resolves_as_index(self) -> None:
+        data = IBKRHistoricalData()
+        data.connect = lambda: None
+        data._ib.qualifyContracts = lambda contract: [contract]
+
+        for symbol in ("TICK-NASD", "TRIN-NASD"):
+            contract, meta = data.resolve_contract(symbol, None)
+            self.assertEqual(contract.secType, "IND")
+            self.assertEqual(contract.exchange, "NASDAQ")
+            self.assertEqual(meta.exchange, "NASDAQ")
 
     def test_one_day_fetch_uses_one_day_window_and_retries_empty_cursor(self) -> None:
         data = IBKRHistoricalData()
@@ -530,6 +562,46 @@ class BacktestDataTimezoneTests(unittest.TestCase):
             self.assertIn("SMART", exchanges)
             self.assertIn("OVERNIGHT", exchanges)
             self.assertEqual(series.meta.source, "cache+ibkr")
+
+    def test_full24_skips_overnight_window_before_broker_head(self) -> None:
+        with TemporaryDirectory() as tmpdir:
+            data = _StubHistoricalData()
+            data._historical_head_timestamp = lambda *_args, **_kwargs: datetime(
+                2025, 1, 11, tzinfo=timezone.utc
+            )
+
+            series = data.load_or_fetch_bar_series(
+                symbol="SPY",
+                exchange="SMART",
+                start=datetime(2025, 1, 1),
+                end=datetime(2025, 1, 10, 23, 59),
+                bar_size="5 mins",
+                use_rth=False,
+                cache_dir=Path(tmpdir),
+            )
+
+            self.assertTrue(series.bars)
+            self.assertEqual([call[0] for call in data.fetch_calls], ["SMART"])
+
+    def test_full24_clamps_overnight_fetch_to_broker_head(self) -> None:
+        with TemporaryDirectory() as tmpdir:
+            data = _StubHistoricalData()
+            data._historical_head_timestamp = lambda *_args, **_kwargs: datetime(
+                2025, 1, 6, tzinfo=timezone.utc
+            )
+
+            data.load_or_fetch_bar_series(
+                symbol="SPY",
+                exchange="SMART",
+                start=datetime(2025, 1, 1),
+                end=datetime(2025, 1, 10, 23, 59),
+                bar_size="5 mins",
+                use_rth=False,
+                cache_dir=Path(tmpdir),
+            )
+
+            overnight = next(call for call in data.fetch_calls if call[0] == "OVERNIGHT")
+            self.assertEqual(overnight[1], datetime(2025, 1, 6))
 
     def test_load_or_fetch_detects_missing_day_inside_covering_cache(self) -> None:
         with TemporaryDirectory() as tmpdir:

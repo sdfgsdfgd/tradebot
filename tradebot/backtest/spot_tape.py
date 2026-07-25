@@ -45,6 +45,9 @@ def _strategy_key(cfg: ConfigBundle) -> str:
     payload = asdict(cfg.strategy)
     for field_name in _EXECUTION_ONLY_STRATEGY_FIELDS:
         payload.pop(field_name, None)
+    # Exit thresholds reuse one evaluator tape; enabled-vs-off remains distinct
+    # because the shared evaluator must expose entry ATR when the policy is on.
+    payload["spot_excursion_exit"] = bool(payload.get("spot_excursion_exit"))
     return json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
 
 

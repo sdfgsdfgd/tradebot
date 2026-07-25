@@ -28,7 +28,7 @@ from tradebot.option_package import OptionPackageRisk
 from tradebot.order_admission import evaluate_order_admission
 from tradebot.research.spot_sweeps.support import _bundle_base
 from tradebot.spot.gates import flip_exit_gate_blocked, signal_filter_checks
-from tradebot.time_utils import to_utc_naive
+from tradebot.time_utils import ET_ZONE, to_utc_naive
 
 _UI_DIR = Path(__file__).resolve().parents[1] / "tradebot" / "ui"
 if "tradebot.ui" not in sys.modules:
@@ -209,6 +209,83 @@ def test_historical_ohlcv_reuses_six_month_cache_and_fetches_only_missing_day(tm
         True,
     )
     assert [bar.close for bar in read_cache(gap_path)] == [2]
+
+
+def test_historical_ohlcv_fetches_only_the_uncached_live_tail(tmp_path) -> None:
+    client = _new_client()
+    client._config = replace(client._config, market_data_dir=str(tmp_path))
+    now_et = datetime(2026, 7, 23, 16, 0)
+    start_et, _ = duration_window_et("2 D", end=now_et)
+    cached_bars: list[OhlcvBar] = []
+    day = start_et.date()
+    while day <= now_et.date():
+        if is_trading_day(day):
+            end_slot = 52 if day == now_et.date() else 77
+            for slot in range(end_slot + 1):
+                stamp_et = datetime.combine(day, datetime.min.time()).replace(
+                    hour=9,
+                    minute=30,
+                ) + timedelta(minutes=5 * slot)
+                cached_bars.append(
+                    OhlcvBar(
+                        to_utc_naive(stamp_et, naive_ts_mode="et"),
+                        1,
+                        1,
+                        1,
+                        1,
+                        1,
+                    )
+                )
+        day += timedelta(days=1)
+    path = cache_path(tmp_path, "XSP", start_et, now_et, "5 mins", True)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    write_cache(path, cached_bars)
+    calls: list[tuple[datetime | None, str]] = []
+
+    async def _fake_request(
+        contract,
+        *,
+        end_ts: datetime | None = None,
+        duration_str: str,
+        bar_size: str,
+        what_to_show: str,
+        use_rth: bool,
+    ):
+        _ = contract, bar_size, what_to_show, use_rth
+        calls.append((end_ts, duration_str))
+        return [_RawBar(now_et - timedelta(minutes=5), 2, 2, 2, 2, 2)]
+
+    client._request_historical_data_for_stream = _fake_request  # type: ignore[method-assign]
+    contract = Contract(
+        conId=7001,
+        symbol="XSP",
+        secType="IND",
+        exchange="CBOE",
+        currency="USD",
+    )
+    with (
+        patch(
+            "tradebot.chart_data.history.now_et_naive",
+            return_value=now_et,
+        ),
+        patch(
+            "tradebot.client._now_et",
+            return_value=now_et.replace(tzinfo=ET_ZONE),
+        ),
+    ):
+        bars = asyncio.run(
+            client.historical_bars_ohlcv(
+                contract,
+                duration_str="2 D",
+                bar_size="5 mins",
+                use_rth=True,
+                cache_ttl_sec=0,
+            )
+        )
+
+    assert calls == [(None, "8400 S")]
+    assert bars[-1].ts == now_et - timedelta(minutes=5)
+    assert bars[-1].close == 2
 
 
 def test_historical_bars_ohlcv_empty_cache_expires_quickly() -> None:
@@ -561,6 +638,21 @@ class _GapGateHarness(BotSignalRuntimeMixin):
 
     def _auto_process_pending_next_open(self, **kwargs) -> bool:
         return False
+
+    @staticmethod
+    def _entry_direction_for_instance(instance: _BotInstance, snap) -> str | None:
+        _ = instance
+        return snap.signal.entry_dir
+
+    @staticmethod
+    def _allowed_entry_directions(instance: _BotInstance) -> set[str]:
+        _ = instance
+        return {"up", "down"}
+
+    @staticmethod
+    def _entry_limit_ok(instance: _BotInstance) -> bool:
+        _ = instance
+        return True
 
 
 class _NoSignalRecoveryHarness(_GapGateHarness):
@@ -1102,6 +1194,41 @@ def test_auto_try_queue_entry_passes_entry_context_into_graph_gate() -> None:
     assert fired is False
     assert not harness.queued
     assert "BLOCKED_GRAPH_ENTRY_CONTEXT_CONFIDENCE" in gates
+
+
+def test_auto_try_queue_entry_uses_lifecycle_day_before_filter_order() -> None:
+    harness = _EntryContextGateHarness()
+    instance = _new_instance(
+        strategy={
+            "instrument": "spot",
+            "signal_bar_size": "5 mins",
+            "entry_days": ["Tue"],
+        },
+        filters={},
+    )
+    events: list[tuple[str, dict]] = []
+
+    fired = harness._auto_try_queue_entry(
+        instance=instance,
+        snap=SimpleNamespace(
+            bar_ts=datetime(2026, 2, 9, 10, 0),  # Monday signal.
+            close=100.0,
+            atr=None,
+            risk=None,
+            shock_atr_pct=None,
+        ),
+        gate=lambda status, data=None: events.append((str(status), dict(data or {}))),
+        now_et=datetime(2026, 2, 10, 10, 0),  # Tuesday runtime.
+        filter_checks={"time": False},
+    )
+
+    assert fired is False
+    assert [status for status, _data in events] == ["BLOCKED_ENTRY_DAY"]
+    lifecycle = events[0][1]["spot_lifecycle"]
+    assert lifecycle["gate"] == "BLOCKED_ENTRY_DAY"
+    assert lifecycle["trace"]["filter_checks"] == {"time": False}
+    assert events[0][1]["entry_weekday"] == 0
+    assert events[0][1]["allowed_days"] == [1]
 
 
 def test_pending_next_open_cancels_on_directional_shock_mismatch() -> None:
@@ -1852,6 +1979,13 @@ def test_auto_tick_does_not_block_regime_health_on_sunday_daily_carry() -> None:
         event == "GATE" and reason == "WAITING_REGIME_HEALTH"
         for event, reason, _data in harness._events
     )
+    filter_event = next(
+        data
+        for event, reason, data in harness._events
+        if event == "GATE" and reason == "BLOCKED_FILTERS"
+    )
+    assert filter_event["spot_lifecycle"]["gate"] == "BLOCKED_FILTERS"
+    assert filter_event["filter_checks"]["time"] is False
 
 
 def test_auto_tick_blocks_waiting_preflight_bars_when_history_too_short() -> None:

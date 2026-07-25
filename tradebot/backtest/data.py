@@ -1,4 +1,5 @@
 """IBKR historical-data acquisition and canonical bar normalization."""
+
 from __future__ import annotations
 
 import asyncio
@@ -31,7 +32,7 @@ from ..chart_data.history import (
     write_history_chunk,
 )
 from ..chart_data.series import BarSeries, BarSeriesMeta, bars_list
-from ..config import load_config
+from ..config import auxiliary_client_id, load_config
 from ..signals import parse_bar_size
 from ..time_utils import (
     ET_ZONE as _ET_ZONE,
@@ -56,9 +57,7 @@ _IBKR_DURATION_BY_BAR_TOKEN = {
 _HISTORICAL_LOCK_GUARD = Lock()
 _HISTORICAL_CONTRACT_LOCKS: dict[tuple[object, ...], object] = {}
 _HISTORICAL_HEAD_GUARD = Lock()
-_HISTORICAL_HEAD_CACHE: dict[
-    tuple[object, ...], tuple[float, datetime | None]
-] = {}
+_HISTORICAL_HEAD_CACHE: dict[tuple[object, ...], tuple[float, datetime | None]] = {}
 
 
 def _historical_contract_key(contract: object) -> tuple[object, ...]:
@@ -175,7 +174,11 @@ class IBKRHistoricalData:
         self._ib.connect(
             self._config.host,
             self._config.port,
-            clientId=self._config.client_id + self._client_id_offset,
+            clientId=auxiliary_client_id(
+                self._config,
+                self._client_id_offset,
+            ),
+            readonly=True,
             timeout=10,
         )
 
@@ -204,6 +207,42 @@ class IBKRHistoricalData:
         meta = ContractMeta(symbol=symbol, exchange=exchange, multiplier=multiplier, min_tick=min_tick)
         return resolved, meta
 
+    def _fetch_stock_full24_components(
+        self,
+        primary: object,
+        overnight: object,
+        start: datetime,
+        end: datetime,
+        bar_size: str,
+    ) -> tuple[list[Bar], list[Bar]]:
+        """Fetch SMART plus only the OVERNIGHT history IBKR says exists."""
+        smart = self._fetch_bars(primary, start, end, bar_size, use_rth=False)
+        overnight_head = self._historical_head_timestamp(
+            overnight,
+            use_rth=False,
+            timeout_sec=15.0,
+        )
+        overnight_start = (
+            max(
+                start,
+                overnight_head.astimezone(_UTC).replace(tzinfo=None),
+            )
+            if overnight_head is not None
+            else start
+        )
+        overnight_rows = (
+            []
+            if overnight_start > end
+            else self._fetch_bars(
+                overnight,
+                overnight_start,
+                end,
+                bar_size,
+                use_rth=False,
+            )
+        )
+        return smart, overnight_rows
+
     def load_or_fetch_bar_series(
         self,
         symbol: str,
@@ -217,7 +256,12 @@ class IBKRHistoricalData:
         cache_file = cache_path(cache_dir, symbol, start, end, bar_size, use_rth)
         cache_file.parent.mkdir(parents=True, exist_ok=True)
 
-        debug_stitch = str(os.environ.get("TRADEBOT_CACHE_STITCH_DEBUG", "")).strip().lower() in {"1", "true", "yes", "on"}
+        debug_stitch = str(os.environ.get("TRADEBOT_CACHE_STITCH_DEBUG", "")).strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
 
         def _fmt_ranges(ranges: list[tuple[date, date]]) -> list[str]:
             out: list[str] = []
@@ -272,18 +316,13 @@ class IBKRHistoricalData:
 
         def _fetch_window(fetch_start: datetime, fetch_end: datetime) -> list[Bar]:
             primary = _resolve_primary_contract()
-            if (
-                not bool(use_rth)
-                and str(getattr(primary, "secType", "") or "") == "STK"
-                and _is_intraday()
-            ):
-                bars_smart = self._fetch_bars(primary, fetch_start, fetch_end, bar_size, use_rth=False)
-                bars_overnight = self._fetch_bars(
+            if not bool(use_rth) and str(getattr(primary, "secType", "") or "") == "STK" and _is_intraday():
+                bars_smart, bars_overnight = self._fetch_stock_full24_components(
+                    primary,
                     _resolve_overnight_contract(),
                     fetch_start,
                     fetch_end,
                     bar_size,
-                    use_rth=False,
                 )
                 return _merge_full24(
                     smart=bars_smart,
@@ -454,7 +493,12 @@ class IBKRHistoricalData:
                 )
                 if not (rs_out.ok and rs_out.dst_path.exists()):
                     return None
-                normalized = _normalize_bars(read_cache(cache_file), symbol=symbol, bar_size=bar_size, use_rth=use_rth)
+                normalized = _normalize_bars(
+                    read_cache(cache_file),
+                    symbol=symbol,
+                    bar_size=bar_size,
+                    use_rth=use_rth,
+                )
                 return BarSeries(
                     bars=tuple(normalized),
                     meta=_series_meta(
@@ -495,17 +539,11 @@ class IBKRHistoricalData:
                     missing.append(s.isoformat())
                 else:
                     missing.append(f"{s.isoformat()}..{e.isoformat()}")
-            raise FileNotFoundError(
-                f"No cached bars found at {cache_file}; missing date ranges: {', '.join(missing)}"
-            )
+            raise FileNotFoundError(f"No cached bars found at {cache_file}; missing date ranges: {', '.join(missing)}")
 
         source_path = history.source_paths[0] if len(history.source_paths) == 1 else None
         source = (
-            "cache"
-            if source_path == cache_file
-            else "cache-covering"
-            if source_path is not None
-            else "cache-stitched"
+            "cache" if source_path == cache_file else "cache-covering" if source_path is not None else "cache-stitched"
         )
         normalized = _normalize_bars(history.bars, symbol=symbol, bar_size=bar_size, use_rth=use_rth)
         return BarSeries(
@@ -563,9 +601,10 @@ class IBKRHistoricalData:
                 ttl = 3600.0 if value is not None else 15.0
                 if now - cached_at < ttl:
                     return value
-        req_id = client.getReqId()
+        req_id: int | None = None
         value: datetime | None = None
         try:
+            req_id = client.getReqId()
             future = wrapper.startReq(req_id, contract)
             client.reqHeadTimeStamp(req_id, contract, "TRADES", bool(use_rth), 2)
             result = runner(
@@ -578,10 +617,11 @@ class IBKRHistoricalData:
         except Exception:
             value = None
         finally:
-            try:
-                client.cancelHeadTimeStamp(req_id)
-            except Exception:
-                pass
+            if req_id is not None:
+                try:
+                    client.cancelHeadTimeStamp(req_id)
+                except Exception:
+                    pass
         with _HISTORICAL_HEAD_GUARD:
             _HISTORICAL_HEAD_CACHE[key] = (monotonic(), value)
         return value
@@ -637,7 +677,10 @@ class IBKRHistoricalData:
                             timeout=(
                                 float(timeout_sec)
                                 if attempt == 1
-                                else max(15.0, float(timeout_sec) * (1.0 - 0.25 * (attempt - 1)))
+                                else max(
+                                    15.0,
+                                    float(timeout_sec) * (1.0 - 0.25 * (attempt - 1)),
+                                )
                             ),
                         )
                     except Exception as exc:
@@ -652,7 +695,11 @@ class IBKRHistoricalData:
                         return list(chunk), request_duration
                     if error_codes & {200, 321, 354, 10089, 10167} or any(
                         token in error_text
-                        for token in ("permission", "subscription", "security definition")
+                        for token in (
+                            "permission",
+                            "subscription",
+                            "security definition",
+                        )
                     ):
                         raise RuntimeError(
                             "historical_request_rejected: "
@@ -689,23 +736,17 @@ class IBKRHistoricalData:
                     timeout_sec=timeout_sec,
                 )
                 end_utc = _as_utc_aware(end) if isinstance(end, datetime) else None
-                evidence = " | ".join(
-                    f"{code}:{message}" for code, message in errors[-6:]
-                )
+                evidence = " | ".join(f"{code}:{message}" for code, message in errors[-6:])
                 if end_utc is not None and head is not None and end_utc < head:
                     raise RuntimeError(
                         "historical_unavailable_before_head: "
                         f"requested_end={end_utc.isoformat()} earliest={head.isoformat()}"
                     )
-                if any(
-                    code == 165 or "no data" in message.lower()
-                    for code, message in errors
-                ):
+                if any(code == 165 or "no data" in message.lower() for code, message in errors):
                     raise RuntimeError(
                         "historical_no_data_observed: "
                         f"requested_end={end_utc.isoformat() if end_utc else 'latest'} "
-                        f"head={head.isoformat() if head else 'unknown'}"
-                        + (f" errors={evidence}" if evidence else "")
+                        f"head={head.isoformat() if head else 'unknown'}" + (f" errors={evidence}" if evidence else "")
                     )
                 raise RuntimeError(
                     "historical_fetch_exhausted: "
@@ -731,13 +772,7 @@ class IBKRHistoricalData:
         span_seconds = max(0.0, (end - start).total_seconds())
         span_days_ceil = max(1, int((span_seconds + 86_399) // 86_400))
         range_duration = (
-            "1 D"
-            if span_days_ceil <= 1
-            else "1 W"
-            if span_days_ceil <= 7
-            else "2 W"
-            if span_days_ceil <= 14
-            else "1 M"
+            "1 D" if span_days_ceil <= 1 else "1 W" if span_days_ceil <= 7 else "2 W" if span_days_ceil <= 14 else "1 M"
         )
         if _duration_to_timedelta(range_duration) < _duration_to_timedelta(duration):
             duration = range_duration
@@ -895,8 +930,6 @@ def _filter_requested_session(
         if time(9, 30) <= stamp_et.time() < session_end:
             out.append(bar)
     return out
-
-
 
 
 def _convert_bar(bar) -> Bar:

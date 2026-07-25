@@ -16,8 +16,12 @@ from ...order_reservation import (
     summarize_order_reservations,
 )
 from ...signals import direction_from_action_right, parse_bar_size
+from ...spot.entry_control import spot_allowed_entry_directions
 from ...spot.graph_core import spot_dynamic_flip_hold_bars
-from ...spot.gates import flip_exit_gate_blocked, flip_exit_hit
+from ...spot.gates import (
+    flip_exit_gate_blocked,
+    flip_exit_hit,
+)
 from ...time_utils import now_et as _now_et
 from ...utils.date_utils import business_days_until
 from ..bot_models import _BotInstance, _BotOrder, _SignalSnapshot
@@ -375,18 +379,7 @@ class BotOrdersMixin:
         strategy = instance.strategy or {}
         instrument = self._strategy_instrument(strategy)
         if instrument == "spot":
-            mapping = strategy.get("directional_spot") if isinstance(strategy.get("directional_spot"), dict) else None
-            if mapping:
-                allowed = set()
-                for key in ("up", "down"):
-                    leg = mapping.get(key)
-                    if not isinstance(leg, dict):
-                        continue
-                    action = str(leg.get("action", "")).strip().upper()
-                    if action in ("BUY", "SELL"):
-                        allowed.add(key)
-                return allowed
-            return {"up"}
+            return set(spot_allowed_entry_directions(strategy))
 
         if isinstance(strategy.get("directional_legs"), dict):
             allowed = {k for k in ("up", "down") if strategy["directional_legs"].get(k)}

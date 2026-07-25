@@ -22,6 +22,31 @@ def source_value(
     return getattr(source, key, default)
 
 
+def normalize_shock_gate_mode(
+    filters: Mapping[str, object] | object | None,
+) -> str:
+    raw = source_value(filters, "shock_gate_mode")
+    if raw is None:
+        raw = source_value(filters, "shock_mode")
+    if isinstance(raw, bool):
+        raw = "block" if raw else "off"
+    mode = str(raw or "off").strip().lower()
+    if mode in ("", "0", "false", "none", "null"):
+        mode = "off"
+    return (
+        mode
+        if mode in (
+            "off",
+            "detect",
+            "block",
+            "block_longs",
+            "block_shorts",
+            "surf",
+        )
+        else "off"
+    )
+
+
 def parse_int(value: object, *, default: int, min_value: int | None = None) -> int:
     try:
         parsed = int(value) if value is not None else int(default)

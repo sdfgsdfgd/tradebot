@@ -122,6 +122,8 @@ def normalize_bars_to_close(
         if use_rth:
             start_et = to_et(bar.ts, naive_ts_mode=naive_ts_mode)
             session_close_et = datetime.combine(start_et.date(), close_time_et, tzinfo=ET_ZONE)
+            if start_et >= session_close_et:
+                continue
             session_close = (
                 session_close_et.replace(tzinfo=None)
                 if str(getattr(naive_ts_mode, "value", naive_ts_mode)).lower() in {"et", "et_naive"}

@@ -279,9 +279,19 @@ def project_live_spot_order_journal(
             else None
         ),
         "entry_branch": entry_branch if entry_branch in ("a", "b") else None,
+        "entry_control": _project_spot_trace_dimension(
+            (
+                getattr(snap, "entry_context", {}).get("entry_control")
+                if isinstance(getattr(snap, "entry_context", None), Mapping)
+                else None
+            )
+        ),
         "branch_size_mult": float(branch_size_mult)
         if branch_size_mult is not None
         else None,
+        "directional_impulse": _project_spot_trace_dimension(
+            getattr(snap, "directional_impulse", None)
+        ),
         "spot_decision": sizing_payload,
         "spot_lifecycle": lifecycle_payload,
         "spot_intent": intent_payload,

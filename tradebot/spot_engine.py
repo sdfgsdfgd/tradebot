@@ -11,12 +11,23 @@ from collections.abc import Mapping
 from datetime import time
 
 from .chart_data.series import BarSeries
-from .engine import normalize_spot_entry_signal, normalize_spot_regime_mode, parse_time_hhmm
+from .engine import parse_time_hhmm
+from .engines.directional_impulse import (
+    DirectionalImpulseEngine,
+    DirectionalTurnPolicy,
+)
 from .engines.risk import RiskOverlaySnapshot, build_tr_pct_risk_overlay_engine
 from .engines.shock import build_shock_engine, normalize_shock_detector, normalize_shock_direction_source
-from .engines.signals import EmaDecisionEngine, EmaDecisionSnapshot, OrbDecisionEngine, SupertrendEngine
-from .signals import ema_periods
+from .engines.signals import (
+    EmaDecisionEngine,
+    EmaDecisionSnapshot,
+    OrbDecisionEngine,
+    SupertrendEngine,
+)
+from .signals import ema_periods, parse_bar_size
+from .spot.entry_control import SpotEntryControlPlan
 from .spot.evaluator_common import BarLike, SpotSignalSnapshot, _bars_input_list
+from .spot.lifecycle import SpotExcursionPolicy
 from .spot.policy_contract import source_value as _get
 from .spot.evaluator_policy import SpotSignalPolicyMixin
 from .spot.evaluator_regime import SpotSignalRegimeMixin
@@ -65,14 +76,20 @@ class SpotSignalEvaluator(
         self._sig_last_date = None
         self._sig_bars_in_day = 0
 
-        # Entry signal
-        entry_signal = normalize_spot_entry_signal(_get(strategy, "entry_signal", "ema"))
+        # One normalized entry control plane is shared by every later gate and
+        # projected into live/backtest diagnostics.
+        self._entry_control_plan = SpotEntryControlPlan.from_sources(
+            strategy=strategy,
+            filters=filters,
+            bar_size=str(bar_size),
+        )
+        entry_signal = self._entry_control_plan.source
         self.entry_signal = entry_signal
 
         # Regime mode (primary)
-        regime_mode = normalize_spot_regime_mode(_get(strategy, "regime_mode", "ema"))
+        regime_mode = self._entry_control_plan.primary_regime
         self._regime_mode = regime_mode
-        regime_preset = str(_get(strategy, "regime_ema_preset", "") or "").strip() or None
+        regime_preset = self._entry_control_plan.primary_regime_preset
 
         # Multi-timeframe regime: if provided, caller already fetched the right bars.
         self._use_mtf_regime = bool(regime_bars)
@@ -97,7 +114,7 @@ class SpotSignalEvaluator(
             exit_mode = "pct"
         self._exit_atr_engine: SupertrendEngine | None = None
         self._last_exit_atr = None
-        if exit_mode == "atr":
+        if exit_mode == "atr" or SpotExcursionPolicy.from_strategy(strategy).enabled:
             raw_atr = _get(strategy, "spot_atr_period", None)
             try:
                 atr_p = int(raw_atr) if raw_atr is not None else 14
@@ -117,6 +134,18 @@ class SpotSignalEvaluator(
         self._branch_a_max_signed_slope_pct: float | None = None
         self._branch_b_min_signed_slope_pct: float | None = None
         self._branch_b_max_signed_slope_pct: float | None = None
+
+        # One evidence engine serves observation and explicit source selection.
+        signal_bar = parse_bar_size(self._bar_size)
+        self._directional_impulse_engine = (
+            DirectionalImpulseEngine(
+                bar_duration=signal_bar.duration if signal_bar is not None else None,
+                turn_policy=DirectionalTurnPolicy(),
+            )
+            if entry_signal == "directional_impulse"
+            or self._entry_control_plan.directional_impulse == "observe"
+            else None
+        )
 
         # RATS-V runtime state (default-off; only active when filters.ratsv_enabled=true).
         self._ratsv_enabled = bool(_get(filters, "ratsv_enabled", False)) if filters is not None else False
@@ -265,7 +294,7 @@ class SpotSignalEvaluator(
                 raise ValueError("EMA entry requires ema_preset")
             # Mirror backtest semantics: only embed same-timeframe EMA regime inside the EMA engine.
             embedded_regime = None
-            if (not self._use_mtf_regime) and self._regime_mode != "supertrend":
+            if (not self._use_mtf_regime) and self._regime_mode == "ema":
                 embedded_regime = regime_preset
             dual_enabled = bool(_get(strategy, "spot_dual_branch_enabled", False))
             self._dual_branch_enabled = bool(dual_enabled)
@@ -341,7 +370,7 @@ class SpotSignalEvaluator(
                     entry_confirm_bars=int(_get(strategy, "entry_confirm_bars", 0) or 0),
                     regime_ema_preset=embedded_regime,
                 )
-        else:
+        elif entry_signal in ("orb", "opening_reclaim"):
             raw_window = _get(strategy, "orb_window_mins", None)
             try:
                 window = int(raw_window) if raw_window is not None else 15

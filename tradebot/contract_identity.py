@@ -27,6 +27,8 @@ INDEX_EXCHANGES: dict[str, str] = {
     "VIX": "CBOE",
     "TICK-NYSE": "NYSE",
     "TICK-AMEX": "AMEX",
+    "TICK-NASD": "NASDAQ",
+    "TRIN-NASD": "NASDAQ",
 }
 
 _FUTURE_MULTIPLIERS: dict[str, float] = {

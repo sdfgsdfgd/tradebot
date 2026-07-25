@@ -1,7 +1,8 @@
 """Runtime configuration loaded from environment variables."""
+
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import os
 
 DEFAULT_REFRESH_SEC = 0.25
@@ -42,12 +43,37 @@ class IBKRConfig:
     client_id_state_file: str = "${TMPDIR:-/tmp}/tradebot_ib_client_ids.json"
     connect_timeout_sec: float = DEFAULT_CONNECT_TIMEOUT_SEC
     client_id_quarantine_sec: float = DEFAULT_CLIENT_ID_QUARANTINE_SEC
+    readonly: bool = False
+
+
+def auxiliary_client_id(config: IBKRConfig, offset: int) -> int:
+    """Reserve deterministic one-shot clients above the live runtime pool."""
+
+    return int(config.client_id_pool_end) + max(1, int(offset))
+
+
+def auxiliary_client_config(config: IBKRConfig, offset: int) -> IBKRConfig:
+    """Isolate one transient main/proxy/index client triplet."""
+
+    main = auxiliary_client_id(config, offset)
+    return replace(
+        config,
+        client_id=main,
+        proxy_client_id=main + 1,
+        client_id_pool_start=main,
+        client_id_pool_end=main + 2,
+        client_id_state_file="",
+    )
 
 
 def load_config() -> IBKRConfig:
     """Load config from environment with safe defaults for local IB Gateway."""
-    pool_start = int(os.getenv("IBKR_CLIENT_ID_POOL_START", str(DEFAULT_CLIENT_ID_POOL_START)))
-    pool_end = int(os.getenv("IBKR_CLIENT_ID_POOL_END", str(DEFAULT_CLIENT_ID_POOL_END)))
+    pool_start = int(
+        os.getenv("IBKR_CLIENT_ID_POOL_START", str(DEFAULT_CLIENT_ID_POOL_START))
+    )
+    pool_end = int(
+        os.getenv("IBKR_CLIENT_ID_POOL_END", str(DEFAULT_CLIENT_ID_POOL_END))
+    )
     if pool_end <= pool_start:
         pool_start = DEFAULT_CLIENT_ID_POOL_START
         pool_end = DEFAULT_CLIENT_ID_POOL_END
@@ -80,7 +106,12 @@ def load_config() -> IBKRConfig:
         client_id_pool_end=pool_end,
         client_id_burst_attempts=max(
             1,
-            int(os.getenv("IBKR_CLIENT_ID_BURST_ATTEMPTS", str(DEFAULT_CLIENT_ID_BURST_ATTEMPTS))),
+            int(
+                os.getenv(
+                    "IBKR_CLIENT_ID_BURST_ATTEMPTS",
+                    str(DEFAULT_CLIENT_ID_BURST_ATTEMPTS),
+                )
+            ),
         ),
         client_id_backoff_initial_sec=max(
             0.5,
@@ -119,7 +150,9 @@ def load_config() -> IBKRConfig:
         ),
         connect_timeout_sec=max(
             1.0,
-            float(os.getenv("IBKR_CONNECT_TIMEOUT_SEC", str(DEFAULT_CONNECT_TIMEOUT_SEC))),
+            float(
+                os.getenv("IBKR_CONNECT_TIMEOUT_SEC", str(DEFAULT_CONNECT_TIMEOUT_SEC))
+            ),
         ),
         client_id_quarantine_sec=max(
             1.0,
@@ -130,4 +163,6 @@ def load_config() -> IBKRConfig:
                 )
             ),
         ),
+        readonly=os.getenv("IBKR_READONLY", "").strip().lower()
+        in {"1", "true", "yes", "on"},
     )

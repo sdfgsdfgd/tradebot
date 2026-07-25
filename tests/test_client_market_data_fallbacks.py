@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime
 import json
+from pathlib import Path
 import time
 from types import SimpleNamespace
 
@@ -10,7 +11,7 @@ from ib_insync import Contract, Stock
 
 import tradebot.client as client_module
 from tradebot.client import IBKRClient
-from tradebot.config import IBKRConfig
+from tradebot.config import IBKRConfig, load_config
 
 
 class _FakeConnectIB:
@@ -223,14 +224,64 @@ def test_connect_ib_uses_configured_timeout() -> None:
 
     class _FakeIB:
         def __init__(self) -> None:
-            self.calls: list[tuple[str, int, int, float]] = []
+            self.calls: list[tuple[str, int, int, float, bool]] = []
 
-        async def connectAsync(self, host: str, port: int, clientId: int, timeout: float) -> None:
-            self.calls.append((str(host), int(port), int(clientId), float(timeout)))
+        async def connectAsync(
+            self,
+            host: str,
+            port: int,
+            clientId: int,
+            timeout: float,
+            readonly: bool,
+        ) -> None:
+            self.calls.append(
+                (
+                    str(host),
+                    int(port),
+                    int(clientId),
+                    float(timeout),
+                    bool(readonly),
+                )
+            )
 
     fake_ib = _FakeIB()
     asyncio.run(client._connect_ib(fake_ib, client_id=745))
-    assert fake_ib.calls == [("127.0.0.1", 4001, 745, 13.5)]
+    assert fake_ib.calls == [("127.0.0.1", 4001, 745, 13.5, False)]
+
+
+def test_readonly_config_reaches_all_ib_connections(monkeypatch) -> None:
+    monkeypatch.setenv("IBKR_READONLY", "true")
+    config = load_config()
+    assert config.readonly is True
+
+    client = IBKRClient(config)
+
+    class _FakeIB:
+        def __init__(self) -> None:
+            self.readonly: list[bool] = []
+
+        async def connectAsync(self, _host, _port, **kwargs) -> None:
+            self.readonly.append(bool(kwargs["readonly"]))
+
+    fake_ib = _FakeIB()
+    asyncio.run(client._connect_ib(fake_ib, client_id=745))
+    assert fake_ib.readonly == [True]
+
+
+def test_shadow_owns_an_on_demand_readonly_gateway_tunnel() -> None:
+    root = Path(__file__).resolve().parents[1]
+    shadow = (root / "deploy/systemd/tradebot-xsp-shadow.service").read_text()
+    tunnel = (
+        root / "deploy/systemd/tradebot-ib-gateway-tunnel.service"
+    ).read_text()
+
+    assert "Requires=tradebot-ib-gateway-tunnel.service" in shadow
+    assert "Environment=IBKR_READONLY=1" in shadow
+    assert "StopWhenUnneeded=yes" in tunnel
+    assert "ExitOnForwardFailure=yes" in tunnel
+    assert "ServerAliveInterval=15" in tunnel
+    assert "StrictHostKeyChecking=yes" in tunnel
+    assert "-L 127.0.0.1:4001:127.0.0.1:4001" in tunnel
 
 
 def test_current_order_state_promotes_pending_to_submitted_when_open() -> None:

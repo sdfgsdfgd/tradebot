@@ -1,5 +1,5 @@
 import unittest
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timezone
 
 from tradebot.engines.market import (
     SESSION_ORDER,
@@ -10,7 +10,9 @@ from tradebot.engines.market import (
     is_trading_day,
     session_label_et,
     utc_bounds_for_et_day,
+    xsp_capture_window_date,
     xsp_session_label_et,
+    xsp_trading_date,
 )
 
 
@@ -32,13 +34,58 @@ class BacktestTradingCalendarTests(unittest.TestCase):
         self.assertIsNone(xsp_session_label_et(datetime(2026, 7, 24, 20, 15)))
         self.assertEqual(xsp_session_label_et(datetime(2026, 7, 26, 20, 15)), "GTH")
 
+    def test_xsp_trading_date_carries_evening_gth_into_the_next_day(self) -> None:
+        self.assertEqual(
+            xsp_trading_date(datetime(2026, 7, 26, 20, 15)),
+            date(2026, 7, 27),
+        )
+        self.assertEqual(
+            xsp_trading_date(datetime(2026, 7, 27, 8, 34)),
+            date(2026, 7, 27),
+        )
+        self.assertEqual(
+            xsp_trading_date(datetime(2026, 7, 27, 16, 30)),
+            date(2026, 7, 27),
+        )
+        self.assertEqual(
+            xsp_trading_date(datetime(2026, 7, 27, 0, 30, tzinfo=timezone.utc)),
+            date(2026, 7, 27),
+        )
+        self.assertIsNone(xsp_trading_date(datetime(2026, 7, 25, 10, 0)))
+
+    def test_xsp_capture_window_spans_transition_gap_and_stops_at_close(self) -> None:
+        self.assertEqual(
+            xsp_capture_window_date(datetime(2026, 7, 26, 20, 15)),
+            date(2026, 7, 27),
+        )
+        self.assertEqual(
+            xsp_capture_window_date(datetime(2026, 7, 27, 9, 27)),
+            date(2026, 7, 27),
+        )
+        self.assertEqual(
+            xsp_capture_window_date(datetime(2026, 7, 27, 16, 59)),
+            date(2026, 7, 27),
+        )
+        self.assertIsNone(
+            xsp_capture_window_date(datetime(2026, 7, 27, 17, 0))
+        )
+        self.assertIsNone(
+            xsp_capture_window_date(datetime(2026, 7, 31, 20, 15))
+        )
+
     def test_special_closed_day_not_trading(self) -> None:
         self.assertFalse(is_trading_day(date(2025, 1, 9)))
-        self.assertEqual(expected_sessions(date(2025, 1, 9), session_mode="full24"), set())
+        self.assertEqual(
+            expected_sessions(date(2025, 1, 9), session_mode="full24"), set()
+        )
 
-    def test_expected_sessions_include_overnight_late_when_next_day_trades(self) -> None:
+    def test_expected_sessions_include_overnight_late_when_next_day_trades(
+        self,
+    ) -> None:
         sessions = expected_sessions(date(2025, 1, 13), session_mode="full24")
-        self.assertEqual(tuple(sorted(sessions, key=lambda x: SESSION_ORDER.index(x))), SESSION_ORDER)
+        self.assertEqual(
+            tuple(sorted(sessions, key=lambda x: SESSION_ORDER.index(x))), SESSION_ORDER
+        )
 
     def test_expected_sessions_skip_overnight_late_before_weekend(self) -> None:
         sessions = expected_sessions(date(2025, 1, 10), session_mode="full24")
@@ -48,7 +95,9 @@ class BacktestTradingCalendarTests(unittest.TestCase):
         start_utc, end_utc = utc_bounds_for_et_day(date(2025, 1, 15))
         self.assertEqual(start_utc, datetime(2025, 1, 15, 5, 0))
         self.assertEqual(end_utc, datetime(2025, 1, 16, 4, 59))
-        self.assertEqual(et_day_from_utc_naive(datetime(2025, 1, 16, 0, 30)), date(2025, 1, 15))
+        self.assertEqual(
+            et_day_from_utc_naive(datetime(2025, 1, 16, 0, 30)), date(2025, 1, 15)
+        )
 
     def test_early_close_day_rules(self) -> None:
         self.assertTrue(is_early_close_day(date(2025, 11, 28)))

@@ -5,6 +5,7 @@ These snapshots are meant to be:
 - append-only,
 - reusable for both backtesting validation and live bot monitoring.
 """
+
 from __future__ import annotations
 
 import fcntl
@@ -12,7 +13,9 @@ import hashlib
 import json
 import math
 import os
+import statistics
 import tempfile
+from collections import Counter
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -256,9 +259,7 @@ def make_snapshot(
         chain_fingerprint=chain_fingerprint,
         target_expiry=target_expiry,
         session=(
-            xsp_session_label_et(now)
-            if str(symbol).strip().upper() == "XSP"
-            else None
+            xsp_session_label_et(now) if str(symbol).strip().upper() == "XSP" else None
         ),
     )
 
@@ -323,36 +324,181 @@ def append_snapshot(path: Path, snapshot: QuoteSnapshot) -> None:
         fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
+def repair_snapshot_tail(path: Path) -> int:
+    """Restore the last committed JSONL boundary after an interrupted append."""
+
+    if not path.exists():
+        return 0
+    with path.open("a+b") as handle:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        handle.seek(0, os.SEEK_END)
+        before = handle.tell()
+        _repair_jsonl_tail(handle)
+        handle.seek(0, os.SEEK_END)
+        after = handle.tell()
+        if after != before:
+            handle.flush()
+            os.fsync(handle.fileno())
+        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+    return max(0, before - after)
+
+
+def quote_tape_receipt(path: Path) -> dict[str, object]:
+    """Describe one immutable tape state without weakening JSONL validation."""
+
+    with path.open("rb") as handle:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_SH)
+        raw = handle.read()
+        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+    payloads = []
+    for line_no, line in enumerate(raw.splitlines(), 1):
+        if not line.strip():
+            continue
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"{path}:{line_no}: invalid snapshot JSON") from exc
+        if not isinstance(payload, dict):
+            raise ValueError(f"{path}:{line_no}: snapshot must be an object")
+        payloads.append(payload)
+    snapshots = tuple(_snapshot_from_payload(payload) for payload in payloads)
+    timestamps = [_parse_datetime(snapshot.ts) for snapshot in snapshots]
+    manifest_fingerprints = sorted(
+        {
+            str(snapshot.chain_fingerprint)
+            for snapshot in snapshots
+            if snapshot.chain_fingerprint
+        }
+    )
+    manifests = {}
+    for fingerprint in manifest_fingerprints:
+        manifest_path = path.parent / "chains" / f"{fingerprint}.json"
+        manifests[fingerprint] = (
+            hashlib.sha256(manifest_path.read_bytes().rstrip(b"\n")).hexdigest()
+            if manifest_path.exists()
+            else None
+        )
+    option_rows = [option for snapshot in snapshots for option in snapshot.options]
+    return {
+        "schema": "option.quote-tape-receipt.v1",
+        "tape": {
+            "name": path.name,
+            "sha256": hashlib.sha256(raw).hexdigest(),
+            "bytes": len(raw),
+            "rows": len(snapshots),
+        },
+        "integrity": {
+            "newline_terminated": not raw or raw.endswith(b"\n"),
+            "strict_timestamp_order": bool(
+                all(timestamp is not None for timestamp in timestamps)
+                and timestamps == sorted(timestamps)
+                and len(timestamps) == len(set(timestamps))
+            ),
+            "manifest_sha256": manifests,
+            "missing_manifests": [
+                fingerprint
+                for fingerprint, digest in manifests.items()
+                if digest != fingerprint
+            ],
+            "invalid_conids": sum(
+                option.con_id is None or option.con_id <= 0 for option in option_rows
+            ),
+        },
+        "evidence": {
+            "sessions": dict(
+                sorted(Counter(str(snapshot.session) for snapshot in snapshots).items())
+            ),
+            "target_expiries": sorted(
+                {
+                    str(snapshot.target_expiry)
+                    for snapshot in snapshots
+                    if snapshot.target_expiry
+                }
+            ),
+            "options": len(option_rows),
+            "market_data_types": dict(
+                sorted(
+                    Counter(
+                        str(int(option.market_data_type))
+                        for option in option_rows
+                        if option.market_data_type is not None
+                    ).items()
+                )
+            ),
+            "error_codes": dict(
+                sorted(
+                    Counter(
+                        str(int(error.code))
+                        for snapshot in snapshots
+                        for error in snapshot.errors
+                    ).items()
+                )
+            ),
+        },
+    }
+
+
+def persist_quote_tape_receipt(path: Path) -> Path:
+    """Atomically persist a receipt addressed by the exact tape bytes."""
+
+    receipt = quote_tape_receipt(path)
+    tape_sha = str(receipt["tape"]["sha256"])
+    destination = path.parent / "receipts" / f"{path.stem}.{tape_sha}.json"
+    payload = json.dumps(receipt, separators=(",", ":"), sort_keys=True).encode()
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(
+        dir=destination.parent,
+        delete=False,
+    ) as handle:
+        temporary = Path(handle.name)
+        handle.write(payload)
+        handle.write(b"\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.chmod(temporary, 0o644)
+    try:
+        os.replace(temporary, destination)
+    finally:
+        temporary.unlink(missing_ok=True)
+    return destination
+
+
 def iter_snapshot_payloads(path: Path) -> Iterator[dict[str, object]]:
     with path.open("rb") as handle:
-        for line_no, line in enumerate(handle, 1):
-            if not line.strip():
-                continue
-            try:
-                payload = json.loads(line)
-            except json.JSONDecodeError as exc:
-                raise ValueError(f"{path}:{line_no}: invalid snapshot JSON") from exc
-            if not isinstance(payload, dict):
-                raise ValueError(f"{path}:{line_no}: snapshot must be an object")
-            yield payload
+        fcntl.flock(handle.fileno(), fcntl.LOCK_SH)
+        try:
+            for line_no, line in enumerate(handle, 1):
+                if not line.strip():
+                    continue
+                try:
+                    payload = json.loads(line)
+                except json.JSONDecodeError as exc:
+                    raise ValueError(
+                        f"{path}:{line_no}: invalid snapshot JSON"
+                    ) from exc
+                if not isinstance(payload, dict):
+                    raise ValueError(f"{path}:{line_no}: snapshot must be an object")
+                yield payload
+        finally:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
 def iter_snapshots(path: Path) -> Iterator[QuoteSnapshot]:
     for payload in iter_snapshot_payloads(path):
-        yield QuoteSnapshot(
-            **{
-                **payload,
-                "underlying": QuoteContract(**payload["underlying"]),
-                "options": [
-                    QuoteContract(**option)
-                    for option in payload.get("options", [])
-                ],
-                "errors": [
-                    QuoteError(**error)
-                    for error in payload.get("errors", [])
-                ],
-            }
-        )
+        yield _snapshot_from_payload(payload)
+
+
+def _snapshot_from_payload(payload: dict[str, object]) -> QuoteSnapshot:
+    return QuoteSnapshot(
+        **{
+            **payload,
+            "underlying": QuoteContract(**payload["underlying"]),
+            "options": [
+                QuoteContract(**option) for option in payload.get("options", [])
+            ],
+            "errors": [QuoteError(**error) for error in payload.get("errors", [])],
+        }
+    )
 
 
 def quote_captured_option_package(
@@ -506,8 +652,7 @@ def snapshot_quality(
             )
         )
     qualified = [
-        option.con_id is not None and option.con_id > 0
-        for option in snapshot.options
+        option.con_id is not None and option.con_id > 0 for option in snapshot.options
     ]
     qualified_count = sum(qualified)
     eligible_count = sum(
@@ -579,6 +724,191 @@ def snapshot_quality(
         ),
         "full_greek_options": full_greek_count,
         "errors": len(snapshot.errors),
+    }
+
+
+def option_implied_underlier(
+    snapshot: QuoteSnapshot,
+    *,
+    max_age_sec: float = 30.0,
+    min_observations: int = 5,
+    max_dispersion_points: float = 0.05,
+) -> dict[str, object]:
+    """Project a provenance-bound option-model consensus, never an executable quote."""
+
+    observed_at = _parse_datetime(snapshot.ts)
+    rows: list[tuple[float, float, int | None]] = []
+    if observed_at is not None:
+        for option in snapshot.options:
+            quote_at = _parse_datetime(option.quote_time)
+            value = _none_if_nan(option.model_under_price)
+            if (
+                option.con_id is None
+                or option.con_id <= 0
+                or quote_at is None
+                or value is None
+                or value <= 0
+            ):
+                continue
+            age = (observed_at - quote_at).total_seconds()
+            if 0.0 <= age <= float(max_age_sec):
+                rows.append((value, age, option.market_data_type))
+    values = [row[0] for row in rows]
+    center = float(statistics.median(values)) if values else None
+    dispersion = (
+        max(abs(value - center) for value in values) if center is not None else None
+    )
+    reasons: list[str] = []
+    if not _snapshot_has_provenance(snapshot):
+        reasons.append("provenance_incomplete")
+    if observed_at is None:
+        reasons.append("invalid_snapshot_time")
+    if len(rows) < max(1, int(min_observations)):
+        reasons.append("insufficient_model_observations")
+    if dispersion is not None and dispersion > float(max_dispersion_points):
+        reasons.append("model_dispersion")
+    return {
+        "source": "option_model_consensus",
+        "symbol": str(snapshot.symbol or "").strip().upper(),
+        "ts": snapshot.ts,
+        "session": snapshot.session,
+        "chain_fingerprint": snapshot.chain_fingerprint,
+        "target_expiry": snapshot.target_expiry,
+        "value": center,
+        "observations": len(rows),
+        "dispersion_points": dispersion,
+        "max_age_seconds": max((row[1] for row in rows), default=None),
+        "market_data_types": dict(
+            sorted(
+                Counter(str(int(row[2])) for row in rows if row[2] is not None).items()
+            )
+        ),
+        "usable": not reasons,
+        "reasons": tuple(reasons),
+    }
+
+
+def option_parity_observation(
+    snapshot: QuoteSnapshot,
+    *,
+    max_age_sec: float = 30.0,
+    min_pairs: int = 3,
+    max_pairs: int = 5,
+) -> dict[str, object]:
+    """Observe nearby call/put parity and liquidity without trading authority."""
+    observed_at = _parse_datetime(snapshot.ts)
+    underlying_at = _parse_datetime(snapshot.underlying.quote_time)
+    underlying_age = (
+        (observed_at - underlying_at).total_seconds()
+        if observed_at is not None and underlying_at is not None
+        else None
+    )
+    anchor = _midpoint(
+        snapshot.underlying.bid, snapshot.underlying.ask
+    ) or _none_if_nan(snapshot.underlying.last)
+    anchor_source = "underlying"
+    if (
+        anchor is None
+        or anchor <= 0
+        or underlying_age is None
+        or not 0.0 <= underlying_age <= float(max_age_sec)
+    ):
+        implied = option_implied_underlier(snapshot, max_age_sec=max_age_sec)
+        anchor = implied["value"] if implied["usable"] else None
+        anchor_source = "option_model_consensus"
+    by_strike: dict[float, dict[str, tuple[QuoteContract, float, float]]] = {}
+    if observed_at is not None:
+        for option in snapshot.options:
+            quote_at = _parse_datetime(option.quote_time)
+            age = (
+                (observed_at - quote_at).total_seconds()
+                if quote_at is not None
+                else None
+            )
+            health = quote_health(
+                bid=option.bid,
+                ask=option.ask,
+                last=option.last,
+                close=option.close,
+                market_data_type=option.market_data_type,
+                age_sec=age,
+                max_age_sec=max_age_sec,
+                require_live=False,
+                require_nbbo=True,
+                require_age=True,
+            )
+            right = str(option.right or "").strip().upper()[:1]
+            midpoint = _midpoint(option.bid, option.ask)
+            if (
+                option.con_id is None
+                or option.con_id <= 0
+                or option.expiry != snapshot.target_expiry
+                or option.strike is None
+                or right not in ("C", "P")
+                or midpoint is None
+                or age is None
+                or not health["eligible"]
+            ):
+                continue
+            by_strike.setdefault(float(option.strike), {})[right] = (
+                option,
+                midpoint,
+                age,
+            )
+    pairs = [
+        (strike, sides["C"], sides["P"])
+        for strike, sides in by_strike.items()
+        if "C" in sides and "P" in sides
+    ]
+    if anchor is not None:
+        pairs.sort(key=lambda row: (abs(row[0] - float(anchor)), row[0]))
+    pairs = pairs[: max(1, int(max_pairs))]
+    parity = [strike + call[1] - put[1] for strike, call, put in pairs]
+    center = float(statistics.median(parity)) if parity else None
+    spreads = [
+        (option.ask - option.bid) / midpoint
+        for _, call, put in pairs
+        for option, midpoint, _ in (call, put)
+        if option.bid is not None and option.ask is not None and midpoint > 0
+    ]
+    selected = [side for _, call, put in pairs for side in (call, put)]
+    reasons = []
+    if not _snapshot_has_provenance(snapshot):
+        reasons.append("provenance_incomplete")
+    if anchor is None:
+        reasons.append("anchor_unavailable")
+    if len(pairs) < max(1, int(min_pairs)):
+        reasons.append("insufficient_nbbo_pairs")
+    return {
+        "source": "option_nbbo_parity",
+        "symbol": str(snapshot.symbol or "").strip().upper(),
+        "ts": snapshot.ts,
+        "session": snapshot.session,
+        "chain_fingerprint": snapshot.chain_fingerprint,
+        "target_expiry": snapshot.target_expiry,
+        "anchor": anchor,
+        "anchor_source": anchor_source,
+        "value": center,
+        "pairs": len(pairs),
+        "strikes": tuple(row[0] for row in pairs),
+        "dispersion_points": (
+            max(abs(value - center) for value in parity) if center is not None else None
+        ),
+        "median_relative_spread": float(statistics.median(spreads))
+        if spreads
+        else None,
+        "max_age_seconds": max((row[2] for row in selected), default=None),
+        "market_data_types": dict(
+            sorted(
+                Counter(
+                    str(int(row[0].market_data_type))
+                    for row in selected
+                    if row[0].market_data_type is not None
+                ).items()
+            ),
+        ),
+        "usable": not reasons,
+        "reasons": tuple(reasons),
     }
 
 

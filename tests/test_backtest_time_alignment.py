@@ -79,6 +79,17 @@ class BacktestTimeAlignmentTests(unittest.TestCase):
         self.assertEqual(out[1].ts, datetime(2025, 1, 2, 20, 0))
         self.assertEqual(out[2].ts, datetime(2025, 1, 2, 21, 0))
 
+    def test_rth_alignment_discards_starts_at_or_after_session_close(self) -> None:
+        raw = [
+            Bar(ts=datetime(2025, 1, 2, 20, 55), open=1, high=1, low=1, close=1, volume=0),
+            Bar(ts=datetime(2025, 1, 2, 21, 0), open=2, high=2, low=2, close=2, volume=0),
+            Bar(ts=datetime(2025, 1, 2, 21, 5), open=3, high=3, low=3, close=3, volume=0),
+        ]
+
+        out = _normalize_bars(raw, symbol="TQQQ", bar_size="5 mins", use_rth=True)
+
+        self.assertEqual([bar.ts for bar in out], [datetime(2025, 1, 2, 21, 0)])
+
 
 if __name__ == "__main__":
     unittest.main()

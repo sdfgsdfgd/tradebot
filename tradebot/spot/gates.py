@@ -6,7 +6,7 @@ eligibility, regime/shock permissions, and entry capacity.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, is_dataclass, replace
 from datetime import datetime, time, timedelta
 
@@ -25,7 +25,9 @@ from .fill_modes import (
 )
 from .graph_core import spot_dynamic_flip_hold_bars
 from .policy import SpotPolicy
+from .policy_contract import normalize_shock_gate_mode
 from .policy_contract import source_value as _get
+
 
 @dataclass(frozen=True)
 class SpotDeferredEntryPlan:
@@ -355,12 +357,10 @@ def entry_capacity_ok(
     open_count: int,
     max_entries_per_day: int,
     entries_today: int,
-    weekday: int,
-    entry_days: Sequence[int],
 ) -> bool:
     open_slots_ok = int(open_count) < 1
     entries_ok = int(max_entries_per_day) == 0 or int(entries_today) < int(max_entries_per_day)
-    return bool(open_slots_ok and entries_ok and int(weekday) in {int(d) for d in entry_days})
+    return bool(open_slots_ok and entries_ok)
 
 
 def next_open_entry_allowed(
@@ -622,20 +622,6 @@ def flip_exit_allowed(
     return held_bars >= hold_bars
 
 
-def _normalize_shock_gate_mode(filters: Mapping[str, object] | object | None) -> str:
-    raw = _get(filters, "shock_gate_mode")
-    if raw is None:
-        raw = _get(filters, "shock_mode")
-    if isinstance(raw, bool):
-        raw = "block" if raw else "off"
-    mode = str(raw or "off").strip().lower()
-    if mode in ("", "0", "false", "none", "null"):
-        mode = "off"
-    if mode not in ("off", "detect", "block", "block_longs", "block_shorts", "surf"):
-        mode = "off"
-    return mode
-
-
 def flip_exit_gate_blocked(
     *,
     gate_mode_raw: str | None,
@@ -758,7 +744,7 @@ def _signal_filter_shock_gate_ok(
     shock_dir: str | None,
     signal: object | None,
 ) -> bool:
-    shock_mode = _normalize_shock_gate_mode(filters)
+    shock_mode = normalize_shock_gate_mode(filters)
     if shock_mode == "block":
         if shock is None:
             return False
@@ -873,6 +859,55 @@ _SIGNAL_FILTER_REGISTRY: tuple[tuple[str, Callable[[Mapping[str, object] | objec
         ),
     ),
 )
+
+
+def _active_signal_filter_names(
+    filters: Mapping[str, object] | object | None,
+) -> tuple[str, ...]:
+    """Return only configured permission filters, in their execution order."""
+    if filters is None:
+        return ()
+
+    def _positive(key: str) -> bool:
+        try:
+            return float(_get(filters, key, 0) or 0) > 0
+        except (TypeError, ValueError):
+            return False
+
+    active = {
+        "rv": (
+            _get(filters, "rv_min", None) is not None
+            or _get(filters, "rv_max", None) is not None
+        ),
+        "time": (
+            (
+                _get(filters, "entry_start_hour_et", None) is not None
+                and _get(filters, "entry_end_hour_et", None) is not None
+            )
+            or (
+                _get(filters, "entry_start_hour", None) is not None
+                and _get(filters, "entry_end_hour", None) is not None
+            )
+        ),
+        "skip_first": _positive("skip_first_bars"),
+        "cooldown": _positive("cooldown_bars"),
+        "shock_gate": normalize_shock_gate_mode(filters)
+        not in ("off", "detect"),
+        "permission": any(
+            _get(filters, key, None) is not None
+            for key in (
+                "ema_spread_min_pct",
+                "ema_spread_min_pct_down",
+                "ema_slope_min_pct",
+                "ema_slope_signed_min_pct_up",
+                "ema_slope_signed_min_pct_down",
+            )
+        ),
+        "volume": _get(filters, "volume_ratio_min", None) is not None,
+    }
+    return tuple(
+        name for name, _predicate in _SIGNAL_FILTER_REGISTRY if active[name]
+    )
 
 
 def signal_filter_checks(

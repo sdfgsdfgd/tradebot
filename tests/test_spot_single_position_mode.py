@@ -10,6 +10,7 @@ import pytest
 from tradebot.backtest.config import load_config
 from tradebot.backtest.data import ContractMeta
 from tradebot.backtest.engine import (
+    _run_spot_backtest_exec_loop,
     _run_spot_backtest_summary,
     _spot_exec_alignment,
     _trade_date,
@@ -133,6 +134,75 @@ def _base_cfg(day: date) -> ConfigBundle:
         min_spread_pct=0.0,
     )
     return ConfigBundle(backtest=backtest, strategy=strategy, synthetic=synthetic)
+
+
+def test_directional_turn_uses_causal_trailing_exit_in_normal_backtest() -> None:
+    day = date(2024, 7, 22)
+    cfg = _base_cfg(day)
+    cfg = replace(
+        cfg,
+        backtest=replace(cfg.backtest, bar_size="5 mins", use_rth=True),
+        strategy=replace(
+            cfg.strategy,
+            entry_signal="directional_impulse",
+            regime_mode="off",
+            max_entries_per_day=4,
+            exit_on_signal_flip=False,
+            spot_controlled_flip=False,
+            spot_atr_period=3,
+            spot_stop_loss_pct=None,
+            spot_excursion_exit={
+                "initial_stop_atr": 2.0,
+                "trail_activate_atr": 0.5,
+                "trail_distance_atr": 0.25,
+            },
+        ),
+    )
+    closes = [100.0 + (0.4 * index) for index in range(25)] + [
+        109.6,
+        108.6,
+        107.6,
+        106.6,
+        107.5,
+        107.0,
+        106.5,
+    ]
+    start = datetime(2024, 7, 22, 13, 30)
+    bars: list[Bar] = []
+    previous = closes[0]
+    for index, close in enumerate(closes):
+        open_price = previous if index else close
+        bars.append(
+            Bar(
+                ts=start + timedelta(minutes=5 * index),
+                open=open_price,
+                high=max(open_price, close) + 0.1,
+                low=min(open_price, close) - 0.1,
+                close=close,
+                volume=1_000.0,
+            )
+        )
+        previous = close
+
+    result = _run_spot_backtest_exec_loop(
+        cfg,
+        signal_bars=bars,
+        exec_bars=bars,
+        meta=ContractMeta(
+            symbol="XSP",
+            exchange="CBOE",
+            multiplier=1.0,
+            min_tick=0.01,
+        ),
+    )
+
+    assert len(result.trades) == 1
+    trade = result.trades[0]
+    assert trade.qty < 0
+    assert trade.exit_reason == trade.stop_loss_reason == "trail_stop"
+    assert trade.bars_held == 1
+    assert trade.max_favorable_excursion > trade.max_adverse_excursion
+    assert trade.exit_price == pytest.approx(trade.stop_loss_price)
 
 
 def test_spot_evaluator_tape_reuses_exit_variants_and_invalidates_signal_inputs() -> None:

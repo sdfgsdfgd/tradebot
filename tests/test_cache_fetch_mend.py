@@ -11,7 +11,7 @@ from tradebot.backtest.cache_ops.sync import (
     _fetch_single_request,
     _repo_root,
 )
-from tradebot.backtest.cache_ops.coverage import _intra_session_gap_days
+from tradebot.backtest.cache_ops.coverage import _audit_rows, _intra_session_gap_days
 from tradebot.backtest.cache_ops.repair import (
     _adaptive_thread_plan,
     _fetch_day_from_ibkr,
@@ -78,6 +78,50 @@ def test_day_repair_uses_canonical_index_without_overnight(monkeypatch) -> None:
     assert out.ok is True
     assert _Provider.resolve_calls == [("VIX", None)]
     assert out.overnight_rows == 0
+
+
+def test_day_repair_reuses_head_aware_stock_full24_fetch(monkeypatch) -> None:
+    class _Contract:
+        secType = "STK"
+
+    class _Provider:
+        component_calls = 0
+
+        def __init__(self, *, client_id_offset: int) -> None:
+            assert client_id_offset == 17
+
+        def resolve_contract(self, symbol: str, exchange: str | None):
+            return _Contract(), object()
+
+        def _fetch_stock_full24_components(self, *_args):
+            type(self).component_calls += 1
+            return [_bar(datetime(2025, 1, 15, 14, 30))], []
+
+        def _fetch_bars(self, *_args, **_kwargs):
+            raise AssertionError("stock full24 repair bypassed canonical fetch")
+
+        def disconnect(self) -> None:
+            return
+
+    monkeypatch.setattr(
+        "tradebot.backtest.cache_ops.repair.IBKRHistoricalData",
+        _Provider,
+    )
+
+    out = _fetch_day_from_ibkr(
+        symbol="SPY",
+        bar_size="5 mins",
+        day=date(2025, 1, 15),
+        use_rth=False,
+        timeout_sec=1.0,
+        retries=1,
+        client_id_offset=17,
+    )
+
+    assert out.ok is True
+    assert out.smart_rows == 1
+    assert out.overnight_rows == 0
+    assert _Provider.component_calls == 1
 
 
 def test_day_repair_does_not_retry_proven_unavailability(monkeypatch) -> None:
@@ -238,6 +282,55 @@ def test_five_minute_rth_accepts_complete_early_close() -> None:
         session_mode="rth",
         bar_size="5 mins",
     ) == {}
+
+
+def test_full24_audit_requires_overnight_only_after_observed_broker_head() -> None:
+    def _at(day: date, hour_utc: int) -> Bar:
+        return _bar(datetime.combine(day, datetime.min.time()).replace(hour=hour_utc))
+
+    rows = [
+        # 2023-07-14 ET: SMART extended only, before OVERNIGHT availability.
+        _at(date(2023, 7, 14), 12),
+        _at(date(2023, 7, 14), 14),
+        _at(date(2023, 7, 14), 22),
+        # 2023-07-17 ET: complete full24 evidence from the broker head onward.
+        _at(date(2023, 7, 17), 5),
+        _at(date(2023, 7, 17), 12),
+        _at(date(2023, 7, 17), 14),
+        _at(date(2023, 7, 17), 22),
+        _at(date(2023, 7, 18), 1),
+    ]
+
+    audit = _audit_rows(
+        rows,
+        start_utc_date=date(2023, 7, 14),
+        end_utc_date=date(2023, 7, 18),
+        session_mode="full24",
+        full24_available_from_et=date(2023, 7, 17),
+    )
+
+    assert audit["anomaly_days_effective"] == {}
+
+
+def test_full24_audit_still_detects_missing_overnight_after_broker_head() -> None:
+    rows = [
+        _bar(datetime(2023, 7, 17, 12)),
+        _bar(datetime(2023, 7, 17, 14)),
+        _bar(datetime(2023, 7, 17, 22)),
+    ]
+
+    audit = _audit_rows(
+        rows,
+        start_utc_date=date(2023, 7, 17),
+        end_utc_date=date(2023, 7, 18),
+        session_mode="full24",
+        full24_available_from_et=date(2023, 7, 17),
+    )
+
+    assert audit["anomaly_days_effective"]["2023-07-17"] == [
+        "OVERNIGHT_EARLY",
+        "OVERNIGHT_LATE",
+    ]
 
 
 def test_fetch_single_request_auto_mends_existing_1min_gap(monkeypatch, tmp_path) -> None:

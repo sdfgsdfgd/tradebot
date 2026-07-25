@@ -1,5 +1,5 @@
 import unittest
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from types import SimpleNamespace
 
 from tradebot.spot.evaluator_common import (
@@ -10,7 +10,7 @@ from tradebot.spot.evaluator_common import (
 )
 from tradebot.spot.evaluator_policy import SpotSignalPolicyMixin
 from tradebot.spot.evaluator_regime import SpotSignalRegimeMixin
-from tradebot.spot.evaluator_setup import _regime_gate_policy
+from tradebot.spot.entry_control import spot_regime_gate_policy
 from tradebot.spot.gates import flip_exit_allowed
 from tradebot.spot.policy import SpotPolicy, SpotPolicyConfigView
 
@@ -84,7 +84,7 @@ class SpotPolicyKernelTests(unittest.TestCase):
         )
 
     def test_legacy_regime_keys_decode_into_semantic_gate_policy(self) -> None:
-        policy = _regime_gate_policy(
+        policy = spot_regime_gate_policy(
             {
                 "regime2_crash_atr_pct_min": -1,
                 "regime2_crash_prearm_apply_to": "invalid",
@@ -140,6 +140,58 @@ class SpotPolicyKernelTests(unittest.TestCase):
 
         self.assertEqual(aligned.candidate, SpotEntryCandidate("up", "a"))
         self.assertEqual(blocked.candidate, SpotEntryCandidate(None))
+
+    def test_primary_regime_veto_reaches_the_final_signal_selection(self) -> None:
+        from tradebot.spot_engine import SpotSignalEvaluator
+
+        base = datetime(2026, 7, 20, 13, 30)
+        regime_bars = [
+            SimpleNamespace(
+                ts=base + timedelta(minutes=5 * index),
+                open=120.0 - index,
+                high=120.2 - index,
+                low=119.8 - index,
+                close=120.0 - index,
+                volume=1_000.0,
+            )
+            for index in range(12)
+        ]
+        evaluator = SpotSignalEvaluator(
+            strategy={
+                "entry_signal": "ema",
+                "ema_preset": "2/3",
+                "ema_entry_mode": "trend",
+                "regime_mode": "ema",
+                "regime_ema_preset": "2/3",
+            },
+            filters=None,
+            bar_size="5 mins",
+            use_rth=True,
+            naive_ts_mode="utc",
+            regime_bars=regime_bars,
+        )
+        snapshot = None
+        for index in range(12):
+            close = 100.0 + index
+            snapshot = evaluator.update_signal_bar(
+                SimpleNamespace(
+                    ts=base + timedelta(minutes=5 * index),
+                    open=close,
+                    high=close + 0.2,
+                    low=close - 0.2,
+                    close=close,
+                    volume=1_000.0,
+                )
+            )
+
+        self.assertIsNotNone(snapshot)
+        self.assertEqual(snapshot.signal.state, "up")
+        self.assertEqual(snapshot.signal.regime_dir, "down")
+        self.assertIsNone(snapshot.signal.entry_dir)
+        self.assertEqual(snapshot.entry_proposed_dir, "up")
+        self.assertIsNone(snapshot.entry_dir)
+        self.assertEqual(snapshot.entry_blocked_by, "primary_regime")
+        self.assertIn("primary_regime:block", snapshot.entry_controls)
 
     def test_flip_exit_allowed_enforces_canonical_hold_boundary(self) -> None:
         strategy = {

@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
 from types import SimpleNamespace
 
 from ib_insync import Stock
 
 from tradebot.client import OhlcvBar
+from tradebot.engines.market import is_early_close_day, is_trading_day
 from tradebot.time_utils import now_et_naive
 from tradebot.ui.bot import BotScreen
 
@@ -180,7 +181,7 @@ class _SnapshotClient:
         what_to_show: str,
         cache_ttl_sec: float,
     ):
-        _ = contract, what_to_show, cache_ttl_sec, use_rth
+        _ = contract, what_to_show, cache_ttl_sec
         duration = str(duration_str).strip()
         size = str(bar_size).strip()
         self.calls.append((duration, size))
@@ -203,6 +204,32 @@ class _SnapshotClient:
             return bars
 
         step_mins = 5 if "5" in size else 10
+        if use_rth:
+            bars = []
+            day = now_ref.date()
+            while len(bars) < int(self.intraday_bars):
+                if is_trading_day(day):
+                    session_end = time(13, 0) if is_early_close_day(day) else time(16, 0)
+                    cursor = datetime.combine(day, time(9, 30))
+                    latest_start = min(
+                        datetime.combine(day, session_end) - timedelta(minutes=step_mins),
+                        now_ref - timedelta(minutes=step_mins),
+                    )
+                    while cursor <= latest_start:
+                        bars.append(
+                            OhlcvBar(
+                                ts=cursor,
+                                open=1.0,
+                                high=1.0,
+                                low=1.0,
+                                close=1.0,
+                                volume=1.0,
+                            )
+                        )
+                        cursor += timedelta(minutes=step_mins)
+                day -= timedelta(days=1)
+            return sorted(bars, key=lambda bar: bar.ts)[-int(self.intraday_bars) :]
+
         bars = []
         last_ts = now_ref - timedelta(minutes=max(2, step_mins + 1))
         start_ts = last_ts - timedelta(minutes=step_mins * int(self.intraday_bars - 1))

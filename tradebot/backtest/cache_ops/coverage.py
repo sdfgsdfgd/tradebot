@@ -112,12 +112,40 @@ def _sort_sessions(labels: Iterable[str]) -> list[str]:
     return sorted(labels, key=lambda x: order.get(x, 999))
 
 
+def _first_overnight_et_day(bars: Iterable[Bar]) -> date | None:
+    first: date | None = None
+    for bar in bars:
+        ts_et = _to_et_shared(bar.ts, naive_ts_mode=NaiveTsMode.UTC)
+        if _session_label_et(
+            ts_et.timetz().replace(tzinfo=None)
+        ) not in {"OVERNIGHT_EARLY", "OVERNIGHT_LATE"}:
+            continue
+        first = min(first, ts_et.date()) if first is not None else ts_et.date()
+    return first
+
+
+def _session_mode_for_day(
+    session_mode: str,
+    day: date,
+    *,
+    full24_available_from_et: date | None,
+) -> str:
+    if (
+        session_mode == "full24"
+        and full24_available_from_et is not None
+        and day < full24_available_from_et
+    ):
+        return "smart_ext"
+    return session_mode
+
+
 def _audit_rows(
     bars: Iterable[Bar],
     *,
     start_utc_date: date,
     end_utc_date: date,
     session_mode: str,
+    full24_available_from_et: date | None = None,
 ) -> dict[str, object]:
     start_utc = datetime.combine(start_utc_date, time(0, 0))
     end_utc = datetime.combine(end_utc_date, time(23, 59))
@@ -129,13 +157,24 @@ def _audit_rows(
     boundary_partial_days: set[date] = set()
     start_time = start_et.timetz().replace(tzinfo=None)
     end_time = end_et.timetz().replace(tzinfo=None)
-    required_bounds = {
+    bounds = {
         "rth": (time(9, 30), time(15, 59)),
         "smart_ext": (time(4, 0), time(19, 59)),
-    }.get(session_mode, (time(0, 0), time(23, 59)))
-    if start_time > required_bounds[0]:
+        "full24": (time(0, 0), time(23, 59)),
+    }
+    start_bounds = bounds[_session_mode_for_day(
+        session_mode,
+        et_day_start,
+        full24_available_from_et=full24_available_from_et,
+    )]
+    end_bounds = bounds[_session_mode_for_day(
+        session_mode,
+        et_day_end,
+        full24_available_from_et=full24_available_from_et,
+    )]
+    if start_time > start_bounds[0]:
         boundary_partial_days.add(et_day_start)
-    if end_time < required_bounds[1]:
+    if end_time < end_bounds[1]:
         boundary_partial_days.add(et_day_end)
 
     sessions_by_day, rows_by_day = _day_state_for_bars(bars, start_utc=start_utc, end_utc=end_utc)
@@ -145,7 +184,14 @@ def _audit_rows(
     missing_counts_effective = {k: 0 for k in _SESSION_ORDER}
 
     for day in _daterange(et_day_start, et_day_end):
-        expected = _expected_sessions(day, session_mode=session_mode)
+        expected = _expected_sessions(
+            day,
+            session_mode=_session_mode_for_day(
+                session_mode,
+                day,
+                full24_available_from_et=full24_available_from_et,
+            ),
+        )
         if not expected:
             continue
         have = sessions_by_day.get(day, set())
@@ -204,6 +250,7 @@ def _intra_session_gap_days(
     end_utc_date: date,
     session_mode: str,
     bar_size: str,
+    full24_available_from_et: date | None = None,
 ) -> dict[str, list[str]]:
     step = _auditable_intraday_step(bar_size)
     if step is None:
@@ -220,7 +267,14 @@ def _intra_session_gap_days(
         if sess is None:
             continue
         day = ts_et.date()
-        if sess not in _expected_sessions(day, session_mode=session_mode):
+        if sess not in _expected_sessions(
+            day,
+            session_mode=_session_mode_for_day(
+                session_mode,
+                day,
+                full24_available_from_et=full24_available_from_et,
+            ),
+        ):
             continue
         by_day_session[(day, sess)].append(ts)
 

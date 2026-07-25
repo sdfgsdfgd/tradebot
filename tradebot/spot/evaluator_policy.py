@@ -7,8 +7,12 @@ from datetime import date, datetime
 from statistics import median
 
 from ..engine import _trade_date as _trade_date_shared, _trade_hour_et as _trade_hour_et_shared
+from ..engines.directional_impulse import DirectionalImpulseSnapshot
 from ..engines.risk import RiskOverlaySnapshot
-from ..engines.signals import EmaDecisionSnapshot, OrbDecisionEngine
+from ..engines.signals import (
+    EmaDecisionSnapshot,
+    OrbDecisionEngine,
+)
 from .evaluator_common import (
     BarLike,
     SpotEntryCandidate,
@@ -44,22 +48,69 @@ class SpotSignalPolicyMixin:
     def orb_engine(self) -> OrbDecisionEngine | None:
         return self._orb_engine
 
-    def _advance_entry_signal(self, *, bar: BarLike, close: float) -> SpotSignalSelection:
-        """Normalize EMA, dual-EMA, and ORB into one entry-selection contract."""
-        if self._signal_engine is not None:
-            signal = self._signal_engine.update(close)
+    def _advance_entry_signal(
+        self,
+        *,
+        bar: BarLike,
+        close: float,
+        directional_impulse: DirectionalImpulseSnapshot | None = None,
+    ) -> SpotSignalSelection:
+        """Normalize every supported source into one entry-selection contract."""
+        if self.entry_signal == "directional_impulse":
+            direction = (
+                directional_impulse.turn_event
+                if directional_impulse is not None
+                and directional_impulse.turn_ready
+                and directional_impulse.turn_event in ("up", "down")
+                else None
+            )
+            signal = EmaDecisionSnapshot(
+                ema_fast=None,
+                ema_slow=None,
+                prev_ema_fast=None,
+                prev_ema_slow=None,
+                ema_ready=bool(
+                    directional_impulse is not None
+                    and directional_impulse.turn_ready
+                ),
+                cross_up=direction == "up",
+                cross_down=direction == "down",
+                state=(
+                    directional_impulse.trend_state
+                    if directional_impulse is not None
+                    else None
+                ),
+                entry_dir=direction,
+                regime_dir=None,
+                regime_ready=True,
+            )
             return SpotSignalSelection(
                 signal=signal,
-                candidate=SpotEntryCandidate(
-                    self._branch_entry_dir(
-                        branch_key="single",
-                        signal=signal,
-                        close=float(close),
-                        min_signed_slope_pct=None,
-                        max_signed_slope_pct=None,
-                    )
+                candidate=SpotEntryCandidate(direction),
+                source=str(self.entry_signal),
+                proposed_direction=direction,
+                controls=(
+                    "directional_impulse:turn"
+                    if direction is not None
+                    else "directional_impulse:abstain",
                 ),
+            )
+
+        if self._signal_engine is not None:
+            signal = self._signal_engine.update(close)
+            direction = self._branch_entry_dir(
                 branch_key="single",
+                signal=signal,
+                close=float(close),
+                min_signed_slope_pct=None,
+                max_signed_slope_pct=None,
+            )
+            return SpotSignalSelection(
+                signal=signal,
+                candidate=SpotEntryCandidate(direction),
+                branch_key="single",
+                source=str(self.entry_signal),
+                proposed_direction=direction,
             )
 
         if (
@@ -79,6 +130,8 @@ class SpotSignalPolicyMixin:
                 signal=signal,
                 candidate=SpotEntryCandidate(direction, branch),
                 branch_key=branch_key,
+                source=str(self.entry_signal),
+                proposed_direction=direction,
             )
 
         if self._orb_engine is not None:
@@ -91,9 +144,15 @@ class SpotSignalPolicyMixin:
             return SpotSignalSelection(
                 signal=signal,
                 candidate=SpotEntryCandidate(signal.entry_dir if signal is not None else None),
+                source=str(self.entry_signal),
+                proposed_direction=signal.entry_dir if signal is not None else None,
             )
 
-        return SpotSignalSelection(signal=None, candidate=SpotEntryCandidate(None))
+        return SpotSignalSelection(
+            signal=None,
+            candidate=SpotEntryCandidate(None),
+            source=str(self.entry_signal),
+        )
 
     @staticmethod
     def _signed_fast_slope_pct(signal: EmaDecisionSnapshot, close: float) -> float | None:

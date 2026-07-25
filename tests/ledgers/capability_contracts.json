@@ -107,10 +107,13 @@
     "tests/test_capability_contracts.py": "verification-capability-evolution",
     "tests/test_client_market_data_fallbacks.py": "broker-connectivity-account",
     "tests/test_daily_climate_router.py": "signal-regime-intelligence",
+    "tests/test_directional_impulse.py": "signal-regime-intelligence",
     "tests/test_effective_filters_payload.py": "runtime-configuration-state",
     "tests/test_engine_time_semantics.py": "market-time-series-semantics",
     "tests/test_live_signal_exit_continuum.py": "live-execution-orders",
     "tests/test_live_execution_registry.py": "live-execution-orders",
+    "tests/test_live_calibration.py": "market-realism-parity",
+    "tests/test_news_signal.py": "signal-regime-intelligence",
     "tests/test_offline_cache_preflight.py": "backtest-data-cache",
     "tests/test_option_calibration_provenance.py": "research-optimization-calibration",
     "tests/test_option_package_economics.py": "live-execution-orders",
@@ -215,18 +218,23 @@
       "subsystem": "signal-regime-intelligence",
       "layer": "unit",
       "phase": "signal-regime-intelligence",
-      "capability": "Signals, shocks, regime routing, and required market context remain deterministic.",
+      "capability": "Signals, shocks, causal news reduction, entry authority, and required market context remain deterministic.",
       "fixtures": [
         "current proof surfaces for signal-regime-intelligence"
       ],
       "evidence": [
         "tests/test_daily_climate_router.py",
+        "tests/test_directional_impulse.py",
+        "tests/test_news_signal.py",
         "tests/test_spot_context_requirements.py",
         "tests/test_spot_signal_time_mode.py"
       ],
       "owner_surface": [
+        "tradebot/engines/directional_impulse.py",
         "tradebot/engines/shock.py",
         "tradebot/engines/signals.py",
+        "tradebot/news/contract.py",
+        "tradebot/news/pipeline.py",
         "tradebot/spot_engine.py"
       ],
       "oracle": [
@@ -251,6 +259,7 @@
       ],
       "owner_surface": [
         "tradebot/engines/risk.py",
+        "tradebot/spot/entry_control.py",
         "tradebot/spot/gates.py",
         "tradebot/spot/graph.py",
         "tradebot/spot/graph_core.py",
@@ -311,7 +320,9 @@
         "tests/test_ui_pnl_truth.py"
       ],
       "owner_surface": [
-        "tradebot/client.py"
+        "deploy/systemd/tradebot-ib-gateway-tunnel.service",
+        "tradebot/client.py",
+        "tradebot/config.py"
       ],
       "oracle": [
         "all evidence assigned to broker-connectivity-account passes",
@@ -340,6 +351,8 @@
         "tests/test_ui_signal_timeout_fallback_ladder.py"
       ],
       "owner_surface": [
+        "deploy/systemd/tradebot-xsp-quotes.service",
+        "deploy/systemd/tradebot-xsp-quotes.timer",
         "tradebot/client.py",
         "tradebot/contract_identity.py",
         "tradebot/backtest/quotes.py",
@@ -559,6 +572,7 @@
         "tests/live/test_ib_gateway_tunnel.py::test_tradebot_three_client_stack_through_ssh_tunnel"
       ],
       "owner_surface": [
+        "deploy/systemd/tradebot-ib-gateway-tunnel.service",
         "tradebot/client.py"
       ],
       "oracle": [
@@ -605,21 +619,31 @@
         "selected and counterfactual champions replayed over one identical normalized tape"
       ],
       "evidence": [
-        "q_XSP_live_research_kata.md"
+        "q_XSP_live_research_kata.md",
+        "tests/test_live_calibration.py"
       ],
       "owner_surface": [
         "tradebot/backtest/engine.py",
         "tradebot/option_package.py",
+        "deploy/systemd/tradebot-ib-gateway-tunnel.service",
+        "deploy/systemd/tradebot-xsp-shadow.service",
+        "deploy/systemd/tradebot-xsp-shadow.timer",
+        "tradebot/research/live_calibration.py",
+        "tradebot/research/xsp_benchmarks.py",
+        "tradebot/research/xsp_shadow.py",
+        "tradebot/research/xsp_shadow_cli.py",
         "tradebot/ui/bot_journal.py"
       ],
       "oracle": [
         "forecast identity, decision or abstention, PnL distribution, risk, costs, and fill assumptions are immutable before the outcome",
         "package, leg, and account PnL remain separate from data, decision, pricing, execution, buying-power, and safety drift",
         "actual PnL is never the sole score and hard evidence or safety failures veto promotion",
-        "hourly context explains drift while strategy promotion remains sample-gated, hysteretic, and forbidden from re-owning an open position"
+        "hourly context explains drift while strategy promotion remains sample-gated, hysteretic, and forbidden from re-owning an open position",
+        "every forward invocation records evaluated, stale, empty, unsupported-session, or closed coverage independently of whether a signal fired",
+        "a non-persistent New York-time timer invokes the one-shot observer after each completed five-minute XSP cash-RTH bar with a two-minute hard bound"
       ],
-      "status": "planned",
-      "next": "Implement live_calibration.v1 after forward XSP quote capture and same-tape shadow replay are durable."
+      "status": "wip",
+      "next": "Accumulate independent forward 60-minute TA-only versus defensive-news paired outcomes through the 24-hour, 48-hour, and five-session gates."
     },
     {
       "id": "unit.future.content-addressed-cache-provenance",

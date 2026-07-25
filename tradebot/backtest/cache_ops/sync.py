@@ -12,11 +12,7 @@ from datetime import date, datetime, time, timedelta
 from pathlib import Path
 
 from ...signals import parse_bar_size
-from ...time_utils import (
-    NaiveTsMode,
-    NaiveTsSourceMode,
-    to_et as _to_et_shared,
-)
+from ...time_utils import NaiveTsMode, NaiveTsSourceMode
 from ...chart_data.history import (
     cache_path,
     load_history_window,
@@ -26,7 +22,6 @@ from ...chart_data.history import (
 from ..data import IBKRHistoricalData
 from ..models import Bar
 from ..spot_context import SpotBarRequirement, spot_bar_requirements_from_strategy
-from ...engines.market import session_label_et as _session_label_et
 from ...spot.champions import discover_current_champions
 from .coverage import (
     _audit_rows,
@@ -34,6 +29,7 @@ from .coverage import (
     _canonicalize_rows,
     _coverage_fingerprint,
     _dedupe_sort_bars,
+    _first_overnight_et_day,
     _infer_timestamp_mode,
     _intra_session_gap_days,
     _supports_session_audit,
@@ -368,18 +364,12 @@ def _fetch_single_request(
         if not supports_audit:
             return {}, {}, [], 0, 0
         effective_session_mode = session_mode
+        full24_available_from_et = None
         if session_mode == "full24":
-            has_overnight = False
-            for bar in rows:
-                ts = bar.ts
-                if ts < start_dt or ts > end_dt:
-                    continue
-                ts_et = _to_et_shared(ts, naive_ts_mode=NaiveTsMode.UTC).timetz().replace(tzinfo=None)
-                sess = _session_label_et(ts_et)
-                if sess in {"OVERNIGHT_EARLY", "OVERNIGHT_LATE"}:
-                    has_overnight = True
-                    break
-            if not has_overnight:
+            full24_available_from_et = _first_overnight_et_day(
+                bar for bar in rows if start_dt <= bar.ts <= end_dt
+            )
+            if full24_available_from_et is None:
                 # Some historical windows have no IBKR OVERNIGHT stream for this symbol.
                 # Fall back to SMART extended-session completeness expectations.
                 effective_session_mode = "smart_ext"
@@ -389,6 +379,7 @@ def _fetch_single_request(
             start_utc_date=req.start,
             end_utc_date=req.end,
             session_mode=effective_session_mode,
+            full24_available_from_et=full24_available_from_et,
         )
         session_days = {date.fromisoformat(k) for k in audit.get("anomaly_days_effective", {}).keys()}
         session_count = int(audit.get("anomaly_day_count_effective", 0) or 0)
@@ -398,6 +389,7 @@ def _fetch_single_request(
             end_utc_date=req.end,
             session_mode=effective_session_mode,
             bar_size=req.bar_size,
+            full24_available_from_et=full24_available_from_et,
         )
         gap_days = {date.fromisoformat(k) for k in gap_map.keys()}
         combined = sorted(session_days | gap_days)

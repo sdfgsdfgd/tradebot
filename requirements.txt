@@ -1,2 +1,2 @@
-ib_insync
-textual
+ib-insync==0.9.86
+textual==6.12.0

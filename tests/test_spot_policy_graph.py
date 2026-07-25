@@ -54,6 +54,18 @@ def test_graph_exit_policy_can_suppress_flip() -> None:
     assert bool(out.trace.get("flip_suppressed")) is True
 
 
+def test_hard_session_boundary_outranks_deferred_lifecycle_exit() -> None:
+    graph = SpotPolicyGraph.from_sources(strategy={}, filters=None)
+    out = graph.resolve_exit_reason(
+        strategy={},
+        open_dir="up",
+        signal_entry_dir="down",
+        exit_candidates={"fizzle": True, "flip": True, "close_eod": True},
+    )
+
+    assert out.reason == "close_eod"
+
+
 def test_lifecycle_flat_entry_uses_graph_gate() -> None:
     strategy = {
         "spot_entry_policy": "slope_tr_guard",

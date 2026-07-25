@@ -5,6 +5,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
+from ..engines.directional_impulse import DIRECTIONAL_IMPULSE_WARMUP_BARS
 from ..engines.shock import normalize_shock_gate_mode
 from ..engine import (
     resolve_spot_regime2_spec,
@@ -12,6 +13,7 @@ from ..engine import (
 )
 from ..signals import bar_sizes_equal, ema_periods, parse_bar_size
 from ..spot.codec import bool_from_payload
+from ..spot.entry_control import normalize_tick_gate_mode
 from ..spot.policy_contract import parse_int as _parse_int
 from ..spot.policy_contract import source_value as _get
 
@@ -103,7 +105,10 @@ def spot_signal_warmup_days_from_strategy(
     )
     filters = _get(strategy, "filters", None)
 
-    bars_needed = 0
+    # The shared impulse sensor is always recorded, even while it remains
+    # observational. Reserve its full longest horizon so non-EMA strategies do
+    # not silently start with partial evidence.
+    bars_needed = DIRECTIONAL_IMPULSE_WARMUP_BARS
 
     entry_signal = str(_get(strategy, "entry_signal", "ema") or "ema").strip().lower()
     if entry_signal == "ema":
@@ -284,9 +289,9 @@ def spot_bar_requirements_from_strategy(
             )
         )
 
-    tick_mode = str(_get(strategy, "tick_gate_mode", "off") or "off").strip().lower()
-    if tick_mode not in ("off", "raschke"):
-        tick_mode = "off"
+    tick_mode = normalize_tick_gate_mode(
+        _get(strategy, "tick_gate_mode", "off")
+    )
     if tick_mode != "off":
         z_lookback = _parse_int(_get(strategy, "tick_width_z_lookback", 252), default=252, min_value=1)
         ma_period = _parse_int(_get(strategy, "tick_band_ma_period", 10), default=10, min_value=1)

@@ -22,6 +22,7 @@ from .coverage import (
     _canonicalize_rows,
     _day_quality,
     _dedupe_sort_bars,
+    _first_overnight_et_day,
     _infer_timestamp_mode,
     _merge_smart_overnight,
     _replace_day,
@@ -71,18 +72,24 @@ def _fetch_day_from_ibkr(
                     overnight = []
                     merged = list(smart)
                 else:
-                    smart = provider._fetch_bars(contract_primary, start_utc, end_utc, bar_size, use_rth=False)
                     if str(getattr(contract_primary, "secType", "") or "") == "STK":
                         contract_overnight, _ = provider.resolve_contract(symbol, exchange="OVERNIGHT")
-                        overnight = provider._fetch_bars(
+                        smart, overnight = provider._fetch_stock_full24_components(
+                            contract_primary,
                             contract_overnight,
+                            start_utc,
+                            end_utc,
+                            bar_size,
+                        )
+                        merged = _merge_smart_overnight(smart, overnight)
+                    else:
+                        smart = provider._fetch_bars(
+                            contract_primary,
                             start_utc,
                             end_utc,
                             bar_size,
                             use_rth=False,
                         )
-                        merged = _merge_smart_overnight(smart, overnight)
-                    else:
                         overnight = []
                         merged = list(smart)
                 smart_rows = len(smart)
@@ -488,12 +495,22 @@ def _process_cache_file(
     mode_before, mode_diag_before = _infer_timestamp_mode(raw_rows)
     canonical_rows = _canonicalize_rows(raw_rows, mode=mode_before)
 
-    audit_before = _audit_rows(
-        canonical_rows,
-        start_utc_date=meta.start_date,
-        end_utc_date=meta.end_date,
-        session_mode=session_mode,
-    )
+    def _audit(rows: list[Bar]) -> dict[str, object]:
+        effective_mode = session_mode
+        full24_available_from_et = None
+        if session_mode == "full24":
+            full24_available_from_et = _first_overnight_et_day(rows)
+            if full24_available_from_et is None:
+                effective_mode = "smart_ext"
+        return _audit_rows(
+            rows,
+            start_utc_date=meta.start_date,
+            end_utc_date=meta.end_date,
+            session_mode=effective_mode,
+            full24_available_from_et=full24_available_from_et,
+        )
+
+    audit_before = _audit(canonical_rows)
 
     by_ts, day_to_ts = _build_indices(canonical_rows)
     anomaly_days_before = sorted(date.fromisoformat(k) for k in audit_before["anomaly_days_effective"].keys())
@@ -530,12 +547,7 @@ def _process_cache_file(
             session_mode=session_mode,
         )
         interim_rows = _dedupe_sort_bars(by_ts.values())
-        interim_audit = _audit_rows(
-            interim_rows,
-            start_utc_date=meta.start_date,
-            end_utc_date=meta.end_date,
-            session_mode=session_mode,
-        )
+        interim_audit = _audit(interim_rows)
         remaining_days = sorted(date.fromisoformat(k) for k in interim_audit["anomaly_days_effective"].keys())
         if ibkr_min_et_day is not None:
             remaining_days = [d for d in remaining_days if d >= ibkr_min_et_day]
@@ -566,12 +578,7 @@ def _process_cache_file(
 
     final_rows = _dedupe_sort_bars(by_ts.values())
     mode_after, mode_diag_after = _infer_timestamp_mode(final_rows)
-    audit_after = _audit_rows(
-        final_rows,
-        start_utc_date=meta.start_date,
-        end_utc_date=meta.end_date,
-        session_mode=session_mode,
-    )
+    audit_after = _audit(final_rows)
 
     raw_needs_canonicalization = mode_before != "utc_naive"
     changed = len(final_rows) != len(canonical_rows) or any(a.ts != b.ts for a, b in zip(canonical_rows, final_rows))

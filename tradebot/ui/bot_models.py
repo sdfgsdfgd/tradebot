@@ -7,6 +7,7 @@ from datetime import date, datetime
 
 from ib_insync import Contract, Trade
 
+from ..engines.directional_impulse import DirectionalImpulseSnapshot
 from ..engines.risk import RiskOverlaySnapshot
 from ..engines.signals import EmaDecisionSnapshot
 from ..live.options import QualifiedOptionLeg
@@ -212,6 +213,8 @@ class _SignalSnapshot:
     shock_atr_vel_pct: float | None = None
     shock_atr_accel_pct: float | None = None
     shock_ramp: dict | None = None
+    directional_impulse: DirectionalImpulseSnapshot | None = None
+    entry_context: dict | None = None
     bar_health: dict | None = None
     regime_bar_health: dict | None = None
     regime2_bar_health: dict | None = None

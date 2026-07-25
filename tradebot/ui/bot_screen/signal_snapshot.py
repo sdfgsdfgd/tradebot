@@ -317,6 +317,8 @@ class BotSignalSnapshotMixin:
                 if isinstance(getattr(snap, "shock_ramp", None), dict)
                 else None
             ),
+            directional_impulse=getattr(snap, "directional_impulse", None),
+            entry_context=snap.entry_context(),
             regime2_dir=(
                 str(getattr(snap, "regime2_dir"))
                 if getattr(snap, "regime2_dir", None) in ("up", "down")
