@@ -267,8 +267,8 @@ def test_unchanged_event_preserves_material_timestamp() -> None:
     assert validate_analysis(value, previous_events=[prior], as_of=later) == value
 
     value["active_events"][0]["last_material_change_utc"] = _iso(later)
-    with pytest.raises(NewsError, match="does not match its material diff"):
-        validate_analysis(value, previous_events=[prior], as_of=later)
+    validated = validate_analysis(value, previous_events=[prior], as_of=later)
+    assert validated["active_events"][0]["last_material_change_utc"] == prior["last_material_change_utc"]
 
 
 def test_codex_schema_avoids_unsupported_unique_items_keyword() -> None:

@@ -559,11 +559,25 @@ def validate_analysis(
     previous_by_id = {str(event["id"]): event for event in previous_events}
     active_ids: set[str] = set()
     for index, event in enumerate(events):
+        previous = (
+            previous_by_id.get(str(event.get("id")))
+            if isinstance(event, dict) and set(event) == ACTIVE_EVENT_KEYS
+            else None
+        )
+        if isinstance(event, dict) and set(event) == ACTIVE_EVENT_KEYS:
+            event["first_seen_utc"] = (
+                previous["first_seen_utc"] if previous is not None else _utc_iso(as_of)
+            )
+            event["last_material_change_utc"] = (
+                _utc_iso(as_of)
+                if previous is None or _material_event_view(event) != _material_event_view(previous)
+                else previous["last_material_change_utc"]
+            )
         validated = _validate_active_event(
             event,
             label=f"active event {index}",
             as_of=as_of,
-            previous=previous_by_id.get(str(event.get("id"))) if isinstance(event, dict) else None,
+            previous=previous,
             is_output=True,
         )
         if validated["id"] in active_ids:

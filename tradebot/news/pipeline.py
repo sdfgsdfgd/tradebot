@@ -19,7 +19,7 @@ from urllib.request import Request, urlopen
 from .contract import (
     EMPTY_MEMORY,
     SCHEMA,
-    SCORE_COMPONENT_LIMITS,
+    SCORE_COMPONENT_LIMITS,  # noqa: F401 - retained module compatibility for news fixtures
     SCORE_VERSION,
     NewsError,
     _event_changes,
@@ -42,7 +42,8 @@ DEFAULT_MEMORY_PATH = Path("~/.codex/trade-research.md").expanduser()
 DEFAULT_EVENTS_PATH = Path("~/.codex/trade-events.jsonl").expanduser()
 DEFAULT_MODEL = "gpt-5.6-sol"
 DEFAULT_MAX_ARTICLES = 128
-DEFAULT_TIMEOUT_SEC = 600
+DEFAULT_TIMEOUT_SEC: int | None = None
+DEFAULT_FETCH_TIMEOUT_SEC = 30
 MAX_RESPONSE_BYTES = 3_000_000
 MAX_SEEN = 5_000
 HISTORY_RETENTION_MONTHS = 13
@@ -244,11 +245,10 @@ For each material event reason fact -> changed physical/economic variable -> con
 probability, or confidence. Confidence is evidentiary certainty.
 
 Return active_events as the complete replacement for events_path, with at most 24 genuinely
-trend-bearing events. Reuse stable IDs and first_seen_utc. For new events, first_seen_utc and
-last_material_change_utc equal as_of_utc. For a materially changed existing event,
-last_material_change_utc equals as_of_utc; otherwise preserve it exactly. Set last_verified_utc to
-as_of_utc only when substantive page content was read; otherwise preserve it or use null for a new
-summary-only event. Every event needs 1..3 exact evidence URLs. Duplicate coverage increases
+trend-bearing events. Reuse stable IDs. The program, not you, owns first_seen_utc and
+last_material_change_utc from the prior ledger plus the exact semantic event diff. Set
+last_verified_utc to as_of_utc only when substantive page content was read; otherwise preserve it
+or use null for a new summary-only event. Every event needs 1..3 exact evidence URLs. Duplicate coverage increases
 corroboration, not impact.
 
 State is watch, active, or resolving. Status is rhetoric, single_report, corroborated, or confirmed.
@@ -331,7 +331,7 @@ def invoke_codex(
     *,
     codex: str,
     model: str,
-    timeout_sec: int,
+    timeout_sec: int | None,
 ) -> tuple[dict[str, object], dict[str, object]]:
     with tempfile.TemporaryDirectory(prefix="tradebot-news-") as temporary:
         root = Path(temporary)
@@ -496,7 +496,7 @@ def run_once(
     max_articles: int = DEFAULT_MAX_ARTICLES,
     codex: str = "codex",
     model: str = DEFAULT_MODEL,
-    timeout_sec: int = DEFAULT_TIMEOUT_SEC,
+    timeout_sec: int | None = DEFAULT_TIMEOUT_SEC,
     memory_path: Path | None = None,
     events_path: Path | None = None,
     now: datetime | None = None,
@@ -534,7 +534,7 @@ def run_once(
         <= observed_at
     )
 
-    raw_html = fetcher(source_url, timeout_sec=timeout_sec)
+    raw_html = fetcher(source_url, timeout_sec=DEFAULT_FETCH_TIMEOUT_SEC)
     articles = parse_finviz_news(raw_html, observed_at=observed_at)
     if not articles:
         raise NewsError("Finviz parser found no whitelisted news rows")
