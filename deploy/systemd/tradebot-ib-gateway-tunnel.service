@@ -4,14 +4,13 @@ Wants=network-online.target
 After=network-online.target
 ConditionPathExists=%h/.ssh/id_rsa
 StopWhenUnneeded=yes
-StartLimitIntervalSec=60
-StartLimitBurst=3
+StartLimitIntervalSec=0
 
 [Service]
 Type=exec
 ExecStart=/usr/bin/ssh -F /dev/null -i %h/.ssh/id_rsa -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=8 -o ConnectionAttempts=1 -o ExitOnForwardFailure=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=2 -o StrictHostKeyChecking=yes -o UserKnownHostsFile=%h/.ssh/known_hosts -o LogLevel=ERROR -N -L 127.0.0.1:4001:127.0.0.1:4001 x@192.168.1.2
 Restart=on-failure
-RestartSec=5s
+RestartSec=30s
 KillSignal=SIGTERM
 PrivateTmp=true
 NoNewPrivileges=true

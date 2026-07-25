@@ -251,11 +251,11 @@ behavior but leaves the profit objective open.
    or missing q behavior remains.
 9. `[DONE]` Publish the full-suite-green combined tree and content-address the
    final integration manifest as clean revision `b943ea4`.
-10. `[WIP]` Runtime code is frozen at `b943ea4`; cross-device convergence was
-   proven at receipt `bb3e70e`. The news runtime has restored the measured
-   `30s + 840s + 90s` nested wall; the read-only producer is armed and the
-   shadow timer is disabled. Prove the next natural news run and producer
-   restart continuity.
+10. `[WIP]` The natural combined-source news cycle passed at E-147. Producer
+   recovery is strengthened at E-148 so recorder-owned reconnect survives a
+   sleeping Mac/tunnel outage; publish and install that one revision, then
+   prove the Sunday process start and restart continuity. The shadow timer
+   remains disabled.
 11. `[TODO]` Prove Monday's first manual checkpoint, then collect every canonical
    RTH slot and exact option/news context without backfill.
 12. `[TODO]` Accumulate preregistered parity, pre-open, news, and microstructure
@@ -269,7 +269,7 @@ behavior but leaves the profit objective open.
 
 ### Current verification state
 
-- Current local combined suite: `826 passed, 4 deselected`; q/news focused
+- Current local combined suite: `827 passed, 4 deselected`; q/news focused
   `27 passed`; cross-boundary XSP/news/architecture/capability set
   `145 passed`; changed news and q-delta owners plus whole-tree diff checks are
   clean under Python `3.12.7`.
@@ -466,6 +466,8 @@ Add rows; never rewrite an unfavorable receipt.
 | E-144 | 2026-07-26 07:44 AEST | 1/4 | Completion-safe news inference wall | canonical `tradebot/news/pipeline.py`; `deploy/systemd/tradebot-news.service`; `tests/test_news_signal.py` | discovery `30s`; inference `840s`; service `960s`; news `27 passed`; full `826 passed, 4 deselected`; Ruff/diff clean | The q news delta had made both the child wait and service startup wall infinite. Because the four-hour timer is completion-based, a hung Codex process could then suppress every future run and never reach `Restart=on-failure`. The existing independent timeout owners now restore the previously measured envelope: Finviz remains capped at `30s`, Codex gets `840s`, and systemd retains `90s` for validation, atomic publication, and teardown. Capacity refusal still terminates immediately for bounded restart. No scoring, prompt, source selection, state, publication, broker, strategy, or order semantics changed. |
 | E-145 | 2026-07-26 07:51 AEST | 1/4 | Exact synchronized q closed-window shadow command | q clean `e0c535d`; pinned runtime; isolated `/tmp/xsp-synced-closed.*` ledger | exit `2`; one `CLOSED` checkpoint; ledger `fc631593…` | The exact deployed CLI ran with an intentionally unreachable broker port during a canonically closed window. It returned broker read-only true, `historical_request=null`, `contract=null`, one content-addressed `CLOSED` checkpoint, and `order_authority=none`. This proves the synchronized adapter skips qualification/history rather than merely importing successfully. No tunnel, broker session, canonical ledger, repository file, timer, strategy, clock, or order changed. |
 | E-146 | 2026-07-26 07:55 AEST | 1/4 | Monday directional warm-up window | canonical `tradebot/research/xsp_{shadow,shadow_cli}.py`; authenticated XSP cache; `tests/test_live_calibration.py` | shared duration `1 W`; actual Monday window `2026-07-20 09:37..2026-07-27 09:37 ET`; `388` cached bars; only missing range `2026-07-27`; focused `137 passed`; full `827 passed, 4 deselected`; Ruff/diff clean | The former `2 D` default was literal calendar time: Monday's first observer began on Saturday, excluded Friday, and could append a fresh `EVALUATED` checkpoint while the 25-bar directional engine remained underwarmed. One shared `1 W` constant now gives the CLI and broker adapter the same window. Against the real cache it retains 388 prior close-aligned bars and delegates only Monday's live tail to the existing sparse fetcher. No sensor threshold, direction, permission gate, candidate, broker authority, schedule, or order semantics changed. |
+| E-147 | 2026-07-26 08:06 AEST | 1/4 | Natural combined-source no-evidence publication | q service `08:06:02..08:06:03 AEST`; synchronized `4df8a96`; exact pre-run hashes | success; zero restarts; `71` whitelisted, `10` active, `0` deferred; next timer `11:45 AEST`; no pending generation | The first natural cycle on the combined source found no unseen evidence and correctly opened no Codex session. It atomically advanced only `latest.json` and `state.json` to `run_status=no_new_evidence`; memory `8171c962…`, events `33964739…`, and history `6ed7b909…` remained byte- and mtime-identical. The causal signal retained its original `2026-07-25T18:02:10Z` timestamp and unchanged XSP `-1/76/.94/24h` plus MCL `+1/84/.95/24h` values rather than fabricating freshness. No broker, strategy, selector, clock, order, source, unit, or timer mutation occurred. |
+| E-148 | 2026-07-26 08:09 AEST | 1/4 | Recorder-owned tunnel recovery | canonical tunnel/quote units and deployment guide; recorder retry kernel; focused unit contracts | tunnel `30s` uncapped retry; producer soft dependency; shadow hard dependency retained; q systemd parser exit `0`; focused `84 passed`; full `827 passed, 4 deselected`; Ruff/diff clean | The recorder already reconnects indefinitely with exponential backoff, resumes the same trading-date tape, repairs torn tails, restores the retained option universe, and skips catch-up bursts. Its start transaction nevertheless hard-required a tunnel capped at three rapid attempts, so a sleeping Mac at Sunday GTH open could exhaust recovery before the application loop began. The tunnel now retries calmly without a start ceiling, while only the long-running producer soft-depends on it and therefore remains alive until Gateway returns. The bounded shadow one-shot still hard-requires the tunnel and fails closed. No capture cadence, market-data type, chain, quote, strategy, clock, broker write, or order semantics changed. |
 
 ---
 
@@ -603,6 +605,7 @@ Add rows; never rewrite an unfavorable receipt.
 | D-120 | Absorb q's news delta semantically into one transactional owner | Replaying eleven commits onto the combined tree would duplicate or weaken its pending-publication, append-time history, and timestamp-valid consumer contracts. The integrated owner retains those stronger invariants while adding q's lifecycle, memory, capacity, CLI, and bounded-retry behavior exactly once; concurrent pipe draining also preserves timeout authority under large output | A future transactional supervisor can own source revision, inference capacity retry, publication generation, and unit activation without weakening the present one-process/one-publication boundary |
 | D-121 | Bound every completion-scheduled news run | An infinite child plus infinite service wall can wedge `OnUnitInactiveSec=4h` forever, bypass failure restart, and silently age the causal signal. The measured `30s` discovery, `840s` inference, and `90s` completion reserve preserve long research while guaranteeing release or retry | A heartbeat-aware supervisor can prove forward progress and safely extend a specific run without weakening the four-hour freshness contract |
 | D-122 | Warm the Monday observer by trading context, not calendar adjacency | `2 D` excludes Friday on Monday and can make checkpoint freshness look healthy while the multihorizon sensor has no prior session. A `1 W` request safely spans ordinary and holiday weekends; canonical disk reuse still asks IBKR only for sparse gaps and the live tail | A central warm-up planner derives the smallest calendar window from the active signal plan and exchange calendar while proving at least the same 25-bar readiness |
+| D-123 | Let the session recorder, not tunnel startup timing, own forward-evidence recovery | The application already has durable resume and bounded exponential reconnect, while a hard dependency on a three-attempt tunnel could prevent that recovery owner from starting at all. An uncapped 30-second tunnel retry plus producer `Wants` preserves eventual recovery; the bounded observer retains `Requires` and remains fail-closed | A q-local or broker-independent forward source removes the Mac/tunnel boundary while preserving the same append-only provenance contract |
 
 ---
 

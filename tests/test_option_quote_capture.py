@@ -849,7 +849,8 @@ def test_xsp_quote_producer_is_one_bounded_readonly_session_process() -> None:
     service = (root / "deploy/systemd/tradebot-xsp-quotes.service").read_text()
     timer = (root / "deploy/systemd/tradebot-xsp-quotes.timer").read_text()
 
-    assert "Requires=tradebot-ib-gateway-tunnel.service" in service
+    assert "Wants=network-online.target tradebot-ib-gateway-tunnel.service" in service
+    assert "Requires=tradebot-ib-gateway-tunnel.service" not in service
     assert "Environment=IBKR_READONLY=1" in service
     assert "--md-type 3" in service
     assert "--interval 300 --count 0" in service

@@ -85,9 +85,13 @@ cmp -s deploy/systemd/tradebot-news.service ~/.config/systemd/user/tradebot-news
 ```
 
 The tunnel is localhost-only, broker-enforced read-only, and started on demand.
-Arm the forward producer before Sunday `20:15 ET`; waiting for Monday's first
-eligible RTH bar would irretrievably lose the GTH prefix. Keep only the shadow
-timer disabled until its first live-boundary proof:
+It retries every 30 seconds without a start ceiling. The long-running producer
+soft-depends on it and owns broker reconnect/backoff, so a temporarily sleeping
+Mac cannot exhaust recovery before the recorder starts; the bounded shadow
+one-shot retains its hard dependency. Arm the forward producer before Sunday
+`20:15 ET`; waiting for Monday's first eligible RTH bar would irretrievably
+lose the GTH prefix. Keep only the shadow timer disabled until its first
+live-boundary proof:
 
 ```bash
 systemctl --user disable --now tradebot-xsp-shadow.timer

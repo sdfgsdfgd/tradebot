@@ -278,6 +278,8 @@ def test_shadow_owns_an_on_demand_readonly_gateway_tunnel() -> None:
     assert "Requires=tradebot-ib-gateway-tunnel.service" in shadow
     assert "Environment=IBKR_READONLY=1" in shadow
     assert "StopWhenUnneeded=yes" in tunnel
+    assert "StartLimitIntervalSec=0" in tunnel
+    assert "RestartSec=30s" in tunnel
     assert "ExitOnForwardFailure=yes" in tunnel
     assert "ServerAliveInterval=15" in tunnel
     assert "StrictHostKeyChecking=yes" in tunnel
