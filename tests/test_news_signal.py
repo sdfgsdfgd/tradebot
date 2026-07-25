@@ -410,8 +410,32 @@ def test_prompt_contains_state_paths_and_compact_causal_contract() -> None:
     assert "fact -> changed physical/economic variable -> contract transmission" in prompt
     assert "no\nword or thought is truncated" in prompt
     assert "complete replacement" in prompt
+    inputs = json.loads(prompt.split("INPUT:\n", 1)[1])
+    assert "capacity_feedback" not in inputs
+    assert "If the 24-event capacity is full" in prompt
     assert "Every old ID omitted" not in prompt
     assert "Never emit buy/sell/order advice" in prompt
+
+    capacity_prompt = build_prompt(
+        articles,
+        previous,
+        memory_path=Path("/Users/x/.codex/trade-research.md"),
+        events_path=Path("/Users/x/.codex/trade-events.jsonl"),
+        memory_markdown=_memory(),
+        active_events=[prior] * 22,
+        event_snapshot=news._event_snapshot([prior], as_of=NOW),
+        due_event_ids=[str(prior["id"])],
+        as_of_utc=_iso(NOW),
+    )
+    capacity_inputs = json.loads(capacity_prompt.split("INPUT:\n", 1)[1])
+    assert capacity_inputs["capacity_feedback"] == {
+        "active_event_capacity": 24,
+        "prior_active_event_count": 22,
+        "prior_event_slots_free": 2,
+        "reason": "The prior active-event ledger is at least 90% full; apply the capacity "
+        "policy before retaining or adding an event.",
+    }
+    assert "If the 24-event capacity is full" in capacity_prompt
 
 
 def test_event_snapshot_uses_exclusive_material_change_buckets() -> None:

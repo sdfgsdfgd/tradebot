@@ -19,6 +19,7 @@ from urllib.request import Request, urlopen
 
 from .contract import (
     EMPTY_MEMORY,
+    MAX_ACTIVE_EVENTS,
     SCHEMA,
     SCORE_COMPONENT_LIMITS,  # noqa: F401 - retained module compatibility for news fixtures
     SCORE_VERSION,
@@ -219,6 +220,14 @@ def build_prompt(
         "previous_assets": previous_assets,
         "articles": [article.payload() for article in articles],
     }
+    if len(active_events) * 10 >= MAX_ACTIVE_EVENTS * 9:
+        inputs["capacity_feedback"] = {
+            "active_event_capacity": MAX_ACTIVE_EVENTS,
+            "prior_active_event_count": len(active_events),
+            "prior_event_slots_free": MAX_ACTIVE_EVENTS - len(active_events),
+            "reason": "The prior active-event ledger is at least 90% full; apply the capacity "
+            "policy before retaining or adding an event.",
+        }
     return f"""Act as a causal event-state reducer for XSP (stable broad US index exposure)
 and MCL (micro WTI crude). Inspect every supplied title and summary. There is no topical keyword
 filter. Discard an item only after testing whether its verified information could alter either
@@ -247,8 +256,8 @@ probability, or confidence. Confidence is evidentiary certainty.
 
 Return active_events as the complete replacement for events_path, with at most 24 genuinely
 trend-bearing events.
-If capacity still requires a choice after merging duplicates and resolving obsolete events, retain
-the event with the more distinct unresolved causal channel and greater expected future
+If the 24-event capacity is full and a choice remains after curating events—merging duplicates and
+resolving obsolete ones—retain events with more distinct unresolved causal channels and greater expected future
 distributional information; do not choose solely by current impact.
 Reuse stable IDs. The program, not you, owns first_seen_utc and
 last_material_change_utc from the prior ledger plus the exact semantic event diff. Set
