@@ -293,7 +293,7 @@ memory, not an event log:
   including singular precedents. Record score/components, evidence quality, realized response when
   known, attribution caveats, and why the comparator matters. Do not discard a valid anchor merely
   because it is old; correct disproven facts.
-- Active Regimes: at most 3 umbrella syntheses that change how active events transmit. Reference
+- Active Regimes: at most 10 umbrella syntheses that change how active events transmit. Reference
   event IDs instead of duplicating their details.
 - Durable Causal Priors: at most 12 falsifiable transmission rules earned by evidence.
 - Merge, compress, correct, or delete anything that no longer earns space. Target under 100 lines;
