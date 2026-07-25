@@ -34,7 +34,8 @@
 - **Immediate frontier:** let the resilient read-only producer begin Sunday
   `20:15 ET` / Monday `10:15 AEST`; prove process start and restart continuity;
   inspect the exact one-shot Monday `09:37 ET` / `23:37 AEST` checkpoint
-  scheduled at E-150 and require `EVALUATED`, `order_authority=none`; only then
+  made reboot-durable at E-151 and require `EVALUATED`,
+  `order_authority=none`; only then
   enable `09:42..16:02 ET`.
 - **Do not:** trigger an extra news run, deploy mixed revisions, backfill forward
   evidence, retune rejected OHLC/slope families, promote delayed quotes, submit
@@ -257,9 +258,10 @@ behavior but leaves the profit objective open.
    recorder-owned reconnect survives a sleeping Mac/tunnel outage. Prove the
    Sunday process start and restart continuity. The shadow timer remains
    disabled.
-11. `[WIP]` An exact one-shot timer now owns Monday's first checkpoint without
-   arming the recurring cadence. Inspect and prove it, then collect every
-   canonical RTH slot and exact option/news context without backfill.
+11. `[WIP]` An exact reboot-durable one-shot timer now owns Monday's first
+   checkpoint without arming the recurring cadence. Inspect and prove it,
+   remove that temporary timer, then collect every canonical RTH slot and exact
+   option/news context without backfill.
 12. `[TODO]` Accumulate preregistered parity, pre-open, news, and microstructure
    cohorts; compare identical TA-only and augmented decisions.
 13. `[TODO]` Admit a directional candidate only after positive chronological and
@@ -472,6 +474,7 @@ Add rows; never rewrite an unfavorable receipt.
 | E-148 | 2026-07-26 08:09 AEST | 1/4 | Recorder-owned tunnel recovery | canonical tunnel/quote units and deployment guide; recorder retry kernel; focused unit contracts | tunnel `30s` uncapped retry; producer soft dependency; shadow hard dependency retained; q systemd parser exit `0`; focused `84 passed`; full `827 passed, 4 deselected`; Ruff/diff clean | The recorder already reconnects indefinitely with exponential backoff, resumes the same trading-date tape, repairs torn tails, restores the retained option universe, and skips catch-up bursts. Its start transaction nevertheless hard-required a tunnel capped at three rapid attempts, so a sleeping Mac at Sunday GTH open could exhaust recovery before the application loop began. The tunnel now retries calmly without a start ceiling, while only the long-running producer soft-depends on it and therefore remains alive until Gateway returns. The bounded shadow one-shot still hard-requires the tunnel and fails closed. No capture cadence, market-data type, chain, quote, strategy, clock, broker write, or order semantics changed. |
 | E-149 | 2026-07-26 08:10 AEST | 1/4 | Exact producer-recovery deployment | Mac/GitHub/q `0af37a1540a077e9e6e7d9be928c8aa87dcd3136`; installed q tunnel/producer units | q clean; both units byte-identical; systemd verify clean; tunnel `RestartUSec=30s`, `StartLimitIntervalUSec=0`; producer `Wants` tunnel and has no tunnel `Requires`; services inactive; news/quote timers enabled; shadow timer disabled | The source switch and unit replacement occurred only after the natural news one-shot reached terminal and while tunnel/producer were inactive. The loaded manager now exposes the intended eventual-recovery properties without starting the tunnel, Gateway, producer, shadow, profitability clock, or any broker/order path. |
 | E-150 | 2026-07-26 08:15 AEST | 1/4 | Exact first-checkpoint trigger without cadence authority | q transient `tradebot-xsp-shadow-first.{timer,service}`; canonical installed shadow one-shot | next `2026-07-27 09:37:00 America/New_York` / `23:37:00 AEST`; `AccuracyUSec=1s`; zero jitter; non-persistent; recurring shadow timer disabled | A transient timer now invokes the existing hardened shadow service exactly once after Monday's first completed XSP cash bar. It duplicates no broker, cache, evaluator, or policy configuration and cannot arm later slots. The wrapper waits up to three minutes for the canonical two-minute fail-closed one-shot; the resulting journal and calibration checkpoint remain the only acceptance evidence. No process, tunnel, Gateway, observer, clock, or order started when the timer was created. |
+| E-151 | 2026-07-26 08:19 AEST | 1/4 | Reboot-durable first-checkpoint trigger | q installed `~/.config/systemd/user/tradebot-xsp-shadow-first.timer`; canonical shadow service | transient pair fully unloaded; durable timer byte-verified and enabled; `Persistent=yes`; next `2026-07-27 09:37 ET` / `23:37 AEST`; `AccuracyUSec=1s`; zero jitter; direct `Unit=tradebot-xsp-shadow.service`; recurring timer disabled | E-150 survived logout through the lingering user manager but not a q reboot. It was replaced before firing by one temporary installed timer that survives both and directly invokes the canonical hardened service without a wrapper. A missed wall-clock edge after downtime triggers on return, but freshness and session gates still prevent stale evidence from becoming `EVALUATED`. The timer must be disabled and removed after its one receipt is inspected. No tunnel, Gateway, observer, clock, broker, or order started during replacement. |
 
 ---
 
@@ -611,6 +614,7 @@ Add rows; never rewrite an unfavorable receipt.
 | D-122 | Warm the Monday observer by trading context, not calendar adjacency | `2 D` excludes Friday on Monday and can make checkpoint freshness look healthy while the multihorizon sensor has no prior session. A `1 W` request safely spans ordinary and holiday weekends; canonical disk reuse still asks IBKR only for sparse gaps and the live tail | A central warm-up planner derives the smallest calendar window from the active signal plan and exchange calendar while proving at least the same 25-bar readiness |
 | D-123 | Let the session recorder, not tunnel startup timing, own forward-evidence recovery | The application already has durable resume and bounded exponential reconnect, while a hard dependency on a three-attempt tunnel could prevent that recovery owner from starting at all. An uncapped 30-second tunnel retry plus producer `Wants` preserves eventual recovery; the bounded observer retains `Requires` and remains fail-closed | A q-local or broker-independent forward source removes the Mac/tunnel boundary while preserving the same append-only provenance contract |
 | D-124 | Schedule only the first observer proof; never pre-authorize the cadence | Missing the exact first slot would lose causal evidence, while enabling all 78 slots before inspecting the first receipt would bypass the deployment gate. A one-shot transient timer reuses the canonical shadow service and leaves the recurring timer disabled | The first checkpoint is `EVALUATED`, provenance-complete, and `order_authority=none`; then explicitly arm the remaining schedule |
+| D-125 | Make the temporary first-proof trigger reboot-durable, then remove it | A transient timer survives logout but not a manager/machine restart; missing the first slot is costlier than one temporary installed timer. `Persistent=yes` preserves the trigger, while the canonical service still rejects late/stale evidence and the recurring cadence remains disabled | Immediately after inspecting the first terminal receipt, disable and delete the temporary timer before deciding whether to arm the canonical cadence |
 
 ---
 
