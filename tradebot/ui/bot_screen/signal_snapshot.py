@@ -184,6 +184,7 @@ class BotSignalSnapshotMixin:
         regime_bar_health: dict | None = None,
         regime2_bar_health: dict | None = None,
     ) -> _SignalSnapshot:
+        lifecycle_inputs = snap.lifecycle_inputs()
         return _SignalSnapshot(
             bar_ts=snap.bar_ts,
             close=float(snap.close),
@@ -272,6 +273,16 @@ class BotSignalSnapshotMixin:
             or_low=float(snap.or_low) if snap.or_low is not None else None,
             or_ready=bool(snap.or_ready),
             entry_dir=str(snap.entry_dir) if getattr(snap, "entry_dir", None) in ("up", "down") else None,
+            entry_proposed_dir=(
+                str(snap.entry_proposed_dir)
+                if getattr(snap, "entry_proposed_dir", None) in ("up", "down")
+                else None
+            ),
+            signal_source_dir=(
+                str(lifecycle_inputs["signal_source_dir"])
+                if lifecycle_inputs.get("signal_source_dir") in ("up", "down")
+                else None
+            ),
             entry_branch=str(snap.entry_branch) if getattr(snap, "entry_branch", None) in ("a", "b") else None,
             ratsv_side_rank=float(snap.ratsv_side_rank) if getattr(snap, "ratsv_side_rank", None) is not None else None,
             ratsv_tr_ratio=float(snap.ratsv_tr_ratio) if getattr(snap, "ratsv_tr_ratio", None) is not None else None,

@@ -218,6 +218,7 @@ def _strategy_schema_common() -> dict[str, _FieldSpec]:
         "spot_stop_loss_pct": _field(_parse_optional_float, None),
         "spot_close_eod": _field(bool, False),
         "entry_signal": _field(_parse_entry_signal, None),
+        "directional_impulse_admission": _field(_parse_optional_object, None),
         "orb_window_mins": _field(lambda value: _parse_positive_int(value, default=15), 15),
         "orb_risk_reward": _field(lambda value: _parse_positive_float(value, default=2.0), 2.0),
         "orb_target_mode": _field(_parse_orb_target_mode, None),

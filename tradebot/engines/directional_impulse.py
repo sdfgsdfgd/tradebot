@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, time, timedelta
@@ -79,6 +80,114 @@ class DirectionalTurnPolicy:
             "bar_duration_seconds": float(self.bar_duration.total_seconds()),
             "start_et": self.start_et.isoformat(timespec="minutes"),
             "end_et": self.end_et.isoformat(timespec="minutes"),
+        }
+
+
+@dataclass(frozen=True)
+class DirectionalImpulseAdmissionPolicy:
+    """Optional causal admission layer; the raw turn still owns source state."""
+
+    start_minute_et: int = 570
+    core_end_minute_et: int = 675
+    late_up_end_minute_et: int = 685
+    atr_velocity_min: float = 0.0
+    atr_velocity_max: float = 0.055
+    down_retrace_min: float = 1.25
+    late_up_retrace_min: float = 1.25
+    late_up_retrace_max: float = 1.70
+    late_up_coherence_min: float = 0.75
+
+    def __post_init__(self) -> None:
+        if not (
+            0 <= self.start_minute_et
+            <= self.core_end_minute_et
+            <= self.late_up_end_minute_et
+            < 1440
+        ):
+            raise ValueError("invalid directional impulse admission time window")
+        if not 0.0 <= self.atr_velocity_min < self.atr_velocity_max:
+            raise ValueError("invalid directional impulse ATR velocity band")
+        if not 0.0 <= self.late_up_retrace_min < self.late_up_retrace_max:
+            raise ValueError("invalid directional impulse late-up retrace band")
+        if not 0.0 <= self.late_up_coherence_min <= 1.0:
+            raise ValueError("invalid directional impulse coherence floor")
+
+    @classmethod
+    def from_mapping(
+        cls,
+        raw: Mapping[str, object] | None,
+    ) -> "DirectionalImpulseAdmissionPolicy | None":
+        if raw is None:
+            return None
+        if not isinstance(raw, Mapping):
+            raise ValueError("directional_impulse_admission must be an object")
+        mode = str(raw.get("mode", "off") or "off").strip().lower()
+        if mode in ("off", "none", "disabled"):
+            return None
+        if mode != "opening_edge":
+            raise ValueError(f"unsupported directional impulse admission mode: {mode}")
+
+        def value(name: str, default: int | float, cast):
+            try:
+                return cast(raw.get(name, default))
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"invalid directional impulse admission value: {name}"
+                ) from exc
+
+        return cls(
+            start_minute_et=value("start_minute_et", 570, int),
+            core_end_minute_et=value("core_end_minute_et", 675, int),
+            late_up_end_minute_et=value("late_up_end_minute_et", 685, int),
+            atr_velocity_min=value("atr_velocity_min", 0.0, float),
+            atr_velocity_max=value("atr_velocity_max", 0.055, float),
+            down_retrace_min=value("down_retrace_min", 1.25, float),
+            late_up_retrace_min=value("late_up_retrace_min", 1.25, float),
+            late_up_retrace_max=value("late_up_retrace_max", 1.70, float),
+            late_up_coherence_min=value("late_up_coherence_min", 0.75, float),
+        )
+
+    def allows(
+        self,
+        *,
+        direction: str | None,
+        minute_et: int,
+        atr_velocity: float | None,
+        retrace_atr: float | None,
+        coherence: float | None,
+    ) -> tuple[bool, str]:
+        if direction not in ("up", "down"):
+            return False, "no_turn"
+        velocity = float(atr_velocity or 0.0)
+        if not self.atr_velocity_min < velocity < self.atr_velocity_max:
+            return False, "atr_velocity"
+        retrace = float(retrace_atr or 0.0)
+        if self.start_minute_et <= int(minute_et) <= self.core_end_minute_et:
+            return (
+                (True, "core")
+                if direction == "up" or retrace >= self.down_retrace_min
+                else (False, "down_retrace")
+            )
+        if direction == "up" and int(minute_et) <= self.late_up_end_minute_et:
+            allowed = bool(
+                self.late_up_retrace_min <= retrace < self.late_up_retrace_max
+                and float(coherence or 0.0) >= self.late_up_coherence_min
+            )
+            return allowed, "late_up" if allowed else "late_up_quality"
+        return False, "time"
+
+    def as_payload(self) -> dict[str, object]:
+        return {
+            "mode": "opening_edge",
+            "start_minute_et": int(self.start_minute_et),
+            "core_end_minute_et": int(self.core_end_minute_et),
+            "late_up_end_minute_et": int(self.late_up_end_minute_et),
+            "atr_velocity_min": float(self.atr_velocity_min),
+            "atr_velocity_max": float(self.atr_velocity_max),
+            "down_retrace_min": float(self.down_retrace_min),
+            "late_up_retrace_min": float(self.late_up_retrace_min),
+            "late_up_retrace_max": float(self.late_up_retrace_max),
+            "late_up_coherence_min": float(self.late_up_coherence_min),
         }
 
 

@@ -6,6 +6,7 @@ from tradebot.backtest.models import Bar
 from tradebot.backtest.spot_context import spot_signal_warmup_days_from_strategy
 from tradebot.engines.directional_impulse import (
     DIRECTIONAL_IMPULSE_WARMUP_BARS,
+    DirectionalImpulseAdmissionPolicy,
     DirectionalImpulseEngine,
     DirectionalTurnPolicy,
 )
@@ -127,6 +128,10 @@ def test_directional_turn_census_replays_the_production_sensor() -> None:
     assert result["coverage"]["complete_turn_window_sessions"] == 1
     assert result["coverage"]["events_below_required_horizons"] == 0
     assert len(result["sessions"]) == 1
+    event = result["sessions"][0]["events"][0]
+    assert event["forward_paths"]["1"]["observations"] == 1
+    assert event["forward_paths"]["1"]["directed_mfe_points"] >= 0.0
+    assert event["forward_paths"]["1"]["directed_mae_points"] >= 0.0
 
 
 def test_entry_control_plan_centralizes_source_permissions_and_order() -> None:
@@ -307,6 +312,11 @@ def test_shared_evaluator_exposes_identical_impulse_in_lifecycle_trace() -> None
         snap.lifecycle_trace()["directional_impulse"]
         == snap.directional_impulse.as_payload()
     )
+    assert (
+        snap.entry_context()["directional_impulse"]
+        == snap.directional_impulse.as_payload()
+    )
+    assert snap.entry_context()["signal_bar_ts"] == snap.bar_ts.isoformat()
     assert snap.signal.entry_dir == "up"
     assert snap.entry_dir == "up"
     assert snap.directional_impulse.conviction == pytest.approx(
@@ -406,6 +416,106 @@ def test_directional_turn_can_own_the_normal_entry_contract() -> None:
     assert turn.entry_proposed_dir == turn.entry_dir
     assert turn.entry_controls[0] == "directional_impulse:turn"
     assert turn.entry_control_trace()["plan"]["observations"] == []
+    quiet = snapshots[-1]
+    assert quiet is not None
+    assert quiet.entry_proposed_dir is None
+    assert quiet.lifecycle_inputs()["signal_source_dir"] == "down"
+
+
+def test_directional_admission_preserves_raw_turn_and_central_trace() -> None:
+    strategy = {
+        "entry_signal": "directional_impulse",
+        "regime_mode": "off",
+        "directional_impulse_admission": {
+            "mode": "opening_edge",
+            "atr_velocity_max": 0.1,
+            "down_retrace_min": 1.0,
+        },
+    }
+    evaluator = SpotSignalEvaluator(
+        strategy=strategy,
+        filters=None,
+        bar_size="5 mins",
+        use_rth=True,
+    )
+    snap = None
+    for index, close in enumerate(
+        (100.0, 101.0, 102.0, 103.0, 104.0, 105.0, 106.0, 104.0)
+    ):
+        snap = evaluator.update_signal_bar(_bar(index, close, spread=0.1))
+
+    assert snap is not None
+    assert snap.entry_proposed_dir == "down"
+    assert snap.entry_dir is None
+    assert snap.entry_blocked_by == "directional_impulse_admission"
+    assert snap.lifecycle_inputs()["signal_source_dir"] == "down"
+    assert "directional_impulse_admission:block:atr_velocity" in snap.entry_controls
+
+    policy = DirectionalImpulseAdmissionPolicy.from_mapping(
+        {
+            "mode": "opening_edge",
+            "atr_velocity_max": 1.0,
+            "down_retrace_min": 1.0,
+        }
+    )
+    assert policy is not None
+    assert policy.allows(
+        direction="down",
+        minute_et=605,
+        atr_velocity=snap.directional_impulse.atr_velocity_pct,
+        retrace_atr=snap.directional_impulse.retrace_atr,
+        coherence=snap.directional_impulse.coherence,
+    ) == (True, "core")
+    assert (
+        SpotEntryControlPlan.from_sources(
+            strategy={
+                **strategy,
+                "directional_impulse_admission": policy.as_payload(),
+            },
+            filters=None,
+            bar_size="5 mins",
+        ).source_gates
+        == ("directional_impulse_admission",)
+    )
+
+
+def test_directional_turn_uses_same_timeframe_ema_confirmation() -> None:
+    closes = (100.0, 101.0, 102.0, 103.0, 104.0, 105.0, 106.0, 104.0)
+    raw = SpotSignalEvaluator(
+        strategy={
+            "entry_signal": "directional_impulse",
+            "regime_mode": "off",
+        },
+        filters=None,
+        bar_size="5 mins",
+        use_rth=True,
+    )
+    confirmed = SpotSignalEvaluator(
+        strategy={
+            "entry_signal": "directional_impulse",
+            "regime_mode": "ema",
+            "regime_ema_preset": "2/4",
+        },
+        filters=None,
+        bar_size="5 mins",
+        use_rth=True,
+    )
+
+    raw_snap = confirmed_snap = None
+    for index, close in enumerate(closes):
+        bar = _bar(index, close, spread=0.1)
+        raw_snap = raw.update_signal_bar(bar)
+        confirmed_snap = confirmed.update_signal_bar(bar)
+
+    assert raw_snap is not None and raw_snap.entry_dir == "down"
+    assert confirmed_snap is not None
+    assert confirmed_snap.entry_proposed_dir == "down"
+    assert confirmed_snap.signal.regime_dir == "up"
+    assert confirmed_snap.entry_dir is None
+    assert confirmed_snap.entry_blocked_by == "primary_regime"
+    assert "primary_regime:block" in confirmed_snap.entry_controls
+    assert confirmed_snap.lifecycle_inputs()["signal_source_dir"] == "down"
+    assert confirmed_snap.lifecycle_inputs()["signal_entry_dir"] is None
 
 
 @pytest.mark.parametrize(

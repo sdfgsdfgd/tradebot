@@ -4,7 +4,7 @@ from __future__ import annotations
 import math
 import statistics
 from collections import defaultdict
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable
 from datetime import date, datetime, time, timedelta
 
 from ..backtest.models import BacktestResult
@@ -429,6 +429,37 @@ def xsp_directional_turn_census(
                     }
                 )
 
+        for event in events:
+            index = int(event["index"])
+            direction = str(event["direction"])
+            sign = 1.0 if direction == "up" else -1.0
+            base = float(rows[index][2].close)
+            paths: dict[str, object] = {}
+            for horizon in (1, 3, 6, 12, 24):
+                future = rows[index + 1 : index + horizon + 1]
+                if not future:
+                    continue
+                closes = [float(row[2].close) for row in future]
+                highs = [float(row[2].high) for row in future]
+                lows = [float(row[2].low) for row in future]
+                favorable = (
+                    max(highs) - base
+                    if direction == "up"
+                    else base - min(lows)
+                )
+                adverse = (
+                    base - min(lows)
+                    if direction == "up"
+                    else max(highs) - base
+                )
+                paths[str(horizon)] = {
+                    "observations": len(future),
+                    "directed_close_points": sign * (closes[-1] - base),
+                    "directed_mfe_points": max(0.0, favorable),
+                    "directed_mae_points": max(0.0, adverse),
+                }
+            event["forward_paths"] = paths
+
         labels: list[dict[str, object]] = []
         for index, et, bar, _snapshot, tr_pct in rows:
             if not time(9, 45) <= et.time() <= time(11, 15):
@@ -605,6 +636,8 @@ def xsp_directional_turn_census(
             "label_window_et": ["09:45", "11:15"],
             "match_lag_bars": [-1, 3],
             "labeling": "hindsight_material_local_extrema_scoring_only",
+            "forward_path_horizons_bars": [1, 3, 6, 12, 24],
+            "forward_path_authority": "hindsight_diagnostics_only",
             "policy": {
                 "smooth_alpha": policy.smooth_alpha,
                 "initial_score": policy.initial_score,

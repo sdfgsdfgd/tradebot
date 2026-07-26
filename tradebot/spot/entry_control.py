@@ -10,6 +10,7 @@ from ..engine import (
     resolve_spot_regime2_spec,
     resolve_spot_regime_spec,
 )
+from ..engines.directional_impulse import DirectionalImpulseAdmissionPolicy
 from .evaluator_common import SpotGateBand, SpotRegimeGatePolicy
 from .graph import SpotPolicyGraph
 from .policy_contract import normalize_shock_gate_mode
@@ -286,6 +287,7 @@ class SpotEntryControlPlan:
     allowed_directions: tuple[str, ...]
     graph_entry_policy: str
     directional_impulse: str
+    directional_impulse_admission: DirectionalImpulseAdmissionPolicy | None
     fundamental_pressure: str
     regime_gates: SpotRegimeGatePolicy
     observations: tuple[str, ...] = ("directional_impulse",)
@@ -371,6 +373,9 @@ class SpotEntryControlPlan:
         source = normalize_spot_entry_signal(
             _get(strategy, "entry_signal", "ema")
         )
+        impulse_admission = DirectionalImpulseAdmissionPolicy.from_mapping(
+            _get(strategy, "directional_impulse_admission", None)
+        )
         dual_branch = bool(
             source == "ema"
             and _get(strategy, "spot_dual_branch_enabled", False)
@@ -395,6 +400,11 @@ class SpotEntryControlPlan:
             for name, enabled in (
                 ("dual_branch", dual_branch),
                 ("branch_slope", branch_slope),
+                (
+                    "directional_impulse_admission",
+                    source == "directional_impulse"
+                    and impulse_admission is not None,
+                ),
                 (
                     "ratsv",
                     source == "ema"
@@ -435,6 +445,7 @@ class SpotEntryControlPlan:
             allowed_directions=spot_allowed_entry_directions(strategy),
             graph_entry_policy=str(graph.entry_policy),
             directional_impulse=impulse_mode,
+            directional_impulse_admission=impulse_admission,
             fundamental_pressure=news_mode,
             regime_gates=regime_gates,
             observations=tuple(
@@ -460,6 +471,11 @@ class SpotEntryControlPlan:
                 "directional_impulse": self.directional_impulse,
                 "fundamental_pressure": self.fundamental_pressure,
             },
+            "directional_impulse_admission": (
+                self.directional_impulse_admission.as_payload()
+                if self.directional_impulse_admission is not None
+                else None
+            ),
             "confirmations": {
                 "primary_regime": self.primary_regime,
                 "regime2": self.confirmation_regime,

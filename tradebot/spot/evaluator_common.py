@@ -299,16 +299,12 @@ class SpotSignalSnapshot:
     def entry_context(self) -> dict[str, object]:
         impulse = self.directional_impulse
         return {
+            "signal_bar_ts": self.bar_ts.isoformat(),
             "branch": self.entry_branch if self.entry_branch in ("a", "b") else None,
             "shock_dir": self.shock_dir if self.shock_dir in ("up", "down") else None,
             "entry_control": self.entry_control_trace(),
             "directional_impulse": (
-                {
-                    "direction": impulse.direction,
-                    "direction_score": impulse.direction_score,
-                    "coherence": impulse.coherence,
-                    "conviction": impulse.conviction,
-                }
+                impulse.as_payload()
                 if impulse is not None
                 else None
             ),
@@ -347,7 +343,20 @@ class SpotSignalSnapshot:
 
     def lifecycle_inputs(self) -> dict[str, object]:
         risk = self.risk
+        impulse_direction = (
+            self.directional_impulse.trend_state
+            if self.entry_source == "directional_impulse"
+            and self.directional_impulse is not None
+            and self.directional_impulse.trend_state in ("up", "down")
+            else None
+        )
         return {
+            "signal_source_dir": impulse_direction
+            or (
+                self.entry_proposed_dir
+                if self.entry_proposed_dir in ("up", "down")
+                else None
+            ),
             "signal_entry_dir": self.entry_dir
             if self.entry_dir in ("up", "down")
             else None,

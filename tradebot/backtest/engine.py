@@ -1355,6 +1355,7 @@ def _spot_open_position_intent(
     target_qty: int | None = None,
     spot_decision: dict[str, object] | None = None,
     last_resize_bar_ts: datetime | None = None,
+    signal_source_dir: str | None = None,
     signal_entry_dir: str | None = None,
     shock_atr_pct: float | None = None,
     shock_atr_vel_pct: float | None = None,
@@ -1378,6 +1379,9 @@ def _spot_open_position_intent(
         target_qty=int(target_qty) if target_qty is not None else None,
         spot_decision=spot_decision,
         last_resize_bar_ts=last_resize_bar_ts,
+        signal_source_dir=str(signal_source_dir)
+        if signal_source_dir in ("up", "down")
+        else None,
         signal_entry_dir=str(signal_entry_dir)
         if signal_entry_dir in ("up", "down")
         else None,
@@ -2697,6 +2701,18 @@ def _run_spot_backtest_exec_loop(
             else {}
         )
         entry_context = sig_snap.entry_context() if sig_snap is not None else {}
+        entry_guard_inputs_now = (
+            {
+                **entry_context,
+                **{
+                    key: value
+                    for key, value in signal_inputs.items()
+                    if key != "signal_entry_dir"
+                },
+            }
+            if capture_decision_trace
+            else None
+        )
 
         # Track worst-in-bar equity using the execution bars (for drawdown realism).
         if spot_drawdown_mode == "intrabar" and open_trades:
@@ -2860,6 +2876,8 @@ def _run_spot_backtest_exec_loop(
                         trade,
                         bar,
                         sig_snap.signal if sig_snap is not None else None,
+                        signal_source_dir=signal_inputs.get("signal_source_dir"),
+                        signal_entry_dir=signal_inputs.get("signal_entry_dir"),
                         tr_ratio=signal_inputs.get("tr_ratio"),
                         shock_atr_vel_pct=signal_inputs.get("shock_atr_vel_pct"),
                         tr_median_pct=signal_inputs.get("tr_median_pct"),
@@ -2954,6 +2972,7 @@ def _run_spot_backtest_exec_loop(
                             set_date=bar_day,
                             due_ts=due_ts,
                             snapshot=sig_snap,
+                            guard_inputs=entry_guard_inputs_now,
                         )
                     still_open.append(trade)
                     continue
@@ -3742,6 +3761,8 @@ def _spot_hit_flip_exit(
     trade: SpotTrade,
     bar: Bar,
     signal: EmaDecisionSnapshot | None,
+    signal_source_dir: str | None = None,
+    signal_entry_dir: str | None = None,
     tr_ratio: float | None = None,
     shock_atr_vel_pct: float | None = None,
     tr_median_pct: float | None = None,
@@ -3754,6 +3775,8 @@ def _spot_hit_flip_exit(
         current_time=bar.ts,
         bar_size=str(cfg.backtest.bar_size),
         signal=signal,
+        signal_source_dir=signal_source_dir,
+        signal_entry_dir=signal_entry_dir,
         tr_ratio=tr_ratio,
         shock_atr_vel_pct=shock_atr_vel_pct,
         tr_median_pct=tr_median_pct,

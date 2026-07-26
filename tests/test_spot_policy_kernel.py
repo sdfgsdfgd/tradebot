@@ -12,6 +12,7 @@ from tradebot.spot.evaluator_policy import SpotSignalPolicyMixin
 from tradebot.spot.evaluator_regime import SpotSignalRegimeMixin
 from tradebot.spot.entry_control import spot_regime_gate_policy
 from tradebot.spot.gates import flip_exit_allowed
+from tradebot.spot.lifecycle import decide_open_position_intent
 from tradebot.spot.policy import SpotPolicy, SpotPolicyConfigView
 
 
@@ -230,6 +231,101 @@ class SpotPolicyKernelTests(unittest.TestCase):
                 signal=signal,
             )
         )
+
+    def test_flip_exit_allowed_uses_canonical_non_ema_direction(self) -> None:
+        strategy = {
+            "direction_source": "ema",
+            "entry_signal": "directional_impulse",
+            "exit_on_signal_flip": True,
+            "flip_exit_min_hold_bars": 2,
+        }
+        entry = datetime(2026, 7, 22, 10, 0)
+        signal = SimpleNamespace(
+            ema_ready=False,
+            ema_fast=None,
+            ema_slow=None,
+            state=None,
+            cross_up=False,
+            cross_down=False,
+        )
+        self.assertFalse(
+            flip_exit_allowed(
+                strategy=strategy,
+                open_dir="up",
+                entry_time=entry,
+                current_time=datetime(2026, 7, 22, 10, 5),
+                bar_size="5 mins",
+                signal=signal,
+                signal_entry_dir="down",
+            )
+        )
+        self.assertTrue(
+            flip_exit_allowed(
+                strategy=strategy,
+                open_dir="up",
+                entry_time=entry,
+                current_time=datetime(2026, 7, 22, 10, 10),
+                bar_size="5 mins",
+                signal=signal,
+                signal_entry_dir="down",
+            )
+        )
+        self.assertFalse(
+            flip_exit_allowed(
+                strategy=strategy,
+                open_dir="up",
+                entry_time=entry,
+                current_time=datetime(2026, 7, 22, 10, 10),
+                bar_size="5 mins",
+                signal=signal,
+                signal_entry_dir="up",
+            )
+        )
+        self.assertTrue(
+            flip_exit_allowed(
+                strategy=strategy,
+                open_dir="up",
+                entry_time=entry,
+                current_time=datetime(2026, 7, 22, 10, 10),
+                bar_size="5 mins",
+                signal=signal,
+                signal_source_dir="down",
+                signal_entry_dir=None,
+            )
+        )
+
+    def test_source_reversal_can_exit_without_admitted_reentry(self) -> None:
+        strategy = {
+            "spot_controlled_flip": True,
+            "spot_flip_exit_fill_mode": "next_open",
+        }
+        exit_only = decide_open_position_intent(
+            strategy=strategy,
+            bar_ts=datetime(2026, 7, 22, 10, 0),
+            bar_size="5 mins",
+            open_dir="up",
+            current_qty=1,
+            exit_candidates={"flip": True},
+            signal_source_dir="down",
+            signal_entry_dir=None,
+        )
+        self.assertEqual(exit_only.intent, "exit")
+        self.assertEqual(exit_only.reason, "flip")
+        self.assertIsNone(exit_only.queue_reentry_dir)
+        self.assertEqual(exit_only.trace["source_reversal"], "down")
+        self.assertIsNone(exit_only.trace["admitted_reentry"])
+
+        controlled_flip = decide_open_position_intent(
+            strategy=strategy,
+            bar_ts=datetime(2026, 7, 22, 10, 0),
+            bar_size="5 mins",
+            open_dir="up",
+            current_qty=1,
+            exit_candidates={"flip": True},
+            signal_source_dir="down",
+            signal_entry_dir="down",
+        )
+        self.assertEqual(controlled_flip.queue_reentry_dir, "down")
 
     def test_resolve_entry_action_qty_directional_and_fallback(self) -> None:
         strategy = {

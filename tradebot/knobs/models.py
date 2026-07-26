@@ -238,6 +238,7 @@ class StrategyConfigBase:
     spot_stop_loss_pct: float | None
     spot_close_eod: bool
     entry_signal: str = "ema"
+    directional_impulse_admission: dict[str, object] | None = None
     orb_window_mins: int = 15
     orb_risk_reward: float = 2.0
     orb_target_mode: str = "rr"

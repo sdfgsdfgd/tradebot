@@ -327,6 +327,7 @@ class BotOrdersMixin:
             exit_on_signal_flip=bool(instance.strategy.get("exit_on_signal_flip")),
             open_dir=open_dir,
             signal=snap.signal,
+            signal_direction=snap.signal_source_dir or snap.entry_dir,
             flip_exit_mode_raw=instance.strategy.get("flip_exit_mode"),
             ema_entry_mode_raw=instance.strategy.get("ema_entry_mode"),
         ):

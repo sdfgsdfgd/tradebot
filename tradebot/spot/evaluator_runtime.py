@@ -135,6 +135,11 @@ class SpotSignalRuntimeMixin:
                 and self._regime_engine is not None
                 and self._regime_bars
             )
+            or (
+                not self._use_mtf_regime
+                and self._regime_engine is not None
+                and self.entry_signal != "ema"
+            )
         )
         if primary_active:
             primary_after = getattr(signal, "entry_dir", None)

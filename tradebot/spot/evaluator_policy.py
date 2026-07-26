@@ -13,6 +13,7 @@ from ..engines.signals import (
     EmaDecisionSnapshot,
     OrbDecisionEngine,
 )
+from ..time_utils import to_et
 from .evaluator_common import (
     BarLike,
     SpotEntryCandidate,
@@ -57,13 +58,39 @@ class SpotSignalPolicyMixin:
     ) -> SpotSignalSelection:
         """Normalize every supported source into one entry-selection contract."""
         if self.entry_signal == "directional_impulse":
-            direction = (
+            proposed = (
                 directional_impulse.turn_event
                 if directional_impulse is not None
                 and directional_impulse.turn_ready
                 and directional_impulse.turn_event in ("up", "down")
                 else None
             )
+            candidate = SpotEntryCandidate(proposed)
+            controls = [
+                "directional_impulse:turn"
+                if proposed is not None
+                else "directional_impulse:abstain"
+            ]
+            admission = self._entry_control_plan.directional_impulse_admission
+            if proposed is not None and admission is not None:
+                now_et = to_et(
+                    bar.ts,
+                    naive_ts_mode=self._naive_ts_mode,
+                )
+                allowed, reason = admission.allows(
+                    direction=proposed,
+                    minute_et=now_et.hour * 60 + now_et.minute,
+                    atr_velocity=directional_impulse.atr_velocity_pct,
+                    retrace_atr=directional_impulse.retrace_atr,
+                    coherence=directional_impulse.coherence,
+                )
+                controls.append(
+                    f"directional_impulse_admission:"
+                    f"{'pass' if allowed else 'block'}:{reason}"
+                )
+                if not allowed:
+                    candidate = candidate.block("directional_impulse_admission")
+            direction = candidate.direction
             signal = EmaDecisionSnapshot(
                 ema_fast=None,
                 ema_slow=None,
@@ -86,14 +113,10 @@ class SpotSignalPolicyMixin:
             )
             return SpotSignalSelection(
                 signal=signal,
-                candidate=SpotEntryCandidate(direction),
+                candidate=candidate,
                 source=str(self.entry_signal),
-                proposed_direction=direction,
-                controls=(
-                    "directional_impulse:turn"
-                    if direction is not None
-                    else "directional_impulse:abstain",
-                ),
+                proposed_direction=proposed,
+                controls=tuple(controls),
             )
 
         if self._signal_engine is not None:

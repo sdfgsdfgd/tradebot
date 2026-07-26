@@ -580,6 +580,7 @@ def decide_open_position_intent(
     target_qty: int | None = None,
     spot_decision: dict[str, object] | None = None,
     last_resize_bar_ts: datetime | None = None,
+    signal_source_dir: str | None = None,
     signal_entry_dir: str | None = None,
     shock_atr_pct: float | None = None,
     shock_atr_vel_pct: float | None = None,
@@ -598,7 +599,11 @@ def decide_open_position_intent(
     exit_pick = graph.resolve_exit_reason(
         strategy=strategy,
         open_dir=open_dir,
-        signal_entry_dir=signal_entry_dir,
+        signal_entry_dir=(
+            signal_source_dir
+            if signal_source_dir in ("up", "down")
+            else signal_entry_dir
+        ),
         exit_candidates=exit_candidates,
         exit_priority=exit_priority,
         tr_ratio=tr_ratio,
@@ -641,6 +646,8 @@ def decide_open_position_intent(
                     "exit_reason": str(exit_reason),
                     "fill_mode": fill_mode,
                     "controlled_flip": bool(queue_reentry_dir is not None),
+                    "source_reversal": signal_source_dir,
+                    "admitted_reentry": queue_reentry_dir,
                     "exit_policy": exit_pick.as_payload(),
                 }
                 if capture_trace

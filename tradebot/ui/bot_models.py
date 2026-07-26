@@ -200,6 +200,8 @@ class _SignalSnapshot:
     or_low: float | None = None
     or_ready: bool = False
     entry_dir: str | None = None
+    entry_proposed_dir: str | None = None
+    signal_source_dir: str | None = None
     entry_branch: str | None = None
     ratsv_side_rank: float | None = None
     ratsv_tr_ratio: float | None = None

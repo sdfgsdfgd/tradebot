@@ -2372,6 +2372,7 @@ class BotSignalRuntimeMixin:
                 open_dir=open_dir,
                 current_qty=int(pos),
                 exit_candidates=exit_candidates,
+                signal_source_dir=snap.signal_source_dir,
                 signal_entry_dir=(
                     str(getattr(snap, "entry_dir", None))
                     if getattr(snap, "entry_dir", None) in ("up", "down")

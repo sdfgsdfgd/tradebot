@@ -188,6 +188,26 @@ class SpotSignalRegimeMixin:
                 regime_ready=bool(self._last_regime and self._last_regime.ema_ready),
             )
         elif (
+            self._regime_engine is not None
+            and not self._use_mtf_regime
+            and self.entry_signal != "ema"
+        ):
+            self._last_regime = self._regime_engine.update(float(bar.close))
+            signal = apply_regime_gate(
+                signal,
+                regime_dir=self._last_regime.state,
+                regime_ready=bool(self._last_regime.ema_ready),
+            )
+            if (
+                self._shock_engine is not None
+                and self._shock_detector not in ("daily_atr_pct", "daily_drawdown")
+            ):
+                self._last_shock = self._shock_engine.update(
+                    high=float(bar.high),
+                    low=float(bar.low),
+                    close=float(bar.close),
+                )
+        elif (
             self._shock_engine is not None
             and self._shock_detector not in ("daily_atr_pct", "daily_drawdown")
             and not self._use_mtf_regime

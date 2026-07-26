@@ -552,6 +552,7 @@ def flip_exit_hit(
     exit_on_signal_flip: bool,
     open_dir: str | None,
     signal: object | None,
+    signal_direction: str | None = None,
     flip_exit_mode_raw: str | None,
     ema_entry_mode_raw: str | None,
 ) -> bool:
@@ -559,6 +560,8 @@ def flip_exit_hit(
         return False
     if open_dir not in ("up", "down"):
         return False
+    if signal_direction in ("up", "down"):
+        return signal_direction != open_dir
     if (
         signal is None
         or not bool(getattr(signal, "ema_ready", False))
@@ -592,17 +595,27 @@ def flip_exit_allowed(
     current_time: datetime,
     bar_size: str,
     signal: object | None,
+    signal_source_dir: str | None = None,
+    signal_entry_dir: str | None = None,
     tr_ratio: float | None = None,
     shock_atr_vel_pct: float | None = None,
     tr_median_pct: float | None = None,
 ) -> bool:
     """Apply the shared signal-flip and minimum-hold policy."""
-    if str(_get(strategy, "direction_source", "")) != "ema":
+    source_dir = (
+        signal_source_dir
+        if signal_source_dir in ("up", "down")
+        else signal_entry_dir
+    )
+    if source_dir not in ("up", "down") and str(
+        _get(strategy, "direction_source", "")
+    ) != "ema":
         return False
     if not flip_exit_hit(
         exit_on_signal_flip=bool(_get(strategy, "exit_on_signal_flip", False)),
         open_dir=open_dir,
         signal=signal,
+        signal_direction=source_dir,
         flip_exit_mode_raw=str(_get(strategy, "flip_exit_mode", "") or ""),
         ema_entry_mode_raw=str(_get(strategy, "ema_entry_mode", "") or ""),
     ):
