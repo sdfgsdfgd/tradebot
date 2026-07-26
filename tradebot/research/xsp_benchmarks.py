@@ -15,6 +15,11 @@ from .live_calibration import (
     XspProfitabilityPolicy,
     calibration_fingerprint,
 )
+from .xsp_candidate import (
+    XSP_DIRECTIONAL_SHADOW_POLICY,
+    XSP_OPENING_EDGE_CONFIG_FINGERPRINT,
+    XSP_OPENING_EDGE_VERSION,
+)
 
 
 XSP_OPTION_PARITY_OBSERVER_VERSION = "xsp.option-parity-participation.v2"
@@ -24,18 +29,6 @@ XSP_OPTION_LIQUIDITY_CANDIDATE_VERSION = (
 )
 XSP_SHADOW_RECOMMENDATION_VERSION = "xsp.shadow-candidate-recommendation.v1"
 XSP_SELECTED_SHADOW_RUN_VERSION = "xsp.selected-shadow-run.v1"
-XSP_DIRECTIONAL_SHADOW_POLICY = {
-    "authority": "preregistered_shadow_evidence_only",
-    "unit": "$1_per_XSP_point",
-    "capital_reference_usd": 1_000,
-    "capital_reference_authority": "user_reported_design_reference_only",
-    "max_drawdown_points": 25.0,
-    "max_session_loss_points": 5.0,
-    "minimum_week_closed_trades": 2,
-    "maximum_top_five_win_share": 0.5,
-    "slot_tolerance_seconds": 90.0,
-    "order_authority": "none",
-}
 XSP_OPTION_PARITY_PRIMARY_HORIZON_MINUTES = 60
 XSP_OPTION_PARITY_MIN_USABLE_PAIRS = 30
 XSP_OPTION_PARITY_MIN_COMPLETE_SESSIONS = 5
@@ -59,6 +52,44 @@ XSP_FUNDAMENTAL_MIN_IMPACT = 70
 XSP_FUNDAMENTAL_MIN_CONFIDENCE = 0.80
 
 
+def xsp_opening_edge_shadow_recommendation() -> dict[str, object]:
+    """Preregister the frozen research crown for shadow-only selection."""
+
+    candidate = {
+        "schema": XSP_OPENING_EDGE_VERSION,
+        "eligible": True,
+        "evidence_fingerprint": XSP_OPENING_EDGE_CONFIG_FINGERPRINT,
+        "failed_checks": (),
+        "strategy_version": XSP_OPENING_EDGE_VERSION,
+        "config_fingerprint": XSP_OPENING_EDGE_CONFIG_FINGERPRINT,
+        "capital_sleeve": "xsp-directional-unit",
+    }
+    recommendation = {
+        "schema": XSP_SHADOW_RECOMMENDATION_VERSION,
+        "authority": "recommendation_only",
+        "scope": "selected_shadow_only",
+        "verdict": "PROMOTE",
+        "recommended_candidate_schema": XSP_OPENING_EDGE_VERSION,
+        "selection_authority": "none_until_explicit_run_freeze",
+        "order_authority": "none",
+        "open_position_strategy_switch_allowed": False,
+        "profitability_clock_started": False,
+        "preregistered_selected_run_policy": dict(
+            XSP_DIRECTIONAL_SHADOW_POLICY
+        ),
+        "source_ledger_sha256": calibration_fingerprint(
+            {
+                "strategy_id": XSP_OPENING_EDGE_VERSION,
+                "config_fingerprint": XSP_OPENING_EDGE_CONFIG_FINGERPRINT,
+                "authority": "frozen_research_crown",
+            }
+        ),
+        "candidates": (candidate,),
+    }
+    recommendation["fingerprint"] = calibration_fingerprint(recommendation)
+    return recommendation
+
+
 def xsp_selected_shadow_run(
     ledger: LiveCalibrationLedger,
     recommendation: Mapping[str, object],
@@ -72,6 +103,14 @@ def xsp_selected_shadow_run(
     """Freeze one eligible recommendation without granting order authority."""
     unsigned = dict(recommendation)
     recommendation_fingerprint = str(unsigned.pop("fingerprint", ""))
+    candidate_schema = recommendation.get("recommended_candidate_schema")
+    expected = (
+        xsp_opening_edge_shadow_recommendation()
+        if candidate_schema == XSP_OPENING_EDGE_VERSION
+        else xsp_option_parity_participation_benchmark(ledger)[
+            "shadow_recommendation"
+        ]
+    )
     errors = []
     if (
         recommendation.get("schema") != XSP_SHADOW_RECOMMENDATION_VERSION
@@ -79,11 +118,8 @@ def xsp_selected_shadow_run(
         or calibration_fingerprint(unsigned) != recommendation_fingerprint
     ):
         errors.append("invalid_recommendation")
-    if recommendation != xsp_option_parity_participation_benchmark(ledger)[
-        "shadow_recommendation"
-    ]:
+    if recommendation != expected:
         errors.append("recommendation_not_current_for_ledger")
-    candidate_schema = recommendation.get("recommended_candidate_schema")
     candidates = recommendation.get("candidates")
     candidate = next(
         (
@@ -96,6 +132,7 @@ def xsp_selected_shadow_run(
     if (
         recommendation.get("verdict") != "PROMOTE"
         or candidate_schema not in {
+            XSP_OPENING_EDGE_VERSION,
             XSP_OPTION_PARITY_CANDIDATE_VERSION,
             XSP_OPTION_LIQUIDITY_CANDIDATE_VERSION,
         }
@@ -117,6 +154,13 @@ def xsp_selected_shadow_run(
     }
     if not all(identity.values()):
         errors.append("incomplete_run_identity")
+    if candidate_schema == XSP_OPENING_EDGE_VERSION and (
+        not isinstance(candidate, Mapping)
+        or identity["strategy_version"] != candidate.get("strategy_version")
+        or identity["config_fingerprint"] != candidate.get("config_fingerprint")
+        or identity["capital_sleeve"] != candidate.get("capital_sleeve")
+    ):
+        errors.append("candidate_identity_drift")
     try:
         parsed = (
             selected_at

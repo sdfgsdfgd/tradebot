@@ -12,13 +12,24 @@ from ..backtest.engine import _run_spot_backtest
 from ..engines.directional_impulse import DirectionalImpulseAdmissionPolicy
 from ..engines.market import xsp_rth_evaluation_slots, xsp_trading_date
 from ..time_utils import ET_ZONE, NaiveTsModeInput, to_et, to_utc_naive
-from .live_calibration import calibration_fingerprint
+from .live_calibration import SELECTED_EQUITY_SCHEMA, calibration_fingerprint
 from .spot_sweeps.support import _bundle_base, _mk_filters
-from .xsp_benchmarks import XSP_DIRECTIONAL_SHADOW_POLICY
 
 
 XSP_OPENING_EDGE_VERSION = "xsp.opening-edge-directional.v1"
 XSP_OPENING_EDGE_RUNTIME_REVISION = "close-time-parity-r1"
+XSP_DIRECTIONAL_SHADOW_POLICY = {
+    "authority": "preregistered_shadow_evidence_only",
+    "unit": "$1_per_XSP_point",
+    "capital_reference_usd": 1_000,
+    "capital_reference_authority": "user_reported_design_reference_only",
+    "max_drawdown_points": 25.0,
+    "max_session_loss_points": 5.0,
+    "minimum_week_closed_trades": 2,
+    "maximum_top_five_win_share": 0.5,
+    "slot_tolerance_seconds": 90.0,
+    "order_authority": "none",
+}
 XSP_OPENING_EDGE_POLICY = DirectionalImpulseAdmissionPolicy()
 XSP_OPENING_EDGE_ADMISSION = XSP_OPENING_EDGE_POLICY.as_payload()
 XSP_OPENING_EDGE_CONTRACT = {
@@ -315,5 +326,32 @@ def xsp_opening_edge_candidate_equity(
         "latest_position": marked[-1] if marked else None,
         "latest_trade": rows[-1] if rows else None,
         "trade_ledger_fingerprint": calibration_fingerprint(rows),
+        "order_authority": "none",
+    }
+
+
+def xsp_opening_edge_selected_equity(
+    candidate_equity: Mapping[str, object],
+    *,
+    run_id: str,
+    capital_sleeve: str,
+) -> dict[str, object]:
+    """Bind the unchanged counterfactual ledger to one preselected shadow run."""
+
+    if (
+        candidate_equity.get("schema") != "xsp.candidate-equity.v1"
+        or candidate_equity.get("config_fingerprint")
+        != XSP_OPENING_EDGE_CONFIG_FINGERPRINT
+        or candidate_equity.get("order_authority") != "none"
+        or not str(run_id).strip()
+        or not str(capital_sleeve).strip()
+    ):
+        raise ValueError("invalid Opening Edge selected-equity source")
+    return {
+        **candidate_equity,
+        "schema": SELECTED_EQUITY_SCHEMA,
+        "authority": "selected_shadow_evidence_only",
+        "run_id": str(run_id),
+        "capital_sleeve": str(capital_sleeve),
         "order_authority": "none",
     }

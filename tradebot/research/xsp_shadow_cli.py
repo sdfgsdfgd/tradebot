@@ -17,6 +17,7 @@ from .live_calibration import LiveCalibrationLedger
 from .xsp_benchmarks import (
     xsp_fundamental_defensive_benchmark,
     xsp_option_parity_participation_benchmark,
+    xsp_profitability_policy_from_selected_run,
 )
 from .xsp_shadow import (
     XSP_DIRECTIONAL_HISTORY_DURATION,
@@ -38,7 +39,23 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
         "--news-signal",
         default="~/.local/state/tradebot/news/latest.json",
     )
+    parser.add_argument(
+        "--selected-run",
+        default="db/calibration/xsp_selected_shadow.json",
+    )
     args = parser.parse_args(argv)
+
+    selected_path = Path(args.selected_run).expanduser()
+    selected_run = None
+    selected_policy = None
+    if selected_path.exists():
+        loaded_selection = json.loads(selected_path.read_text())
+        if not isinstance(loaded_selection, dict):
+            raise ValueError("selected XSP shadow run must be an object")
+        selected_policy = xsp_profitability_policy_from_selected_run(
+            loaded_selection
+        )
+        selected_run = loaded_selection
 
     from ..client import IBKRClient
 
@@ -85,6 +102,7 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
             duration_str=str(args.duration),
             option_snapshots=options,
             news_snapshot=tuple(news),
+            selected_run=selected_run,
         )
     finally:
         await client.disconnect()
@@ -98,6 +116,14 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
                 "option_parity_participation_benchmark": (
                     xsp_option_parity_participation_benchmark(ledger)
                 ),
+                "profitability": (
+                    ledger.xsp_profitability_receipt(
+                        policy=selected_policy,
+                        as_of=observed_at,
+                    )
+                    if selected_policy is not None
+                    else None
+                ),
                 "client_ids": {
                     "main": config.client_id,
                     "proxy": config.proxy_client_id,
@@ -109,6 +135,12 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
                 "news_signal": str(news_path),
                 "news_history": [str(path) for path in history_paths],
                 "news_publications": len(news),
+                "selected_run": str(selected_path),
+                "selected_run_id": (
+                    selected_policy.run_id
+                    if selected_policy is not None
+                    else None
+                ),
             },
             allow_nan=False,
             indent=2,

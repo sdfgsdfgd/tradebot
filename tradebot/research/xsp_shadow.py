@@ -24,10 +24,13 @@ from .live_calibration import (
     calibration_fingerprint,
 )
 from .xsp_candidate import (
+    XSP_OPENING_EDGE_CONFIG_FINGERPRINT,
     XSP_OPENING_EDGE_VERSION,
     xsp_opening_edge_candidate_equity,
     xsp_opening_edge_run_start,
+    xsp_opening_edge_selected_equity,
 )
+from .xsp_benchmarks import xsp_profitability_policy_from_selected_run
 from .xsp_context import (
     xsp_fundamental_context_at,
     xsp_option_context_at,
@@ -426,6 +429,7 @@ async def advance_xsp_shadow_from_ibkr(
     duration_str: str = XSP_DIRECTIONAL_HISTORY_DURATION,
     option_snapshots: Sequence[QuoteSnapshot] = (),
     news_snapshot: Mapping[str, object] | Sequence[Mapping[str, object]] | None = None,
+    selected_run: Mapping[str, object] | None = None,
 ) -> dict[str, object]:
     """Advance the non-submitting shadow from canonical IBKR XSP history."""
 
@@ -561,19 +565,42 @@ async def advance_xsp_shadow_from_ibkr(
         naive_ts_mode="et",
         freeze_new=freshness_ok,
     )
+    run_started_at = (
+        xsp_opening_edge_run_start(
+            tuple(ledger.records()),
+            observed_at=observed_utc,
+        )
+        if freshness_ok
+        else None
+    )
     candidate_equity = (
         xsp_opening_edge_candidate_equity(
             bars,
-            run_started_at=xsp_opening_edge_run_start(
-                tuple(ledger.records()),
-                observed_at=observed_utc,
-            ),
+            run_started_at=run_started_at,
             observed_at=observed_utc,
             naive_ts_mode="et",
         )
         if freshness_ok
         else None
     )
+    selected_equity = None
+    if candidate_equity is not None and selected_run is not None:
+        policy = xsp_profitability_policy_from_selected_run(selected_run)
+        if (
+            policy.strategy_id != XSP_OPENING_EDGE_VERSION
+            or policy.strategy_version != XSP_OPENING_EDGE_VERSION
+            or policy.config_fingerprint != XSP_OPENING_EDGE_CONFIG_FINGERPRINT
+            or datetime.fromisoformat(
+                str(selected_run["selected_at_utc"]).replace("Z", "+00:00")
+            )
+            > run_started_at
+        ):
+            raise ValueError("selected run does not own Opening Edge v1")
+        selected_equity = xsp_opening_edge_selected_equity(
+            candidate_equity,
+            run_id=policy.run_id,
+            capital_sleeve=policy.capital_sleeve,
+        )
     ledger.checkpoint(
         evaluation_as_of=observed_utc,
         strategy_id=XSP_OPENING_EDGE_VERSION,
@@ -583,6 +610,11 @@ async def advance_xsp_shadow_from_ibkr(
         status=evaluation_status,
         evidence={
             "candidate_equity": candidate_equity,
+            **(
+                {"selected_equity": selected_equity}
+                if selected_equity is not None
+                else {}
+            ),
             "cash_tape_fingerprint": xsp_bar_tape_fingerprint(
                 bars,
                 naive_ts_mode="et",
@@ -633,6 +665,7 @@ async def advance_xsp_shadow_from_ibkr(
         "complete_close_aligned_bars": len(bars),
         "historical_request": historical_request,
         "opening_edge_candidate": candidate_equity,
+        "selected_equity": selected_equity,
     }
 
 

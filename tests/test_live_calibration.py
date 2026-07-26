@@ -27,6 +27,7 @@ from tradebot.research.xsp_benchmarks import (
     XSP_DIRECTIONAL_SHADOW_POLICY,
     XSP_SELECTED_SHADOW_RUN_VERSION,
     xsp_fundamental_defensive_benchmark,
+    xsp_opening_edge_shadow_recommendation,
     xsp_option_parity_participation_benchmark,
     xsp_profitability_policy_from_selected_run,
     xsp_selected_shadow_run,
@@ -1322,6 +1323,17 @@ def test_shadow_cli_hands_the_complete_same_date_tape_to_rth(
     latest_news = _news_snapshot(NOW + timedelta(minutes=1))
     news_history.write_text(json.dumps(prior_news) + "\n", encoding="utf-8")
     news_path.write_text(json.dumps(latest_news) + "\n", encoding="utf-8")
+    selection_path = tmp_path / "selected.json"
+    selection = xsp_selected_shadow_run(
+        LiveCalibrationLedger(tmp_path / "selection-ledger.jsonl"),
+        xsp_opening_edge_shadow_recommendation(),
+        run_id="xsp-opening-edge-20260727",
+        strategy_version=XSP_OPENING_EDGE_VERSION,
+        config_fingerprint=XSP_OPENING_EDGE_CONFIG_FINGERPRINT,
+        capital_sleeve="xsp-directional-unit",
+        selected_at=NOW - timedelta(minutes=35),
+    )
+    selection_path.write_text(json.dumps(selection), encoding="utf-8")
 
     captured = {}
 
@@ -1335,6 +1347,7 @@ def test_shadow_cli_hands_the_complete_same_date_tape_to_rth(
     async def _advance(_ledger, **kwargs):
         captured["snapshots"] = kwargs["option_snapshots"]
         captured["news"] = kwargs["news_snapshot"]
+        captured["selected_run"] = kwargs["selected_run"]
         return {"status": "ok", "evaluation_status": "EVALUATED"}
 
     monkeypatch.setattr("tradebot.client.IBKRClient", _Client)
@@ -1353,6 +1366,8 @@ def test_shadow_cli_hands_the_complete_same_date_tape_to_rth(
                     str(tape),
                     "--news-signal",
                     str(news_path),
+                    "--selected-run",
+                    str(selection_path),
                 )
             )
         )
@@ -1373,6 +1388,7 @@ def test_shadow_cli_hands_the_complete_same_date_tape_to_rth(
     assert context["preopen_path"]["usable"] is True
     assert set(context["preopen_path"]["horizons"]) == {"120", "240", "360"}
     assert captured["news"] == (prior_news, latest_news)
+    assert captured["selected_run"] == selection
     assert captured["disconnected"] is True
 
 
@@ -1400,7 +1416,14 @@ def test_shadow_cli_fails_when_the_checkpoint_is_not_evaluated(
     )
 
     assert asyncio.run(
-        _main_async(("--ledger", str(tmp_path / "calibration.jsonl")))
+        _main_async(
+            (
+                "--ledger",
+                str(tmp_path / "calibration.jsonl"),
+                "--selected-run",
+                str(tmp_path / "missing-selection.json"),
+            )
+        )
     ) == 2
     capsys.readouterr()
 
@@ -2075,6 +2098,33 @@ def test_selected_shadow_run_rejects_hold_and_tampered_recommendations(
         xsp_selected_shadow_run(ledger, tampered, **kwargs)
 
 
+def test_opening_edge_selection_is_exact_and_shadow_only(tmp_path) -> None:
+    ledger = LiveCalibrationLedger(tmp_path / "opening-selection.jsonl")
+    recommendation = xsp_opening_edge_shadow_recommendation()
+    kwargs = {
+        "run_id": "xsp-opening-edge-20260727",
+        "strategy_version": XSP_OPENING_EDGE_VERSION,
+        "config_fingerprint": XSP_OPENING_EDGE_CONFIG_FINGERPRINT,
+        "capital_sleeve": "xsp-directional-unit",
+        "selected_at": datetime(2026, 7, 27, 9, 0, tzinfo=ET_ZONE),
+    }
+    selection = xsp_selected_shadow_run(ledger, recommendation, **kwargs)
+    policy = xsp_profitability_policy_from_selected_run(selection)
+
+    assert selection["strategy_id"] == XSP_OPENING_EDGE_VERSION
+    assert selection["order_authority"] == "none"
+    assert selection["profitability_clock_started"] is False
+    assert policy.run_id == selection["selection_id"]
+    assert policy.config_fingerprint == XSP_OPENING_EDGE_CONFIG_FINGERPRINT
+
+    with pytest.raises(ValueError, match="candidate_identity_drift"):
+        xsp_selected_shadow_run(
+            ledger,
+            recommendation,
+            **{**kwargs, "config_fingerprint": "wrong"},
+        )
+
+
 def test_complete_xsp_session_requires_rth_identity_and_every_slot(tmp_path) -> None:
     day = date(2026, 7, 27)
     ledger = LiveCalibrationLedger(tmp_path / "session-identity.jsonl")
@@ -2736,3 +2786,77 @@ def test_ibkr_shadow_boundary_qualifies_and_close_aligns_xsp(tmp_path) -> None:
     assert unsupported["session"] == "GTH"
     assert unsupported["freshness_ok"] is False
     assert unsupported["checkpoint_statuses"] == {"UNSUPPORTED_SESSION": 1}
+
+
+def test_first_opening_edge_checkpoint_starts_selected_profitability(
+    tmp_path,
+) -> None:
+    class _Client:
+        async def qualify_proxy_contracts(self, contract):
+            return [
+                Contract(
+                    conId=416904,
+                    symbol=contract.symbol,
+                    secType="IND",
+                    exchange="CBOE",
+                    currency="USD",
+                )
+            ]
+
+        async def historical_bars_ohlcv(self, _contract, **_kwargs):
+            return [
+                Bar(
+                    datetime(2026, 7, 27, 9, 30),
+                    100.0,
+                    100.2,
+                    99.8,
+                    100.0,
+                    0.0,
+                )
+            ]
+
+        def last_historical_request(self, _contract):
+            return {"status": "ok", "bars_count": 1}
+
+    ledger = LiveCalibrationLedger(tmp_path / "selected-forward.jsonl")
+    recommendation = xsp_opening_edge_shadow_recommendation()
+    selection = xsp_selected_shadow_run(
+        ledger,
+        recommendation,
+        run_id="xsp-opening-edge-20260727",
+        strategy_version=XSP_OPENING_EDGE_VERSION,
+        config_fingerprint=XSP_OPENING_EDGE_CONFIG_FINGERPRINT,
+        capital_sleeve="xsp-directional-unit",
+        selected_at=datetime(2026, 7, 27, 9, 0, tzinfo=ET_ZONE),
+    )
+    observed_at = datetime(2026, 7, 27, 9, 37, tzinfo=ET_ZONE)
+    receipt = asyncio.run(
+        advance_xsp_shadow_from_ibkr(
+            ledger,
+            client=_Client(),
+            observed_at=observed_at,
+            selected_run=selection,
+        )
+    )
+    policy = xsp_profitability_policy_from_selected_run(selection)
+    profitability = ledger.xsp_profitability_receipt(
+        policy=policy,
+        as_of=observed_at,
+    )
+    selected = receipt["selected_equity"]
+
+    assert receipt["evaluation_status"] == "EVALUATED"
+    assert selected["schema"] == SELECTED_EQUITY_SCHEMA
+    assert selected["run_id"] == selection["selection_id"]
+    assert selected["cumulative_net_points"] == 0.0
+    assert selected["closed_trades"] == 0
+    assert selected["order_authority"] == "none"
+    assert profitability["status"] == "ACTIVE"
+    assert profitability["clock"]["run_started_at_utc"] == (
+        "2026-07-27T13:30:00+00:00"
+    )
+    assert profitability["clock"]["coverage_started_at_utc"] == (
+        "2026-07-27T13:37:00+00:00"
+    )
+    assert profitability["clock"]["coverage_broken"] is False
+    assert profitability["milestones"]["24h"]["passed"] is False
