@@ -549,6 +549,31 @@ def test_excursion_ratchet_is_symmetric_and_cannot_reprice_its_source_bar(
     assert reason is None
 
 
+def test_excursion_profit_lock_does_not_require_an_initial_stop() -> None:
+    policy = SpotExcursionPolicy(
+        trail_activate_atr=2.0,
+        trail_distance_atr=1.0,
+    )
+    opened = SpotExcursionState.open(
+        policy=policy,
+        direction="up",
+        entry_price=100.0,
+        entry_atr=2.0,
+    )
+    assert policy.enabled
+    assert opened.stop_price is None
+    assert opened.stop_reason is None
+
+    warming, reason = opened.advance(policy=policy, high=103.0, low=99.0)
+    assert reason is None
+    assert warming.stop_price is None
+
+    locked, reason = warming.advance(policy=policy, high=105.0, low=102.0)
+    assert reason is None
+    assert locked.stop_price == pytest.approx(103.0)
+    assert locked.stop_reason == "trail_stop"
+
+
 def test_excursion_fizzle_and_max_hold_are_completed_bar_decisions() -> None:
     fizzle = SpotExcursionPolicy(
         initial_stop_atr=1.0,

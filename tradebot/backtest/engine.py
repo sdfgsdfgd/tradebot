@@ -1485,11 +1485,12 @@ def _spot_try_open_entry(
     if excursion_policy.enabled:
         atr = float(atr_value or 0.0)
         if atr > 0.0 and entry_dir in ("up", "down"):
-            stop_price = (
-                float(entry_price_est) - excursion_policy.initial_stop_atr * atr
-                if entry_dir == "up"
-                else float(entry_price_est) + excursion_policy.initial_stop_atr * atr
-            )
+            if excursion_policy.initial_stop_atr > 0.0:
+                stop_price = (
+                    float(entry_price_est) - excursion_policy.initial_stop_atr * atr
+                    if entry_dir == "up"
+                    else float(entry_price_est) + excursion_policy.initial_stop_atr * atr
+                )
             profit_target_pct = None
             stop_loss_pct = None
         else:
@@ -1727,11 +1728,12 @@ def _spot_try_open_entry(
     if excursion_policy.enabled:
         atr = float(atr_value or 0.0)
         if atr > 0.0 and entry_dir in ("up", "down"):
-            stop_price = (
-                float(entry_price) - excursion_policy.initial_stop_atr * atr
-                if entry_dir == "up"
-                else float(entry_price) + excursion_policy.initial_stop_atr * atr
-            )
+            if excursion_policy.initial_stop_atr > 0.0:
+                stop_price = (
+                    float(entry_price) - excursion_policy.initial_stop_atr * atr
+                    if entry_dir == "up"
+                    else float(entry_price) + excursion_policy.initial_stop_atr * atr
+                )
             target_price = None
     elif entry_signal == "orb" and entry_dir in ("up", "down"):
         if stop_price is not None:

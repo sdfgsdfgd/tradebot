@@ -216,7 +216,7 @@ Promotion requires, in order:
 | Causal news context | Experimental | Paired TA-only vs TA+news veto; never historical-backfill |
 | Quote/liquidity admission | Open | Test whether spread, depth, freshness, and quote movement reject adverse entries |
 | Weak-year explanation | Open | Explain 2021/2023 loss with causal, independently available evidence |
-| Exit quality | Partly covered | Global exit-to-flat rejected; challenge only weak bullish handoffs with independent evidence |
+| Exit quality | Partly covered | Exit-to-flat and high-activation trails rejected; use independent prospective evidence |
 | Operational selection | Blocked | Only after the complete 24h/48h/week promotion ladder |
 
 ### Highest-value arcane seams
@@ -262,6 +262,17 @@ its predecessor’s numbers.
 ---
 
 ## Crown history — newest first
+
+### CH-002 · 2026-07-26 · Late profit-lock grid · Rejected
+
+- **Predecessor:** Opening Edge v1, unchanged.
+- **Change:** no initial stop; trail activation `2/3/4 ATR` × distance
+  `1/1.5/2 ATR`; all other gates, fills, costs, and lifecycle fixed.
+- **Result:** all nine improved the latest month to `+12.41..+15.00`, but the
+  best one-year result fell to `+105.45` and the best five-year result to
+  `+65.99`; no challenger improved crown drawdown.
+- **Verdict:** recency-biased family rejected. Keep the optional-stop kernel
+  correction, but add no challenger configuration or live trail state.
 
 ### CH-001 · 2026-07-26 · Exit-to-flat ablation · Rejected
 

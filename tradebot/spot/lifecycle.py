@@ -68,7 +68,7 @@ class SpotEntryBasisState:
 
 @dataclass(frozen=True)
 class SpotExcursionPolicy:
-    """Causal stop/trail/fizzle policy shared by replay and live runtimes."""
+    """Causal stop/trail/fizzle policy kernel."""
 
     initial_stop_atr: float = 0.0
     trail_activate_atr: float = 0.0
@@ -80,7 +80,16 @@ class SpotExcursionPolicy:
 
     @property
     def enabled(self) -> bool:
-        return self.initial_stop_atr > 0.0
+        return bool(
+            self.initial_stop_atr > 0.0
+            or (
+                self.trail_activate_atr > 0.0
+                and self.trail_distance_atr > 0.0
+            )
+            or self.breakeven_atr > 0.0
+            or self.fizzle_bars > 0
+            or self.max_hold_bars > 0
+        )
 
     @classmethod
     def from_strategy(
@@ -127,8 +136,8 @@ class SpotExcursionState:
     bars_held: int
     best_price: float
     worst_price: float
-    stop_price: float
-    stop_reason: str = "initial_stop"
+    stop_price: float | None
+    stop_reason: str | None = None
 
     @classmethod
     def open(
@@ -145,9 +154,13 @@ class SpotExcursionState:
         atr = float(entry_atr)
         if entry <= 0.0 or atr <= 0.0:
             raise ValueError("excursion state requires positive entry price and ATR")
-        stop = entry - (policy.initial_stop_atr * atr)
-        if direction == "down":
-            stop = entry + (policy.initial_stop_atr * atr)
+        stop = None
+        stop_reason = None
+        if policy.initial_stop_atr > 0.0:
+            stop = entry - (policy.initial_stop_atr * atr)
+            if direction == "down":
+                stop = entry + (policy.initial_stop_atr * atr)
+            stop_reason = "initial_stop"
         return cls(
             direction=str(direction),
             entry_price=entry,
@@ -155,7 +168,8 @@ class SpotExcursionState:
             bars_held=0,
             best_price=entry,
             worst_price=entry,
-            stop_price=float(stop),
+            stop_price=float(stop) if stop is not None else None,
+            stop_reason=stop_reason,
         )
 
     @property
@@ -198,7 +212,9 @@ class SpotExcursionState:
             and mfe >= policy.breakeven_atr * self.entry_atr
         ):
             candidate = self.entry_price
-            tighter = candidate > stop if self.direction == "up" else candidate < stop
+            tighter = stop is None or (
+                candidate > stop if self.direction == "up" else candidate < stop
+            )
             if tighter:
                 stop, stop_reason = candidate, "breakeven_stop"
 
@@ -209,7 +225,9 @@ class SpotExcursionState:
         ):
             distance = policy.trail_distance_atr * self.entry_atr
             candidate = best - distance if self.direction == "up" else best + distance
-            tighter = candidate > stop if self.direction == "up" else candidate < stop
+            tighter = stop is None or (
+                candidate > stop if self.direction == "up" else candidate < stop
+            )
             if tighter:
                 stop, stop_reason = candidate, "trail_stop"
 
@@ -220,7 +238,7 @@ class SpotExcursionState:
             bars_held=bars,
             best_price=best,
             worst_price=worst,
-            stop_price=float(stop),
+            stop_price=float(stop) if stop is not None else None,
             stop_reason=stop_reason,
         )
         if (
@@ -408,8 +426,6 @@ def pick_exit_reason(
     priority: Sequence[str] | None = None,
 ) -> str | None:
     return graph_pick_exit_reason(exit_candidates, priority=priority)
-
-
 
 
 def adaptive_resize_target_qty(

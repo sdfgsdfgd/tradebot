@@ -136,9 +136,18 @@ def _base_cfg(day: date) -> ConfigBundle:
     return ConfigBundle(backtest=backtest, strategy=strategy, synthetic=synthetic)
 
 
-def test_directional_turn_uses_causal_trailing_exit_in_normal_backtest() -> None:
+@pytest.mark.parametrize("initial_stop_atr", (2.0, None))
+def test_directional_turn_uses_causal_trailing_exit_in_normal_backtest(
+    initial_stop_atr: float | None,
+) -> None:
     day = date(2024, 7, 22)
     cfg = _base_cfg(day)
+    excursion = {
+        "trail_activate_atr": 0.5,
+        "trail_distance_atr": 0.25,
+    }
+    if initial_stop_atr is not None:
+        excursion["initial_stop_atr"] = initial_stop_atr
     cfg = replace(
         cfg,
         backtest=replace(cfg.backtest, bar_size="5 mins", use_rth=True),
@@ -151,11 +160,7 @@ def test_directional_turn_uses_causal_trailing_exit_in_normal_backtest() -> None
             spot_controlled_flip=False,
             spot_atr_period=3,
             spot_stop_loss_pct=None,
-            spot_excursion_exit={
-                "initial_stop_atr": 2.0,
-                "trail_activate_atr": 0.5,
-                "trail_distance_atr": 0.25,
-            },
+            spot_excursion_exit=excursion,
         ),
     )
     closes = [100.0 + (0.4 * index) for index in range(25)] + [
