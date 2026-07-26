@@ -26,22 +26,20 @@ output belongs in commit/final verification, not in this management brain.
 | Order/capital authority | `none` |
 | Profitability clock | `NOT_STARTED` |
 | Next irreversible evidence | Monday's first complete prospective XSP session |
-| First active work | Use the remaining premarket window for a corrected-lifecycle challenger tournament; then prove q quote-producer and observer startup |
+| First active work | Prove q quote-producer startup at `10:15 AEST`, then the first non-submitting observer checkpoint at `23:37 AEST` |
 
 ### Immediate sequence
 
-1. Challenge Opening Edge v1 with materially distinct shared-engine sources and
-   lifecycle combinations; require `>200` trades/year and unchanged costs.
-2. Let q's persistent quote trigger start Sunday `20:15 ET` / Monday
+1. Let q's persistent quote trigger start Sunday `20:15 ET` / Monday
    `10:15 AEST`; do not backfill or manually create the evidence.
-3. Prove recorder process start, same-session restart continuity, exact
+2. Prove recorder process start, same-session restart continuity, exact
    trading-date tape identity, and read-only broker behavior.
-4. Inspect the reboot-durable one-shot Monday `09:37 ET` /
+3. Inspect the reboot-durable one-shot Monday `09:37 ET` /
    `23:37 AEST` observer receipt. Require fresh close-aligned data,
    `EVALUATED`, coherent candidate equity, and `order_authority=none`.
-5. Remove the temporary one-shot timer, then arm `09:42..16:02 ET` only if
+4. Remove the temporary one-shot timer, then arm `09:42..16:02 ET` only if
    that checkpoint is exact.
-6. Accumulate prospective economics before selecting anything or starting a
+5. Accumulate prospective economics before selecting anything or starting a
    milestone clock.
 
 ### Never infer
@@ -171,11 +169,11 @@ explain plausibility but cannot label old trades or support value claims.
 
 ### Active task tree
 
-1. `[WIP]` Run a bounded mechanism-level challenger tournament through the
-   repaired source-consistent flip/EOD lifecycle: directional impulse peers,
-   EMA, ORB/reclaim, explicit confirmations, and crash/rebound geometry.
-   Require exact active-gate traces, recent → annual slices → five-year
-   challenge, unchanged `$0.10` friction, and `>200` trades/year.
+1. `[DONE]` The corrected-lifecycle tournament challenged EMA, ORB/reclaim,
+   impulse confirmation/veto, supplemental EMA timing, profit-only flips, and
+   asymmetric controlled handoffs. Every recent improvement weakened later
+   evidence; only Opening Edge v1 survived the one-year and five-year crown
+   gates with unchanged `$0.10` friction and `>200` trades/year.
 2. `[WIP]` Prove Sunday/Monday quote-producer start, reconnect, same-date
    restart, universe retention, tape integrity, and read-only behavior.
 3. `[WIP]` Inspect Monday's one-shot observer checkpoint; remove its temporary
@@ -234,6 +232,10 @@ must be advanced, traced, and consumed identically; otherwise remove the lie.
 - Closed/holiday/unsupported sessions do no broker work and are not
   `EVALUATED`.
 - Quote timer is persistent; high-frequency shadow timer is not.
+- q is clean at `83cfc58`; the runtime imports Opening Edge v1 fingerprint
+  `bbb0a391…` directly from that checkout. A transient dependency preflight
+  proved the on-demand localhost tunnel reaches the live Gateway; it then
+  stopped correctly under `StopWhenUnneeded=yes`.
 - Exact activation transaction: [`deploy/systemd/README.md`](deploy/systemd/README.md).
 
 ---
@@ -263,6 +265,7 @@ and
 | E-173 | this active/archive split preserves the full history while making the 355-line root the sole resume authority |
 | E-174 | `d20ed6e` publishes the crown parity/breadth runtime and management anchor identically on Mac/GitHub/q; raw and repaired campaign artifacts remain separately preserved |
 | E-175…E-176 | signed TICK values remain valid research data; automatic breadth fetch/receipt propagation was then retired as unearned runtime surface |
+| E-177 | the corrected-lifecycle tournament retained Opening Edge v1; q revision, crown fingerprint, timers, and on-demand read-only Gateway tunnel were preflighted for Monday |
 
 ### Decision anchors
 

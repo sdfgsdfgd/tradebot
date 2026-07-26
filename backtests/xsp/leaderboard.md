@@ -353,6 +353,19 @@ its predecessor’s numbers.
 
 ## Crown history — newest first
 
+### CH-004 · 2026-07-27 · Corrected-lifecycle tournament · Rejected
+
+- EMA, ORB/reclaim, impulse confirmation/veto, supplemental EMA timing,
+  profit-only flips, and asymmetric controlled handoffs all used the repaired
+  source-consistent lifecycle and unchanged `$0.10` friction.
+- EMA `5/10` reached `+17.93/72` recently but lost at least `-47.85` over the
+  latest year after its best impulse veto.
+- The best supplement reached `+14.38/19` recently, then
+  `+124.08/215` over one year and only `+97.38/1,110` over five years.
+- Profit-only and directional-handoff variants also improved only the recent
+  window. Opening Edge v1 was the sole strategy to survive both later crown
+  gates and remains unchanged.
+
 ### CH-003 · 2026-07-27 · Signed-breadth challenger · Rejected
 
 - Five-year `+127.64/1,004`, PF `1.182`, DD `52.67`; worse recent and
