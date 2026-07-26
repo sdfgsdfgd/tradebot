@@ -65,6 +65,17 @@ def test_shadow_history_window_keeps_prior_rth_warmup_across_weekend() -> None:
     assert start <= datetime(2026, 7, 24, 9, 30)
 
 
+def test_shadow_history_covers_the_complete_run_at_the_week_deadline() -> None:
+    deadline = datetime(2026, 8, 3, 9, 37, tzinfo=ET_ZONE)
+    start, end = duration_window_et(
+        XSP_DIRECTIONAL_HISTORY_DURATION,
+        end=deadline,
+    )
+
+    assert end == deadline.replace(tzinfo=None)
+    assert start <= datetime(2026, 7, 27, 9, 30)
+
+
 def _profitability_policy(
     *,
     strategy_id: str = "xsp.directional.alpha",

@@ -39,7 +39,7 @@ from .xsp_context import (
 
 XSP_DIRECTIONAL_HORIZONS_MINUTES = (30, 60, 120)
 XSP_DIRECTIONAL_FRICTION_POINTS = 0.10
-XSP_DIRECTIONAL_HISTORY_DURATION = "1 W"
+XSP_DIRECTIONAL_HISTORY_DURATION = "2 W"
 
 
 def _utc(ts: datetime, *, naive_ts_mode: NaiveTsModeInput) -> datetime:

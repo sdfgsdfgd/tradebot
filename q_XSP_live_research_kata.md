@@ -235,6 +235,8 @@ must be advanced, traced, and consumed identically; otherwise remove the lie.
 - Python `3.13.7`, `ib-insync 0.9.86`, `textual 6.12.0`.
 - Live client pool `500..899`; shadow `979/980/981`; recorder `989`.
 - Shadow broker work is bounded to `75s` inside a `2min` service wall.
+- Shadow history is `2 W`: enough warm-up and complete run coverage through
+  the seven-day evidence deadline without a long-horizon broker request.
 - Closed/holiday/unsupported sessions do no broker work and are not
   `EVALUATED`.
 - Quote timer is persistent; high-frequency shadow timer is not.
@@ -273,7 +275,7 @@ and
 | E-174 | `d20ed6e` publishes the crown parity/breadth runtime and management anchor identically on Mac/GitHub/q; raw and repaired campaign artifacts remain separately preserved |
 | E-175…E-176 | signed TICK values remain valid research data; automatic breadth fetch/receipt propagation was then retired as unearned runtime surface |
 | E-177 | the corrected-lifecycle tournament retained Opening Edge v1; q revision, crown fingerprint, timers, and on-demand read-only Gateway tunnel were preflighted for Monday |
-| E-178 | exact Opening Edge v1 shadow selection was frozen pre-outcome; Monday can start the requested profitability clock without broker/order authority |
+| E-178…E-179 | exact Opening Edge v1 shadow selection was frozen pre-outcome; two-week history preserves the complete run through its seven-day deadline |
 
 ### Decision anchors
 
@@ -289,7 +291,7 @@ and
 | D-143 | representation repair updates v1; coronation requires material strategic superiority |
 | D-144, D-146…D-147 | signed breadth may remain a pure research observation; it has no active direction, gate, selector, or shadow authority |
 | D-145 | active authority stays minimal and priority-ordered; full receipts, closed narratives, and superseded state live behind stable archive markers |
-| D-148…D-149 | stop historical tuning; preselect the unchanged crown for prospective shadow attribution before outcomes |
+| D-148…D-150 | stop historical tuning; preselect the unchanged crown and retain enough history to reproduce its full weekly path |
 
 ---
 
