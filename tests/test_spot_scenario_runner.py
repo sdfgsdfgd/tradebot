@@ -110,7 +110,7 @@ def test_backtest_trace_receipt_projection_matches_shared_schema() -> None:
     meta = ContractMeta(symbol='TQQQ', exchange='SMART', multiplier=1.0, min_tick=0.01)
     detailed = _run_spot_backtest_exec_loop(cfg, signal_bars=signal_bars, exec_bars=exec_bars, meta=meta)
     progress: list[dict[str, object]] = []
-    summary = _run_spot_backtest_exec_loop_summary(cfg, signal_bars=signal_bars, exec_bars=exec_bars, meta=meta, tick_bars=None, progress_callback=progress.append)
+    summary = _run_spot_backtest_exec_loop_summary(cfg, signal_bars=signal_bars, exec_bars=exec_bars, meta=meta, progress_callback=progress.append)
     assert detailed.summary == summary
     assert detailed.equity
     assert int(summary.trades) >= 2

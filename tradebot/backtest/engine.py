@@ -5,7 +5,6 @@ from __future__ import annotations
 import math
 import hashlib
 from bisect import bisect_left
-from collections import deque
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from datetime import date, datetime, time, timedelta
@@ -39,7 +38,6 @@ from ..signals import bar_sizes_equal
 from ..spot.entry_control import (
     SpotEntryControlPlan,
     entry_day_allowed as lifecycle_entry_day_allowed,
-    normalize_tick_gate_mode,
 )
 from ..spot.gates import (
     deferred_entry_plan as lifecycle_deferred_entry_plan,
@@ -105,7 +103,6 @@ from ..signals import ema_periods as _ema_periods_shared, parse_bar_size
 _SERIES_CACHE = series_cache_service()
 _SPOT_SERIES_PACK_NAMESPACE = "spot.series.pack"
 _SPOT_EXEC_ALIGNMENT_NAMESPACE = "spot.exec.alignment"
-_SPOT_TICK_GATE_SERIES_NAMESPACE = "spot.tick_gate.series"
 _SPOT_SIGNAL_TRACE_KEYS = (
     "entry_control",
     "directional_impulse",
@@ -170,7 +167,7 @@ def _spot_exec_alignment(
     return out
 
 
-_SPOT_SERIES_PACK_CACHE_VERSION = "spot-series-pack-v4"
+_SPOT_SERIES_PACK_CACHE_VERSION = "spot-series-pack-v5"
 
 
 BarSeriesInput = Union[list[Bar], BarSeries[Bar]]
@@ -186,16 +183,10 @@ def _bars_input_optional_list(value: BarSeriesInput | None) -> list[Bar] | None:
     return bars_list(value)
 
 
-class _SpotTickGateSeries(NamedTuple):
-    tick_ready_by_sig_idx: list[bool]
-    tick_dir_by_sig_idx: list[str | None]
-
-
 class _SpotSeriesPack(NamedTuple):
     """Reusable, semantics-preserving facts for one execution tape."""
 
     align: _SpotExecAlignment
-    tick_series: _SpotTickGateSeries | None
     exec_dates: list[date]
 
 
@@ -207,7 +198,6 @@ class _SpotRunBars(NamedTuple):
     regime: list[Bar] | None
     regime2: list[Bar] | None
     regime2_bear_hard: list[Bar] | None
-    tick: list[Bar] | None
 
 
 class _SpotPolicyRun(NamedTuple):
@@ -344,178 +334,6 @@ def _spot_bars_signature(bars: list[Bar] | None) -> BarSeriesSignature:
     return _SERIES_CACHE.revision(bars or ())
 
 
-def _spot_tick_gate_settings(
-    strategy: object,
-) -> tuple[str, str, str, int, int, float, float, int]:
-    tick_mode = normalize_tick_gate_mode(
-        getattr(strategy, "tick_gate_mode", "off")
-    )
-    tick_neutral_policy = (
-        str(getattr(strategy, "tick_neutral_policy", "allow") or "allow")
-        .strip()
-        .lower()
-    )
-    if tick_neutral_policy not in ("allow", "block"):
-        tick_neutral_policy = "allow"
-    tick_direction_policy = (
-        str(getattr(strategy, "tick_direction_policy", "both") or "both")
-        .strip()
-        .lower()
-    )
-    if tick_direction_policy not in ("both", "wide_only"):
-        tick_direction_policy = "both"
-    tick_ma_period = max(1, int(getattr(strategy, "tick_band_ma_period", 10) or 10))
-    tick_z_lookback = max(
-        5, int(getattr(strategy, "tick_width_z_lookback", 252) or 252)
-    )
-    tick_z_enter = float(getattr(strategy, "tick_width_z_enter", 1.0) or 1.0)
-    tick_z_exit = max(0.0, float(getattr(strategy, "tick_width_z_exit", 0.5) or 0.5))
-    tick_slope_lookback = max(
-        1, int(getattr(strategy, "tick_width_slope_lookback", 3) or 3)
-    )
-    return (
-        str(tick_mode),
-        str(tick_neutral_policy),
-        str(tick_direction_policy),
-        int(tick_ma_period),
-        int(tick_z_lookback),
-        float(tick_z_enter),
-        float(tick_z_exit),
-        int(tick_slope_lookback),
-    )
-
-
-def _spot_apply_tick_gate_to_entry_dir(
-    *,
-    entry_dir: str | None,
-    tick_ready: bool,
-    tick_dir: str | None,
-    tick_neutral_policy: str,
-) -> str | None:
-    if not tick_ready:
-        return None if tick_neutral_policy == "block" else entry_dir
-    if tick_dir not in ("up", "down"):
-        return None if tick_neutral_policy == "block" else entry_dir
-    return entry_dir if entry_dir is None or entry_dir == tick_dir else None
-
-
-def _spot_tick_gate_series(
-    *,
-    signal_bars: list[Bar],
-    tick_bars: list[Bar] | None,
-    strategy: object,
-) -> _SpotTickGateSeries | None:
-    (
-        tick_mode,
-        _tick_neutral_policy,
-        tick_direction_policy,
-        tick_ma_period,
-        tick_z_lookback,
-        tick_z_enter,
-        tick_z_exit,
-        tick_slope_lookback,
-    ) = _spot_tick_gate_settings(strategy)
-    if str(tick_mode) == "off" or not tick_bars:
-        return None
-
-    key = (
-        id(signal_bars),
-        id(tick_bars),
-        str(tick_mode),
-        str(tick_direction_policy),
-        int(tick_ma_period),
-        int(tick_z_lookback),
-        float(tick_z_enter),
-        float(tick_z_exit),
-        int(tick_slope_lookback),
-    )
-    cached = _SERIES_CACHE.get(namespace=_SPOT_TICK_GATE_SERIES_NAMESPACE, key=key)
-    if isinstance(cached, _SpotTickGateSeries):
-        return cached
-
-    tick_idx = 0
-    tick_state = "neutral"
-    tick_dir: str | None = None
-    tick_ready = False
-    tick_highs: deque[float] = deque(maxlen=tick_ma_period)
-    tick_lows: deque[float] = deque(maxlen=tick_ma_period)
-    tick_high_sum = 0.0
-    tick_low_sum = 0.0
-    tick_widths: deque[float] = deque(maxlen=tick_z_lookback)
-    tick_width_hist: list[float] = []
-
-    tick_ready_by_sig_idx: list[bool] = [False] * len(signal_bars)
-    tick_dir_by_sig_idx: list[str | None] = [None] * len(signal_bars)
-    for sig_i, sig_bar in enumerate(signal_bars):
-        while tick_idx < len(tick_bars) and tick_bars[tick_idx].ts <= sig_bar.ts:
-            tbar = tick_bars[tick_idx]
-            high_v = float(tbar.high)
-            low_v = float(tbar.low)
-
-            if len(tick_highs) == tick_highs.maxlen:
-                tick_high_sum -= tick_highs[0]
-            if len(tick_lows) == tick_lows.maxlen:
-                tick_low_sum -= tick_lows[0]
-            tick_highs.append(high_v)
-            tick_lows.append(low_v)
-            tick_high_sum += high_v
-            tick_low_sum += low_v
-
-            tick_ready = False
-            tick_dir = None
-            if len(tick_highs) >= tick_ma_period and len(tick_lows) >= tick_ma_period:
-                upper = tick_high_sum / float(tick_ma_period)
-                lower = tick_low_sum / float(tick_ma_period)
-                width = float(upper) - float(lower)
-                tick_widths.append(width)
-                tick_width_hist.append(width)
-
-                min_z = min(tick_z_lookback, 30)
-                if len(tick_widths) >= max(5, min_z) and len(tick_width_hist) >= (
-                    tick_slope_lookback + 1
-                ):
-                    w_list = list(tick_widths)
-                    mean = sum(w_list) / float(len(w_list))
-                    var = sum((w - mean) ** 2 for w in w_list) / float(len(w_list))
-                    std = math.sqrt(var)
-                    z = (width - mean) / std if std > 1e-9 else 0.0
-                    delta = width - tick_width_hist[-1 - tick_slope_lookback]
-
-                    if tick_state == "neutral":
-                        if z >= tick_z_enter and delta > 0:
-                            tick_state = "wide"
-                        elif z <= (-tick_z_enter) and delta < 0:
-                            tick_state = "narrow"
-                    elif tick_state == "wide":
-                        if z < tick_z_exit:
-                            tick_state = "neutral"
-                    elif tick_state == "narrow":
-                        if z > (-tick_z_exit):
-                            tick_state = "neutral"
-
-                    if tick_state == "wide":
-                        tick_dir = "up"
-                    elif tick_state == "narrow":
-                        tick_dir = "down" if tick_direction_policy == "both" else None
-                    else:
-                        tick_dir = None
-                    tick_ready = True
-
-            tick_idx += 1
-
-        tick_ready_by_sig_idx[sig_i] = bool(tick_ready)
-        tick_dir_by_sig_idx[sig_i] = (
-            str(tick_dir) if tick_dir in ("up", "down") else None
-        )
-
-    out = _SpotTickGateSeries(
-        tick_ready_by_sig_idx=tick_ready_by_sig_idx,
-        tick_dir_by_sig_idx=tick_dir_by_sig_idx,
-    )
-    _SERIES_CACHE.set(namespace=_SPOT_TICK_GATE_SERIES_NAMESPACE, key=key, value=out)
-    return out
-
-
 def _spot_series_cache_db_path(cache_dir: object | None) -> Path | None:
     if cache_dir is None:
         return None
@@ -552,18 +370,13 @@ def _spot_series_pack_persistent_set(
 
 def _spot_series_pack_key(
     *,
-    cfg: ConfigBundle,
     signal_bars: list[Bar],
     exec_bars: list[Bar],
-    tick_bars: list[Bar] | None,
-    include_tick: bool,
 ) -> tuple[tuple[object, ...], str]:
     key = (
         str(_SPOT_SERIES_PACK_CACHE_VERSION),
         _spot_bars_signature(signal_bars),
         _spot_bars_signature(exec_bars),
-        _spot_bars_signature(tick_bars if include_tick else None),
-        _spot_tick_gate_settings(cfg.strategy) if include_tick else ("off",),
     )
     return key, hashlib.sha1(repr(key).encode("utf-8")).hexdigest()
 
@@ -572,12 +385,10 @@ def _spot_prepare_summary_series_pack(
     *,
     cfg: ConfigBundle,
     signal_bars: BarSeriesInput,
-    tick_bars: BarSeriesInput | None = None,
     exec_bars: BarSeriesInput | None = None,
 ) -> tuple[str, object | None]:
     """Warm the canonical execution pack shared by an entire sweep tape."""
     signal_list = _bars_input_list(signal_bars)
-    tick_list = _bars_input_optional_list(tick_bars)
     exec_list = _bars_input_optional_list(exec_bars)
     exec_bar_size = str(getattr(cfg.strategy, "spot_exec_bar_size", "") or "").strip()
     if exec_bar_size and not bar_sizes_equal(exec_bar_size, cfg.backtest.bar_size):
@@ -586,16 +397,9 @@ def _spot_prepare_summary_series_pack(
     else:
         exec_list = signal_list
 
-    include_tick = (
-        str(getattr(cfg.strategy, "tick_gate_mode", "off") or "off").strip().lower()
-        != "off"
-    )
     pack_key, pack_key_hash = _spot_series_pack_key(
-        cfg=cfg,
         signal_bars=signal_list,
         exec_bars=exec_list,
-        tick_bars=tick_list,
-        include_tick=include_tick,
     )
     cached = _SERIES_CACHE.get(namespace=_SPOT_SERIES_PACK_NAMESPACE, key=pack_key)
     if isinstance(cached, _SpotSeriesPack):
@@ -604,8 +408,6 @@ def _spot_prepare_summary_series_pack(
         cfg=cfg,
         signal_bars=signal_list,
         exec_bars=exec_list,
-        tick_bars=tick_list,
-        include_tick=include_tick,
     )
 
 
@@ -614,15 +416,10 @@ def _spot_build_series_pack(
     cfg: ConfigBundle,
     signal_bars: list[Bar],
     exec_bars: list[Bar],
-    tick_bars: list[Bar] | None,
-    include_tick: bool,
 ) -> _SpotSeriesPack:
     pack_key, pack_key_hash = _spot_series_pack_key(
-        cfg=cfg,
         signal_bars=signal_bars,
         exec_bars=exec_bars,
-        tick_bars=tick_bars,
-        include_tick=include_tick,
     )
     cached = _SERIES_CACHE.get(namespace=_SPOT_SERIES_PACK_NAMESPACE, key=pack_key)
     if isinstance(cached, _SpotSeriesPack):
@@ -644,13 +441,6 @@ def _spot_build_series_pack(
 
     pack = _SpotSeriesPack(
         align=_spot_exec_alignment(signal_bars, exec_bars),
-        tick_series=(
-            _spot_tick_gate_series(
-                signal_bars=signal_bars, tick_bars=tick_bars, strategy=cfg.strategy
-            )
-            if include_tick
-            else None
-        ),
         exec_dates=[_trade_date(bar.ts) for bar in exec_bars],
     )
     _SERIES_CACHE.set(namespace=_SPOT_SERIES_PACK_NAMESPACE, key=pack_key, value=pack)
@@ -681,10 +471,6 @@ def _spot_resolve_entry_dir(
     signal: EmaDecisionSnapshot | None,
     entry_dir: str | None,
     ema_needed: bool,
-    sig_idx: int | None,
-    tick_mode: str,
-    tick_series: _SpotTickGateSeries | None,
-    tick_neutral_policy: str,
     needs_direction: bool,
     allowed_directions: tuple[str, ...],
 ) -> tuple[str | None, bool, dict[str, object]]:
@@ -694,26 +480,6 @@ def _spot_resolve_entry_dir(
     if bool(ema_needed) and not bool(ema_ready):
         resolved = None
     after_ema = resolved
-    tick_ready: bool | None = None
-    tick_dir: str | None = None
-    tick_applied = False
-    if (
-        str(tick_mode) != "off"
-        and tick_series is not None
-        and sig_idx is not None
-        and 0 <= int(sig_idx) < len(tick_series.tick_ready_by_sig_idx)
-    ):
-        tick_applied = True
-        tick_ready = bool(tick_series.tick_ready_by_sig_idx[int(sig_idx)])
-        tick_dir_raw = tick_series.tick_dir_by_sig_idx[int(sig_idx)]
-        tick_dir = str(tick_dir_raw) if tick_dir_raw in ("up", "down") else None
-        resolved = _spot_apply_tick_gate_to_entry_dir(
-            entry_dir=resolved,
-            tick_ready=bool(tick_ready),
-            tick_dir=tick_dir,
-            tick_neutral_policy=str(tick_neutral_policy),
-        )
-    after_tick = resolved
     resolved = _spot_direction_allowed(
         entry_dir=resolved,
         allowed_directions=allowed_directions,
@@ -730,18 +496,10 @@ def _spot_resolve_entry_dir(
                 "passed": bool(not ema_needed or ema_ready),
                 "direction": after_ema,
             },
-            "tick_gate": {
-                "configured": str(tick_mode),
-                "applied": bool(tick_applied),
-                "ready": tick_ready,
-                "direction": tick_dir,
-                "neutral_policy": str(tick_neutral_policy),
-                "passed": bool(after_ema is None or after_tick is not None),
-            },
             "directional_mapping": {
                 "required": bool(needs_direction),
                 "allowed_directions": list(allowed_directions),
-                "passed": bool(after_tick is None or resolved is not None),
+                "passed": bool(after_ema is None or resolved is not None),
                 "direction": resolved,
             },
         },
@@ -1077,7 +835,6 @@ def run_backtest(
         regime_bars=context.regime_bars,
         regime2_bars=context.regime2_bars,
         regime2_bear_hard_bars=context.regime2_bear_hard_bars,
-        tick_bars=context.tick_bars,
         exec_bars=context.exec_bars,
     )
     data.disconnect()
@@ -1935,7 +1692,6 @@ def _spot_resolve_run_bars(
     regime_bars: BarSeriesInput | None = None,
     regime2_bars: BarSeriesInput | None = None,
     regime2_bear_hard_bars: BarSeriesInput | None = None,
-    tick_bars: BarSeriesInput | None = None,
 ) -> _SpotRunBars:
     """Normalize tapes once and enforce the single/multi-resolution boundary."""
     signal = _bars_input_list(bars)
@@ -1962,7 +1718,6 @@ def _spot_resolve_run_bars(
         regime=_bars_input_optional_list(regime_bars),
         regime2=_bars_input_optional_list(regime2_bars),
         regime2_bear_hard=_bars_input_optional_list(regime2_bear_hard_bars),
-        tick=_bars_input_optional_list(tick_bars),
     )
 
 
@@ -1975,7 +1730,6 @@ def _run_spot_backtest(
     regime_bars: BarSeriesInput | None = None,
     regime2_bars: BarSeriesInput | None = None,
     regime2_bear_hard_bars: BarSeriesInput | None = None,
-    tick_bars: BarSeriesInput | None = None,
     exec_bars: BarSeriesInput | None = None,
 ) -> BacktestResult:
     run_bars = _spot_resolve_run_bars(
@@ -1985,7 +1739,6 @@ def _run_spot_backtest(
         regime_bars=regime_bars,
         regime2_bars=regime2_bars,
         regime2_bear_hard_bars=regime2_bear_hard_bars,
-        tick_bars=tick_bars,
     )
     return _run_spot_backtest_exec_loop(
         cfg,
@@ -1996,7 +1749,6 @@ def _run_spot_backtest(
         regime_bars=run_bars.regime,
         regime2_bars=run_bars.regime2,
         regime2_bear_hard_bars=run_bars.regime2_bear_hard,
-        tick_bars=run_bars.tick,
     )
 
 
@@ -2008,7 +1760,6 @@ def _run_spot_backtest_summary(
     regime_bars: BarSeriesInput | None = None,
     regime2_bars: BarSeriesInput | None = None,
     regime2_bear_hard_bars: BarSeriesInput | None = None,
-    tick_bars: BarSeriesInput | None = None,
     exec_bars: BarSeriesInput | None = None,
     prepared_series_pack: object | None = None,
     progress_callback=None,
@@ -2025,7 +1776,6 @@ def _run_spot_backtest_summary(
         regime_bars=regime_bars,
         regime2_bars=regime2_bars,
         regime2_bear_hard_bars=regime2_bear_hard_bars,
-        tick_bars=tick_bars,
     )
     _spot_emit_progress(
         progress_callback,
@@ -2041,7 +1791,6 @@ def _run_spot_backtest_summary(
         regime_bars=run_bars.regime,
         regime2_bars=run_bars.regime2,
         regime2_bear_hard_bars=run_bars.regime2_bear_hard,
-        tick_bars=run_bars.tick,
         prepared_series_pack=prepared_series_pack,
         progress_callback=progress_callback,
     )
@@ -2059,7 +1808,6 @@ def _run_spot_backtest_exec_loop(
     regime_bars: BarSeriesInput | None = None,
     regime2_bars: BarSeriesInput | None = None,
     regime2_bear_hard_bars: BarSeriesInput | None = None,
-    tick_bars: BarSeriesInput | None = None,
     capture_equity: bool = True,
     final_session_complete: bool = True,
     prepared_series_pack: object | None = None,
@@ -2077,7 +1825,6 @@ def _run_spot_backtest_exec_loop(
     regime_bars = _bars_input_optional_list(regime_bars)
     regime2_bars = _bars_input_optional_list(regime2_bars)
     regime2_bear_hard_bars = _bars_input_optional_list(regime2_bear_hard_bars)
-    tick_bars = _bars_input_optional_list(tick_bars)
 
     cash = cfg.backtest.starting_cash
     margin_used = 0.0
@@ -2145,17 +1892,6 @@ def _run_spot_backtest_exec_loop(
     last_sig_snap: SpotSignalSnapshot | None = None
     last_sig_exec_idx = -1
 
-    (
-        _tick_mode,
-        tick_neutral_policy,
-        _tick_direction_policy,
-        _tick_ma_period,
-        _tick_z_lookback,
-        _tick_z_enter,
-        _tick_z_exit,
-        _tick_slope_lookback,
-    ) = _spot_tick_gate_settings(cfg.strategy)
-    tick_mode = policy.entry_control.tick_gate
     series_pack = (
         prepared_series_pack
         if isinstance(prepared_series_pack, _SpotSeriesPack)
@@ -2166,11 +1902,8 @@ def _run_spot_backtest_exec_loop(
             cfg=cfg,
             signal_bars=signal_bars,
             exec_bars=exec_bars,
-            tick_bars=tick_bars,
-            include_tick=(str(tick_mode) != "off"),
         )
     align = series_pack.align
-    tick_series = series_pack.tick_series
     exec_dates = series_pack.exec_dates
     evaluator_tape = prepare_spot_evaluator_tape(
         cfg=cfg,
@@ -2356,9 +2089,15 @@ def _run_spot_backtest_exec_loop(
     ) -> tuple[float, float, float]:
         excursion = excursion_states.pop(id(trade), None)
         if excursion is not None:
-            trade.bars_held = excursion.bars_held
-            trade.max_favorable_excursion = excursion.mfe_points
-            trade.max_adverse_excursion = excursion.mae_points
+            trade.bars_held = max(trade.bars_held, excursion.bars_held)
+            trade.max_favorable_excursion = max(
+                trade.max_favorable_excursion,
+                excursion.mfe_points,
+            )
+            trade.max_adverse_excursion = max(
+                trade.max_adverse_excursion,
+                excursion.mae_points,
+            )
         exit_price, next_cash, next_margin_used = _spot_exec_exit_common(
             qty=int(trade.qty),
             margin_required=float(trade.margin_required),
@@ -2375,6 +2114,19 @@ def _run_spot_backtest_exec_loop(
             apply_slippage=apply_slippage,
             trade=trade,
             trades=trades,
+        )
+        exit_excursion = (float(exit_price) - float(trade.entry_price)) * (
+            1.0 if int(trade.qty) > 0 else -1.0
+        )
+        trade.max_favorable_excursion = max(
+            trade.max_favorable_excursion,
+            exit_excursion,
+            0.0,
+        )
+        trade.max_adverse_excursion = max(
+            trade.max_adverse_excursion,
+            -exit_excursion,
+            0.0,
         )
         if capture_decision_trace:
             trace = trade.decision_trace if isinstance(trade.decision_trace, dict) else {}
@@ -2759,6 +2511,24 @@ def _run_spot_backtest_exec_loop(
         if open_trades:
             still_open: list[SpotTrade] = []
             for trade in open_trades:
+                if id(trade) not in excursion_states:
+                    trade.bars_held += 1
+                if int(trade.qty) > 0:
+                    favorable = float(bar.high) - float(trade.entry_price)
+                    adverse = float(trade.entry_price) - float(bar.low)
+                else:
+                    favorable = float(trade.entry_price) - float(bar.low)
+                    adverse = float(bar.high) - float(trade.entry_price)
+                trade.max_favorable_excursion = max(
+                    float(trade.max_favorable_excursion),
+                    favorable,
+                    0.0,
+                )
+                trade.max_adverse_excursion = max(
+                    float(trade.max_adverse_excursion),
+                    adverse,
+                    0.0,
+                )
                 exit_candidates: dict[str, bool] = {}
                 exit_ref_by_reason: dict[str, float] = {}
                 apply_slippage_by_reason: dict[str, bool] = {}
@@ -2841,9 +2611,15 @@ def _run_spot_backtest_exec_loop(
                         low=float(bar.low),
                     )
                     excursion_states[id(trade)] = excursion
-                    trade.bars_held = excursion.bars_held
-                    trade.max_favorable_excursion = excursion.mfe_points
-                    trade.max_adverse_excursion = excursion.mae_points
+                    trade.bars_held = max(trade.bars_held, excursion.bars_held)
+                    trade.max_favorable_excursion = max(
+                        trade.max_favorable_excursion,
+                        excursion.mfe_points,
+                    )
+                    trade.max_adverse_excursion = max(
+                        trade.max_adverse_excursion,
+                        excursion.mae_points,
+                    )
                     trade.stop_loss_price = excursion.stop_price
                     trade.stop_loss_reason = excursion.stop_reason
                     if excursion_exit is not None:
@@ -3043,10 +2819,6 @@ def _run_spot_backtest_exec_loop(
             signal=sig_snap.signal if sig_snap is not None else None,
             entry_dir=signal_inputs.get("signal_entry_dir"),
             ema_needed=bool(ema_needed),
-            sig_idx=int(sig_idx),
-            tick_mode=str(tick_mode),
-            tick_series=tick_series,
-            tick_neutral_policy=str(tick_neutral_policy),
             needs_direction=bool(needs_direction),
             allowed_directions=policy.entry_control.allowed_directions,
         )
@@ -3617,7 +3389,6 @@ def _run_spot_backtest_exec_loop_summary(
     regime_bars: BarSeriesInput | None = None,
     regime2_bars: BarSeriesInput | None = None,
     regime2_bear_hard_bars: BarSeriesInput | None = None,
-    tick_bars: BarSeriesInput | None = None,
     prepared_series_pack: object | None = None,
     progress_callback=None,
 ) -> SummaryStats:
@@ -3627,7 +3398,6 @@ def _run_spot_backtest_exec_loop_summary(
     regime_bars = _bars_input_optional_list(regime_bars)
     regime2_bars = _bars_input_optional_list(regime2_bars)
     regime2_bear_hard_bars = _bars_input_optional_list(regime2_bear_hard_bars)
-    tick_bars = _bars_input_optional_list(tick_bars)
     _spot_emit_progress(
         progress_callback,
         phase="summary.path",
@@ -3643,7 +3413,6 @@ def _run_spot_backtest_exec_loop_summary(
         regime_bars=regime_bars,
         regime2_bars=regime2_bars,
         regime2_bear_hard_bars=regime2_bear_hard_bars,
-        tick_bars=tick_bars,
         capture_equity=False,
         prepared_series_pack=prepared_series_pack,
         progress_callback=progress_callback,

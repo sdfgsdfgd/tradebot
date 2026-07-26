@@ -327,12 +327,6 @@ def parse_spot_sweep_args(argv: list[str] | None = None) -> argparse.Namespace:
         help=argparse.SUPPRESS,
     )
     parser.add_argument(
-        "--combo-full-include-tick",
-        action="store_true",
-        default=False,
-        help=("combo_full: include $TICK gate variants. Default keeps tick fixed off for faster/offline-friendly runs."),
-    )
-    parser.add_argument(
         "--combo-full-preset",
         default="",
         choices=_combo_full_preset_choices(include_empty=True, include_none=True),

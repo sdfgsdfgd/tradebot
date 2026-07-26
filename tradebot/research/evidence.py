@@ -8,6 +8,7 @@ from collections.abc import Iterable
 from datetime import date, datetime, time, timedelta
 
 from ..backtest.models import BacktestResult
+from ..chart_data.history import normalize_bars_to_close
 from ..chart_data.series import OhlcvBar
 from ..engines.directional_impulse import (
     DirectionalImpulseEngine,
@@ -324,7 +325,14 @@ def xsp_directional_turn_census(
     exclusively from the causal engine used by live and backtest.
     """
 
-    values = tuple(bars)
+    values = tuple(
+        normalize_bars_to_close(
+            bars,
+            symbol="XSP",
+            bar_size="5 mins",
+            use_rth=True,
+        )
+    )
     if not values:
         raise ValueError("XSP turn census requires an admitted bar tape")
     if not str(source_fingerprint).strip():
@@ -462,7 +470,7 @@ def xsp_directional_turn_census(
 
         labels: list[dict[str, object]] = []
         for index, et, bar, _snapshot, tr_pct in rows:
-            if not time(9, 45) <= et.time() <= time(11, 15):
+            if not time(9, 50) <= et.time() <= time(11, 20):
                 continue
             left = max(0, index - 3)
             right = min(len(rows), index + 4)
@@ -555,7 +563,7 @@ def xsp_directional_turn_census(
         early = [
             row
             for row in rows
-            if time(9, 30) <= row[1].time() <= time(11, 30)
+            if time(9, 35) <= row[1].time() <= time(11, 35)
         ]
         absolute_rows = []
         if early:
@@ -579,7 +587,7 @@ def xsp_directional_turn_census(
                     else None
                 )
                 boundary_censored = (
-                    et.time() <= time(9, 35) or et.time() >= time(11, 25)
+                    et.time() <= time(9, 40) or et.time() >= time(11, 30)
                 )
                 absolute_rows.append(
                     {

@@ -218,7 +218,7 @@ class ComboPresetContext:
         filter_overrides.update(timing_filters)
 
         strategy_overrides: dict[str, object] = {}
-        for dim_name in ("direction", "regime", "regime2", "exit", "tick"):
+        for dim_name in ("direction", "regime", "regime2", "exit"):
             strategy_overrides.update(pair_payloads[dim_name])
         strategy_overrides.update(timing_strategy)
         strategy_overrides.pop("entry_confirm_bars", None)
@@ -272,7 +272,6 @@ class ComboPresetContext:
             "lf_shock_sniper": self._preset_lf_shock_sniper,
             "hf_timing_sniper": self._preset_hf_timing_sniper,
             "ema_regime": self._preset_ema_regime,
-            "tick_ema": self._preset_tick_ema,
             "ema_atr": self._preset_ema_atr,
             "r2_atr": self._preset_r2_atr,
             "r2_tod": self._preset_r2_tod,
@@ -320,7 +319,6 @@ class ComboPresetContext:
             strategy=replace(
                 root.strategy,
                 filters=None,
-                tick_gate_mode="off",
                 regime2_mode="off",
                 regime2_bar_size=None,
                 spot_exit_time_et=None,
@@ -460,36 +458,6 @@ class ComboPresetContext:
 
     def _preset_ema_regime(self) -> None:
         self._set_dim_rows("direction", self._ema_direction_rows())
-
-    def _preset_tick_ema(self) -> None:
-        self._set_dim_rows("direction", self._ema_direction_rows())
-        tick_rows: list[tuple[str, dict[str, object]]] = []
-        for policy in ("allow", "block"):
-            for z_enter in (0.8, 1.0, 1.2):
-                for z_exit in (0.4, 0.5, 0.6):
-                    for slope_lb in (3, 5):
-                        for lookback in (126, 252):
-                            tick_rows.append(
-                                (
-                                    f"tick=wide policy={policy} z_in={float(z_enter):g} z_out={float(z_exit):g} slope={int(slope_lb)} lb={int(lookback)}",
-                                    {
-                                        "tick_gate_mode": "raschke",
-                                        "tick_gate_symbol": "TICK-AMEX",
-                                        "tick_gate_exchange": "AMEX",
-                                        "tick_neutral_policy": str(policy),
-                                        "tick_direction_policy": "wide_only",
-                                        "tick_band_ma_period": 10,
-                                        "tick_width_z_lookback": int(lookback),
-                                        "tick_width_z_enter": float(z_enter),
-                                        "tick_width_z_exit": float(z_exit),
-                                        "tick_width_slope_lookback": int(slope_lb),
-                                    },
-                                )
-                            )
-        if bool(getattr(self.runtime.args, "combo_full_include_tick", False)):
-            self._set_dim_rows("tick", tick_rows)
-        else:
-            self._set_dim_rows("tick", [("tick=off", {"tick_gate_mode": "off"})])
 
     def _preset_ema_atr(self) -> None:
         self._set_dim_rows("direction", self._ema_direction_rows())
@@ -698,7 +666,6 @@ class ComboPresetContext:
                 ("shock=surf", {"shock_gate_mode": "surf", **shock_policy}),
             ],
         )
-        self._set_dim_rows("tick", [("tick=off", {"tick_gate_mode": "off"})])
         self._set_dim_rows("slope", [("slope=source-owned", {})])
         self._set_dim_rows("risk", [("risk=off", {})])
         self._set_dim_rows("short_mult", [1.0])
@@ -730,7 +697,6 @@ class ComboPresetContext:
         )
         self._set_dim_rows("vol", [("vol=off", {"volume_ratio_min": None, "volume_ema_period": None})])
         self._set_dim_rows("cadence", [("cad=base", {})])
-        self._set_dim_rows("tick", [("tick=off", {"tick_gate_mode": "off"})])
         self._set_dim_rows("risk", [("risk=off", {})])
         self._set_dim_rows(
             "shock",
@@ -819,26 +785,6 @@ class ComboPresetContext:
                         "spot_pt_atr_mult": float(getattr(base.strategy, "spot_pt_atr_mult", 1.5) or 1.5),
                         "spot_sl_atr_mult": float(getattr(base.strategy, "spot_sl_atr_mult", 1.0) or 1.0),
                         "spot_close_eod": bool(getattr(base.strategy, "spot_close_eod", False)),
-                    },
-                )
-            ],
-        )
-        self._set_dim_rows(
-            "tick",
-            [
-                (
-                    "tick=base",
-                    {
-                        "tick_gate_mode": str(getattr(base.strategy, "tick_gate_mode", "off") or "off"),
-                        "tick_gate_symbol": str(getattr(base.strategy, "tick_gate_symbol", "TICK-NYSE") or "TICK-NYSE"),
-                        "tick_gate_exchange": str(getattr(base.strategy, "tick_gate_exchange", "NYSE") or "NYSE"),
-                        "tick_neutral_policy": str(getattr(base.strategy, "tick_neutral_policy", "allow") or "allow"),
-                        "tick_direction_policy": str(getattr(base.strategy, "tick_direction_policy", "both") or "both"),
-                        "tick_band_ma_period": int(getattr(base.strategy, "tick_band_ma_period", 10) or 10),
-                        "tick_width_z_lookback": int(getattr(base.strategy, "tick_width_z_lookback", 252) or 252),
-                        "tick_width_z_enter": float(getattr(base.strategy, "tick_width_z_enter", 1.0) or 1.0),
-                        "tick_width_z_exit": float(getattr(base.strategy, "tick_width_z_exit", 0.5) or 0.5),
-                        "tick_width_slope_lookback": int(getattr(base.strategy, "tick_width_slope_lookback", 3) or 3),
                     },
                 )
             ],

@@ -40,7 +40,6 @@ from .milestones import (
 )
 from .support import (
     _registry_float,
-    _require_offline_cache_or_die,
     _runtime_policy,
 )
 
@@ -199,15 +198,6 @@ class SweepCartesian:
             )
             for dim_name, variants_key in _COMBO_FULL_PAIR_DIM_VARIANT_SPECS
         }
-        if not bool(getattr(self.args, "combo_full_include_tick", False)):
-            tick_rows = [
-                (str(label), dict(payload))
-                for label, payload in tuple(pair_variants_by_dim.get("tick") or ())
-                if str((payload or {}).get("tick_gate_mode") or "off").strip().lower() in ("off", "", "none", "false", "0")
-            ]
-            if not tick_rows:
-                tick_rows = [("tick=off", {"tick_gate_mode": "off"})]
-            pair_variants_by_dim["tick"] = tick_rows
         confirm_bars = [int(v) for v in tuple(dims.get("confirm_bars") or ())]
         timing_profile_variants = _timing_profiles_from_registry(variants_key="timing_profile_variants")
         if not timing_profile_variants:
@@ -615,39 +605,6 @@ class SweepCartesian:
         bars_sig = self._bars_cached(self.signal_bar_size)
         combo_full_preset = _combo_full_preset_key(str(getattr(self.args, "combo_full_preset", "") or ""))
         preset_context = self._combo_full_context(combo_full_preset)
-        pair_variants_by_dim = {
-            dim_name: list(preset_context.rows[dim_name])
-            for dim_name, _variants_key in _COMBO_FULL_PAIR_DIM_VARIANT_SPECS
-        }
-
-        requires_tick_daily = any(
-            str((payload or {}).get("tick_gate_mode") or "off").strip().lower() != "off" for _label, payload in pair_variants_by_dim["tick"]
-        )
-        if self.offline and requires_tick_daily:
-            tick_warm_start = self.start_dt - timedelta(days=400)
-            tick_ok = False
-            for tick_sym in ("TICK-AMEX", "TICK-NYSE"):
-                try:
-                    _require_offline_cache_or_die(
-                        data=self.data,
-                        cache_dir=self.cache_dir,
-                        symbol=tick_sym,
-                        exchange=None,
-                        start_dt=tick_warm_start,
-                        end_dt=self.end_dt,
-                        bar_size="1 day",
-                        use_rth=True,
-                        cache_policy=self.cache_policy,
-                    )
-                    tick_ok = True
-                    break
-                except SystemExit:
-                    continue
-            if not tick_ok:
-                raise SystemExit(
-                    "combo_full requires cached daily $TICK bars when running with --offline "
-                    "(expected under db/TICK-AMEX or db/TICK-NYSE). Run once without --offline to fetch."
-                )
 
         size_by_dim = preset_context.size_by_dim
         cartesian_total = preset_context.total
@@ -865,7 +822,7 @@ class SweepCartesian:
                             default_signal_bar_size=self.signal_bar_size,
                             default_signal_use_rth=self.use_rth,
                         )
-                        if req.kind not in {"signal", "tick"}
+                        if req.kind != "signal"
                     )
                 self._preflight_offline_requirements(
                     requirements,

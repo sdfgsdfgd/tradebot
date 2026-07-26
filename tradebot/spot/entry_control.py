@@ -18,11 +18,6 @@ from .policy_contract import source_value as _get
 from .gates import _active_signal_filter_names
 
 
-def normalize_tick_gate_mode(raw: object | None) -> str:
-    mode = str(raw or "off").strip().lower()
-    return mode if mode in ("off", "raschke") else "off"
-
-
 def spot_allowed_entry_directions(
     strategy: Mapping[str, object] | object | None,
 ) -> tuple[str, ...]:
@@ -283,7 +278,6 @@ class SpotEntryControlPlan:
     bear_takeover_scope: str
     shock_gate: str
     signal_filters: tuple[str, ...]
-    tick_gate: str
     allowed_directions: tuple[str, ...]
     graph_entry_policy: str
     directional_impulse: str
@@ -439,9 +433,6 @@ class SpotEntryControlPlan:
             bear_takeover_scope=bear_takeover_scope,
             shock_gate=normalize_shock_gate_mode(filters),
             signal_filters=_active_signal_filter_names(filters),
-            tick_gate=normalize_tick_gate_mode(
-                _get(strategy, "tick_gate_mode", "off")
-            ),
             allowed_directions=spot_allowed_entry_directions(strategy),
             graph_entry_policy=str(graph.entry_policy),
             directional_impulse=impulse_mode,
@@ -499,7 +490,6 @@ class SpotEntryControlPlan:
             },
             "filters": list(self.signal_filters),
             "regime_entry_gates": list(self.regime_gates.active_gates()),
-            "tick_gate": self.tick_gate,
             "allowed_directions": list(self.allowed_directions),
             "lifecycle_checks": list(self.lifecycle_checks),
             "graph_entry_policy": self.graph_entry_policy,
@@ -511,7 +501,6 @@ class SpotEntryControlPlan:
                 "bear_takeover",
                 "regime_entry_gates",
                 "signal_filters",
-                "tick_gate",
                 "direction_mapping",
                 "lifecycle",
                 "graph_entry_policy",

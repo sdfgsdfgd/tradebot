@@ -443,23 +443,20 @@ def test_combo_full_presets_explore_only_their_declared_dimensions() -> None:
         "profile": ("timing_profile",),
         "gate": ("perm", "tod", "vol", "cadence"),
         "ema": ("direction", "perm", "tod", "vol"),
-        "tick": ("perm", "tod", "vol", "tick"),
         "regime": ("regime", "exit"),
         "risk": ("risk",),
         "squeeze": ("confirm", "tod", "vol", "regime2"),
         "tod_interaction": ("tod", "cadence"),
         "perm_joint": ("perm", "tod", "vol", "cadence"),
         "ema_perm_joint": ("direction", "perm", "tod", "vol"),
-        "tick_perm_joint": ("perm", "tod", "vol", "tick"),
         "regime_atr": ("regime", "exit"),
         "ema_regime": ("direction", "regime"),
-        "tick_ema": ("direction", "tick"),
         "ema_atr": ("direction", "exit"),
         "r2_atr": ("regime2", "exit"),
         "r2_tod": ("tod", "regime2"),
         "loosen_atr": ("exit",),
         "risk_overlays": ("risk",),
-        "gate_matrix": ("perm", "tod", "regime2", "tick", "shock", "risk", "short_mult"),
+        "gate_matrix": ("perm", "tod", "regime2", "shock", "risk", "short_mult"),
         "lf_shock_sniper": ("direction", "shock"),
         "hf_timing_sniper": ("timing_profile",),
         "xsp_candidate": ("direction", "tod", "vol", "cadence", "regime", "exit", "shock"),
@@ -502,7 +499,6 @@ def test_xsp_candidate_preset_is_source_safe_and_fixed_unit_ready() -> None:
     runtime = object.__new__(SpotSweepRuntime)
     runtime.args = SimpleNamespace(
         combo_full_cartesian_stage=None,
-        combo_full_include_tick=False,
         combo_full_preset="xsp_candidate",
         risk_overlays_skip_pop=False,
     )
@@ -534,7 +530,6 @@ def test_xsp_candidate_preset_is_source_safe_and_fixed_unit_ready() -> None:
         "regime": 4,
         "regime2": 1,
         "exit": 5,
-        "tick": 1,
         "shock": 3,
         "slope": 1,
         "risk": 1,
@@ -544,7 +539,6 @@ def test_xsp_candidate_preset_is_source_safe_and_fixed_unit_ready() -> None:
         cfg, note, _meta = space.plan_item_from_rank(rank)
         filters = cfg.strategy.filters
         assert cfg.strategy.max_entries_per_day == 4
-        assert cfg.strategy.tick_gate_mode == "off"
         assert cfg.strategy.regime2_mode == "off"
         assert cfg.strategy.spot_close_eod is True
         assert getattr(filters, "volume_ratio_min", None) is None
@@ -559,7 +553,6 @@ def test_sweep_context_owns_every_causal_bar_tape() -> None:
     runtime._bars_cached = lambda bar_size: loaded.setdefault(
         str(bar_size), [str(bar_size)]
     )
-    runtime._tick_bars_for = lambda _cfg: ["tick"]
     cfg = _bundle_base(
         symbol="SLV",
         start=date(2025, 1, 8),
@@ -579,7 +572,6 @@ def test_sweep_context_owns_every_causal_bar_tape() -> None:
             regime2_bear_hard_mode="supertrend",
             regime2_bear_hard_bar_size="1 day",
             spot_exec_bar_size="1 min",
-            tick_gate_mode="raschke",
         ),
     )
 
@@ -590,7 +582,6 @@ def test_sweep_context_owns_every_causal_bar_tape() -> None:
         "regime": ["4 hours"],
         "regime2": ["30 mins"],
         "regime2_bear_hard": ["1 day"],
-        "tick": ["tick"],
         "exec": ["1 min"],
     }
 
@@ -601,7 +592,6 @@ def test_sweep_window_signature_covers_every_causal_bar_role() -> None:
         "regime",
         "regime2",
         "regime2_bear_hard",
-        "tick",
         "exec",
     )
     base = tuple((kind, (1, "first", "last", "base")) for kind in kinds)
@@ -627,7 +617,6 @@ def test_sweep_evaluation_hands_every_causal_tape_to_engine(monkeypatch) -> None
         regime_bars=["regime"],
         regime2_bars=["regime2"],
         regime2_bear_hard_bars=["hard"],
-        tick_bars=["tick"],
         exec_bars=["exec"],
     )
     runtime.run_calls_total = 0
@@ -672,7 +661,6 @@ def test_sweep_evaluation_hands_every_causal_tape_to_engine(monkeypatch) -> None
         "regime_bars": context.regime_bars,
         "regime2_bars": context.regime2_bars,
         "regime2_bear_hard_bars": context.regime2_bear_hard_bars,
-        "tick_bars": context.tick_bars,
         "exec_bars": context.exec_bars,
         "prepared_series_pack": None,
         "progress_callback": None,
@@ -763,7 +751,6 @@ def test_combo_full_progress_uses_executed_profile_space(monkeypatch) -> None:
     runtime = object.__new__(SpotSweepRuntime)
     runtime.args = SimpleNamespace(
         combo_full_cartesian_stage=None,
-        combo_full_include_tick=False,
         combo_full_preset="profile",
         risk_overlays_skip_pop=False,
     )
@@ -781,7 +768,7 @@ def test_combo_full_progress_uses_executed_profile_space(monkeypatch) -> None:
 
     space = runtime._combo_full_context("profile")
     assert space.total == 32
-    assert space.dimension_signature == "37c19ac8bb039900f2c99245f4d3aceea5c86c29"
+    assert space.dimension_signature == "c343841f2badc2c6559a5568fa7a552903ac0846"
     for rank in (0, 1, 31):
         assert space.rank(space.indices(rank)) == rank
         _cfg, _note, meta = space.plan_item_from_rank(rank)
@@ -792,7 +779,7 @@ def test_combo_full_progress_uses_executed_profile_space(monkeypatch) -> None:
     assert runtime._combo_full_context("full").dimension_signature == runtime._combo_full_context("").dimension_signature
     lf_space = runtime._combo_full_context("lf_shock_sniper")
     assert lf_space.total == 10
-    assert lf_space.dimension_signature == "c69ba2ad76b43accf1c11f352f54f659a3309218"
+    assert lf_space.dimension_signature == "a19c0c916711fe7fb547168c9a67484fa7c4c020"
 
 
 def test_combo_full_warm_run_rehydrates_cached_shortlist(monkeypatch) -> None:

@@ -18,11 +18,14 @@ from .xsp_benchmarks import XSP_DIRECTIONAL_SHADOW_POLICY
 
 
 XSP_OPENING_EDGE_VERSION = "xsp.opening-edge-directional.v1"
+XSP_OPENING_EDGE_RUNTIME_REVISION = "close-time-parity-r1"
 XSP_OPENING_EDGE_POLICY = DirectionalImpulseAdmissionPolicy()
 XSP_OPENING_EDGE_ADMISSION = XSP_OPENING_EDGE_POLICY.as_payload()
 XSP_OPENING_EDGE_CONTRACT = {
     "schema": XSP_OPENING_EDGE_VERSION,
+    "runtime_revision": XSP_OPENING_EDGE_RUNTIME_REVISION,
     "bar_size": "5 mins",
+    "timestamp_semantics": "bar_close",
     "use_rth": True,
     "entry_signal": "directional_impulse",
     "admission": XSP_OPENING_EDGE_ADMISSION,

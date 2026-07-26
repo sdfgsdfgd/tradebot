@@ -106,15 +106,15 @@ class SweepHighFrequencyAxes:
         _print_leaderboards(rows, title="D) ORB sweep (open-time + window)", top_n=int(self.args.top))
 
     def _sweep_orb_joint(self) -> None:
-        """Joint ORB exploration: ORB params × (regime bias) × (optional tick bias).
+        """Joint ORB exploration: ORB params × regime bias.
 
         Note: ORB uses its own stop/target derived from the opening range, so EMA-based
         quality gates (spread/slope) aren't applicable here unless we compute EMA in
-        parallel. We stick to regime/tick/volume/TOD gates that remain well-defined.
+        parallel. We retain only the regime overlay that has directional semantics.
         """
         bars_15m = self._bars_cached("15 mins")
 
-        # Start from the selected base shape, but neutralize regime/tick so stage1 can
+        # Start from the selected base shape and neutralize regime so stage1 can
         # shortlist ORB mechanics without hidden gating.
         base = self._base_bundle(bar_size="15 mins", filters=None)
         base = replace(
@@ -129,7 +129,6 @@ class SweepHighFrequencyAxes:
                 regime_ema_preset=None,
                 regime2_mode="off",
                 regime2_bar_size=None,
-                tick_gate_mode="off",
             ),
         )
         base_row = self._run_cfg(
@@ -137,10 +136,10 @@ class SweepHighFrequencyAxes:
             bars=bars_15m,
         )
         if base_row:
-            base_row["note"] = "base (orb, no regime/tick)"
+            base_row["note"] = "base (orb, no regime)"
             self._record_milestone(base, base_row, str(base_row["note"]))
 
-        # Stage 1: find the best ORB mechanics without regime/tick overlays.
+        # Stage 1: find the best ORB mechanics without regime overlays.
         best_by_orb: dict[tuple, dict] = {}
         for key, cfg, note in _orb_candidates(
             base,
@@ -155,9 +154,9 @@ class SweepHighFrequencyAxes:
             print("No eligible ORB candidates (try lowering --min-trades).")
             return
         print("")
-        print(f"ORB×(regime/tick): stage1 shortlisted orb={len(shortlisted)} (from {len(best_by_orb)})")
+        print(f"ORB×regime: stage1 shortlisted orb={len(shortlisted)} (from {len(best_by_orb)})")
 
-        # Stage 2: apply a small curated set of regime overlays + tick "wide-only" bias.
+        # Stage 2: apply a small curated set of directionally meaningful regimes.
         regime_variants: list[tuple[str, dict[str, object]]] = [
             (
                 "regime=off",
@@ -189,83 +188,38 @@ class SweepHighFrequencyAxes:
                 )
             )
 
-        tick_variants: list[tuple[str, dict[str, object]]] = [
-            ("tick=off", {"tick_gate_mode": "off"}),
-            (
-                "tick=wide_only allow (z=1.0/0.5 slope=3 lb=252)",
-                {
-                    "tick_gate_mode": "raschke",
-                    "tick_gate_symbol": "TICK-AMEX",
-                    "tick_gate_exchange": "AMEX",
-                    "tick_neutral_policy": "allow",
-                    "tick_direction_policy": "wide_only",
-                    "tick_band_ma_period": 10,
-                    "tick_width_z_lookback": 252,
-                    "tick_width_z_enter": 1.0,
-                    "tick_width_z_exit": 0.5,
-                    "tick_width_slope_lookback": 3,
-                },
-            ),
-            (
-                "tick=wide_only block (z=1.0/0.5 slope=3 lb=252)",
-                {
-                    "tick_gate_mode": "raschke",
-                    "tick_gate_symbol": "TICK-AMEX",
-                    "tick_gate_exchange": "AMEX",
-                    "tick_neutral_policy": "block",
-                    "tick_direction_policy": "wide_only",
-                    "tick_band_ma_period": 10,
-                    "tick_width_z_lookback": 252,
-                    "tick_width_z_enter": 1.0,
-                    "tick_width_z_exit": 0.5,
-                    "tick_width_slope_lookback": 3,
-                },
-            ),
-        ]
-
         rows: list[dict] = []
         for key in shortlisted:
             seed = best_by_orb[key]
             seed_cfg = seed["cfg"]
             for regime_note, reg_over in regime_variants:
-                for tick_note, tick_over in tick_variants:
-                    cfg = replace(
-                        seed_cfg,
-                        strategy=replace(
-                            seed_cfg.strategy,
-                            regime_mode=str(reg_over.get("regime_mode") or "ema"),
-                            regime_bar_size=str(reg_over.get("regime_bar_size") or "15 mins"),
-                            regime_ema_preset=reg_over.get("regime_ema_preset"),
-                            supertrend_atr_period=int(reg_over.get("supertrend_atr_period") or 10),
-                            supertrend_multiplier=float(reg_over.get("supertrend_multiplier") or 3.0),
-                            supertrend_source=str(reg_over.get("supertrend_source") or "hl2"),
-                            tick_gate_mode=str(tick_over.get("tick_gate_mode") or "off"),
-                            tick_gate_symbol=str(tick_over.get("tick_gate_symbol") or "TICK-NYSE"),
-                            tick_gate_exchange=str(tick_over.get("tick_gate_exchange") or "NYSE"),
-                            tick_neutral_policy=str(tick_over.get("tick_neutral_policy") or "allow"),
-                            tick_direction_policy=str(tick_over.get("tick_direction_policy") or "both"),
-                            tick_band_ma_period=int(tick_over.get("tick_band_ma_period") or 10),
-                            tick_width_z_lookback=int(tick_over.get("tick_width_z_lookback") or 252),
-                            tick_width_z_enter=float(tick_over.get("tick_width_z_enter") or 1.0),
-                            tick_width_z_exit=float(tick_over.get("tick_width_z_exit") or 0.5),
-                            tick_width_slope_lookback=int(tick_over.get("tick_width_slope_lookback") or 3),
-                        ),
-                    )
-                    row = self._run_cfg(
-                        cfg=cfg,
-                        bars=bars_15m,
-                    )
-                    if not row:
-                        continue
-                    note = f"{seed['note']} | {regime_note} | {tick_note}"
-                    row["note"] = note
-                    self._record_milestone(cfg, row, note)
-                    rows.append(row)
+                cfg = replace(
+                    seed_cfg,
+                    strategy=replace(
+                        seed_cfg.strategy,
+                        regime_mode=str(reg_over.get("regime_mode") or "ema"),
+                        regime_bar_size=str(reg_over.get("regime_bar_size") or "15 mins"),
+                        regime_ema_preset=reg_over.get("regime_ema_preset"),
+                        supertrend_atr_period=int(reg_over.get("supertrend_atr_period") or 10),
+                        supertrend_multiplier=float(reg_over.get("supertrend_multiplier") or 3.0),
+                        supertrend_source=str(reg_over.get("supertrend_source") or "hl2"),
+                    ),
+                )
+                row = self._run_cfg(
+                    cfg=cfg,
+                    bars=bars_15m,
+                )
+                if not row:
+                    continue
+                note = f"{seed['note']} | {regime_note}"
+                row["note"] = note
+                self._record_milestone(cfg, row, note)
+                rows.append(row)
 
         if base_row:
             rows.append(base_row)
         _print_leaderboards(
             rows,
-            title="ORB joint sweep (ORB × regime × tick)",
+            title="ORB joint sweep (ORB × regime)",
             top_n=int(self.args.top),
         )

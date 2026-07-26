@@ -13,7 +13,6 @@ from ..engine import (
 )
 from ..signals import bar_sizes_equal, ema_periods, parse_bar_size
 from ..spot.codec import bool_from_payload
-from ..spot.entry_control import normalize_tick_gate_mode
 from ..spot.policy_contract import parse_int as _parse_int
 from ..spot.policy_contract import source_value as _get
 
@@ -36,7 +35,6 @@ class SpotContextBars:
     regime_bars: object | None = None
     regime2_bars: object | None = None
     regime2_bear_hard_bars: object | None = None
-    tick_bars: object | None = None
     exec_bars: object | None = None
 
     def items(self) -> tuple[tuple[str, object | None], ...]:
@@ -46,7 +44,6 @@ class SpotContextBars:
             ("regime", self.regime_bars),
             ("regime2", self.regime2_bars),
             ("regime2_bear_hard", self.regime2_bear_hard_bars),
-            ("tick", self.tick_bars),
             ("exec", self.exec_bars),
         )
 
@@ -289,27 +286,6 @@ def spot_bar_requirements_from_strategy(
             )
         )
 
-    tick_mode = normalize_tick_gate_mode(
-        _get(strategy, "tick_gate_mode", "off")
-    )
-    if tick_mode != "off":
-        z_lookback = _parse_int(_get(strategy, "tick_width_z_lookback", 252), default=252, min_value=1)
-        ma_period = _parse_int(_get(strategy, "tick_band_ma_period", 10), default=10, min_value=1)
-        slope_lb = _parse_int(_get(strategy, "tick_width_slope_lookback", 3), default=3, min_value=1)
-        tick_warm_days = max(60, int(z_lookback) + int(ma_period) + int(slope_lb) + 5)
-        tick_symbol = str(_get(strategy, "tick_gate_symbol", "TICK-NYSE") or "TICK-NYSE").strip().upper()
-        tick_exchange = str(_get(strategy, "tick_gate_exchange", "NYSE") or "NYSE").strip().upper()
-        out.append(
-            SpotBarRequirement(
-                kind="tick",
-                symbol=tick_symbol,
-                exchange=tick_exchange,
-                bar_size="1 day",
-                use_rth=True,
-                warmup_days=int(tick_warm_days),
-            )
-        )
-
     exec_bar_size = str(_get(strategy, "spot_exec_bar_size", "") or "").strip()
     if exec_bar_size and not bar_sizes_equal(exec_bar_size, signal_bar_size):
         out.append(
@@ -382,6 +358,5 @@ def load_spot_context_bars(
         regime_bars=by_kind.get("regime"),
         regime2_bars=by_kind.get("regime2"),
         regime2_bear_hard_bars=by_kind.get("regime2_bear_hard"),
-        tick_bars=by_kind.get("tick"),
         exec_bars=by_kind.get("exec"),
     )

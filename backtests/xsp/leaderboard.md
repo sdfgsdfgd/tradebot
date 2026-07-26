@@ -36,19 +36,32 @@ one-bar proposal—own the position until a confirmed inverse source or EOD.
 | Unit | One synthetic `$1 per XSP point` directional unit |
 | Source | XSP-native `directional_impulse`; SPY has no direction authority |
 | Horizons | `5/15/30/60/120m` signed slope, velocity, acceleration, ATR-normalized movement, efficiency, coherence |
-| Core admission | `09:30..11:15 ET`; `0 < ATR velocity < .055` |
+| Turn observation | `09:35..11:50 ET` causal bar-close clock |
+| Core admission | `09:35..11:20 ET` close clock; `0 < ATR velocity < .055` |
 | Down admission | Core plus retrace `>= 1.25 ATR` |
-| Late-up admission | `11:20..11:25 ET`; retrace `1.25..1.70 ATR`; coherence `>= .75` |
+| Late-up admission | `11:25..11:30 ET` close clock; retrace `1.25..1.70 ATR`; coherence `>= .75` |
 | EMA confirmation | Off |
 | Entry | Next open; maximum five entries/session |
 | Exit | Persistent inverse-source flip after `12` bars, or EOD |
 | Disabled lifecycle | Initial stop, trailing stop, profit target, fizzle |
 | Frozen friction | `$0.10` points per round trip |
-| Config fingerprint | `77e285f377f17115ea01e5d37bef9af53d2f902858fb2fc579dff210efee7e9b` |
-| Recent identity freeze | `fac8d3147cbf45c93a8e26e19ce4af5ad52e76c6bb41ca1778b2eddd54aabc8a` |
+| Runtime revision | `close-time-parity-r1`; same crown, not a successor |
+| Config fingerprint | `bbb0a39166dabf6d6237563c7ed08ecba377dd96abac0d622405f02117c0e1d9` |
+| Original config fingerprint | `77e285f377f17115ea01e5d37bef9af53d2f902858fb2fc579dff210efee7e9b` |
+| Original recent identity freeze | `fac8d3147cbf45c93a8e26e19ce4af5ad52e76c6bb41ca1778b2eddd54aabc8a` |
+| Parity-rerun freeze | `4ba13f3874b1b27ef88ccce99616b0305202e0e88b4aa2dda125a6a0be870943` |
 | Campaign artifact | `backtests/out/xsp/xsp_directional_lifecycle_anatomy_20260726.json` |
-| Artifact SHA-256 | `753889ac8b6866a98808e449fd766571ad515e05115ab1c8f4c83fc3cf41ef81` |
+| Original / parity artifact SHA-256 | `753889ac…` / `b86deb3b…` |
 | Tape manifest | `564deda9e4e22d20a649dacf78f27d4b5de0df2e95457f1410591d35065b3b9d` |
+
+The runtime revision fixes representation, not economics. IBKR cache rows are
+bar-start timestamps; the canonical evaluator now converts them once to
+bar-close timestamps. The old and repaired engines produce the same ordered
+physical ledger after that deterministic five-minute clock translation:
+`1,019` trades and semantic-ledger fingerprint `4099fe9f…`, with identical
+prices, sides, exits, P&L, and crown metrics. The old clock labels above are
+therefore preserved only through the original artifact; they do not define a
+second strategy.
 
 ### Crown economics
 
@@ -171,6 +184,33 @@ manufacture this crown.
 
 ---
 
+## Research challenger — breadth deterioration 150
+
+This is **not a crown**. It uses the same Opening Edge v1 source and lifecycle,
+then observes causal same-session `TICK-NASD` breadth. It vetoes only a proposed
+turn already aligned by at least `150` TICK points when the three-bar mean is
+deteriorating relative to the six-bar mean. TICK dispersion never votes
+`up/down`; missing, stale, or underwarmed breadth has no authority.
+
+| Window | Crown | Breadth-150 | Verdict |
+|---|---:|---:|---|
+| Recent 19 sessions | `+10.98 / 17`, PF `1.950` | `+8.99 / 16`, PF `1.778` | Worse |
+| Latest 251 sessions | `+131.74 / 204`, PF `2.044` | `+128.34 / 202`, PF `2.010` | Worse |
+| Five years | `+120.59 / 1,019`, PF `1.170`, DD `59.95` | `+127.64 / 1,004`, PF `1.182`, DD `52.67` | Modest aggregate improvement |
+
+Annual attribution is mixed: the challenger improves 2021, 2022, 2023, and
+2025 point estimates, but worsens 2024 and 2026; 2021/2023 still lose. It was
+discovered on the same five-year tape, uses a NASDAQ breadth proxy for XSP, and
+worsens both freshest challenge windows. It remains an observation-only paired
+challenger with `order_authority=none`; no crown record is created.
+
+The retired legacy `raschke` path is deliberately absent. It mapped daily TICK
+band width to direction (`wide → up`, `narrow → down`), although width measures
+activity/dispersion rather than sign. No current or archived strategy enabled
+it; historical journals may still render its old fields for provenance.
+
+---
+
 ## Crown authority and Monday handoff
 
 The same typed `DirectionalImpulseAdmissionPolicy` now owns campaign,
@@ -203,6 +243,77 @@ Promotion requires, in order:
 
 ---
 
+## Rolling robustness truth
+
+The crown is profitable over the complete five-year tape, but it is not yet a
+stable-income strategy:
+
+- `623/1,004` rolling 252-session windows are positive (`62.1%`).
+- Worst year: `2022-12-09..2023-12-11`, `-47.34/206` trades.
+- Best year: `2025-07-24..2026-07-24`, `+132.67/205` trades.
+- The worst year retained flip churn (`-79.13`) while persistent EOD moves paid
+  only `+31.79`; the best year retained smaller flip losses (`-16.29`) while
+  EOD persistence paid `+148.96`.
+- The longest session-close underwater interval lasted `692` sessions
+  (`2023-02-17..2025-11-20`); engine intraday drawdown remains `59.95`.
+
+The failure mechanism is therefore **missing session expansion after an
+otherwise valid turn**, not one globally removable clock bucket. The crown
+stays research-only until independent prospective evidence identifies that
+condition without suppressing its required cadence.
+
+### Degradation signatures
+
+The exact five-year replay, all eight authenticated cache shards, and the normal
+engine path reproduce the crown at `+120.59/1,019`; no cache, DST, cost, or
+optimized-path defect explains the weak periods.
+
+| Signature | Evidence | Authority |
+|---|---|---|
+| Expansion-financing failure | All three weak clusters retain flip churn while EOD persistence stops covering it | Strategy-health telemetry only |
+| Quiet expansion starvation | 2023 and Dec 2024–Mar 2025 contain many entries with little post-entry MFE; a real state-machine chop veto improves net/DD but falls to at most `191.16` trades/year | Rejected as an admission gate |
+| Turbulent giveback/whipsaw | Apr–Jul 2025 retains large favorable movement but incurs still larger adverse/flip paths under elevated trailing volatility | One historical episode; observe prospectively |
+| Crash/rebound transition | Mar/Jun 2026 shows the shared multitimeframe sensor can catch some large reversals and miss others; this is distinct from weak-period degradation | Peer research state, never a hidden regime router |
+
+No one causal entry scalar binds the weak areas: `42` pre-entry
+slope/velocity/ATR/coherence/range features were tested, and zero shifted by
+even `0.1` pooled IQR in the same direction across all three weak clusters.
+A strictly prior `20/40/63`-session expansion-financing consensus marks
+`80.2%/82.5%/84.1%` of the three weak clusters, but also marks profitable
+intervals in 2022 and 2024. It is therefore an honest degradation alarm—not a
+selector, veto, or permission gate.
+
+### Hindsight headline plausibility
+
+Contemporaneous headlines make causal news a credible **prospective
+discriminator**, but not a historical explanation or standalone selector:
+
+- Weak-cluster P&L is not uniformly bullish exposure: 2023 was
+  `-23.91 up / -25.66 down`, Dec 2024–Mar 2025 was
+  `-23.72 up / -4.56 down`, and Apr–Jul 2025 was
+  `-8.41 up / -19.21 down`. An always-bearish rule cannot bind or cure all
+  three.
+- On 2023-03-16 the crown's worst short lost `-5.12` while an announced
+  [First Republic rescue triggered a broad market reversal](https://www.axios.com/2023/03/16/first-republic-rescue-markets).
+  Static bearish pressure would not have protected that trade; a timely
+  `weakening/reversal` observation might have explained it.
+- On 2023-08-24 the crown lost `-4.42` long after
+  [Nvidia optimism at the open reversed under rising yields](https://apnews.com/article/a893e995e462f797e0160e28e11b9a72).
+- The later clusters include visibly persistent hostile contexts: the
+  [post-Fed rebound faded on 2024-12-19](https://www.investing.com/news/economy-news/futures-steady-after-wall-street-swoons-on-fed-view-of-fewer-rate-cuts-3781357),
+  [tariff relief reversed into China escalation on 2025-04-10](https://ca.investing.com/news/stock-market-news/trumps-tariff-pause-focuses-trade-war-on-china-markets-bounce-3950735),
+  and [Israel–Iran conflict pressured stocks on 2025-06-17](https://www.investing.com/news/economy-news/wall-street-futures-edge-lower-as-mideast-conflict-continues-4098734).
+
+This selective sample is plausibility evidence only. The news service has no
+timestamp-correct archive for those years, runs roughly every four hours, and
+cannot be credited with catching an intraday headline it never observed.
+Monday therefore preserves the frozen `60m` opposite-pressure counterfactual
+and attributes each pair by pressure sign and
+`new/strengthening/weakening/reversal/unchanged`; missing, stale, aligned, or
+late evidence leaves the crown unchanged.
+
+---
+
 ## Capability frontier
 
 | Capability | State | Exact next proof |
@@ -215,7 +326,8 @@ Promotion requires, in order:
 | Authentic XSP option/underlier tape | Covered infrastructure | Continue forward capture as independent context |
 | Causal news context | Experimental | Paired TA-only vs TA+news veto; never historical-backfill |
 | Quote/liquidity admission | Open | Test whether spread, depth, freshness, and quote movement reject adverse entries |
-| Weak-year explanation | Open | Explain 2021/2023 loss with causal, independently available evidence |
+| Weak-year explanation | Partly covered | Two path signatures explain the collapse; require timestamp-correct prospective discrimination |
+| Unconditional path telemetry | Covered | Every backtest trade now records bars held, MFE, and MAE even when stop/trail policy is absent |
 | Exit quality | Partly covered | Exit-to-flat and high-activation trails rejected; use independent prospective evidence |
 | Operational selection | Blocked | Only after the complete 24h/48h/week promotion ladder |
 
@@ -229,11 +341,16 @@ These are hypotheses, not permission to retune the historical crown:
   or adverse option-skew evolution identify false turns before entry?
 - **Flip-quality state:** can persistent-source disagreement plus deteriorating
   MFE/MAE distinguish necessary reversals from costly churn?
-- **Weak-year causal split:** are the losing years explained by opening-range
-  compression, delayed expansion, or path asymmetry already observable at
-  decision time?
+- **Weak-period causal split:** can prospective quote/news evidence distinguish
+  quiet expansion starvation from turbulent giveback before the path resolves?
+- **Crash/rebound peer state:** can large displacement plus short-to-long
+  direction reversal earn incremental value without overriding the crown?
 - **Cost frontier:** does the edge survive measured live slippage rather than a
   convenient fixed assumption?
+- **Future top-signal premium sleeve:** after this directional quest, test
+  whether timestamp-valid IV/skew overprices realized post-top movement through
+  defined-risk XSP call spreads or neutral structures. Spot bars cannot prove
+  this, and naked short premium is outside scope.
 
 Each seam must compare the unchanged crown against one preregistered variant on
 the same prospective tape. It earns authority only through incremental,
@@ -290,6 +407,11 @@ its predecessor’s numbers.
 
 - **Change:** first XSP research crown.
 - **Predecessor:** none; the XSP namespace was intentionally vacant.
+- **Runtime repair, 2026-07-27:** `close-time-parity-r1` translated the
+  cache's bar-start representation to the canonical causal close clock and
+  removed dead TICK-width configuration fields. It reproduced the same
+  `1,019` physical trades and all economics; this updates CR-001 rather than
+  creating CR-002.
 - **Earned by:** source-consistent lifecycle repair, exact signal/control
   traces, tight side-specific admission geometry, stable local neighborhood,
   positive recent/one-year/five-year economics, and `>200` annualized trades.
@@ -305,8 +427,8 @@ PYTHONUNBUFFERED=1 venv/bin/python -u \
   -m backtests.xsp.xsp_directional_interaction_campaign --mode lifecycle
 ```
 
-Expected bounded campaign shape: `192 → 55 → 24`, about 103 seconds on the
-current machine, with five-year leader
+Expected parity-rerun campaign shape: `192 → 62 → 29`, about 110 seconds on the
+current machine, with the unchanged five-year leader
 `gate=opening_edge:ema=off:hold=12`.
 
 Canonical quest/evidence journal: `q_XSP_live_research_kata.md`.

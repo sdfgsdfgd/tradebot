@@ -350,7 +350,6 @@ def main(argv: list[str] | None = None) -> int:
             regime_bars=ctx.regime_bars,
             regime2_bars=ctx.regime2_bars,
             regime2_bear_hard_bars=ctx.regime2_bear_hard_bars,
-            tick_bars=ctx.tick_bars,
             exec_bars=ctx.exec_bars,
         )
         exec_bars = ctx.exec_bars if isinstance(ctx.exec_bars, list) else bars_sig

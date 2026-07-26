@@ -59,6 +59,8 @@ def test_load_cached_bar_series_returns_metadata() -> None:
     assert series.meta.tz_mode == "utc_naive"
     assert series.meta.session_mode == "full24"
     assert series.meta.source in {"cache", "cache-covering"}
+    assert series.meta.extra == {"timestamp_semantics": "close"}
+    assert series.bars[0].ts == bars[0].ts + timedelta(minutes=15)
 
 
 def test_load_cached_bar_series_resamples_from_1min_when_same_frequency_cache_is_absent() -> None:

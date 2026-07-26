@@ -350,12 +350,6 @@ class SweepPlanning:
         if regime2_mode != "off" and not bar_sizes_equal(regime2_bar, signal_bar):
             cost += _cost_model_weight("regime2_cross_tf", 0.5)
 
-        if (
-            str(getattr(strat, "tick_gate_mode", "off") or "off").strip().lower()
-            != "off"
-        ):
-            cost += _cost_model_weight("tick_gate_on", 0.75)
-
         exec_size = str(getattr(strat, "spot_exec_bar_size", "") or "").strip()
         if exec_size and exec_size != signal_bar:
             cost += _cost_model_weight("exec_cross_tf", 0.75)
@@ -445,9 +439,6 @@ class SweepPlanning:
         regime2_bar = (
             str(getattr(strat, "regime2_bar_size", "") or "").strip() or signal_bar
         )
-        tick_mode = (
-            str(getattr(strat, "tick_gate_mode", "off") or "off").strip().lower()
-        )
         exec_size = (
             str(getattr(strat, "spot_exec_bar_size", "") or "").strip() or signal_bar
         )
@@ -456,7 +447,6 @@ class SweepPlanning:
             "signal_bar": signal_bar,
             "regime": (regime_mode, regime_bar),
             "regime2": (regime2_mode, regime2_bar),
-            "tick_mode": tick_mode,
             "exec_size": exec_size,
             "shock_mode": str(filters_payload.get("shock_gate_mode") or "off")
             .strip()

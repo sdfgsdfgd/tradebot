@@ -16,7 +16,7 @@ import math
 import re
 import sys
 from dataclasses import dataclass
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import date, datetime, time, timezone
 from pathlib import Path
 from statistics import median
 from typing import Any
@@ -143,11 +143,10 @@ def _load_context_bars(
     start_dt: datetime,
     end_dt: datetime,
     offline: bool,
-) -> tuple[list[Bar] | None, list[Bar] | None, list[Bar] | None, list[Bar] | None]:
+) -> tuple[list[Bar] | None, list[Bar] | None, list[Bar] | None]:
     base_bar = str(bundle.backtest.bar_size)
     regime_bars: list[Bar] | None = None
     regime2_bars: list[Bar] | None = None
-    tick_bars: list[Bar] | None = None
     exec_bars: list[Bar] | None = None
 
     regime_mode = str(getattr(bundle.strategy, "regime_mode", "") or "").strip().lower()
@@ -190,29 +189,6 @@ def _load_context_bars(
         if not regime2_bars:
             raise SystemExit(f"Missing regime2 bars: {bundle.strategy.symbol} {regime2_bar}")
 
-    tick_mode = str(getattr(bundle.strategy, "tick_gate_mode", "off") or "off").strip().lower()
-    if tick_mode != "off":
-        z_lookback = int(getattr(bundle.strategy, "tick_width_z_lookback", 252) or 252)
-        ma_period = int(getattr(bundle.strategy, "tick_band_ma_period", 10) or 10)
-        slope_lb = int(getattr(bundle.strategy, "tick_width_slope_lookback", 3) or 3)
-        tick_warm_days = max(60, z_lookback + ma_period + slope_lb + 5)
-        tick_start_dt = start_dt - timedelta(days=tick_warm_days)
-        tick_symbol = str(getattr(bundle.strategy, "tick_gate_symbol", "TICK-NYSE") or "TICK-NYSE").strip()
-        tick_exchange = str(getattr(bundle.strategy, "tick_gate_exchange", "NYSE") or "NYSE").strip()
-        tick_bars = _load_bars(
-            data,
-            symbol=tick_symbol,
-            exchange=tick_exchange,
-            start_dt=tick_start_dt,
-            end_dt=end_dt,
-            bar_size="1 day",
-            use_rth=True,
-            cache_dir=cache_dir,
-            offline=offline,
-        )
-        if not tick_bars:
-            raise SystemExit(f"Missing tick-gate bars: {tick_symbol} 1 day")
-
     exec_size = str(getattr(bundle.strategy, "spot_exec_bar_size", "") or "").strip()
     if exec_size and exec_size != base_bar:
         exec_bars = _load_bars(
@@ -229,7 +205,7 @@ def _load_context_bars(
         if not exec_bars:
             raise SystemExit(f"Missing exec bars: {bundle.strategy.symbol} {exec_size}")
 
-    return regime_bars, regime2_bars, tick_bars, exec_bars
+    return regime_bars, regime2_bars, exec_bars
 
 
 def _quantile(sorted_vals: list[float], q: float) -> float:
@@ -596,7 +572,7 @@ def main() -> None:
                     f"{wstart.isoformat()}->{wend.isoformat()} rth={bundle.backtest.use_rth}"
                 )
 
-            regime_bars, regime2_bars, tick_bars, exec_bars = _load_context_bars(
+            regime_bars, regime2_bars, exec_bars = _load_context_bars(
                 bundle=bundle,
                 data=data,
                 cache_dir=args.cache_dir,
@@ -616,7 +592,6 @@ def main() -> None:
                 meta,
                 regime_bars=regime_bars,
                 regime2_bars=regime2_bars,
-                tick_bars=tick_bars,
                 exec_bars=exec_bars,
             )
 

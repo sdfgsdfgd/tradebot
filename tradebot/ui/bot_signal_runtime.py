@@ -27,7 +27,6 @@ from ..signals import bar_sizes_equal, ema_periods, parse_bar_size
 from ..spot.entry_control import (
     SpotEntryControlPlan,
     entry_day_allowed as lifecycle_entry_day_allowed,
-    normalize_tick_gate_mode,
 )
 from ..spot.gates import (
     deferred_entry_plan as lifecycle_deferred_entry_plan,
@@ -2632,19 +2631,8 @@ class BotSignalRuntimeMixin:
                 ),
             }
         entry_control = dict(entry_context.get("entry_control") or {})
-        plan = entry_control.get("plan")
-        tick_mode = (
-            str(plan.get("tick_gate"))
-            if isinstance(plan, dict) and plan.get("tick_gate")
-            else normalize_tick_gate_mode(instance.strategy.get("tick_gate_mode"))
-        )
         entry_control["resolution"] = {
             "runtime": "live",
-            "tick_gate": {
-                "configured": tick_mode,
-                "applied": False,
-                "reason": "backtest_only" if tick_mode != "off" else "disabled",
-            },
             "allowed_direction": {
                 "direction": direction,
                 "allowed": direction_ok,

@@ -312,6 +312,11 @@ def test_complete_session_cannot_reenter_after_eod_close_but_prefix_stays_open()
     assert [(trade.exit_reason, trade.pnl(1.0)) for trade in complete.trades] == [
         ("close_eod", 6.0)
     ]
+    complete_trade = complete.trades[0]
+    assert complete_trade.entry_atr is None
+    assert complete_trade.bars_held == 6
+    assert complete_trade.max_favorable_excursion == pytest.approx(6.1)
+    assert complete_trade.max_adverse_excursion == 0.0
     assert [(trade.exit_reason, trade.pnl(1.0)) for trade in prefix.trades] == [
         ("end", 6.0)
     ]

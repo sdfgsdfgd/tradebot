@@ -65,8 +65,8 @@ class DirectionalTurnPolicy:
     cooldown_bars: int = 3
     min_observed_horizons: int = 3
     bar_duration: timedelta = timedelta(minutes=5)
-    start_et: time = time(9, 30)
-    end_et: time = time(11, 45)
+    start_et: time = time(9, 35)
+    end_et: time = time(11, 50)
 
     def as_payload(self) -> dict[str, object]:
         return {
@@ -87,9 +87,9 @@ class DirectionalTurnPolicy:
 class DirectionalImpulseAdmissionPolicy:
     """Optional causal admission layer; the raw turn still owns source state."""
 
-    start_minute_et: int = 570
-    core_end_minute_et: int = 675
-    late_up_end_minute_et: int = 685
+    start_minute_et: int = 575
+    core_end_minute_et: int = 680
+    late_up_end_minute_et: int = 690
     atr_velocity_min: float = 0.0
     atr_velocity_max: float = 0.055
     down_retrace_min: float = 1.25
@@ -136,9 +136,9 @@ class DirectionalImpulseAdmissionPolicy:
                 ) from exc
 
         return cls(
-            start_minute_et=value("start_minute_et", 570, int),
-            core_end_minute_et=value("core_end_minute_et", 675, int),
-            late_up_end_minute_et=value("late_up_end_minute_et", 685, int),
+            start_minute_et=value("start_minute_et", 575, int),
+            core_end_minute_et=value("core_end_minute_et", 680, int),
+            late_up_end_minute_et=value("late_up_end_minute_et", 690, int),
             atr_velocity_min=value("atr_velocity_min", 0.0, float),
             atr_velocity_max=value("atr_velocity_max", 0.055, float),
             down_retrace_min=value("down_retrace_min", 1.25, float),

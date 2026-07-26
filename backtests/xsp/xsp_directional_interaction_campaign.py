@@ -27,7 +27,11 @@ from tradebot.backtest.spot_tape import (
     PreparedSpotEvaluatorTape,
     prepare_spot_evaluator_tape,
 )
-from tradebot.chart_data.history import load_history_window, read_cache
+from tradebot.chart_data.history import (
+    load_history_window,
+    normalize_bars_to_close,
+    read_cache,
+)
 from tradebot.engine import _trade_date
 from tradebot.research.xsp_candidate import (
     XSP_OPENING_EDGE_ADMISSION,
@@ -214,7 +218,18 @@ def build_range(
     *,
     cfg=CFG,
 ) -> Part:
-    bars = tuple(bar for bar in source_bars if start <= _trade_date(bar.ts) <= end)
+    bars = tuple(
+        normalize_bars_to_close(
+            (
+                bar
+                for bar in source_bars
+                if start <= _trade_date(bar.ts) <= end
+            ),
+            symbol="XSP",
+            bar_size="5 mins",
+            use_rth=True,
+        )
+    )
     dates = tuple(sorted({_trade_date(bar.ts) for bar in bars}))
     _, pack = _spot_prepare_summary_series_pack(
         cfg=cfg,

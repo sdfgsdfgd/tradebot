@@ -1,1060 +1,358 @@
 # XSP Mastery — Live Research Kata
 
-- **Status:** `[WIP] Phase 1 — XSP lifecycle sharpening + prospective evidence`
-- **Management role:** canonical task tree, evidence ledger, decision journal, and resume source
-- **Code baseline:** `25513267225908b7288530c1ec0762f7656bbf5b`
-- **Resumable pushed campaign anchor:** `64c4cd12bb4f2af193b35aa0d785c6f3d4f3c9ac`
-- **Management brain introduced:** `3c38af635fcc6ce8b3b0a88e1f2de567345d1bf0`
-- **Instrument scope:** XSP first; no expansion until its data, economics, execution, and live drift are mastered
-- **Capital premise:** user-reported net liquidity near USD 1,000; re-read broker truth before every capital decision
-**Operating rule:** update this file before stopping, changing phase, promoting a strategy, or changing live risk
+- **Status:** `[WIP] Opening Edge v1 prospective proof`
+- **Authority:** canonical resume state, active task tree, critical evidence
+  index, and promotion contract
+- **Cold history:** [`q_XSP_live_research_kata-archive.md`](q_XSP_live_research_kata-archive.md)
+- **Leaderboard:** [`backtests/xsp/leaderboard.md`](backtests/xsp/leaderboard.md)
+- **Scope:** XSP first; one synthetic `$1_per_XSP_point` directional unit
+- **Capital premise:** user-reported liquidity near USD 1,000; broker truth must
+  be re-read before any later capital quest
+
+**Operating rule:** update this file only when the frontier, authority, strategy,
+evidence conclusion, risk boundary, or next action changes. Routine test/lint
+output belongs in commit/final verification, not in this management brain.
 
 ---
 
-## 0. Resume here — authoritative frontier
+## 0. Resume now
 
-- **Selected strategy:** `NO_TRADE`; no candidate has earned order authority.
-- **Profitability clock:** `NOT_STARTED`; the `24h → 48h → five-session` gates
-  belong first to one synthetic `$1_per_XSP_point` directional shadow unit.
-- **Capital authority:** none. XSP is a non-tradable index; do not fabricate a
-  spot fill. Debit options, credit spreads, condors, and live option capital are
-  evidence-only in this kata and graduate in a later quest.
-- **Combined source:** production foundation
-  `b943ea4fcd911022704278424bcb3450c5fc7d94` semantically absorbs every
-  unique behavior from q's eleven-commit `f837e21..b094ce6` news delta;
-  operational corrections through `0af37a1540a077e9e6e7d9be928c8aa87dcd3136`
-  and the fixed-unit campaign through `64c4cd1` are exact on Mac, GitHub
-  `main`, and q at E-149/E-157.
-- **q execution runtime:** pinned Python `3.13.7`, `ib-insync 0.9.86`, and
-  `textual 6.12.0`; all seven installed user units verify, with the changed
-  tunnel/producer units byte-identical to `0af37a1`.
-- **q news runtime:** the timer launches one process approximately four hours
-  after completion. Its first natural combined-source cycle at
-  `08:06:02..08:06:03 AEST` correctly published `no_new_evidence` without
-  opening Codex or aging the causal XSP `-1/76/.94/24h` signal.
-- **Historical campaign verdict:** the fixed-unit `5m/15m` families and all
-  `7,556` cap-independent `30m` candidates remain rejected under their exact
-  tested contracts. E-161's static pocket, E-162's walk-forward law, and E-163's
-  stop-dominated expansion lifecycle remain immutable failures. E-165/E-166
-  corrected the untested seam: persistent directional-impulse ownership plus
-  inverse-source flip/EOD exits, without stop/trail/fizzle preemption. One
-  compact opening-edge policy now leads research at `+10.98/17` recent,
-  `+131.74/204` one-year, and `+120.59/1,019` five-year after frozen `$0.10`
-  friction. It is XSP's first **research crown, not an operational crown**;
-  its immutable lineage and future crown protocol live in
-  `backtests/xsp/leaderboard.md`. The five-year daily LCB remains `-0.0202`,
-  drawdown is `59.95`, and 2021/2023 lose. Freeze this plateau before
-  prospective evaluation; do not keep outcome-mining the same historical
-  slopes or call positive point estimates validation.
-- **Forward frontier:** let the resilient read-only producer begin Sunday
-  `20:15 ET` / Monday `10:15 AEST`; prove process start and restart continuity;
-  inspect the exact one-shot Monday `09:37 ET` / `23:37 AEST` checkpoint made
-  reboot-durable at E-151 and require `EVALUATED`,
-  `order_authority=none`; only then enable `09:42..16:02 ET`.
-- **Do not:** trigger an extra news run, deploy mixed revisions, backfill forward
-  evidence, blindly retune rejected source thresholds, promote delayed quotes,
-  submit an order, or call abstention/profitability infrastructure an economic
-  win. Lifecycle sharpening must explain signal landing and exit causality,
-  preserve `$0.10` friction, and challenge frozen survivors chronologically.
+| Authority | Current truth |
+|---|---|
+| Selected strategy | `NO_TRADE` |
+| Research crown | `xsp.opening-edge-directional.v1` / Opening Edge v1 |
+| Runtime revision | `close-time-parity-r1`; same physical crown, not v2 |
+| Source anchor | `8b1dee79789f16e1985754fc294c1de0ede5bdf8` plus the current parity/TICK/telemetry integration; publication pending |
+| Order/capital authority | `none` |
+| Profitability clock | `NOT_STARTED` |
+| Next irreversible evidence | Monday's first complete prospective XSP session |
+| First active work | Finish parity/TICK revision publication; prove q quote-producer start/restart; inspect the first observer checkpoint |
 
-The original detailed mandate, hypotheses, phase prose, and execution narrative
-are preserved verbatim in
-[`docs/xsp-live-research-kata-narrative-archive.md`](docs/xsp-live-research-kata-narrative-archive.md)
-(body SHA-256 `dfc97f209c8190bfd7dc255eb3014d5588745c682b7a0efbbf286f865dbe6f80`). The root file remains the only live task
-brain, evidence ledger, decision journal, and resume authority.
+### Immediate sequence
+
+1. Publish and synchronize the current close-clock parity, false-TICK retirement,
+   signed-breadth observation, and telemetry revision as one clean source state.
+2. Let q's persistent quote trigger start Sunday `20:15 ET` / Monday
+   `10:15 AEST`; do not backfill or manually create the evidence.
+3. Prove recorder process start, same-session restart continuity, exact
+   trading-date tape identity, and read-only broker behavior.
+4. Inspect the reboot-durable one-shot Monday `09:37 ET` /
+   `23:37 AEST` observer receipt. Require fresh close-aligned data,
+   `EVALUATED`, coherent candidate equity, and `order_authority=none`.
+5. Remove the temporary one-shot timer, then arm `09:42..16:02 ET` only if
+   that checkpoint is exact.
+6. Accumulate prospective economics before selecting anything or starting a
+   milestone clock.
+
+### Never infer
+
+- XSP itself is not a tradable spot contract; the one-unit proof is an
+  index-equivalent shadow, never a fabricated broker fill.
+- Historical positive P&L, safe abstention, infrastructure uptime, delayed
+  quotes, synthetic option economics, or one lucky trade is not live proof.
+- No opaque regime router, hidden permission gate, open-position strategy swap,
+  forced deadline trade, historical-news backfill, or outcome-aware retuning.
 
 ---
 
-## 1. Mission and success contract
+## 1. Mission and completion
 
-Build one XSP-first learning system in which authentic backtests, non-submitting
-forward observation, and continuous calibration share the same data, signal,
-permission, economics, and evidence owners. Re-score eligible champions only on
-causal, timestamp-correct evidence; never revive opaque regime routing or let a
-recent winner seize an open position.
+Build one XSP-first learning loop whose causal backtests, non-submitting forward
+observation, centralized signals/permissions, execution evidence, and continuous
+calibration agree. Re-score eligible leaders as evidence grows, but promote,
+demote, combine, or switch only through frozen evidence and never while a
+position is open.
 
-The practical target is stable, risk-adjusted positive expectancy for a
-user-reported account near USD 1,000—not guaranteed income. Never force a trade
-for a deadline. A safe `NO_TRADE` preserves capital but does not pass a profit
-milestone. One lucky fill, synthetic option P&L, infrastructure uptime, or an
-unreconciled balance cannot satisfy the quest.
+The current quest proves direction before options: first earn stable positive
+economics with one unlevered XSP-equivalent unit; only a later quest may convert
+that cause into debit options, credit spreads, condors, previews, paper/canary,
+or live capital.
 
-### Required sequence
+### Required graduation
 
-1. Authenticate underlying, context, option, news, and broker provenance.
-2. Discover a materially new causal admission mechanism through frozen,
-   chronological research; do not threshold-mine already rejected features.
-3. Replay the same normalized tape through research and live-intended semantics.
-4. Freeze one selected, reconciled, index-equivalent directional shadow.
-5. Pass immutable net-positive `24h`, `48h`, and five-session prefixes inside
-   explicit drawdown/session-loss limits.
-6. Issue an honest `PROMOTE | HOLD | REVISE | QUARANTINE | STOP` verdict and
-   remaining-risk register.
-7. Only a later quest may translate proven direction into bounded option risk,
-   broker preview, paper/canary, and tightly bounded live capital.
-
----
-
-## 2. One centralized architecture
-
-| Concern | Canonical owner | Boundary |
-|---|---|---|
-| Exchange calendar/session/trading date | `tradebot/engines/market.py` | One clock for cache, capture, replay, and live |
-| Multihorizon direction telemetry | `tradebot/engines/directional_impulse.py` | XSP-native `5/15/30/60/120m`; no hidden selector |
-| Signal source and permission plan | `tradebot/spot/entry_control.py` | One normalized plan for backtest/live/UI/journal |
-| Final flat-position admission | shared `decide_flat_position_intent` kernel | Strategy permission once; operational broker readiness stays live-side |
-| Historical/cache truth | `tradebot/chart_data/history.py` plus canonical cache owners | Sparse, provenance-bound, close-aligned, no fabricated gaps |
-| Forward option evidence | `tradebot/backtest/tools/record_quotes.py` | One restart-safe GTH/RTH/Curb tape with actual MD provenance |
-| Non-submitting broker adapter | `tradebot/research/xsp_shadow.py` | Exact XSP `IND/CBOE`; bounded requests; no order path |
-| Append-only evidence/economics | `tradebot/research/live_calibration.py` | Content-addressed forecasts, results, checkpoints, immutable milestones |
-| Pure candidate reducers | `tradebot/research/xsp_benchmarks.py` | Observation-only parity/news comparisons; no broker imports |
-| Causal fundamental context | `tradebot/news/` | Timestamp-valid `off/observe`; no selector/order authority |
-| Runtime activation | `deploy/systemd/` | One revision, read-only tunnel, producer before observer |
-
-**Reuse-first law:** extend these owners before creating a new surface. Shared
-semantics exist once and are consumed everywhere. No adapter policy copies,
-parallel models, facade forests, helper sprawl, generic dumping grounds, or
-module growth beyond the architecture ratchet. Centralize or delete genuinely
-redundant behavior; preserve outcomes, evidence classes, and fail-closed safety.
-
----
-
-## 3. Frozen research truth
-
-### Authenticated assets
-
-- Five-year XSP 5-minute RTH underlying: `97,530` bars through July 24; causal calendar and
-  close alignment admitted. XSP volume is absent.
-- Two-year SPY/VIX context: complete and provenance-bound. SPY did not improve
-  XSP direction and remains diagnostic; VIX confirmation improved losing
-  baselines but did not produce an admissible strategy.
-- July 24 forward option tape: `91` restart-safe snapshots (`8 GTH / 74 RTH /
-  9 Curb`), immutable local/q copy SHA `5d88d9a…`.
-- IBKR cannot supply a historical expired-XSP chain, native BAG history, or the
-  required historical NBBO/Greeks. Underlying-driven option results remain
-  synthetic and cannot promote capital.
-- Causal news history begins only at append time. Missing, future, stale,
-  failed, or expired news means no fundamental gate.
-
-### Directional sensor verdict
-
-The shared XSP-native observer measures signed slope/return velocity, reversal
-and acceleration, ATR-normalized movement, volatility velocity/acceleration,
-efficiency, and cross-horizon coherence. Frozen historical performance:
-
-- discovery: F1 `0.660`;
-- latest 17-session tape: `66.7%` precision, `75.9%` recall, F1 `0.710`, median
-  lag `1.5` bars;
-- absolute-window extrema: only `16/34`; another `18/34` were boundary-censored.
-
-This is useful causal telemetry, not yet a profitable strategy. The frozen
-directional-turn family (`1,296` lifecycle cells plus its bounded admission,
-reversal-cascade, VIX, and TICK/TRIN extensions) failed its chronological
-economics. That verdict closes those exact families only: it did **not** fairly
-exercise the wider canonical EMA/source, timing, permission, lifecycle, exit,
-shock/risk, and Cartesian space on XSP. Preserve the observer for traces and
-counterfactuals; do not threshold-mine its rejected one-variable slope/ATR
-neighborhood. The active interaction campaign below is a separate causal
-mechanism with an explicit high-density floor, not a relaxation of E-158.
-
-### Active prospective hypotheses
-
-- **Option parity movement:** exact-sign aligned vs TA-only, independently
-  non-overlapping, complete-session-only. Minimum `30` usable pairs across at
-  least five complete prospective sessions before value interpretation.
-- **Option liquidity evolution:** classify pair count, parity dispersion,
-  relative spread, and quote age with one threshold-free Pareto rule. The
-  aligned-plus-strengthening candidate must beat both TA-only and parity-aligned
-  alone on the same complete prospective sessions; it remains observation-only.
-- **Pre-open bridge:** exact causal `2h/4h/6h` same-expiry GTH path into the
-  first RTH context; descriptive until prospective completeness exists.
-- **Fundamental defense:** timestamp-valid opposite XSP pressure with frozen
-  impact/confidence thresholds, observation-only. The first retrospective
-  mechanics counterexample was negative; do not retune from it.
-- **Materially new microstructure:** top-of-book/package liquidity, spread
-  state, quote evolution, and same-tape outcomes. This is the next admissible
-  candidate frontier.
-- **Champion namespace:** XSP starts with no HF or LF crown. Existing MNQ,
-  SLV, and TQQQ crowns are diagnostic legacy artifacts, not transferable XSP
-  candidates; the first XSP crown must be born from this prospective ledger.
-
-### Primary premarket fixed-unit campaign — frozen before outcomes
-
-- **Discovery tape:** `2026-06-29..2026-07-24`, `1,482` five-minute bars across
-  `19` complete XSP RTH sessions. This is four-week selection, not validation.
-- **Search identity:** existing `combo_full` engine with preset
-  `xsp_candidate`; exactly `23,040` cells plus one control through the one
-  canonical Cartesian runner.
-- **Signal sources:** EMA `2/4, 3/7, 4/9, 8/21` in cross/trend modes; ORB
-  `15/30m × RR 1/2`; opening reclaim `15/30m × 1/2` causal confirmations.
-  Directional impulse remains counterfactual telemetry because its frozen
-  admission/lifecycle family already failed.
-- **Shared permissions:** RTH/`09-12`/`10-12 ET`; realized volatility
-  off/`>=0.06`/`>=0.10`/`0.06..0.20`; base or skip-one/cooldown-two; primary
-  confirmation off or Supertrend at `30m/1h/4h`.
-- **Lifecycle:** three ATR target/stop geometries and two causal
-  stop/trail/breakeven/fizzle/max-hold geometries; at most four entries/session;
-  one open position; flatten every session.
-- **Shock evidence:** off, block, or direction-aligned surf using XSP-scaled
-  five-minute TR hysteresis (`1.40` on / `1.20` off / `0.05%` minimum). It was
-  frozen from causal distribution measurements before campaign P&L.
-- **Forbidden evidence:** XSP volume, TICK-AMEX daily bars, SPY direction,
-  historical-news backfill, EMA-only spread/slope gates on non-EMA sources,
-  opaque regime routing, option P&L, and delayed/live quotes.
-- **Economics:** one synthetic `$1_per_XSP_point` unit, USD `1,000` starting
-  equity, next-tradable-bar fills, intrabar stop/gap/drawdown accounting, and
-  `$0.10` round-trip friction with no fabricated broker fill.
-- **Freeze law:** require at least `10` four-week trades, retain at most `500`
-  objective-diverse identities, and content-address the unchanged strategy,
-  filters, tape, costs, dates, and code before challenge.
-- **Challenge law:** first `2025-07-25..2026-07-24`, then
-  `2021-07-26..2026-07-24`, with at least `120` trades/year independently.
-  These overlapping windows are robustness challenges, not sealed validation.
-- **Economic survivor:** positive net P&L after friction in every window,
-  positive clustered daily lower bound and profit factor, bounded drawdown and
-  concentration, and honest side/year attribution. Removing a losing side or
-  retuning a gate creates a new candidate that must repeat the sequence.
-
-### Five-minute campaign result and horizon follow-up
-
-- The five-minute campaign completed all `23,041` cells; `10,570` met the
-  four-week `10`-trade floor and `500` exact identities were frozen under
-  freeze `7fe6e443…`. Four-week best net was `+14.1` points over `41` trades.
-- The unchanged one-year challenge found `464/500` cadence-qualified,
-  `103/500` net-positive, and `67/500` satisfying both. Every one of those `67`
-  exceeded the five-year `600`-trade floor; **zero** remained net-positive.
-  Best five-year net was `-17.79` points over `786` trades.
-- This rejects the five-minute family economically, not for inactivity. Its
-  best five-year path was roughly `+60.81` gross points before the frozen
-  `78.6` points of friction, motivating a new horizon mechanism rather than a
-  cheaper cost assumption or adjacent threshold retune.
-- **Preregistered follow-up:** repeat the same source-safe control plane at
-  `15m` and `30m`, independently run four-week discovery, retain at most `250`
-  objective-diverse identities per horizon, freeze them before outcomes, then
-  apply the unchanged one-year and five-year challenges and `120` trades/year.
-  The hypothesis is that fewer, larger causal moves can preserve gross edge
-  after the same `$0.10` friction. All forbidden evidence, economics, side/year
-  attribution, and survivor gates remain unchanged.
-
-### Fifteen/thirty-minute verdict and final breadth audit
-
-- The `15m` lane tested all `23,041` cells, froze `250`, retained `21` after the
-  one-year cadence/net gate, and retained **zero** after five years. Its best
-  five-year path was `-21.79` points over `841` trades: rejected for economics,
-  not inactivity.
-- The `30m` lane tested all `23,041` cells and froze `250` before challenge.
-  It retained `38` after one year and seven nominal finalists after five years.
-  Full trade-ledger replay proves those seven collapse exactly into only two
-  economic behaviors:
-  - RTH: `+25.34` points / `851` trades / `36.76` drawdown;
-  - 09–12 ET: `+13.10` / `723` / `27.41`.
-- Neither behavior is eligible for selection. Their daily LCB95 values are
-  `-0.0467/-0.0517`; both contain one rolling year that loses before friction;
-  latest-year net is only `+2.29/+0.83`; both lose at `0.15` round-trip
-  friction. The RTH path is positive in only `27/60` months and becomes
-  negative after removing its five best days.
-- RR `1/2` and shock `block/surf` are dead labels under these exact paths:
-  ordered entry/exit/side/price/reason ledgers are byte-identical. They are not
-  seven independent champions, and `NO_TRADE` remains selected.
-- **Preregistered final bar-only breadth audit:** materialize and
-  content-address every `30m` four-week candidate already satisfying the frozen
-  ten-trade discovery floor before any additional outcome is read. Challenge
-  the unchanged identities over five independent one-year slices, newest to
-  oldest for bounded pruning, requiring at least `120` trades/year and positive
-  net after the same `$0.10` friction in every slice. Finalists must then pass
-  full-ledger daily-LCB, concentration, side, drawdown, and cost-sensitivity
-  gates. This tests whether the `250`-identity cap hid robustness; it does not
-  retune the exposed family. If none pass, historical bar-only XSP admission is
-  closed and the next candidate frontier is prospective microstructure.
-- The breadth cohort is now frozen before annual evaluation: all `7,556`
-  qualifying identities, exact ordered records, tape/code/cost provenance, and
-  the five newest-to-oldest annual gates are bound by freeze `b22a9619…`.
-- The cap-independent audit is complete. Successive independent annual gates
-  reduced the frozen population `7,556 → 734 → 189 → 133 → 0`; the fifth
-  slice was correctly skipped because no identity survived the fourth. The
-  successful run took `771.5s`, resumed `1,782` exact receipts from its
-  interrupted predecessor, and changed no candidate identity or economics.
-- This closes historical bar-only XSP admission under the registered
-  source/gate/lifecycle family. The top-`250` cap hid no robust champion.
-  Adjacent bar horizon, gate, friction, or threshold retuning is now forbidden;
-  prospective quote/liquidity evolution and same-tape microstructure are the
-  next admissible candidate evidence. `NO_TRADE` remains selected.
-- All ignored campaign artifacts and terminal logs are checksum-identical in
-  `~/Desktop/tradebot-backup/2026-07-26_18-53_AEST-xsp-campaign/` on both Mac
-  and q; generated evidence remains outside the source revision by design.
-
-### Final frozen directional meta-admission falsification
-
-The production detector itself is stable across the seven discovery
-half-years: precision remains `0.575..0.606` and recall `0.727..0.802`.
-Its failure is economic admission, not a year-specific loss of slope/ATR
-detection. One final bar-only test was allowed without reopening its thresholds:
-
-- freeze the current detector, next-open fill, best E-051 lifecycle, one-unit
-  economics, `$0.10` friction, and at most one open position;
-- fit one L2-regularized linear admission model on `2021-07-26..2022-12-30`
-  using only timestamp-available detector telemetry: direction/time/ordinal,
-  readiness, direction and smoothed scores, coherence, conviction, retrace,
-  ATR state, and aligned per-horizon slope/velocity/efficiency/TR;
-- choose once among thresholds `0.45..0.75` on that training partition only,
-  requiring positive net and daily LCB95, PF `>=1.10`, at least `0.40`
-  trades/session, nonnegative P&L on both directions, drawdown `<=25`, and
-  top-five positive-day concentration `<0.50`;
-- rerun the normal lifecycle engine with the frozen projection over calendar
-  `2023`; inspect `2024-01-01..2024-07-23` only if the identical audit gates
-  pass. Do not fit features, coefficients, thresholds, or detector policy to
-  either challenge;
-- this is a falsification of whether the existing causal telemetry can separate
-  trail winners from initial-stop losers. Failure permanently closes bar-only
-  directional curation; success remains research-only until untouched and
-  prospective evidence pass.
-
-E-158 completed this exact contract: no training threshold passed, so 2023 and
-2024 remained sealed and bar-only directional curation is closed.
-
-### Multiscale interaction campaign — frozen before challenge
-
-The recovered E-158 generator proves its best dense pocket was not a simple
-gate: every single and two-label discovery bucket with at least `234` normal
-engine trades remained net-negative. The new user-authorized campaign may
-therefore test only the interaction the linear main-effect model could not
-express:
-
-- frozen detector, E-051 lifecycle, next-open fill, one `$1_per_XSP_point`
-  unit, `$0.10` round-trip friction, one open position, four entries/session,
-  both directions, and EOD flattening remain unchanged;
-- slow `60/120m` signed slope/TR is a permission context; fast `5/15/30m`
-  slope/velocity reversal and causal turn order provide timing; ATR ratio,
-  velocity, and acceleration identify compression-to-expansion phase;
-- only compact continuous products among those three families may augment the
-  exact E-158 main effects. Detector thresholds, hidden regimes, volume,
-  future bars, news backfill, options, and outcome-derived exits are forbidden;
-- discovery is still `2021-07-26..2022-12-30`. Candidate identities include
-  every coefficient, scaler, interaction, threshold, source hash, and ordered
-  decision/trade ledger. No later partition may repair them;
-- **density floor:** at least the E-158 dense pocket's `234` trades across
-  `363` sessions (`0.6446/session`), with both directions represented. Sparse
-  high-PF pockets are immediate failures;
-- discovery additionally requires positive net, daily LCB95 `>0`, PF
-  `>=1.10`, drawdown `<=25`, top-five positive-day concentration `<0.50`, and
-  nonnegative P&L on each side. Only then open calendar `2023`; only an
-  unchanged audit pass opens `2024-01-01..2024-07-23`;
-- an unchanged survivor must next pass the remaining authenticated annual
-  slices and current forward shadow evidence before selection. Failure closes
-  this interaction family without another neighboring retune.
-
-E-161 rejects that static identity. One adaptive mechanism is now
-preregistered before its first outcome:
-
-- the algorithm—not any monthly coefficient—is the candidate. At each calendar
-  month boundary it fits one L2 ridge net-points permission model using only
-  raw directional-turn shadow outcomes whose exits already matured before that
-  boundary;
-- trailing shadow windows are exactly `126`, `252`, or all available sessions;
-  L2 is `10/40/100`; prior-score admission rates are
-  `0.18/0.25/0.35/0.45`. Those `36` identities are the entire search;
-- the feature vocabulary, E-051 lifecycle, costs, density floor, both-side
-  requirement, and all safety/reliability gates remain E-161-identical. Each
-  monthly threshold is derived only from scores available before that month;
-- calendar `2023` is algorithm discovery because its static outcome is already
-  exposed. Freeze the highest daily-LCB passing identity once. Challenge that
-  unchanged window/L2/rate law sequentially over calendar `2024`, `2025`, and
-  `2026` through July 24. A failed challenge seals every later partition;
-- this requires a future live shadow ledger that matures every raw turn,
-  including rejected ones. Until that owner exists and prospective parity is
-  proven, even a historical pass has research authority only.
-
-E-162 rejects all `36` adaptive identities before opening 2024. The remaining
-bar-only experiment changes the source semantics rather than its admission:
-
-- derive one causal **directional expansion** event from every existing shared
-  impulse snapshot instead of waiting for `turn_event`. Use only the available
-  `5/15/30m` signed slope/TR, aligned slope velocity, coherence, and ATR
-  velocity/acceleration; `60/120m` slope may veto opposition only when already
-  warmed and can never make an early event ready;
-- grid exactly: score floor `0.25/0.35/0.45`; coherence `2/3` or `1`; aligned
-  velocity floor `0/0.2/0.4`; ATR phase `off/velocity/acceleration`; end time
-  `10:30/11:00/11:45 ET`; cooldown `6/12` bars; slow permission `off` or
-  `aligned_if_present` — `648` identities;
-- fire only when a qualified direction becomes newly active or flips after the
-  cooldown. Falling below qualification rearms the transition; continuously
-  qualified bars never spray repeated entries;
-- freeze the same E-051 lifecycle, next-open fills, both directions, one unit,
-  `$0.10` friction, EOD flattening, and the `234/363` discovery-trade floor.
-  Rank passing discovery identities by daily LCB then net;
-- calendar `2021-07-26..2022-12-30` is discovery. Freeze one identity before
-  calendar `2023`; open `2024-01-01..2024-07-23` only if the unchanged 2023
-  gates pass. No static/adaptive admission model, hidden regime, XSP volume,
-  news backfill, option evidence, or future bar may participate.
-
-E-163 rejects the directional-expansion family in discovery. Of `648`
-preregistered identities, `588` cleared the `234`-event density floor and
-seven were net-positive, but none had positive daily LCB95 or PF `>=1.10`.
-The least-bad reliable-rank identity made `+1.59/264`, PF `1.017`, daily
-LCB95 `-0.0718`; the best net was only `+4.06/357`, PF `1.033`, with its up
-side negative. Calendar 2023 and the 2024 holdout remained sealed. This closes
-historical bar-only direction-source curation; the next admission information
-must be timestamp-correct prospective microstructure/news or another
-materially independent causal class.
-
----
-
-## 4. Forward-runtime contract
-
-### Activation order
-
-1. Stop only the news timer and require the one-shot inactive/failed.
-2. Publish one clean combined `main` revision.
-3. Provision the pinned q Python `3.12..3.13` runtime; Python `3.14` is rejected
-   by upstream `eventkit`.
-4. Install and byte-verify news, read-only Gateway tunnel, XSP quote, and XSP
-   shadow units from that same revision.
-5. Before Sunday `20:15 ET`, enable news plus the quote producer; keep the
-   shadow timer disabled so Monday's irrecoverable GTH prefix is retained.
-6. At Monday `09:37 ET`, manually run the observer after the first completed
-   cash bar. Require `EVALUATED`, fresh close-aligned history, and
-   `order_authority=none`.
-7. Enable the remaining `09:42..16:02 ET` observer cadence only after that
-   receipt passes.
-
-### Runtime identities and limits
-
-- live client pool: `500..899`;
-- shadow clients: `979/980/981`;
-- recorder client: `989`;
-- broker read-only for scheduled evidence; no collision with live UI IDs;
-- shadow broker path: at most `75s`, leaving `45s` deterministic reserve inside
-  its `2min` unit wall;
-- closed, holiday, GTH/Curb, and post-close shadow invocations skip broker work
-  and return non-success unless genuinely `EVALUATED`;
-- quote producer owns one trading-date JSONL and exits at the exchange-session
-  boundary; restart restores and deduplicates the same tape;
-- the once-per-session quote timer is persistent across q reboot; a late
-  catch-up reaches the recorder's closed-window guard before any broker work.
-  The high-frequency shadow timer remains non-persistent.
-
-Use [`deploy/systemd/README.md`](deploy/systemd/README.md) as the exact launch
-transaction. Do not improvise from this summary.
-
----
-
-## 5. Evidence and milestone contract
-
-`live_calibration.v1` freezes each decision before its outcome, binds it to the
-causal tape/configuration, and appends only content-addressed observations and
-checkpoints. Torn tails repair; missing exact entry/outcome bars remain
-unsettled. `EVALUATED`, `STALE_DATA`, `NO_DATA`, `UNSUPPORTED_SESSION`, and
-`CLOSED` are distinct and only `EVALUATED` is process success.
-
-A selected run must use one stable run/strategy/config/capital identity,
-`$1_per_XSP_point`, complete attribution, reconciliation, monotonic costs/trade
-counts, no safety breach, and one coherent checkpoint at every due canonical
-RTH slot. Its economic boundary is exact; evidence may finalize only inside the
-same frozen `90s` slot tolerance. Later records cannot rewrite an earlier
-milestone.
-
-The candidate-independent selected-shadow envelope is preregistered at `25`
-points maximum drawdown, `5` points maximum session loss, at least two closed
-trades per five-session week, and top-five win share `<= 0.50`. USD `1,000` is
-only the user-reported design reference: this synthetic evidence policy grants
-no broker, order, or capital authority.
+1. Keep data, cache, clock, strategy, and cost provenance exact.
+2. Freeze one candidate and its risk identity before prospective outcomes.
+3. Replay the same normalized evidence through research and live-intended
+   semantics.
+4. Pass immutable net-positive `24h`, `48h`, and five-session prefixes.
+5. Reconcile strategy, package/leg/account, execution, drift, drawdown, and
+   safety evidence.
+6. Issue `PROMOTE | HOLD | REVISE | QUARANTINE | STOP` plus remaining risks.
 
 | Gate | Minimum evidence | Economic requirement |
 |---|---|---|
-| `24h` | elapsed 24h and at least one complete session | net positive after modeled/observed costs; bounded drawdown/session loss |
-| `48h` | elapsed 48h and at least two complete sessions | independently anchored net-positive prefix; no coverage drift |
-| five-session week | elapsed seven days and five complete sessions | net positive; at least two closed trades; top-five win share `<= 0.50`; all safety/reconciliation gates clean |
+| `24h` | 24 elapsed hours and at least one complete eligible session | net positive after costs; drawdown and session loss inside limits |
+| `48h` | 48 elapsed hours and at least two complete sessions | independently net-positive prefix; no coverage/identity drift |
+| five sessions | seven elapsed days and five complete sessions | net positive; at least two closed trades; top-five win share `<=0.50`; all safety/reconciliation gates clean |
 
-No milestone is active while `NO_TRADE` is selected. Safe abstention is valid
-behavior but leaves the profit objective open.
+Selected-shadow limits are frozen at `25` points maximum drawdown, `5`
+points maximum session loss, at least two weekly closed trades, top-five win
+share `<=0.50`, and `90s` evidence tolerance. These are synthetic research
+limits and grant no broker authority.
 
----
-
-## 6. Ordered active task tree
-
-1. `[DONE]` Inspect q's naturally scheduled news run exactly once after terminal;
-   its exact output validates under combined source and last-good state is intact.
-2. `[DONE]` Preserve a source-faithful 14-hour retrospective and reorganize the
-   3,000-line task brain into one compact active authority plus a byte-preserved
-   narrative archive; no research result or provenance was discarded.
-3. `[DONE]` Preregister the threshold-free option-liquidity cohort/candidate and
-   prove its mechanics on the already-seen July tape without prospective credit.
-4. `[DONE]` Freeze one deterministic candidate recommendation: liquidity first
-   only when independently eligible, then parity-aligned, otherwise `HOLD`;
-   explicit run selection remains required and order authority remains zero.
-5. `[DONE]` Audit every promoted HF/LF crown; no XSP crown exists and no legacy
-   MNQ/SLV/TQQQ artifact is eligible for XSP calibration or selection.
-6. `[DONE]` Freeze the original candidate-independent selected-shadow limits
-   into every recommendation receipt before prospective outcomes.
-7. `[DONE]` Define one content-addressed selected-shadow run freeze that
-   rederives the current ledger recommendation, rejects stale/`HOLD`/tampered
-   input, retains zero order authority, and supplies the only profitability
-   policy projection.
-8. `[DONE]` Semantically absorb q's complete eleven-commit news delta into the
-   stronger local transactional publication owner; no separate incoming work
-   or missing q behavior remains.
-9. `[DONE]` Publish the full-suite-green combined tree and content-address the
-   final integration manifest as clean revision `b943ea4`.
-10. `[DONE]` The `5m/15m` families and all `7,556` cap-independent `30m`
-    candidates are rejected. The frozen annual population fell
-    `7,556 → 734 → 189 → 133 → 0`; historical bar-only admission is closed
-    without changing identities, costs, evidence, or cadence. A final frozen
-    multivariate admission falsification also failed its training reliability
-    gate before opening 2023/2024, so detector-threshold curation is closed.
-11. `[DONE]` The static multiscale interaction campaign retained 12 dense
-    discovery cells; its frozen leader earned `+54.57/413` with positive
-    daily LCB and both directions, then lost `-20.39/189` unchanged in calendar
-    2023. The 2024 holdout stayed sealed and the static family is rejected.
-12. `[DONE]` All `36` causal walk-forward identities failed calendar 2023;
-    zero opened 2024. The best made only `118` trades and lost `-7.99`, while
-    density-qualified variants also lost. Monthly adaptation is rejected.
-13. `[DONE]` Preserve the frozen `648`-identity expansion failure and correct
-    its overbroad conclusion. The shared lifecycle now follows persistent
-    directional-impulse ownership; the stopless inverse-source/EOD campaign
-    traced every landing, tested EMA/permission/hold interactions, retained
-    `>200` trades/year, and froze the stable E-166 opening-edge plateau without
-    relaxing `$0.10` friction.
-14. `[WIP]` The natural combined-source news cycle passed at E-147. Producer
-    recovery was strengthened at E-148 and deployed exactly at E-149 so
-    recorder-owned reconnect survives a sleeping Mac/tunnel outage. E-159 proves
-    full-process same-date/torn-tail/universe/read-only restart behavior.
-    E-164 records the first later material natural publication; prove the
-    actual Sunday recorder start and continuity. The shadow timer remains
-    disabled.
-15. `[WIP]` An exact reboot-durable one-shot timer now owns Monday's first
-    checkpoint without arming the recurring cadence. Inspect and prove it,
-    remove that temporary timer, then collect every canonical RTH slot and exact
-    option/news context without backfill.
-16. `[DONE]` Carry the E-166 research champion unchanged into the Monday
-    non-submitting evaluator. One central candidate owner now reproduces its
-    exact prefix economics, persists restart-stable counterfactual checkpoints,
-    and retains zero order authority. The E-168 exit-to-flat ablation rejected
-    deleting its admitted reverse handoff. Accumulate preregistered parity,
-    pre-open, news, and microstructure cohorts beside it and compare identical
-    TA-only and augmented decisions.
-17. `[DONE]` The frozen `2/3/4 ATR × 1/1.5/2 ATR` late-profit-lock family
-    improved only the latest 19 sessions and weakened every one-/five-year
-    result, so E-169 rejects it without changing the crown. The shared kernel
-    now truthfully permits trail/fizzle/max-hold tracking without a mandatory
-    initial stop; no rejected policy was wired into live state.
-18. `[TODO]` Admit the directional candidate only after positive prospective
-    economics; freeze its identity/risk limits before selection. Historical
-    point estimates alone cannot start the profitability clock.
-19. `[TODO]` Run the immutable `24h → 48h → five-session` shadow sequence and
-    issue the final promotion/drift/risk verdict.
-20. `[BLOCKED]` Any option structure or live-capital canary belongs to a later
-    quest after directional causality is proven.
-
-### Current verification state
-
-- Current local combined suite: `839 passed, 4 deselected`; q/news focused
-  `27 passed`; cross-boundary XSP/news/architecture/capability set
-  `145 passed`; every campaign-touched Python owner passes Ruff and the
-  whole-tree diff check is clean under Python `3.12.7`.
-- Calibration remains `999` lines, broker shadow `990`, pure benchmarks `881`,
-  candidate equity `276`, and entry control `503`; no new architecture-debt
-  exception exists.
-- Runtime imports and all installed units verify through `0af37a1`; Mac,
-  GitHub `main`, and q convergence is proven by E-149. No selection, clock
-  start, broker query, or order occurred.
+Research remains bounded and observable: every backtest publishes an ETA and no
+single run exceeds 20 minutes without an explicit new preregistration. Historical
+discovery must progress recent → chronological one-year slices → five years;
+short-window tuning is never validation.
 
 ---
 
-## 7. Historical navigation
+## 2. Opening Edge v1 — current research crown
 
-- Full original mission, strategy topology, hypothesis definitions, phase prose,
-  milestone prose, and execution narrative: the immutable narrative archive.
-- Exact results and artifacts: Evidence Registry below (`E-000…`).
-- Frozen architectural/research choices: Decision Journal below (`D-001…`).
-- Future ledger births: Section 15.
-- Resume/stopping invariants: Section 16.
-- Product/API sources: Section 17.
+### Identity and mechanism
 
-The evidence registry is append-only. Never rewrite an unfavorable receipt;
-supersede it with a later evidence row and decision.
+- **Source:** shared XSP-native directional impulse over causal
+  `5/15/30/60/120m` slope, return velocity, reversal/acceleration,
+  ATR-normalized movement, volatility velocity/acceleration, efficiency, and
+  coherence.
+- **Clock:** observed turns `09:35..11:50 ET`; core admission through
+  `11:20`; late-up continuation `11:25..11:30`.
+- **Admission center:** ATR velocity `(0, 0.055)`; down retrace `>=1.25 ATR`;
+  late-up retrace `1.25..1.70 ATR` with coherence `>=0.75`.
+- **Lifecycle:** no initial stop, target, trail, or fizzle; persistent
+  source-consistent inverse flip after `12` bars or EOD flattening.
+- **Economics:** next-open fills, one fixed unit, both directions, one open
+  position, `$0.10` round-trip friction.
+- **Central ownership:** typed candidate and admission policy; normal
+  backtest/live-intended evaluator path; no campaign-local policy copy.
 
----
+### Frozen evidence
 
-## 13. Evidence registry
+| Window | Net points | Trades | Profit factor | Drawdown | Interpretation |
+|---|---:|---:|---:|---:|---|
+| latest 19 sessions | +10.98 | 17 | 1.9498 | 7.83 | encouraging, already inspected |
+| latest year | +131.74 | 204 | 2.0439 | — | cadence-qualified challenge |
+| five years | +120.59 | 1,019 | 1.1705 | 59.95 | positive plateau, weak confidence |
 
-Add rows; never rewrite an unfavorable receipt.
+Five-year annual attribution: `2021 -24.64/92`, `2022 +44.31/196`,
+`2023 -30.68/202`, `2024 +32.11/215`, `2025 +33.01/200`,
+`2026 +66.48/114`. Up/down P&L is `+56.48/+64.11`; annualized cadence is
+`204.61` trades; daily LCB95 remains `-0.0202`.
 
-| ID | Time | Phase | Evidence | Source / artifact | Fingerprint | Result |
-|---|---|---|---|---|---|---|
-| E-000 | 2026-07-24 | 0.1 | Repository baseline | Git `main` | `2551326` | Clean code anchor; management added at `3c38af6` |
-| E-001 | 2026-07-24 06:35 UTC | 0.2 | Gateway/account census | IB Gateway `176` | account `bddaf5682a86` | AUD account above conservative design envelope; 7 positions; no XSP/open order |
-| E-002 | 2026-07-24 | 0.3 | XSP data/cache census | `db/XSP/*.csv` | `eaa6da6…`, `dfcf7bf…` | 19,506 bars/251 sessions/no gaps; volume absent; no option replay tape |
-| E-003 | 2026-07-24 | 0.3 | Options-runner smoke | `/tmp/xsp-options-smoke.json` + result cache | `5588cf17…` | 31,104 cells; ~60 s cold/1.78 s warm; synthetic, cost-free, wrong wing geometry |
-| E-004 | 2026-07-24 | 0.2 | XSP vertical broker preview | 734/735P `20260727`, no submit | qualified conIds + sparse `PreSubmitted` | Canonical max +20/-80; broker commission/capacity proof missing; not live-eligible |
-| E-005 | 2026-07-24 | 0.4 | Frozen score/risk contract | Git `5308293`; `research.daily.v1` | focused tests `74/74` | Daily zero-session-aware evidence; threshold-independent cache; win rate removed from authority |
-| E-006 | 2026-07-24 | 0.4 | Canonical one-point wings | Git `521f16c` | focused tests `60/60` | Shared percentage anchor plus point offset reaches replay and live resolution |
-| E-007 | 2026-07-24 | 0.4 | Explicit friction and safe-income smoke | Git `eddb3bd`, `49f517e`; `/tmp/xsp-safe-income-smoke.json` | `2622c16…` | 4,608 cells; 12.3 s cold/<0.6 s warm; 240 synthetic rows remain quarantined |
-| E-008 | 2026-07-24 | 0.4 | Chronological safe-income discovery | `/tmp/xsp-safe-income-discovery-{baseline,adverse}-v3.json` | `e4a325ff…`, `80154859…` | Baseline has 3 duplicate sample+LCB rows; adverse has 0; validation/holdout sealed |
-| E-009 | 2026-07-24 | 0.4 | Canonical hypothetical iron-condor economics | 733P/734P/746C/747C, expiry `20260727`, no submit | shared package kernel | USD 0.40 credit gives +40/-60 before costs; conservative USD 8 round-trip fees gives +32/-68; arithmetic only |
-| E-010 | 2026-07-24 | 0.4 | Causal opening-reclaim discovery | `/tmp/xsp-opening-reclaim-discovery-baseline-v3.json` | `dab6f0b9…` | 1,728 cells; 0 positive LCB; 109 sample-qualified rows all negative; validation/holdout sealed |
-| E-011 | 2026-07-24 | 0.4 | Causal research and parity implementation | Git `743ef06` | full suite `662 passed`; `engine_options.py` 992 lines | Exact intraday OPT expiry clock, causal reclaim mode, frozen research groups, ledger ownership, and architecture ratchet pass; threshold-only rerank reused all 4,608 receipts in 0.66 s with no workers |
-| E-012 | 2026-07-24 | 1 | Two-year XSP underlying hydration | `/tmp/xsp-cache-sync-2y.json`; six stitched cache shards | canonical rows `a1154bba…` | 38,898 bars; 501 complete sessions; 496×78 bars plus five half-days×42; zero missing ranges; volume absent throughout |
-| E-013 | 2026-07-24 | 2 | Preregistered opening-state matrix | `/tmp/xsp-opening-state-study-v1.json` | `03af6fb1…` | 256 cells; 316 eligible sessions/boundary; zero family-wise passes; narrow 90m downside/30m rebound hint fails corrected and neighborhood gates; holdout sealed |
-| E-014 | 2026-07-24 08:48 UTC | 1 | XSP forward quote-capture smoke | `/tmp/xsp-forward-capture-smoke-v4/XSP/2026-07-24.jsonl` | `dcf24c2e…` | Exact `IND/CBOE` underlier; 12 qualified option rows, zero invalid conIds, six NBBO/full-Greek rows; requested delayed mode and preserved actual `1/3` provenance; subscription/definition errors retained; premarket plumbing evidence only |
-| E-015 | 2026-07-24 09:16 UTC | 1 | XSP capture restart continuity | `/tmp/xsp-forward-restart-proof.BCWo2l/XSP/` | tape `c091adf4…`; chain `ae4679a…` | Two independent recorder processes appended two schema-v2 snapshots to one valid JSONL tape; one content-addressed chain manifest reused; 28 qualified contracts/snapshot, zero invalid conIds; actual `1/3` provenance and errors preserved; premarket delayed evidence, not RTH admission |
-| E-016 | 2026-07-24 09:34 UTC | 1/2 | Captured/live XSP package parity | `/tmp/xsp-forward-restart-proof.BCWo2l/XSP/2026-07-24.jsonl` | tape `c091adf4…`; full suite `671 passed` | The exact delayed `20260731` 734/733 put-credit vertical replayed through the shared live-intended quote kernel at `-0.24` debit units: max profit USD 24, max loss USD 76; 28/28 qualified fresh delayed NBBO/Greek rows. Adapter parity is exact, but premarket delayed evidence cannot promote a strategy |
-| E-017 | 2026-07-24 10:23 UTC | 1 | Two-year causal context tapes + fail-closed hydration | `/tmp/xsp-context-sync-2y.json`; `/tmp/xsp-vix-context-refresh-2y.json`; `db/{SPY,VIX}/*5mins_rth.csv` | SPY `c47f19e9…`; VIX `1797fc3e…`; focused `36 passed` | Exact canonical `STK/SMART` SPY and `IND/CBOE` VIX tapes: each 38,898 bars/501 sessions, 496×78 full days + 5×42 half-days, zero missing ranges/anomalies/duplicates. SPY healed 41 missing sessions using two contiguous requests; VIX was independently regenerated after extended-index bars exposed a half-day audit defect. Historical acquisition now uses one-day-sized repairs, adaptive duration fallback, per-contract serialization, bounded backoff, IBKR error/head-timestamp evidence, and never skips an ambiguous empty response. A live 2004 VIX negative probe retained three HMDS no-data errors and failed closed against IBKR's exact `2005-10-03T13:30Z` head |
-| E-018 | 2026-07-24 10:32 UTC | 1 | Monotonic IBKR concurrency backoff | Git this commit | full suite `681 passed` | The shared adaptive planner previously widened a retry from ceilings `1` or `2` to `3`; it now emits only strictly descending concurrency (`1`; `2→1`; `6→3→1`; `10→5→3→1`). Independent primary contracts retain bounded parallelism while residual day repairs remain serialized |
-| E-019 | 2026-07-24 10:37 UTC | 2 | Preregistered XSP/SPY/VIX opening-context study | `/tmp/xsp-opening-context-study-v1.json` | `6ef12945…`; preregistration `521230c` | 768 cells over 316 eligible discovery sessions/boundary; zero passes; zero positive family-wise lower bounds. SPY cumulative participation and VIX direction did not rescue the failed XSP opening families; holdout remained sealed |
-| E-020 | 2026-07-24 10:42 UTC | 1/2 | Same-tape safe-income and alpha package baselines | `/tmp/xsp-same-tape-package-baselines-v1.json` | `6ec25b2e…`; source tape `c091adf4…` | One delayed snapshot priced both sleeves through the shared live-intended kernel: 734/733P credit vertical at `-0.25`, max +25/-75 USD; 741/742C debit vertical at `+0.65`, max +35/-65 USD. Geometry/economics parity is proven; delayed premarket quotes prove neither edge nor live eligibility |
-| E-021 | 2026-07-24 10:47 UTC | 2 | Adverse-cost directional-credit discovery + chronological halves | `/tmp/xsp-directional-credit-discovery-adverse-v1.json`; `/tmp/xsp-directional-credit-discovery-halves-v1.json` | `f2b45a91…`; halves `7ccc10b6…` | 5,184 synthetic cells at USD 1.50/contract and two ticks retained 2,255 sample rows. One filtered DTE5/EMA3-7/PT0.5/SL0.35 cell had 38 trades, +117.61 PnL and +0.117 daily LCB, but no stable parameter neighborhood. Its exact early half had 15 trades, -0.537 LCB and 55.2% top-five-win concentration; late had 23 trades and +0.092 LCB. The singleton is rejected as a champion; validation and holdout stay sealed |
-| E-022 | 2026-07-24 10:56 UTC | 1 | Official-rule-aware historical retry contract | Git `957ef10` | focused `43 passed`; full `687 passed, 4 deselected` | Minute-and-larger tapes retain bounded independent-contract parallelism; same-contract requests serialize and day repairs descend to one worker. Ambiguous failures retry with smaller windows and exponential delay; explicit pacing waits 15/30 seconds. `reqHeadTimestamp` proof is reused for one hour and failed probes cool down for 15 seconds because IBKR subjects head requests to strict small-bar pacing. Only rejection, expiry, or request-before-head is called unavailable; repeated broker no-data remains unresolved and cannot delete or bless a cache gap |
-| E-023 | 2026-07-24 11:02 UTC | 2 | Preregistered directional-debit discovery | This document at pushed preregistration anchor | `xsp.directional-debit.discovery.v1` | Frozen 3,456-cell filtered/unfiltered one-point CALL-up/PUT-down vertical family, adverse friction, exact discovery/validation/holdout boundary, two-half repeatability, alpha risk, concentration, and neighborhood gates. No permanent catalog entry exists before evidence |
-| E-024 | 2026-07-24 11:05 UTC | 2 | Directional-debit discovery verdict | `/tmp/xsp-directional-debit-discovery-adverse-v1.json`; persistent receipts `/tmp/xsp-directional-debit-discovery-adverse-v1b.sqlite3` | semantic `886861ec…` | 3,456 adverse-friction cells completed in 82.29 seconds cold and 0.26 seconds warm; 2,049 sample-retained rows, zero positive daily LCBs, therefore zero alpha-gate passes. Validation/holdout remain sealed and no permanent strategy catalog entry is born |
-| E-025 | 2026-07-24 11:15 UTC | 1 | Historical pacing-flexibility refinement | Git `e66f82b` | focused `48 passed`; full `689 passed, 4 deselected` | Bars at or below 30 seconds now obey IBKR's 15-second identical-request floor before any pacing error, while minute-and-larger XSP tapes retain the faster ordinary retry ladder. Explicit pacing escalates cooldown; broker no-data without head proof remains retryable across adaptive passes. Same-contract serialization and the normal two-independent-contract ceiling remain unchanged; no global token bucket or extra cache subsystem was added |
-| E-026 | 2026-07-24 11:24 UTC | 1 | Strict forward-tape admission profile | Git `c99d31f`; prior tapes `/tmp/xsp-forward-{restart-proof.BCWo2l,capture-smoke-v4}/XSP/2026-07-24.jsonl` | focused `26 passed`; full `691 passed, 4 deselected` | One shared quote classifier now produces a declared complete/incomplete snapshot verdict from chain provenance, qualification, NBBO, age, actual live/delayed provenance, and Greeks. Exact package replay rejects missing or mismatched chain expiry before canonical pricing. Both premarket tapes correctly fail the new live profile: zero eligible streaming-live rows; the older smoke also lacks chain provenance. No historical artifact was relabeled or promoted |
-| E-027 | 2026-07-24 11:28 UTC | 2 | Matched condor incremental-value audit | `/tmp/xsp-condor-incremental-value-v1.json`; preregistration `5fc6d26` | artifact `e54a19b8…`; adverse source `80154859…` | `1,152` filtered and `1,152` unfiltered condors were matched exactly to put-credit verticals after USD `1.50`/contract and two ticks. Zero condors passed the safe-income gate, so zero met the preregistered incremental-value contract or its two-neighbor rule. All unfiltered condors had negative daily LCB; filtered rows were primarily sample-, concentration-, P&L-, and profit-factor-limited. Validation and holdout remain sealed; the four-leg extension is rejected |
-| E-028 | 2026-07-24 11:46 UTC | 1 | Calibration provenance and effective boundary | Git this commit | focused `16 passed`; full `693 passed, 4 deselected` | Schema-v2 records bind the delayed broker observation to source kind, actual first/last underlying bars, and a next-date effective boundary. A caller-provided RV without both source bounds is rejected; same-day replay cannot consume a newly observed surface; legacy `asof` records remain readable |
-| E-029 | 2026-07-24 11:55 UTC | 1 | Five-year XSP underlying admission | `db/XSP/*5mins_rth.csv` | stitched-source manifest `591e581f…`; new 3-year shard `b7b90395…` | Canonical sparse hydration reused the existing two years and fetched only `2021-07-26..2024-07-23`: 36/36 sequential month requests, 244.18 seconds, no retries/fallbacks. The complete `2021-07-26..2026-07-23` tape has 97,452 bars/1,254 sessions, 1,244×78 normal and 10×42 early-close rows, zero unexpected counts/duplicates/effective gaps, strict timestamp order, and no nonzero XSP volume |
-| E-030 | 2026-07-24 12:01 UTC | 2 | Preregistered five-year XSP credit-barrier census | This document at pushed preregistration anchor | `xsp.credit-barrier-census.v1` | Frozen 128-cell descriptive matrix: four decision times × four OTM distances × four expiration horizons × two sides; conservative whole-point geometry, touch/expiration/adverse-excursion evidence, Wilson upper bounds, annual stability, and adverse USD 10 round-trip friction. No filtering, tuning, option-PnL claim, or promotion authority |
-| E-031 | 2026-07-24 12:10 UTC | 2 | Reproducible five-year XSP credit-barrier verdict | `/tmp/xsp-credit-barrier-census-v1.json`; Git this commit | artifact `29c4d73b…`; source `591e581f…`; full suite `694 passed, 4 deselected` | Shared research evidence regenerated the prior 128-cell artifact byte-identically from 97,452 bars in 1.80 seconds. Best one-percent Wilson-plus-friction hurdles were `0.1620..0.1831` same-session, `0.3026..0.3267` next-session, `0.3659..0.4461` three-session, and `0.3935..0.5059` five-session. Annual breach dispersion remains material; this screens strict-admission quotes but proves no historical option expectancy |
-| E-032 | 2026-07-24 12:16 UTC | 2 | Preregistered causal XSP credit-eligibility screen | This document at pushed preregistration anchor | `xsp.credit-eligibility-screen.v1` | Frozen 128-cell discovery family over two times, two offsets, two horizons, two sides, and eight nested side-aware direction/gap/rolling-quiet contexts. Discovery must materially beat its matched unconditional barrier with block stability and neighbor support before validation or locked holdout can be read |
-| E-033 | 2026-07-24 12:20 UTC | 2 | Causal XSP credit-eligibility rejection | `/tmp/xsp-credit-eligibility-screen-v1.json`; preregistration `40f2541` | artifact `e8e2e657…`; source `591e581f…` | Discovery-only run completed 128 cells over 58,554 bars/753 sessions in 1.49 seconds. Zero cells reached the frozen `0.05` required-credit improvement, so zero passed before or after neighbor support. The nearest row improved `0.0493` with only 113 observations and remains rejected; validation/holdout stay sealed |
-| E-034 | 2026-07-24 12:29 UTC | 1/2 | Preregistered fresh-RTH XSP package screen | This document at pushed preregistration anchor | `xsp.forward-package-screen.v1` | Frozen interpretation of the already-scheduled opening, exact-boundary, and five-minute tapes: fixed one-point legs, live/provenance/NBBO/age/Greek gates, executable natural credit versus registered barrier, 0.10 natural-to-mid ceiling, adjacent-snapshot persistence, USD 100 risk ceiling, and fixed-leg forward replay. One session can birth only a shadow candidate |
-| E-035 | 2026-07-24 12:35 UTC | 1 | XSP GTH availability and provenance probe | `/tmp/xsp-gth-{forward,delayed}-20260724/XSP/2026-07-24.jsonl` | chain `ae4679a1…` | At `08:34..08:35` ET, inside XSP GTH, requested-live underlier data returned IBKR `354` and no strike-selection price. An explicit delayed request qualified and timestamped 44 Monday-expiry options with 44 NBBO rows and 36 full-Greek rows; actual per-option provenance was mixed (`36` delayed, `8` live), with `10090` subscription warnings retained. This proves GTH chain/quote availability but fails the strict all-contract live/Greek capital gate |
-| E-036 | 2026-07-24 12:38 UTC | 1 | Canonical XSP session provenance | Git this commit | focused `15 passed`; full `696 passed, 4 deselected` | Quote schema v4 records the centralized weekly Cboe session label (`GTH`, `RTH`, `CURB`, or closed) while reading schema-v3 tapes unchanged. The label explicitly does not override holiday, halt, permission, expiry-specific close, or actual quote provenance evidence |
-| E-037 | 2026-07-24 12:53 UTC | 1/2 | Strategy-required quote admission amendment | Git this commit; `xsp.forward-package-screen.v1.1` | focused `13 passed` | Before RTH evidence, the shared classifier replaced the recorder's blanket all-Greeks gate with declared strategy inputs; Greeks remain captured diagnostics. Strict admission still requires exact provenance, qualification, fresh streaming NBBO for selected legs, canonical package risk, and a fresh strike anchor |
-| E-038 | 2026-07-24 13:11 UTC | 2 | Prior-period put-credit neighborhood and cadence verdict | `/tmp/xsp-put-credit-prior-neighborhood-v1.json` | `2227c85b…` | `36` fixed filtered 2%-OTM one-point variants completed `180` exact runs in `42.9s` over four preceding half-years plus pooled evidence. Thirty produced positive pooled daily LCB and the largest synthetic P&L was `+1005.30`, but zero met LF cadence: the busiest had `141/502` trades versus `251` required. No sealed 2026 validation/holdout was read; this dormant family is rejected regardless of headline P&L |
-| E-039 | 2026-07-24 13:28 UTC | 2 | Opening directional-unit discovery v1 | `/tmp/xsp-opening-directional-unit-v1.json` | `689bde04…` | Adaptive discovery evaluated `1,200` broad and `179` local causal signal/stop/trail/cooldown combinations in `24.4s`; zero passed and validation stayed sealed. The best momentum mechanism earned `+26.06` over `394/753` trades, PF `1.219`, six positive half-years, but only `0.523` trades/session and a negative daily LCB. The next version must add evidence-motivated renewed microstructure and authenticated pre-open context—not rerun this dry space |
-| E-040 | 2026-07-24 13:40 UTC | 1 | Strict-live XSP opening entitlement receipt | `/tmp/xsp-rth-forward-20260724/XSP/2026-07-24.jsonl` | `fd5dbe9a…` | Ten exact `09:31..09:40` ET snapshots retained one stable chain fingerprint but zero qualified options: IBKR returned `354`, then `10168`, for unsubscribed XSP streaming data. Every snapshot failed closed with `no_eligible_options` and `provenance_incomplete`; delayed mechanics must remain separately labeled and cannot pass a live gate |
-| E-041 | 2026-07-24 13:43 UTC | 2 | Opening directional-unit discovery v2 | `/tmp/xsp-opening-directional-unit-v2.json` | `8618ac7e…` | `2,400` renewed-breakout, flush/reclaim, pullback/reclaim, range-quality, and ratcheting-exit combinations plus local neighborhoods completed in `49.7s`; zero passed and validation stayed sealed. HF-cadence variants reached `1.34..2.17` trades/session but all lost after friction. The best sparse flush/reclaim pocket earned `+17.25`, PF `1.925`, but only `82/753` trades. Do not mine this RTH-only space again; add authenticated pre-open context |
-| E-042 | 2026-07-24 14:28 UTC | 1/2 | Three-year SPY pre-open proxy hydration | `db/SPY/SPY_{2021-07-26_2022-07-23,2022-07-24_2023-07-23,2023-07-24_2024-07-23}_5mins_full24.csv`; `/tmp/xsp-spy-full24-discovery-audit.json`; `/tmp/xsp-spy-full24-2022-2023-heal.json` | `b58f7cbf…`, `36a3f249…`, `49ccd3b0…` | `48,154`/`48,142`/`71,638` canonical rows persisted with zero anomalies in the first and third shards. IBKR's SPY OVERNIGHT head is exactly `2023-07-17T00:00Z`; pre-head sessions correctly use SMART-extended expectations. Two post-head late-overnight gaps (`2023-07-18`, `2023-07-20`) survived three exact one-day retries each with explicit HMDS no-data evidence and remain declared gaps. All `04:00..09:25` pre-open anchors remain independently auditable; no bars were fabricated. |
-| E-043 | 2026-07-24 14:31 UTC | 2 | Preregistered pre-open directional study v3 | `/tmp/xsp-preopen-directional-v3.json` | `9eb5837b…` | `684` matched cells over `19` genuinely HF v2 bases and `36` causal SPY pre-open contexts completed in `55.9s`; `750/753` discovery sessions had exact features, zero cells passed, and validation stayed sealed. Static upside consensus, late reversal, gap recovery, and high-range strength improved some losing bases but collapsed maximum cadence to `0.408/session`; every daily lower bound remained negative. Sparse positives (`+7.97/131` and `+6.10/24` trades) are not champions. |
-| E-044 | 2026-07-24 14:43 UTC | 2 | Preregistered one-position opening ride | `/tmp/xsp-opening-ride-v1.json` | `8d77912d…` | `2,400` causal one-entry long rides and matched fixed-time twins completed in `91.8s`; zero passed and validation stayed sealed. The best cadence-qualified ride lost `-6.27` over `387/753` trades; the best fixed-time twin lost `-31.93` over `753`. Gates reduced damage but no candidate had positive P&L or daily lower bound after `0.10` friction; the visual opening spike is not a reliable long-only law. |
-| E-045 | 2026-07-24 15:01 UTC | 2 | Preregistered symmetric opening ride | `/tmp/xsp-symmetric-opening-ride-v1.json` | `865c0c99…` | `2,400` one-position continuation, breakout/breakdown, and sweep-reversal cells completed reproducibly in `144.5s`; zero passed, zero stable pockets formed, and validation stayed sealed. Only `5` cells made money at any cadence. All `1,978` cells meeting `0.5` trades/session and `25%` per-side balance lost money and had negative daily lower bounds. Best cadence-qualified P&L was `-3.85/588` trades; best stability-ranked was `-7.37/686`. Symmetry reduced blind-exposure losses but did not create an opening edge. |
-| E-046 | 2026-07-24 | 1 | Central entry-control and impulse-readiness spine | Current WIP | focused `135 passed` | One normalized live/backtest plan exposes source, confirmations, active permission filters, TICK, allowed directions, graph policy, and exact order. XSP full impulse readiness is a hard 25-sample cache/preflight requirement; explicit primary-regime off no longer revives EMA. The sensor remains observation-only; SPY context is separately auditable diagnostics, not an XSP entry-readiness dependency. |
-| E-047 | 2026-07-24 16:26 UTC | 1 | Single spot permission-kernel convergence | Current WIP | focused `136 passed`; compile and diff checks clean | Live no longer pre-vetoes weekday or filters before lifecycle. One kernel returns the first current-day, signal-day, capacity, direction, named-filter, ATR, deferred-open, or graph blocker; backtest calls the same owner. A live-loop regression proves filter failure arrives through `spot_lifecycle`, and a mixed day/filter case proves `BLOCKED_ENTRY_DAY` wins in the canonical order. Operational contract/data/preflight/pending-order safety remains outside strategy authority. |
-| E-048 | 2026-07-24 16:29 UTC | 1 | Recent SPY elapsed-horizon hydration and consumer proof | `/tmp/xsp-spy-recent-full24-sync.json`; `db/SPY/SPY_2026-06-30_2026-07-06_5mins_full24.csv`; `...07-07_07-13...`; `...07-14_07-20...`; `...07-21_07-23...` | shards `c3973ecc…`, `64f5df6b…`, `60c3d9ab…`, `aac10291…`; focused `137 passed` | Four bounded seven-day IBKR requests completed `4/4` with zero unresolved days. The canonical loader stitches `4,814` rows and zero missing ranges; every one of `17` matching XSP sessions has exact SPY `03:30/09:30 ET` anchors. The shared impulse owner now supports strict elapsed-time anchors: the scheduled overnight break yields `71` observations but exactly `360` elapsed minutes, while a naïve 72-observation sensor correctly remains unready. |
-| E-049 | 2026-07-24 17:23 UTC | 1 | Entry-authority control-plane completion | Current WIP | focused `140 passed`; compile and diff checks clean | The shared plan now declares active source gates, confirmation and bear scopes, all five legacy regime-veto families, named filters, direction map, lifecycle, TICK, and graph policy. Evaluator setup consumes the same typed regime policy and scopes; the old private decoder was removed rather than retained as a facade. |
-| E-050 | 2026-07-24 17:26 UTC | 1/2 | Production XSP directional-turn census | `/tmp/xsp-directional-turn-census-v1.json` | `a2f8a263ead862e4b775592d45eac3333296088ef7503efd0f96da9e91bae89e` | The production engine directly replayed `753` discovery and `17` recent complete `09:30..11:45` sessions with zero under-horizon events. Discovery: `2489` material labels, `3162` events, precision `0.590`, recall `0.749`, F1 `0.660`, median lag `2` bars. Recent: `58/66/44`, precision `0.667`, recall `0.759`, F1 `0.710`, median lag `1.5` bars. Absolute-extrema recall was only `16/34`, with `18/34` boundary-censored. SPY failed to improve recent ownership and remains diagnostics only. |
-| E-051 | 2026-07-24 18:03 UTC | 2 | Preregistered directional-turn lifecycle discovery | `/tmp/xsp-directional-turn-lifecycle-v1.json` | `95ea493fd022847703b5523e358535b7a97fd14ec4b7a0447c14531f63832d28` | The normal backtest owner completed all `1,296` frozen cells over `58,554` bars / `753` discovery sessions in `193.2s` with eight workers. Zero cells passed, zero had positive net P&L/daily LCB/PF>=1/acceptable drawdown/both-direction P&L, and validation stayed sealed. Best: `-146.31`, PF `0.814`, drawdown `153.22`, `2,510` trades (`3.33/session`), all seven half-years negative. Trail exits earned `+636.47`; `1,574` initial stops lost `-784.07`, locating the next seam in admission quality rather than exit-grid breadth. |
-| E-052 | 2026-07-24 18:14 UTC | 2 | Preregistered directional-turn admission discovery | `/tmp/xsp-directional-turn-admission-v1.json` | `d5788407d257bd88aeb1cbd092444a8c66e9104266dc386676fc3ec75bd7d099` | The normal lifecycle engine evaluated all `432` frozen causal admission projections in `26.0s`; the gates-off cell exactly reproduced E-051. `33` cells had positive net P&L and `8` reached PF `>=1.10`, but zero had positive daily LCB, zero profitable cells met HF cadence, zero made money in both directions, and validation stayed sealed. Best stability-ranked: `+6.04/153` trades, PF `1.154`, drawdown `9.88`, five positive half-years, but only `0.203/session` and downside `-2.65`. Best net: `+7.84/243`, only `0.323/session`. |
-| E-053 | 2026-07-24 18:23 UTC | 2 | Preregistered directional reversal-cascade study | `/tmp/xsp-directional-reversal-cascade-v1.json` | `412c0e671cd419950517c6b1516b59f75ceada316628aafcf2f0570889394aa1` | All `144` causal `5/15/30m` cascade cells ran through train/audit/full normal lifecycle paths in `117.6s`. All cells lost on both `501`-session calibration and `252`-session internal audit; zero daily LCBs or two-sided P&Ls were positive, while `71` cells met cadence on both. Best compromise: train `-14.43`, audit `-9.09`, full `-23.93`, PF `0.815`; tradability hit rate `40.7%/46.6%`. External validation stayed sealed and production was unchanged. |
-| E-055 | 2026-07-24 19:40 UTC | 1 | Directional/control-plane structural completion | Current WIP | architecture + ledger `8 passed`; focused `145 passed`; full `720 passed, 4 deselected` | The causal multihorizon subsystem moved intact from the oversized generic signal owner into `tradebot/engines/directional_impulse.py`; normalized entry authority moved into `tradebot/spot/entry_control.py`. Generic signals are now `422` lines, gates `984`, entry control `488`, directional impulse `622`, and journal diagnostics `997`. No architecture debt exception, compatibility facade, or parallel policy stack was introduced. |
-| E-054 | 2026-07-24 18:34 UTC | 1/2 | Frozen forward RTH package-screen verdict | `/tmp/xsp-forward-package-screen-v1.json` | artifact `ed517b9d…`; boundaries `dcbf9843…`; neighbors `5c927537…`; barriers `29c4d73b…` | Four exact boundaries yielded `16` frozen one-point packages. `100/100` captured boundary contracts were qualified and anchors were fresh, but zero boundary/neighbor packages had strict streaming-live selected-leg quotes. Seven delayed/mixed boundary packages were mechanically priceable; all missed their hurdle. Closest: `11:00` 0.75% call credit `0.25` versus `0.39664`, neighbor `0.28`. Verdict `NO_TRADE`; no thresholds moved and no validation opened. |
-| E-056 | 2026-07-24 20:56 UTC | 1 | Complete XSP forward-session evidence tape | q archive `/home/x/Desktop/tradebot-evidence/XSP/2026-07-24/`; audit `/tmp/xsp_session_tape_audit.json` | tape `5d88d9a…`; boundary `dcbf9843…`; audit `ac8c7f3a…`; archive `c35035eb…` | Exact final census: `91` main rows (`8` GTH / `74` RTH / `9` Curb), `83/83` scheduled rows matched, `4/4` registered boundaries matched, zero timeouts, zero invalid conIds, strict timestamps, and all chain manifests present. The original GTH runtime log is partial, so it is not misrepresented as exact `7/7` log proof; tape, source, schedules, and manifests remain independently preserved and hash-bound. |
-| E-057 | 2026-07-24 21:18 UTC | 1 | Restart-safe option-recorder kernel integration | q archive `/home/x/Desktop/tradebot-evidence/XSP/2026-07-24/integration/`; content receipt `db/quotes/XSP/receipts/2026-07-24.5d88d9a9d1dd651a586368155b5769102d3800ca6100fabf14aab008b6ecdee3.json` | integration archive `477dd0ec…`; focused `56 passed`; full `726 passed, 4 deselected` | The canonical recorder now repairs torn tails, fsyncs append state, uses coherent shared-lock readers, emits content-addressed receipts, preserves absolute cadence and retained contract identity across restart/spot motion, batches requests, and reconnects with bounded backoff without duplicate rows or empty-chain fake success. The central RTH normalizer now discards after-close bars rather than collapsing them onto duplicate `16:00` timestamps. |
-| E-058 | 2026-07-25 06:08 AEST | 1 | Causal-news timeout-budget correction and source integration | q unit `~/.config/systemd/user/tradebot-news.service`; canonical `deploy/systemd/tradebot-news.service` | unit/source `5fa5e092…`; focused `27 passed`; full `745 passed, 4 deselected`; systemd verify clean | The `05:42 AEST` one-shot failed at the pipeline's exact internal `600s` Codex timeout, ten minutes before systemd's outer `900s` wall; last-good qualitative memory, event ledger, aggregate, state, and history remained byte-identical. The loaded unit and canonical template now grant the ephemeral Codex `840s`, reserving `60s` for schema validation and atomic publication, with a regression pinning the nested budget. The four-hour timer remained scheduled and no manual run was triggered. |
-| E-059 | 2026-07-25 07:11 AEST | 1 | Timestamp-correct fundamental observation boundary | q `~/.local/state/tradebot/news/latest.json`; canonical `tradebot/news/contract.py` and `tradebot/spot/entry_control.py` | focused `45 passed`; full `748 passed, 4 deselected` | One shared consumer validates schema/version, decision timestamp, actual run status, signal/snapshot times, XSP/MCL direction, impact, confidence, horizon, change, and driver IDs. Entry control exposes only `off/observe`; fundamental pressure is never a source gate. The real q XSP aggregate (`-1/74/.90/4h`) resolved to `usable=false`, `reason=stale`, age `20,312s` after the failed run—proving stale output cannot silently become bearish authority. |
-| E-060 | 2026-07-25 07:25 AEST | 1/2 | Option-model underlier consensus census | `/tmp/xsp-option-model-consensus-census-v1.json` | artifact `5219dd7d…`; source tape `5d88d9a…`; focused `51 passed` | A fixed provenance/age/cross-sectional contract admitted `39/91` snapshots: all `8` GTH, `27` RTH, and `4` Curb. The GTH model path was coherent and its final `741.3906` anchor preceded the first captured RTH cash `741.35`, but RTH median absolute disagreement was `0.650` points, only `9/27` were within `0.25`, same-interval direction agreement was `53.8%`, and next-observed-cash agreement was `68.0%` on just `25` transitions. Verdict: useful missing-cash GTH context only; not an executable quote, directional claim, or admission gate. |
-| E-061 | 2026-07-25 07:44 AEST | 1/2 | Append-only selected/counterfactual live-calibration spine | `/tmp/xsp-live-calibration-replay-v1.ydegtq/live_calibration.jsonl`; canonical `tradebot/research/{live_calibration,xsp_shadow}.py` | ledger `a092a185…` reproduced byte-identically; focused `26 passed`; full `755 passed, 4 deselected` | The recent `2026-07-01..23` RTH tape replayed `1,248` bars in `3.36s`, freezing and settling `186` causal `30/60/120m` forecasts. All selected decisions remained `NO_TRADE`, broker-fill and selected-P&L counts remained zero, and only the rejected directional observer received synthetic same-tape outcomes (`97` positive / `89` negative; overlapping-horizon sum `+9.19` points). The sum is diagnostic—not a tradable equity curve, champion, or profitable-run milestone. Prefix-bound provenance, immutable pre-outcome forecasts, exact-bar settlement, durable torn-tail repair, and deterministic replay are proven. |
-| E-062 | 2026-07-25 08:09 AEST | 1/2 | Qualified non-submitting XSP forward-shadow smoke | `/tmp/xsp-forward-shadow-smoke.fJ6X97/`; canonical `tradebot/research/xsp_shadow.py` | XSP conId `137851301`; focused `99 passed`; full `759 passed, 4 deselected` | The real Gateway qualified exact `IND/CBOE` XSP and returned a canonical `156`-bar close-aligned tape. Closed-session advancement retained an empty `live_calibration.v1` ledger: zero selected/counterfactual forecasts, results, broker fills, or orders. A warmed repeat proved sparse live-tail reuse: `1 D / 78 bars / 2.57s` became `8580 S / 29 bars / 0.52s` without changing the merged tape. The forward owner rejects forecasts at/after their outcome boundary, refuses non-exact entry/outcome substitutions, and disables new active-RTH freezes when the latest complete bar is more than ten minutes old. |
-| E-063 | 2026-07-25 08:29 AEST | 1/2 | Preregistered option-parity participation observer | `db/quotes/XSP/2026-07-24.jsonl`; canonical `tradebot/backtest/quotes.py` and `tradebot/research/xsp_shadow.py` | tape `5d88d9a…`; focused architecture/calibration `31 passed`; full `762 passed, 4 deselected` | Before outcome scoring, one shared exact-expiry paired-NBBO observer and a causal same-session seven-minute aligner were frozen. Mechanics admitted `43/91` snapshots: `8/8` GTH, `30/74` RTH, and `5/9` Curb; all selected observations retained actual delayed type `3`, while all `48` rejections were `insufficient_nbbo_pairs`. An exact causal join against the unchanged July 24 sensor found four turns: one had usable option context, two failed paired NBBO, and one lacked a preceding seven-minute snapshot. Forward forecasts can now retain only the context available at first freeze without changing `NO_TRADE`, retroactive enrichment, invented fills, or veto/order authority. July 24 is explicitly ineligible for value tuning because its cash path was already observed. |
-| E-064 | 2026-07-25 08:42 AEST | 1 | Canonical XSP trading-date and concurrent-tape boundary | canonical `tradebot/config.py`, `tradebot/engines/market.py`, `tradebot/backtest/{data.py,calibration.py,tools/record_quotes.py}`, and `tradebot/research/xsp_shadow.py` | WIP diff `1ca71401…`; focused client/tape matrix `117 passed`; architecture/data `33 passed`; full `766 passed, 4 deselected` | One exchange-date owner maps evening GTH into the following trade date and keeps pre-open GTH/RTH/Curb together. Recorder path, restart-universe restoration, expiry DTE, and shadow auto-tape lookup now agree; the indefinite recorder makes no broker call while the normal weekly session is closed. A real shared-reader/exclusive-writer test proved the writer blocks during a shadow read and then appends a complete ordered row with no torn JSON. Direct historical, calibration, and recorder IDs are now reserved above the rotating live pool (`949/979/989` under defaults), removing a cross-process collision without adding a second allocator. No new cache, calendar, daemon, selector, fill, or order authority was introduced. |
-| E-065 | 2026-07-25 08:55 AEST | 1/2 | First-seen causal-news binding in forward shadow | canonical `tradebot/research/xsp_shadow.py` and `tradebot/news/contract.py` | source `8112e416…`; focused news/calibration `31 passed`; architecture/capability `8 passed`; full `767 passed, 4 deselected` | Every new XSP shadow forecast now records the exact news snapshot fingerprint, signal/snapshot timestamps, age, run status, horizon, direction, impact, confidence, change, and driver IDs available at its causal decision time. Missing, invalid, future, stale, or failed evidence freezes an explicit unusable reason. Identity remains independent of later context, so restart returns the first record instead of retroactively enriching it. The selected decision remains `NO_TRADE`; the news state is observation-only and has no veto, sizing, selector, fill, or order authority. |
-| E-066 | 2026-07-25 09:04 AEST | 1/2 | Preregistered fundamental defensive paired observer | canonical `tradebot/research/xsp_shadow.py`; null-history replay `/tmp/xsp-fundamental-null.5MtR7C/live_calibration.jsonl` | source `0f40b36a…`; null ledger `ef519eee…`; focused `36 passed`; architecture/capability `8 passed`; full `772 passed, 4 deselected` | Before any Monday outcome, one primary `60m` paired rule was frozen: only usable opposite-direction XSP news with impact `>=70` and confidence `>=.80` hypothetically vetoes the unchanged directional observation. Weak, aligned, neutral, stale, failed, missing, `30m`, and `120m` evidence cannot change it. A deterministic replay of the existing `186` settled recent forecasts produced `62` primary pairs, zero usable historical news, zero vetoes, and identical TA/defended diagnostic points (`+1.30` each), proving no retrospective enrichment. The benchmark retains `NO_TRADE`, observation-only authority, and an explicit prohibition on interpreting overlapping events as a tradable equity curve. |
-| E-067 | 2026-07-25 09:24 AEST | 1 | Crash-recoverable causal-news publication generation | canonical `tradebot/news/pipeline.py` | source `768ed6fa…`; focused news `22 passed`; architecture/capability `8 passed`; full `774 passed, 4 deselected` | Individual atomic renames were replaced by one durable pending-generation journal around events, qualitative memory, monthly history, latest aggregate, and cursor state. A forced interruption after history but before latest/state, plus a deliberately torn history tail, recovered the exact frozen generation on restart, repaired the tail, appended no duplicate, advanced the cursor once, and invoked Codex only once. Existing public paths and current schema consumers remain unchanged; q's next natural run still proves only the already-deployed timeout correction until this WIP is integrated. |
-| E-068 | 2026-07-25 09:24 AEST | 1 | Semantic first-seen XSP forecast slot | canonical `tradebot/research/xsp_shadow.py` | source `fad4b59b…`; focused calibration `16 passed`; full `774 passed, 4 deselected` | XSP forward forecasts now deduplicate by exact strategy-version decision/outcome slot rather than by a tape fingerprint that may legitimately change after an earlier cache repair. A replay changed only an old bar's volume—altering the causal prefix hash without altering the signal—and produced zero new forecasts; the original tape, context, timestamp, and forecast IDs remained immutable. |
-| E-069 | 2026-07-25 09:34 AEST | 1/2 | First-seen causal option-parity movement | canonical `tradebot/research/xsp_shadow.py`; mechanics ledger `/tmp/xsp-parity-movement.PV4sfX/ledger.jsonl` | source `b96a207a…`; ledger `8e0ed273…`; focused calibration/quote/architecture `42 passed`; full `775 passed, 4 deselected` | The existing option-parity context now freezes the latest causal snapshot plus the nearest prior usable same-session/same-expiry observation within `15m`, retaining exact timestamps, chain provenance, elapsed seconds, point delta, per-minute velocity, and raw direction. A focused future/old/prior/latest matrix proved the later snapshot cannot leak and the closest eligible prior wins. Deterministic replay retained `12` settled horizon records from four July 24 turns: the one previously usable turn now had a causal prior (`+0.69` parity points over `602.17s`, matching the unchanged `UP` observation); the other three remained honestly unavailable. This is mechanics-only because the cash path was already seen. Missing history remains explicit; no threshold, veto, selector, fill, or order authority was added. |
-| E-070 | 2026-07-25 09:43 AEST | 1 | Honest nested news runtime budget | canonical `tradebot/news/pipeline.py` and `deploy/systemd/tradebot-news.service` | source `2ed124ef…`; focused news/calibration/quote/architecture `64 passed`; full `775 passed, 4 deselected` | The timeout audit found that the same `840s` argument still reached both Finviz and Codex, so a stalled discovery request could consume the service wall before inference. The existing interface now caps discovery at `min(30s, caller ceiling)` while preserving the `840s` Codex allowance and `900s` systemd ceiling. A behavioral regression proves a default-size run sends `30s` to discovery and `840s` to inference. This WIP—not the upcoming natural q run—completes the truthful `30 + 840 + 30` budget. |
-| E-071 | 2026-07-25 09:46 AEST | 1/2 | Append-time causal-news alignment counterexample | q history `/home/x/.local/state/tradebot/news/history/2026-07.jsonl`; mechanics ledger `/tmp/xsp-parity-movement.PV4sfX/ledger.jsonl` | history `59dec698…`; two publications/four unique `60m` decisions | The exact `11:15:20Z` and `15:32:09Z` publications were causally available and fresh at all four July 24 decisions. Applying the later-frozen bearish veto mechanically would remove two profitable `UP` observations (`+0.27`, `+3.51`) and retain two `DOWN` observations totaling `-3.42`, changing the overlapping diagnostic sum from `+0.36` to `-3.42` (`-3.78`). Because the policy was registered after these outcomes, this is a non-promotional negative sensitivity receipt—not out-of-sample evidence. No threshold moved; Monday remains the first prospective paired test. |
-| E-072 | 2026-07-25 10:14 AEST | 1 | Natural corrected-budget exercise and canonical event clocks | q service journal `09:52:05..10:01:31 AEST`; canonical `tradebot/news/contract.py` | exact response `20,598` bytes; source `9ced1990…`; focused `64 passed`; full `775 passed, 4 deselected` | The first natural q run under the explicit `840s` child ceiling returned complete JSON in `9m26s`; it confirms the corrected path was loaded and completed, while its `566s` duration does not itself prove survival beyond the former `600s` wall. The deployed unit and behavioral regression pin the actual ceiling. Strict validation then rejected one stale `last_material_change_utc` after its evidence set changed; no publication file, state cursor, or two-row history changed. The existing validator boundary now derives stable first-seen and material-change clocks from prior ID plus exact material diff while retaining strict model-authored verification time. Replaying the exact rejected payload against the exact prior six-event ledger validated eight events and correctly classified all six retained events as materially updated. The q source remains unmodified pending safe combined-WIP integration. |
-| E-073 | 2026-07-25 10:31 AEST | 1/2 | Exact VIX discovery tape and turn-admission rejection | `db/VIX/VIX_2021-07-26_2024-07-23_5mins_rth.csv`; `/tmp/xsp-vix-cache-sync-report.json`; `/tmp/xsp-vix-turn-admission-v1.json` | VIX `7200ee6f…`; sync report `d2e66885…`; result `65e0fae0…` | Canonical sparse hydration resolved exact VIX `IND/CBOE` conId `13455763` and admitted `58,554` same-timestamp bars through one successful primary batch: one thread, zero remaining days, zero repairs, zero failed requests. The preregistered `13`-cell dynamic VIX-pressure admission matrix completed in `2.9s`; zero cells passed and validation stayed sealed. Every filter improved the losing `-146.31` baseline, but the best still lost `-32.64/-20.43` in calibration/audit, lost on both directions, had zero positive half-years, and missed HF cadence. |
-| E-074 | 2026-07-25 10:46 AEST | 1/2 | Forward option-parity participation benchmark | canonical `tradebot/research/xsp_shadow.py`; mechanics `/tmp/xsp-parity-participation-mechanics-v1.json` | source `d12a45c2…`; receipt `cd052963…`; full `779 passed, 4 deselected` | The existing first-seen current/prior option-parity context now feeds one `60m` classify-only receipt through the shared calibration ledger. It reports aligned/opposed/flat/unavailable cohort counts and economics while preserving exact forecast and chain provenance, `NO_TRADE`, and zero veto/selector/order authority. The already-seen July mechanics ledger deterministically produced four pairs: one aligned `+0.27`, three unavailable totaling `+0.09`, one usable session, and `sample_gate=false`; these are plumbing facts, not a value claim. The production module remains under the architecture ceiling at `997` lines with no debt exception. |
-| E-075 | 2026-07-25 10:53 AEST | 1 | Isolated Monday producer/observer client ownership | canonical `tradebot/config.py` and `tradebot/research/xsp_shadow.py` | config `49ef9912…`; shadow `80b67868…`; focused `47 passed`; full `780 passed, 4 deselected` | The launch audit found that the recorder already reserved client `989`, but the non-submitting shadow still loaded the live UI's main/proxy pool and persisted-ID state. One canonical config transform now allocates the shadow's transient main/proxy/index triplet as `979/980/981`, clears the live state path, and publishes the IDs plus `order_authority=none` in its receipt. This proves the frozen one-producer/one-shadow topology cannot collide with the live dashboard or silently acquire order authority. |
-| E-076 | 2026-07-25 10:56 AEST | 1 | Fail-closed weekend launch census | q execution checkout, timer/service units, news state, Gateway listeners, and local combined WIP | q source `f837e21`; last-good news `a5b30dc1…`; history `59dec698…`; local full `780 passed, 4 deselected` | systemd owns the four-hour cadence (`OnUnitInactiveSec=4h`); Codex is a one-shot child, not a sleeping resident process. The q unit now exposes the intended `840s` child inside a `15min` service wall and its next timer is 14:01 AEST. The 09:52 child returned after `9m26s`, then the older q reducer failed strict event-clock validation without mutating the 01:42 last-good publication. No q-local Gateway port is listening and the combined WIP is not deployed, so producer/shadow launch correctly remains closed. |
-| E-077 | 2026-07-25 11:01 AEST | 1 | Combined-WIP shadow restart determinism | `/tmp/xsp-weekend-restart-v1/{primary,fresh}.jsonl`; `/tmp/xsp-weekend-restart-v1/receipt.json` | ledger `4512b5f6…`; receipt `b9f69d6a…`; option tape `5d88d9a…` | A bounded `9.98s` mechanics replay consumed `1,326` authentic July XSP bars with zero missing ranges plus all `91` captured option snapshots, producing `198` forecasts and `198` settled outcomes. A same-ledger rerun changed zero bytes and a fresh ledger reproduced the exact `1,114,583`-byte SHA. Current news was intentionally omitted to prevent historical look-ahead; option-parity remained unavailable instead of being retroactively enriched, and both observers retained `promotion_eligible=false`. |
-| E-078 | 2026-07-25 11:05 AEST | 1 | Profitability-clock truth audit | canonical `tradebot/research/live_calibration.py`, `tradebot/research/xsp_shadow.py`, and `benchmark.future.live-backtest-drift-score` | ledger owner `9ad586ba…`; capability ledger `41bfe899…`; E-077 replay | The append-only kernel proves immutable forecasts, exact settlements, restart, and observer attribution, but intentionally has no continuous session-coverage records or milestone scorer. Every current selected decision remains `NO_TRADE`; the `198` results are overlapping observation-only counterfactual horizons. Therefore no `24h`, `48h`, or five-session profitability clock has started. A future clock must require one admissible selected strategy, continuous eligible-session evidence, reconciled selected economics, costs/drawdown, and explicit missing-data separation before elapsed time can count. |
-| E-079 | 2026-07-25 11:11 AEST | 1 | Signal-independent forward evaluation checkpoints | canonical `tradebot/research/{live_calibration,xsp_shadow,xsp_shadow_cli}.py` | sources `f3f4b2b1…`, `807643f7…`, `9ccb685b…`; focused `31 passed`; full `782 passed, 4 deselected` | Each non-submitting IBKR shadow invocation now appends an idempotent coverage checkpoint only after the evaluator succeeds. Fresh close-aligned RTH is `EVALUATED`; empty/stale RTH, unsupported GTH/Curb, and closed time remain distinct. A forced evaluator crash proves it leaves zero checkpoints rather than fabricating coverage. Successful checkpoints retain trading date, session, cash-tape fingerprint, complete bars, latest close/age, option-snapshot count, and `order_authority=none` independently of forecasts. The unchanged module command delegates only CLI concerns to a `97`-line adapter; the research kernel is `966` lines and the central ledger owner `378`, with no architecture exception. |
-| E-080 | 2026-07-25 11:22 AEST | 1 | DST-safe one-shot XSP shadow scheduler | canonical `deploy/systemd/tradebot-xsp-shadow.{service,timer}` | service `bb1ae1e…`; timer `756053d6…`; q `systemd-analyze verify` clean; focused `32 passed`; full `783 passed, 4 deselected` | Three New York-time calendar expressions schedule exactly `78` normal cash-RTH invocations: five at `09:37..09:57`, 72 at `10:02..15:57`, and one at `16:02`, each two minutes after a completed bar. The timer is non-persistent with zero randomized delay, so missed jobs never burst. systemd suppresses overlap for the active oneshot; a two-minute hard wall bounds each run. The service uses the existing isolated shadow clients and durable ledger, and an `ExecCondition` refuses launch until `%h/.local/share/tradebot/venv` exists. q currently has neither that runtime nor `ib_insync`, so no unit was installed or enabled. |
-| E-081 | 2026-07-25 11:24 AEST | 1 | Reproducible q shadow-runtime dependency contract | canonical `requirements.txt`; disposable q `/tmp/tradebot-runtime-smoke.diSFLr` | requirements `9e05894a…`; q Python `3.13.7`; `ib-insync 0.9.86`; `textual 6.12.0` | The two direct runtime dependencies are exactly pinned to the versions already proven by the Mac project environment. A fresh disposable q virtual environment installed those pins, passed `pip check`, imported both packages, and constructed the exact `Index('XSP', 'CBOE', 'USD')` contract. No persistent q runtime was created and no unit was installed or enabled; operational launch still requires one combined source revision and proven q-local Gateway transport. |
-| E-082 | 2026-07-25 11:35 AEST | 1/4 | On-demand read-only q-to-Mac shadow transport | `/tmp/xsp-q-readonly-shadow-transport-v1.json`; canonical `deploy/systemd/tradebot-ib-gateway-tunnel.service` | receipt `2dcebe4d…`; tunnel `0c0cb3c9…`; config `169f9149…`; client `e58c6d6a…`; focused `95 passed`; full `785 passed, 4 deselected` | The transport audit rejected the stale `id_rsa_mac` assumption and proved q's explicit `~/.ssh/id_rsa` under strict host-key checking. A disposable localhost forward reached Mac Gateway `127.0.0.1:4001`; the exact combined-WIP client stack connected isolated IDs `979/980/981`, reported server version `176` and one managed account, and set IBKR `readonly=True` on all three sessions. The probe made zero order and market-data calls and self-cleaned. The shadow unit now requires a non-enabled, `StopWhenUnneeded` tunnel, sets `IBKR_READONLY=1`, and leaves the live UI writable by default. q `systemd-analyze verify` passed; no persistent runtime or unit was installed and no profitability clock started. |
-| E-083 | 2026-07-25 11:42 AEST | 1 | Single-session forward XSP producer contract | `/tmp/xsp-forward-producer-scheduler-v1.json`; canonical `deploy/systemd/tradebot-xsp-quotes.{service,timer}` | receipt `37366819…`; recorder `d8a519ad…`; service `de065419…`; timer `39f9fb7a…`; focused `114 passed`; full `786 passed, 4 deselected` | One non-persistent New York-time timer starts exactly one recorder at `20:15 ET` Sunday through Thursday; its `20h45m` bound ends at the following `17:00 ET` Curb close. The producer reuses the existing append-only, trading-date-partitioned tape, retained-universe restart, torn-tail repair, five-minute absolute cadence, client `989`, and on-demand tunnel. It now asks IBKR for read-only mode on every reconnect while still requesting live data and preserving the actual returned provenance. q parsed six calendar iterations and verified the complete unit graph. No unit was installed, no tape collection started, and no clock was backfilled. |
-| E-084 | 2026-07-25 11:44 AEST | 1/4 | Gateway-loss coverage integrity | canonical `tests/test_live_calibration.py` | test source `3aa58971…`; focused `115 passed`; full `787 passed, 4 deselected` | A simulated unavailable tunnel fails before qualification and leaves the append-only shadow ledger with zero checkpoints. Together with the existing forced-evaluator-crash receipt, this proves neither transport loss nor evaluation failure can fabricate an `EVALUATED`, abstention, or elapsed-time record. |
-| E-085 | 2026-07-25 12:03 AEST | 1/4 | Selected-economics profitability authority | canonical `tradebot/research/live_calibration.py`, `tradebot/engines/market.py`, and `tests/test_live_calibration.py`; replay `/tmp/xsp-weekend-restart-v1/primary.jsonl` | sources `9b872f95…`, `fcf43540…`, `38284450…`; focused `43 passed`; architecture/capability `8 passed`; full `790 passed, 4 deselected` | One central receipt now proves `24h`, `48h`, and seven-day/five-session gates only from an exact non-`NO_TRADE` strategy/version/config/run and complete canonical RTH slots, including 78 normal or 42 early-close evaluations. Cumulative gross-cost-net identities, realized/open marks, costs, monotonic trade attribution, drawdown, session loss, win concentration, reconciliation, and safety are independently checked. One omitted five-minute slot invalidated an otherwise profitable synthetic run; a complete six-session positive run passed all gates. Replaying the actual `4512b5f6…` weekend ledger returned `NOT_STARTED`: 198 overlapping observer forecasts/results, zero checkpoints, selected P&L `0`, and no economic milestone. |
-| E-086 | 2026-07-25 12:35 AEST | 1/2 | Exact NASDAQ breadth tapes and turn-admission rejection | `/tmp/xsp-breadth-cache-sync-v1.json`; `/tmp/xsp-nasdaq-breadth-turn-admission-v1.json` | sync `bb213a5c…`; TICK `f9b0a9fc…`; TRIN `5623fbb7…`; result `42e3c8ec…`; source `00304598…`/`3e060476…`; full `792 passed, 4 deselected` | Read-only canonical hydration resolved `TICK-NASD/TRIN-NASD` as `IND/NASDAQ` conIds `26719259/26719262` and produced exact matched tapes of `58,554` bars across `753` sessions each, with explicit cash-RTH filtering and no gap/retry/timeout. Nine preregistered sign/coherence cells ran in `2.6s`; zero passed and validation stayed sealed. Every mode improved the matched losing E-051 baseline, but the strongest changed from `+4.97` calibration to `-3.85` audit, retained negative daily lower bounds, lost both audit directions, and fell to `0.53` trades/session. The combined tree is green after making one RTH fixture independent of overnight wall-clock starvation; production strategy semantics remained unchanged. |
-| E-087 | 2026-07-25 12:58 AEST | 1/2 | Prospective observer provenance isolation | canonical `tradebot/research/{live_calibration,xsp_shadow}.py`; mechanics ledger `/tmp/xsp-parity-movement.PV4sfX/ledger.jsonl` | sources `fd4e7eb8…`/`ac9e1823…`; test `493c7353…`; focused `29 passed`; architecture/capability `8 passed`; full `793 passed, 4 deselected` | The immutable ledger now owns the forecast/result/evidence-mode join and observer benchmarks explicitly separate all diagnostic rows from first-seen `forward_broker_history` rows. The four already-seen July pairs remain inspectable but resolve to zero prospective pairs and zero prospective sessions. A regression built five retrospective plus 25 prospective usable pairs across five forward sessions: the diagnostic total reached 30 while `sample_gate` remained false; only after 30 genuinely prospective pairs across six sessions did the gate become true. Fundamental-veto receipts likewise expose prospective counts/economics separately. Both production owners remain below the architecture ceiling (`945`/`954` lines); no decision, veto, selector, fill, or order authority changed. |
-| E-088 | 2026-07-25 13:06 AEST | 1/2/4 | Exact complete-session observer gate | canonical `tradebot/research/{live_calibration,xsp_shadow}.py` | sources `25e2de04…`/`258026ef…`; test `fbe5ebe8…`; focused `29 passed`; architecture/capability `8 passed`; full `793 passed, 4 deselected` | The preregistered “five complete sessions” condition previously counted event-bearing dates, not complete evaluator coverage. One central ledger query now admits a date only when every canonical RTH slot has one coherent `EVALUATED` signature: `78` normal or `42` early-close checkpoints within the frozen tolerance. The regression first created 25 prospective pairs across five complete sessions, then added five pairs on a sixth day with one missing checkpoint: raw prospective pairs reached `30`, but sample-eligible pairs stayed `25` and the gate remained false. Appending the missing idempotent checkpoint yielded `30` eligible pairs across six complete sessions and only then opened the mechanical sample gate. Incomplete-day pairs remain visible diagnostics. The owners remain below the ratchet (`997`/`977` lines); no strategy or order authority changed. |
-| E-089 | 2026-07-25 13:09 AEST | 1/2/4 | Exact RTH session-identity gate | canonical `tradebot/research/live_calibration.py` | source `7159c748…`; test `4fd7a928…`; focused `30 passed`; architecture/capability `8 passed`; full `794 passed, 4 deselected` | Complete-session authority now requires the checkpoint's explicit `session=RTH`, not merely a timestamp near an RTH slot. A regression filled every canonical slot with GTH-labeled checkpoints and proved zero complete sessions, then proved one missing RTH slot remains incomplete and only the final idempotent RTH checkpoint admits the date. The central ledger owner remains below the architecture ceiling at `998` lines; no strategy, selector, veto, fill, or order authority changed. |
-| E-090 | 2026-07-25 13:15 AEST | 1/4 | One-revision q convergence preflight | Mac `main`/combined WIP; q execution checkout `codex/news-intelligence-gate`; canonical `deploy/systemd/README.md` | local anchor `9546bad`; q head `f837e21`; merge base `a5d026c`; deployment guide `001917b5…` | The branches are intentionally divergent (`9` local-only / `13` news-branch-only commits), but all `12` files delivered by the news branch exist in the combined local tree: five remain byte-identical and seven extend the same owners with the proven timeout split, derived event clocks, crash-recoverable publication, timestamp-correct consumer, tests, capability ownership, and XSP unit instructions. No delivered news surface is missing. The deployment guide now hard-gates a clean checkout at the pushed `origin/main`, defines one isolated pinned runtime, all five forward-evidence units, user-unit verification, a manual non-submitting checkpoint proof, and only then timer enablement. q's worktree remains on its old source with the single 840-second service override; no source switch, runtime installation, timer enablement, commit, or push occurred. |
-| E-091 | 2026-07-25 13:23 AEST | 1/2 | Causal publication-availability recovery | canonical `tradebot/news/{contract,pipeline}.py` | sources `c421abbd…`/`83de2539…`; test `573b5572…`; focused news/calibration `53 passed`; architecture/capability `8 passed`; full `795 passed, 4 deselected` | The audit found that an interrupted generation computed at time A could become durable at time B while its consumer gated only on A. The central consumer now requires the decision to follow both the signal and snapshot timestamps, rejects a snapshot predating its signal, and still ages the horizon from the signal. Recovery checks whether the content-addressed generation was already visible: if not, it records B and a new publication ID back into the pending journal before exposing memory, events, latest, state, or history; if already visible, it preserves A. Two forced interruptions prove both sides: a pre-`latest.json` crash produced no history row, then one restart repaired a torn tail, called Codex zero additional times, emitted exactly one generation at B, rejected it at A+30m, and admitted it at B; a post-`latest.json` crash preserved A as the already-visible availability while still reconstructing exactly one audit row. The news owners remain below the architecture ceiling (`895`/`853` lines). |
-| E-092 | 2026-07-25 13:29 AEST | 1/4 | Exact q branch-convergence rehearsal | disposable `/tmp/tradebot-q-convergence.pIkB9z/repo`; canonical `deploy/systemd/README.md` | simulated target `502d748`; guide `d3543322…` | q's branch-specific fetch refspec does not create `origin/main`, and Git refuses to switch away from `f837e21` while its one service override is dirty even when those bytes exactly equal the target. The exact-lineage disposable rehearsal first reproduced that refusal, then proved the minimal safe sequence: explicitly fetch `main`; require the override to be the only dirty path; byte-compare it with both pushed `origin/main` and the installed user unit; restore only that redundant checkout copy to the old branch index; and switch directly to tracked `main`. The result was clean and byte-identical to the target. No stash, launch-time merge, force switch, reset, q worktree mutation, or running-unit change occurred. |
-| E-093 | 2026-07-25 13:40 AEST | 1/4 | Closed-window broker skip and benchmark ownership split | canonical `tradebot/research/{xsp_shadow,xsp_benchmarks,xsp_shadow_cli}.py` | sources `92769272…`/`8b2bb588…`/`99eeaafc…`; test `fcee7fe3…`; focused `31 passed`; architecture/capability `8 passed`; full `796 passed, 4 deselected` | The one-shot observer now classifies known GTH/Curb, exchange-holiday, and post-early-close invocations before XSP qualification or history acquisition, appending one explicit `UNSUPPORTED_SESSION` or `CLOSED` checkpoint with `broker_request_skipped` and `order_authority=none`. A client that raises on any broker touch proves all three paths; ordinary RTH still reaches broker evidence, so an unexpected halt or outage cannot be mistaken for a calendar close. Pure defensive-news and option-parity benchmark reduction moved intact into one `286`-line ledger owner; the broker runtime fell to `781` lines and the CLI remains `98`, with direct imports, no facade, no policy duplication, and no strategy/order-authority change. |
-| E-094 | 2026-07-25 13:46 AEST | 1/4 | Exact q Python compatibility boundary | disposable Mac `/tmp/tradebot-runtime-preflight.b11Quh`; disposable q `/tmp/tradebot-runtime-preflight.sCfpQQ`; canonical `deploy/systemd/README.md` | guide `ee24d5e…`; q Python `3.13.7`; Mac probe Python `3.14.4` | Both clean environments installed the exact two-line requirements and passed `pip check`. q's Python `3.13.7` imported `ib-insync 0.9.86` and `eventkit` successfully; Python `3.14.4` failed at upstream `eventkit` import because its obsolete default-loop lookup raises before TradeBot loads. The q bootstrap now invokes `/usr/bin/python3`, explicitly admits only tested `3.12..3.13`, and requires clean `ib_insync`/`textual` imports before any unit installation. No compatibility shim, persistent q venv, source switch, Gateway call, timer mutation, or publication occurred. |
-| E-095 | 2026-07-25 13:47 AEST | 1/4 | Combined-source q entrypoint preflight | disposable q `/tmp/tradebot-runtime-preflight.sCfpQQ/{venv,src}` | q Python `3.13.7`; exact current WIP source | The exact current `tradebot/` tree was copied only into the disposable q runtime. Under the clean pinned environment, both `python -m tradebot.backtest.tools.record_quotes --help` and `python -m tradebot.research.xsp_shadow --help` exited zero, and the separated benchmark and broker-runtime owners imported together. This proves the intended q interpreter can load the combined entrypoints; it does not prove the unpushed Git revision, Gateway transport, market data, timer installation, or economics. No canonical q checkout, service, timer, broker, or publication was touched. |
-| E-096 | 2026-07-25 13:49 AEST | 1/4 | Exact weekend shadow-command no-broker receipt | `/tmp/xsp-weekend-cli.OklCFC/{ledger.jsonl,receipt.json}` | ledger `96afd36d…`; receipt `76699540…` | The real `python -m tradebot.research.xsp_shadow` adapter ran with `IBKR_PORT=1` during a canonically closed Friday-night ET window and still exited zero. It appended exactly one `CLOSED` checkpoint, reported `broker_request_skipped=closed_calendar`, `historical_request=null`, `contract=null`, zero bars/forecasts/results, `order_authority=none`, and both observer sample gates false. This command-level proof confirms calendar truth short-circuits qualification/history even through config, tape/news lookup, CLI serialization, and disconnect cleanup; it is infrastructure evidence only and starts no profitability clock. |
-| E-097 | 2026-07-25 13:52 AEST | 1/4 | Honest whole-service news timeout envelope | canonical `deploy/systemd/tradebot-news.service`; `tests/test_news_signal.py`; disposable q `/tmp/tradebot-news-16min.service` | unit `209b5b05…`; test `0f3f445e…`; focused `62 passed`; full `796 passed, 4 deselected`; q systemd verify clean | The initial correction still summed exactly to the service wall: `30s` discovery + `840s` inference + `30s` validation/publication equaled `900s`, leaving no startup, teardown, scheduling, or durable-sync margin. The combined unit now retains the evidence-sized `840s` inference ceiling under a `960s` outer wall, producing a real `90s` completion reserve after the bounded discovery call. q's loaded `900s` unit was deliberately not changed immediately before its natural scheduled run; this stronger envelope activates only with the one-revision deployment. |
-| E-098 | 2026-07-25 13:53 AEST | 1/4 | Disposable q full-command no-broker preflight | q `/tmp/xsp-q-weekend-cli.hjHZhP/{ledger.jsonl,receipt.json}` under the clean combined runtime | ledger `c21bbd8b…`; receipt `b2a84838…` | The exact current combined source and clean pinned q Python `3.13.7` runtime executed the complete shadow CLI with an intentionally unreachable broker port. It returned `status=ok`, one explicit `CLOSED` checkpoint, `broker_request_skipped=closed_calendar`, no contract/history/bars/forecasts/results, broker read-only true, and order authority none. This closes the source + interpreter + adapter weekend-preflight seam without changing q's canonical checkout, persistent runtime, units, Gateway, or publication state. |
-| E-099 | 2026-07-25 13:56 AEST | 1/4 | Central observer-identity ownership | canonical `tradebot/research/{live_calibration,xsp_shadow,xsp_benchmarks}.py` | sources `30fff970…`/`c8e8e94b…`/`a7fd4423…`; test `fb063635…`; focused/architecture `39 passed`; full `796 passed, 4 deselected` | The pure option/news benchmark reducer no longer imports the broker-facing shadow runtime merely to obtain its version string. `XSP_DIRECTIONAL_OBSERVER_VERSION` now belongs to the append-only calibration contract used by both consumers; tests import the same owner. Ledger/runtime/benchmark sizes are `999/786/289` lines, so the dependency direction is clean without a new constants module, duplicate literal, compatibility re-export, or architecture exception. Runtime behavior and all strategy/order authority remain unchanged. |
-| E-100 | 2026-07-25 14:04 AEST | 1/4 | Content-addressed no-new-evidence refresh | canonical `tradebot/news/pipeline.py`; `tests/test_news_signal.py` | source `363b431d…`; test `636882b2…`; focused `62 passed`; full `796 passed, 4 deselected` | The no-Codex refresh path changed `run_status`, `snapshot_as_of_utc`, and time-derived event buckets while retaining the prior wrapper's `publication_id`. That made the advertised content address false even though ordinary consumers did not yet validate it. The existing refresh site now recomputes the ID after all mutations; a regression proves it differs from the prior generation and exactly hashes the new wrapper. Memory, events, signal time, horizon, one-session behavior, and order authority are unchanged; no helper or second publication protocol was added. |
-| E-101 | 2026-07-25 14:07 AEST | 1/4 | Shared news content-address contract | canonical `tradebot/news/{contract,pipeline}.py`; `tests/test_news_signal.py` | sources `fd26d73a…`/`36c19e61…`; test `f00b09b8…`; focused `63 passed`; full `797 passed, 4 deselected` | Publication hashing moved from a private producer helper into the strict news contract used by creation, pending recovery, no-new refresh, and observation. The consumer accepts q's existing unaddressed legacy snapshot during migration, accepts a correctly addressed generation, and fails closed after any addressed wrapper field is mutated without re-addressing. An exact read of q's current unaddressed last-good snapshot returned both XSP and MCL as honestly `stale`/unusable rather than rejecting migration or fabricating freshness. Contract/pipeline remain `913/844` lines; no duplicate hash rule, schema bump, compatibility facade, signal-policy change, or order authority was introduced. |
-| E-102 | 2026-07-25 14:12 AEST | 1/4 | Second natural timeout/derived-clock live receipt | q `tradebot-news.service` journal `14:01:31..14:11:07 AEST`; exact response replayed through current combined `validate_analysis` | raw response `94d6dc7b…` (`20,274` bytes); `295,582` Codex tokens; all five last-good hashes unchanged | The natural one-shot returned after `576s`, proving the loaded `840s` child path completed again without approaching systemd's `900s` wall. q's old reducer then rejected `active event 2.last_material_change_utc`; publication remained atomic and all last-good files retained their E-076 hashes. The exact response validates under the combined reducer: `8` active events, `71` memory lines, XSP `-1 / 79 / .94 / 24h`, and MCL `+1 / 91 / .96 / 24h`. Three retained events changed materially while copying old clocks; the canonical reducer correctly derived `2026-07-25T04:01:31Z` for all three. No manual republish, service change, source switch, Gateway call, or order occurred; the next timer is naturally scheduled for `18:11:07 AEST`. |
-| E-103 | 2026-07-25 14:28 AEST | 1/4 | One-session XSP producer lifecycle | canonical `tradebot/engines/market.py`, `tradebot/backtest/tools/record_quotes.py`, and `deploy/systemd/tradebot-xsp-quotes.service` | sources `98e43d84…`/`3fe40ff4…`; unit `c889a4d1…`; focused `31 passed`; full `800 passed, 4 deselected`; q systemd verify clean | The scheduled producer previously combined an infinite closed-window loop, `Restart=on-failure`, and a `20h45m` runtime wall. A normal 17:00 timeout could therefore restart the recorder and turn one session into a continuously recycled week-long process. One central capture-window date now spans Sunday/weekday 20:15 GTH through 17:00 ET, deliberately keeps the 09:25–09:30 transition gap inside the same run, and excludes closed launch times. A command-level regression proves a closed invocation makes zero broker connections; another proves an in-window indefinite run writes one snapshot and final receipt, then exits when its window ends. The systemd wall is now a `20h50m` backstop after natural close; genuine in-window crashes still restart against the same durable tape. No quote, chain, cadence, market-data, strategy, selector, fill, or order semantics changed. |
-| E-104 | 2026-07-25 14:31 AEST | 1/4 | Authoritative XSP session-boundary audit | [Cboe C1 Hours & Holidays](https://www.cboe.com/about/hours/us-options) and [XSP product specification](https://www.cboe.com/tradable_products/sp_500/mini_spx_options/specifications) | current normal hours `20:15..09:25 GTH`, `09:30..16:15 RTH`, `16:15..17:00 Curb`; 2026 holiday exceptions published separately | The central normal-session labels and one-session producer end agree with Cboe's current XSP schedule. Holiday GTH and early-close hours are explicitly exceptional, so `xsp_capture_window_date` is classified only as a process-lifetime boundary. It cannot establish market openness, RTH identity, quote freshness, entitlement, or executability; those remain broker- and exchange-calendar-evidenced. The upcoming July 27 forward session is not a published holiday. No code, timer, broker, or order action followed this source audit. |
-| E-105 | 2026-07-25 14:35 AEST | 1/4 | Exact q systemd closed-producer receipt | disposable q unit `xsp-lifecycle-preflight-884EK9.service`; exact combined source `/tmp/xsp-lifecycle-preflight.884EK9/src`; clean pinned runtime from E-095 | invocation `a8f34b16edde486da018ffe5aec934e8`; `Result=success`; `ExecMainStatus=0`; `NRestarts=0` | The real indefinite XSP recorder command executed under user systemd with `Restart=on-failure`, `IBKR_PORT=1`, and the exact combined source. During the closed Saturday window it emitted only `{"broker_request_skipped":"closed_capture_window","status":"closed"}`, exited successfully, and performed no restart despite the restart policy. The unit was stopped and is inactive/dead. No persistent unit, timer, tunnel, Gateway request, tape mutation, checkpoint, order, commit, or deployment occurred. |
-| E-106 | 2026-07-25 14:50 AEST | 1/2/4 | Preregistered non-overlapping parity-aligned candidate | canonical `tradebot/research/xsp_benchmarks.py`; `tests/test_live_calibration.py`; July mechanics `/tmp/xsp-parity-movement.PV4sfX/ledger.jsonl`; restart ledger `/tmp/xsp-weekend-restart-v1/primary.jsonl` | source `f59904cc…`; test `1aac5d6c…`; mechanics receipt `8fbb2920…`; restart receipt `7cd15031…`; focused/architecture `40 passed`; full `801 passed, 4 deselected` | Before any prospective outcome, the classify-only parity observer gained one nested, observation-only value contract without changing its v1 cohorts. Independent TA-only and exact-sign-aligned sequences take their earliest eligible turn, hold the frozen `60m` horizon, and ignore all intervening turns; an adversarial `+99` point overlap was excluded while a decision exactly at the prior boundary remained eligible. The TA baseline retains every prospective complete-session decision, including unavailable parity, so thin quote coverage cannot flatter the filter. A synthetic five-session/35-pair contract proved the aligned sequence can pass only with the existing sample gate, at least two profitable trades on each side, one trade per two sessions, positive net and daily 95% LCB, positive leave-one-session-out net, bounded single-win concentration, higher mean, and lower loss rate than TA. Replaying both existing real ledgers yielded `4` and `66` diagnostic pairs but exactly zero prospective pairs, zero eligible sequence trades, and every value gate false. Passing creates only a shadow-candidate receipt; root promotion/order authority remain false and no profitability clock starts. |
-| E-107 | 2026-07-25 15:08 AEST | 1/2/4 | Content-addressed ledger reads and exact directional outcomes | canonical `tradebot/research/live_calibration.py`; `tests/test_live_calibration.py`; retained July mechanics/restart ledgers from E-106 | source `10a9ccee…`; test `ded904c4…`; focused/architecture `41 passed`; full `802 passed, 4 deselected` | The ledger previously wrote content-addressed forecasts, results, and checkpoints but did not revalidate those addresses while reading, so a hand-edited selected-equity checkpoint could theoretically enter the eventual profitability clock. Every read, receipt, and append scan now rejects an unknown schema/kind, a stale forecast/result/checkpoint ID, or a stale forecast identity before any consumer receives the row. The directional join additionally admits only canonical `NO_TRADE` observer identity, exactly one matching frozen/result counterfactual, an observed timestamp equal to the frozen `60m` boundary, and an unchanged direction. A five-minute-late result, direction-reversed result, hand-edited result P&L, forecast context, and selected-equity checkpoint all failed before option, news, receipt, or profitability consumption. The real ledgers retained their exact hashes `8e0ed273…`/`4512b5f6…` and reproduced `4/4/4` and `66/66/66` pair counts. The owner remains exactly at the `1,000`-line ceiling; stored evidence, arithmetic, strategy, and authority were unchanged. |
-| E-108 | 2026-07-25 15:31 AEST | 4 | Time-anchored profitability milestone authority | canonical `tradebot/research/live_calibration.py`; `tests/test_live_calibration.py` | source `f7d28a70…`; test `72c75e47…`; focused/architecture `48 passed`; full `809 passed, 4 deselected` | The original receipt evaluated every milestone from the latest aggregate, so a losing 24-hour prefix could be retroactively relabeled by a profitable week and a later gap could erase an earlier clean result. Each gate now freezes the earliest instant satisfying both its wall-clock threshold and required complete RTH-session count, then recomputes coverage, net economics, drawdown, session loss, trades, concentration, reconciliation, attribution, and safety from only evidence durably recorded by that instant. New selected checkpoints bind `recorded_at_utc` into their content address while legacy observer ledgers remain readable but cannot enter profitability. Regressions prove distinct `+2.5/+5.0/+12.5` milestone prefixes; a final `+8.0` run retaining `-4.5/-2.0` failed 24h/48h prefixes; later gaps preserve prior gates while invalidating current continuity; mid-session ownership does not demand pre-selection slots; a new run ignores an older same-version run; and GTH impersonation, false session rollups, future-start checkpoints, evidence edits, and recorded-time edits fail closed. The owner remains under the ratchet at `999` lines; no strategy, selector, broker, schedule, order, or clock-start state changed. |
-| E-109 | 2026-07-25 15:42 AEST | 1/4 | Race-free one-revision q convergence transaction | canonical `deploy/systemd/README.md`; `tests/test_news_signal.py`; read-only q execution-checkout/unit census | guide `dd30d871…`; test `57bc713a…`; focused news `24 passed`; full `809 passed, 4 deselected` | The prior guide would switch q's source while its four-hour timer remained armed, omitted reinstalling the combined news unit, and required q's dirty 15-minute override to equal the new 16-minute target—so the corrected timeout envelope could remain stranded in Git or the handoff could fail exactly as designed. The transaction now stops only the timer, accepts only `inactive|failed` one-shot state, proves the sole dirty checkout file equals the still-loaded legacy unit, cleans that redundant copy, switches to pushed `origin/main`, installs all news/tunnel/XSP units from that one revision, verifies them, byte-compares the newly loaded news template, manually proves the non-submitting shadow after an eligible bar, and only then enables the three timers together. q remains unchanged on `f837e21`; its timer remains enabled and scheduled, no service was stopped, no source switched, and no commit/push/deployment/order occurred. |
+### Exact boundary
 
-| E-110 | 2026-07-25 15:58 AEST | 1/2/4 | Causal GTH-to-RTH XSP parity path | canonical `tradebot/research/xsp_shadow.py`; `tests/test_live_calibration.py` | source `fb2722fc…`; test `c519901f…`; focused/architecture `81 passed`; full `811 passed, 4 deselected` | The existing option-context owner previously required exact session-label equality, correctly preventing accidental borrowing but making every final GTH observation invisible to an RTH decision. Before any prospective outcome, one observation-only bridge now reuses the same qualified parity reduction and XSP trading-date owner: an RTH decision may retain the final usable GTH parity row no more than ten minutes before `09:30 ET`, plus exact elapsed `2h/4h/6h` same-expiry anchors no more than seven minutes before each target. It freezes timestamps, chain fingerprints, pair counts, dispersion, point changes, velocities, and raw directions; a missing horizon fails the composite path closed. A regression caught the intentional `09:25..09:30` transition gap and proves the actual final five-minute GTH close is `09:20`, while cross-date/session borrowing remains unavailable. The retained 91-row July tape honestly returns `no_usable_gth_boundary_observation` because its eight seed rows stop at `09:16 ET`; the frozen Monday five-minute cadence contains all required `03:20/05:20/07:20/09:20 ET` anchors. The ordinary seven-minute RTH parity context, `NO_TRADE`, sealed outcomes, selector, fill, order, and profitability-clock authority are unchanged. |
+This is the first XSP **research crown**, not an operational crown. It has a
+stable local parameter neighborhood and exact shared-runtime reproduction, but
+still loses 2021/2023, carries a 692-session underwater interval, has negative
+daily confidence, and has no prospective economics. Do not polish the same
+historical slope/ATR decimals again.
 
-| E-111 | 2026-07-25 16:07 AEST | 2/4 | Fixed pre-open parity cohorts | canonical `tradebot/research/xsp_benchmarks.py`; `tests/test_live_calibration.py` | source `d3435c47…`; test `8d1f851e…`; focused `10 passed`; focused/architecture `72 passed`; full `812 passed, 4 deselected` | Before any prospective outcome, the existing parity benchmark gained one descriptive view over the E-110 path: `aligned_all`, `opposed_all`, `reversal_into` (`6h` opposite, `2h` aligned), `mixed`, and `unavailable`. A real path fixture proves the reversal classification while root promotion, the short-horizon parity candidate, and order authority remain false. Pre-open completeness is evaluated over all prospective rows from fully checkpointed sessions rather than borrowing the existing short-horizon parity sample subset, so missing current parity cannot selectively erase an otherwise observable GTH path. No cohort is ranked, filtered, selected, or assigned a threshold; Monday remains the first eligible prospective observation. Runtime and benchmark owners remain `893/542` lines. |
+The clock repair changed cached bar-start labels into their causal closes while
+preserving all `1,019` ordered physical trades, prices, sides, exits, P&L, PF,
+and drawdown. It updates Opening Edge v1; only a materially stronger strategy
+across recent, latest-year, annual-slice, five-year, cadence, risk, and
+prospective evidence may receive a new crown.
 
-| E-112 | 2026-07-25 16:15 AEST | 1/4 | Live q news unit-envelope convergence | canonical/q checkout/q loaded `deploy/systemd/tradebot-news.service` | all three unit hashes `209b5b05…`; focused timeout regression `1 passed, 23 deselected`; loaded child argument `840s`; loaded wall `960s` | The original exact `600s` child failure is no longer possible: q's already-idle unit passes `840s` beneath a `960s` whole-service wall. This changed only the loaded/template unit; q still executes the older `f837e21` pipeline, which passes that same caller ceiling to discovery and inference. Therefore the live unit has a larger wall but does not yet prove the combined source's separate `30s` fetch cap or guaranteed `90s` post-inference reserve. The user timer stayed active with its next natural run at `18:11:07 AEST`; no source switch, service start/restart, publication, Gateway call, order, commit, or push occurred. |
+### Observation-only breadth challenger
 
-| E-113 | 2026-07-25 16:19 AEST | 1/2 | Historical XSP GTH availability boundary | canonical `db/XSP/`; read-only Mac Gateway `127.0.0.1:4001`; exact XSP `IND/CBOE` conId `137851301` | eight cache shards, all `*_5mins_rth.csv`; `TRADES RTH=78`; `TRADES FULL=78`; `MIDPOINT FULL=0`, IBKR `162` | The complete local XSP history contains only explicit RTH shards. Against the same `2026-07-24 17:00 ET` endpoint, `1 D / 5 mins / TRADES` with `useRTH=true` and `false` returned byte-for-byte-equivalent time coverage—`78` bars from `09:30..15:55 ET`; the full-session flag exposed no GTH rows. The only plausible index alternative, `MIDPOINT/useRTH=false`, is unsupported. This is not a transient timeout, partial cache gap, or repair candidate: historical XSP GTH underlying evidence is unavailable through this path. The isolated read-only client disconnected; no cache write, subscription, order, or account mutation occurred. |
+A causal TICK-NASD observation exposes current TICK, 3/6-bar means, cumulative
+breadth, freshness, provenance, direction-relative alignment, and
+improving/deteriorating transition. Vetoing only strongly aligned but
+deteriorating breadth at `150` produced:
 
-| E-114 | 2026-07-25 16:28 AEST | 1/2/4 | Entitlement-correct forward recorder request mode | canonical `deploy/systemd/tradebot-xsp-quotes.service`; `tests/test_option_quote_capture.py`; prior broker receipts E-014/E-035/E-040 | unit `5a3294fa…`; test `a8c3fbff…`; focused `8 passed, 13 deselected`; full `812 passed, 4 deselected`; q systemd verify clean | The scheduled all-session producer incorrectly requested strict-live mode even though the authenticated account has no proven XSP streaming entitlement: live GTH could not select strikes and strict-live RTH yielded ten empty snapshots. The evidence recorder now explicitly requests delayed mode, which previously qualified and timestamped GTH contracts while retaining actual mixed `1/3` per-contract provenance. Consumers—not the request flag—continue to enforce actual streaming-live, freshness, NBBO, and preview requirements; the regression explicitly uses requested-delayed with mixed actual live/delayed rows. Mechanics/observation evidence therefore becomes reliable without weakening capital admission. No q persistent unit, timer, source, Gateway request, order, commit, or push changed. |
+| Window | Crown | Breadth challenger |
+|---|---:|---:|
+| recent | +10.98 / 17 | +8.99 / 16 |
+| latest year | +131.74 / 204 | +128.34 / 202 |
+| five years | +120.59 / 1,019 | +127.64 / 1,004 |
+| five-year PF / DD | 1.1705 / 59.95 | 1.1819 / 52.67 |
 
-| E-115 | 2026-07-25 16:35 AEST | 1/4 | Exact Monday scheduler and tunnel-auth preflight | canonical `deploy/systemd/tradebot-{ib-gateway-tunnel,xsp-quotes,xsp-shadow}.*`; q `systemd-analyze calendar`; q-to-Mac batch SSH | unit hashes tunnel `0c0cb3c…`, quotes `5a3294fa…`, quotes timer `39f9fb7a…`, shadow `8a1c69d3…`, shadow timer `756053d6…`; auth `ok` | q's systemd parser resolves the next producer start to `2026-07-27 10:15 AEST` (`Sunday 20:15 ET`), the first RTH observer to `23:37 AEST` (`09:37 ET`), and the final observer to `2026-07-28 06:02 AEST` (`Monday 16:02 ET`). The exact tunnel identity and strict known-host file are readable, and the unit's batch SSH command authenticates successfully to the Mac. This proves calendar and transport preconditions only; persistent runtime/units remain deliberately undeployed until one combined revision is available, and no tunnel, Gateway request, timer, order, commit, or push was started. |
-
-| E-116 | 2026-07-25 16:37 AEST | 1/4 | Bounded quote-recorder broker requests | canonical `tradebot/backtest/tools/record_quotes.py`; `tests/test_option_quote_capture.py` | source `4a9022ce…`; test `a8c3fbff…`; focused `4 passed, 17 deselected`; full `812 passed, 4 deselected` | `ib_insync` defaults synchronous `RequestTimeout` to zero, so the recorder's existing reconnect/backoff could never run if qualification, chain discovery, or `reqTickers` stalled. The existing recorder now sets one `45s` request ceiling; the regression injects an actual `TimeoutError` during option snapshot acquisition and proves disconnect/reconnect, one qualification, two complete nonduplicate rows, and the exact timeout policy. Connect remains separately bounded to ten seconds and repeated capture failures retain the existing `1..60s` exponential backoff. No helper, flag, second retry policy, broker call, persistent service, order, commit, or push was added. |
-
-| E-117 | 2026-07-25 16:40 AEST | 1/2/4 | Lossless pre-open parity microstructure path | canonical `tradebot/research/xsp_shadow.py`; `tests/test_live_calibration.py` | source `9bc837ed…`; test `8ccce2b3…`; focused `7 passed, 36 deselected`; full `812 passed, 4 deselected` | The qualified parity reducer already produced median relative spread, actual per-leg market-data-type census, anchor source/value, exact selected strikes, and maximum quote age, but the new `2h/4h/6h` bridge discarded them and retained only direction/value geometry. Before the first prospective outcome, every anchor and final GTH boundary now freezes all six alongside pair count, dispersion, chain, expiry, parity value, velocity, and sign. A requested-delayed/actual-type-3 fixture proves the exact deterministic strike ordering and five-second age. The benchmark's existing path fingerprint therefore binds future local-surface, freshness, liquidity, and provenance evolution without adding an indicator, threshold, cohort, selector, veto, fill, or order authority. |
-
-| E-118 | 2026-07-25 16:49 AEST | 1/4 | Bounded XSP shadow broker path | canonical `tradebot/client.py`; `tests/test_option_search_qualification.py`; `deploy/systemd/tradebot-xsp-shadow.service` | client `b32f576a…`; test `18c6b228…`; focused client/qualification/calibration `144 passed`; full `814 passed, 4 deselected`; outer wall `2min` | The exact scheduled observer already bounded its isolated proxy/main connections to `15s` each and its `2 D` history request to `30s`, but the single XSP `IND/CBOE` qualification await remained indefinite. The existing proxy-qualification owner now caps every batch at `15s`; a deliberately hung coroutine is cancelled and returns no qualified contract. A singleton failure is not redundantly retried as the same singleton, while multi-contract burst recovery remains unchanged. The observer therefore has a maximum serialized broker budget of `75s`, leaves `45s` for deterministic evaluation/checkpoint/disconnect beneath systemd, and fails before checkpointing if qualification never resolves. No global timeout, retry subsystem, fabricated history, broker call, persistent unit, order, commit, or push was added. |
-
-| E-119 | 2026-07-25 16:55 AEST | 1/2/4 | Real CLI same-date GTH-to-RTH handoff | canonical `tradebot/research/xsp_shadow_cli.py`; `tradebot/research/xsp_shadow.py`; `tests/test_live_calibration.py` | test `cd0a33ae…`; focused `6 passed, 38 deselected`; full `814 passed, 4 deselected` | An adapter-level receipt writes one chronological option tape with exact `03:20/05:20/07:20/09:20 ET` GTH observations followed by the first RTH row, invokes the real shadow CLI with that file, and proves the full ordered five-row tuple reaches the shared reducer. Current RTH parity and every `120/240/360m` pre-open anchor are usable together, and the isolated client disconnects. This closes the final file-to-reducer seam without session prefiltering, alternate cache ownership, a synthetic broker fill, selector influence, or order authority. |
-
-| E-120 | 2026-07-25 17:04 AEST | 1/4 | News unit/source lineage boundary | q pipeline `f837e21:tradebot/news/pipeline.py`; local combined pipeline; q loaded unit | q pipeline `945cf2a2…`; combined pipeline `36c19e61…`; unit `209b5b05…` | An exact source audit corrected an overstatement in E-112. q's old pipeline still declares a `600s` default, receives the unit's explicit `840s`, and passes that same value to both Finviz and Codex; the combined local pipeline alone caps discovery at `30s`. Thus the next natural q run can prove survival under the `840/960s` unit envelope and atomic old-source behavior, but cannot prove the complete `30 + 840 + 90` nested contract. That contract activates only in the already-planned one-revision deployment. No file, service, timer, publication, broker, order, commit, or push changed during this read-only audit. |
-
-| E-121 | 2026-07-25 17:06 AEST | 1 | Exact pre-run causal-news publication baseline | q last-good publication and natural timer | memory `d6db6889…`; events `c636ba11…`; latest `a5b30dc1…`; state `69506946…`; July history `59dec698…`; pending generations `0` | Immediately before the scheduled `18:11:07 AEST` natural run, all five publication surfaces still share the last-good `01:42:01 AEST` modification epoch and retain the exact hashes that survived both derived-clock failures. No pending-generation file exists. The service remains failed from its prior invocation while its timer is active and untouched. This freezes a byte-exact before-state for one post-completion comparison; it does not inspect, trigger, delay, restart, or influence the upcoming inference. |
-
-| E-122 | 2026-07-25 17:14 AEST | 1/2/4 | Decision-time causal-news history selection | canonical `tradebot/news/contract.py`; `tradebot/research/xsp_{shadow,shadow_cli}.py`; news/calibration tests | contract `33b9e044…`; shadow `4f7384db…`; CLI `72d79d72…`; focused news/calibration/architecture `78 passed`; full `816 passed, 4 deselected` | The scheduled shadow previously loaded only mutable `latest.json`. If a new four-hour publication landed while a missed turn from the prior 30 minutes was being replayed, that new row was correctly future-dated for the turn but the prior causally available publication had already vanished from the input. One shared-lock reader now loads the complete-replacement current and immediately preceding monthly JSONL files, covering the declared maximum `24h` signal horizon without a broad scan, rejects torn/non-object rows, and selects the latest `snapshot_as_of_utc <= decision` for each turn; `latest.json` remains an additional current generation, not a replacement for append-time causality. A fixture proves the CLI hands history plus latest to the reducer, the prior publication—not a one-second-future row—is frozen, and no-causal-history/invalid-history remains explicitly unusable. Historical replay can consume the same sequence. No threshold, selector, veto activation, order, service, publication, commit, or push changed. |
-
-| E-123 | 2026-07-25 17:30 AEST | 1/2/4 | Current-source same-tape timestamp-parity replay | canonical close normalizer `tradebot/chart_data/history.py`; observer `tradebot/research/xsp_shadow.py`; immutable July 24 cash/option tapes | cash normalizer `c0f70183…`; observer `4f7384db…`; tape `5d88d9a…`; replay ledger `4ec73db2…` | The current combined WIP replayed `1,326` raw XSP five-minute rows through the production bar-start-to-close normalizer, then the shared evaluator against all `91` retained option snapshots. It reproduced the frozen four July 24 turns exactly at `10:10`, `10:35`, `10:50`, and `11:45 ET`: one usable causal option context, two `insufficient_nbbo_pairs`, one `no_causal_same_session_snapshot`, `189/189` forecasts/results, and zero unsettled outcomes. A deliberately incorrect diagnostic that bypassed close alignment shifted every turn five minutes earlier and reduced usable context to zero; it was discarded rather than changing policy. This proves the retained tape detects a one-bar timestamp error and that the real CLI's canonical normalization remains indispensable. No outcome, threshold, context, selector, order, service, commit, or push changed. |
-
-| E-124 | 2026-07-25 17:37 AEST | 1/4 | Monday runtime-identity and installation-closure audit | canonical `tradebot/config.py`; XSP systemd units; read-only q runtime census | live pool `500..899`; shadow `979/980/981`; recorder `989`; focused `3 passed`; q XSP units/runtime/port absent | The persistent quote producer and five-minute observer cannot evict or reuse a live UI/Gateway API identity: the recorder owns deterministic client `989`, while each isolated shadow owns main/proxy/index `979/980/981` with no persisted client-ID state. Both run broker-read-only as q user `x`; the recorder writes the trading-date tape under `db/quotes/XSP`, the ledger atomically creates `db/calibration`, and `UMask=0077` keeps forward evidence private. q currently has no XSP/tunnel unit installed, no managed runtime, and no local `4001` listener, exactly matching the fail-closed predeployment state; the one-revision transaction must create all three together before Sunday `20:15 ET`. No runtime, directory, unit, tunnel, broker call, order, commit, or push changed. |
-
-| E-125 | 2026-07-25 17:37 AEST | 1/4 | GTH-preserving split timer activation | canonical `deploy/systemd/README.md`; deployment-order regression | guide `d053bb44…`; test `9b00b572…`; focused `3 passed`; full `816 passed, 4 deselected` | The one-revision guide contained an impossible ordering: it withheld both XSP timers until a manual shadow proof after an eligible RTH bar, but Monday's option producer must already be armed by Sunday `20:15 ET` to retain the GTH prefix. The transaction now enables only news plus the read-only quote producer before Sunday and explicitly keeps the shadow timer disabled. At Monday `09:37 ET`, the first completed cash bar is advanced manually and must append `EVALUATED` with `order_authority=none`; only then is the `09:42..16:02` shadow schedule enabled. A regression pins producer-before-manual-before-shadow ordering. No extra unit, automatic order authority, service start, timer change on q, broker call, commit, or push occurred. |
-
-| E-126 | 2026-07-25 17:38 AEST | 1/4 | Truthful scheduled-shadow process verdict | canonical `tradebot/research/xsp_{shadow,shadow_cli}.py`; CLI regression | observer `ff607256…`; CLI `a9eb0be4…`; test `54c1a096…`; focused `3 passed`; full `817 passed, 4 deselected` | The observer already wrote distinct `EVALUATED`, `STALE_DATA`, `NO_DATA`, `CLOSED`, and `UNSUPPORTED_SESSION` checkpoints, but its command returned success for stale active-RTH history whenever any bars existed. systemd could therefore advertise a successful slot that the complete-session reducer correctly rejected. Every receipt now exposes the exact evaluation status, and the command exits zero only for `EVALUATED`; all non-evaluated states remain durably diagnosed and nonzero so the next timer slot can retry without manufacturing coverage. A stale-command fixture proves the failure boundary. No checkpoint meaning, retry loop, benchmark, selector, order, service, commit, or push changed. |
-| E-127 | 2026-07-25 17:42 AEST | 1/4 | Exact closed-session command verdict | `/tmp/xsp-shadow-closed-verdict-confirm-20260725.jsonl` | ledger `e15a225d…`; command exit `2`; one checkpoint | The real combined-source command classified Saturday as `CLOSED`, wrote exactly one content-addressed `NO_TRADE` checkpoint, recorded `broker_request_skipped=closed_calendar`, zero bars/options, `cash_history_fresh=false`, and `order_authority=none`, and returned nonzero without qualifying XSP or opening any broker session. This supersedes the old successful-process behavior recorded in E-098 while preserving its durable diagnostic. No source, service, timer, broker, order, commit, or push changed. |
-| E-128 | 2026-07-25 17:56 AEST | 4 | Jitter-safe immutable profitability prefixes | canonical `tradebot/research/live_calibration.py`; profitability regression | source `95e22660…`; test `08b05787…`; live-calibration `47 passed`; architecture/capability `8 passed`; owner `999` lines | The immutable milestone reducer previously evaluated each `24h/48h/five-session` prefix at the exact canonical slot. A real timer checkpoint evaluated ten seconds later was valid under the frozen 90-second slot tolerance but absent from that prefix, so the just-due endpoint could make an otherwise continuous 24-hour run permanently incomplete. Each economic window now remains exact while its evidence cutoff deterministically includes the same frozen slot tolerance. A real-jitter fixture proves one complete profitable Monday plus Tuesday's delayed endpoint passes the 24-hour prefix at `09:38:30 ET`; no later record can rewrite it. The owner stayed below the architecture ceiling without a helper or parallel clock. No policy limit, selected strategy, service, timer, broker, order, commit, or push changed. |
-| E-129 | 2026-07-25 18:01 AEST | management | Lossless task-brain centralization | canonical root brain; `docs/xsp-live-research-kata-narrative-archive.md` | root `2,935→655` lines before receipt append; archive `2,535` lines / `78ec1287…`; archived body `dfc97f20…` | The injected management brain no longer repeats completed research as mandate prose, phase prose, and a 510-line “active” narrative. One compact root now owns the authoritative state, centralized architecture, frozen research boundary, forward-runtime contract, milestone contract, ordered task tree, immutable evidence registry, and decision journal. Original Sections 0–12 were moved byte-for-byte into a linked historical archive whose body hash is verified; no adverse result, hypothesis, command, threshold, or provenance was discarded. The root remains the only resume authority and the archive is read-only historical context. No production source, test, service, timer, broker, order, commit, or push changed. |
-| E-130 | 2026-07-25 18:06 AEST | 1/management | Central-owner residue audit and combined verification | XSP research/news/entry owners; combined suite | focused `125 passed`; full `818 passed, 4 deselected`; Ruff/diff clean | The surviving WIP has one direction engine, one permission plan, one append-only evidence owner, one broker adapter, one pure benchmark owner, and one news contract/pipeline pair; no parallel selector or policy stack was found. Two genuinely unused imports were removed. A test-only score constant stopped relying on a pipeline re-export and now imports its canonical contract owner directly. Two local policy lambdas became named local functions without adding a public helper. The cohesive near-ceiling owners remain intact (`live_calibration.py` 999, `xsp_shadow.py` 942, `entry_control.py` 503) rather than being filename-split into granular facades. No strategy semantics, threshold, service, timer, broker, order, commit, or push changed. |
-| E-131 | 2026-07-25 18:17 AEST | 1/2/4 | Lossless prior option-liquidity state | canonical `tradebot/research/xsp_shadow.py`; `tests/test_live_calibration.py` | source `36eafecb…`; test `00dddafe…`; focused `47 passed`; full `818 passed, 4 deselected`; Ruff/diff clean | The causal parity context already retained current quote quality and prior parity value but discarded the prior pair count, dispersion, relative spread, quote age, strikes, reference, market-data provenance, and anchor source. The existing immutable `parity_change` record now freezes those already-computed prior fields so prospective evidence can measure whether liquidity strengthened or deteriorated into a turn. No derived score, threshold, cohort, signal, selector, service, broker call, order, commit, or push was added; the cohesive broker-shadow owner remains `952` lines. |
-| E-132 | 2026-07-25 18:33 AEST | 1/4 | Third natural q news run and exact combined-source replay | q service journal `18:12:22..18:21:42 AEST`; frozen E-121 baseline; combined `validate_analysis` | session `019f9855-2545-70c2-9aa0-1b6a98136f8f`; raw `c7953b57…`; `100,325` tokens; runtime `560s`; all five baseline hashes unchanged | The one-shot completed inside the loaded `840/960s` envelope, then q's old `f837e21` reducer rejected `active event 3.last_material_change_utc`. The event/memory/latest/state/history files remained byte- and mtime-identical, no pending generation exists, and systemd performed zero restarts. Replaying the exact returned JSON through the combined reducer validates all eight events and 61 memory lines after centrally deriving three stale model clocks (`us-section301-forced-labor-tariffs`, `us-yield-fed-hike-repricing`, `global-equity-fund-inflow-streak`) as `2026-07-25T08:12:22Z`. The unpublished aggregate would be XSP `-1/77/.94/24h strengthening` and MCL `+1/86/.95/24h strengthening`. It was deliberately not manually republished: only the one-revision transaction may create a new live generation. No source switch, service/timer mutation, broker call, order, commit, or push occurred. |
-| E-133 | 2026-07-25 18:50 AEST | 1/2/4 | Preregistered threshold-free option-liquidity candidate | canonical `tradebot/research/xsp_{shadow,benchmarks}.py`; `tests/test_live_calibration.py`; `/tmp/xsp-liquidity-mechanics.kjvl95/ledger.jsonl` | benchmark `80e464fa…`; shadow `36eafecb…`; test `f2d19cf5…`; mechanics ledger `eb63ea70…`; focused `52 passed`; full `823 passed, 4 deselected` | Before inspecting forward outcomes, the existing parity benchmark gained one Pareto classification over already-frozen current/prior pair count, dispersion, median relative spread, and quote age: improving-only `strengthening`, degrading-only `weakening`, both `mixed`, unchanged `stable`, incomplete `unavailable`. No tunable cutoff or score was added. Its independently non-overlapping aligned-plus-strengthening candidate must pass the existing sample/cadence/two-side/LCB/leave-one-session-out/concentration gates and improve both mean and loss rate over TA-only and parity-aligned alone. A synthetic five-session receipt proves the complete gate can pass without granting authority. The current-source July mechanics replay used the canonical close normalizer over `1,326` bars and all `91` option snapshots: `189/189` forecasts/results, `63` 60-minute pairs, only one usable parity/liquidity pair (`mixed`), `62 unavailable`, zero prospective/sample-eligible pairs, and both candidates false. The replay is explicitly historical and cannot mature any forward gate. All output remains observation-only, root promotion is false, and no selector, service, broker call, order, commit, or push changed. |
-| E-134 | 2026-07-25 19:01 AEST | 2/4 | Deterministic shadow-candidate recommendation | canonical `tradebot/research/xsp_benchmarks.py`; `tests/test_live_calibration.py`; E-133 mechanics ledger | benchmark `5c2bbe84…`; test `59caea92…`; recommendation `2091e4c2…`; focused `52 passed`; full `823 passed, 4 deselected` | The benchmark previously exposed two independently gated candidates but left their eventual arbitration implicit. One pure content-addressed recommendation now ranks only the preregistered choices: nominate aligned-plus-Pareto-strengthening when its stricter incremental gate passes, otherwise nominate parity-aligned when its gate passes, otherwise `HOLD`. Synthetic receipts prove each nomination path. The real July mechanics ledger returns `HOLD`, no recommended schema, and every failed gate explicitly. Even `PROMOTE` is scoped only to an explicit future selected-shadow freeze: selection authority remains absent, open-position switching is forbidden, the profitability clock remains stopped, and order authority is `none`. No state store, runtime selector, service, broker call, order, commit, or push changed; the pure benchmark owner remains `774` lines. |
-| E-135 | 2026-07-25 19:06 AEST | 2/management | Exact HF/LF champion inventory and XSP eligibility boundary | canonical `tradebot/spot/champions.py`; repository `backtests/` declarations/artifacts | inventory `a80c8919…`; five refs; XSP crowns `0` | The operational loader resolves exactly five legacy README crowns: MNQ HF, SLV HF/LF, and TQQQ HF/LF. None is a machine `tradebot.spot.champion.v1` declaration; all originate in February/March research, and TQQQ LF explicitly falls back from missing v39 to v34. The artifacts retain their own symbol/track backtest semantics but have no XSP identity, current option/news provenance, complete prospective XSP sessions, or `live_calibration.v1` recommendation. Therefore none is an eligible XSP candidate and no cross-symbol bridge was added. XSP's HF/LF namespace intentionally remains empty until a prospectively nominated selected run completes its frozen evidence contract. No artifact, declaration, loader, UI, benchmark, service, broker, order, commit, or push changed. |
-| E-136 | 2026-07-25 19:15 AEST | 2/4 | Candidate-independent selected-shadow risk preregistration | canonical `tradebot/research/xsp_benchmarks.py`; `tests/test_live_calibration.py`; E-133 mechanics ledger | benchmark `91dfd49b…`; test `f211ca93…`; recommendation `a8b50dd1…`; focused `52 passed`; full `823 passed, 4 deselected` | The selected-economics verifier already enforced limits, but the active recommendation did not carry the original pre-outcome numbers. Every recommendation now content-addresses the same frozen `$1_per_XSP_point` evidence envelope: user-reported USD `1,000` design reference only, `25` points maximum drawdown, `5` points maximum session loss, at least two weekly closed trades, top-five win share `<=0.50`, and `90s` evidence tolerance. The canonical tests instantiate those shared values instead of parallel literals. Authentic July mechanics still returns `HOLD`; no strategy is selected, no clock starts, and the policy grants no broker, order, or capital authority. |
-| E-137 | 2026-07-25 19:24 AEST | 2/4 | Content-addressed selected-shadow run freeze contract | canonical `tradebot/research/xsp_benchmarks.py`; `tests/test_live_calibration.py` | benchmark `d95eab47…`; test `99a62137…`; focused `53 passed`; full `824 passed, 4 deselected`; owner `876` lines | The recommendation boundary previously required an explicit future freeze but supplied no canonical receipt. One pure owner now converts only an intact `PROMOTE` recommendation into `xsp.selected-shadow-run.v1`, binding its exact recommendation fingerprint, source-ledger hash, winning candidate evidence, selection timestamp, run/strategy/config/capital identity, and preregistered risk policy. Identical inputs reproduce the same `selection_id`; `HOLD`, a tampered fingerprint, incomplete identity, risk drift, or invalid timestamp is refused. The receipt remains selected-shadow evidence only: open-position switching is false, the profitability clock remains stopped, and order authority is `none`. It creates no file, selector, service, broker call, order, commit, or push; persistence remains closed until a real prospective candidate passes. |
-| E-138 | 2026-07-25 19:31 AEST | 2/4 | Ledger-current selected-shadow freeze binding | canonical `tradebot/research/xsp_benchmarks.py`; `tests/test_live_calibration.py` | benchmark `5c98df70…`; test `654323e5…`; focused `53 passed`; full `824 passed, 4 deselected`; owner `881` lines | An adversarial audit showed that content addressing alone proves immutability, not that a caller's recommendation came from the supplied ledger. The freeze now rederives the current recommendation from that exact ledger and requires byte-equivalent structured content before selection. A synthetic passing receipt freezes deterministically; appending one later complete-session checkpoint makes the old recommendation stale and unselectable, while its already-created `selection_id` remains unchanged. A fabricated or stale internally rehashed receipt cannot cross the boundary. No persistence, selected strategy, clock, service, broker call, order, commit, or push was added. |
-| E-139 | 2026-07-26 06:35 AEST | 2/4 | Receipt-bound profitability policy | `tradebot/research/xsp_benchmarks.py`; `tests/test_live_calibration.py` | benchmark `70a25d5d…`; test `d585f2ab…`; focused `53 passed`; full `824 passed, 4 deselected` | The selected-run receipt now owns the canonical profitability `run_id` and policy; manual identity, altered receipt, or policy substitution is refused. The content-addressed selection remains non-submitting and the profitability clock remains stopped. No selection, economics, service, broker call, order, commit, or push was created. |
-| E-140 | 2026-07-26 06:48 AEST | management/1/4 | Sunday pre-session truth census and timeout-boundary repair | local combined WIP; q `b094ce6`; systemd/Gateway/Cboe clocks; `tradebot/news/pipeline.py` | q clean; natural news `04:02..04:06 AEST`, status `published`, zero restarts; Mac `4001` listening; q `4001/4002` closed; zero XSP q units; pipeline `1a995808…`; news `25 passed`; full `824 passed, 4 deselected` | q has eleven newer news-only commits whose retry, clock, CLI, memory, channel, and capacity behavior overlaps the local publication/runtime work; no pull, merge, source switch, or deployment occurred. The census also caught six local failures caused by passing optional inference timeout `None` into the independently bounded HTTP fetch. One owner-local correction retains a `30s` discovery ceiling while allowing the intended unbounded inference policy; all six failures and the full suite now pass. Cboe's next ordinary XSP GTH open is Sunday `20:15 ET` / Monday `10:15 AEST`, about `27.5h` after census—not Sunday evening AEST; the first eligible RTH observer proof is Monday `09:37 ET` / `23:37 AEST`. No additional retrospective slope/OHLC tuning is justified before the independent prospective tape exists. |
-| E-141 | 2026-07-26 07:12 AEST | management/1/4 | Complete q news-delta absorption and combined verification | local combined WIP; q commits `d58b6ee..b094ce6`; `tradebot/news/{pipeline.py,contract.py}`; `deploy/systemd/tradebot-news.service`; `tests/test_news_signal.py` | pipeline `0dc994e2…`; contract `6022c2ee…`; unit `799b8eed…`; test `cc807958…`; news `27 passed`; cross-boundary `145 passed`; full `826 passed, 4 deselected` | Every unique behavior in q's eleven-commit delta is now represented once inside the stronger local architecture: code-owned lifecycle clocks, canonical active drivers, stable `400`-line/`64 KiB` memory, distinct-channel capacity feedback, user Codex CLI, bounded systemd retry, and immediate capacity-refusal detection. Local content-addressed pending-publication recovery, append-time history, timestamp-correct consumers, and independent `30s` discovery budget remain intact. The q subprocess implementation was strengthened while integrating it: stdout and stderr drain concurrently, so large output cannot block timeout enforcement. No q source switch, runtime install, selection, clock start, broker call, or order occurred. |
-| E-142 | 2026-07-26 07:21 AEST | 1/4 | One-revision publication and q activation preflight | Mac/GitHub/q Git identities; q pinned venv; installed systemd units and timers | all source `b943ea4fcd911022704278424bcb3450c5fc7d94`; Python `3.13.7`; `ib-insync 0.9.86`; `textual 6.12.0`; unit verify/import/help probes pass | The clean combined revision is now identical on Mac, GitHub `main`, and q. q's news and XSP quote timers are enabled; the quote producer is scheduled for Monday `10:15 AEST`; the shadow timer and all three one-shot services remain inactive. All installed unit templates are byte-identical to source and the runtime imports each entrypoint. The switch occurred while the old news one-shot was inactive. No extra news session, early capture, Gateway connection, shadow evaluation, profitability clock, broker call, or order was triggered. |
-| E-143 | 2026-07-26 07:30 AEST | 1/2/4 | Synchronized q same-tape observer replay | q clean `bb3e70e`; deployed runtime code `b943ea4`; authenticated `2026-07-01..24` XSP cash shards and July 24 option tape | `1,326` cash bars; `91` option snapshots; two isolated replays `8.070s/8.063s`; byte-identical ledger `1efb5f12…`; `198/198` forecasts/results | The exact deployed q revision replayed the canonical recent tape twice through temporary ledgers and reproduced identical content. Every record remained historical diagnostic evidence: zero prospective pairs, zero complete prospective sessions, both candidates ineligible, recommendation `HOLD`, selected strategy absent, profitability clock stopped, and order authority `none`. A deliberately bounded all-five-year double replay exceeded its `300s` diagnostic wall and wrote nothing; full-history replay remains research-only while deployment smoke uses the recent chronological partition. No canonical ledger, source, timer, broker session, order, or cache changed. |
-| E-144 | 2026-07-26 07:44 AEST | 1/4 | Completion-safe news inference wall | canonical `tradebot/news/pipeline.py`; `deploy/systemd/tradebot-news.service`; `tests/test_news_signal.py` | discovery `30s`; inference `840s`; service `960s`; news `27 passed`; full `826 passed, 4 deselected`; Ruff/diff clean | The q news delta had made both the child wait and service startup wall infinite. Because the four-hour timer is completion-based, a hung Codex process could then suppress every future run and never reach `Restart=on-failure`. The existing independent timeout owners now restore the previously measured envelope: Finviz remains capped at `30s`, Codex gets `840s`, and systemd retains `90s` for validation, atomic publication, and teardown. Capacity refusal still terminates immediately for bounded restart. No scoring, prompt, source selection, state, publication, broker, strategy, or order semantics changed. |
-| E-145 | 2026-07-26 07:51 AEST | 1/4 | Exact synchronized q closed-window shadow command | q clean `e0c535d`; pinned runtime; isolated `/tmp/xsp-synced-closed.*` ledger | exit `2`; one `CLOSED` checkpoint; ledger `fc631593…` | The exact deployed CLI ran with an intentionally unreachable broker port during a canonically closed window. It returned broker read-only true, `historical_request=null`, `contract=null`, one content-addressed `CLOSED` checkpoint, and `order_authority=none`. This proves the synchronized adapter skips qualification/history rather than merely importing successfully. No tunnel, broker session, canonical ledger, repository file, timer, strategy, clock, or order changed. |
-| E-146 | 2026-07-26 07:55 AEST | 1/4 | Monday directional warm-up window | canonical `tradebot/research/xsp_{shadow,shadow_cli}.py`; authenticated XSP cache; `tests/test_live_calibration.py` | shared duration `1 W`; actual Monday window `2026-07-20 09:37..2026-07-27 09:37 ET`; `388` cached bars; only missing range `2026-07-27`; focused `137 passed`; full `827 passed, 4 deselected`; Ruff/diff clean | The former `2 D` default was literal calendar time: Monday's first observer began on Saturday, excluded Friday, and could append a fresh `EVALUATED` checkpoint while the 25-bar directional engine remained underwarmed. One shared `1 W` constant now gives the CLI and broker adapter the same window. Against the real cache it retains 388 prior close-aligned bars and delegates only Monday's live tail to the existing sparse fetcher. No sensor threshold, direction, permission gate, candidate, broker authority, schedule, or order semantics changed. |
-| E-147 | 2026-07-26 08:06 AEST | 1/4 | Natural combined-source no-evidence publication | q service `08:06:02..08:06:03 AEST`; synchronized `4df8a96`; exact pre-run hashes | success; zero restarts; `71` whitelisted, `10` active, `0` deferred; next timer `11:45 AEST`; no pending generation | The first natural cycle on the combined source found no unseen evidence and correctly opened no Codex session. It atomically advanced only `latest.json` and `state.json` to `run_status=no_new_evidence`; memory `8171c962…`, events `33964739…`, and history `6ed7b909…` remained byte- and mtime-identical. The causal signal retained its original `2026-07-25T18:02:10Z` timestamp and unchanged XSP `-1/76/.94/24h` plus MCL `+1/84/.95/24h` values rather than fabricating freshness. No broker, strategy, selector, clock, order, source, unit, or timer mutation occurred. |
-| E-148 | 2026-07-26 08:09 AEST | 1/4 | Recorder-owned tunnel recovery | canonical tunnel/quote units and deployment guide; recorder retry kernel; focused unit contracts | tunnel `30s` uncapped retry; producer soft dependency; shadow hard dependency retained; q systemd parser exit `0`; focused `84 passed`; full `827 passed, 4 deselected`; Ruff/diff clean | The recorder already reconnects indefinitely with exponential backoff, resumes the same trading-date tape, repairs torn tails, restores the retained option universe, and skips catch-up bursts. Its start transaction nevertheless hard-required a tunnel capped at three rapid attempts, so a sleeping Mac at Sunday GTH open could exhaust recovery before the application loop began. The tunnel now retries calmly without a start ceiling, while only the long-running producer soft-depends on it and therefore remains alive until Gateway returns. The bounded shadow one-shot still hard-requires the tunnel and fails closed. No capture cadence, market-data type, chain, quote, strategy, clock, broker write, or order semantics changed. |
-| E-149 | 2026-07-26 08:10 AEST | 1/4 | Exact producer-recovery deployment | Mac/GitHub/q `0af37a1540a077e9e6e7d9be928c8aa87dcd3136`; installed q tunnel/producer units | q clean; both units byte-identical; systemd verify clean; tunnel `RestartUSec=30s`, `StartLimitIntervalUSec=0`; producer `Wants` tunnel and has no tunnel `Requires`; services inactive; news/quote timers enabled; shadow timer disabled | The source switch and unit replacement occurred only after the natural news one-shot reached terminal and while tunnel/producer were inactive. The loaded manager now exposes the intended eventual-recovery properties without starting the tunnel, Gateway, producer, shadow, profitability clock, or any broker/order path. |
-| E-150 | 2026-07-26 08:15 AEST | 1/4 | Exact first-checkpoint trigger without cadence authority | q transient `tradebot-xsp-shadow-first.{timer,service}`; canonical installed shadow one-shot | next `2026-07-27 09:37:00 America/New_York` / `23:37:00 AEST`; `AccuracyUSec=1s`; zero jitter; non-persistent; recurring shadow timer disabled | A transient timer now invokes the existing hardened shadow service exactly once after Monday's first completed XSP cash bar. It duplicates no broker, cache, evaluator, or policy configuration and cannot arm later slots. The wrapper waits up to three minutes for the canonical two-minute fail-closed one-shot; the resulting journal and calibration checkpoint remain the only acceptance evidence. No process, tunnel, Gateway, observer, clock, or order started when the timer was created. |
-| E-151 | 2026-07-26 08:19 AEST | 1/4 | Reboot-durable first-checkpoint trigger | q installed `~/.config/systemd/user/tradebot-xsp-shadow-first.timer`; canonical shadow service | transient pair fully unloaded; durable timer byte-verified and enabled; `Persistent=yes`; next `2026-07-27 09:37 ET` / `23:37 AEST`; `AccuracyUSec=1s`; zero jitter; direct `Unit=tradebot-xsp-shadow.service`; recurring timer disabled | The transient trigger survived logout through the lingering user manager but not a q reboot. It was replaced before firing by one temporary installed timer that survives both and directly invokes the canonical hardened service without a wrapper. A missed wall-clock edge after downtime triggers on return, but freshness and session gates still prevent stale evidence from becoming `EVALUATED`. The timer must be disabled and removed after its one receipt is inspected. No tunnel, Gateway, observer, clock, broker, or order started during replacement. |
-| E-152 | 2026-07-26 17:40 AEST | 2 | Primary five-minute fixed-unit campaign rejection | freeze `backtests/out/xsp/xsp_candidate_discovery_freeze_20260726.json`; stability `backtests/out/xsp/xsp_candidate_stability_20260726.json`; persistent cache `/tmp/xsp-discovery-v13.ocVnrU` | freeze `7fe6e443…`, file `e9036224…`; stability `2e67b2ee…`; log `24ac2148…`; `23,041` cells; `500` frozen; `67` one-year survivors; `0` five-year finalists | The source-aware five-minute campaign completed the registered four-week discovery, content-addressed freeze, ordered one-year challenge, and five-year challenge without inspecting a later window before selection. The four-week leader earned `+14.1/41` trades, while one year retained `67` candidates with both positive net and at least `120` trades. Every one cleared the five-year `600`-trade floor, but all lost after frozen friction; best was `-17.79/786` trades. Cadence therefore did not cause rejection. The least-bad path was approximately `+60.81` gross before `78.6` points of frozen friction, which preregisters a lower-turnover `15m/30m` horizon test without loosening costs or retuning the failed five-minute neighborhood. XSP volume, options, news backfill, broker fills, selection, profitability clock, and order authority remained absent. |
-| E-153 | 2026-07-26 18:20 AEST | 2 | Lower-turnover horizon challenge and exact economic deduplication | `backtests/out/xsp/xsp_candidate_{15m,30m}_{discovery_freeze,stability,challenge}_20260726.json`; `backtests/out/xsp/xsp_candidate_30m_robustness_20260726.json`; persistent cache `/tmp/xsp-discovery-v13.ocVnrU` | 15m freeze `83ab25e0…`, challenge `a92040a6…`; 30m freeze `d9335aea…`, challenge `18ea10c5…`, robustness `39e07479…`; 15m `0` finalists; 30m `7` nominal / `2` economic behaviors | Deterministic resampling produced complete `15m/30m` tapes from the authenticated five-minute source with no broker request. The unchanged 15-minute challenge retained `21/250` after one year and zero after five years. The 30-minute challenge retained `38/250` after one year and seven after five years, but full-result replay hashes every ordered entry/exit/side/price/reason ledger into exactly two groups of four and three. The better RTH group earned `+25.34/851` trades over five years but daily LCB95 was `-0.0467`, one annual slice lost even before friction, latest-year net was `+2.29`, break-even friction was only `0.1298`, and removing its five best days made net negative. The 09–12 behavior was weaker. Both remain `HOLD`; no strategy, profitability clock, broker, or order authority was created. |
-| E-154 | 2026-07-26 18:26 AEST | 2 | All-qualified 30-minute breadth freeze before annual outcomes | `backtests/out/xsp/xsp_candidate_30m_all_qualified_{manifest_20260726.json,freeze_20260726.json.gz}`; `/tmp/xsp-campaign-30m-breadth-freeze-20260726.log`; persistent stage key `35134189…` | `23,041` tested; `7,556` retained; freeze `b22a9619…`; stage `acb7299b…` / `72,641,400` bytes; deterministic gzip `8a9aa2e2…`; manifest `2ea97842…`; candidate IDs `27a6be88…`; log `dd42ecd5…`; replay `47.3s`, cached `23,041/23,041` | The warm canonical Cartesian runner reconstructed every four-week-qualified identity from existing receipts with zero economic recomputation, eliminating the previous top-`250` selection cap as an untested blind spot. Before any further annual result was exposed, one deterministic manifest bound every identity and exact ordered record to the same tape, code, `$1` unit, `$0.10` friction, forbidden-evidence law, and five independent annual gates in newest-to-oldest order. The compressed payload round-trips cleanly. The freeze grants research-challenge authority only; `NO_TRADE`, stopped profitability clock, and zero broker/order authority remain unchanged. |
-| E-155 | 2026-07-26 18:53 AEST | 2 | Thread-safe persistent planner heartbeat | `tradebot/research/spot_sweeps/store_cache.py`; `tests/test_spot_combo_full_signature.py`; failed attempt `/tmp/xsp-campaign-30m-breadth-stability-attempt1-20260726.log` | failed log `3ed2225c…`; source `d63d216b…`; test `c0ffb8d6…`; focused `4 passed`; full `831 passed, 4 deselected`; Ruff/diff clean | The first breadth challenge exposed a runtime defect: evaluation progress came from a background thread, but the shared SQLite connection retained its default creator-thread restriction. Its swallowed thread-affinity error left the persisted heartbeat stale and made the parent falsely recycle healthy workers after `210s`. The canonical connection now permits the heartbeat thread while the existing store lock continues to serialize every access. A real-thread regression proves persisted progress/ETA round-trip; the resumed campaign reused `1,782` exact receipts and completed with advancing parent heartbeat. Strategy, cache identity, economics, broker, and order semantics did not change. |
-| E-156 | 2026-07-26 18:53 AEST | 2 | Cap-independent 30-minute bar-only rejection | freeze `b22a9619…`; `backtests/out/xsp/xsp_candidate_30m_breadth_stability_20260726.json`; `/tmp/xsp-campaign-30m-breadth-stability-20260726.log` | stability `80f653db…`; log `f47265e5…`; `7,556 → 734 → 189 → 133 → 0`; `771.5s`; full `831 passed, 4 deselected` | Every four-week-qualified identity entered the preregistered newest-to-oldest annual challenge unchanged. Positive net after frozen friction plus `120` trades/year reduced the population to zero in the fourth independent slice, so the fifth was correctly skipped and no full-ledger promotion gate was opened. This eliminates the top-`250` cap as the explanation for prior rejection and closes adjacent historical bar-only XSP mining. No XSP crown, selection, profitability clock, broker session, or order authority was created; prospective microstructure is now the sole admissible candidate frontier. |
-| E-157 | 2026-07-26 19:03 AEST | management/1/2/4 | Fixed-unit campaign publication and evidence durability | Mac/GitHub/q `64c4cd12bb4f2af193b35aa0d785c6f3d4f3c9ac`; `~/Desktop/tradebot-backup/2026-07-26_18-53_AEST-xsp-campaign/` on Mac and q | all Git refs exact and clean; q Python `3.13.7` compile/import smoke passed; backup checksum dry-run empty; services inactive; quote timer enabled; recurring shadow disabled; first-proof timer enabled | The audited 16-file campaign transaction is now one clean shared source revision. Generated freezes, manifests, outcomes, task brain, and terminal logs remain outside Git but are checksum-identical across both backup roots. q source was fast-forwarded only while news, quote, and shadow services were inactive; no unit file, timer authority, selected strategy, profitability clock, broker session, or order changed. |
-| E-158 | 2026-07-26 19:18 AEST | 2 | Frozen directional meta-admission falsification | `backtests/out/xsp/xsp_directional_meta_admission_20260726.json`; authenticated 2021–2024 XSP tape | artifact `276d4031…`; source `b7b90395…`; `363` training sessions; `1,214` labeled normal-engine trades; AUC `0.6016`; `0/7` thresholds passed | The production detector remained frozen after a half-year audit showed precision `0.575..0.606` and recall `0.727..0.802`. One preregistered L2-linear admission owner used only timestamp-available direction/time/ordinal, readiness, slope/velocity/efficiency/TR, ATR, retrace, coherence, and conviction evidence from 2021–2022 normal-lifecycle trades. At threshold `0.45`, both sides and aggregate P&L were positive (`+23.22/234`, PF `1.269`) but clustered daily LCB95 remained negative (`-0.0191`). Higher thresholds manufactured attractive PF by collapsing cadence from `102` to `2` trades and increasing concentration. No threshold jointly passed reliability, `0.40/session` cadence, both-side economics, drawdown, and concentration, so calendar 2023 and the 2024 holdout remained sealed. No coefficients, detector policy, production source, candidate, selection, clock, broker, or order changed. |
-| E-159 | 2026-07-26 19:32 AEST | 1/4 | Full-process Monday tape restart regression | `tests/test_option_quote_capture.py`; unchanged canonical recorder/calendar/ledger owners | test `eee07541…`; recorder `4a9022ce…`; market `98e43d84…`; ledger `95e22660…`; focused `86 passed`; full `832 passed, 4 deselected`; Ruff/diff clean | The previously separate tail-repair, cadence, retained-universe, trading-date, and read-only proofs are now exercised through two complete recorder processes. Process one writes the Monday exchange-date tape; a torn JSON tail is injected; process two repairs the same file, restores the qualified option universe, performs zero redundant contract qualification, appends one valid row, and connects read-only. This closes the deterministic restart-proof gap without changing recorder, calendar, quote, broker, strategy, timer, selection, clock, or order behavior. The actual Sunday scheduled start/restart receipt remains required. |
-| E-160 | 2026-07-26 19:40 AEST | 1/4 | Reboot-durable session-recorder trigger | Mac/GitHub/q `48d53cf755582083387780224a1ac4c934541235`; installed q `tradebot-xsp-quotes.timer` | timer `a57969bc…`; test `827efbd9…`; focused `86 passed`; full `832 passed, 4 deselected`; systemd verify and byte comparison clean; `Persistent=yes`; next `2026-07-27 10:15 AEST`; quote/shadow/news services inactive | The recorder already recovered correctly after process failure but its non-persistent daily trigger could disappear if q rebooted across Sunday `20:15 ET`. Only the once-per-session quote timer is now persistent. A catch-up inside the exchange capture window resumes the same trading-date tape; a catch-up after `17:00 ET` exits through the existing broker-silent closed-window guard. The high-frequency shadow timer remains non-persistent. Loading the unit did not start the tunnel, recorder, shadow, news, profitability clock, broker, or order path. The actual Sunday start/restart receipt remains required. |
-| E-161 | 2026-07-26 20:02 AEST | 2 | Dense multiscale interaction falsification | `backtests/xsp/xsp_directional_interaction_campaign.py`; `backtests/out/xsp/xsp_directional_interaction_admission_20260726.json` | campaign `9b312514…`; artifact `3228f984…`; `45` cells in `19.3s`; `12` discovery passes; audit opened; holdout sealed | The exact E-158 generator was recovered from the durable session, including its feature order, scaler, optimizer, regularization, thresholds, and normal-engine projection. A discovery census first proved that every single or two-label slow/fast/ATR bucket dense enough for `234` trades still lost. The preregistered nonlinear family then retained complete coefficients/scalers/decisions/trades for positive-trade, trail-capture, and net-points objectives across three regularizations and five dense admission counts. Its frozen leader (`net_points`, L2 `40`, target `450`) earned `+54.57` over `413` trades (`1.138/session`), PF `1.390`, daily LCB95 `+0.0390`, drawdown `13.70`, and positive P&L on both directions. Unchanged in calendar 2023 it lost `-20.39/189`, PF `0.660`, daily LCB95 `-0.1492`, with both directions negative. The 2024 holdout remained sealed. This proves a strong static discovery pocket but rejects its permanence; no detector, lifecycle, candidate, selection, clock, broker, or order changed. |
-| E-162 | 2026-07-26 20:11 AEST | 2 | Causal monthly walk-forward admission rejection | shared interaction campaign; `backtests/out/xsp/xsp_directional_walk_forward_admission_20260726.json`; authenticated eight-shard five-year tape | campaign-at-run `84fc3803…`; artifact `fed94470…`; `97,530` bars / `1,255` sessions / `5,177` raw events / `4,125` matured shadow outcomes; `36` identities in `24.1s`; `0` passes | Every calendar-month model used only raw-turn outcomes exited before that month and derived its threshold from the same prior-score window. The frozen grid covered `126/252/expanding` sessions, L2 `10/40/100`, and admission rates `0.18/0.25/0.35/0.45`. None passed calendar 2023. The best daily-LCB identity admitted `124` events but yielded only `118` trades (`0.472/session`) and lost `-7.99`, PF `0.776`, with both sides negative; density-qualified variants also lost. No 2024 challenge opened. This rejects monthly coefficient adaptation of the turn-entry mechanism, not the shared sensor or a distinct expansion source. No production source, selector, clock, broker, or order changed. |
-| E-163 | 2026-07-26 20:29 AEST | 2 | Directional-expansion source rejection | shared interaction campaign; `backtests/out/xsp/xsp_directional_expansion_source_20260726.json`; authenticated XSP five-minute tape | campaign `9cb602c2…`; artifact `b69ca78f…`; `648` identities / `637` unique entry tapes in `138.5s`; `588` density-qualified; `7` net-positive; `0` passes | The preregistered source fired on new or flipped coherent `5/15/30m` slope/TR and aligned-velocity expansion, optionally requiring positive ATR velocity/acceleration and already-warmed `60/120m` alignment. Every identity retained the same next-open execution, E-051 lifecycle, one-unit economics, `$0.10` friction, both directions, EOD flattening, and `234/363` density floor. Seven dense identities were net-positive, but none achieved positive daily LCB95 or PF `>=1.10`. The least-bad reliability rank made `+1.59/264`, PF `1.017`, daily LCB95 `-0.0718`, with both sides slightly positive; the best net made `+4.06/357`, PF `1.033`, but lost on up entries. Calendar 2023 and 2024 remained sealed. Research execution deduplicated byte-equivalent entry tapes only; identity/economics stayed unchanged. No production source, selector, candidate, clock, broker, or order changed. |
-| E-164 | 2026-07-26 20:38 AEST | 1/2 | Natural material causal-news publication before Monday evidence | q `tradebot-news.service`; `~/.local/state/tradebot/news/latest.json` | service `20:31:47..20:38:20 AEST`, exit `0`; publication `2f3f94d0…`; file `ebb43816…`; `8` articles / `12` active events / `2` additions | The completion-scheduled service ran naturally—no manual trigger—and atomically published a fresh `tradebot.news-signal.v3` snapshot at `2026-07-26T10:31:47Z`. Joint causal reduction moved XSP to `-1 / 79 / confidence .95 / 24h / strengthening` and retained MCL at `+1 / 84 / .95 / 24h / unchanged`; exact drivers and event snapshot remain content-addressed. The next cycle is scheduled for `00:38:20 AEST`. This is timestamp-valid observation-only input for the preregistered opposing-signal defensive comparison, not a selector, trade claim, backfill, profitability event, broker call, or order authority. |
-| E-165 | 2026-07-26 22:32 AEST | 2/3 | Source-consistent directional lifecycle and complete landing trace | canonical `tradebot/spot/{evaluator_common,evaluator_policy,entry_control}.py`; `tradebot/engines/directional_impulse.py`; backtest/UI lifecycle consumers; `tests/test_directional_impulse.py` | focused `146 passed`; full `836 passed, 4 deselected`; Ruff/diff/compile clean; architecture ratchet clean; `5,177` five-year source events; `1,019/1,019` leader trades carry exact signal-bar and entry-control evidence | The prior expansion campaign rewrote entry direction while flip exits still read a transient raw turn and its `0.75 ATR` stop preempted `150/264` paths. The shared lifecycle now exposes persistent directional-impulse trend ownership separately from one-bar admission proposals; backtest and live UI consume the same source direction for inverse-signal exits. Same-timeframe EMA confirmation is genuinely advanced when selected, and entry-control traces retain every active pass/block. The corrected campaign uses no initial stop, trail, profit target, or fizzle exit: only source-consistent controlled flips after the configured hold or EOD flattening, next-open fills, one fixed unit, and `$0.10` round-trip friction. Exact traces show `986` five-minute entries, `33` controlled-flip ten-minute entries, median hold `13` bars, EOD `+376.51`, and flip exits `-255.92`; removing flips still destroys reverse-position ownership, so local exit loss is not evidence to disable them. No selector, clock, broker call, or order authority changed. |
-| E-166 | 2026-07-26 22:45 AEST | 2 | Tight opening-edge plateau and frozen research champion | canonical `DirectionalImpulseAdmissionPolicy`; `backtests/xsp/xsp_directional_interaction_campaign.py`; `backtests/out/xsp/xsp_directional_lifecycle_anatomy_20260726.json` | artifact `d3c5801f…`; recent freeze `fac8d314…`; `192 → 55 → 24` tested; leader `opening_edge/off/hold12`; recent `+10.98/17`; one-year `+131.74/204`; five-year `+120.59/1,019` | Tight causal sweeps—not a broad new model—selected the stable center: `09:30..11:15 ET`, ATR velocity `(0,.055)`, down retrace `>=1.25`, plus up-only `11:20..11:25` continuation when retrace is `1.25..1.70` and coherence `>=.75`; inverse-source hold is `12` bars. Neighboring down-retrace `1.20..1.30` and ATR ceilings `.050..060` remain net-positive; the center preserves lower drawdown than the absolute endpoint winner. The same typed policy run through the normal evaluator exactly reproduces the research result. Five-year PF is `1.1705`, cadence `204.61/year`, up/down P&L `+56.48/+64.11`, and concentration `0.0987`, but daily LCB95 is `-0.0202`, drawdown `59.95`, and 2021/2023 lose. It is frozen for prospective shadow/counterfactual evaluation only: `NO_TRADE`, stopped profitability clock, and `order_authority=none` remain authoritative. |
-| E-167 | 2026-07-26 23:21 AEST | 2/3 | First XSP research crown and exact prospective prefix runtime | canonical `tradebot/research/xsp_candidate.py`; `tradebot/research/xsp_shadow.py`; shared backtest engine/tape; `backtests/xsp/leaderboard.md`; rerun artifact/log | full realized-config `77e285f3…`; candidate source `b9997bf7…`; artifact `753889ac…`; log `75dfa3d6…`; recent replay `+12.68 gross -1.70 cost = +10.98 net`, `17` trades, `7.83` drawdown, zero breaches; focused `81 passed`; full `837 passed, 4 deselected` | One typed candidate owner now supplies the exact campaign and prospective configuration, eliminating campaign-local admission/lifecycle literals. Its content address binds the full realized strategy, filters, synthetic inputs, bar/session contract, and capital reference; the campaign artifact separately hashes that owner so default drift cannot reuse the crown identity. A causal normal-engine prefix reproduces the E-166 recent ledger exactly and records restart-stable `xsp.candidate-equity.v1` counterfactual economics beside—never instead of—the `NO_TRADE` observer. The shared engine now distinguishes a complete final session from an incomplete live prefix: completed EOD liquidation cannot reopen on the same terminal bar, while a live prefix retains its open mark. The rerun preserved exact crown economics through all three windows. The first durable XSP leaderboard crowns Opening Edge v1 as research leader and freezes its edge lineage, active/inactive gates, neighborhood, failure boundary, promotion ladder, and capability frontier. The profitability clock remains stopped and both candidate and checkpoint retain `order_authority=none`. |
-| E-168 | 2026-07-26 23:41 AEST | 2 | Controlled-reverse ownership ablation | unchanged central candidate/engine; `spot_controlled_flip=true` crown versus `false` exit-to-flat challenger | six unchanged-window runs in `32.9s`; five-year handoff anatomy in `23.7s`; crown `+120.59/1,019`, challenger `+104.81/986`; cadence `204.61` versus `197.99/year`; drawdown `59.95` versus `58.46` | The central lifecycle already separates protective inverse-source exit from opposite-side admission, so the challenger required no code or campaign-local policy: both variants kept `exit_on_signal_flip=true`, while only the challenger stopped carrying a simultaneously admitted opposite proposal through the deferred exit. It was identical over the recent 19 sessions, then lost `14.63` points and eight trades over one year and `15.78` points plus 33 trades over five years, crossing below the required `>200/year` cadence for only `1.49` points of drawdown relief. Exact ledger differencing found zero altered common trades and exactly 33 crown-only admitted handoffs worth `+15.78`: bearish `+22.44/7`, bullish `-6.66/26`. The global controlled-reverse mechanism is therefore retained; only the weak bullish handoff subset may be challenged later with independent causal evidence. Crown identity, source, thresholds, authority, profitability clock, broker state, and orders remained unchanged. |
-| E-169 | 2026-07-26 23:54 AEST | 2/3 | Optional-stop kernel repair and late-profit-lock rejection | canonical `tradebot/spot/lifecycle.py`; normal backtest engine; frozen Opening Edge v1; preregistered `2/3/4 × 1/1.5/2 ATR` grid | `30` unchanged-window runs in `67.6s`; focused/architecture `69 passed`; full `839 passed, 4 deselected`; owner `999` lines; crown control exact `+10.98/+131.74/+120.59` | The excursion policy advertised independent trail/fizzle/max-hold behavior but enabled its state only when `initial_stop_atr>0`, forcing every prior trail experiment to install an initial stop. The central state now represents a genuinely absent stop as `None`, activates only configured behavior, and retains the completed-bar ratchet so a trail cannot reprice its source bar. Existing configurations are unchanged. The nine frozen trail-only challengers used no initial stop, breakeven, target, fizzle, max hold, admission/EMA change, cost relief, or authority. Every variant improved the recent 19 sessions (`+12.41..+15.00`, `19..20` trades) yet weakened the one-year crown (best `+105.45` versus `+131.74`) and five-year crown (best `+65.99` versus `+120.59`); lowest challenger drawdown was `60.30` versus crown `59.95`. The family is rejected as recency-biased. No challenger identity, live excursion state, selector, clock, broker call, or order was added. |
+It is not crowned: it worsens fresh windows, still loses 2021/2023, uses a
+NASDAQ proxy, and was discovered on the same five-year tape. The old
+`wide TICK band → up / narrow band → down` path was semantically false,
+unused, and is retired rather than retuned.
 
 ---
 
-## 14. Decision journal
+## 3. Active prospective frontier
 
-| ID | Decision | Why | Revisit when |
-|---|---|---|---|
-| D-001 | XSP only | Cheapest bounded-risk mastery must precede product sprawl | One full weekly loop is exact and stable |
-| D-002 | Separate safe-income and alpha sleeves | Their payoff, execution, and failure modes differ | Portfolio interaction is measured |
-| D-003 | No opaque regime router | Context should explain eligibility, not become hidden strategy authority | Shadow selector proves hysteretic superiority |
-| D-004 | Synthetic evidence cannot promote live capital | Current options history is model-derived, not authentic NBBO replay | Authentic replay and live drift agree |
-| D-005 | Broker preview before paper/live admission | Package identity, fees, margin, and warnings are broker facts | Never |
-| D-006 | Minimum 2–4 hours research before live eligibility | Prevent milestone-driven premature submission | Never |
-| D-007 | Every run ETA; 20-minute hard bound | Keep research observable and resumable | Only with explicit written reason |
-| D-008 | No strategy-owner swap on an open package | Avoid incoherent lifecycle and attribution | Never; rescue may only reduce risk |
-| D-009 | One package initially | USD 1,000 makes correlation/capacity mistakes material | Repeated canaries prove headroom |
-| D-010 | Iron condor must beat vertical net of four-leg friction | Complexity is not value | Authentic execution proves value |
-| D-011 | Rare news begins as defensive veto/sizing evidence | Causality and historical availability are fragile | Forward evidence proves incremental value |
-| D-012 | `NO_TRADE` is a first-class champion action | Capital preservation outranks activity | Never |
-| D-013 | Keep a USD 1,000 design envelope despite a higher broker snapshot | Account values drift and are AUD-denominated; the mission should remain robust under the user's conservative premise | User explicitly changes the envelope after a fresh broker census |
-| D-014 | Do not run the current one-year 31K-cell options grid | It omits realistic friction and maps `1%` to about 7.4 XSP points, so scale would amplify invalid evidence | Canonical point geometry, costs, and fill realism are proven |
-| D-015 | Missing XSP index volume is not zero-volume evidence | The index tape does not carry authentic volume | A separately provenance-bound context tape is admitted |
-| D-016 | Sparse `what-if` status alone is not enough for this live canary | `PreSubmitted` did not return usable commission, margin, or buying-power effects | Canonical risk plus conservative fees, fresh quotes, permissions, and capacity are jointly proven |
-| D-017 | Percentage anchor plus additive OTM point offset is the canonical wing geometry | It preserves scale-aware strike placement while producing exact one-point defined-risk wings in replay and live | Authentic chains prove a better shared selector |
-| D-018 | Model slippage in fill price and commission in cash/P&L | Combining them would obscure execution drift and corrupt payoff geometry | Never |
-| D-019 | Safe-income research excludes unbounded legacy families | Naked puts and risk reversals violate this sleeve's defined-risk mandate | A separately governed sleeve explicitly admits them |
-| D-020 | Credit profit targets above `1.0` are not distinct candidates | A credit package cannot earn more than its entry credit; higher thresholds only duplicate other exit paths | Payoff semantics change |
-| D-021 | Score complete sessions, including abstentions | Trade-only samples hide opportunity cost and selection frequency | Never |
-| D-022 | Shortlist thresholds do not belong in economic cache identity | Changing `min_trades` must reuse identical simulations | Economic semantics change |
-| D-023 | Synthetic ordering is exploratory only | Underlying-derived option prices cannot prove execution or live expectancy | Authentic replay and paper drift agree |
-| D-024 | First canary loss plus fees is capped at 10% of the conservative envelope | One-point width is already material near USD 1,000 | Fresh account truth or repeated canaries justify a lower limit; never loosen from recent profit alone |
-| D-025 | Opening context is an observable classifier, not strategy authority | Explicit extension/liquidation/neutral facts can be shared and falsified without reviving opaque regime routing | Shadow evidence proves a more compact fact vocabulary |
-| D-026 | Discovery failure keeps validation and holdout sealed | Repeatedly inspecting future windows converts research into selection leakage | A predeclared discovery family passes its frozen gates |
-| D-027 | OPT replay uses exact intraday time to expiration close | A constant full-session 0DTE clock suppresses theta and can manufacture option P&L | Authentic option replay replaces synthetic valuation |
-| D-028 | Pre-register the opening-state matrix before reading outcomes | Opening folklore is easy to hindsight-label; rolling prior-session thresholds and a sealed family-specific holdout preserve causality | Only through a new versioned research contract before viewing new outcomes |
-| D-029 | Do not bank on opening folklore as a daily law | The first causal two-year matrix found no corrected, neighborhood-stable edge; one narrow downside-rebound hint is insufficient | A new predeclared feature family passes development and sealed holdout |
-| D-030 | IBKR is not a historical XSP option-chain archive | Expired options and option EOD data are unavailable; native combo history is not stored, so successful underlying requests cannot authenticate old spread economics | A provenance-complete specialist dataset is admitted or sufficient forward tape accumulates |
-| D-031 | Chain expiry and strike sets are discovery unions, not exact pairs | IBKR returned chain-wide strikes that lacked a security definition for the selected expiry; only broker-qualified contracts prove exact membership | A provider supplies an authenticated expiry-by-strike matrix with equivalent broker proof |
-| D-032 | Neutral package quote arithmetic belongs to canonical execution | Captured replay and live BAG pricing must share signed debit units, quote modes, ticks, and payoff risk; replay binds tape provenance while live owns qualification and broker projection | The ownership model changes |
-| D-033 | Historical ambiguity fails closed | IBKR timeouts return an empty container indistinguishable from absent bars unless errors, retries, and availability are retained; cursor-skipping silently created two month-scale SPY holes | Never accept an empty response as coverage: retry the same cursor with bounded backoff and smaller windows, classify broker rejection/unavailability, consult earliest availability, then fail with evidence if unresolved |
-| D-034 | SPY/VIX context remains evidence, not strategy authority | A preregistered 768-cell extension produced no corrected, neighborhood-stable edge and no durable rescue of the opening-state family | A new causal feature contract passes development before the sealed holdout is read |
-| D-035 | A no-data message is not proof of global unavailability | IBKR can return no rows for a valid contract/range under transport, farm, session, entitlement, or sparse-history conditions; only permanent broker rejection, expiry, or a requested end before `reqHeadTimestamp` proves absence | Never advance a cursor, erase a gap, or promote cache completeness from an unresolved empty response |
-| D-036 | Calibration becomes effective after its observed date | A same-day date-only record can leak later broker evidence into earlier replay; explicit source bounds and next-date eligibility preserve causality while live orders continue to use broker quotes | Authentic timestamped option replay replaces synthetic calibration |
-| D-037 | Admit five-year XSP only as underlying RTH evidence | The hydrated tape is complete and comparable, but IBKR still supplies no historical expired-option chain/NBBO/Greek tape and XSP index volume remains absent | A provenance-complete option provider or accumulated forward tape supplies the missing evidence |
-| D-038 | Barrier evidence screens credit geometry but cannot prove option expectancy | Historical XSP spot can authenticate touches and settlement breaches, but not old NBBO, IV, fill probability, commissions, or executable package credit | Fresh strict-admission package quotes and forward replay clear the empirical required-credit hurdle |
-| D-039 | Reject unconditional multi-session XSP credit carry at current evidence | Even the best one-percent next-session cells require `0.3026..0.3267` executable credit after a deliberately conservative full-loss model, with substantial annual breach dispersion; longer holds require more | A fresh strict-admission package quote clears the registered hurdle and forward replay then passes calibration, execution, safety, and economic gates |
-| D-040 | Do not turn simple direction/gap/quiet facts into a premium-selling selector | No preregistered discovery cell materially lowered matched required credit; moving the `0.05` or sample gates for a near miss would be post-result tuning | A new causal feature family is preregistered from independent rationale or authentic forward option evidence reveals a specific execution-compensation mechanism |
-| D-041 | XSP mastery is 24x5 and session-conditioned, not RTH-only | Cboe supports XSP in GTH, RTH, and Curb; the opening-volatility study is only one edge hypothesis, while liquidity, spread, fill, and data provenance differ materially by session | Never collapse sessions; widen a strategy only after same-session replay, preview, and drift evidence passes |
-| D-042 | Close-only XSP cannot anchor an executable package | During GTH the option surface can quote while the cash-index top remains unavailable or stale; using yesterday's close would select hindsight-wrong geometry | Use fresh index midpoint/last or a timestamped robust option-model/futures reference, and retain exact provenance |
-| D-043 | Greeks are strategy inputs and diagnostics, not universal execution gates | A fixed-width defined-risk package is economically admitted by exact identity, executable quote, tick, fees, max loss, capacity, and broker state; requiring unused vega or other missing model fields discards valid evidence without improving safety | A strategy that selects or sizes from a Greek must declare that field as required and fail closed when it is absent |
-| D-044 | This account has no proven streaming-live XSP quote entitlement | The complete strict opening probe returned only IBKR `354/10168` subscription failures and zero qualified options | Preserve delayed tapes for mechanics and research, but require a later streaming entitlement receipt or broker preview before any executable XSP promotion |
-| D-045 | RTH-only long-direction frequency is not an edge | Two independently structured searches found sparse profitable mechanisms, while every `>=4/3`-trade/session v2 variant lost after friction; simple 15/30/60-minute direction facts also left upside and downside opportunity nearly symmetric | Hydrate authenticated pre-open proxy context and test its incremental value; do not tune the same RTH feature family until it wins by new evidence |
-| D-046 | Full24 completeness begins at the broker-supported overnight head | SPY SMART history predates IBKR's OVERNIGHT venue by years; demanding overnight sessions before `reqHeadTimestamp` caused impossible day repairs, while two post-head gaps remain explicitly broker-unresolved | Preserve SMART data before the head, require full24 after it, and never fabricate or silently bless a post-head gap |
-| D-047 | Static pre-open filters do not rescue repeated opening re-entry | Exact SPY context reduced exposure and some losses, but no cell produced a positive daily lower bound and cadence fell below the HF contract | Change the lifecycle/mechanism—test one deliberate opening ride with causal admission and robust trailing/fizzle exits—rather than tuning these filters |
-| D-048 | Opening volatility must not be assumed upward | The deliberately long-only ride improved on fixed-time exposure but remained negative across discovery; visual upside days omit equally important failed and downside openings | Test one symmetric, explicitly attributed long/short directional owner before abandoning the opening-volatility family; do not loosen friction or gates |
-| D-049 | Retire bar-only opening-direction mining | Long-only, symmetric, static pre-open-context, and repeated-entry searches all failed frozen cadence/stability gates; the sparse positive cells changed sides or disappeared as cadence rose | Keep validation sealed and stop retuning this OHLC family. Resume directional discovery only with independently justified information—preferably authentic forward microstructure, executable option compensation, or a materially different horizon |
-| D-050 | Wall-clock context uses timestamp anchors, not bar counts | SPY's scheduled `03:50..04:00 ET` break means `03:30..09:30` contains `71`, not `73`, observations; interpreting `72 bars` as six hours silently reaches ten minutes too far back | Only if the venue supplies a formally continuous, gap-free series |
-| D-051 | XSP-native evidence owns XSP direction; SPY is diagnostics only | XSP-only matched discovery and beat fused/SPY-only recent precision and F1, so proxy authority adds complexity without measured value | An independently preregistered proxy study proves stable incremental signal |
-| D-052 | Three observed horizons admit a turn; five define full readiness | Recent precision was `0.667` with three horizons versus `0.662` with two, while four horizons collapsed recall/F1; exact anchors and the upstream data-gap veto prevent silent underwarming | A new frozen calibration proves a better neighboring contract |
-| D-053 | Material local extrema—not absolute daily extrema—are the sensor acceptance target | The causal production sensor reached `0.710` recent F1 on material turns, while only `16/34` absolute extrema matched and `18/34` were censored at the measurement boundaries | A wider, causal observation contract removes boundary censoring without hindsight |
-| D-054 | Directional turns remain observation-only until lifecycle economics pass | Feature detection is not profitability; false turns, friction, trailing/fizzle exits, cadence, and adverse path must be measured in the normal backtest owner | The preregistered lifecycle study passes discovery, neighbors, and sealed validation |
-| D-055 | Reject indiscriminate directional-turn entry; preserve the sensor as evidence | All `1,296` frozen lifecycle variants lost despite adequate cadence and balanced sides. The best trail path captured real excursions, but repeated false turns and initial stops overwhelmed it; exit retuning cannot create admission edge | A preregistered admission-quality family preserves cadence and both directions while passing discovery, neighboring stability, and sealed validation |
-| D-056 | Do not promote the sparse late-upside admission pocket | Causal conviction/retrace/ATR filters created positive cells, but all had negative daily lower bounds or inadequate cadence; every downside slice lost and all cadence-qualified cells remained negative | An earlier, preregistered short-to-medium-to-long reversal cascade passes symmetric tradable-excursion and economic gates on chronological evidence |
-| D-057 | Retire bar-only directional reversal mining from the current XSP frontier | Completed-turn lifecycle, causal admission, and earlier reversal-cascade studies all failed frozen economic gates. In the cascade, `71/144` cells met HF cadence on both partitions yet every cell lost, so more adjacent threshold tuning is outcome mining | Materially new causal evidence—preferably authenticated forward microstructure/execution—or a genuinely different horizon/mechanism is preregistered |
-| D-058 | Preserve `NO_TRADE` for the first frozen RTH package screen | Neither evidence nor economics admitted a package: strict streaming-live selected-leg quotes were absent, and every delayed diagnostic natural credit missed its preregistered barrier | A later independently captured session produces persistent strict quotes, clears its unchanged registered hurdle, and remains within canonical risk/cost gates |
-| D-059 | Option-model consensus may anchor missing GTH cash but cannot own direction | All eight GTH snapshots had a coherent model underlier and bridged plausibly into the first captured RTH print, yet one session is not validation and RTH accuracy/direction agreement was inadequate | Multiple independent forward sessions prove timestamp-correct incremental admission value over the unchanged XSP cash-only observer |
-| D-060 | Historical calibration must preserve `NO_TRADE` while failed candidates remain counterfactual | No candidate passed the preregistered economic gates. Treating a detector's overlapping-horizon diagnostic sum as selected P&L would fabricate a strategy and double-count outcomes; the new ledger keeps selected, counterfactual, package, leg, and account economics separate | A preregistered candidate passes causal discovery, stability, cadence, and sealed validation, then survives authentic same-tape shadow evidence |
-| D-061 | Forward shadow consumes the canonical close-aligned tape and owns no orders | IBKR timestamps intraday bars at their open, while the shared UI/backtest evaluator consumes bars normalized to their causal close. Feeding raw broker timestamps directly would freeze five minutes early; letting a shadow submit would confuse observation with promotion | Only replace this boundary if one stronger canonical market-series contract preserves identical close time, freshness, provenance, restart, and no-order guarantees |
-| D-062 | Option-parity participation begins as forward observation, not a selector | One complete session proves deterministic paired-call/put mechanics but every selected row is delayed and the cash outcome is already known. Scoring or thresholding July 24 would turn availability work into hindsight mining | Multiple independent forward sessions compare timestamp-identical `TA-only` and `TA+option-observe` decisions with stable cadence, both directions, economic lower bounds, and execution-grade provenance |
-| D-063 | Partition forward XSP evidence by exchange trading date, not UTC or wall-calendar date | Sunday/weekday evening GTH belongs to the following XSP session; UTC or ET-calendar filenames split one session, misalign shadow lookup, and can alter DTE selection across restart | Only replace this if a broker-native session identifier subsumes tape path, expiry basis, restart restoration, and shadow lookup without losing causal provenance |
-| D-064 | Fixed auxiliary IBKR clients live above the rotating runtime pool | Historical fetch, calibration, and recorder offsets were previously based on the pool start, placing `550/580/590` inside `500..899`; a continuous fixed-ID recorder could lose a race to UI/shadow clients and retry the same occupied ID | A single cross-process client-ID lease owner replaces both deterministic auxiliary IDs and the resilient live pool |
-| D-065 | Fundamental pressure is immutable forecast context before it can become a gate | Reconstructing the latest news state after an outcome creates lookahead; including it in strategy identity would also create duplicate forecasts when a later publication arrives | Paired forward evidence proves a preregistered defensive threshold improves economics or drawdown, at which point a new versioned gate contract must be frozen before activation |
-| D-066 | Fundamental value is scored first as one fixed 60-minute defensive-veto observer | Multiple horizons double-count the same turn, while letting news open, reverse, or amplify exposure would confuse defensive context with an unproved alpha selector | Several independent forward sessions show stable avoided-loss benefit over foregone gains on the frozen threshold; only then may a separate versioned gate seek promotion |
-| D-067 | One news publication is a recoverable multi-file generation | Per-file atomic rename prevents torn files but not mixed events/memory/history/latest/state generations after a mid-handoff kill | A stronger storage owner provides an equally compact transaction across the same externally stable paths |
-| D-068 | First-seen forward decisions outrank later tape-prefix enrichment | A benign historical cache repair changes provenance but must not rewrite or duplicate the forecast that was actually available at decision time | A versioned research run intentionally uses a separate ledger and explicitly permits alternate provenance for the same timestamp |
-| D-069 | Freeze raw parity movement before scoring it | The preregistered coherence hypothesis needs two causal observations; reconstructing a prior anchor after the outcome would weaken provenance, while choosing a movement threshold from the observed July 24 path would be outcome mining | Independent forward sessions accumulate enough timestamp-correct pairs to preregister and test a threshold without opening old outcomes |
-| D-070 | Discovery and inference have separate runtime ceilings | A large inference allowance must not silently become an equally large network-connect timeout; otherwise the outer service deadline cannot reserve publication time | Measured discovery latency justifies a different bounded cap while preserving the same total wall |
-| D-071 | Preserve the frozen defensive-news observer through its first negative mechanics receipt | Retuning after seeing that July 24 bearish context would have vetoed profitable upside would convert a defensive hypothesis into outcome mining; one post-registered day cannot prove or disprove forward value | Preregistered prospective sessions accumulate enough paired veto opportunities to compare avoided losses, foregone gains, drawdown, and cadence |
-| D-072 | Event clocks are deterministic reducer state, not model judgment | Stable first-seen time and whether the material event view changed are exactly derivable from prior ID, current payload, and run time; asking the model to reproduce that bookkeeping turned a valid researched payload into a failed cycle | A stronger event-store transaction subsumes identity, diff, and clock derivation without weakening verification provenance |
-| D-073 | Close historical VIX turn-confirmation tuning | Exact dynamic VIX pressure reduced losses but did not produce positive expectancy, chronological stability, both-direction profitability, or HF cadence; changing thresholds after all `13` frozen cells failed would mine another bar-derived context | New timestamp-correct forward XSP microstructure or a genuinely different causal mechanism passes a preregistered paired observer |
-| D-074 | Option parity remains a classify-only forward observer | One already-seen aligned pair cannot establish incremental value, and inventing a movement threshold or veto from it would leak the known cash outcome | At least 30 timestamp-correct usable pairs across five prospective sessions support a preregistered threshold or defensive action with chronological stability |
-| D-075 | Auxiliary observers own isolated client triplets above the live pool | Reusing the dashboard's main/proxy IDs or persisted allocator state lets a harmless shadow collide with live connectivity and makes the launch topology depend on process timing | A cross-process lease owner subsumes both deterministic auxiliary ranges and the live rotating pool without weakening restart isolation |
-| D-076 | Profitability clocks require selected economics plus continuous coverage | An event-driven observer ledger cannot distinguish a quiet evaluated interval from a crashed or missing evaluator, and overlapping counterfactual horizons are not a tradable equity curve | One admissible selected strategy emits complete session-conditioned coverage and reconciled net-P&L/drawdown receipts under the frozen milestone contract |
-| D-077 | Coverage state is orthogonal to signal state | A quiet invocation, stale data, an unsupported session, and a stopped evaluator must not collapse into the same absence-of-forecast representation | A stronger canonical runtime receipt subsumes the same five fail-closed states without weakening first-seen forecasts or restart idempotence |
-| D-078 | Schedule the current observer only after completed XSP cash-RTH bars | The selected directional baseline is RTH-only, and repeatedly connecting through GTH/Curb would waste Gateway work while implying authority the strategy has not earned; host-local times also drift across DST | A proven GTH/Curb strategy gets its own versioned evidence cadence, or one exchange-calendar scheduler subsumes both without extra broker requests or catch-up bursts |
-| D-079 | Pin direct shadow-runtime dependencies before provisioning q | Floating installs could silently move the scheduled evaluator away from the versions used by the tested Mac runtime; exact direct pins keep the persistent environment reproducible without maintaining a redundant transitive lockfile | A repository-wide environment owner replaces `requirements.txt` with a stronger reproducible contract shared by every supported runtime |
-| D-080 | Broker read-only mode is mandatory for non-submitting observers | `order_authority=none` in a receipt describes intended code flow but cannot prevent an accidental order call; IBKR's connection-level `readonly` flag provides an independent broker-session boundary while preserving ordinary live UI order authority by default | Only a stronger broker-enforced capability boundary can replace the explicit observer flag |
-| D-081 | One session-scoped recorder owns the forward option tape | Reconnecting and requalifying hundreds of one-shot recorders wastes Gateway capacity and weakens chain continuity, while an immortal weekly daemon holds transport through closed weekends; one bounded daily process preserves exact cadence and restart semantics with minimal authority | A broker-native streaming/archive owner proves stronger continuity and provenance without widening order authority or creating a second cache |
-| D-082 | Profitability is a selected equity-curve property, never an observer sum | Overlapping forecast horizons, counterfactual points, recorder uptime, `NO_TRADE`, gross P&L, or a count of arbitrary checkpoints can all manufacture a false milestone; exact scheduled coverage and one reconciled cumulative run are the minimum defensible authority | A broker-native immutable equity journal proves the same identity, coverage, cost, drawdown, attribution, and safety invariants more strongly without widening order authority |
-| D-083 | Close historical NASDAQ-breadth admission tuning | Exact TICK/TRIN participation consistently reduced the rejected baseline's losses but did not survive the chronological audit, positive-confidence, cadence, or both-direction gates; changing windows, magnitude floors, or sides after this frozen result would outcome-mine a third historical confirmation family | Timestamp-correct prospective XSP microstructure or another independently preregistered mechanism produces stable same-tape value without retuning the rejected bar-derived families |
-| D-084 | Prospective gates count only first-seen forward broker evidence | Historical replay and already-seen mechanics are valuable deterministic diagnostics, but letting their pairs or session dates mature a forward sample gate would relabel known outcomes as prospective evidence | A stronger immutable evidence provenance proves an equivalent or stricter forward-only boundary without discarding diagnostic rows |
-| D-085 | Forward pairs earn sample authority only inside completely evaluated sessions | Counting a date because one event fired cannot distinguish a healthy full-session observer from 77 missing normal-day invocations; allowing incomplete-day pairs into the numerator would let a partial or crashed run mature the gate | A stronger canonical coverage receipt proves every expected session-conditioned slot and its evidence signature without weakening pair provenance |
-| D-086 | RTH coverage requires explicit RTH checkpoint identity | A GTH or Curb observation can coincide with an RTH wall-clock slot yet does not prove the RTH evaluator ran under the intended session contract | A stricter canonical session receipt supersedes the explicit identity without accepting timestamp coincidence |
-| D-087 | Deploy q from one pushed combined `main`, not by merging the stale execution branch at launch time | The combined tree already retains every delivered news surface and extends its canonical owners, while q's branch is intentionally divergent and carries only one local timeout override; a launch-time merge would reintroduce conflict and mixed-revision risk without adding behavior | A different pushed revision proves the news branch contains unique behavior absent from the combined tree |
-| D-088 | News availability and news age are separate clocks | `signal_as_of_utc` describes when evidence was reduced and owns horizon expiry; `snapshot_as_of_utc` describes when that exact artifact became durable and prevents a recovered or refreshed generation from entering an earlier decision | A stronger append-only publication record proves the same two-clock causality without mutable latest-state dependence |
-| D-089 | Clear q's one redundant override only after three-way identity proof | Git correctly refuses the branch switch even when the dirty file equals the target; restoring it blindly could remove a live-only correction, while stashing or merging would preserve unnecessary divergence. Exact dirty-path, pushed-target, and installed-unit equality makes the one-file restore safe and leaves the loaded service unchanged | q is already clean on tracked `main`, or a different dirty path exists and requires a new census |
-| D-090 | Known closed or unsupported XSP cash windows never reach the broker | Calendar/session truth is sufficient for GTH/Curb, holidays, and completed early-close tails; qualifying XSP or requesting RTH history there wastes transport and can turn expected closure into a false outage. Normal RTH remains broker-evidenced so unexpected halts still fail closed through data/freshness state | A proven GTH/Curb strategy earns its own versioned observer cadence, or a stronger exchange-session owner subsumes the same no-broker boundary |
-| D-091 | Fail deployment outside the proven Python 3.12–3.13 band | The pinned q dependencies are complete and work on tested Python 3.12/3.13, while upstream `eventkit` fails before TradeBot import on 3.14. Injecting a global asyncio loop merely to bypass that failure would create hidden process-wide semantics | A maintained IBKR client stack explicitly supports Python 3.14 and passes the clean recorder/shadow runtime preflight |
-| D-092 | The outer service wall must strictly exceed every nested worst-case budget | Equaling discovery + inference + publication ceilings ignores interpreter startup, process teardown, scheduling, and durable filesystem synchronization; that makes the advertised publication reserve fictional | Measured stages justify a different explicit envelope while retaining positive non-overlap margin and atomic last-good preservation |
-| D-093 | Every latest-wrapper mutation recomputes its publication ID | A content address is an integrity contract over the complete wrapper, not merely the underlying signal; retaining an old ID after a no-new refresh defeats recovery validation and provenance comparison | A stronger immutable store derives the address at write time and makes stale IDs unrepresentable |
-| D-094 | Validate every addressed news generation while reading legacy absence | Requiring an ID immediately would discard q's last-good pre-generation snapshot during one-revision migration; ignoring a present ID would make the new integrity contract decorative | The legacy q publication has naturally been replaced and an explicit schema migration can require the field universally |
-| D-095 | Do not manually republish a response rejected by q's older reducer | The exact response proves the combined reducer works, but publishing it from a different source revision would create mixed-revision provenance and bypass the tested pending-generation path | The combined revision is deployed and a natural one-shot publishes through that exact source and unit contract |
-| D-096 | Bind each indefinite XSP quote recorder to one scheduled capture window | A systemd runtime timeout is a failure and `Restart=on-failure` can recycle an otherwise normal session process after close. The recorder must own its exchange-date boundary, preserve the GTH/RTH transition gap, emit its final receipt, and exit successfully; the service wall is only a deadlock backstop | A stronger broker-native session identifier subsumes both tape date and producer lifetime without losing restart or closed-window guarantees |
-| D-097 | A scheduled capture window is not proof of an executable exchange session | Cboe's normal and holiday schedules differ, and a broker can return delayed, frozen, absent, or mixed-provenance evidence inside a nominal window. Process lifecycle must not silently become session or execution authority | One broker-native session-status contract plus a versioned Cboe holiday calendar proves the same distinction end to end |
-| D-098 | Test parity alignment through independent non-overlapping sequences | Overlapping observer horizons are not a tradable equity curve, while filtering the TA universe before constructing its baseline would let missing option evidence manufacture apparent value. Exact-sign alignment is the only outcome-independent candidate available before Monday | Thirty usable prospective pairs across five complete sessions pass first, then the frozen aligned sequence passes cadence, both-side, daily-confidence, leave-one-session-out, concentration, and incremental-value gates; any later magnitude rule requires a separately preregistered discovery/validation contract |
-| D-099 | Validate calibration content addresses on every read, then benchmark only exact precommitted outcomes | Write-time hashes do not protect later benchmarks or selected profitability if a reader accepts stale IDs. A generic result may legitimately arrive after its minimum horizon, but a fixed-horizon directional benchmark also cannot substitute that later observation, reverse the frozen side, or duplicate its named counterfactual | A stronger immutable evidence store makes malformed rows unrepresentable and a versioned variable-duration outcome schema supplies an equally strict causal identity contract |
-| D-100 | Milestones are immutable evidence prefixes, not labels over the latest balance | Later gains cannot prove that an earlier 24h/48h interval was profitable, while later failure cannot erase a milestone that was already clean. Each verdict must use only records available at the earliest instant satisfying its own wall-clock and complete-session conditions; final quest success requires all three gates, not merely the latest week | A broker-native immutable milestone journal records equally strict prefix-bound economics and coverage at source without weakening any current invariant |
-| D-101 | Switch q source only inside a quiescent, one-revision unit transaction | Replacing checkout files while the enabled news timer can launch a one-shot creates mixed-revision evidence; leaving the old loaded unit in place silently defeats the combined timeout fix. The legacy dirty copy need only equal the currently loaded unit, not the intentionally newer target | A deployment manager atomically binds source revision, isolated runtime, loaded unit hashes, and timer activation with equivalent or stronger receipts |
+### Candidate comparisons
 
-| D-102 | Bridge GTH evidence explicitly; never weaken ordinary session causality | Relaxing `same_session` for all option context would let stale GTH, RTH, or Curb rows silently enter unrelated decisions. The pre-open hypothesis needs one separately labeled same-trading-date path with fixed boundary, horizons, expiry, and completeness while the existing RTH context remains exact-session | Prospective same-tape evidence proves a stronger canonical session-transition feature without weakening quote provenance, temporal alignment, or observation-only authority |
+All additions are paired observations beside the unchanged crown; missing,
+stale, underwarmed, failed, or horizon-expired evidence means no extra gate.
 
-| D-103 | Keep pre-open parity cohorts descriptive until prospective completeness exists | Classifying the raw `2h/4h/6h` path before outcomes prevents retrospective naming, but filtering the TA universe, sharing the short-horizon parity sample subset, or ranking one cohort now would still manufacture evidence from availability | Multiple fully checkpointed prospective sessions establish a separately preregistered value contract without changing the existing parity candidate or opening sealed historical outcomes |
+| Evidence lane | Frozen question | Authority |
+|---|---|---|
+| Breadth-150 | Does fresh signed breadth deterioration improve unchanged-crown expectancy/drawdown without losing cadence? | observe only |
+| Causal news | Does fresh opposite XSP pressure avoid adverse selection; how do `new/strengthening/weakening/reversal` states change attribution? | defensive context only |
+| Option parity | Does exact-sign, independently non-overlapping parity improve same-tape directional outcomes? | observe only; at least 30 pairs / five sessions |
+| Option liquidity | Do pair count, parity dispersion, relative spread, quote age, and strengthening beat TA-only and parity alone? | threshold-free Pareto observation |
+| Pre-open bridge | Does exact `2h/4h/6h` GTH path improve the first RTH decision? | descriptive until complete prospective evidence |
+| Crash/rebound | Can displacement + multiscale reversal + fresh GTH/news distinguish crash/rebound episodes? | peer state; never a regime router |
+| Microstructure | Can top-of-book/package liquidity, spread state, and quote evolution distinguish valuable turns? | primary new admission frontier |
 
-| D-104 | Classify historical XSP GTH underlying bars as unsupported, not missing | Local provenance contains only RTH shards; the broker returned identical RTH-only `TRADES` coverage under both session flags and no historical `MIDPOINT`. Sending this through missing-range repair would create repeated requests without an evidence source, while synthesizing it would violate the causal admission boundary | A provenance-complete provider or broker capability supplies timestamped historical XSP GTH underlying evidence beyond the identical RTH result |
+News and option evidence begins only at append time. Historical headlines may
+explain plausibility but cannot label old trades or support value claims.
 
-| D-105 | Bound the shadow at existing broker owners; keep systemd as the final backstop | A shadow-only retry loop would duplicate client policy, while a global IBKR timeout would alter unrelated UI and order paths. The exact observer needs only the existing connection/history ceilings plus one missing bound at proxy qualification; together they leave deterministic checkpoint and teardown reserve beneath the outer wall | A shared broker-operation budget with stronger diagnostics can replace these owner-local ceilings without weakening UI behavior or expanding the scheduled observer |
+### Active task tree
 
-| D-106 | Treat unit arguments and loaded source as separate deployment evidence | An updated systemd timeout can override one child value without installing the source logic that partitions fetch, inference, and publication budgets. Claiming the complete nested envelope from unit text alone would hide a mixed-revision runtime | The source revision, managed runtime, loaded unit, and one natural receipt are content-addressed together by an atomic deployment authority |
-
-| D-107 | Resolve causal news from append-time history at each decision, never mutable latest alone | A four-hour publication can legitimately occur between an earlier turn and its bounded replay. Using only the new latest row turns valid prior context into a false future/missing observation, while falling back by signal outcome would create look-ahead | A transactional time-indexed signal store exposes the same publication-availability contract more directly than the locked monthly ledger |
-
-| D-108 | Arm forward capture before proving the RTH observer; gate only the shadow timer | The producer's Sunday GTH prefix is irrecoverable, while the first eligible shadow proof cannot exist until Monday `09:37 ET`. Coupling both timers makes complete Monday evidence impossible. The quote recorder is broker-read-only and has no order path, so it can safely run before the non-submitting observer's manual checkpoint | A single transactional supervisor can activate producer, verify the first exact RTH checkpoint, and arm subsequent observer slots without human timing while preserving the same fail-closed gates |
-
-| D-109 | Treat only `EVALUATED` as command success | A durable stale/no-data checkpoint is valuable evidence but not a successful scheduled evaluation. Returning zero for it hides missing coverage from systemd and operators even though the benchmark later rejects the date | A supervisor consumes structured status directly and provides equivalent failure visibility without relying on process exit |
-| D-110 | Separate an economic window from its deterministic evidence-finalization cutoff | A canonical slot is an economic boundary, while the corresponding systemd checkpoint can be recorded seconds later within the same frozen tolerance. Evaluating both at the slot instant makes valid real evidence impossible; evaluating at query time lets later data rewrite the prefix | A broker-native append-only milestone record freezes the same exact economic window and causal finalization lag at source |
-| D-111 | Keep one compact live brain and one immutable narrative archive | Reinjecting 3,000 lines made obsolete “next” markers compete with the actual frontier; deleting that prose would lose valuable research context, while splitting the evidence and decision ledgers would weaken resume authority | The root stays the sole task/evidence/decision authority; historical prose remains byte-for-byte addressable in its linked archive and is consulted only when the compact frontier points to it |
-| D-112 | Freeze raw option-liquidity evolution with a threshold-free Pareto rule before prospective outcomes | A weighted score or post-outcome cutoff would make sparse quote evidence easy to overfit, while any single improving metric can hide simultaneous deterioration elsewhere. The four already-computed causal dimensions admit a compact dominance classification and preserve conflicting evidence as `mixed` | At least 30 usable pairs across five complete prospective sessions show that a separately preregistered alternative classification improves out-of-sample economics without changing evidence provenance |
-| D-113 | Rank eligible candidates deterministically, but require an explicit selected-run freeze | Two passing candidates cannot leave promotion order to operator discretion, while automatically turning a benchmark result into runtime state would let evidence mutate strategy ownership and start an unapproved clock. The stricter liquidity candidate therefore outranks parity-aligned only after its own incremental gate; otherwise parity-aligned outranks `HOLD` | A transactional selection authority freezes equivalent evidence, run identity, lifecycle, and safety policy without allowing an open-position strategy switch or any order authority |
-| D-114 | Begin XSP with an empty crown namespace; never port a foreign legacy champion by analogy | MNQ, SLV, and TQQQ crowns encode different instruments, data, sessions, economics, and mostly README-era promotion provenance. Reusing their loader is valid only after an XSP-native artifact exists; treating an old crown as an XSP candidate would bypass this kata's prospective option/news/calibration evidence | An XSP-native HF or LF run earns nomination, completes an explicit selected-run freeze and profitability evidence, and can be promoted through the existing content-addressed machine-crown mechanism |
-| D-115 | Freeze one candidate-independent shadow risk envelope before selection | Leaving numeric limits to the future operator would permit outcome-aware risk selection; duplicating them in tests and task prose could drift. The original `25/5/2/0.50/90s` contract now travels inside every content-addressed candidate recommendation and remains synthetic evidence-only | A later quest with verified broker/account/product economics may preregister a different bounded-capital policy before its own evidence begins |
-| D-116 | Make recommendation-to-selection an explicit content-addressed boundary | Treating `PROMOTE` as mutable runtime state would let a later benchmark revision silently change ownership; requiring a separate receipt binds exact evidence and run identity without granting order authority or starting a clock | A transactional append-only selection store preserves the same immutable receipt more strongly when the first real prospective candidate becomes eligible |
-| D-117 | Recompute the recommendation from the supplied ledger at freeze time | A digest proves that a payload is internally unchanged, but not that it is authentic or current. Re-deriving the pure benchmark closes fabricated and stale selection paths while retaining deterministic restart behavior | A signed transactional evidence authority provides stronger provenance without changing the same eligibility contract |
-| D-118 | Derive profitability identity and limits only from a validated selected-run receipt | Allowing a manually assembled run ID or risk policy after selection would break attribution and permit outcome-aware policy drift. The receipt's content address therefore becomes the canonical profitability run ID and its preregistered limits are projected without reinterpretation | A transactional selected-run store emits the same validated policy directly while preserving immutable evidence identity and zero order authority |
-| D-119 | Keep discovery and inference timeout domains independent | Network discovery must remain tightly bounded even when a long Codex inference is intentionally unbounded or externally supervised; reusing an optional inference value made `None` reach numeric fetch arithmetic and broke six existing paths | One shared operation-budget contract expresses both independent ceilings without coupling their failure semantics |
-| D-120 | Absorb q's news delta semantically into one transactional owner | Replaying eleven commits onto the combined tree would duplicate or weaken its pending-publication, append-time history, and timestamp-valid consumer contracts. The integrated owner retains those stronger invariants while adding q's lifecycle, memory, capacity, CLI, and bounded-retry behavior exactly once; concurrent pipe draining also preserves timeout authority under large output | A future transactional supervisor can own source revision, inference capacity retry, publication generation, and unit activation without weakening the present one-process/one-publication boundary |
-| D-121 | Bound every completion-scheduled news run | An infinite child plus infinite service wall can wedge `OnUnitInactiveSec=4h` forever, bypass failure restart, and silently age the causal signal. The measured `30s` discovery, `840s` inference, and `90s` completion reserve preserve long research while guaranteeing release or retry | A heartbeat-aware supervisor can prove forward progress and safely extend a specific run without weakening the four-hour freshness contract |
-| D-122 | Warm the Monday observer by trading context, not calendar adjacency | `2 D` excludes Friday on Monday and can make checkpoint freshness look healthy while the multihorizon sensor has no prior session. A `1 W` request safely spans ordinary and holiday weekends; canonical disk reuse still asks IBKR only for sparse gaps and the live tail | A central warm-up planner derives the smallest calendar window from the active signal plan and exchange calendar while proving at least the same 25-bar readiness |
-| D-123 | Let the session recorder, not tunnel startup timing, own forward-evidence recovery | The application already has durable resume and bounded exponential reconnect, while a hard dependency on a three-attempt tunnel could prevent that recovery owner from starting at all. An uncapped 30-second tunnel retry plus producer `Wants` preserves eventual recovery; the bounded observer retains `Requires` and remains fail-closed | A q-local or broker-independent forward source removes the Mac/tunnel boundary while preserving the same append-only provenance contract |
-| D-124 | Schedule only the first observer proof; never pre-authorize the cadence | Missing the exact first slot would lose causal evidence, while enabling all 78 slots before inspecting the first receipt would bypass the deployment gate. A one-shot transient timer reuses the canonical shadow service and leaves the recurring timer disabled | The first checkpoint is `EVALUATED`, provenance-complete, and `order_authority=none`; then explicitly arm the remaining schedule |
-| D-125 | Make the temporary first-proof trigger reboot-durable, then remove it | A transient timer survives logout but not a manager/machine restart; missing the first slot is costlier than one temporary installed timer. `Persistent=yes` preserves the trigger, while the canonical service still rejects late/stale evidence and the recurring cadence remains disabled | Immediately after inspecting the first terminal receipt, disable and delete the temporary timer before deciding whether to arm the canonical cadence |
-| D-126 | Reject the five-minute source/gate/lifecycle family; test a lower-turnover horizon without relaxing economics | All `67` one-year survivors exceeded five-year cadence yet lost net. The best path retained positive gross movement but surrendered it to the frozen per-trade friction, so adjacent five-minute thresholds or cheaper assumed costs would outcome-mine the same mechanism | Independently frozen `15m/30m` candidates preserve positive net economics, cadence, clustered confidence, side/year attribution, and bounded concentration through both unchanged challenges |
-| D-127 | Hold the weak 30-minute behaviors and run one cap-independent breadth audit before closing bar-only discovery | Seven labels reduce to two ledgers; neither has positive daily confidence, all-year gross strength, adequate friction margin, or unconcentrated net economics. Promoting `+25.34` over `851` trades would mistake a fragile historical residue for a champion. The only untested structural question is whether the preregistered top-250 cap discarded a stable member of the already-frozen four-week qualified population | An all-qualified, content-addressed 30-minute freeze yields an unchanged identity that is positive after frozen friction and cadence in each of five annual slices, then passes full-ledger confidence, concentration, side, drawdown, and cost-sensitivity gates; otherwise prospective microstructure is the sole remaining admission frontier |
-| D-128 | Permit the heartbeat thread on the one locked sweep-store connection | Background progress is part of the canonical evaluator, while SQLite's default creator-thread rule silently prevented its persisted heartbeat and caused false worker recycling. The store already serializes every connection access, so changing only the connection affinity is the smallest repair | A dedicated heartbeat connection or process-local progress authority can prove less contention while preserving identical restart receipts |
-| D-129 | Close adjacent historical bar-only XSP admission | The cap-independent preregistered audit gave every `30m` four-week-qualified identity the same five annual gates and reached zero before the final slice. More nearby horizons, thresholds, friction relief, or gate permutations would outcome-mine a rejected evidence class | A materially independent prospective quote/liquidity or same-tape microstructure mechanism earns positive chronological and forward economics under a new preregistered identity |
-| D-130 | Do not curate the stable turn detector into sparse in-sample wins | The detector's half-year precision/recall is stable; the economic failure comes from adverse path and false admission. A frozen multivariate model found positive in-sample pockets only by retaining a negative daily lower bound or starving cadence/concentrating gains, and therefore never earned authority to expose later partitions | Timestamp-correct prospective microstructure or another independent causal feature improves the unchanged detector's admission economics across complete sessions without relaxing cadence, reliability, side, cost, or concentration gates |
-| D-131 | Make only the once-per-session quote trigger persistent | In-process recovery cannot help if q reboots across the sole daily trigger. Persistence is safe because an in-window catch-up resumes the same durable tape and an expired catch-up is rejected before broker work; applying it to the high-frequency shadow cadence could instead create bursts and stale evaluations | A broker-native durable capture scheduler subsumes the trigger while preserving trading-date identity, exact cadence, restart deduplication, and the same closed-window no-broker boundary |
-| D-132 | Reject static multiscale coefficients; test causal walk-forward adaptation once | Twelve independently regularized/density-varied discovery cells passed, yet the preregistered leader reversed both sides and lost sharply in the next calendar year. Nearby static thresholds would therefore tune to a known regime. A fixed walk-forward law is materially different: it may recalibrate only from already-matured prior shadow outcomes and must preserve the same density/economic gates | A content-addressed monthly walk-forward identity passes untouched annual slices and prospective shadow evidence without outcome-aware window, feature, threshold, or lifecycle changes |
-| D-133 | Stop curating turn events; test coherent directional expansion as a distinct source | Static and monthly-adaptive admission both failed because the raw event remains a retracement/turn that repeatedly reaches its initial stop. The opening-drive hypothesis is instead a new transition into aligned fast slope, velocity, and volatility expansion. Projecting that event from the same causal snapshots isolates source semantics without changing the engine or exits | One frozen expansion identity preserves density and positive chronology through 2023/2024, then earns prospective shadow parity; otherwise historical bar-only direction-source research closes |
-| D-134 | Close historical bar-only direction-source curation | The final materially distinct expansion source produced adequate cadence and a few positive point estimates, but zero reliable discovery pass before any later partition was exposed. Retuning neighboring slope, velocity, ATR, clock, cooldown, or permission thresholds would now select against known outcomes rather than test new information | Timestamp-correct prospective quote/liquidity evolution, causal-news context, or another independently sourced mechanism improves the unchanged detector's admission economics under a preregistered paired comparison |
-| D-135 | Persistent source ownership, not a one-bar proposal, governs directional lifecycle | A raw turn is a causal entry proposal that may disappear on the next bar; using it as an open-position owner made entry and flip semantics disagree and allowed a tight stop/trail stack to mask the directional engine. One shared lifecycle direction now follows the persistent impulse trend while admission remains separately observable | A stronger canonical position-intent contract subsumes both source ownership and entry proposals without losing exact backtest/live trace parity |
-| D-136 | Freeze the opening-edge plateau as a research champion; let prospective economics decide admission | Tight neighboring values reproduce positive net economics at the required cadence, but repeated historical inspection, a negative five-year daily LCB, `59.95` drawdown, and losing 2021/2023 slices forbid promotion. Further same-tape threshold polishing would weaken rather than strengthen the claim | The unchanged identity earns positive, coverage-complete prospective economics and drift evidence through the frozen selection and `24h → 48h → five-session` contracts |
-| D-137 | Crown Opening Edge v1 for research while leaving the operational crown vacant | The candidate now has stable-neighborhood, chronological, trace, shared-owner, exact-prefix, and full-suite proof, so withholding a durable research identity would lose valuable lineage. Those receipts still do not repair its negative five-year daily LCB, weak years, or absent prospective economics | The content-addressed candidate passes complete prospective `24h`, `48h`, and five-session economics/safety/drift gates and receives an explicit operational promotion |
-| D-138 | Preserve controlled reverse admission; reject global exit-to-flat | The central lifecycle already auto-reverses only when the inverse source and a fresh opposite admission coincide. Removing that carry changed no common trade, discarded 33 independently admitted handoffs worth `+15.78`, and fell below `200` trades/year for negligible drawdown relief | Independent prospective evidence identifies a causal veto for the losing bullish handoff subset without weakening bearish handoffs, cadence, or unchanged-crown economics |
-| D-139 | Repair optional excursion semantics but reject late profit locks | A trail should not secretly require an initial stop, so the shared pure state now models absence honestly. The complete preregistered high-activation family improved only the already-inspected recent month while sacrificing one-/five-year edge and drawdown, so operationalizing it would encode recency bias and unnecessary live state | A materially independent prospective mechanism—not a wider/higher adjacent trail—improves the unchanged crown across complete forward sessions and earns exact live/restart parity before authority |
+1. `[WIP]` Publish and synchronize the current parity/TICK/telemetry revision;
+   preserve Opening Edge v1 identity.
+2. `[WIP]` Prove Sunday/Monday quote-producer start, reconnect, same-date
+   restart, universe retention, tape integrity, and read-only behavior.
+3. `[WIP]` Inspect Monday's one-shot observer checkpoint; remove its temporary
+   timer and arm recurring cadence only after an exact `EVALUATED` receipt.
+4. `[TODO]` Accumulate identical TA-only, breadth, news, parity, liquidity,
+   pre-open, and candidate-equity observations without backfill.
+5. `[TODO]` Select/freeze a run only after positive prospective economics;
+   historical evidence alone cannot start the clock.
+6. `[TODO]` Execute the immutable `24h → 48h → five-session` sequence and
+   issue the final economic, drift, safety, and promotion verdict.
+7. `[BLOCKED]` Option structures and any live-capital canary belong to a later
+   quest after directional causality is proven.
 
 ---
 
-## 15. Prospective capability births
+## 4. Canonical architecture and control plane
 
-Encode these into the capability ledger only when implementation begins; reuse
-an existing contract where it already owns the outcome.
+| Concern | Canonical owner | Non-negotiable boundary |
+|---|---|---|
+| Exchange/session/trading date | `tradebot/engines/market.py` | one close-time clock across cache, replay, capture, and live |
+| Direction telemetry | `tradebot/engines/directional_impulse.py` | XSP-native multihorizon evidence; no selector authority |
+| Signal/permission plan | `tradebot/spot/entry_control.py` | one explicit normalized plan shared by backtest/live/UI/journal |
+| Final admission | shared `decide_flat_position_intent` kernel | every active source/gate passes once and is traceable |
+| Lifecycle | `tradebot/spot/lifecycle.py` + shared position-intent path | persistent source owner; optional stop/trail semantics are honest |
+| Historical/cache truth | canonical chart-data/history owners | sparse, provenance-bound, gap-aware, close-aligned, no fabricated absence |
+| Forward option tape | `tradebot/backtest/tools/record_quotes.py` | restart-safe GTH/RTH/Curb tape with actual MD provenance |
+| Broker shadow | `tradebot/research/xsp_shadow.py` | exact XSP `IND/CBOE`; bounded and non-submitting |
+| Evidence/economics | `tradebot/research/live_calibration.py` | append-only forecasts/results/checkpoints and immutable milestones |
+| Candidate reducers | `tradebot/research/xsp_benchmarks.py` | pure comparison; no broker/order imports |
+| Causal fundamentals | `tradebot/news/` | timestamp-valid `off/observe`; no selector/order authority |
+| Runtime activation | `deploy/systemd/` | one revision; read-only tunnel; producer before observer |
 
-- `benchmark.future.xsp-data-authenticity`
-- `integration.replay.future.xsp-option-chain-replay`
-- `benchmark.future.xsp-champion-tournament`
-- reuse `benchmark.future.live-backtest-drift-score` for XSP live calibration
-- `e2e.live.future.xsp-bounded-canary`
-- reuse the existing shadow-order digital-twin, walk-forward overfit-defense,
-  package-economics, live admission, and restart-recovery capabilities.
+**Reuse-first law:** extend these owners before creating surfaces. Centralize
+shared semantics once; no hidden gates, parallel models, adapter policy copies,
+facade forests, helper sprawl, or generic dumping grounds. A configured gate
+must be advanced, traced, and consumed identically; otherwise remove the lie.
 
-The ledger must drive system behavior, not become a substitute for it.
+### Authenticated evidence assets
+
+- XSP five-minute RTH: `97,530` bars / `1,255` sessions through July 24;
+  complete causal clock; index volume absent.
+- TICK-NASD five-minute proxy: `97,530` bars / `1,255` matched sessions;
+  observation-only, not exact NYSE breadth.
+- SPY/VIX context: provenance-bound; neither owns XSP direction.
+- July 24 XSP option tape: `91` restart-safe snapshots
+  (`8 GTH / 74 RTH / 9 Curb`).
+- IBKR cannot provide an expired-XSP historical chain, native BAG history, or
+  the required historical NBBO/Greeks. Underlier-derived option results remain
+  synthetic.
+- Causal news history exists only from its append timestamps forward.
+
+### q runtime
+
+- Python `3.13.7`, `ib-insync 0.9.86`, `textual 6.12.0`.
+- Live client pool `500..899`; shadow `979/980/981`; recorder `989`.
+- Shadow broker work is bounded to `75s` inside a `2min` service wall.
+- Closed/holiday/unsupported sessions do no broker work and are not
+  `EVALUATED`.
+- Quote timer is persistent; high-frequency shadow timer is not.
+- Exact activation transaction: [`deploy/systemd/README.md`](deploy/systemd/README.md).
 
 ---
 
-## 16. Resume and stopping protocol
+## 5. Critical history index
 
-At the beginning of every resumed round:
+Full immutable detail is in the
+[`archive evidence registry`](q_XSP_live_research_kata-archive.md#xsp-archive-a04-evidence-registry)
+and
+[`decision journal`](q_XSP_live_research_kata-archive.md#xsp-archive-a05-decision-journal).
 
-1. Read this file completely.
-2. Verify repo path, `HEAD`, worktree, remote, Gateway state, and current time.
-3. Resume the first `[WIP]`, then the highest unblocked `[TODO]`.
-4. Revalidate time-sensitive account, quote, and session facts.
+### Evidence anchors
+
+| IDs | Durable conclusion |
+|---|---|
+| E-029, E-042, E-051 | five-year XSP and supporting context caches are causal and provenance-bound |
+| E-051…E-058 | multihorizon turn detection is real telemetry, but the original turn/lifecycle families were economically rejected |
+| E-129 | original 3,000-line narrative was losslessly archived; root remains resume authority |
+| E-147…E-160 | news, recorder, read-only tunnel, q runtime, restart, sync, and reboot-durable trigger were proven |
+| E-158…E-163 | linear, nonlinear, walk-forward, and expansion admission families failed their frozen gates |
+| E-165 | lifecycle ownership and signal/permission trace parity were repaired centrally |
+| E-166…E-167 | Opening Edge v1 became the first research crown and gained exact prospective prefix evaluation |
+| E-168…E-169 | global exit-to-flat and late-profit-lock challengers were rejected; useful kernel repairs remain |
+| E-170 | weak years are genuine economic degradation, not cache/clock/cost corruption; no single historical TA veto binds them |
+| E-171 | close-time parity preserves all crown trades/economics and updates v1 without a new crown |
+| E-172 | false TICK direction authority is removed; breadth-150 remains an unpromoted observer |
+| E-173 | this active/archive split preserves the full history while making the 358-line root the sole resume authority |
+
+### Decision anchors
+
+| IDs | Frozen law |
+|---|---|
+| D-003, D-008, D-012 | no opaque router, no open-position owner swap, and `NO_TRADE` is first class |
+| D-030, D-033, D-035 | IBKR is not an expired-option archive; ambiguous gaps retry/back off and fail closed |
+| D-041, D-043, D-044 | XSP is 24x5/session-conditioned; only strategy-required quote fields gate; current strict-live entitlement remains unproven |
+| D-051…D-057 | XSP-native sensor owns telemetry; local extrema are its honest target; detection alone is not economics |
+| D-129…D-134 | tested historical bar-only admission families are closed; only materially independent evidence may reopen research |
+| D-135…D-139 | persistent source ownership, controlled reversal, crown freeze, and honest optional excursions define lifecycle |
+| D-140…D-142 | weak intervals, crash/rebound, and causal news are observable peer states—not hidden regimes or historical backfill |
+| D-143 | representation repair updates v1; coronation requires material strategic superiority |
+| D-144 | signed breadth may observe participation; dispersion cannot own direction |
+| D-145 | active authority stays minimal and priority-ordered; full receipts, closed narratives, and superseded state live behind stable archive markers |
+
+---
+
+## 6. Durable management protocol
+
+### Active file
+
+Keep only:
+
+- current mission, authority, crown, risks, and milestone contract;
+- active WIP/TODO/BLOCKED work;
+- exact current runtime/data/architecture boundaries;
+- compact critical evidence and decision indexes;
+- the next executable action.
+
+### Archive
+
+Append or move:
+
+- completed phase and campaign narratives;
+- superseded WIP/task trees and prior conclusions;
+- full immutable evidence receipts and decisions;
+- verbose commands, fingerprints, and provenance needed for forensic recovery.
+
+Stable markers:
+
+- [A01 original mandate](q_XSP_live_research_kata-archive.md#xsp-archive-a01-original-mandate)
+- [A02 prior frontier/research](q_XSP_live_research_kata-archive.md#xsp-archive-a02-pre-distillation-frontier)
+- [A03 completed task snapshot](q_XSP_live_research_kata-archive.md#xsp-archive-a03-completed-task-tree)
+- [A04 evidence registry](q_XSP_live_research_kata-archive.md#xsp-archive-a04-evidence-registry)
+- [A05 decision journal](q_XSP_live_research_kata-archive.md#xsp-archive-a05-decision-journal)
+- [A06 prior conclusion](q_XSP_live_research_kata-archive.md#xsp-archive-a06-prior-conclusion)
 
 Before stopping or changing phase:
 
-1. Update the active task tree.
-2. Append evidence and decisions.
-3. Record exact commands/artifacts, fingerprints, and results.
-4. State what remains unknown; do not convert assumptions into memory.
-5. Preserve partial data/cache work atomically and restartably.
-6. Keep the repository and this management brain synchronized.
+1. Update the frontier and active task tree.
+2. Reflect only conclusion-changing evidence here; put the full receipt in A04.
+3. Append changed architectural/research laws to A05.
+4. Preserve partial cache/tape work atomically and state what remains unknown.
+5. Verify repository, archive links, source identity, and q synchronization.
 
-No objective completion is valid until both the net-positive 24-hour and
-net-positive one-week/five-session economic receipts exist, the one-week
-calibration receipt is complete, and the system issues an honest
-promote/hold/revise/stop verdict with its remaining-risk register.
+No objective completion is valid until net-positive `24h`, `48h`, and
+five-session receipts exist and the final calibration/risk verdict is explicit.
 
 ---
 
-## 17. Authoritative product anchors
+## 7. Product anchors
 
-- Cboe XSP product overview:
-  <https://www.cboe.com/tradable_products/sp_500/mini_spx_options>
-- Cboe XSP contract specifications:
-  <https://www.cboe.com/tradable_products/sp_500/mini_spx_options/specifications>
-- IBKR API order types and combination-order behavior:
-  <https://ibkrcampus.com/campus/ibkr-api-page/order-types/>
-- IBKR Client Portal API combination and `what-if` behavior:
-  <https://ibkrcampus.com/campus/ibkr-api-page/cpapi-v1/>
-- IBKR TWS API and Gateway documentation, including historical-data
-  limitations:
-  <https://ibkrcampus.com/campus/ibkr-api-page/twsapi-doc/>
-- Cboe current U.S. options hours, including XSP GTH/RTH/Curb:
-  <https://www.cboe.com/about/hours/us-options>
+- [Cboe XSP overview](https://www.cboe.com/tradable_products/sp_500/mini_spx_options)
+- [Cboe XSP specifications](https://www.cboe.com/tradable_products/sp_500/mini_spx_options/specifications)
+- [Cboe U.S. options hours](https://www.cboe.com/about/hours/us-options)
+- [IBKR TWS/Gateway API and historical limits](https://ibkrcampus.com/campus/ibkr-api-page/twsapi-doc/)
+- [IBKR order types and combinations](https://ibkrcampus.com/campus/ibkr-api-page/order-types/)
 
 ---
 
 ## Conclusion
 
-- **Quest:** XSP Mastery — Live Research Kata
-- **Current authoritative status (E-167):** Phase 1 has its first XSP research
-  crown, Opening Edge v1, frozen at `+10.98/17` recent,
-  `+131.74/204` one-year, and `+120.59/1,019` five-year with
-  `204.61` annualized trades. Its central candidate owner exactly reproduces
-  causal prefix economics and is wired into Monday's non-submitting evaluator.
-  The full suite is `839 passed, 4 deselected`. It remains a research crown:
-  `NO_TRADE` is selected, order authority is `none`, and the profitability
-  clock is `NOT_STARTED`.
-- **Historical accumulated status through E-149 (retained):** Phase 0.4 is complete. The first bounded chronological
-  tournaments rejected both the opening-reclaim alpha family and the
-  baseline-only safe-income condor; a later exact matched audit confirmed that
-  none of `2,304` adverse-friction condors passed the safe-income gate or added
-  stable value over a vertical. The preregistered opening-state matrix also
-  found no family-wise edge; SPY/VIX context did not rescue it, and the first
-  directional-credit singleton failed chronological repeatability. The
-  preregistered directional-debit family produced zero positive daily LCBs.
-  All family-specific holdouts remain unobserved. Phase 1 now has a complete
-  five-year XSP underlying tape, causal calibration records, and a reproducible
-  128-cell credit-barrier census. The census rejects unconditional
-  multi-session carry at current evidence; the subsequent preregistered
-  direction/gap/rolling-quiet eligibility family also produced zero discovery
-  passes without opening validation or holdout. The first GTH probe confirmed
-  qualified chain/quote availability but returned mixed live/delayed provenance,
-  so it remains non-executable evidence. Fresh session-conditioned forward
-  option evidence is the active seam; the RTH boundary study remains only the
-  preregistered U.S.-open hypothesis. The restart-safe forward
-  `live_calibration.v1` command now runs against exact qualified XSP and the
-  shared cache/evaluator without order authority; its first closed-session
-  Gateway smoke correctly produced no forecasts or economics.
-  The shared multihorizon directional observer, reversal cascade, VIX
-  confirmation, and exact NASDAQ TICK/TRIN participation families have now
-  all completed their frozen chronological studies without producing an
-  admissible champion; their holdouts and live authority remain closed. The
-  forward evidence spine now includes restart-safe option tapes, first-seen
-  option-parity movement, timestamp-valid causal-news context, signal-
-  independent shadow checkpoints, a read-only q-to-Mac Gateway boundary, and
-  one fail-closed selected-economics authority. The sole prospective
-  option-parity interpretation is now frozen as an exact-sign, independently
-  non-overlapping aligned shadow candidate with explicit reliability gates.
-  The selected-economics authority now freezes independent, content-addressed
-  `24h`, `48h`, and five-session evidence prefixes; later P&L, gaps, or retries
-  cannot rewrite them. The combined WIP is green at
-  `832 passed, 4 deselected`, and every unique behavior in q's eleven-commit
-  news delta has been absorbed into the stronger combined publication
-  architecture. The production foundation at `b943ea4` and operational
-  corrections through E-149 are fully verified; q's pinned runtime and
-  installed units verify, the completion-safe news wall is restored, the
-  read-only quote producer is armed, Monday's shadow window retains
-  prior-session warm-up, and the shadow timer remains disabled.
-  The deployed recent-tape replay is byte-deterministic and honestly remains
-  `HOLD`. Therefore
-  `NO_TRADE` remains selected and the `24h → 48h → five-session` economic
-  clock remains exactly `NOT_STARTED`.
-- **Next action:** let the already-armed producer begin without backfill at
-  Sunday `20:15 ET` / Monday `10:15 AEST`; inspect the already-scheduled first
-  Monday `09:37 ET` / `23:37 AEST` non-submitting observer **and Opening Edge
-  candidate-equity** checkpoints, verify exact run/config/tape continuity, then
-  arm the remaining observer slots only if both pass. Accumulate the
-  preregistered option-parity observer toward `30` timestamp-correct pairs over
-  five prospective sessions and compare the frozen independent non-overlapping
-  TA-only, exact-sign-aligned, and aligned-plus-Pareto-strengthening receipts.
-  Keep `NO_TRADE`
-  selected until a materially new
-  causal admission mechanism passes its preregistered economics; do not retune
-  rejected slope/OHLC families or promote synthetic option evidence.
+Opening Edge v1 is the sole XSP research crown; `NO_TRADE` remains selected,
+order authority is `none`, and the profitability clock is `NOT_STARTED`.
+The immediate quest is prospective Monday evidence, then immutable
+`24h → 48h → five-session` profitability and calibration—not more historical
+decimal mining and not options capital.
 
-**Predictive observation:** authentic option quotes may show that execution
-friction dominates the small underlying effects seen so far. If so, the best
-near-term XSP champion will be a rarer, wider-margin opportunity—or
-`NO_TRADE`—rather than a busier selector.
+**Predictive observation:** the crown's strongest next improvement is likely an
+independent admission-quality signal from authentic forward liquidity, breadth,
+or causal context—not another slope threshold or a tighter exit.

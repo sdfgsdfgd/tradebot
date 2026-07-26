@@ -510,7 +510,6 @@ class SweepEvaluation:
                 if isinstance(context.regime2_bear_hard_bars, list)
                 else 0
             ),
-            tick_total=int(len(context.tick_bars) if isinstance(context.tick_bars, list) else 0),
             exec_total=int(
                 len(context.exec_bars)
                 if isinstance(context.exec_bars, list)
@@ -527,7 +526,6 @@ class SweepEvaluation:
             regime_bars=context.regime_bars,
             regime2_bars=context.regime2_bars,
             regime2_bear_hard_bars=context.regime2_bear_hard_bars,
-            tick_bars=context.tick_bars,
             exec_bars=context.exec_bars,
             prepared_series_pack=prepared_pack,
             progress_callback=progress_callback,
@@ -679,7 +677,6 @@ class SweepEvaluation:
                     "signal_total",
                     "regime_total",
                     "regime2_total",
-                    "tick_total",
                     "exec_total",
                     "sig_idx",
                     "exec_idx",
@@ -759,7 +756,6 @@ class SweepEvaluation:
                         pack_hash, prepared_pack = _spot_prepare_summary_series_pack(
                             cfg=cfg,
                             signal_bars=context_pc.signal_bars,
-                            tick_bars=context_pc.tick_bars,
                             exec_bars=context_pc.exec_bars,
                         )
                         if pack_hash:

@@ -521,11 +521,6 @@ These normalization rules are why knobs sometimes appear to behave differently t
     - `long`, `up`, `buy` -> `longs`
     - `short`, `down`, `sell` -> `shorts`.
 
-- `tick_gate_mode`
-  - aliases:
-    - `raschke`, `tick`, `tick_width`, `tickwidth` -> `raschke`
-    - off aliases -> `off`.
-
 - `spot_fill_mode` knobs (`spot_entry_fill_mode`, `spot_flip_exit_fill_mode`)
   - canonical:
     - `close`
@@ -583,26 +578,15 @@ In filters parsing, several safety clamps are applied:
 - Positive-only thresholds
   - many slope/ATR/TR threshold knobs are coerced to `None` when non-positive.
 
-## 19) Tick gate mechanics (why directional entries get nulled)
+## 19) Market breadth is observation, not direction
 
-With `tick_gate_mode=raschke`, the gate computes a market-width regime from tick bars:
-
-1. Build moving upper/lower envelopes from tick highs/lows (`tick_band_ma_period`).
-2. Compute width = upper - lower.
-3. Compute width z-score over rolling window (`tick_width_z_lookback`).
-4. Compute width slope/delta over `tick_width_slope_lookback`.
-5. State transitions:
-   - neutral -> wide if `z >= tick_width_z_enter` and slope positive
-   - neutral -> narrow if `z <= -tick_width_z_enter` and slope negative
-   - wide -> neutral when z drops below `tick_width_z_exit`
-   - narrow -> neutral when z rises above `-tick_width_z_exit`.
-6. Direction mapping:
-   - wide -> `up`
-   - narrow -> `down` (or blocked when `tick_direction_policy=wide_only`)
-   - neutral -> no tick direction.
-7. Final entry clamp:
-   - if tick direction conflicts with entry direction, entry is nulled
-   - if tick not ready and `tick_neutral_policy=block`, entry is nulled.
+The retired `tick_gate_mode=raschke` path mapped wide TICK bands to `up` and
+narrow bands to `down`. Band width measures activity or dispersion, not
+direction, so it is no longer a strategy knob, sweep axis, or entry clamp.
+Historical journals may still display the removed setting for provenance.
+Directional breadth research must use causal signed TICK levels and their
+transition explicitly, remain observation-only until validated, and fail open
+when evidence is missing, stale, or underwarmed.
 
 ## 20) One concrete divergence scenario (so this feels real)
 
@@ -977,16 +961,6 @@ The sections below are generated from the actual schema/dataclass definitions so
 | `supertrend_atr_period` | `10` |
 | `supertrend_multiplier` | `3.0` |
 | `supertrend_source` | `None` |
-| `tick_gate_mode` | `None` |
-| `tick_gate_symbol` | `'TICK-NYSE'` |
-| `tick_gate_exchange` | `'NYSE'` |
-| `tick_band_ma_period` | `10` |
-| `tick_width_z_lookback` | `252` |
-| `tick_width_z_enter` | `1.0` |
-| `tick_width_z_exit` | `0.5` |
-| `tick_width_slope_lookback` | `3` |
-| `tick_neutral_policy` | `None` |
-| `tick_direction_policy` | `None` |
 | `spot_entry_fill_mode` | `'close'` |
 | `spot_flip_exit_fill_mode` | `'close'` |
 | `spot_next_open_session` | `'auto'` |

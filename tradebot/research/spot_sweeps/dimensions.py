@@ -460,24 +460,6 @@ _AXIS_DIMENSION_REGISTRY: dict[str, dict[str, object]] = {
                 },
             ),
         ),
-        "tick_variants": (
-            ("tick=off", {"tick_gate_mode": "off"}),
-            (
-                "tick=raschke",
-                {
-                    "tick_gate_mode": "raschke",
-                    "tick_gate_symbol": "TICK-AMEX",
-                    "tick_gate_exchange": "AMEX",
-                    "tick_neutral_policy": "allow",
-                    "tick_direction_policy": "both",
-                    "tick_band_ma_period": 10,
-                    "tick_width_z_lookback": 252,
-                    "tick_width_z_enter": 1.0,
-                    "tick_width_z_exit": 0.5,
-                    "tick_width_slope_lookback": 3,
-                },
-            ),
-        ),
         "shock_variants": (
             ("shock=off", {"shock_gate_mode": "off"}),
             (
@@ -602,7 +584,6 @@ _AXIS_DIMENSION_REGISTRY: dict[str, dict[str, object]] = {
                         "supertrend_atr_period": 7,
                         "supertrend_multiplier": 0.4,
                         "supertrend_source": "close",
-                        "tick_gate_mode": "off",
                         "spot_exec_bar_size": "1 min",
                     },
                     "filter_overrides": {
@@ -687,7 +668,6 @@ _AXIS_DIMENSION_REGISTRY: dict[str, dict[str, object]] = {
                         "supertrend_atr_period": 7,
                         "supertrend_multiplier": 0.4,
                         "supertrend_source": "close",
-                        "tick_gate_mode": "off",
                         "spot_exec_bar_size": "1 min",
                     },
                     "filter_overrides": {
@@ -758,7 +738,6 @@ _AXIS_DIMENSION_REGISTRY: dict[str, dict[str, object]] = {
         # Dominant ordering used by mixed-radix shard ranges.
         "dominant_dims": (
             "timing_profile",
-            "tick",
             "regime",
             "regime2",
             "risk",
@@ -768,7 +747,6 @@ _AXIS_DIMENSION_REGISTRY: dict[str, dict[str, object]] = {
         ),
         "cost_hints": {
             "timing_profile": 1.8,
-            "tick": 1.4,
             "regime": 1.3,
             "regime2": 1.2,
             "risk": 1.5,
@@ -790,7 +768,6 @@ _SWEEP_COST_MODEL: dict[str, float] = {
         "base": 1.0,
         "regime_cross_tf": 0.5,
         "regime2_cross_tf": 0.5,
-        "tick_gate_on": 0.75,
         "exec_cross_tf": 0.75,
         "perm_gate_on": 0.15,
         "tod_gate_on": 0.12,

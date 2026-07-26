@@ -1649,7 +1649,6 @@ def test_active_knob_tokens_ignore_max_tokens_limit() -> None:
             "regime2_ema_preset": "8/21",
             "spot_resize_policy": "off",
             "spot_risk_overlay_policy": "none",
-            "tick_gate_mode": "off",
         },
         filters={
             "riskoff_mode": "directional",

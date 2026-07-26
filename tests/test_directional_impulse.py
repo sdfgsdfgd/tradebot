@@ -134,6 +134,17 @@ def test_directional_turn_census_replays_the_production_sensor() -> None:
     assert event["forward_paths"]["1"]["directed_mae_points"] >= 0.0
 
 
+def test_opening_edge_policy_uses_causal_bar_close_clock() -> None:
+    turn = DirectionalTurnPolicy().as_payload()
+    admission = DirectionalImpulseAdmissionPolicy().as_payload()
+
+    assert turn["start_et"] == "09:35"
+    assert turn["end_et"] == "11:50"
+    assert admission["start_minute_et"] == 9 * 60 + 35
+    assert admission["core_end_minute_et"] == 11 * 60 + 20
+    assert admission["late_up_end_minute_et"] == 11 * 60 + 30
+
+
 def test_entry_control_plan_centralizes_source_permissions_and_order() -> None:
     plan = SpotEntryControlPlan.from_sources(
         strategy={
@@ -142,7 +153,6 @@ def test_entry_control_plan_centralizes_source_permissions_and_order() -> None:
             "regime_ema_preset": "8/21",
             "regime2_mode": "supertrend",
             "regime2_bar_size": "30 mins",
-            "tick_gate_mode": "raschke",
             "directional_spot": {
                 "up": {"action": "BUY", "qty": 1},
                 "down": {"action": "", "qty": 1},
@@ -173,7 +183,6 @@ def test_entry_control_plan_centralizes_source_permissions_and_order() -> None:
     assert plan.bear_takeover_scope == "riskoff"
     assert plan.shock_gate == "detect"
     assert plan.signal_filters == ("time", "permission")
-    assert plan.tick_gate == "raschke"
     assert plan.allowed_directions == ("up",)
     assert plan.graph_entry_policy == "slope_tr_guard"
     assert plan.directional_impulse == "observe"
@@ -190,7 +199,6 @@ def test_entry_control_plan_centralizes_source_permissions_and_order() -> None:
         "bear_takeover",
         "regime_entry_gates",
         "signal_filters",
-        "tick_gate",
         "direction_mapping",
         "lifecycle",
         "graph_entry_policy",

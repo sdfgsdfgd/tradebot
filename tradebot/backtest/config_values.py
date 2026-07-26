@@ -351,42 +351,6 @@ def _parse_regime2_clean_host_takeover_state(value) -> str:
     return "trend_up_clean"
 
 
-def _parse_tick_gate_mode(value) -> str:
-    if value is None:
-        return "off"
-    if isinstance(value, str):
-        cleaned = value.strip().lower()
-        if cleaned in ("off", "none", "disabled", "false", "0"):
-            return "off"
-        if cleaned in ("raschke", "tick", "tick_width", "tickwidth"):
-            return "raschke"
-    return "off"
-
-
-def _parse_tick_neutral_policy(value) -> str:
-    if value is None:
-        return "allow"
-    if isinstance(value, str):
-        cleaned = value.strip().lower()
-        if cleaned in ("allow", "pass", "permit"):
-            return "allow"
-        if cleaned in ("block", "deny", "none"):
-            return "block"
-    return "allow"
-
-
-def _parse_tick_direction_policy(value) -> str:
-    if value is None:
-        return "both"
-    if isinstance(value, str):
-        cleaned = value.strip().lower()
-        if cleaned in ("both", "two_sided", "twosided", "long_short", "longshort"):
-            return "both"
-        if cleaned in ("wide_only", "wideonly", "long_only", "longonly", "wide_long", "widelong"):
-            return "wide_only"
-    return "both"
-
-
 def _parse_spot_fill_mode(value, *, default: str) -> str:
     fallback = normalize_spot_fill_mode(default, default=SPOT_FILL_MODE_CLOSE)
     return normalize_spot_fill_mode(value, default=fallback)

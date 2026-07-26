@@ -53,7 +53,6 @@ from .support import (
 
 _SERIES_CACHE = series_cache_service()
 _SWEEP_BARS_NAMESPACE = "spot.sweeps.bars"
-_SWEEP_TICK_NAMESPACE = "spot.sweeps.tick"
 
 
 class SweepMarketData:
@@ -181,113 +180,6 @@ class SweepMarketData:
         _SERIES_CACHE.set(namespace=_SWEEP_BARS_NAMESPACE, key=key, value=loaded)
         return loaded
 
-    def _tick_bars_for(self, cfg: ConfigBundle) -> list | None:
-        tick_mode = str(getattr(cfg.strategy, "tick_gate_mode", "off") or "off").strip().lower()
-        if tick_mode == "off":
-            return None
-        if tick_mode != "raschke":
-            return None
-
-        tick_symbol = str(getattr(cfg.strategy, "tick_gate_symbol", "TICK-NYSE") or "TICK-NYSE").strip()
-        tick_exchange = str(getattr(cfg.strategy, "tick_gate_exchange", "NYSE") or "NYSE").strip()
-        try:
-            z_lookback = int(getattr(cfg.strategy, "tick_width_z_lookback", 252) or 252)
-        except (TypeError, ValueError):
-            z_lookback = 252
-        try:
-            ma_period = int(getattr(cfg.strategy, "tick_band_ma_period", 10) or 10)
-        except (TypeError, ValueError):
-            ma_period = 10
-        try:
-            slope_lb = int(getattr(cfg.strategy, "tick_width_slope_lookback", 3) or 3)
-        except (TypeError, ValueError):
-            slope_lb = 3
-
-        warm_days = max(60, int(z_lookback) + int(ma_period) + int(slope_lb) + 5)
-        tick_start_dt = self.start_dt - timedelta(days=int(warm_days))
-        # $TICK is defined for RTH only (NYSE hours).
-        tick_use_rth = True
-
-        def _load_tick_daily(symbol: str, exchange: str) -> list:
-            try:
-                if self.offline:
-                    series = self.data.load_cached_bar_series(
-                        symbol=symbol,
-                        exchange=exchange,
-                        start=tick_start_dt,
-                        end=self.end_dt,
-                        bar_size="1 day",
-                        use_rth=tick_use_rth,
-                        cache_dir=self.cache_dir,
-                    )
-                    return bars_list(series)
-                series = self.data.load_or_fetch_bar_series(
-                    symbol=symbol,
-                    exchange=exchange,
-                    start=tick_start_dt,
-                    end=self.end_dt,
-                    bar_size="1 day",
-                    use_rth=tick_use_rth,
-                    cache_dir=self.cache_dir,
-                )
-                return bars_list(series)
-            except FileNotFoundError:
-                return []
-
-        def _from_cache(symbol: str, exchange: str) -> list | None:
-            cache_key = (str(symbol), str(exchange), bool(self.offline))
-            cached = _SERIES_CACHE.get(namespace=_SWEEP_TICK_NAMESPACE, key=cache_key)
-            if not isinstance(cached, tuple) or len(cached) != 3:
-                return None
-            cached_start, cached_end, cached_bars = cached
-            if (
-                not isinstance(cached_start, datetime)
-                or not isinstance(cached_end, datetime)
-                or not isinstance(cached_bars, list)
-            ):
-                return None
-            if cached_start <= tick_start_dt and cached_end >= self.end_dt:
-                return cached_bars
-            return None
-
-        cached = _from_cache(tick_symbol, tick_exchange)
-        if cached is not None:
-            return cached
-
-        tick_bars = _load_tick_daily(tick_symbol, tick_exchange)
-        used_symbol = tick_symbol
-        used_exchange = tick_exchange
-        # Offline friendly fallback: IBKR permissions may block NYSE TICK, but AMEX TICK is often available.
-        if not tick_bars and tick_symbol.upper() == "TICK-NYSE":
-            fallback_symbol = "TICK-AMEX"
-            fallback_exchange = "AMEX"
-            cached_fb = _from_cache(fallback_symbol, fallback_exchange)
-            if cached_fb is not None:
-                tick_bars = cached_fb
-                used_symbol = fallback_symbol
-                used_exchange = fallback_exchange
-            else:
-                fb = _load_tick_daily(fallback_symbol, fallback_exchange)
-                if fb:
-                    tick_bars = fb
-                    used_symbol = fallback_symbol
-                    used_exchange = fallback_exchange
-        if not tick_bars:
-            hint = (
-                " (cache empty; run once without --offline to populate, requires market data permissions)"
-                if self.offline
-                else " (check IBKR market data permissions for NYSE IND)"
-            )
-            extra = " (try TICK-AMEX/AMEX if available)" if tick_symbol.upper() == "TICK-NYSE" else ""
-            raise SystemExit(f"No $TICK bars available for {tick_symbol} ({tick_exchange}){hint}{extra}.")
-        cache_key = (str(used_symbol), str(used_exchange), bool(self.offline))
-        _SERIES_CACHE.set(
-            namespace=_SWEEP_TICK_NAMESPACE,
-            key=cache_key,
-            value=(tick_start_dt, self.end_dt, tick_bars),
-        )
-        return tick_bars
-
     def _context_bars_for_cfg(
         self,
         *,
@@ -297,10 +189,6 @@ class SweepMarketData:
         bars_eff = bars if bars is not None else self._bars_cached(str(cfg.backtest.bar_size))
 
         def _load(req: SpotBarRequirement, _start: datetime, _end: datetime):
-            # Sweep windows intentionally retain their historical scoring range;
-            # only $TICK carries its established explicit warm-up window here.
-            if req.kind == "tick":
-                return self._tick_bars_for(cfg)
             return self._bars_cached(str(req.bar_size))
 
         def _missing(req: SpotBarRequirement, _start: datetime, _end: datetime) -> None:
@@ -431,7 +319,6 @@ class SweepMarketData:
                     max(1, int(perm_total)),
                     max(1, int(tod_total)),
                     max(1, len(_combo_dim_labels("regime2"))),
-                    max(1, len(_combo_dim_labels("tick"))),
                     max(1, len(_combo_dim_labels("shock"))),
                     max(1, len(_combo_dim_labels("risk"))),
                     max(1, int(short_total)),

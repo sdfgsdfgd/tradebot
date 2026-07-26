@@ -319,16 +319,6 @@ class StrategyConfigBase:
     supertrend_atr_period: int = 10
     supertrend_multiplier: float = 3.0
     supertrend_source: str = "hl2"
-    tick_gate_mode: str = "off"
-    tick_gate_symbol: str = "TICK-NYSE"
-    tick_gate_exchange: str = "NYSE"
-    tick_band_ma_period: int = 10
-    tick_width_z_lookback: int = 252
-    tick_width_z_enter: float = 1.0
-    tick_width_z_exit: float = 0.5
-    tick_width_slope_lookback: int = 3
-    tick_neutral_policy: str = "allow"
-    tick_direction_policy: str = "both"
     spot_entry_fill_mode: str = "close"
     spot_flip_exit_fill_mode: str = "close"
     spot_next_open_session: str = "auto"

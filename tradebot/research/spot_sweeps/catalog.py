@@ -126,7 +126,6 @@ _AXIS_SURFACE_SPECS: tuple[AxisSurfaceSpec, ...] = (
         total_hint_mode="shock_profile",
     ),
     AxisSurfaceSpec("loosen", True, "Loosenings sweep (single-position parity + EOD behavior)."),
-    AxisSurfaceSpec("tick", True, "Raschke-style $TICK width gate sweep."),
 )
 _AXIS_CHOICES = tuple(spec.name for spec in _AXIS_SURFACE_SPECS)
 _AXIS_ALL_PLAN = tuple(spec.name for spec in _AXIS_SURFACE_SPECS if bool(spec.include_in_axis_all))
@@ -142,7 +141,6 @@ _COMBO_FULL_CARTESIAN_DIM_ORDER: tuple[str, ...] = (
     "regime",
     "regime2",
     "exit",
-    "tick",
     "shock",
     "slope",
     "risk",
@@ -157,7 +155,6 @@ _COMBO_FULL_PAIR_DIM_VARIANT_SPECS: tuple[tuple[str, str], ...] = (
     ("regime", "regime_variants"),
     ("regime2", "regime2_variants"),
     ("exit", "exit_variants"),
-    ("tick", "tick_variants"),
     ("shock", "shock_variants"),
     ("slope", "slope_variants"),
     ("risk", "risk_variants"),
@@ -170,7 +167,6 @@ _COMBO_FULL_NOTE_PAIR_DIM_ORDER: tuple[str, ...] = (
     "regime",
     "regime2",
     "exit",
-    "tick",
     "shock",
     "slope",
     "risk",
@@ -194,7 +190,6 @@ _COMBO_FULL_COVERAGE_TIER_REGISTRY: dict[str, dict[str, object]] = {
     },
     "gate": {"freeze_dims": _freeze_all_except("perm", "tod", "vol", "cadence")},
     "ema": {"freeze_dims": _freeze_all_except("direction", "perm", "tod", "vol")},
-    "tick": {"freeze_dims": _freeze_all_except("perm", "tod", "vol", "tick")},
     "regime": {"freeze_dims": _freeze_all_except("regime", "exit")},
     "risk": {
         "freeze_dims": _freeze_all_except("risk"),
@@ -218,17 +213,11 @@ _COMBO_FULL_PRESET_ALIAS_REGISTRY: dict[str, dict[str, object]] = {
     },
     "perm_joint": {"tier": "gate"},
     "ema_perm_joint": {"tier": "ema"},
-    "tick_perm_joint": {"tier": "tick"},
     "regime_atr": {"tier": "regime"},
     "ema_regime": {
         "tier": "ema",
         "customizer": "ema_regime",
         "freeze_dims": _freeze_all_except("direction", "regime"),
-    },
-    "tick_ema": {
-        "tier": "tick",
-        "customizer": "tick_ema",
-        "freeze_dims": _freeze_all_except("direction", "tick"),
     },
     "ema_atr": {
         "tier": "ema",
@@ -254,7 +243,7 @@ _COMBO_FULL_PRESET_ALIAS_REGISTRY: dict[str, dict[str, object]] = {
     "gate_matrix": {
         "tier": "gate",
         "customizer": "gate_matrix",
-        "freeze_dims": _freeze_all_except("perm", "tod", "regime2", "tick", "shock", "risk", "short_mult"),
+        "freeze_dims": _freeze_all_except("perm", "tod", "regime2", "shock", "risk", "short_mult"),
     },
     "lf_shock_sniper": {
         "tier": "risk",

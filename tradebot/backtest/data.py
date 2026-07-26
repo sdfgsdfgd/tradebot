@@ -127,6 +127,7 @@ def _series_meta(
         source_path=(str(source_path) if source_path is not None else None),
         requested_start=start,
         requested_end=end,
+        extra={"timestamp_semantics": "close"},
     )
 
 
