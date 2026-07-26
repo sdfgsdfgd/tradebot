@@ -127,9 +127,20 @@ Across the five-year crown ledger:
 - EOD exits contribute `+376.51` points;
 - flip exits contribute `-255.92` points.
 
-The negative local flip total does not prove flips should be deleted: disabling
-them destroys timely reverse-position ownership. Exit improvement must be
-tested counterfactually without changing this crown.
+The frozen exit-to-flat ablation kept inverse-source exits but disabled only
+the admitted reverse handoff:
+
+- recent economics were identical;
+- one year fell from `+131.74/204` to `+117.11/196`;
+- five years fell from `+120.59/1,019` to `+104.81/986`;
+- annualized cadence fell from `204.61` to `197.99`;
+- drawdown improved only from `59.95` to `58.46`;
+- zero common trades changed; the crown's 33 extra admitted handoffs earned
+  `+15.78` (`+22.44/7` down, `-6.66/26` up).
+
+Controlled reversal is therefore retained. The precise open seam is the weak
+bullish handoff subset, which requires independent prospective evidence—not
+global flip deletion or more same-tape threshold polishing.
 
 ### 4. The tight knob search found a plateau, not a magic decimal
 
@@ -205,7 +216,7 @@ Promotion requires, in order:
 | Causal news context | Experimental | Paired TA-only vs TA+news veto; never historical-backfill |
 | Quote/liquidity admission | Open | Test whether spread, depth, freshness, and quote movement reject adverse entries |
 | Weak-year explanation | Open | Explain 2021/2023 loss with causal, independently available evidence |
-| Exit quality | Open | Attribute losing flips by pre-exit evidence; preserve reverse ownership |
+| Exit quality | Partly covered | Global exit-to-flat rejected; challenge only weak bullish handoffs with independent evidence |
 | Operational selection | Blocked | Only after the complete 24h/48h/week promotion ladder |
 
 ### Highest-value arcane seams
@@ -251,6 +262,18 @@ its predecessor’s numbers.
 ---
 
 ## Crown history — newest first
+
+### CH-001 · 2026-07-26 · Exit-to-flat ablation · Rejected
+
+- **Predecessor:** Opening Edge v1, unchanged.
+- **Change:** retain inverse-source exits; disable only the deferred opposite
+  admission handoff.
+- **Result:** identical recent economics; one year `+117.11/196`; five years
+  `+104.81/986`, PF `1.153`, drawdown `58.46`, and `197.99` trades/year.
+- **Attribution:** zero common trades changed; 33 omitted crown handoffs were
+  worth `+15.78`, split `+22.44/7` down and `-6.66/26` up.
+- **Verdict:** reject globally. Preserve the crown and test the weak bullish
+  subset only when independent prospective evidence can preregister a veto.
 
 ### CR-001 · 2026-07-26 · Opening Edge v1
 
