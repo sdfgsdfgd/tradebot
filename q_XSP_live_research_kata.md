@@ -277,6 +277,7 @@ and
 | E-175…E-176, E-180 | signed TICK values remain valid history; every unused breadth reducer/fetch/receipt/runtime surface was retired |
 | E-177 | the corrected-lifecycle tournament retained Opening Edge v1; q revision, crown fingerprint, timers, and on-demand read-only Gateway tunnel were preflighted for Monday |
 | E-178…E-179 | exact Opening Edge v1 shadow selection was frozen pre-outcome; two-week history preserves the complete run through its seven-day deadline |
+| E-181 | loss-conditioned flip and handoff challengers failed recent/one-year gates; the crown lifecycle remains unchanged |
 
 ### Decision anchors
 
@@ -293,6 +294,7 @@ and
 | D-144, D-146…D-147, D-151 | preserve signed index ingestion, but retain no unused breadth subsystem or runtime authority |
 | D-145 | active authority stays minimal and priority-ordered; full receipts, closed narratives, and superseded state live behind stable archive markers |
 | D-148…D-150 | stop historical tuning; preselect the unchanged crown and retain enough history to reproduce its full weekly path |
+| D-152 | P&L-conditioned flip ownership is closed; wait for independent prospective evidence |
 
 ---
 
