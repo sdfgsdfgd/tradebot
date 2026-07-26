@@ -22,26 +22,24 @@ output belongs in commit/final verification, not in this management brain.
 | Selected strategy | `NO_TRADE` |
 | Research crown | `xsp.opening-edge-directional.v1` / Opening Edge v1 |
 | Runtime revision | `close-time-parity-r1`; same physical crown, not v2 |
-| Source anchor | `8b1dee79789f16e1985754fc294c1de0ede5bdf8` plus the current parity/TICK/telemetry integration; publication pending |
+| Source anchor | `d20ed6e8b34d62f6adcf7f72b9182a937b55e29a`; exact on Mac, GitHub, and q |
 | Order/capital authority | `none` |
 | Profitability clock | `NOT_STARTED` |
 | Next irreversible evidence | Monday's first complete prospective XSP session |
-| First active work | Finish parity/TICK revision publication; prove q quote-producer start/restart; inspect the first observer checkpoint |
+| First active work | Prove q quote-producer start/restart; inspect the first observer checkpoint |
 
 ### Immediate sequence
 
-1. Publish and synchronize the current close-clock parity, false-TICK retirement,
-   signed-breadth observation, and telemetry revision as one clean source state.
-2. Let q's persistent quote trigger start Sunday `20:15 ET` / Monday
+1. Let q's persistent quote trigger start Sunday `20:15 ET` / Monday
    `10:15 AEST`; do not backfill or manually create the evidence.
-3. Prove recorder process start, same-session restart continuity, exact
+2. Prove recorder process start, same-session restart continuity, exact
    trading-date tape identity, and read-only broker behavior.
-4. Inspect the reboot-durable one-shot Monday `09:37 ET` /
+3. Inspect the reboot-durable one-shot Monday `09:37 ET` /
    `23:37 AEST` observer receipt. Require fresh close-aligned data,
    `EVALUATED`, coherent candidate equity, and `order_authority=none`.
-5. Remove the temporary one-shot timer, then arm `09:42..16:02 ET` only if
+4. Remove the temporary one-shot timer, then arm `09:42..16:02 ET` only if
    that checkpoint is exact.
-6. Accumulate prospective economics before selecting anything or starting a
+5. Accumulate prospective economics before selecting anything or starting a
    milestone clock.
 
 ### Never infer
@@ -186,19 +184,17 @@ explain plausibility but cannot label old trades or support value claims.
 
 ### Active task tree
 
-1. `[WIP]` Publish and synchronize the current parity/TICK/telemetry revision;
-   preserve Opening Edge v1 identity.
-2. `[WIP]` Prove Sunday/Monday quote-producer start, reconnect, same-date
+1. `[WIP]` Prove Sunday/Monday quote-producer start, reconnect, same-date
    restart, universe retention, tape integrity, and read-only behavior.
-3. `[WIP]` Inspect Monday's one-shot observer checkpoint; remove its temporary
+2. `[WIP]` Inspect Monday's one-shot observer checkpoint; remove its temporary
    timer and arm recurring cadence only after an exact `EVALUATED` receipt.
-4. `[TODO]` Accumulate identical TA-only, breadth, news, parity, liquidity,
+3. `[TODO]` Accumulate identical TA-only, breadth, news, parity, liquidity,
    pre-open, and candidate-equity observations without backfill.
-5. `[TODO]` Select/freeze a run only after positive prospective economics;
+4. `[TODO]` Select/freeze a run only after positive prospective economics;
    historical evidence alone cannot start the clock.
-6. `[TODO]` Execute the immutable `24h → 48h → five-session` sequence and
+5. `[TODO]` Execute the immutable `24h → 48h → five-session` sequence and
    issue the final economic, drift, safety, and promotion verdict.
-7. `[BLOCKED]` Option structures and any live-capital canary belong to a later
+6. `[BLOCKED]` Option structures and any live-capital canary belong to a later
    quest after directional causality is proven.
 
 ---
@@ -273,7 +269,8 @@ and
 | E-170 | weak years are genuine economic degradation, not cache/clock/cost corruption; no single historical TA veto binds them |
 | E-171 | close-time parity preserves all crown trades/economics and updates v1 without a new crown |
 | E-172 | false TICK direction authority is removed; breadth-150 remains an unpromoted observer |
-| E-173 | this active/archive split preserves the full history while making the 358-line root the sole resume authority |
+| E-173 | this active/archive split preserves the full history while making the 355-line root the sole resume authority |
+| E-174 | `d20ed6e` publishes the crown parity/breadth runtime and management anchor identically on Mac/GitHub/q; raw and repaired campaign artifacts remain separately preserved |
 
 ### Decision anchors
 
