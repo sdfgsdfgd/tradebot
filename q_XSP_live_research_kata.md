@@ -19,14 +19,15 @@ output belongs in commit/final verification, not in this management brain.
 
 | Authority | Current truth |
 |---|---|
-| Selected strategy | `NO_TRADE` |
+| Broker/order strategy | `NO_TRADE` |
+| Selected shadow | Opening Edge v1; `9fac460e…`; evidence-only |
 | Research crown | `xsp.opening-edge-directional.v1` / Opening Edge v1 |
 | Runtime revision | `close-time-parity-r1`; same physical crown, not v2 |
-| Runtime source anchor | current `main`; signed breadth remains research-only and is absent from prospective shadow receipts |
+| Runtime source anchor | current `main`; no TICK/breadth runtime path |
 | Order/capital authority | `none` |
-| Profitability clock | `NOT_STARTED` |
-| Next irreversible evidence | Monday's first complete prospective XSP session |
-| First active work | Prove q quote-producer startup at `10:15 AEST`, then the first non-submitting observer checkpoint at `23:37 AEST` |
+| Profitability clock | `ARMED`; starts only at the first exact `EVALUATED` selected checkpoint |
+| Next irreversible evidence | Monday's first exact selected-shadow checkpoint |
+| First active work | Prove q quote-producer startup at `10:15 AEST`, then selected-shadow checkpoint at `23:37 AEST` |
 
 ### Immediate sequence
 
@@ -35,17 +36,20 @@ output belongs in commit/final verification, not in this management brain.
 2. Prove recorder process start, same-session restart continuity, exact
    trading-date tape identity, and read-only broker behavior.
 3. Inspect the reboot-durable one-shot Monday `09:37 ET` /
-   `23:37 AEST` observer receipt. Require fresh close-aligned data,
-   `EVALUATED`, coherent candidate equity, and `order_authority=none`.
+   `23:37 AEST` receipt. Require fresh close-aligned data, `EVALUATED`,
+   selected-equity run `9fac460e…`, coherent candidate equity, and
+   `order_authority=none`.
 4. Remove the temporary one-shot timer, then arm `09:42..16:02 ET` only if
    that checkpoint is exact.
-5. Accumulate prospective economics before selecting anything or starting a
-   milestone clock.
+5. Accumulate the unchanged selected shadow through the immutable
+   `24h → 48h → five-session` prefixes.
 
 ### Never infer
 
 - XSP itself is not a tradable spot contract; the one-unit proof is an
   index-equivalent shadow, never a fabricated broker fill.
+- Shadow selection freezes attribution before outcomes; it grants no broker,
+  order, option, or capital authority.
 - Historical positive P&L, safe abstention, infrastructure uptime, delayed
   quotes, synthetic option economics, or one lucky trade is not live proof.
 - No opaque regime router, hidden permission gate, open-position strategy swap,
@@ -141,9 +145,9 @@ and drawdown. It updates Opening Edge v1; only a materially stronger strategy
 across recent, latest-year, annual-slice, five-year, cadence, risk, and
 prospective evidence may receive a new crown.
 
-TICK is now deliberately small: explicit signed-index history semantics plus
-one causal research reducer. It performs no automatic broker request, shadow
-receipt propagation, direction vote, veto, selector action, or live order
+TICK is now deliberately outside the XSP runtime: only generic signed-index
+history semantics and one pure research reducer remain. There is no XSP
+wrapper, broker request, shadow field, direction vote, veto, selector, or live
 action. The rejected breadth challenger remains only in cold evidence.
 
 ---
@@ -174,14 +178,16 @@ explain plausibility but cannot label old trades or support value claims.
    asymmetric controlled handoffs. Every recent improvement weakened later
    evidence; only Opening Edge v1 survived the one-year and five-year crown
    gates with unchanged `$0.10` friction and `>200` trades/year.
-2. `[WIP]` Prove Sunday/Monday quote-producer start, reconnect, same-date
+2. `[DONE]` Freeze the exact Opening Edge v1 shadow identity before Monday
+   outcomes. Selection `9fac460e…` binds config `bbb0a391…`, the frozen risk
+   envelope, and `order_authority=none`; broker selection remains `NO_TRADE`.
+3. `[WIP]` Prove Sunday/Monday quote-producer start, reconnect, same-date
    restart, universe retention, tape integrity, and read-only behavior.
-3. `[WIP]` Inspect Monday's one-shot observer checkpoint; remove its temporary
-   timer and arm recurring cadence only after an exact `EVALUATED` receipt.
-4. `[TODO]` Accumulate identical TA-only, news, parity, liquidity,
+4. `[WIP]` Inspect Monday's one-shot selected checkpoint; remove its temporary
+   timer and arm recurring cadence only after an exact `EVALUATED` receipt
+   starts the frozen clock without changing strategy identity.
+5. `[TODO]` Accumulate identical TA-only, news, parity, liquidity,
    pre-open, and candidate-equity observations without backfill.
-5. `[TODO]` Select/freeze a run only after positive prospective economics;
-   historical evidence alone cannot start the clock.
 6. `[TODO]` Execute the immutable `24h → 48h → five-session` sequence and
    issue the final economic, drift, safety, and promotion verdict.
 7. `[BLOCKED]` Option structures and any live-capital canary belong to a later
@@ -202,7 +208,7 @@ explain plausibility but cannot label old trades or support value claims.
 | Forward option tape | `tradebot/backtest/tools/record_quotes.py` | restart-safe GTH/RTH/Curb tape with actual MD provenance |
 | Broker shadow | `tradebot/research/xsp_shadow.py` | exact XSP `IND/CBOE`; bounded and non-submitting |
 | Evidence/economics | `tradebot/research/live_calibration.py` | append-only forecasts/results/checkpoints and immutable milestones |
-| External decision context | `tradebot/research/xsp_context.py` | timestamp-causal option/news projection plus a research-only signed-breadth reducer |
+| External decision context | `tradebot/research/xsp_context.py` | timestamp-causal option/news projection; no breadth runtime |
 | Candidate reducers | `tradebot/research/xsp_benchmarks.py` | pure comparison; no broker/order imports |
 | Causal fundamentals | `tradebot/news/` | timestamp-valid `off/observe`; no selector/order authority |
 | Runtime activation | `deploy/systemd/` | one revision; read-only tunnel; producer before observer |
@@ -267,6 +273,7 @@ and
 | E-174 | `d20ed6e` publishes the crown parity/breadth runtime and management anchor identically on Mac/GitHub/q; raw and repaired campaign artifacts remain separately preserved |
 | E-175…E-176 | signed TICK values remain valid research data; automatic breadth fetch/receipt propagation was then retired as unearned runtime surface |
 | E-177 | the corrected-lifecycle tournament retained Opening Edge v1; q revision, crown fingerprint, timers, and on-demand read-only Gateway tunnel were preflighted for Monday |
+| E-178 | exact Opening Edge v1 shadow selection was frozen pre-outcome; Monday can start the requested profitability clock without broker/order authority |
 
 ### Decision anchors
 
@@ -282,6 +289,7 @@ and
 | D-143 | representation repair updates v1; coronation requires material strategic superiority |
 | D-144, D-146…D-147 | signed breadth may remain a pure research observation; it has no active direction, gate, selector, or shadow authority |
 | D-145 | active authority stays minimal and priority-ordered; full receipts, closed narratives, and superseded state live behind stable archive markers |
+| D-148…D-149 | stop historical tuning; preselect the unchanged crown for prospective shadow attribution before outcomes |
 
 ---
 
@@ -340,11 +348,12 @@ five-session receipts exist and the final calibration/risk verdict is explicit.
 
 ## Conclusion
 
-Opening Edge v1 is the sole XSP research crown; `NO_TRADE` remains selected,
-order authority is `none`, and the profitability clock is `NOT_STARTED`.
-The immediate quest is prospective Monday evidence, then immutable
-`24h → 48h → five-session` profitability and calibration—not more historical
-decimal mining and not options capital.
+Opening Edge v1 is the sole XSP research crown and the preselected synthetic
+shadow; broker/order selection remains `NO_TRADE`, order authority is `none`,
+and the profitability clock is armed but cannot start before Monday's first
+exact `EVALUATED` checkpoint. The immediate quest is that prospective evidence,
+then immutable `24h → 48h → five-session` profitability and calibration—not
+more historical decimal mining, breadth work, or options capital.
 
 **Predictive observation:** the crown's strongest next improvement is likely a
 materially different shared-engine mechanism or authentic forward

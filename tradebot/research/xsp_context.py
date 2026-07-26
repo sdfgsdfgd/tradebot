@@ -6,46 +6,20 @@ from collections.abc import Mapping, Sequence
 from datetime import datetime, timedelta
 
 from ..backtest.quotes import QuoteSnapshot, option_parity_observation
-from ..engines.market import (
-    market_breadth_observation,
-    xsp_session_label_et,
-    xsp_trading_date,
-)
+from ..engines.market import xsp_session_label_et, xsp_trading_date
 from ..news.contract import (
     NewsError,
     observe_news_signal,
     select_news_snapshot_at,
 )
-from ..time_utils import NaiveTsModeInput, UTC, to_et
+from ..time_utils import UTC, to_et
 from .live_calibration import calibration_fingerprint
 
 
-XSP_BREADTH_SYMBOL = "TICK-NASD"
-XSP_BREADTH_EXCHANGE = "NASDAQ"
 XSP_OPTION_CONTEXT_MAX_LAG = timedelta(minutes=7)
 XSP_OPTION_CHANGE_MAX_SPAN = timedelta(minutes=15)
 XSP_PREOPEN_PARITY_HORIZONS_MINUTES = (120, 240, 360)
 XSP_PREOPEN_BOUNDARY_MAX_LAG = timedelta(minutes=10)
-
-
-def xsp_market_breadth_context_at(
-    samples: Sequence[tuple[datetime, float]],
-    *,
-    decision_at: datetime,
-    direction: str | None = None,
-    naive_ts_mode: NaiveTsModeInput = "utc",
-) -> dict[str, object]:
-    """Freeze signed NASDAQ breadth as an explicit XSP proxy observation."""
-
-    return market_breadth_observation(
-        samples,
-        observed_at=decision_at,
-        provider="IBKR",
-        symbol=XSP_BREADTH_SYMBOL,
-        exchange=XSP_BREADTH_EXCHANGE,
-        proxy_for="XSP market breadth",
-        naive_ts_mode=naive_ts_mode,
-    ).as_payload(direction)
 
 
 def _xsp_preopen_option_path(

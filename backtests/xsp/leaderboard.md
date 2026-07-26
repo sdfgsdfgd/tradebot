@@ -21,6 +21,7 @@ An impressive backtest can earn the first. It cannot grant the second.
 | Rank | Track | Crown | Identity | State |
 |---:|---|---|---|---|
 | 1 | RTH directional, one `$1/XSP-point` unit | **Opening Edge v1** | `xsp.opening-edge-directional.v1` | Frozen research champion; prospective counterfactual only |
+| — | Selected synthetic shadow | **Opening Edge v1** | `9fac460e…` | Armed before outcomes; first exact checkpoint starts evidence clock |
 | — | Operational/live | **Vacant** | `NO_TRADE` | Profitability clock not started; order authority `none` |
 
 ### #1 — Opening Edge v1
@@ -199,10 +200,13 @@ drawdown 7.83
 safety breaches 0
 ```
 
-The prospective checkpoint is separately identified as
-`xsp.candidate-equity.v1`, restart-stable, content-addressed, and
-`prospective_counterfactual_only`. It cannot submit an order, replace
-`NO_TRADE`, or start the profitability clock.
+The prospective checkpoint emits restart-stable, content-addressed
+`xsp.candidate-equity.v1`. Before any Monday outcome, selection
+`9fac460e…` bound that unchanged ledger and config `bbb0a391…` to one
+`xsp.selected-shadow-run.v1`; its receipt SHA-256 is `faf294f7…`. This makes
+the first exact `EVALUATED` checkpoint eligible to start the profitability
+clock. It cannot submit an order, replace broker `NO_TRADE`, trade XSP, or
+grant capital authority.
 
 Promotion requires, in order:
 
@@ -295,14 +299,14 @@ late evidence leaves the crown unchanged.
 | Central admission/control trace | Covered | Every candidate entry retains pass/block causes |
 | Source-consistent flip/EOD lifecycle | Covered | Compare exit counterfactuals without mutating crown |
 | Exact normal-engine prefix replay | Covered | Monday restart and incomplete-session receipt |
-| Content-addressed candidate equity | Covered locally | Persist first fresh q checkpoint; verify restart identity |
+| Content-addressed candidate equity | Selected shadow armed | Persist first fresh q checkpoint; verify `9fac460e…` restart identity |
 | Authentic XSP option/underlier tape | Covered infrastructure | Continue forward capture as independent context |
 | Causal news context | Experimental | Paired TA-only vs TA+news veto; never historical-backfill |
 | Quote/liquidity admission | Open | Test whether spread, depth, freshness, and quote movement reject adverse entries |
 | Weak-year explanation | Partly covered | Two path signatures explain the collapse; require timestamp-correct prospective discrimination |
 | Unconditional path telemetry | Covered | Every backtest trade now records bars held, MFE, and MAE even when stop/trail policy is absent |
 | Exit quality | Partly covered | Exit-to-flat and high-activation trails rejected; use independent prospective evidence |
-| Operational selection | Blocked | Only after the complete 24h/48h/week promotion ladder |
+| Operational selection | Blocked | Shadow selection is not broker authority; only the complete 24h/48h/week ladder can reopen promotion |
 
 ### Highest-value arcane seams
 
@@ -409,10 +413,11 @@ its predecessor’s numbers.
 - **Earned by:** source-consistent lifecycle repair, exact signal/control
   traces, tight side-specific admission geometry, stable local neighborhood,
   positive recent/one-year/five-year economics, and `>200` annualized trades.
-- **Did not earn:** selected strategy, profitability milestone, broker/order
-  authority, or a claim of reliable income.
-- **Next contest:** unchanged prospective candidate equity versus authentic
-  Monday tape, then independent news/microstructure admission evidence.
+- **Did not earn:** operational/live strategy, profitability milestone,
+  broker/order authority, or a claim of reliable income. Its synthetic shadow
+  identity was frozen only to make prospective attribution honest.
+- **Next contest:** unchanged selected-shadow equity versus authentic Monday
+  tape, then independent news/microstructure admission evidence.
 
 ### Reproduce
 

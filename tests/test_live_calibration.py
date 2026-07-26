@@ -45,7 +45,6 @@ from tradebot.research.xsp_shadow import (
 )
 from tradebot.research.xsp_context import (
     xsp_fundamental_context_at,
-    xsp_market_breadth_context_at,
     xsp_option_context_at,
 )
 from tradebot.backtest.models import Bar
@@ -64,34 +63,6 @@ def test_shadow_history_window_keeps_prior_rth_warmup_across_weekend() -> None:
 
     assert end == observed.replace(tzinfo=None)
     assert start <= datetime(2026, 7, 24, 9, 30)
-
-
-def test_xsp_market_breadth_context_is_causal_signed_and_observation_only() -> None:
-    decision = datetime(2026, 7, 27, 10, 0, tzinfo=ET_ZONE)
-    samples = [
-        (
-            decision - timedelta(minutes=25 - 5 * index),
-            value,
-        )
-        for index, value in enumerate((-300.0, -200.0, -100.0, 0.0, 100.0, 200.0))
-    ]
-    samples.append((decision + timedelta(minutes=5), -999.0))
-
-    context = xsp_market_breadth_context_at(
-        samples,
-        decision_at=decision,
-        direction="up",
-    )
-
-    assert context["authority"] == "observation_only"
-    assert context["symbol"] == "TICK-NASD"
-    assert context["proxy_for"] == "XSP market breadth"
-    assert context["current"] == 200.0
-    assert context["fast3"] == 100.0
-    assert context["slow6"] == -50.0
-    assert context["session_cumulative"] == -300.0
-    assert context["transition"] == "improving"
-    assert context["usable"] is True
 
 
 def _profitability_policy(
