@@ -237,7 +237,7 @@ class SweepWorkers:
                         heartbeat_sec=float(heartbeat_eff),
                         record_milestones=False,
                         frontier_stage_label=str(stage_label),
-                        progress_callback=lambda tested, _total, _kept, _elapsed, done: _emit_worker_heartbeat(
+                        progress_callback=lambda tested, total, kept, elapsed, done: _emit_worker_heartbeat(
                             done=bool(done),
                             tested_override=int(processed_ranks) + int(tested),
                         ),

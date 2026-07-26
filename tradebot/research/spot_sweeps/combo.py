@@ -363,19 +363,9 @@ class SweepCartesian:
             raise SystemExit("--stability-min-trades-per-year must be a non-negative number") from exc
         if per_year is not None and (not math.isfinite(per_year) or per_year < 0.0):
             raise SystemExit("--stability-min-trades-per-year must be a non-negative number")
-        window_plan = sorted(
-            enumerate(windows),
-            key=lambda item: (
-                -_required_trades(
-                    item[1][0],
-                    item[1][1],
-                    minimum=int(self.args.min_trades),
-                    per_year=per_year,
-                ),
-                (item[1][1] - item[1][0]).days,
-                item[0],
-            ),
-        )
+        # Window order is part of the declared challenge: cheap gates may prune
+        # candidates before longer evaluations and must not be silently reordered.
+        window_plan = list(enumerate(windows))
         print(
             "combo_full stability: "
             f"shortlist={len(shortlist)} windows={len(windows)} "
@@ -475,7 +465,7 @@ class SweepCartesian:
                 for cfg, _primary_row, _note in window_candidates:
                     key = _milestone_key(cfg)
                     row = evaluated.get(key)
-                    if row is None:
+                    if row is None or _metric(row, "pnl") <= 0.0:
                         active.discard(key)
                         continue
                     ratio = (

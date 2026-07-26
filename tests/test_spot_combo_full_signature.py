@@ -257,8 +257,8 @@ def test_combo_full_stability_reuses_exact_windows_and_canonical_evaluator(
     monkeypatch,
 ) -> None:
     windows = (
-        {"start": "2024-01-01", "end": "2025-01-01", "pnl": 10.0, "pnl_over_dd": 1.0},
         {"start": "2025-01-01", "end": "2026-01-01", "pnl": 10.0, "pnl_over_dd": 1.0},
+        {"start": "2021-01-01", "end": "2026-01-01", "pnl": 10.0, "pnl_over_dd": 1.0},
     )
     monkeypatch.setattr(
         sweep_combo,
@@ -320,11 +320,11 @@ def test_combo_full_stability_reuses_exact_windows_and_canonical_evaluator(
     out = tmp_path / "stability.json"
     args = SimpleNamespace(
         stability_window=[
-            "2024-01-01:2025-01-01",
             "2025-01-01:2026-01-01",
+            "2021-01-01:2026-01-01",
         ],
         stability_top=3,
-        stability_min_trades_per_year=None,
+        stability_min_trades_per_year=120,
         stability_out=str(out),
         promote=False,
         promotion_objective="stability",
@@ -362,28 +362,21 @@ def test_combo_full_stability_reuses_exact_windows_and_canonical_evaluator(
     payload = json.loads(out.read_text())
     assert payload["schema"] == "tradebot.research.stability.v1"
     assert payload["windows"] == [
-        {"start": "2024-01-01", "end": "2025-01-01"},
         {"start": "2025-01-01", "end": "2026-01-01"},
+        {"start": "2021-01-01", "end": "2026-01-01"},
     ]
     assert payload["groups"][0]["entries"][0]["strategy"]["ema_preset"] == "2/4"
     assert payload["groups"][0]["_eval"]["promotion"]["eligible"] is True
     assert {
         group["entries"][0]["strategy"]["ema_preset"] for group in payload["groups"]
-    } == {"2/4", "3/7", "4/9"}
-    losing = next(
-        group
-        for group in payload["groups"]
-        if group["entries"][0]["strategy"]["ema_preset"] == "4/9"
-    )
-    assert losing["_eval"]["promotion"]["eligible"] is False
-    assert set(FakeRuntime.evaluated) == {
-        ("2/4", date(2024, 1, 1), date(2025, 1, 1)),
-        ("2/4", date(2025, 1, 1), date(2026, 1, 1)),
-        ("3/7", date(2024, 1, 1), date(2025, 1, 1)),
-        ("3/7", date(2025, 1, 1), date(2026, 1, 1)),
-        ("4/9", date(2024, 1, 1), date(2025, 1, 1)),
-        ("4/9", date(2025, 1, 1), date(2026, 1, 1)),
-    }
+    } == {"2/4", "3/7"}
+    assert [
+        (start, end)
+        for _preset, start, end in FakeRuntime.evaluated[::3]
+    ] == [
+        (date(2025, 1, 1), date(2026, 1, 1)),
+        (date(2021, 1, 1), date(2026, 1, 1)),
+    ]
 
 
 def test_combo_full_signature_is_stable_for_reordered_dict_keys() -> None:
@@ -412,7 +405,8 @@ def test_cartesian_worker_policy_balances_small_stages() -> None:
         total=32,
         default_jobs=12,
     ) == 3
-    assert _tuned_claim_span(total=32, workers=3, batch_size=2048) == 1
+    assert _tuned_claim_span(total=32, workers=3, batch_size=2048) == 3
+    assert _tuned_claim_span(total=23_041, workers=8, batch_size=2048) == 721
 
 
 def test_ema_signal_presets_have_one_canonical_catalog() -> None:
@@ -468,6 +462,7 @@ def test_combo_full_presets_explore_only_their_declared_dimensions() -> None:
         "gate_matrix": ("perm", "tod", "regime2", "tick", "shock", "risk", "short_mult"),
         "lf_shock_sniper": ("direction", "shock"),
         "hf_timing_sniper": ("timing_profile",),
+        "xsp_candidate": ("direction", "tod", "vol", "cadence", "regime", "exit", "shock"),
     }
     assert set(expected) == set(_combo_full_preset_axes())
     for preset, active_dims in expected.items():
@@ -495,6 +490,65 @@ def test_axis_fingerprint_covers_complete_signal_identity() -> None:
     assert _axis_dimension_fingerprint(
         _bundle_base(entry_signal="ema", **common)
     ) != _axis_dimension_fingerprint(_bundle_base(entry_signal="orb", **common))
+    assert len(_axis_dimension_fingerprint(_bundle_base(**common))) == 64
+
+
+def test_xsp_candidate_preset_is_source_safe_and_fixed_unit_ready() -> None:
+    args = parse_spot_sweep_args(
+        ["--combo-full-preset", "xsp_candidate", "--starting-cash", "1000"]
+    )
+    assert args.starting_cash == 1000.0
+
+    runtime = object.__new__(SpotSweepRuntime)
+    runtime.args = SimpleNamespace(
+        combo_full_cartesian_stage=None,
+        combo_full_include_tick=False,
+        combo_full_preset="xsp_candidate",
+        risk_overlays_skip_pop=False,
+    )
+    runtime.signal_bar_size = "5 mins"
+    runtime._base_bundle = lambda *, bar_size, filters: _bundle_base(
+        symbol="XSP",
+        start=date(2026, 6, 29),
+        end=date(2026, 7, 24),
+        bar_size=bar_size,
+        use_rth=True,
+        cache_dir=Path("db"),
+        offline=True,
+        filters=filters,
+        starting_cash=1000.0,
+    )
+
+    space = runtime._combo_full_context("xsp_candidate")
+
+    assert space.total == 23_040
+    assert space.base.backtest.starting_cash == 1000.0
+    assert space.size_by_dim == {
+        "timing_profile": 1,
+        "direction": 16,
+        "confirm": 1,
+        "perm": 1,
+        "tod": 3,
+        "vol": 4,
+        "cadence": 2,
+        "regime": 4,
+        "regime2": 1,
+        "exit": 5,
+        "tick": 1,
+        "shock": 3,
+        "slope": 1,
+        "risk": 1,
+        "short_mult": 1,
+    }
+    for rank in (0, space.total - 1):
+        cfg, note, _meta = space.plan_item_from_rank(rank)
+        filters = cfg.strategy.filters
+        assert cfg.strategy.max_entries_per_day == 4
+        assert cfg.strategy.tick_gate_mode == "off"
+        assert cfg.strategy.regime2_mode == "off"
+        assert cfg.strategy.spot_close_eod is True
+        assert getattr(filters, "volume_ratio_min", None) is None
+        assert "source=" in note
 
 
 def test_sweep_context_owns_every_causal_bar_tape() -> None:
@@ -563,6 +617,7 @@ def test_sweep_window_signature_covers_every_causal_bar_role() -> None:
         )
 
     assert len(signatures) == len(kinds) + 1
+    assert {len(signature) for signature in signatures} == {64}
 
 
 def test_sweep_evaluation_hands_every_causal_tape_to_engine(monkeypatch) -> None:
@@ -1071,10 +1126,10 @@ def test_cartesian_manifest_uses_one_cache_scope_and_invalidates_summary(tmp_pat
     runtime.rank_dominance_stamp_compactions = 0
     runtime.rank_dominance_stamp_ttl_prunes = 0
 
-    assert runtime._stage_cache_scope("combo") == "combo|spot_stage_v12|m7"
+    assert runtime._stage_cache_scope("combo") == "combo|spot_stage_v13|m7"
     assert (
         runtime._stage_cache_scope("combo_full_cartesian")
-        == "combo_full_cartesian|spot_stage_v12|m0"
+        == "combo_full_cartesian|spot_stage_v13|m0"
     )
 
     assert runtime._cartesian_rank_manifest_unresolved_ranges(
@@ -1093,10 +1148,10 @@ def test_cartesian_manifest_uses_one_cache_scope_and_invalidates_summary(tmp_pat
     assert conn is not None
     assert conn.execute(
         "SELECT DISTINCT stage_label FROM cartesian_rank_manifest"
-    ).fetchall() == [("combo|spot_stage_v12|m7",)]
+    ).fetchall() == [("combo|spot_stage_v13|m7",)]
     assert conn.execute(
         "SELECT DISTINCT stage_label FROM stage_unresolved_summary"
-    ).fetchall() == [("combo|spot_stage_v12|m7",)]
+    ).fetchall() == [("combo|spot_stage_v13|m7",)]
     assert conn.execute(
         "SELECT name FROM sqlite_master WHERE type='table' AND name='stage_rank_manifest'"
     ).fetchall() == []
@@ -1175,6 +1230,127 @@ def test_planner_heartbeat_owns_parallel_progress_and_eta(monkeypatch) -> None:
     assert "tested=600/1200 cached_hits=50 eta~0.5m" in result["line"]
     assert result["stale"] == ()
     assert Harness.axis_progress_state["last_report"] == 500.0
+
+
+def test_planner_heartbeat_persists_from_sweep_heartbeat_thread(
+    tmp_path: Path,
+) -> None:
+    runtime = object.__new__(SpotSweepRuntime)
+    runtime.run_min_trades = 120
+    runtime.run_cfg_persistent_enabled = True
+    runtime.run_cfg_persistent_conn = None
+    runtime.run_cfg_persistent_path = tmp_path / "sweeps.sqlite3"
+    runtime.run_cfg_persistent_lock = threading.Lock()
+    runtime.planner_heartbeat_reads = 0
+    runtime.planner_heartbeat_writes = 0
+
+    assert runtime._run_cfg_persistent_conn() is not None
+    thread = threading.Thread(
+        target=runtime._planner_heartbeat_set,
+        kwargs={
+            "stage_label": "combo_full_stability",
+            "worker_id": 3,
+            "tested": 41,
+            "cached_hits": 7,
+            "total": 229,
+            "eta_sec": 188.0,
+            "status": "running",
+        },
+    )
+    thread.start()
+    thread.join(timeout=2.0)
+
+    assert not thread.is_alive()
+    row = runtime._planner_heartbeat_get_many(
+        stage_label="combo_full_stability",
+        worker_ids=[3],
+    )[3]
+    assert row["tested"] == 41
+    assert row["cached_hits"] == 7
+    assert row["total"] == 229
+    assert row["eta_sec"] == 188.0
+    assert row["status"] == "running"
+
+
+def test_lazy_rank_worker_forwards_keyword_progress_to_planner_heartbeat(
+    tmp_path: Path,
+) -> None:
+    runtime = object.__new__(SpotSweepRuntime)
+    runtime.offline = True
+    heartbeats: list[dict] = []
+    runtime._planner_heartbeat_set = lambda **row: heartbeats.append(row)
+    runtime._cartesian_rank_manifest_unresolved_ranges = (
+        lambda **_kwargs: ((0, 0),)
+    )
+    runtime._run_cfg_persistent_conn = lambda: None
+    runtime._partition_rank_ranges_for_workers = (
+        lambda **_kwargs: [[(0, 0)]]
+    )
+    runtime._stage_partition_plan_by_cache = lambda **kwargs: (
+        list(kwargs["plan_all"]),
+        [],
+        {},
+        0,
+    )
+    runtime._ordered_plan_indices_by_dimension_utility = (
+        lambda **kwargs: list(range(len(kwargs["plan_all"])))
+    )
+    runtime._ordered_plan_indices_by_upper_bound = lambda **kwargs: (
+        list(range(len(kwargs["plan_all"]))),
+        0,
+    )
+    runtime._cartesian_rank_manifest_set_many = lambda **_kwargs: None
+    runtime._worker_records_from_kept = lambda _kept: []
+    cfg = _bundle_base(
+        symbol="XSP",
+        start=date(2025, 1, 1),
+        end=date(2026, 1, 1),
+        bar_size="5 mins",
+        use_rth=True,
+        cache_dir=tmp_path,
+        offline=True,
+        filters=None,
+    )
+
+    def run_sweep(**kwargs):
+        kwargs["progress_callback"](
+            tested=0,
+            total=1,
+            kept=0,
+            elapsed=30.0,
+            done=False,
+        )
+        kwargs["progress_callback"](
+            tested=1,
+            total=1,
+            kept=1,
+            elapsed=60.0,
+            done=True,
+        )
+        return 1, []
+
+    runtime._run_sweep = run_sweep
+    out = tmp_path / "worker.json"
+    runtime._run_sharded_stage_worker(
+        stage_label="combo_full_stability",
+        worker_raw=0,
+        workers_raw=1,
+        out_path_raw=str(out),
+        out_flag_name="cfg-out",
+        plan_all=None,
+        bars=[],
+        report_every=0,
+        heartbeat_sec=30.0,
+        plan_total=1,
+        plan_item_from_rank=lambda _rank: (cfg, "candidate", {}),
+        rank_manifest_window_signature="window",
+        rank_batch_size=1,
+    )
+
+    assert out.exists()
+    assert any(row["status"] == "running" for row in heartbeats)
+    assert heartbeats[-1]["status"] == "done"
+    assert heartbeats[-1]["tested"] == 1
 
 
 def test_worker_stage_uses_planner_heartbeat_without_axis_watchdog(

@@ -15,7 +15,7 @@ from ...chart_data.history import (
     cache_path,
     ensure_offline_cached_window,
     find_overlapping_cache_paths,
-    read_cache,
+    load_history_window,
     write_cache,
 )
 from ..data import IBKRHistoricalData
@@ -291,6 +291,8 @@ def _resample_intraday_ohlcv(
                     cur = []
                 cur.append(bar)
             _flush(cur_bucket, cur)
+            cur_bucket = None
+            cur = []
     else:
         for bar in bars:
             bucket_start = _floor_bucket_start(bar.ts, bucket=dst.duration)
@@ -379,32 +381,23 @@ def resample_cached_window(
     last_err: str | None = None
     resample_use_rth = bool(use_rth) and not _native_rth_epoch_resample(dst_bar_size, use_rth=use_rth)
     for src_label in src_candidates:
-        try:
-            src_series = data.load_cached_bar_series(
-                symbol=symbol,
-                exchange=exchange,
-                start=start,
-                end=end,
-                bar_size=str(src_label),
-                use_rth=use_rth,
-                cache_dir=cache_dir,
-            )
-        except FileNotFoundError:
-            continue
-        except Exception as exc:
-            last_err = f"source_load_error({src_label}): {exc}"
-            continue
-
-        source_path_raw = str(getattr(src_series.meta, "source_path", "") or "").strip()
-        source_path = Path(source_path_raw) if source_path_raw else None
-        src_bars = (
-            read_cache(source_path, start=start, end=end)
-            if source_path is not None and source_path.exists()
-            else [bar for bar in src_series.as_list() if start <= bar.ts <= end]
+        source = load_history_window(
+            cache_dir=cache_dir,
+            symbol=symbol,
+            start_et=start,
+            end_et=end,
+            bar_size=str(src_label),
+            use_rth=use_rth,
+            naive_ts_mode=NaiveTsMode.UTC,
         )
+        if source.missing_ranges:
+            last_err = f"source_incomplete({src_label}): {source.missing_ranges}"
+            continue
+        src_bars = list(source.bars)
         if not src_bars:
             last_err = f"source_empty_after_slice({src_label})"
             continue
+        source_path = source.source_paths[0] if len(source.source_paths) == 1 else None
 
         try:
             dst_bars, stats = _resample_intraday_ohlcv(

@@ -277,6 +277,7 @@ class ComboPresetContext:
             "r2_atr": self._preset_r2_atr,
             "r2_tod": self._preset_r2_tod,
             "loosen_atr": self._preset_loosen_atr,
+            "xsp_candidate": self._preset_xsp_candidate,
         }
         required = {
             str(_combo_full_preset_customizer(name))
@@ -508,6 +509,199 @@ class ComboPresetContext:
 
     def _preset_loosen_atr(self) -> None:
         self._set_dim_rows("exit", self._atr_exit_rows(with_close_eod=True))
+
+    def _preset_xsp_candidate(self) -> None:
+        """Source-aware fixed-unit XSP discovery without invalid volume/TICK gates."""
+        direction_rows: list[tuple[str, dict[str, object]]] = []
+        for preset in ("2/4", "3/7", "4/9", "8/21"):
+            for mode in ("cross", "trend"):
+                direction_rows.append(
+                    (
+                        f"source=ema({preset},{mode})",
+                        {
+                            "entry_signal": "ema",
+                            "ema_preset": preset,
+                            "ema_entry_mode": mode,
+                            "max_entries_per_day": 4,
+                        },
+                    )
+                )
+        for window in (15, 30):
+            for reward in (1.0, 2.0):
+                direction_rows.append(
+                    (
+                        f"source=orb({window}m,rr={reward:g})",
+                        {
+                            "entry_signal": "orb",
+                            "orb_window_mins": window,
+                            "orb_risk_reward": reward,
+                            "orb_target_mode": "rr",
+                            "max_entries_per_day": 4,
+                        },
+                    )
+                )
+            for confirm in (1, 2):
+                direction_rows.append(
+                    (
+                        f"source=opening_reclaim({window}m,c={confirm})",
+                        {
+                            "entry_signal": "opening_reclaim",
+                            "orb_window_mins": window,
+                            "opening_reclaim_break_range_fraction": 0.25,
+                            "opening_reclaim_confirm_bars": confirm,
+                            "opening_reclaim_deadline_et": "11:30",
+                            "max_entries_per_day": 4,
+                        },
+                    )
+                )
+
+        self._set_dim_rows("direction", direction_rows)
+        self._set_dim_rows("confirm", [0])
+        self._set_dim_rows(
+            "perm",
+            [
+                (
+                    "perm=source-safe",
+                    {
+                        "ema_spread_min_pct": None,
+                        "ema_spread_min_pct_down": None,
+                        "ema_slope_min_pct": None,
+                        "ema_slope_signed_min_pct_up": None,
+                        "ema_slope_signed_min_pct_down": None,
+                    },
+                )
+            ],
+        )
+        self._set_dim_rows(
+            "tod",
+            [
+                ("tod=RTH", {"entry_start_hour_et": None, "entry_end_hour_et": None}),
+                ("tod=09-12 ET", {"entry_start_hour_et": 9, "entry_end_hour_et": 12}),
+                ("tod=10-12 ET", {"entry_start_hour_et": 10, "entry_end_hour_et": 12}),
+            ],
+        )
+        self._set_dim_rows(
+            "vol",
+            [
+                (
+                    "rv=off",
+                    {
+                        "rv_min": None,
+                        "rv_max": None,
+                        "volume_ratio_min": None,
+                        "volume_ema_period": None,
+                    },
+                ),
+                ("rv>=0.06", {"rv_min": 0.06, "rv_max": None}),
+                ("rv>=0.10", {"rv_min": 0.10, "rv_max": None}),
+                ("rv=0.06..0.20", {"rv_min": 0.06, "rv_max": 0.20}),
+            ],
+        )
+        self._set_dim_rows(
+            "cadence",
+            [
+                ("cad=base", {"skip_first_bars": 0, "cooldown_bars": 0}),
+                ("cad=skip1 cd2", {"skip_first_bars": 1, "cooldown_bars": 2}),
+            ],
+        )
+        regime_rows: list[tuple[str, dict[str, object]]] = [
+            ("regime=off", {"regime_mode": "off", "regime_bar_size": None})
+        ]
+        regime_rows.extend(
+            (
+                f"regime=ST({bar_size}:7,0.5,hl2)",
+                {
+                    "regime_mode": "supertrend",
+                    "regime_bar_size": bar_size,
+                    "supertrend_atr_period": 7,
+                    "supertrend_multiplier": 0.5,
+                    "supertrend_source": "hl2",
+                },
+            )
+            for bar_size in ("30 mins", "1 hour", "4 hours")
+        )
+        self._set_dim_rows("regime", regime_rows)
+        self._set_dim_rows(
+            "regime2",
+            [("r2=off", {"regime2_mode": "off", "regime2_bar_size": None})],
+        )
+        self._set_dim_rows(
+            "exit",
+            [
+                (
+                    f"exit=atr(14,{target:g},{stop:g})",
+                    {
+                        "spot_exit_mode": "atr",
+                        "spot_atr_period": 14,
+                        "spot_pt_atr_mult": target,
+                        "spot_sl_atr_mult": stop,
+                        "spot_profit_target_pct": None,
+                        "spot_stop_loss_pct": None,
+                        "spot_excursion_exit": None,
+                        "spot_close_eod": True,
+                    },
+                )
+                for target, stop in ((0.8, 1.2), (1.2, 0.8), (1.6, 1.0))
+            ]
+            + [
+                (
+                    "exit=excursion(fast)",
+                    {
+                        "spot_profit_target_pct": None,
+                        "spot_stop_loss_pct": None,
+                        "spot_excursion_exit": {
+                            "initial_stop_atr": 0.75,
+                            "trail_activate_atr": 0.5,
+                            "trail_distance_atr": 0.25,
+                            "breakeven_atr": 0.25,
+                            "fizzle_bars": 6,
+                            "fizzle_mfe_atr": 0.25,
+                            "max_hold_bars": 12,
+                        },
+                        "spot_close_eod": True,
+                    },
+                ),
+                (
+                    "exit=excursion(ride)",
+                    {
+                        "spot_profit_target_pct": None,
+                        "spot_stop_loss_pct": None,
+                        "spot_excursion_exit": {
+                            "initial_stop_atr": 1.0,
+                            "trail_activate_atr": 1.0,
+                            "trail_distance_atr": 0.5,
+                            "breakeven_atr": 0.5,
+                            "fizzle_bars": 12,
+                            "fizzle_mfe_atr": 0.5,
+                            "max_hold_bars": 24,
+                        },
+                        "spot_close_eod": True,
+                    },
+                ),
+            ],
+        )
+        shock_policy = {
+            "shock_detector": "tr_ratio",
+            "shock_tr_fast_period": 7,
+            "shock_tr_slow_period": 50,
+            "shock_on_ratio": 1.4,
+            "shock_off_ratio": 1.2,
+            "shock_min_tr_pct": 0.05,
+            "shock_direction_source": "signal",
+            "shock_direction_lookback": 3,
+        }
+        self._set_dim_rows(
+            "shock",
+            [
+                ("shock=off", {"shock_gate_mode": "off"}),
+                ("shock=block", {"shock_gate_mode": "block", **shock_policy}),
+                ("shock=surf", {"shock_gate_mode": "surf", **shock_policy}),
+            ],
+        )
+        self._set_dim_rows("tick", [("tick=off", {"tick_gate_mode": "off"})])
+        self._set_dim_rows("slope", [("slope=source-owned", {})])
+        self._set_dim_rows("risk", [("risk=off", {})])
+        self._set_dim_rows("short_mult", [1.0])
 
     def _preset_lf_shock_sniper(self) -> None:
         self._set_dim_rows(

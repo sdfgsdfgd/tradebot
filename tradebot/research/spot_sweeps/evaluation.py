@@ -12,7 +12,11 @@ from ...backtest.engine import _run_spot_backtest_summary, _spot_prepare_summary
 from ...backtest.spot_context import SpotContextBars
 from ...backtest.sweep_parallel import _progress_line
 from ...chart_data.series import BarSeriesSignature
-from .fingerprints import _axis_dimension_fingerprint, _window_signature
+from .fingerprints import (
+    _axis_dimension_fingerprint,
+    _compact_fingerprint,
+    _window_signature,
+)
 from .milestones import _milestone_key
 from .support import _registry_float, _runtime_policy
 
@@ -39,7 +43,7 @@ class SweepEvaluation:
         update_dim_index: bool = True,
     ) -> tuple[_ContextSignature, _CacheKey, str, str]:
         context_eff = context or self._context_bars_for_cfg(cfg=cfg, bars=bars)
-        cfg_key = _milestone_key(cfg)
+        cfg_key = _compact_fingerprint(_milestone_key(cfg))
         ctx_sig = tuple(
             (kind, self._bars_signature(series))
             for kind, series in context_eff.items()

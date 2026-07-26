@@ -80,6 +80,9 @@ class SpotSweepRuntime(
         self.symbol = str(self.args.symbol).strip().upper()
         self.start = _parse_date(self.args.start)
         self.end = _parse_date(self.args.end)
+        self.starting_cash = float(self.args.starting_cash)
+        if self.starting_cash <= 0:
+            raise SystemExit("--starting-cash must be greater than zero.")
         self.use_rth = bool(self.args.use_rth)
         self.offline = bool(self.args.offline)
         self.cache_policy = str(self.args.cache_policy).strip().lower() or "strict"
@@ -268,10 +271,6 @@ class SpotSweepRuntime(
         self._CARTESIAN_CELL_STATUS_VALUES = frozenset(("pending", "cached_hit", "evaluated", "dominated"))
         self._CARTESIAN_RANK_STATUS_VALUES = frozenset(("pending", "cached_hit", "evaluated", "dominated"))
 
-        regime_bars_1d = self._bars_cached("1 day")
-        if not regime_bars_1d:
-            raise SystemExit("No 1 day regime bars returned (IBKR).")
-
         self.axis_progress_state: dict[str, object] = {
             "active": False,
             "axis_key": "",
@@ -315,6 +314,7 @@ class SpotSweepRuntime(
             f"bar_size={self.signal_bar_size}, offline={self.offline}, cache_policy={self.cache_policy}, base={self.args.base}, axis={axis}, "
             f"jobs={self.jobs}, "
             f"long_only={self.long_only} realism={'v2' if self.realism2 else 'off'} "
+            f"cash={self.starting_cash:g} "
             f"spread={self.spot_spread:g} comm={self.spot_commission:g} comm_min={self.spot_commission_min:g} "
             f"slip={self.spot_slippage:g} sizing={self.sizing_mode} risk={self.spot_risk_pct:g} max_notional={self.spot_max_notional_pct:g})"
         )

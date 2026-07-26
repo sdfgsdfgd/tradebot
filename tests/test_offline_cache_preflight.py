@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from types import SimpleNamespace
 
 import pytest
 
+from tradebot.backtest.cache_ops import ensure_cached_window_with_policy
 from tradebot.backtest.cache_ops.cli import main_resample
 from tradebot.backtest.cli_utils import expected_cache_path
 from tradebot.chart_data.history import (
@@ -215,6 +216,62 @@ def test_sweeps_offline_preflight_auto_resamples_from_finer_cache(tmp_path) -> N
     )
     assert dst.exists()
     assert len(read_cache(dst)) > 0
+
+
+def test_auto_resample_stitched_rth_uses_one_raw_timestamp_grid(
+    tmp_path, monkeypatch
+) -> None:
+    start = datetime(2025, 1, 6)
+    end = datetime(2025, 1, 7, 23, 59)
+    for day in (date(2025, 1, 6), date(2025, 1, 7)):
+        source = cache_path(
+            tmp_path,
+            "XSP",
+            datetime.combine(day, time.min),
+            datetime.combine(day, time.max).replace(microsecond=0),
+            "5 mins",
+            True,
+        )
+        source.parent.mkdir(parents=True, exist_ok=True)
+        session_open_utc = datetime.combine(day, time(14, 30))
+        write_cache(
+            source,
+            [
+                _bar(session_open_utc + timedelta(minutes=5 * index), 700 + index)
+                for index in range(78)
+            ],
+        )
+
+    data = IBKRHistoricalData()
+
+    def _unexpected_fetch(*args, **kwargs):
+        raise AssertionError("complete stitched source must not fall through to IBKR")
+
+    monkeypatch.setattr(data, "load_or_fetch_bar_series", _unexpected_fetch)
+    ok, expected, resolved, missing, error = ensure_cached_window_with_policy(
+        data=data,
+        cache_dir=tmp_path,
+        symbol="XSP",
+        exchange="CBOE",
+        start=start,
+        end=end,
+        bar_size="30 mins",
+        use_rth=True,
+        cache_policy="auto",
+    )
+
+    rows = read_cache(expected)
+    assert ok is True
+    assert resolved == expected
+    assert missing == []
+    assert error is None
+    assert len(rows) == 26
+    assert [row.ts.time() for row in rows[:3]] == [
+        time(14, 30),
+        time(15, 0),
+        time(15, 30),
+    ]
+    assert all(row.ts.minute in {0, 30} for row in rows)
 
 
 def test_sweep_market_data_applies_auto_policy_to_every_requested_timeframe(

@@ -37,6 +37,9 @@ class SweepCacheStore:
                 str(self.run_cfg_persistent_path),
                 timeout=15.0,
                 isolation_level=None,
+                # In-flight evaluation heartbeats are emitted by one background
+                # thread; every shared access remains serialized by the store lock.
+                check_same_thread=False,
             )
             conn.execute("PRAGMA journal_mode=WAL")
             conn.execute("PRAGMA synchronous=NORMAL")

@@ -1,6 +1,6 @@
 # XSP Mastery — Live Research Kata
 
-- **Status:** `[WIP] Phase 1 — authentic XSP evidence spine`
+- **Status:** `[WIP] Phase 1 — prospective XSP microstructure + shadow evidence`
 - **Management role:** canonical task tree, evidence ledger, decision journal, and resume source
 - **Code baseline:** `25513267225908b7288530c1ec0762f7656bbf5b`
 - **Resumable pushed anchor before current WIP:** `b8ce7b90096a4b47dfe89c30db85623017a10fc8`
@@ -31,12 +31,15 @@
   after completion. Its first natural combined-source cycle at
   `08:06:02..08:06:03 AEST` correctly published `no_new_evidence` without
   opening Codex or aging the causal XSP `-1/76/.94/24h` signal.
-- **Immediate frontier:** let the resilient read-only producer begin Sunday
+- **Historical campaign verdict:** the fixed-unit `5m/15m` families and all
+  `7,556` cap-independent `30m` candidates are rejected. No historical
+  bar-only XSP crown exists; prospective quote/liquidity evolution and
+  same-tape microstructure are now the only admissible candidate frontier.
+- **Forward frontier:** let the resilient read-only producer begin Sunday
   `20:15 ET` / Monday `10:15 AEST`; prove process start and restart continuity;
-  inspect the exact one-shot Monday `09:37 ET` / `23:37 AEST` checkpoint
-  made reboot-durable at E-151 and require `EVALUATED`,
-  `order_authority=none`; only then
-  enable `09:42..16:02 ET`.
+  inspect the exact one-shot Monday `09:37 ET` / `23:37 AEST` checkpoint made
+  reboot-durable at E-151 and require `EVALUATED`,
+  `order_authority=none`; only then enable `09:42..16:02 ET`.
 - **Do not:** trigger an extra news run, deploy mixed revisions, backfill forward
   evidence, retune rejected OHLC/slope families, promote delayed quotes, submit
   an order, or call abstention/profitability infrastructure an economic win.
@@ -107,7 +110,7 @@ redundant behavior; preserve outcomes, evidence classes, and fail-closed safety.
 
 ### Authenticated assets
 
-- Five-year XSP 5-minute RTH underlying: `97,452` bars; causal calendar and
+- Five-year XSP 5-minute RTH underlying: `97,530` bars through July 24; causal calendar and
   close alignment admitted. XSP volume is absent.
 - Two-year SPY/VIX context: complete and provenance-bound. SPY did not improve
   XSP direction and remains diagnostic; VIX confirmation improved losing
@@ -131,11 +134,14 @@ efficiency, and cross-horizon coherence. Frozen historical performance:
   lag `1.5` bars;
 - absolute-window extrema: only `16/34`; another `18/34` were boundary-censored.
 
-This is useful causal telemetry, not a profitable strategy. Every frozen
-lifecycle cell lost; admission, reversal-cascade, VIX, and TICK/TRIN families
-also failed their chronological economics. Preserve the observer for traces and
-counterfactuals. No adjacent slope/ATR/OHLC retuning is admissible without a new
-independent information class.
+This is useful causal telemetry, not a profitable strategy. The frozen
+directional-turn family (`1,296` lifecycle cells plus its bounded admission,
+reversal-cascade, VIX, and TICK/TRIN extensions) failed its chronological
+economics. That verdict closes those exact families only: it did **not** fairly
+exercise the wider canonical EMA/source, timing, permission, lifecycle, exit,
+shock/risk, and Cartesian space on XSP. Preserve the observer for traces and
+counterfactuals; do not threshold-mine its rejected slope/ATR neighborhood.
+Close the broader gap through the staged fixed-unit campaign above.
 
 ### Active prospective hypotheses
 
@@ -157,6 +163,111 @@ independent information class.
 - **Champion namespace:** XSP starts with no HF or LF crown. Existing MNQ,
   SLV, and TQQQ crowns are diagnostic legacy artifacts, not transferable XSP
   candidates; the first XSP crown must be born from this prospective ledger.
+
+### Primary premarket fixed-unit campaign — frozen before outcomes
+
+- **Discovery tape:** `2026-06-29..2026-07-24`, `1,482` five-minute bars across
+  `19` complete XSP RTH sessions. This is four-week selection, not validation.
+- **Search identity:** existing `combo_full` engine with preset
+  `xsp_candidate`; exactly `23,040` cells plus one control through the one
+  canonical Cartesian runner.
+- **Signal sources:** EMA `2/4, 3/7, 4/9, 8/21` in cross/trend modes; ORB
+  `15/30m × RR 1/2`; opening reclaim `15/30m × 1/2` causal confirmations.
+  Directional impulse remains counterfactual telemetry because its frozen
+  admission/lifecycle family already failed.
+- **Shared permissions:** RTH/`09-12`/`10-12 ET`; realized volatility
+  off/`>=0.06`/`>=0.10`/`0.06..0.20`; base or skip-one/cooldown-two; primary
+  confirmation off or Supertrend at `30m/1h/4h`.
+- **Lifecycle:** three ATR target/stop geometries and two causal
+  stop/trail/breakeven/fizzle/max-hold geometries; at most four entries/session;
+  one open position; flatten every session.
+- **Shock evidence:** off, block, or direction-aligned surf using XSP-scaled
+  five-minute TR hysteresis (`1.40` on / `1.20` off / `0.05%` minimum). It was
+  frozen from causal distribution measurements before campaign P&L.
+- **Forbidden evidence:** XSP volume, TICK-AMEX daily bars, SPY direction,
+  historical-news backfill, EMA-only spread/slope gates on non-EMA sources,
+  opaque regime routing, option P&L, and delayed/live quotes.
+- **Economics:** one synthetic `$1_per_XSP_point` unit, USD `1,000` starting
+  equity, next-tradable-bar fills, intrabar stop/gap/drawdown accounting, and
+  `$0.10` round-trip friction with no fabricated broker fill.
+- **Freeze law:** require at least `10` four-week trades, retain at most `500`
+  objective-diverse identities, and content-address the unchanged strategy,
+  filters, tape, costs, dates, and code before challenge.
+- **Challenge law:** first `2025-07-25..2026-07-24`, then
+  `2021-07-26..2026-07-24`, with at least `120` trades/year independently.
+  These overlapping windows are robustness challenges, not sealed validation.
+- **Economic survivor:** positive net P&L after friction in every window,
+  positive clustered daily lower bound and profit factor, bounded drawdown and
+  concentration, and honest side/year attribution. Removing a losing side or
+  retuning a gate creates a new candidate that must repeat the sequence.
+
+### Five-minute campaign result and horizon follow-up
+
+- The five-minute campaign completed all `23,041` cells; `10,570` met the
+  four-week `10`-trade floor and `500` exact identities were frozen under
+  freeze `7fe6e443…`. Four-week best net was `+14.1` points over `41` trades.
+- The unchanged one-year challenge found `464/500` cadence-qualified,
+  `103/500` net-positive, and `67/500` satisfying both. Every one of those `67`
+  exceeded the five-year `600`-trade floor; **zero** remained net-positive.
+  Best five-year net was `-17.79` points over `786` trades.
+- This rejects the five-minute family economically, not for inactivity. Its
+  best five-year path was roughly `+60.81` gross points before the frozen
+  `78.6` points of friction, motivating a new horizon mechanism rather than a
+  cheaper cost assumption or adjacent threshold retune.
+- **Preregistered follow-up:** repeat the same source-safe control plane at
+  `15m` and `30m`, independently run four-week discovery, retain at most `250`
+  objective-diverse identities per horizon, freeze them before outcomes, then
+  apply the unchanged one-year and five-year challenges and `120` trades/year.
+  The hypothesis is that fewer, larger causal moves can preserve gross edge
+  after the same `$0.10` friction. All forbidden evidence, economics, side/year
+  attribution, and survivor gates remain unchanged.
+
+### Fifteen/thirty-minute verdict and final breadth audit
+
+- The `15m` lane tested all `23,041` cells, froze `250`, retained `21` after the
+  one-year cadence/net gate, and retained **zero** after five years. Its best
+  five-year path was `-21.79` points over `841` trades: rejected for economics,
+  not inactivity.
+- The `30m` lane tested all `23,041` cells and froze `250` before challenge.
+  It retained `38` after one year and seven nominal finalists after five years.
+  Full trade-ledger replay proves those seven collapse exactly into only two
+  economic behaviors:
+  - RTH: `+25.34` points / `851` trades / `36.76` drawdown;
+  - 09–12 ET: `+13.10` / `723` / `27.41`.
+- Neither behavior is eligible for selection. Their daily LCB95 values are
+  `-0.0467/-0.0517`; both contain one rolling year that loses before friction;
+  latest-year net is only `+2.29/+0.83`; both lose at `0.15` round-trip
+  friction. The RTH path is positive in only `27/60` months and becomes
+  negative after removing its five best days.
+- RR `1/2` and shock `block/surf` are dead labels under these exact paths:
+  ordered entry/exit/side/price/reason ledgers are byte-identical. They are not
+  seven independent champions, and `NO_TRADE` remains selected.
+- **Preregistered final bar-only breadth audit:** materialize and
+  content-address every `30m` four-week candidate already satisfying the frozen
+  ten-trade discovery floor before any additional outcome is read. Challenge
+  the unchanged identities over five independent one-year slices, newest to
+  oldest for bounded pruning, requiring at least `120` trades/year and positive
+  net after the same `$0.10` friction in every slice. Finalists must then pass
+  full-ledger daily-LCB, concentration, side, drawdown, and cost-sensitivity
+  gates. This tests whether the `250`-identity cap hid robustness; it does not
+  retune the exposed family. If none pass, historical bar-only XSP admission is
+  closed and the next candidate frontier is prospective microstructure.
+- The breadth cohort is now frozen before annual evaluation: all `7,556`
+  qualifying identities, exact ordered records, tape/code/cost provenance, and
+  the five newest-to-oldest annual gates are bound by freeze `b22a9619…`.
+- The cap-independent audit is complete. Successive independent annual gates
+  reduced the frozen population `7,556 → 734 → 189 → 133 → 0`; the fifth
+  slice was correctly skipped because no identity survived the fourth. The
+  successful run took `771.5s`, resumed `1,782` exact receipts from its
+  interrupted predecessor, and changed no candidate identity or economics.
+- This closes historical bar-only XSP admission under the registered
+  source/gate/lifecycle family. The top-`250` cap hid no robust champion.
+  Adjacent bar horizon, gate, friction, or threshold retuning is now forbidden;
+  prospective quote/liquidity evolution and same-tape microstructure are the
+  next admissible candidate evidence. `NO_TRADE` remains selected.
+- All ignored campaign artifacts and terminal logs are checksum-identical in
+  `~/Desktop/tradebot-backup/2026-07-26_18-53_AEST-xsp-campaign/` on both Mac
+  and q; generated evidence remains outside the source revision by design.
 
 ---
 
@@ -253,30 +364,34 @@ behavior but leaves the profit objective open.
    or missing q behavior remains.
 9. `[DONE]` Publish the full-suite-green combined tree and content-address the
    final integration manifest as clean revision `b943ea4`.
-10. `[WIP]` The natural combined-source news cycle passed at E-147. Producer
-   recovery was strengthened at E-148 and deployed exactly at E-149 so
-   recorder-owned reconnect survives a sleeping Mac/tunnel outage. Prove the
-   Sunday process start and restart continuity. The shadow timer remains
-   disabled.
-11. `[WIP]` An exact reboot-durable one-shot timer now owns Monday's first
-   checkpoint without arming the recurring cadence. Inspect and prove it,
-   remove that temporary timer, then collect every canonical RTH slot and exact
-   option/news context without backfill.
-12. `[TODO]` Accumulate preregistered parity, pre-open, news, and microstructure
-   cohorts; compare identical TA-only and augmented decisions.
-13. `[TODO]` Admit a directional candidate only after positive chronological and
-   prospective economics; freeze its identity/risk limits before selection.
-14. `[TODO]` Run the immutable `24h → 48h → five-session` shadow sequence and
-   issue the final promotion/drift/risk verdict.
-15. `[BLOCKED]` Any option structure or live-capital canary belongs to a later
-   quest after directional causality is proven.
+10. `[DONE]` The `5m/15m` families and all `7,556` cap-independent `30m`
+    candidates are rejected. The frozen annual population fell
+    `7,556 → 734 → 189 → 133 → 0`; historical bar-only admission is closed
+    without changing identities, costs, evidence, or cadence.
+11. `[WIP]` The natural combined-source news cycle passed at E-147. Producer
+    recovery was strengthened at E-148 and deployed exactly at E-149 so
+    recorder-owned reconnect survives a sleeping Mac/tunnel outage. Prove the
+    Sunday process start and restart continuity. The shadow timer remains
+    disabled.
+12. `[WIP]` An exact reboot-durable one-shot timer now owns Monday's first
+    checkpoint without arming the recurring cadence. Inspect and prove it,
+    remove that temporary timer, then collect every canonical RTH slot and exact
+    option/news context without backfill.
+13. `[TODO]` Accumulate preregistered parity, pre-open, news, and microstructure
+    cohorts; compare identical TA-only and augmented decisions.
+14. `[TODO]` Admit a directional candidate only after positive chronological and
+    prospective economics; freeze its identity/risk limits before selection.
+15. `[TODO]` Run the immutable `24h → 48h → five-session` shadow sequence and
+    issue the final promotion/drift/risk verdict.
+16. `[BLOCKED]` Any option structure or live-capital canary belongs to a later
+    quest after directional causality is proven.
 
 ### Current verification state
 
-- Current local combined suite: `827 passed, 4 deselected`; q/news focused
+- Current local combined suite: `831 passed, 4 deselected`; q/news focused
   `27 passed`; cross-boundary XSP/news/architecture/capability set
-  `145 passed`; changed news and q-delta owners plus whole-tree diff checks are
-  clean under Python `3.12.7`.
+  `145 passed`; every campaign-touched Python owner passes Ruff and the
+  whole-tree diff check is clean under Python `3.12.7`.
 - Calibration remains `999` lines, broker shadow `952`, pure benchmarks `881`,
   and entry control `503`; no new architecture-debt exception exists.
 - Runtime imports and all installed units verify through `0af37a1`; Mac,
@@ -475,6 +590,11 @@ Add rows; never rewrite an unfavorable receipt.
 | E-149 | 2026-07-26 08:10 AEST | 1/4 | Exact producer-recovery deployment | Mac/GitHub/q `0af37a1540a077e9e6e7d9be928c8aa87dcd3136`; installed q tunnel/producer units | q clean; both units byte-identical; systemd verify clean; tunnel `RestartUSec=30s`, `StartLimitIntervalUSec=0`; producer `Wants` tunnel and has no tunnel `Requires`; services inactive; news/quote timers enabled; shadow timer disabled | The source switch and unit replacement occurred only after the natural news one-shot reached terminal and while tunnel/producer were inactive. The loaded manager now exposes the intended eventual-recovery properties without starting the tunnel, Gateway, producer, shadow, profitability clock, or any broker/order path. |
 | E-150 | 2026-07-26 08:15 AEST | 1/4 | Exact first-checkpoint trigger without cadence authority | q transient `tradebot-xsp-shadow-first.{timer,service}`; canonical installed shadow one-shot | next `2026-07-27 09:37:00 America/New_York` / `23:37:00 AEST`; `AccuracyUSec=1s`; zero jitter; non-persistent; recurring shadow timer disabled | A transient timer now invokes the existing hardened shadow service exactly once after Monday's first completed XSP cash bar. It duplicates no broker, cache, evaluator, or policy configuration and cannot arm later slots. The wrapper waits up to three minutes for the canonical two-minute fail-closed one-shot; the resulting journal and calibration checkpoint remain the only acceptance evidence. No process, tunnel, Gateway, observer, clock, or order started when the timer was created. |
 | E-151 | 2026-07-26 08:19 AEST | 1/4 | Reboot-durable first-checkpoint trigger | q installed `~/.config/systemd/user/tradebot-xsp-shadow-first.timer`; canonical shadow service | transient pair fully unloaded; durable timer byte-verified and enabled; `Persistent=yes`; next `2026-07-27 09:37 ET` / `23:37 AEST`; `AccuracyUSec=1s`; zero jitter; direct `Unit=tradebot-xsp-shadow.service`; recurring timer disabled | The transient trigger survived logout through the lingering user manager but not a q reboot. It was replaced before firing by one temporary installed timer that survives both and directly invokes the canonical hardened service without a wrapper. A missed wall-clock edge after downtime triggers on return, but freshness and session gates still prevent stale evidence from becoming `EVALUATED`. The timer must be disabled and removed after its one receipt is inspected. No tunnel, Gateway, observer, clock, broker, or order started during replacement. |
+| E-152 | 2026-07-26 17:40 AEST | 2 | Primary five-minute fixed-unit campaign rejection | freeze `backtests/out/xsp/xsp_candidate_discovery_freeze_20260726.json`; stability `backtests/out/xsp/xsp_candidate_stability_20260726.json`; persistent cache `/tmp/xsp-discovery-v13.ocVnrU` | freeze `7fe6e443…`, file `e9036224…`; stability `2e67b2ee…`; log `24ac2148…`; `23,041` cells; `500` frozen; `67` one-year survivors; `0` five-year finalists | The source-aware five-minute campaign completed the registered four-week discovery, content-addressed freeze, ordered one-year challenge, and five-year challenge without inspecting a later window before selection. The four-week leader earned `+14.1/41` trades, while one year retained `67` candidates with both positive net and at least `120` trades. Every one cleared the five-year `600`-trade floor, but all lost after frozen friction; best was `-17.79/786` trades. Cadence therefore did not cause rejection. The least-bad path was approximately `+60.81` gross before `78.6` points of frozen friction, which preregisters a lower-turnover `15m/30m` horizon test without loosening costs or retuning the failed five-minute neighborhood. XSP volume, options, news backfill, broker fills, selection, profitability clock, and order authority remained absent. |
+| E-153 | 2026-07-26 18:20 AEST | 2 | Lower-turnover horizon challenge and exact economic deduplication | `backtests/out/xsp/xsp_candidate_{15m,30m}_{discovery_freeze,stability,challenge}_20260726.json`; `backtests/out/xsp/xsp_candidate_30m_robustness_20260726.json`; persistent cache `/tmp/xsp-discovery-v13.ocVnrU` | 15m freeze `83ab25e0…`, challenge `a92040a6…`; 30m freeze `d9335aea…`, challenge `18ea10c5…`, robustness `39e07479…`; 15m `0` finalists; 30m `7` nominal / `2` economic behaviors | Deterministic resampling produced complete `15m/30m` tapes from the authenticated five-minute source with no broker request. The unchanged 15-minute challenge retained `21/250` after one year and zero after five years. The 30-minute challenge retained `38/250` after one year and seven after five years, but full-result replay hashes every ordered entry/exit/side/price/reason ledger into exactly two groups of four and three. The better RTH group earned `+25.34/851` trades over five years but daily LCB95 was `-0.0467`, one annual slice lost even before friction, latest-year net was `+2.29`, break-even friction was only `0.1298`, and removing its five best days made net negative. The 09–12 behavior was weaker. Both remain `HOLD`; no strategy, profitability clock, broker, or order authority was created. |
+| E-154 | 2026-07-26 18:26 AEST | 2 | All-qualified 30-minute breadth freeze before annual outcomes | `backtests/out/xsp/xsp_candidate_30m_all_qualified_{manifest_20260726.json,freeze_20260726.json.gz}`; `/tmp/xsp-campaign-30m-breadth-freeze-20260726.log`; persistent stage key `35134189…` | `23,041` tested; `7,556` retained; freeze `b22a9619…`; stage `acb7299b…` / `72,641,400` bytes; deterministic gzip `8a9aa2e2…`; manifest `2ea97842…`; candidate IDs `27a6be88…`; log `dd42ecd5…`; replay `47.3s`, cached `23,041/23,041` | The warm canonical Cartesian runner reconstructed every four-week-qualified identity from existing receipts with zero economic recomputation, eliminating the previous top-`250` selection cap as an untested blind spot. Before any further annual result was exposed, one deterministic manifest bound every identity and exact ordered record to the same tape, code, `$1` unit, `$0.10` friction, forbidden-evidence law, and five independent annual gates in newest-to-oldest order. The compressed payload round-trips cleanly. The freeze grants research-challenge authority only; `NO_TRADE`, stopped profitability clock, and zero broker/order authority remain unchanged. |
+| E-155 | 2026-07-26 18:53 AEST | 2 | Thread-safe persistent planner heartbeat | `tradebot/research/spot_sweeps/store_cache.py`; `tests/test_spot_combo_full_signature.py`; failed attempt `/tmp/xsp-campaign-30m-breadth-stability-attempt1-20260726.log` | failed log `3ed2225c…`; source `d63d216b…`; test `c0ffb8d6…`; focused `4 passed`; full `831 passed, 4 deselected`; Ruff/diff clean | The first breadth challenge exposed a runtime defect: evaluation progress came from a background thread, but the shared SQLite connection retained its default creator-thread restriction. Its swallowed thread-affinity error left the persisted heartbeat stale and made the parent falsely recycle healthy workers after `210s`. The canonical connection now permits the heartbeat thread while the existing store lock continues to serialize every access. A real-thread regression proves persisted progress/ETA round-trip; the resumed campaign reused `1,782` exact receipts and completed with advancing parent heartbeat. Strategy, cache identity, economics, broker, and order semantics did not change. |
+| E-156 | 2026-07-26 18:53 AEST | 2 | Cap-independent 30-minute bar-only rejection | freeze `b22a9619…`; `backtests/out/xsp/xsp_candidate_30m_breadth_stability_20260726.json`; `/tmp/xsp-campaign-30m-breadth-stability-20260726.log` | stability `80f653db…`; log `f47265e5…`; `7,556 → 734 → 189 → 133 → 0`; `771.5s`; full `831 passed, 4 deselected` | Every four-week-qualified identity entered the preregistered newest-to-oldest annual challenge unchanged. Positive net after frozen friction plus `120` trades/year reduced the population to zero in the fourth independent slice, so the fifth was correctly skipped and no full-ledger promotion gate was opened. This eliminates the top-`250` cap as the explanation for prior rejection and closes adjacent historical bar-only XSP mining. No XSP crown, selection, profitability clock, broker session, or order authority was created; prospective microstructure is now the sole admissible candidate frontier. |
 
 ---
 
@@ -615,6 +735,10 @@ Add rows; never rewrite an unfavorable receipt.
 | D-123 | Let the session recorder, not tunnel startup timing, own forward-evidence recovery | The application already has durable resume and bounded exponential reconnect, while a hard dependency on a three-attempt tunnel could prevent that recovery owner from starting at all. An uncapped 30-second tunnel retry plus producer `Wants` preserves eventual recovery; the bounded observer retains `Requires` and remains fail-closed | A q-local or broker-independent forward source removes the Mac/tunnel boundary while preserving the same append-only provenance contract |
 | D-124 | Schedule only the first observer proof; never pre-authorize the cadence | Missing the exact first slot would lose causal evidence, while enabling all 78 slots before inspecting the first receipt would bypass the deployment gate. A one-shot transient timer reuses the canonical shadow service and leaves the recurring timer disabled | The first checkpoint is `EVALUATED`, provenance-complete, and `order_authority=none`; then explicitly arm the remaining schedule |
 | D-125 | Make the temporary first-proof trigger reboot-durable, then remove it | A transient timer survives logout but not a manager/machine restart; missing the first slot is costlier than one temporary installed timer. `Persistent=yes` preserves the trigger, while the canonical service still rejects late/stale evidence and the recurring cadence remains disabled | Immediately after inspecting the first terminal receipt, disable and delete the temporary timer before deciding whether to arm the canonical cadence |
+| D-126 | Reject the five-minute source/gate/lifecycle family; test a lower-turnover horizon without relaxing economics | All `67` one-year survivors exceeded five-year cadence yet lost net. The best path retained positive gross movement but surrendered it to the frozen per-trade friction, so adjacent five-minute thresholds or cheaper assumed costs would outcome-mine the same mechanism | Independently frozen `15m/30m` candidates preserve positive net economics, cadence, clustered confidence, side/year attribution, and bounded concentration through both unchanged challenges |
+| D-127 | Hold the weak 30-minute behaviors and run one cap-independent breadth audit before closing bar-only discovery | Seven labels reduce to two ledgers; neither has positive daily confidence, all-year gross strength, adequate friction margin, or unconcentrated net economics. Promoting `+25.34` over `851` trades would mistake a fragile historical residue for a champion. The only untested structural question is whether the preregistered top-250 cap discarded a stable member of the already-frozen four-week qualified population | An all-qualified, content-addressed 30-minute freeze yields an unchanged identity that is positive after frozen friction and cadence in each of five annual slices, then passes full-ledger confidence, concentration, side, drawdown, and cost-sensitivity gates; otherwise prospective microstructure is the sole remaining admission frontier |
+| D-128 | Permit the heartbeat thread on the one locked sweep-store connection | Background progress is part of the canonical evaluator, while SQLite's default creator-thread rule silently prevented its persisted heartbeat and caused false worker recycling. The store already serializes every connection access, so changing only the connection affinity is the smallest repair | A dedicated heartbeat connection or process-local progress authority can prove less contention while preserving identical restart receipts |
+| D-129 | Close adjacent historical bar-only XSP admission | The cap-independent preregistered audit gave every `30m` four-week-qualified identity the same five annual gates and reached zero before the final slice. More nearby horizons, thresholds, friction relief, or gate permutations would outcome-mine a rejected evidence class | A materially independent prospective quote/liquidity or same-tape microstructure mechanism earns positive chronological and forward economics under a new preregistered identity |
 
 ---
 
@@ -715,7 +839,7 @@ promote/hold/revise/stop verdict with its remaining-risk register.
   The selected-economics authority now freezes independent, content-addressed
   `24h`, `48h`, and five-session evidence prefixes; later P&L, gaps, or retries
   cannot rewrite them. The combined WIP is green at
-  `827 passed, 4 deselected`, and every unique behavior in q's eleven-commit
+  `831 passed, 4 deselected`, and every unique behavior in q's eleven-commit
   news delta has been absorbed into the stronger combined publication
   architecture. The production foundation at `b943ea4` and operational
   corrections through E-149 are fully verified; q's pinned runtime and

@@ -34,6 +34,12 @@ def parse_spot_sweep_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Inclusive backtest end date (YYYY-MM-DD).",
     )
     parser.add_argument(
+        "--starting-cash",
+        type=float,
+        default=100_000.0,
+        help="Starting cash/equity used by the backtest and its percentage metrics.",
+    )
+    parser.add_argument(
         "--bar-size",
         default="1 hour",
         help="Signal bar size (e.g. '30 mins', '1 hour'). ORB axis uses 15m regardless.",

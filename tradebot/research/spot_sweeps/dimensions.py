@@ -890,7 +890,7 @@ _SWEEP_RUNTIME_POLICY: dict[str, dict[str, object]] = {
         "claim_span_tuner": {
             # Adaptive claim span for dynamic-claim workers (balance overhead vs stragglers).
             "enabled": 1,
-            "target_claims_per_worker": 24,
+            "target_claims_per_worker": 4,
             "min_claim_span": 1,
             "max_claim_span": 2048,
             "max_batch_multiple": 8,

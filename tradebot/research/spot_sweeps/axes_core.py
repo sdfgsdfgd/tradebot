@@ -37,6 +37,7 @@ class SweepCoreAxes:
             cache_dir=self.cache_dir,
             offline=self.offline,
             filters=filters,
+            starting_cash=self.starting_cash,
             spot_close_eod=self.close_eod,
         )
         if self.spot_exec_bar_size:

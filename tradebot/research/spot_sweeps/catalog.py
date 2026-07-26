@@ -265,6 +265,19 @@ _COMBO_FULL_PRESET_ALIAS_REGISTRY: dict[str, dict[str, object]] = {
         "tier": "profile",
         "customizer": "hf_timing_sniper",
     },
+    "xsp_candidate": {
+        "tier": "custom",
+        "customizer": "xsp_candidate",
+        "freeze_dims": _freeze_all_except(
+            "direction",
+            "tod",
+            "vol",
+            "cadence",
+            "regime",
+            "exit",
+            "shock",
+        ),
+    },
 }
 _COMBO_FULL_PRESET_TIER_NAMES: tuple[str, ...] = tuple(_COMBO_FULL_COVERAGE_TIER_REGISTRY.keys())
 _COMBO_FULL_PRESET_ALIAS_NAMES: tuple[str, ...] = tuple(_COMBO_FULL_PRESET_ALIAS_REGISTRY.keys())

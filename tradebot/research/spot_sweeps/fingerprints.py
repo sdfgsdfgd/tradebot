@@ -12,8 +12,12 @@ from ...backtest.sweep_fingerprint import _canonicalize_fingerprint_value
 from ...chart_data.series import BarSeriesSignature
 from .catalog import _COMBO_FULL_CARTESIAN_DIM_ORDER
 
-_RUN_CFG_CACHE_ENGINE_VERSION = "spot_stage_v12"
+_RUN_CFG_CACHE_ENGINE_VERSION = "spot_stage_v13"
 _RANK_BIN_SIZE = 2048
+
+
+def _compact_fingerprint(value: str) -> str:
+    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()
 
 
 def _axis_dimension_fingerprint(cfg: ConfigBundle) -> str:
@@ -26,7 +30,7 @@ def _axis_dimension_fingerprint(cfg: ConfigBundle) -> str:
         "strategy": _canonicalize_fingerprint_value(strategy),
         "filters": _canonicalize_fingerprint_value(filters_payload),
     }
-    return json.dumps(dims, sort_keys=True, default=str)
+    return _compact_fingerprint(json.dumps(dims, sort_keys=True, default=str))
 
 
 def _window_signature(
@@ -34,7 +38,9 @@ def _window_signature(
     context_sig: tuple[tuple[str, BarSeriesSignature], ...],
 ) -> str:
     raw = {str(kind): tuple(signature) for kind, signature in context_sig}
-    return json.dumps(_canonicalize_fingerprint_value(raw), sort_keys=True, default=str)
+    return _compact_fingerprint(
+        json.dumps(_canonicalize_fingerprint_value(raw), sort_keys=True, default=str)
+    )
 
 
 def _combo_full_dimension_space_signature(
