@@ -22,11 +22,11 @@ output belongs in commit/final verification, not in this management brain.
 | Selected strategy | `NO_TRADE` |
 | Research crown | `xsp.opening-edge-directional.v1` / Opening Edge v1 |
 | Runtime revision | `close-time-parity-r1`; same physical crown, not v2 |
-| Source anchor | `d20ed6e8b34d62f6adcf7f72b9182a937b55e29a`; exact on Mac, GitHub, and q |
+| Runtime source anchor | `f146c9460fc05cf88641ee1dedf3553b1819662c`; signed breadth is bound to prospective receipts |
 | Order/capital authority | `none` |
 | Profitability clock | `NOT_STARTED` |
 | Next irreversible evidence | Monday's first complete prospective XSP session |
-| First active work | Prove q quote-producer start/restart; inspect the first observer checkpoint |
+| First active work | Prove q quote-producer start/restart; inspect the first observer plus signed-breadth checkpoint |
 
 ### Immediate sequence
 
@@ -36,7 +36,8 @@ output belongs in commit/final verification, not in this management brain.
    trading-date tape identity, and read-only broker behavior.
 3. Inspect the reboot-durable one-shot Monday `09:37 ET` /
    `23:37 AEST` observer receipt. Require fresh close-aligned data,
-   `EVALUATED`, coherent candidate equity, and `order_authority=none`.
+   `EVALUATED`, coherent candidate equity, explicit breadth readiness/proxy
+   provenance, and `order_authority=none`.
 4. Remove the temporary one-shot timer, then arm `09:42..16:02 ET` only if
    that checkpoint is exact.
 5. Accumulate prospective economics before selecting anything or starting a
@@ -143,9 +144,11 @@ prospective evidence may receive a new crown.
 
 ### Observation-only breadth challenger
 
-A causal TICK-NASD observation exposes current TICK, 3/6-bar means, cumulative
-breadth, freshness, provenance, direction-relative alignment, and
-improving/deteriorating transition. Vetoing only strongly aligned but
+A causal TICK-NASD observation now reaches every forward turn and checkpoint
+with current TICK, 3/6-bar means, cumulative breadth, freshness, provenance,
+direction-relative alignment, and improving/deteriorating transition. Exact
+NYSE TICK remains unavailable under the current entitlement, so NASDAQ is
+always named as a proxy. Vetoing only strongly aligned but
 deteriorating breadth at `150` produced:
 
 | Window | Crown | Breadth challenger |
@@ -185,7 +188,8 @@ explain plausibility but cannot label old trades or support value claims.
 ### Active task tree
 
 1. `[WIP]` Prove Sunday/Monday quote-producer start, reconnect, same-date
-   restart, universe retention, tape integrity, and read-only behavior.
+   restart, universe retention, tape integrity, read-only behavior, and the
+   first causal signed-breadth receipt.
 2. `[WIP]` Inspect Monday's one-shot observer checkpoint; remove its temporary
    timer and arm recurring cadence only after an exact `EVALUATED` receipt.
 3. `[TODO]` Accumulate identical TA-only, breadth, news, parity, liquidity,
@@ -212,6 +216,7 @@ explain plausibility but cannot label old trades or support value claims.
 | Forward option tape | `tradebot/backtest/tools/record_quotes.py` | restart-safe GTH/RTH/Curb tape with actual MD provenance |
 | Broker shadow | `tradebot/research/xsp_shadow.py` | exact XSP `IND/CBOE`; bounded and non-submitting |
 | Evidence/economics | `tradebot/research/live_calibration.py` | append-only forecasts/results/checkpoints and immutable milestones |
+| External decision context | `tradebot/research/xsp_context.py` | one timestamp-causal option/news/breadth projection; observation only |
 | Candidate reducers | `tradebot/research/xsp_benchmarks.py` | pure comparison; no broker/order imports |
 | Causal fundamentals | `tradebot/news/` | timestamp-valid `off/observe`; no selector/order authority |
 | Runtime activation | `deploy/systemd/` | one revision; read-only tunnel; producer before observer |
@@ -226,7 +231,7 @@ must be advanced, traced, and consumed identically; otherwise remove the lie.
 - XSP five-minute RTH: `97,530` bars / `1,255` sessions through July 24;
   complete causal clock; index volume absent.
 - TICK-NASD five-minute proxy: `97,530` bars / `1,255` matched sessions;
-  observation-only, not exact NYSE breadth.
+  byte-identical Mac/q cache; observation-only, not exact NYSE breadth.
 - SPY/VIX context: provenance-bound; neither owns XSP direction.
 - July 24 XSP option tape: `91` restart-safe snapshots
   (`8 GTH / 74 RTH / 9 Curb`).
@@ -271,6 +276,7 @@ and
 | E-172 | false TICK direction authority is removed; breadth-150 remains an unpromoted observer |
 | E-173 | this active/archive split preserves the full history while making the 355-line root the sole resume authority |
 | E-174 | `d20ed6e` publishes the crown parity/breadth runtime and management anchor identically on Mac/GitHub/q; raw and repaired campaign artifacts remain separately preserved |
+| E-175 | `f146c94` preserves signed TICK negatives/zeros and binds exact causal breadth plus crown-entry context into the non-submitting observer |
 
 ### Decision anchors
 
