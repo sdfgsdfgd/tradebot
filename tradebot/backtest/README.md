@@ -403,8 +403,6 @@ This is a **quick map of what the sweeps actually cover** (outer edges), so we c
 - TOD interaction (`--axis tod_interaction`): `start ∈ {17,18,19}`, `end ∈ {3,4,5}`, `skip_first_bars ∈ {0,1,2}`, `cooldown_bars ∈ {0,1,2}`
 - Permission joint (`--axis perm_joint`): combines `tod` windows (incl base/off + selected RTH/overnight) × `spread` variants × `volume` variants (no funnel pruning)
 - EMA×permission joint (`--axis ema_perm_joint`): shortlist `ema_preset ∈ {2/4,3/7,4/9,5/10,8/21,9/21,21/50}` → sweep a targeted set of `tod/spread/volume` combos
-- Tick×permission joint (`--axis tick_perm_joint`): shortlist Raschke `$TICK` params (`z_enter/z_exit/slope/lookback/policy/dir_policy`) → sweep a targeted set of `tod/spread/volume` combos
-- Tick×EMA joint (`--axis tick_ema`): `ema_preset ∈ {2/4,3/7,4/9,5/10,8/21,9/21,21/50}` × Raschke `$TICK` params (`z_enter/z_exit/slope/lookback/policy`, with `dir_policy=wide_only`)
 - Chop joint (`--axis chop_joint`): `ema_slope_min_pct ∈ {None, 0.005,0.01,0.02,0.03}` × `cooldown_bars ∈ {0,1,2,3,4,6}` × `skip_first_bars ∈ {0,1,2,3}`
 - Weekdays (`--axis weekday`): several hand-picked sets (Mon–Fri, Tue–Thu, etc.)
 - EMA spread gate (`--axis spread`): `ema_spread_min_pct ∈ {None, 0.005, 0.01, 0.02, 0.03, 0.05, 0.10}`
@@ -416,10 +414,6 @@ This is a **quick map of what the sweeps actually cover** (outer edges), so we c
 - Realized-vol band gate (`--axis rv`): `rv_min ∈ {None, 0.25,0.30,0.35,0.40,0.45}`, `rv_max ∈ {None, 0.70,0.80,0.90,1.00}`
 - Cooldown (`--axis cooldown`): `cooldown_bars ∈ {0,1,2,3,4,6,8}`
 - Skip-open (`--axis skip_open`): `skip_first_bars ∈ {0,1,2,3,4,6}`
-- $TICK gate (“Raschke width”, `--axis tick`):
-  - `z_enter ∈ {0.8,1.0,1.2}`, `z_exit ∈ {0.4,0.5,0.6}`, `slope_lookback ∈ {3,5}`, `z_lookback ∈ {126,252}`
-  - `tick_neutral_policy ∈ {allow, block}`, `tick_direction_policy ∈ {both, wide_only}`
-  - Default symbol tries `TICK-AMEX` (fallback from `TICK-NYSE` if permissions/cache block it)
 - Shock overlay (`--axis shock`): `shock_gate_mode ∈ {detect, block, block_longs, block_shorts, surf}` × `shock_detector ∈ {atr_ratio, tr_ratio, daily_atr_pct, daily_drawdown}` plus curated threshold presets (includes `shock_daily_on_tr_pct` for “TR early trigger”), with small grids for `shock_stop_loss_pct_mult`, `shock_profit_target_pct_mult`, and `shock_short_risk_mult_factor`
 - TR% risk overlays (`--axis risk_overlays`): risk-off `riskoff_tr5_med_pct`; risk-panic `riskpanic_tr5_med_pct + riskpanic_neg_gap_ratio_min` with `riskpanic_short_risk_mult_factor ∈ {1.0,0.5,0.2,0.0}` (and optional `riskpanic_long_risk_mult_factor` for long sizing shrink/block on panic days); risk-pop `riskpop_tr5_med_pct + riskpop_pos_gap_ratio_min` with `riskpop_long_risk_mult_factor ∈ {0.6,0.8,1.0,1.2,1.5}` and `riskpop_short_risk_mult_factor ∈ {1.0,0.5,0.2,0.0}`
   - Optional “gap magnitude” tightening: `riskpanic_neg_gap_abs_pct_min`, `riskpop_pos_gap_abs_pct_min` (only count gaps with `|gap|>=threshold` toward the gap ratio).
@@ -451,12 +445,12 @@ This is a **quick map of what the sweeps actually cover** (outer edges), so we c
 
 **ORB**
 - ORB (`--axis orb`, runs on 15m bars): `open_time_et ∈ {09:30, 18:00}`, `window_mins ∈ {15,30,60}`, `target_mode ∈ {rr, or_range}`, `rr ∈ {0.618,0.707,0.786,1.0,1.272,1.618,2.0}`, optional `vol>=1.2@20`, plus a session TOD filter.
-- ORB joint (`--axis orb_joint`, runs on 15m bars): stage-1 shortlist of ORB params → apply `regime ∈ {off, ST @ 4h (small curated set)}` × `tick ∈ {off, wide_only allow/block (z=1.0/0.5 slope=3 lb=252)}`
+- ORB joint (`--axis orb_joint`, runs on 15m bars): stage-1 shortlist of ORB params → apply `regime ∈ {off, ST @ 4h (small curated set)}`
 
 **Known gaps (we now target explicitly)**
 - Some interaction edges require **joint sweeps** rather than one-axis sweeps (e.g. `regime2 × ATR exits` with `PTx < 1.0`): this is the class of gap compact preset funnels can miss, and is now covered by `--axis r2_atr`.
 - `--axis combo_full --combo-full-preset gate_matrix` is the bounded compact funnel for gate cross-products around a stable seed surface.
-- `--axis gate_matrix` is a bounded cross-product around a seed shortlist: `{perm,tick,shock,riskoff,riskpanic,riskpop,regime2} on/off` × `spot_short_risk_mult` (intended to finish overnight).
+- `--axis gate_matrix` is a bounded cross-product around a seed shortlist: permission, timing, shock/risk, regime2, and short-risk variants.
 - `--axis combo_full --combo-full-preset hf_timing_sniper` is the tight HF timing corridor; its current 32-point space is generated from the preset itself, so reported progress cannot drift from execution.
 - `--axis combo_full` runs the canonical Cartesian search space; `--axis all` runs the individual-axis suite. Large spaces are intended for offline parallel discovery via `--jobs N` (defaults to CPU count).
 

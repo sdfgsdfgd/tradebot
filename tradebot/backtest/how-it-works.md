@@ -80,7 +80,6 @@ the mapping is:
 - primary regime alignment (`regime_mode` + readiness)
 - secondary regime alignment (`regime2_mode`, with `regime2_apply_to`)
 - dual-branch/RATS-V branch selection (when enabled)
-- tick gate clamping (if enabled)
 
 So even if `state=down`, `entry` can be `None` for many valid reasons:
 - no fresh cross in cross mode
@@ -89,7 +88,6 @@ So even if `state=down`, `entry` can be `None` for many valid reasons:
 - regime gate not ready
 - regime2 blocked only this side
 - branch filters failed
-- tick gate blocked direction
 
 ## 4) Why `regime` and `shock_dir` are often different
 
@@ -578,17 +576,7 @@ In filters parsing, several safety clamps are applied:
 - Positive-only thresholds
   - many slope/ATR/TR threshold knobs are coerced to `None` when non-positive.
 
-## 19) Market breadth is observation, not direction
-
-The retired `tick_gate_mode=raschke` path mapped wide TICK bands to `up` and
-narrow bands to `down`. Band width measures activity or dispersion, not
-direction, so it is no longer a strategy knob, sweep axis, or entry clamp.
-Historical journals may still display the removed setting for provenance.
-Directional breadth research must use causal signed TICK levels and their
-transition explicitly, remain observation-only until validated, and fail open
-when evidence is missing, stale, or underwarmed.
-
-## 20) One concrete divergence scenario (so this feels real)
+## 19) One concrete divergence scenario (so this feels real)
 
 Example:
 - `ema_entry_mode=trend`

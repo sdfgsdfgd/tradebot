@@ -29,11 +29,7 @@ from .xsp_candidate import (
     xsp_opening_edge_run_start,
 )
 from .xsp_context import (
-    XSP_BREADTH_EXCHANGE,
-    XSP_BREADTH_HISTORY_DURATION,
-    XSP_BREADTH_SYMBOL,
     xsp_fundamental_context_at,
-    xsp_market_breadth_context_at,
     xsp_option_context_at,
 )
 
@@ -90,7 +86,6 @@ def freeze_xsp_directional_observation(
     evidence_mode: str,
     option_context: Mapping[str, object] | None = None,
     fundamental_context: Mapping[str, object] | None = None,
-    market_breadth_context: Mapping[str, object] | None = None,
     naive_ts_mode: NaiveTsModeInput = "utc",
     horizons_minutes: Sequence[int] = XSP_DIRECTIONAL_HORIZONS_MINUTES,
 ) -> list[dict[str, object]]:
@@ -155,10 +150,6 @@ def freeze_xsp_directional_observation(
                 "usable": False,
                 "reason": "not_recorded_at_decision",
             }
-        )
-        context["market_breadth"] = dict(
-            market_breadth_context
-            or xsp_market_breadth_context_at((), decision_at=decision_at)
         )
         identity = {
             "strategy_id": "NO_TRADE",
@@ -335,7 +326,6 @@ def advance_xsp_directional_shadow(
     observed_at: datetime,
     option_snapshots: Sequence[QuoteSnapshot] = (),
     news_snapshot: Mapping[str, object] | Sequence[Mapping[str, object]] | None = None,
-    breadth_samples: Sequence[tuple[datetime, float]] = (),
     naive_ts_mode: NaiveTsModeInput = "utc",
     freeze_new: bool = True,
 ) -> dict[str, object]:
@@ -393,16 +383,6 @@ def advance_xsp_directional_shadow(
                 news_snapshot,
                 decision_at=decision_at,
             ),
-            market_breadth_context=xsp_market_breadth_context_at(
-                breadth_samples,
-                decision_at=decision_at,
-                direction=(
-                    snapshot.directional_impulse.turn_event
-                    if snapshot.directional_impulse is not None
-                    else None
-                ),
-                naive_ts_mode=naive_ts_mode,
-            ),
             naive_ts_mode=naive_ts_mode,
         ):
             forecast_id = str(row["forecast_id"])
@@ -427,11 +407,6 @@ def advance_xsp_directional_shadow(
         "new_results": len(settled),
         "freeze_new": bool(freeze_new),
         "option_snapshots": len(option_snapshots),
-        "market_breadth": xsp_market_breadth_context_at(
-            breadth_samples,
-            decision_at=observed_utc,
-            naive_ts_mode=naive_ts_mode,
-        ),
         "latest_bar_close_utc": (
             latest_close.isoformat() if latest_close is not None else None
         ),
@@ -577,73 +552,12 @@ async def advance_xsp_shadow_from_ibkr(
         else "STALE_DATA"
     )
     historical_request = client.last_historical_request(contract)
-    breadth_contract = None
-    breadth_raw_bars = []
-    breadth_bars = []
-    breadth_historical_request = None
-    breadth_error = None
-    try:
-        breadth_qualified = await client.qualify_proxy_contracts(
-            Index(XSP_BREADTH_SYMBOL, XSP_BREADTH_EXCHANGE, "USD")
-        )
-        breadth_contract = next(
-            (
-                row
-                for row in breadth_qualified
-                if int(getattr(row, "conId", 0) or 0) > 0
-                and str(getattr(row, "secType", "") or "").strip().upper()
-                == "IND"
-                and str(getattr(row, "symbol", "") or "").strip().upper()
-                == XSP_BREADTH_SYMBOL
-            ),
-            None,
-        )
-        if breadth_contract is None:
-            breadth_error = "contract_unavailable"
-        else:
-            breadth_raw_bars = await client.historical_bars_ohlcv(
-                breadth_contract,
-                duration_str=XSP_BREADTH_HISTORY_DURATION,
-                bar_size="5 mins",
-                use_rth=True,
-                what_to_show="TRADES",
-                cache_ttl_sec=0.0,
-            )
-            breadth_complete = trim_incomplete_last_bar(
-                list(breadth_raw_bars),
-                bar_size="5 mins",
-                now_ref=observed_et_naive,
-            )
-            breadth_bars = normalize_bars_to_close(
-                breadth_complete,
-                symbol=XSP_BREADTH_SYMBOL,
-                bar_size="5 mins",
-                use_rth=True,
-                naive_ts_mode="et",
-            )
-            breadth_historical_request = client.last_historical_request(
-                breadth_contract
-            )
-            request_contract = (
-                breadth_historical_request.get("contract")
-                if isinstance(breadth_historical_request, Mapping)
-                else None
-            )
-            if (
-                not isinstance(request_contract, Mapping)
-                or request_contract.get("symbol") != XSP_BREADTH_SYMBOL
-            ):
-                breadth_historical_request = None
-    except Exception as exc:
-        breadth_error = f"{type(exc).__name__}: {exc}"
-    breadth_samples = tuple((bar.ts, float(bar.close)) for bar in breadth_bars)
     receipt = advance_xsp_directional_shadow(
         ledger,
         bars,
         observed_at=observed_at,
         option_snapshots=option_snapshots,
         news_snapshot=news_snapshot,
-        breadth_samples=breadth_samples,
         naive_ts_mode="et",
         freeze_new=freshness_ok,
     )
@@ -660,24 +574,6 @@ async def advance_xsp_shadow_from_ibkr(
         if freshness_ok
         else None
     )
-    latest_candidate_entry_breadth = None
-    latest_trade = (
-        candidate_equity.get("latest_trade")
-        if isinstance(candidate_equity, Mapping)
-        else None
-    )
-    if isinstance(latest_trade, Mapping) and latest_trade.get("decision_at_utc"):
-        try:
-            latest_candidate_entry_breadth = xsp_market_breadth_context_at(
-                breadth_samples,
-                decision_at=datetime.fromisoformat(
-                    str(latest_trade["decision_at_utc"]).replace("Z", "+00:00")
-                ),
-                direction=str(latest_trade.get("direction") or ""),
-                naive_ts_mode="et",
-            )
-        except ValueError:
-            latest_candidate_entry_breadth = None
     ledger.checkpoint(
         evaluation_as_of=observed_utc,
         strategy_id=XSP_OPENING_EDGE_VERSION,
@@ -692,8 +588,6 @@ async def advance_xsp_shadow_from_ibkr(
                 naive_ts_mode="et",
             ),
             "cash_history_fresh": freshness_ok,
-            "market_breadth": receipt["market_breadth"],
-            "latest_candidate_entry_breadth": latest_candidate_entry_breadth,
             "order_authority": "none",
         },
         recorded_at=observed_utc,
@@ -717,7 +611,6 @@ async def advance_xsp_shadow_from_ibkr(
             "latest_bar_age_sec": latest_age_sec,
             "cash_history_fresh": freshness_ok,
             "option_snapshots": len(option_snapshots),
-            "market_breadth": receipt["market_breadth"],
             "order_authority": "none",
         },
         recorded_at=observed_utc,
@@ -739,23 +632,6 @@ async def advance_xsp_shadow_from_ibkr(
         "raw_bars": len(raw_bars),
         "complete_close_aligned_bars": len(bars),
         "historical_request": historical_request,
-        "breadth_contract": (
-            {
-                "con_id": int(getattr(breadth_contract, "conId", 0) or 0),
-                "symbol": str(getattr(breadth_contract, "symbol", "") or ""),
-                "sec_type": str(getattr(breadth_contract, "secType", "") or ""),
-                "exchange": str(getattr(breadth_contract, "exchange", "") or ""),
-                "currency": str(getattr(breadth_contract, "currency", "") or ""),
-            }
-            if breadth_contract is not None
-            else None
-        ),
-        "breadth_raw_bars": len(breadth_raw_bars),
-        "breadth_complete_close_aligned_bars": len(breadth_bars),
-        "breadth_historical_request": breadth_historical_request,
-        "breadth_error": breadth_error,
-        "market_breadth": receipt["market_breadth"],
-        "latest_candidate_entry_breadth": latest_candidate_entry_breadth,
         "opening_edge_candidate": candidate_equity,
     }
 
@@ -766,7 +642,6 @@ def replay_xsp_directional_shadow(
     *,
     option_snapshots: Sequence[QuoteSnapshot] = (),
     news_snapshots: Sequence[Mapping[str, object]] = (),
-    breadth_samples: Sequence[tuple[datetime, float]] = (),
     naive_ts_mode: NaiveTsModeInput = "utc",
 ) -> dict[str, object]:
     ordered = sorted(
@@ -813,19 +688,6 @@ def replay_xsp_directional_shadow(
                 )
                 if news_snapshots
                 else None
-            ),
-            market_breadth_context=xsp_market_breadth_context_at(
-                breadth_samples,
-                decision_at=_utc(
-                    snapshot.bar_ts,
-                    naive_ts_mode=naive_ts_mode,
-                ),
-                direction=(
-                    snapshot.directional_impulse.turn_event
-                    if snapshot.directional_impulse is not None
-                    else None
-                ),
-                naive_ts_mode=naive_ts_mode,
             ),
             naive_ts_mode=naive_ts_mode,
         )

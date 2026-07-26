@@ -39,7 +39,6 @@ Legend: `sharded` = stage-level worker sharding inside the axis; `cached` = run_
 | `skip_open` | no | yes |  |
 | `shock` | no | yes |  |
 | `loosen` | no | yes |  |
-| `tick` | no | yes |  |
 
 ## Notes
 - `combo_full` and `--axis all` additionally support axis-level subprocess orchestration.

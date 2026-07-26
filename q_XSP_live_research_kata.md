@@ -22,25 +22,26 @@ output belongs in commit/final verification, not in this management brain.
 | Selected strategy | `NO_TRADE` |
 | Research crown | `xsp.opening-edge-directional.v1` / Opening Edge v1 |
 | Runtime revision | `close-time-parity-r1`; same physical crown, not v2 |
-| Runtime source anchor | `f146c9460fc05cf88641ee1dedf3553b1819662c`; signed breadth is bound to prospective receipts |
+| Runtime source anchor | current `main`; signed breadth remains research-only and is absent from prospective shadow receipts |
 | Order/capital authority | `none` |
 | Profitability clock | `NOT_STARTED` |
 | Next irreversible evidence | Monday's first complete prospective XSP session |
-| First active work | Prove q quote-producer start/restart; inspect the first observer plus signed-breadth checkpoint |
+| First active work | Use the remaining premarket window for a corrected-lifecycle challenger tournament; then prove q quote-producer and observer startup |
 
 ### Immediate sequence
 
-1. Let q's persistent quote trigger start Sunday `20:15 ET` / Monday
+1. Challenge Opening Edge v1 with materially distinct shared-engine sources and
+   lifecycle combinations; require `>200` trades/year and unchanged costs.
+2. Let q's persistent quote trigger start Sunday `20:15 ET` / Monday
    `10:15 AEST`; do not backfill or manually create the evidence.
-2. Prove recorder process start, same-session restart continuity, exact
+3. Prove recorder process start, same-session restart continuity, exact
    trading-date tape identity, and read-only broker behavior.
-3. Inspect the reboot-durable one-shot Monday `09:37 ET` /
+4. Inspect the reboot-durable one-shot Monday `09:37 ET` /
    `23:37 AEST` observer receipt. Require fresh close-aligned data,
-   `EVALUATED`, coherent candidate equity, explicit breadth readiness/proxy
-   provenance, and `order_authority=none`.
-4. Remove the temporary one-shot timer, then arm `09:42..16:02 ET` only if
+   `EVALUATED`, coherent candidate equity, and `order_authority=none`.
+5. Remove the temporary one-shot timer, then arm `09:42..16:02 ET` only if
    that checkpoint is exact.
-5. Accumulate prospective economics before selecting anything or starting a
+6. Accumulate prospective economics before selecting anything or starting a
    milestone clock.
 
 ### Never infer
@@ -142,26 +143,10 @@ and drawdown. It updates Opening Edge v1; only a materially stronger strategy
 across recent, latest-year, annual-slice, five-year, cadence, risk, and
 prospective evidence may receive a new crown.
 
-### Observation-only breadth challenger
-
-A causal TICK-NASD observation now reaches every forward turn and checkpoint
-with current TICK, 3/6-bar means, cumulative breadth, freshness, provenance,
-direction-relative alignment, and improving/deteriorating transition. Exact
-NYSE TICK remains unavailable under the current entitlement, so NASDAQ is
-always named as a proxy. Vetoing only strongly aligned but
-deteriorating breadth at `150` produced:
-
-| Window | Crown | Breadth challenger |
-|---|---:|---:|
-| recent | +10.98 / 17 | +8.99 / 16 |
-| latest year | +131.74 / 204 | +128.34 / 202 |
-| five years | +120.59 / 1,019 | +127.64 / 1,004 |
-| five-year PF / DD | 1.1705 / 59.95 | 1.1819 / 52.67 |
-
-It is not crowned: it worsens fresh windows, still loses 2021/2023, uses a
-NASDAQ proxy, and was discovered on the same five-year tape. The old
-`wide TICK band → up / narrow band → down` path was semantically false,
-unused, and is retired rather than retuned.
+TICK is now deliberately small: explicit signed-index history semantics plus
+one causal research reducer. It performs no automatic broker request, shadow
+receipt propagation, direction vote, veto, selector action, or live order
+action. The rejected breadth challenger remains only in cold evidence.
 
 ---
 
@@ -174,7 +159,6 @@ stale, underwarmed, failed, or horizon-expired evidence means no extra gate.
 
 | Evidence lane | Frozen question | Authority |
 |---|---|---|
-| Breadth-150 | Does fresh signed breadth deterioration improve unchanged-crown expectancy/drawdown without losing cadence? | observe only |
 | Causal news | Does fresh opposite XSP pressure avoid adverse selection; how do `new/strengthening/weakening/reversal` states change attribution? | defensive context only |
 | Option parity | Does exact-sign, independently non-overlapping parity improve same-tape directional outcomes? | observe only; at least 30 pairs / five sessions |
 | Option liquidity | Do pair count, parity dispersion, relative spread, quote age, and strengthening beat TA-only and parity alone? | threshold-free Pareto observation |
@@ -187,18 +171,22 @@ explain plausibility but cannot label old trades or support value claims.
 
 ### Active task tree
 
-1. `[WIP]` Prove Sunday/Monday quote-producer start, reconnect, same-date
-   restart, universe retention, tape integrity, read-only behavior, and the
-   first causal signed-breadth receipt.
-2. `[WIP]` Inspect Monday's one-shot observer checkpoint; remove its temporary
+1. `[WIP]` Run a bounded mechanism-level challenger tournament through the
+   repaired source-consistent flip/EOD lifecycle: directional impulse peers,
+   EMA, ORB/reclaim, explicit confirmations, and crash/rebound geometry.
+   Require exact active-gate traces, recent → annual slices → five-year
+   challenge, unchanged `$0.10` friction, and `>200` trades/year.
+2. `[WIP]` Prove Sunday/Monday quote-producer start, reconnect, same-date
+   restart, universe retention, tape integrity, and read-only behavior.
+3. `[WIP]` Inspect Monday's one-shot observer checkpoint; remove its temporary
    timer and arm recurring cadence only after an exact `EVALUATED` receipt.
-3. `[TODO]` Accumulate identical TA-only, breadth, news, parity, liquidity,
+4. `[TODO]` Accumulate identical TA-only, news, parity, liquidity,
    pre-open, and candidate-equity observations without backfill.
-4. `[TODO]` Select/freeze a run only after positive prospective economics;
+5. `[TODO]` Select/freeze a run only after positive prospective economics;
    historical evidence alone cannot start the clock.
-5. `[TODO]` Execute the immutable `24h → 48h → five-session` sequence and
+6. `[TODO]` Execute the immutable `24h → 48h → five-session` sequence and
    issue the final economic, drift, safety, and promotion verdict.
-6. `[BLOCKED]` Option structures and any live-capital canary belong to a later
+7. `[BLOCKED]` Option structures and any live-capital canary belong to a later
    quest after directional causality is proven.
 
 ---
@@ -216,7 +204,7 @@ explain plausibility but cannot label old trades or support value claims.
 | Forward option tape | `tradebot/backtest/tools/record_quotes.py` | restart-safe GTH/RTH/Curb tape with actual MD provenance |
 | Broker shadow | `tradebot/research/xsp_shadow.py` | exact XSP `IND/CBOE`; bounded and non-submitting |
 | Evidence/economics | `tradebot/research/live_calibration.py` | append-only forecasts/results/checkpoints and immutable milestones |
-| External decision context | `tradebot/research/xsp_context.py` | one timestamp-causal option/news/breadth projection; observation only |
+| External decision context | `tradebot/research/xsp_context.py` | timestamp-causal option/news projection plus a research-only signed-breadth reducer |
 | Candidate reducers | `tradebot/research/xsp_benchmarks.py` | pure comparison; no broker/order imports |
 | Causal fundamentals | `tradebot/news/` | timestamp-valid `off/observe`; no selector/order authority |
 | Runtime activation | `deploy/systemd/` | one revision; read-only tunnel; producer before observer |
@@ -230,8 +218,6 @@ must be advanced, traced, and consumed identically; otherwise remove the lie.
 
 - XSP five-minute RTH: `97,530` bars / `1,255` sessions through July 24;
   complete causal clock; index volume absent.
-- TICK-NASD five-minute proxy: `97,530` bars / `1,255` matched sessions;
-  byte-identical Mac/q cache; observation-only, not exact NYSE breadth.
 - SPY/VIX context: provenance-bound; neither owns XSP direction.
 - July 24 XSP option tape: `91` restart-safe snapshots
   (`8 GTH / 74 RTH / 9 Curb`).
@@ -273,10 +259,10 @@ and
 | E-168…E-169 | global exit-to-flat and late-profit-lock challengers were rejected; useful kernel repairs remain |
 | E-170 | weak years are genuine economic degradation, not cache/clock/cost corruption; no single historical TA veto binds them |
 | E-171 | close-time parity preserves all crown trades/economics and updates v1 without a new crown |
-| E-172 | false TICK direction authority is removed; breadth-150 remains an unpromoted observer |
+| E-172 | false TICK direction authority is removed; the breadth-150 challenger was not crowned |
 | E-173 | this active/archive split preserves the full history while making the 355-line root the sole resume authority |
 | E-174 | `d20ed6e` publishes the crown parity/breadth runtime and management anchor identically on Mac/GitHub/q; raw and repaired campaign artifacts remain separately preserved |
-| E-175 | `f146c94` preserves signed TICK negatives/zeros and binds exact causal breadth plus crown-entry context into the non-submitting observer |
+| E-175…E-176 | signed TICK values remain valid research data; automatic breadth fetch/receipt propagation was then retired as unearned runtime surface |
 
 ### Decision anchors
 
@@ -290,7 +276,7 @@ and
 | D-135…D-139 | persistent source ownership, controlled reversal, crown freeze, and honest optional excursions define lifecycle |
 | D-140…D-142 | weak intervals, crash/rebound, and causal news are observable peer states—not hidden regimes or historical backfill |
 | D-143 | representation repair updates v1; coronation requires material strategic superiority |
-| D-144 | signed breadth may observe participation; dispersion cannot own direction |
+| D-144, D-146…D-147 | signed breadth may remain a pure research observation; it has no active direction, gate, selector, or shadow authority |
 | D-145 | active authority stays minimal and priority-ordered; full receipts, closed narratives, and superseded state live behind stable archive markers |
 
 ---
@@ -356,6 +342,7 @@ The immediate quest is prospective Monday evidence, then immutable
 `24h → 48h → five-session` profitability and calibration—not more historical
 decimal mining and not options capital.
 
-**Predictive observation:** the crown's strongest next improvement is likely an
-independent admission-quality signal from authentic forward liquidity, breadth,
-or causal context—not another slope threshold or a tighter exit.
+**Predictive observation:** the crown's strongest next improvement is likely a
+materially different shared-engine mechanism or authentic forward
+liquidity/causal context—not another breadth threshold, slope decimal, or
+tighter exit.

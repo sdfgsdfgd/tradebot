@@ -479,7 +479,7 @@ class ComboPresetContext:
         self._set_dim_rows("exit", self._atr_exit_rows(with_close_eod=True))
 
     def _preset_xsp_candidate(self) -> None:
-        """Source-aware fixed-unit XSP discovery without invalid volume/TICK gates."""
+        """Source-aware fixed-unit XSP discovery without unsupported evidence gates."""
         direction_rows: list[tuple[str, dict[str, object]]] = []
         for preset in ("2/4", "3/7", "4/9", "8/21"):
             for mode in ("cross", "trend"):

@@ -479,10 +479,6 @@ class JournalDiagnostics:
             priority = str(strategy.get("spot_dual_branch_priority") or "").strip()
             tokens.append(f"branching=dual ({priority or '?'})")
 
-        tick_gate_mode = str(strategy.get("tick_gate_mode") or "").strip()
-        if tick_gate_mode and not JournalDiagnostics._is_disabled(tick_gate_mode):
-            tokens.append(f"tick_gate={tick_gate_mode}")
-
         unique: list[str] = []
         seen: set[str] = set()
         for token in tokens:
@@ -512,17 +508,6 @@ class JournalDiagnostics:
         controls = raw.get("controls")
         if isinstance(controls, list) and controls:
             tokens.append("chain=" + "→".join(str(value) for value in controls))
-        resolution = raw.get("resolution")
-        if isinstance(resolution, dict):
-            tick = resolution.get("tick_gate")
-            if (
-                isinstance(tick, dict)
-                and str(tick.get("configured") or "off") != "off"
-            ):
-                applied = bool(tick.get("applied"))
-                tokens.append(
-                    f"tick={tick.get('configured')}:{'applied' if applied else 'not-applied'}"
-                )
         return (
             "[dim]entry_control[/] " + JournalDiagnostics._join_tokens(tokens)
             if tokens

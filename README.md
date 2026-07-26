@@ -125,7 +125,7 @@ Backtest docs live in `tradebot/backtest/README.md` (includes spot milestone reg
 - Regime gates (bias + confirm) on multi-timeframe bars (e.g. 4h/1d Supertrend; optional regime2).
 - Exits (fixed % and ATR, including the PT<1.0 “net-PnL pocket”) + flip-exit / hold.
 - Permission gates (TOD, spread/slope, volume, RV band, cooldown/skip-open, weekdays, exit-time).
-- Extra gates explored: Raschke `$TICK` width gating, ORB (15m axis).
+- Extra source families explored: ORB and multitimeframe direction/permission combinations.
 
 **Universe B — Algo trading robustness (future work)**
 - Realism pass (execution + costs): next-bar execution, intrabar TP/SL, spread/slippage/fees, ET day/session boundaries.

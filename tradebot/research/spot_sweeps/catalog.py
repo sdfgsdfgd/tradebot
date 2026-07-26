@@ -73,7 +73,7 @@ _AXIS_SURFACE_SPECS: tuple[AxisSurfaceSpec, ...] = (
         total_hint_static=13,
     ),
     AxisSurfaceSpec("orb", True, "ORB sweep (open-time, window, target semantics)."),
-    AxisSurfaceSpec("orb_joint", False, "ORB x regime x TICK joint sweep."),
+    AxisSurfaceSpec("orb_joint", False, "ORB x regime joint sweep."),
     AxisSurfaceSpec(
         "regime",
         True,

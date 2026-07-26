@@ -184,33 +184,6 @@ manufacture this crown.
 
 ---
 
-## Research challenger — breadth deterioration 150
-
-This is **not a crown**. It uses the same Opening Edge v1 source and lifecycle,
-then observes causal same-session `TICK-NASD` breadth. It vetoes only a proposed
-turn already aligned by at least `150` TICK points when the three-bar mean is
-deteriorating relative to the six-bar mean. TICK dispersion never votes
-`up/down`; missing, stale, or underwarmed breadth has no authority.
-
-| Window | Crown | Breadth-150 | Verdict |
-|---|---:|---:|---|
-| Recent 19 sessions | `+10.98 / 17`, PF `1.950` | `+8.99 / 16`, PF `1.778` | Worse |
-| Latest 251 sessions | `+131.74 / 204`, PF `2.044` | `+128.34 / 202`, PF `2.010` | Worse |
-| Five years | `+120.59 / 1,019`, PF `1.170`, DD `59.95` | `+127.64 / 1,004`, PF `1.182`, DD `52.67` | Modest aggregate improvement |
-
-Annual attribution is mixed: the challenger improves 2021, 2022, 2023, and
-2025 point estimates, but worsens 2024 and 2026; 2021/2023 still lose. It was
-discovered on the same five-year tape, uses a NASDAQ breadth proxy for XSP, and
-worsens both freshest challenge windows. It remains an observation-only paired
-challenger with `order_authority=none`; no crown record is created.
-
-The retired legacy `raschke` path is deliberately absent. It mapped daily TICK
-band width to direction (`wide → up`, `narrow → down`), although width measures
-activity/dispersion rather than sign. No current or archived strategy enabled
-it; historical journals may still render its old fields for provenance.
-
----
-
 ## Crown authority and Monday handoff
 
 The same typed `DirectionalImpulseAdmissionPolicy` now owns campaign,
@@ -379,6 +352,14 @@ its predecessor’s numbers.
 ---
 
 ## Crown history — newest first
+
+### CH-003 · 2026-07-27 · Signed-breadth challenger · Rejected
+
+- Five-year `+127.64/1,004`, PF `1.182`, DD `52.67`; worse recent and
+  latest-year economics, still negative in 2021/2023, and proxy-discovered on
+  the same tape.
+- Retain only signed-value parsing and the pure causal research reducer. No
+  automatic fetch, shadow receipt, gate, selector, or active campaign remains.
 
 ### CH-002 · 2026-07-26 · Late profit-lock grid · Rejected
 

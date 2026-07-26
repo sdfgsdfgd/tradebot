@@ -22,7 +22,6 @@ from .live_calibration import calibration_fingerprint
 
 XSP_BREADTH_SYMBOL = "TICK-NASD"
 XSP_BREADTH_EXCHANGE = "NASDAQ"
-XSP_BREADTH_HISTORY_DURATION = "1 D"
 XSP_OPTION_CONTEXT_MAX_LAG = timedelta(minutes=7)
 XSP_OPTION_CHANGE_MAX_SPAN = timedelta(minutes=15)
 XSP_PREOPEN_PARITY_HORIZONS_MINUTES = (120, 240, 360)

@@ -36,12 +36,13 @@ from tradebot.research.xsp_candidate import (
     XSP_OPENING_EDGE_VERSION,
 )
 from tradebot.research.xsp_shadow import (
-    XSP_BREADTH_HISTORY_DURATION,
     XSP_DIRECTIONAL_HISTORY_DURATION,
     advance_xsp_directional_shadow,
     advance_xsp_shadow_from_ibkr,
     replay_xsp_directional_shadow,
     settle_xsp_directional_observations,
+)
+from tradebot.research.xsp_context import (
     xsp_fundamental_context_at,
     xsp_market_breadth_context_at,
     xsp_option_context_at,
@@ -2391,19 +2392,11 @@ def test_forward_shadow_freezes_only_before_the_first_outcome_window(
     first = next(row for row in oracle.records() if row.get("kind") == "forecast")
     decision_at = datetime.fromisoformat(str(first["identity"]["decision_as_of_utc"]))
     ledger = LiveCalibrationLedger(tmp_path / "forward.jsonl")
-    breadth_samples = [
-        (
-            decision_at - timedelta(minutes=25 - (5 * index)),
-            value,
-        )
-        for index, value in enumerate((-300.0, -200.0, -100.0, 0.0, 100.0, 200.0))
-    ]
 
     receipt = advance_xsp_directional_shadow(
         ledger,
         bars,
         observed_at=decision_at + timedelta(minutes=1),
-        breadth_samples=breadth_samples,
     )
 
     assert receipt["new_forecasts"] == 3
@@ -2421,14 +2414,6 @@ def test_forward_shadow_freezes_only_before_the_first_outcome_window(
         row["context"]["fundamental_pressure"]["reason"] == "missing"
         for row in forecasts
     )
-    assert all(
-        row["context"]["market_breadth"]["current"] == 200.0
-        and row["context"]["market_breadth"]["transition"]
-        in {"improving", "deteriorating"}
-        and row["context"]["market_breadth"]["authority"] == "observation_only"
-        for row in forecasts
-    )
-
     second = advance_xsp_directional_shadow(
         ledger,
         bars,
@@ -2623,13 +2608,6 @@ def test_ibkr_shadow_boundary_qualifies_and_close_aligns_xsp(tmp_path) -> None:
                     exchange="CBOE",
                     currency="USD",
                 ),
-                "TICK-NASD": Contract(
-                    conId=26719259,
-                    symbol="TICK-NASD",
-                    secType="IND",
-                    exchange="NASDAQ",
-                    currency="USD",
-                ),
             }
             self.requests = {}
 
@@ -2639,18 +2617,6 @@ def test_ibkr_shadow_boundary_qualifies_and_close_aligns_xsp(tmp_path) -> None:
 
         async def historical_bars_ohlcv(self, contract, **kwargs):
             self.requests[contract.symbol] = kwargs
-            if contract.symbol == "TICK-NASD":
-                return [
-                    Bar(
-                        datetime(2026, 7, 27, 9, minute),
-                        price,
-                        price + 100,
-                        price - 100,
-                        price,
-                        0.0,
-                    )
-                    for minute, price in ((30, -200.0), (35, -100.0))
-                ]
             return [
                 Bar(
                     datetime(2026, 7, 27, 9, minute),
@@ -2693,13 +2659,6 @@ def test_ibkr_shadow_boundary_qualifies_and_close_aligns_xsp(tmp_path) -> None:
         "what_to_show": "TRADES",
         "cache_ttl_sec": 0.0,
     }
-    assert client.requests["TICK-NASD"] == {
-        "duration_str": XSP_BREADTH_HISTORY_DURATION,
-        "bar_size": "5 mins",
-        "use_rth": True,
-        "what_to_show": "TRADES",
-        "cache_ttl_sec": 0.0,
-    }
     assert receipt["status"] == "ok"
     assert receipt["freshness_ok"] is True
     assert receipt["checkpoints"] == 2
@@ -2713,17 +2672,6 @@ def test_ibkr_shadow_boundary_qualifies_and_close_aligns_xsp(tmp_path) -> None:
         "exchange": "CBOE",
         "currency": "USD",
     }
-    assert receipt["breadth_contract"] == {
-        "con_id": 26719259,
-        "symbol": "TICK-NASD",
-        "sec_type": "IND",
-        "exchange": "NASDAQ",
-        "currency": "USD",
-    }
-    assert receipt["market_breadth"]["current"] == -100.0
-    assert receipt["market_breadth"]["sample_count"] == 2
-    assert receipt["market_breadth"]["reasons"] == ("underwarmed",)
-    assert receipt["market_breadth"]["authority"] == "observation_only"
     checkpoints = [
         row
         for row in LiveCalibrationLedger(tmp_path / "forward.jsonl").records()
