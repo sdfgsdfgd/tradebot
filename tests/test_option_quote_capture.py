@@ -712,6 +712,83 @@ def test_recorder_recovers_chain_and_transport_without_empty_or_duplicate_rows(
     assert [len(snapshot.options) for snapshot in iter_snapshots(tape)] == [6, 6]
 
 
+def test_recorder_restart_repairs_and_resumes_the_same_trading_date_tape(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    class HealthyIB(_IB):
+        def __init__(self) -> None:
+            super().__init__()
+            self.fail_first_option_snapshot = False
+
+    HealthyIB.instances.clear()
+    day = date(2026, 7, 27)
+    underlying = SimpleNamespace(
+        conId=11004968,
+        secType="IND",
+        symbol="XSP",
+        localSymbol="XSP",
+        exchange="CBOE",
+        currency="USD",
+        minTick=0.01,
+    )
+    chain = SimpleNamespace(
+        exchange="SMART",
+        tradingClass="XSP",
+        multiplier="100",
+        expirations=("20260727",),
+        strikes=(620.0, 625.0, 630.0),
+    )
+    monkeypatch.setattr(record_quotes, "IB", HealthyIB)
+    monkeypatch.setattr(
+        record_quotes,
+        "load_config",
+        lambda: SimpleNamespace(
+            host="127.0.0.1",
+            port=4002,
+            client_id_pool_end=899,
+            readonly=True,
+        ),
+    )
+    monkeypatch.setattr(
+        record_quotes,
+        "resolve_option_chain",
+        lambda *_args, **_kwargs: (underlying, 625.0, chain, False),
+    )
+    monkeypatch.setattr(record_quotes, "xsp_trading_date", lambda _now: day)
+    monkeypatch.setattr(record_quotes.signal, "signal", lambda *_args: None)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "record_quotes",
+            "--symbol",
+            "XSP",
+            "--md-type",
+            "3",
+            "--dte",
+            "0",
+            "--interval",
+            "0",
+            "--count",
+            "1",
+            "--out-dir",
+            str(tmp_path),
+        ],
+    )
+
+    record_quotes.main()
+    tape = tmp_path / "XSP" / f"{day}.jsonl"
+    with tape.open("ab") as handle:
+        handle.write(b'{"interrupted":')
+    record_quotes.main()
+
+    assert len(list(iter_snapshots(tape))) == 2
+    assert tape.read_bytes().endswith(b"\n")
+    assert [ib.qualifications for ib in HealthyIB.instances] == [1, 0]
+    assert all(ib.connect_readonly == [True] for ib in HealthyIB.instances)
+
+
 def test_indefinite_xsp_recorder_exits_cleanly_outside_capture_window(
     monkeypatch,
     tmp_path,

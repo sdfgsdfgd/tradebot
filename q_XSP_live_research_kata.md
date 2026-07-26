@@ -402,8 +402,9 @@ behavior but leaves the profit objective open.
     gate before opening 2023/2024, so detector-threshold curation is closed.
 11. `[WIP]` The natural combined-source news cycle passed at E-147. Producer
     recovery was strengthened at E-148 and deployed exactly at E-149 so
-    recorder-owned reconnect survives a sleeping Mac/tunnel outage. Prove the
-    Sunday process start and restart continuity. The shadow timer remains
+    recorder-owned reconnect survives a sleeping Mac/tunnel outage. E-159 proves
+    full-process same-date/torn-tail/universe/read-only restart behavior; prove
+    the actual Sunday process start and continuity. The shadow timer remains
     disabled.
 12. `[WIP]` An exact reboot-durable one-shot timer now owns Monday's first
     checkpoint without arming the recurring cadence. Inspect and prove it,
@@ -420,7 +421,7 @@ behavior but leaves the profit objective open.
 
 ### Current verification state
 
-- Current local combined suite: `831 passed, 4 deselected`; q/news focused
+- Current local combined suite: `832 passed, 4 deselected`; q/news focused
   `27 passed`; cross-boundary XSP/news/architecture/capability set
   `145 passed`; every campaign-touched Python owner passes Ruff and the
   whole-tree diff check is clean under Python `3.12.7`.
@@ -629,6 +630,7 @@ Add rows; never rewrite an unfavorable receipt.
 | E-156 | 2026-07-26 18:53 AEST | 2 | Cap-independent 30-minute bar-only rejection | freeze `b22a9619…`; `backtests/out/xsp/xsp_candidate_30m_breadth_stability_20260726.json`; `/tmp/xsp-campaign-30m-breadth-stability-20260726.log` | stability `80f653db…`; log `f47265e5…`; `7,556 → 734 → 189 → 133 → 0`; `771.5s`; full `831 passed, 4 deselected` | Every four-week-qualified identity entered the preregistered newest-to-oldest annual challenge unchanged. Positive net after frozen friction plus `120` trades/year reduced the population to zero in the fourth independent slice, so the fifth was correctly skipped and no full-ledger promotion gate was opened. This eliminates the top-`250` cap as the explanation for prior rejection and closes adjacent historical bar-only XSP mining. No XSP crown, selection, profitability clock, broker session, or order authority was created; prospective microstructure is now the sole admissible candidate frontier. |
 | E-157 | 2026-07-26 19:03 AEST | management/1/2/4 | Fixed-unit campaign publication and evidence durability | Mac/GitHub/q `64c4cd12bb4f2af193b35aa0d785c6f3d4f3c9ac`; `~/Desktop/tradebot-backup/2026-07-26_18-53_AEST-xsp-campaign/` on Mac and q | all Git refs exact and clean; q Python `3.13.7` compile/import smoke passed; backup checksum dry-run empty; services inactive; quote timer enabled; recurring shadow disabled; first-proof timer enabled | The audited 16-file campaign transaction is now one clean shared source revision. Generated freezes, manifests, outcomes, task brain, and terminal logs remain outside Git but are checksum-identical across both backup roots. q source was fast-forwarded only while news, quote, and shadow services were inactive; no unit file, timer authority, selected strategy, profitability clock, broker session, or order changed. |
 | E-158 | 2026-07-26 19:18 AEST | 2 | Frozen directional meta-admission falsification | `backtests/out/xsp/xsp_directional_meta_admission_20260726.json`; authenticated 2021–2024 XSP tape | artifact `276d4031…`; source `b7b90395…`; `363` training sessions; `1,214` labeled normal-engine trades; AUC `0.6016`; `0/7` thresholds passed | The production detector remained frozen after a half-year audit showed precision `0.575..0.606` and recall `0.727..0.802`. One preregistered L2-linear admission owner used only timestamp-available direction/time/ordinal, readiness, slope/velocity/efficiency/TR, ATR, retrace, coherence, and conviction evidence from 2021–2022 normal-lifecycle trades. At threshold `0.45`, both sides and aggregate P&L were positive (`+23.22/234`, PF `1.269`) but clustered daily LCB95 remained negative (`-0.0191`). Higher thresholds manufactured attractive PF by collapsing cadence from `102` to `2` trades and increasing concentration. No threshold jointly passed reliability, `0.40/session` cadence, both-side economics, drawdown, and concentration, so calendar 2023 and the 2024 holdout remained sealed. No coefficients, detector policy, production source, candidate, selection, clock, broker, or order changed. |
+| E-159 | 2026-07-26 19:32 AEST | 1/4 | Full-process Monday tape restart regression | `tests/test_option_quote_capture.py`; unchanged canonical recorder/calendar/ledger owners | test `eee07541…`; recorder `4a9022ce…`; market `98e43d84…`; ledger `95e22660…`; focused `86 passed`; full `832 passed, 4 deselected`; Ruff/diff clean | The previously separate tail-repair, cadence, retained-universe, trading-date, and read-only proofs are now exercised through two complete recorder processes. Process one writes the Monday exchange-date tape; a torn JSON tail is injected; process two repairs the same file, restores the qualified option universe, performs zero redundant contract qualification, appends one valid row, and connects read-only. This closes the deterministic restart-proof gap without changing recorder, calendar, quote, broker, strategy, timer, selection, clock, or order behavior. The actual Sunday scheduled start/restart receipt remains required. |
 
 ---
 
