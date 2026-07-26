@@ -232,8 +232,9 @@ must be advanced, traced, and consumed identically; otherwise remove the lie.
 - Closed/holiday/unsupported sessions do no broker work and are not
   `EVALUATED`.
 - Quote timer is persistent; high-frequency shadow timer is not.
-- q is clean at `656764e`; the runtime imports Opening Edge v1 fingerprint
-  `bbb0a391…` directly from that checkout. A transient dependency preflight
+- q is clean and exactly tracks `origin/main`; the runtime imports Opening
+  Edge v1 fingerprint `bbb0a391…` directly from that checkout. A transient
+  dependency preflight
   proved the on-demand localhost tunnel reaches the live Gateway; it then
   stopped correctly under `StopWhenUnneeded=yes`.
 - Exact activation transaction: [`deploy/systemd/README.md`](deploy/systemd/README.md).
