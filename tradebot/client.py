@@ -35,6 +35,7 @@ from ib_insync import (
 from .contract_identity import (
     future_exchange_for_symbol,
     index_exchange_for_symbol,
+    is_signed_index_value_symbol,
     select_option_chain,
 )
 from .chart_data.history import (
@@ -2700,6 +2701,7 @@ class IBKRClient:
         bar_size_key = parsed_bar_size.label if parsed_bar_size is not None else str(bar_size or "").strip().lower()
         duration_key = " ".join(str(duration_str or "").strip().upper().split())
         what_to_show_key = str(what_to_show or "").strip().upper()
+        signed_values = is_signed_index_value_symbol(symbol)
         end_ts_key = ""
         if isinstance(end_ts, datetime):
             try:
@@ -2758,11 +2760,14 @@ class IBKRClient:
                 dt = self._ib_bar_datetime(getattr(bar, "date", None))
                 if dt is None:
                     continue
+                raw_close = getattr(bar, "close", None)
+                if raw_close is None:
+                    continue
                 try:
-                    close = float(getattr(bar, "close", 0.0) or 0.0)
+                    close = float(raw_close)
                 except (TypeError, ValueError):
                     continue
-                if close <= 0:
+                if not math.isfinite(close) or (close <= 0 and not signed_values):
                     continue
                 bars.append((dt, close))
 
@@ -2793,6 +2798,7 @@ class IBKRClient:
         bar_size_key = parsed_bar_size.label if parsed_bar_size is not None else str(bar_size or "").strip().lower()
         duration_key = " ".join(str(duration_str or "").strip().upper().split())
         what_to_show_key = str(what_to_show or "").strip().upper()
+        signed_values = is_signed_index_value_symbol(symbol)
         end_ts_key = ""
         if isinstance(end_ts, datetime):
             try:
@@ -2852,6 +2858,9 @@ class IBKRClient:
                 dt = self._ib_bar_datetime(getattr(bar, "date", None))
                 if dt is None:
                     continue
+                raw_close = getattr(bar, "close", None)
+                if raw_close is None:
+                    continue
                 try:
                     values = tuple(
                         float(getattr(bar, field, 0.0) or 0.0)
@@ -2859,7 +2868,9 @@ class IBKRClient:
                     )
                 except (TypeError, ValueError):
                     continue
-                if values[3] <= 0:
+                if not all(math.isfinite(value) for value in values) or (
+                    values[3] <= 0 and not signed_values
+                ):
                     continue
                 bars.append(OhlcvBar(dt, *values))
             return bars

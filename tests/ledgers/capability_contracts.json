@@ -630,6 +630,8 @@
         "deploy/systemd/tradebot-xsp-shadow.timer",
         "tradebot/research/live_calibration.py",
         "tradebot/research/xsp_benchmarks.py",
+        "tradebot/research/xsp_candidate.py",
+        "tradebot/research/xsp_context.py",
         "tradebot/research/xsp_shadow.py",
         "tradebot/research/xsp_shadow_cli.py",
         "tradebot/ui/bot_journal.py"

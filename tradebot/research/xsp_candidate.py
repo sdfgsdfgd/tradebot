@@ -204,22 +204,46 @@ def xsp_opening_edge_candidate_equity(
         for trade in result.trades
         if trade.entry_time >= started_naive
     ]
-    rows = [
-        {
-            "entry_time": trade.entry_time.isoformat(),
-            "exit_time": (
-                trade.exit_time.isoformat() if trade.exit_time is not None else None
-            ),
-            "direction": "up" if int(trade.qty) > 0 else "down",
-            "entry_price": float(trade.entry_price),
-            "exit_price": (
-                float(trade.exit_price) if trade.exit_price is not None else None
-            ),
-            "exit_reason": str(trade.exit_reason or ""),
-            "net_points": float(trade.pnl(1.0)),
-        }
-        for trade in trades
-    ]
+    rows = []
+    for trade in trades:
+        trace = trade.decision_trace if isinstance(trade.decision_trace, Mapping) else {}
+        guard_inputs = trace.get("entry_guard_inputs")
+        signal_at = (
+            guard_inputs.get("signal_bar_ts")
+            if isinstance(guard_inputs, Mapping)
+            else None
+        )
+        try:
+            signal_at_utc = (
+                to_utc_naive(
+                    datetime.fromisoformat(str(signal_at)),
+                    naive_ts_mode="utc",
+                )
+                .replace(tzinfo=timezone.utc)
+                .isoformat()
+                if signal_at
+                else None
+            )
+        except ValueError:
+            signal_at_utc = None
+        rows.append(
+            {
+                "decision_at_utc": signal_at_utc,
+                "entry_time": trade.entry_time.isoformat(),
+                "exit_time": (
+                    trade.exit_time.isoformat()
+                    if trade.exit_time is not None
+                    else None
+                ),
+                "direction": "up" if int(trade.qty) > 0 else "down",
+                "entry_price": float(trade.entry_price),
+                "exit_price": (
+                    float(trade.exit_price) if trade.exit_price is not None else None
+                ),
+                "exit_reason": str(trade.exit_reason or ""),
+                "net_points": float(trade.pnl(1.0)),
+            }
+        )
     marked = [row for row in rows if row["exit_reason"] == "end"]
     closed = [row for row in rows if row["exit_reason"] != "end"]
     friction = float(XSP_OPENING_EDGE_CONTRACT["round_trip_friction_points"])
@@ -289,6 +313,7 @@ def xsp_opening_edge_candidate_equity(
         "attribution_complete": True,
         "safety_breaches": breaches,
         "latest_position": marked[-1] if marked else None,
+        "latest_trade": rows[-1] if rows else None,
         "trade_ledger_fingerprint": calibration_fingerprint(rows),
         "order_authority": "none",
     }

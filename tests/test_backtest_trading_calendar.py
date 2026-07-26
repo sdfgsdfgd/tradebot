@@ -148,6 +148,12 @@ class BacktestTradingCalendarTests(unittest.TestCase):
             observation.relative_to("down")["transition"],
             "deteriorating",
         )
+        payload = observation.as_payload("up")
+        self.assertEqual(payload["authority"], "observation_only")
+        self.assertEqual(payload["observed_at_utc"], "2026-07-24T14:00:00+00:00")
+        self.assertEqual(payload["source_at_utc"], "2026-07-24T14:00:00+00:00")
+        self.assertEqual(payload["reasons"], ())
+        self.assertTrue(payload["usable"])
 
 
 if __name__ == "__main__":

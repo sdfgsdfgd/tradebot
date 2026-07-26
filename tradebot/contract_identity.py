@@ -31,6 +31,14 @@ INDEX_EXCHANGES: dict[str, str] = {
     "TRIN-NASD": "NASDAQ",
 }
 
+SIGNED_INDEX_VALUE_SYMBOLS = frozenset(
+    {
+        "TICK-NYSE",
+        "TICK-AMEX",
+        "TICK-NASD",
+    }
+)
+
 _FUTURE_MULTIPLIERS: dict[str, float] = {
     "MNQ": 2.0,
     "MBT": 0.1,
@@ -52,6 +60,10 @@ def is_future_symbol(symbol: object) -> bool:
 
 def index_exchange_for_symbol(symbol: object) -> str | None:
     return INDEX_EXCHANGES.get(normalize_contract_symbol(symbol))
+
+
+def is_signed_index_value_symbol(symbol: object) -> bool:
+    return normalize_contract_symbol(symbol) in SIGNED_INDEX_VALUE_SYMBOLS
 
 
 def select_option_chain(

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from statistics import fmean
 
 from ..time_utils import ET_ZONE, NaiveTsModeInput, to_utc_naive, trade_date
@@ -50,6 +50,37 @@ class MarketBreadthObservation:
     sample_count: int
     ready: bool
     stale: bool
+
+    def as_payload(self, direction: str | None = None) -> dict[str, object]:
+        reasons = []
+        if not self.sample_count:
+            reasons.append("no_causal_same_session_sample")
+        elif not self.ready:
+            reasons.append("underwarmed")
+        if self.stale:
+            reasons.append("stale")
+        return {
+            "source": "signed_market_breadth",
+            "authority": "observation_only",
+            "provider": self.provider,
+            "symbol": self.symbol,
+            "exchange": self.exchange,
+            "proxy_for": self.proxy_for,
+            "observed_at_utc": self.observed_at.isoformat(),
+            "source_at_utc": (
+                self.source_at.isoformat() if self.source_at is not None else None
+            ),
+            "current": self.current,
+            "fast3": self.fast3,
+            "slow6": self.slow6,
+            "session_cumulative": self.session_cumulative,
+            "sample_count": self.sample_count,
+            "ready": self.ready,
+            "stale": self.stale,
+            "usable": not reasons,
+            "reasons": tuple(reasons),
+            **self.relative_to(str(direction or "").lower()),
+        }
 
     def relative_to(self, direction: str) -> dict[str, float | str | None]:
         """Project signed alignment and change; thresholds remain research-owned."""
@@ -120,8 +151,14 @@ def market_breadth_observation(
         symbol=str(symbol),
         exchange=str(exchange),
         proxy_for=str(proxy_for) if proxy_for else None,
-        observed_at=observed_at,
-        source_at=source_at,
+        observed_at=observed_utc.replace(tzinfo=timezone.utc),
+        source_at=(
+            to_utc_naive(source_at, naive_ts_mode=naive_ts_mode).replace(
+                tzinfo=timezone.utc
+            )
+            if source_at is not None
+            else None
+        ),
         current=values[-1] if values else None,
         fast3=fmean(values[-3:]) if len(values) >= 3 else None,
         slow6=fmean(values[-6:]) if ready else None,

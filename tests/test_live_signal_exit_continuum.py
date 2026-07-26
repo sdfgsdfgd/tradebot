@@ -12,7 +12,7 @@ from types import SimpleNamespace
 import types
 from unittest.mock import patch
 
-from ib_insync import Bag, ComboLeg, Contract, Future, Stock
+from ib_insync import Bag, ComboLeg, Contract, Future, Index, Stock
 
 from tradebot.backtest.engine import _spot_strategy_sec_type
 from tradebot.backtest.spot_codec import spot_strategy_payload, strategy_from_payload
@@ -80,6 +80,54 @@ def _new_client() -> IBKRClient:
 def test_ib_bar_datetime_converts_aware_timestamp_to_et_naive() -> None:
     parsed = IBKRClient._ib_bar_datetime(datetime(2026, 2, 10, 14, 30, tzinfo=timezone.utc))
     assert parsed == datetime(2026, 2, 10, 9, 30)
+
+
+def test_historical_bars_preserve_signed_tick_values_only_for_signed_indices() -> None:
+    client = _new_client()
+    raw = [
+        _RawBar(datetime(2026, 7, 27, 9, 30), -300, -200, -400, -250, 0),
+        _RawBar(datetime(2026, 7, 27, 9, 35), 0, 100, -100, 0, 0),
+        _RawBar(datetime(2026, 7, 27, 9, 40), 150, 250, 50, 200, 0),
+    ]
+
+    async def _fake_request(*_args, **_kwargs):
+        return raw
+
+    client._request_historical_data_for_stream = _fake_request  # type: ignore[method-assign]
+    tick = Index("TICK-NASD", "NASDAQ", "USD")
+    tick.conId = 26719259
+    closes = asyncio.run(
+        client.historical_bars(
+            tick,
+            duration_str="1 D",
+            bar_size="5 mins",
+            use_rth=True,
+        )
+    )
+    ohlcv = asyncio.run(
+        client.historical_bars_ohlcv(
+            tick,
+            duration_str="1 D",
+            bar_size="5 mins",
+            use_rth=True,
+        )
+    )
+    assert [value for _, value in closes] == [-250.0, 0.0, 200.0]
+    assert [bar.close for bar in ohlcv] == [-250.0, 0.0, 200.0]
+
+    xsp = Index("XSP", "CBOE", "USD")
+    xsp.conId = 416904
+    assert (
+        asyncio.run(
+            client.historical_bars(
+                xsp,
+                duration_str="1 D",
+                bar_size="5 mins",
+                use_rth=True,
+            )
+        )[0][1]
+        == 200.0
+    )
 
 
 def test_historical_full24_stitches_overnight_and_keeps_what_to_show_cache_separate() -> None:
