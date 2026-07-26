@@ -145,10 +145,11 @@ and drawdown. It updates Opening Edge v1; only a materially stronger strategy
 across recent, latest-year, annual-slice, five-year, cadence, risk, and
 prospective evidence may receive a new crown.
 
-TICK is now deliberately outside the XSP runtime: only generic signed-index
-history semantics and one pure research reducer remain. There is no XSP
-wrapper, broker request, shadow field, direction vote, veto, selector, or live
-action. The rejected breadth challenger remains only in cold evidence.
+TICK is deliberately outside the XSP runtime. Only the generic contract
+identity and signed-value history semantics needed to read legitimate negative
+index values remain; there is no breadth reducer, XSP wrapper, broker request,
+shadow field, direction vote, veto, selector, or live action. The rejected
+breadth challenger remains only in cold evidence.
 
 ---
 
@@ -273,7 +274,7 @@ and
 | E-172 | false TICK direction authority is removed; the breadth-150 challenger was not crowned |
 | E-173 | this active/archive split preserves the full history while making the 355-line root the sole resume authority |
 | E-174 | `d20ed6e` publishes the crown parity/breadth runtime and management anchor identically on Mac/GitHub/q; raw and repaired campaign artifacts remain separately preserved |
-| E-175…E-176 | signed TICK values remain valid research data; automatic breadth fetch/receipt propagation was then retired as unearned runtime surface |
+| E-175…E-176, E-180 | signed TICK values remain valid history; every unused breadth reducer/fetch/receipt/runtime surface was retired |
 | E-177 | the corrected-lifecycle tournament retained Opening Edge v1; q revision, crown fingerprint, timers, and on-demand read-only Gateway tunnel were preflighted for Monday |
 | E-178…E-179 | exact Opening Edge v1 shadow selection was frozen pre-outcome; two-week history preserves the complete run through its seven-day deadline |
 
@@ -289,7 +290,7 @@ and
 | D-135…D-139 | persistent source ownership, controlled reversal, crown freeze, and honest optional excursions define lifecycle |
 | D-140…D-142 | weak intervals, crash/rebound, and causal news are observable peer states—not hidden regimes or historical backfill |
 | D-143 | representation repair updates v1; coronation requires material strategic superiority |
-| D-144, D-146…D-147 | signed breadth may remain a pure research observation; it has no active direction, gate, selector, or shadow authority |
+| D-144, D-146…D-147, D-151 | preserve signed index ingestion, but retain no unused breadth subsystem or runtime authority |
 | D-145 | active authority stays minimal and priority-ordered; full receipts, closed narratives, and superseded state live behind stable archive markers |
 | D-148…D-150 | stop historical tuning; preselect the unchanged crown and retain enough history to reproduce its full weekly path |
 

@@ -1,11 +1,8 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
-from dataclasses import dataclass
-from datetime import date, datetime, time, timedelta, timezone
-from statistics import fmean
+from datetime import date, datetime, time, timedelta
 
-from ..time_utils import ET_ZONE, NaiveTsModeInput, to_utc_naive, trade_date
+from ..time_utils import ET_ZONE, to_utc_naive, trade_date
 
 SESSION_ORDER = (
     "OVERNIGHT_EARLY",
@@ -31,143 +28,6 @@ NYSE_SPECIAL_CLOSED_DAYS = {
 
 _HOLIDAY_CACHE: dict[int, set[date]] = {}
 _EARLY_CLOSE_CACHE: dict[int, set[date]] = {}
-
-
-@dataclass(frozen=True)
-class MarketBreadthObservation:
-    """Causal signed breadth facts without strategy or order authority."""
-
-    provider: str
-    symbol: str
-    exchange: str
-    proxy_for: str | None
-    observed_at: datetime
-    source_at: datetime | None
-    current: float | None
-    fast3: float | None
-    slow6: float | None
-    session_cumulative: float | None
-    sample_count: int
-    ready: bool
-    stale: bool
-
-    def as_payload(self, direction: str | None = None) -> dict[str, object]:
-        reasons = []
-        if not self.sample_count:
-            reasons.append("no_causal_same_session_sample")
-        elif not self.ready:
-            reasons.append("underwarmed")
-        if self.stale:
-            reasons.append("stale")
-        return {
-            "source": "signed_market_breadth",
-            "authority": "observation_only",
-            "provider": self.provider,
-            "symbol": self.symbol,
-            "exchange": self.exchange,
-            "proxy_for": self.proxy_for,
-            "observed_at_utc": self.observed_at.isoformat(),
-            "source_at_utc": (
-                self.source_at.isoformat() if self.source_at is not None else None
-            ),
-            "current": self.current,
-            "fast3": self.fast3,
-            "slow6": self.slow6,
-            "session_cumulative": self.session_cumulative,
-            "sample_count": self.sample_count,
-            "ready": self.ready,
-            "stale": self.stale,
-            "usable": not reasons,
-            "reasons": tuple(reasons),
-            **self.relative_to(str(direction or "").lower()),
-        }
-
-    def relative_to(self, direction: str) -> dict[str, float | str | None]:
-        """Project signed alignment and change; thresholds remain research-owned."""
-
-        if (
-            direction not in ("up", "down")
-            or not self.ready
-            or self.stale
-            or self.fast3 is None
-            or self.slow6 is None
-        ):
-            return {
-                "alignment": None,
-                "transition_delta": None,
-                "transition": None,
-            }
-        sign = 1.0 if direction == "up" else -1.0
-        transition_delta = sign * (self.fast3 - self.slow6)
-        return {
-            "alignment": sign * self.fast3,
-            "transition_delta": transition_delta,
-            "transition": (
-                "improving"
-                if transition_delta > 0.0
-                else "deteriorating"
-                if transition_delta < 0.0
-                else "flat"
-            ),
-        }
-
-
-def market_breadth_observation(
-    samples: Sequence[tuple[datetime, float]],
-    *,
-    observed_at: datetime,
-    provider: str,
-    symbol: str,
-    exchange: str,
-    proxy_for: str | None = None,
-    max_age: timedelta = timedelta(minutes=7),
-    naive_ts_mode: NaiveTsModeInput = "utc",
-) -> MarketBreadthObservation:
-    """Reduce only same-session samples known by ``observed_at`` into 3/6-bar facts."""
-
-    day = trade_date(observed_at, naive_ts_mode=naive_ts_mode)
-    observed_utc = to_utc_naive(observed_at, naive_ts_mode=naive_ts_mode)
-    eligible = sorted(
-        (
-            (ts, float(value))
-            for ts, value in samples
-            if to_utc_naive(ts, naive_ts_mode=naive_ts_mode) <= observed_utc
-            and trade_date(ts, naive_ts_mode=naive_ts_mode) == day
-        ),
-        key=lambda row: to_utc_naive(
-            row[0], naive_ts_mode=naive_ts_mode
-        ),
-    )
-    source_at = eligible[-1][0] if eligible else None
-    values = [value for _, value in eligible]
-    age = (
-        observed_utc - to_utc_naive(source_at, naive_ts_mode=naive_ts_mode)
-        if source_at is not None
-        else None
-    )
-    ready = len(values) >= 6
-    return MarketBreadthObservation(
-        provider=str(provider),
-        symbol=str(symbol),
-        exchange=str(exchange),
-        proxy_for=str(proxy_for) if proxy_for else None,
-        observed_at=observed_utc.replace(tzinfo=timezone.utc),
-        source_at=(
-            to_utc_naive(source_at, naive_ts_mode=naive_ts_mode).replace(
-                tzinfo=timezone.utc
-            )
-            if source_at is not None
-            else None
-        ),
-        current=values[-1] if values else None,
-        fast3=fmean(values[-3:]) if len(values) >= 3 else None,
-        slow6=fmean(values[-6:]) if ready else None,
-        session_cumulative=sum(values) if values else None,
-        sample_count=len(values),
-        ready=ready,
-        stale=bool(age is not None and age > max_age),
-    )
-
 
 def is_maintenance_gap(t: time) -> bool:
     return time(3, 50) <= t <= time(3, 59)
@@ -273,10 +133,10 @@ def _easter_sunday(year: int) -> date:
     h = (19 * a + b - d - g + 15) % 30
     i = c // 4
     k = c % 4
-    l = (32 + 2 * e + 2 * i - h - k) % 7
-    m = (a + 11 * h + 22 * l) // 451
-    month = (h + l - 7 * m + 114) // 31
-    day = ((h + l - 7 * m + 114) % 31) + 1
+    correction = (32 + 2 * e + 2 * i - h - k) % 7
+    m = (a + 11 * h + 22 * correction) // 451
+    month = (h + correction - 7 * m + 114) // 31
+    day = ((h + correction - 7 * m + 114) % 31) + 1
     return date(year, month, day)
 
 

@@ -1,5 +1,5 @@
 import unittest
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import date, datetime, time, timezone
 
 from tradebot.engines.market import (
     SESSION_ORDER,
@@ -8,7 +8,6 @@ from tradebot.engines.market import (
     full24_post_close_time_et,
     is_early_close_day,
     is_trading_day,
-    market_breadth_observation,
     session_label_et,
     utc_bounds_for_et_day,
     xsp_capture_window_date,
@@ -109,52 +108,6 @@ class BacktestTradingCalendarTests(unittest.TestCase):
         self.assertEqual(full24_post_close_time_et(date(2025, 11, 28)), time(17, 0))
         self.assertEqual(full24_post_close_time_et(date(2025, 12, 24)), time(17, 0))
         self.assertEqual(full24_post_close_time_et(date(2025, 12, 26)), time(20, 0))
-
-    def test_market_breadth_is_causal_signed_observation_not_direction(self) -> None:
-        observed_at = datetime(2026, 7, 24, 14, 0)
-        samples = [
-            (datetime(2026, 7, 23, 19, 55), 900.0),
-            *(
-                (datetime(2026, 7, 24, 13, 35) + timedelta(minutes=5 * index), value)
-                for index, value in enumerate((0.0, 50.0, 100.0, 200.0, 150.0, 100.0))
-            ),
-            (datetime(2026, 7, 24, 14, 5), -999.0),
-        ]
-        observation = market_breadth_observation(
-            samples,
-            observed_at=observed_at,
-            provider="IBKR",
-            symbol="TICK-NASD",
-            exchange="NASDAQ",
-            proxy_for="XSP market breadth",
-        )
-
-        self.assertTrue(observation.ready)
-        self.assertFalse(observation.stale)
-        self.assertEqual(observation.sample_count, 6)
-        self.assertEqual(observation.current, 100.0)
-        self.assertEqual(observation.fast3, 150.0)
-        self.assertEqual(observation.slow6, 100.0)
-        self.assertEqual(observation.session_cumulative, 600.0)
-        self.assertEqual(
-            observation.relative_to("up"),
-            {
-                "alignment": 150.0,
-                "transition_delta": 50.0,
-                "transition": "improving",
-            },
-        )
-        self.assertEqual(
-            observation.relative_to("down")["transition"],
-            "deteriorating",
-        )
-        payload = observation.as_payload("up")
-        self.assertEqual(payload["authority"], "observation_only")
-        self.assertEqual(payload["observed_at_utc"], "2026-07-24T14:00:00+00:00")
-        self.assertEqual(payload["source_at_utc"], "2026-07-24T14:00:00+00:00")
-        self.assertEqual(payload["reasons"], ())
-        self.assertTrue(payload["usable"])
-
 
 if __name__ == "__main__":
     unittest.main()
