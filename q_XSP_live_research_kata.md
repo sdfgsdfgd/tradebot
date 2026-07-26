@@ -270,6 +270,35 @@ Close the broader gap through the staged fixed-unit campaign above.
   `~/Desktop/tradebot-backup/2026-07-26_18-53_AEST-xsp-campaign/` on both Mac
   and q; generated evidence remains outside the source revision by design.
 
+### Final frozen directional meta-admission falsification
+
+The production detector itself is stable across the seven discovery
+half-years: precision remains `0.575..0.606` and recall `0.727..0.802`.
+Its failure is economic admission, not a year-specific loss of slope/ATR
+detection. One final bar-only test was allowed without reopening its thresholds:
+
+- freeze the current detector, next-open fill, best E-051 lifecycle, one-unit
+  economics, `$0.10` friction, and at most one open position;
+- fit one L2-regularized linear admission model on `2021-07-26..2022-12-30`
+  using only timestamp-available detector telemetry: direction/time/ordinal,
+  readiness, direction and smoothed scores, coherence, conviction, retrace,
+  ATR state, and aligned per-horizon slope/velocity/efficiency/TR;
+- choose once among thresholds `0.45..0.75` on that training partition only,
+  requiring positive net and daily LCB95, PF `>=1.10`, at least `0.40`
+  trades/session, nonnegative P&L on both directions, drawdown `<=25`, and
+  top-five positive-day concentration `<0.50`;
+- rerun the normal lifecycle engine with the frozen projection over calendar
+  `2023`; inspect `2024-01-01..2024-07-23` only if the identical audit gates
+  pass. Do not fit features, coefficients, thresholds, or detector policy to
+  either challenge;
+- this is a falsification of whether the existing causal telemetry can separate
+  trail winners from initial-stop losers. Failure permanently closes bar-only
+  directional curation; success remains research-only until untouched and
+  prospective evidence pass.
+
+E-158 completed this exact contract: no training threshold passed, so 2023 and
+2024 remained sealed and bar-only directional curation is closed.
+
 ---
 
 ## 4. Forward-runtime contract
@@ -368,7 +397,9 @@ behavior but leaves the profit objective open.
 10. `[DONE]` The `5m/15m` families and all `7,556` cap-independent `30m`
     candidates are rejected. The frozen annual population fell
     `7,556 → 734 → 189 → 133 → 0`; historical bar-only admission is closed
-    without changing identities, costs, evidence, or cadence.
+    without changing identities, costs, evidence, or cadence. A final frozen
+    multivariate admission falsification also failed its training reliability
+    gate before opening 2023/2024, so detector-threshold curation is closed.
 11. `[WIP]` The natural combined-source news cycle passed at E-147. Producer
     recovery was strengthened at E-148 and deployed exactly at E-149 so
     recorder-owned reconnect survives a sleeping Mac/tunnel outage. Prove the
@@ -597,6 +628,7 @@ Add rows; never rewrite an unfavorable receipt.
 | E-155 | 2026-07-26 18:53 AEST | 2 | Thread-safe persistent planner heartbeat | `tradebot/research/spot_sweeps/store_cache.py`; `tests/test_spot_combo_full_signature.py`; failed attempt `/tmp/xsp-campaign-30m-breadth-stability-attempt1-20260726.log` | failed log `3ed2225c…`; source `d63d216b…`; test `c0ffb8d6…`; focused `4 passed`; full `831 passed, 4 deselected`; Ruff/diff clean | The first breadth challenge exposed a runtime defect: evaluation progress came from a background thread, but the shared SQLite connection retained its default creator-thread restriction. Its swallowed thread-affinity error left the persisted heartbeat stale and made the parent falsely recycle healthy workers after `210s`. The canonical connection now permits the heartbeat thread while the existing store lock continues to serialize every access. A real-thread regression proves persisted progress/ETA round-trip; the resumed campaign reused `1,782` exact receipts and completed with advancing parent heartbeat. Strategy, cache identity, economics, broker, and order semantics did not change. |
 | E-156 | 2026-07-26 18:53 AEST | 2 | Cap-independent 30-minute bar-only rejection | freeze `b22a9619…`; `backtests/out/xsp/xsp_candidate_30m_breadth_stability_20260726.json`; `/tmp/xsp-campaign-30m-breadth-stability-20260726.log` | stability `80f653db…`; log `f47265e5…`; `7,556 → 734 → 189 → 133 → 0`; `771.5s`; full `831 passed, 4 deselected` | Every four-week-qualified identity entered the preregistered newest-to-oldest annual challenge unchanged. Positive net after frozen friction plus `120` trades/year reduced the population to zero in the fourth independent slice, so the fifth was correctly skipped and no full-ledger promotion gate was opened. This eliminates the top-`250` cap as the explanation for prior rejection and closes adjacent historical bar-only XSP mining. No XSP crown, selection, profitability clock, broker session, or order authority was created; prospective microstructure is now the sole admissible candidate frontier. |
 | E-157 | 2026-07-26 19:03 AEST | management/1/2/4 | Fixed-unit campaign publication and evidence durability | Mac/GitHub/q `64c4cd12bb4f2af193b35aa0d785c6f3d4f3c9ac`; `~/Desktop/tradebot-backup/2026-07-26_18-53_AEST-xsp-campaign/` on Mac and q | all Git refs exact and clean; q Python `3.13.7` compile/import smoke passed; backup checksum dry-run empty; services inactive; quote timer enabled; recurring shadow disabled; first-proof timer enabled | The audited 16-file campaign transaction is now one clean shared source revision. Generated freezes, manifests, outcomes, task brain, and terminal logs remain outside Git but are checksum-identical across both backup roots. q source was fast-forwarded only while news, quote, and shadow services were inactive; no unit file, timer authority, selected strategy, profitability clock, broker session, or order changed. |
+| E-158 | 2026-07-26 19:18 AEST | 2 | Frozen directional meta-admission falsification | `backtests/out/xsp/xsp_directional_meta_admission_20260726.json`; authenticated 2021–2024 XSP tape | artifact `276d4031…`; source `b7b90395…`; `363` training sessions; `1,214` labeled normal-engine trades; AUC `0.6016`; `0/7` thresholds passed | The production detector remained frozen after a half-year audit showed precision `0.575..0.606` and recall `0.727..0.802`. One preregistered L2-linear admission owner used only timestamp-available direction/time/ordinal, readiness, slope/velocity/efficiency/TR, ATR, retrace, coherence, and conviction evidence from 2021–2022 normal-lifecycle trades. At threshold `0.45`, both sides and aggregate P&L were positive (`+23.22/234`, PF `1.269`) but clustered daily LCB95 remained negative (`-0.0191`). Higher thresholds manufactured attractive PF by collapsing cadence from `102` to `2` trades and increasing concentration. No threshold jointly passed reliability, `0.40/session` cadence, both-side economics, drawdown, and concentration, so calendar 2023 and the 2024 holdout remained sealed. No coefficients, detector policy, production source, candidate, selection, clock, broker, or order changed. |
 
 ---
 
@@ -741,6 +773,7 @@ Add rows; never rewrite an unfavorable receipt.
 | D-127 | Hold the weak 30-minute behaviors and run one cap-independent breadth audit before closing bar-only discovery | Seven labels reduce to two ledgers; neither has positive daily confidence, all-year gross strength, adequate friction margin, or unconcentrated net economics. Promoting `+25.34` over `851` trades would mistake a fragile historical residue for a champion. The only untested structural question is whether the preregistered top-250 cap discarded a stable member of the already-frozen four-week qualified population | An all-qualified, content-addressed 30-minute freeze yields an unchanged identity that is positive after frozen friction and cadence in each of five annual slices, then passes full-ledger confidence, concentration, side, drawdown, and cost-sensitivity gates; otherwise prospective microstructure is the sole remaining admission frontier |
 | D-128 | Permit the heartbeat thread on the one locked sweep-store connection | Background progress is part of the canonical evaluator, while SQLite's default creator-thread rule silently prevented its persisted heartbeat and caused false worker recycling. The store already serializes every connection access, so changing only the connection affinity is the smallest repair | A dedicated heartbeat connection or process-local progress authority can prove less contention while preserving identical restart receipts |
 | D-129 | Close adjacent historical bar-only XSP admission | The cap-independent preregistered audit gave every `30m` four-week-qualified identity the same five annual gates and reached zero before the final slice. More nearby horizons, thresholds, friction relief, or gate permutations would outcome-mine a rejected evidence class | A materially independent prospective quote/liquidity or same-tape microstructure mechanism earns positive chronological and forward economics under a new preregistered identity |
+| D-130 | Do not curate the stable turn detector into sparse in-sample wins | The detector's half-year precision/recall is stable; the economic failure comes from adverse path and false admission. A frozen multivariate model found positive in-sample pockets only by retaining a negative daily lower bound or starving cadence/concentrating gains, and therefore never earned authority to expose later partitions | Timestamp-correct prospective microstructure or another independent causal feature improves the unchanged detector's admission economics across complete sessions without relaxing cadence, reliability, side, cost, or concentration gates |
 
 ---
 
