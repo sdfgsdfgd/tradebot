@@ -111,4 +111,7 @@ systemctl --user enable --now tradebot-xsp-shadow.timer
 
 The quote timer starts one bounded recorder per exchange session; the shadow
 timer runs one non-submitting evaluation after each completed cash-RTH bar.
+The quote timer is persistent so a q reboot resumes the current capture window;
+the recorder's closed-window guard prevents an expired catch-up from reaching
+the broker. The high-frequency shadow timer remains non-persistent.
 Neither timer starts a profitability clock while `NO_TRADE` remains selected.

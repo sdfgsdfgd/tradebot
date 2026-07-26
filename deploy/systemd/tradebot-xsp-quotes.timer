@@ -5,7 +5,7 @@ Description=Start the XSP forward-tape producer at each exchange session
 OnCalendar=Sun,Mon,Tue,Wed,Thu *-*-* 20:15:00 America/New_York
 AccuracySec=15s
 RandomizedDelaySec=0
-Persistent=false
+Persistent=true
 Unit=tradebot-xsp-quotes.service
 
 [Install]

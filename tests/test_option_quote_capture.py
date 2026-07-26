@@ -934,5 +934,5 @@ def test_xsp_quote_producer_is_one_bounded_readonly_session_process() -> None:
     assert "Restart=on-failure" in service
     assert "RuntimeMaxSec=20h50m" in service
     assert "Sun,Mon,Tue,Wed,Thu *-*-* 20:15:00 America/New_York" in timer
-    assert "Persistent=false" in timer
+    assert "Persistent=true" in timer
     assert "RandomizedDelaySec=0" in timer
