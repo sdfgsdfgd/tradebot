@@ -58,6 +58,7 @@ def prepare_spot_evaluator_tape(
     exec_bars: Sequence[Bar],
     sig_idx_by_exec_idx: Sequence[int],
     exec_dates: Sequence[date],
+    final_session_complete: bool = True,
     regime_bars: Sequence[Bar] | None = None,
     regime2_bars: Sequence[Bar] | None = None,
     regime2_bear_hard_bars: Sequence[Bar] | None = None,
@@ -82,6 +83,7 @@ def prepare_spot_evaluator_tape(
     key = (
         revisions,
         _strategy_key(cfg),
+        bool(final_session_complete),
         str(cfg.backtest.bar_size),
         bool(cfg.backtest.use_rth),
         int(cfg.synthetic.rv_lookback),
@@ -116,8 +118,14 @@ def prepare_spot_evaluator_tape(
         evaluator.update_exec_bar(
             bar,
             is_last_bar=(
-                exec_idx + 1 == len(exec_bars)
-                or exec_dates[exec_idx + 1] != exec_dates[exec_idx]
+                (
+                    exec_idx + 1 == len(exec_bars)
+                    and bool(final_session_complete)
+                )
+                or (
+                    exec_idx + 1 < len(exec_bars)
+                    and exec_dates[exec_idx + 1] != exec_dates[exec_idx]
+                )
             ),
         )
         sig_idx = int(sig_idx_by_exec_idx[exec_idx])

@@ -31,6 +31,10 @@ from tradebot.research.xsp_benchmarks import (
     xsp_profitability_policy_from_selected_run,
     xsp_selected_shadow_run,
 )
+from tradebot.research.xsp_candidate import (
+    XSP_OPENING_EDGE_CONFIG_FINGERPRINT,
+    XSP_OPENING_EDGE_VERSION,
+)
 from tradebot.research.xsp_shadow import (
     XSP_DIRECTIONAL_HISTORY_DURATION,
     advance_xsp_directional_shadow,
@@ -2625,8 +2629,8 @@ def test_ibkr_shadow_boundary_qualifies_and_close_aligns_xsp(tmp_path) -> None:
     }
     assert receipt["status"] == "ok"
     assert receipt["freshness_ok"] is True
-    assert receipt["checkpoints"] == 1
-    assert receipt["checkpoint_statuses"] == {"EVALUATED": 1}
+    assert receipt["checkpoints"] == 2
+    assert receipt["checkpoint_statuses"] == {"EVALUATED": 2}
     assert receipt["processed_bars"] == 2
     assert receipt["latest_bar_close_utc"] == "2026-07-27T13:40:00+00:00"
     assert receipt["contract"] == {
@@ -2636,16 +2640,52 @@ def test_ibkr_shadow_boundary_qualifies_and_close_aligns_xsp(tmp_path) -> None:
         "exchange": "CBOE",
         "currency": "USD",
     }
-    [checkpoint] = [
+    checkpoints = [
         row
         for row in LiveCalibrationLedger(tmp_path / "forward.jsonl").records()
         if row["kind"] == "checkpoint"
     ]
-    assert checkpoint["trading_date"] == "2026-07-27"
-    assert checkpoint["session"] == "RTH"
-    assert checkpoint["status"] == "EVALUATED"
-    assert checkpoint["evidence"]["cash_history_fresh"] is True
-    assert checkpoint["evidence"]["order_authority"] == "none"
+    assert len(checkpoints) == 2
+    assert {
+        (
+            checkpoint["strategy_version"],
+            checkpoint["trading_date"],
+            checkpoint["session"],
+            checkpoint["status"],
+        )
+        for checkpoint in checkpoints
+    } == {
+        (
+            XSP_DIRECTIONAL_OBSERVER_VERSION,
+            "2026-07-27",
+            "RTH",
+            "EVALUATED",
+        ),
+        (
+            XSP_OPENING_EDGE_VERSION,
+            "2026-07-27",
+            "RTH",
+            "EVALUATED",
+        ),
+    }
+    candidate = next(
+        checkpoint
+        for checkpoint in checkpoints
+        if checkpoint["strategy_version"] == XSP_OPENING_EDGE_VERSION
+    )
+    candidate_equity = candidate["evidence"]["candidate_equity"]
+    assert candidate_equity["run_started_at_utc"] == "2026-07-27T13:30:00+00:00"
+    assert (
+        candidate_equity["config_fingerprint"]
+        == XSP_OPENING_EDGE_CONFIG_FINGERPRINT
+    )
+    assert candidate_equity["closed_trades"] == 0
+    assert candidate_equity["order_authority"] == "none"
+    assert all(
+        checkpoint["evidence"]["cash_history_fresh"] is True
+        and checkpoint["evidence"]["order_authority"] == "none"
+        for checkpoint in checkpoints
+    )
 
     unsupported = asyncio.run(
         advance_xsp_shadow_from_ibkr(

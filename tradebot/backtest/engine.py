@@ -1969,6 +1969,7 @@ def _run_spot_backtest(
     bars: BarSeriesInput,
     meta: ContractMeta,
     *,
+    final_session_complete: bool = True,
     regime_bars: BarSeriesInput | None = None,
     regime2_bars: BarSeriesInput | None = None,
     regime2_bear_hard_bars: BarSeriesInput | None = None,
@@ -1989,6 +1990,7 @@ def _run_spot_backtest(
         signal_bars=run_bars.signal,
         exec_bars=run_bars.execution,
         meta=meta,
+        final_session_complete=final_session_complete,
         regime_bars=run_bars.regime,
         regime2_bars=run_bars.regime2,
         regime2_bear_hard_bars=run_bars.regime2_bear_hard,
@@ -2057,6 +2059,7 @@ def _run_spot_backtest_exec_loop(
     regime2_bear_hard_bars: BarSeriesInput | None = None,
     tick_bars: BarSeriesInput | None = None,
     capture_equity: bool = True,
+    final_session_complete: bool = True,
     prepared_series_pack: object | None = None,
     progress_callback=None,
 ) -> BacktestResult:
@@ -2173,6 +2176,7 @@ def _run_spot_backtest_exec_loop(
         exec_bars=exec_bars,
         sig_idx_by_exec_idx=align.sig_idx_by_exec_idx,
         exec_dates=exec_dates,
+        final_session_complete=final_session_complete,
         regime_bars=regime_bars if use_mtf_regime else None,
         regime2_bars=regime2_bars if use_mtf_regime2 else None,
         regime2_bear_hard_bars=regime2_bear_hard_bars,
@@ -2442,7 +2446,11 @@ def _run_spot_backtest_exec_loop(
         evaluator_risk = evaluator_tape.risks[int(idx)]
         next_bar = exec_bars[idx + 1] if idx + 1 < len(exec_bars) else None
         bar_day = exec_dates[int(idx)]
-        is_last_bar = next_bar is None or exec_dates[int(idx) + 1] != bar_day
+        is_last_bar = (
+            next_bar is None and bool(final_session_complete)
+        ) or (
+            next_bar is not None and exec_dates[int(idx) + 1] != bar_day
+        )
         sig_map_idx = (
             align.sig_idx_by_exec_idx[idx]
             if idx < len(align.sig_idx_by_exec_idx)
@@ -3043,7 +3051,10 @@ def _run_spot_backtest_exec_loop(
         entry_control = dict(entry_context.get("entry_control") or {})
         entry_control["resolution"] = direction_resolution
         entry_context = {**entry_context, "entry_control": entry_control}
-        entry_ok = bool(direction is not None)
+        entry_ok = bool(
+            direction is not None
+            and not (spot_close_eod and is_last_bar)
+        )
 
         cooldown_ok = cooldown_ok_by_index(
             current_idx=int(sig_idx),

@@ -40,10 +40,12 @@
   inverse-source flip/EOD exits, without stop/trail/fizzle preemption. One
   compact opening-edge policy now leads research at `+10.98/17` recent,
   `+131.74/204` one-year, and `+120.59/1,019` five-year after frozen `$0.10`
-  friction. It is a **research champion, not an admitted crown**: the five-year
-  daily LCB remains `-0.0202`, drawdown is `59.95`, and 2021/2023 lose. Freeze
-  this plateau before prospective evaluation; do not keep outcome-mining the
-  same historical slopes or call positive point estimates validation.
+  friction. It is XSP's first **research crown, not an operational crown**;
+  its immutable lineage and future crown protocol live in
+  `backtests/xsp/leaderboard.md`. The five-year daily LCB remains `-0.0202`,
+  drawdown is `59.95`, and 2021/2023 lose. Freeze this plateau before
+  prospective evaluation; do not keep outcome-mining the same historical
+  slopes or call positive point estimates validation.
 - **Forward frontier:** let the resilient read-only producer begin Sunday
   `20:15 ET` / Monday `10:15 AEST`; prove process start and restart continuity;
   inspect the exact one-shot Monday `09:37 ET` / `23:37 AEST` checkpoint made
@@ -523,10 +525,12 @@ behavior but leaves the profit objective open.
     checkpoint without arming the recurring cadence. Inspect and prove it,
     remove that temporary timer, then collect every canonical RTH slot and exact
     option/news context without backfill.
-16. `[WIP]` Carry the E-166 research champion unchanged into the Monday
-    non-submitting evaluator; accumulate preregistered parity, pre-open, news,
-    and microstructure cohorts beside it and compare identical TA-only and
-    augmented decisions.
+16. `[DONE]` Carry the E-166 research champion unchanged into the Monday
+    non-submitting evaluator. One central candidate owner now reproduces its
+    exact prefix economics, persists restart-stable counterfactual checkpoints,
+    and retains zero order authority. Accumulate preregistered parity, pre-open,
+    news, and microstructure cohorts beside it and compare identical TA-only
+    and augmented decisions.
 17. `[TODO]` Admit the directional candidate only after positive prospective
     economics; freeze its identity/risk limits before selection. Historical
     point estimates alone cannot start the profitability clock.
@@ -537,12 +541,13 @@ behavior but leaves the profit objective open.
 
 ### Current verification state
 
-- Current local combined suite: `832 passed, 4 deselected`; q/news focused
+- Current local combined suite: `837 passed, 4 deselected`; q/news focused
   `27 passed`; cross-boundary XSP/news/architecture/capability set
   `145 passed`; every campaign-touched Python owner passes Ruff and the
   whole-tree diff check is clean under Python `3.12.7`.
-- Calibration remains `999` lines, broker shadow `952`, pure benchmarks `881`,
-  and entry control `503`; no new architecture-debt exception exists.
+- Calibration remains `999` lines, broker shadow `990`, pure benchmarks `881`,
+  candidate equity `276`, and entry control `503`; no new architecture-debt
+  exception exists.
 - Runtime imports and all installed units verify through `0af37a1`; Mac,
   GitHub `main`, and q convergence is proven by E-149. No selection, clock
   start, broker query, or order occurred.
@@ -754,6 +759,7 @@ Add rows; never rewrite an unfavorable receipt.
 | E-164 | 2026-07-26 20:38 AEST | 1/2 | Natural material causal-news publication before Monday evidence | q `tradebot-news.service`; `~/.local/state/tradebot/news/latest.json` | service `20:31:47..20:38:20 AEST`, exit `0`; publication `2f3f94d0…`; file `ebb43816…`; `8` articles / `12` active events / `2` additions | The completion-scheduled service ran naturally—no manual trigger—and atomically published a fresh `tradebot.news-signal.v3` snapshot at `2026-07-26T10:31:47Z`. Joint causal reduction moved XSP to `-1 / 79 / confidence .95 / 24h / strengthening` and retained MCL at `+1 / 84 / .95 / 24h / unchanged`; exact drivers and event snapshot remain content-addressed. The next cycle is scheduled for `00:38:20 AEST`. This is timestamp-valid observation-only input for the preregistered opposing-signal defensive comparison, not a selector, trade claim, backfill, profitability event, broker call, or order authority. |
 | E-165 | 2026-07-26 22:32 AEST | 2/3 | Source-consistent directional lifecycle and complete landing trace | canonical `tradebot/spot/{evaluator_common,evaluator_policy,entry_control}.py`; `tradebot/engines/directional_impulse.py`; backtest/UI lifecycle consumers; `tests/test_directional_impulse.py` | focused `146 passed`; full `836 passed, 4 deselected`; Ruff/diff/compile clean; architecture ratchet clean; `5,177` five-year source events; `1,019/1,019` leader trades carry exact signal-bar and entry-control evidence | The prior expansion campaign rewrote entry direction while flip exits still read a transient raw turn and its `0.75 ATR` stop preempted `150/264` paths. The shared lifecycle now exposes persistent directional-impulse trend ownership separately from one-bar admission proposals; backtest and live UI consume the same source direction for inverse-signal exits. Same-timeframe EMA confirmation is genuinely advanced when selected, and entry-control traces retain every active pass/block. The corrected campaign uses no initial stop, trail, profit target, or fizzle exit: only source-consistent controlled flips after the configured hold or EOD flattening, next-open fills, one fixed unit, and `$0.10` round-trip friction. Exact traces show `986` five-minute entries, `33` controlled-flip ten-minute entries, median hold `13` bars, EOD `+376.51`, and flip exits `-255.92`; removing flips still destroys reverse-position ownership, so local exit loss is not evidence to disable them. No selector, clock, broker call, or order authority changed. |
 | E-166 | 2026-07-26 22:45 AEST | 2 | Tight opening-edge plateau and frozen research champion | canonical `DirectionalImpulseAdmissionPolicy`; `backtests/xsp/xsp_directional_interaction_campaign.py`; `backtests/out/xsp/xsp_directional_lifecycle_anatomy_20260726.json` | artifact `d3c5801f…`; recent freeze `fac8d314…`; `192 → 55 → 24` tested; leader `opening_edge/off/hold12`; recent `+10.98/17`; one-year `+131.74/204`; five-year `+120.59/1,019` | Tight causal sweeps—not a broad new model—selected the stable center: `09:30..11:15 ET`, ATR velocity `(0,.055)`, down retrace `>=1.25`, plus up-only `11:20..11:25` continuation when retrace is `1.25..1.70` and coherence `>=.75`; inverse-source hold is `12` bars. Neighboring down-retrace `1.20..1.30` and ATR ceilings `.050..060` remain net-positive; the center preserves lower drawdown than the absolute endpoint winner. The same typed policy run through the normal evaluator exactly reproduces the research result. Five-year PF is `1.1705`, cadence `204.61/year`, up/down P&L `+56.48/+64.11`, and concentration `0.0987`, but daily LCB95 is `-0.0202`, drawdown `59.95`, and 2021/2023 lose. It is frozen for prospective shadow/counterfactual evaluation only: `NO_TRADE`, stopped profitability clock, and `order_authority=none` remain authoritative. |
+| E-167 | 2026-07-26 23:21 AEST | 2/3 | First XSP research crown and exact prospective prefix runtime | canonical `tradebot/research/xsp_candidate.py`; `tradebot/research/xsp_shadow.py`; shared backtest engine/tape; `backtests/xsp/leaderboard.md`; rerun artifact/log | full realized-config `77e285f3…`; candidate source `b9997bf7…`; artifact `753889ac…`; log `75dfa3d6…`; recent replay `+12.68 gross -1.70 cost = +10.98 net`, `17` trades, `7.83` drawdown, zero breaches; focused `81 passed`; full `837 passed, 4 deselected` | One typed candidate owner now supplies the exact campaign and prospective configuration, eliminating campaign-local admission/lifecycle literals. Its content address binds the full realized strategy, filters, synthetic inputs, bar/session contract, and capital reference; the campaign artifact separately hashes that owner so default drift cannot reuse the crown identity. A causal normal-engine prefix reproduces the E-166 recent ledger exactly and records restart-stable `xsp.candidate-equity.v1` counterfactual economics beside—never instead of—the `NO_TRADE` observer. The shared engine now distinguishes a complete final session from an incomplete live prefix: completed EOD liquidation cannot reopen on the same terminal bar, while a live prefix retains its open mark. The rerun preserved exact crown economics through all three windows. The first durable XSP leaderboard crowns Opening Edge v1 as research leader and freezes its edge lineage, active/inactive gates, neighborhood, failure boundary, promotion ladder, and capability frontier. The profitability clock remains stopped and both candidate and checkpoint retain `order_authority=none`. |
 
 ---
 
@@ -905,6 +911,7 @@ Add rows; never rewrite an unfavorable receipt.
 | D-134 | Close historical bar-only direction-source curation | The final materially distinct expansion source produced adequate cadence and a few positive point estimates, but zero reliable discovery pass before any later partition was exposed. Retuning neighboring slope, velocity, ATR, clock, cooldown, or permission thresholds would now select against known outcomes rather than test new information | Timestamp-correct prospective quote/liquidity evolution, causal-news context, or another independently sourced mechanism improves the unchanged detector's admission economics under a preregistered paired comparison |
 | D-135 | Persistent source ownership, not a one-bar proposal, governs directional lifecycle | A raw turn is a causal entry proposal that may disappear on the next bar; using it as an open-position owner made entry and flip semantics disagree and allowed a tight stop/trail stack to mask the directional engine. One shared lifecycle direction now follows the persistent impulse trend while admission remains separately observable | A stronger canonical position-intent contract subsumes both source ownership and entry proposals without losing exact backtest/live trace parity |
 | D-136 | Freeze the opening-edge plateau as a research champion; let prospective economics decide admission | Tight neighboring values reproduce positive net economics at the required cadence, but repeated historical inspection, a negative five-year daily LCB, `59.95` drawdown, and losing 2021/2023 slices forbid promotion. Further same-tape threshold polishing would weaken rather than strengthen the claim | The unchanged identity earns positive, coverage-complete prospective economics and drift evidence through the frozen selection and `24h → 48h → five-session` contracts |
+| D-137 | Crown Opening Edge v1 for research while leaving the operational crown vacant | The candidate now has stable-neighborhood, chronological, trace, shared-owner, exact-prefix, and full-suite proof, so withholding a durable research identity would lose valuable lineage. Those receipts still do not repair its negative five-year daily LCB, weak years, or absent prospective economics | The content-addressed candidate passes complete prospective `24h`, `48h`, and five-session economics/safety/drift gates and receives an explicit operational promotion |
 
 ---
 
@@ -971,7 +978,15 @@ promote/hold/revise/stop verdict with its remaining-risk register.
 ## Conclusion
 
 - **Quest:** XSP Mastery — Live Research Kata
-- **Current status:** Phase 0.4 is complete. The first bounded chronological
+- **Current authoritative status (E-167):** Phase 1 has its first XSP research
+  crown, Opening Edge v1, frozen at `+10.98/17` recent,
+  `+131.74/204` one-year, and `+120.59/1,019` five-year with
+  `204.61` annualized trades. Its central candidate owner exactly reproduces
+  causal prefix economics and is wired into Monday's non-submitting evaluator.
+  The full suite is `837 passed, 4 deselected`. It remains a research crown:
+  `NO_TRADE` is selected, order authority is `none`, and the profitability
+  clock is `NOT_STARTED`.
+- **Historical accumulated status through E-149 (retained):** Phase 0.4 is complete. The first bounded chronological
   tournaments rejected both the opening-reclaim alpha family and the
   baseline-only safe-income condor; a later exact matched audit confirmed that
   none of `2,304` adverse-friction condors passed the safe-income gate or added
@@ -1018,8 +1033,9 @@ promote/hold/revise/stop verdict with its remaining-risk register.
   clock remains exactly `NOT_STARTED`.
 - **Next action:** let the already-armed producer begin without backfill at
   Sunday `20:15 ET` / Monday `10:15 AEST`; inspect the already-scheduled first
-  Monday `09:37 ET` / `23:37 AEST` non-submitting checkpoint, then arm the remaining
-  observer slots only if it passes. Accumulate the
+  Monday `09:37 ET` / `23:37 AEST` non-submitting observer **and Opening Edge
+  candidate-equity** checkpoints, verify exact run/config/tape continuity, then
+  arm the remaining observer slots only if both pass. Accumulate the
   preregistered option-parity observer toward `30` timestamp-correct pairs over
   five prospective sessions and compare the frozen independent non-overlapping
   TA-only, exact-sign-aligned, and aligned-plus-Pareto-strengthening receipts.

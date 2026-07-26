@@ -12,6 +12,7 @@ Shared decision logic lives in `tradebot/engine.py` and `tradebot/spot_engine.py
 TQQQ champion and evolution logs are now split into dedicated files:
 - Low-frequency / historical champion lineage: `backtests/tqqq/readme-lf.md`
 - High-frequency research track: `backtests/tqqq/readme-hf.md`
+- XSP research/operational crown registry: `backtests/xsp/leaderboard.md`
 
 ## Full config example (all parameters)
 ```json

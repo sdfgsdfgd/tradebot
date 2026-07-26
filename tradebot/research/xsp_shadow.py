@@ -31,6 +31,11 @@ from .live_calibration import (
     LiveCalibrationLedger,
     calibration_fingerprint,
 )
+from .xsp_candidate import (
+    XSP_OPENING_EDGE_VERSION,
+    xsp_opening_edge_candidate_equity,
+    xsp_opening_edge_run_start,
+)
 
 
 XSP_DIRECTIONAL_HORIZONS_MINUTES = (30, 60, 120)
@@ -835,6 +840,37 @@ async def advance_xsp_shadow_from_ibkr(
         naive_ts_mode="et",
         freeze_new=freshness_ok,
     )
+    candidate_equity = (
+        xsp_opening_edge_candidate_equity(
+            bars,
+            run_started_at=xsp_opening_edge_run_start(
+                tuple(ledger.records()),
+                observed_at=observed_utc,
+            ),
+            observed_at=observed_utc,
+            naive_ts_mode="et",
+        )
+        if freshness_ok
+        else None
+    )
+    ledger.checkpoint(
+        evaluation_as_of=observed_utc,
+        strategy_id=XSP_OPENING_EDGE_VERSION,
+        strategy_version=XSP_OPENING_EDGE_VERSION,
+        trading_date=trading_day.isoformat() if trading_day else None,
+        session=session or "CLOSED",
+        status=evaluation_status,
+        evidence={
+            "candidate_equity": candidate_equity,
+            "cash_tape_fingerprint": xsp_bar_tape_fingerprint(
+                bars,
+                naive_ts_mode="et",
+            ),
+            "cash_history_fresh": freshness_ok,
+            "order_authority": "none",
+        },
+        recorded_at=observed_utc,
+    )
     ledger.checkpoint(
         evaluation_as_of=observed_utc,
         strategy_id="NO_TRADE",
@@ -875,6 +911,7 @@ async def advance_xsp_shadow_from_ibkr(
         "raw_bars": len(raw_bars),
         "complete_close_aligned_bars": len(bars),
         "historical_request": historical_request,
+        "opening_edge_candidate": candidate_equity,
     }
 
 

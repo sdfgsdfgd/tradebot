@@ -255,6 +255,63 @@ def test_spot_evaluator_tape_reuses_exit_variants_and_invalidates_signal_inputs(
     assert changed is not first
 
 
+def test_complete_session_cannot_reenter_after_eod_close_but_prefix_stays_open() -> None:
+    day = date(2024, 7, 22)
+    bars = [
+        Bar(
+            ts=datetime(2024, 7, 22, 13, 30) + timedelta(minutes=5 * index),
+            open=100.0 + index,
+            high=100.1 + index,
+            low=99.9 + index,
+            close=100.0 + index,
+            volume=100.0,
+        )
+        for index in range(8)
+    ]
+    cfg = _base_cfg(day)
+    cfg = replace(
+        cfg,
+        backtest=replace(cfg.backtest, bar_size="5 mins", use_rth=True),
+        strategy=replace(
+            cfg.strategy,
+            exit_on_signal_flip=False,
+            max_entries_per_day=0,
+            spot_close_eod=True,
+            spot_controlled_flip=False,
+            spot_entry_fill_mode="close",
+            spot_stop_loss_pct=None,
+        ),
+    )
+    meta = ContractMeta(
+        symbol="XSP",
+        exchange="CBOE",
+        multiplier=1.0,
+        min_tick=0.01,
+    )
+
+    complete = _run_spot_backtest_exec_loop(
+        cfg,
+        signal_bars=bars,
+        exec_bars=bars,
+        meta=meta,
+        final_session_complete=True,
+    )
+    prefix = _run_spot_backtest_exec_loop(
+        cfg,
+        signal_bars=bars,
+        exec_bars=bars,
+        meta=meta,
+        final_session_complete=False,
+    )
+
+    assert [(trade.exit_reason, trade.pnl(1.0)) for trade in complete.trades] == [
+        ("close_eod", 6.0)
+    ]
+    assert [(trade.exit_reason, trade.pnl(1.0)) for trade in prefix.trades] == [
+        ("end", 6.0)
+    ]
+
+
 def test_spot_strategy_ignores_legacy_unknown_field() -> None:
     day = date(2024, 1, 1)
     # Keep synthetic tape on the intended ET trade date (09:00 ET in UTC).

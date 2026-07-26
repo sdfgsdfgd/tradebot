@@ -29,8 +29,11 @@ from tradebot.backtest.spot_tape import (
 )
 from tradebot.chart_data.history import load_history_window, read_cache
 from tradebot.engine import _trade_date
-from tradebot.engines.directional_impulse import (
-    DirectionalImpulseAdmissionPolicy,
+from tradebot.research.xsp_candidate import (
+    XSP_OPENING_EDGE_ADMISSION,
+    XSP_OPENING_EDGE_CONFIG_FINGERPRINT,
+    XSP_OPENING_EDGE_POLICY,
+    xsp_opening_edge_bundle,
 )
 from tradebot.research.evidence import xsp_directional_turn_census
 from tradebot.research.spot_sweeps.support import _bundle_base, _mk_filters
@@ -822,7 +825,6 @@ LIFECYCLE_GATES = (
 )
 LIFECYCLE_EMA_CONFIRMATIONS = (None, "2/4", "3/7")
 LIFECYCLE_FLIP_HOLDS = (0, 2, 3, 5, 6, 8, 10, 12)
-OPENING_EDGE_ADMISSION = DirectionalImpulseAdmissionPolicy().as_payload()
 
 
 def full_history() -> tuple[tuple, tuple[Path, ...]]:
@@ -1610,7 +1612,7 @@ def _gate_allows(
     if gate == "raw":
         return True
     if gate == "opening_edge":
-        allowed, _ = DirectionalImpulseAdmissionPolicy().allows(
+        allowed, _ = XSP_OPENING_EDGE_POLICY.allows(
             direction=direction,
             minute_et=minute_et,
             atr_velocity=atr_velocity,
@@ -1896,11 +1898,11 @@ def lifecycle_main() -> None:
                 if gate != "opening_edge"
             }
             if any(identity["gate"] == "opening_edge" for identity in matching):
-                admission_cfg = config(
-                    lifecycle=None,
+                admission_cfg = xsp_opening_edge_bundle(
+                    start=start,
+                    end=end,
+                    flip_hold_bars=0,
                     primary_ema=primary_ema,
-                    max_entries_per_day=5,
-                    directional_impulse_admission=OPENING_EDGE_ADMISSION,
                 )
                 admission_part = build_range(
                     window_name,
@@ -1923,16 +1925,20 @@ def lifecycle_main() -> None:
             for identity in matching:
                 if time.perf_counter() - started > 1200:
                     raise TimeoutError("20-minute lifecycle campaign cap reached")
-                cfg = config(
-                    lifecycle=None,
-                    flip_hold_bars=int(identity["flip_hold_bars"]),
-                    primary_ema=primary_ema,
-                    max_entries_per_day=5,
-                    directional_impulse_admission=(
-                        OPENING_EDGE_ADMISSION
-                        if identity["gate"] == "opening_edge"
-                        else None
-                    ),
+                cfg = (
+                    xsp_opening_edge_bundle(
+                        start=start,
+                        end=end,
+                        flip_hold_bars=int(identity["flip_hold_bars"]),
+                        primary_ema=primary_ema,
+                    )
+                    if identity["gate"] == "opening_edge"
+                    else config(
+                        lifecycle=None,
+                        flip_hold_bars=int(identity["flip_hold_bars"]),
+                        primary_ema=primary_ema,
+                        max_entries_per_day=5,
+                    )
                 )
                 tape, gate_counts = tapes[str(identity["gate"])]
                 active_part = (
@@ -1999,9 +2005,9 @@ def lifecycle_main() -> None:
             filters=cfg.strategy.filters,
             bar_size=str(cfg.backtest.bar_size),
         ).as_payload()
-    edge_cfg = config(
-        lifecycle=None,
-        directional_impulse_admission=OPENING_EDGE_ADMISSION,
+    edge_cfg = xsp_opening_edge_bundle(
+        start=LIFECYCLE_WINDOWS["five_year"][0],
+        end=LIFECYCLE_WINDOWS["five_year"][1],
     )
     controls["opening_edge"] = SpotEntryControlPlan.from_sources(
         strategy=edge_cfg.strategy,
@@ -2019,6 +2025,9 @@ def lifecycle_main() -> None:
                 ("git", "rev-parse", "HEAD"), cwd=ROOT, text=True
             ).strip(),
             "campaign_sha256": sha256(Path(__file__)),
+            "candidate_sha256": sha256(
+                ROOT / "tradebot/research/xsp_candidate.py"
+            ),
             "directional_impulse_sha256": sha256(
                 ROOT / "tradebot/engines/directional_impulse.py"
             ),
@@ -2036,7 +2045,10 @@ def lifecycle_main() -> None:
             ],
             "flip_hold_bars": list(LIFECYCLE_FLIP_HOLDS),
             "lifecycle": "inverse_source_flip_or_eod_only",
-            "opening_edge_admission": OPENING_EDGE_ADMISSION,
+            "opening_edge_admission": XSP_OPENING_EDGE_ADMISSION,
+            "opening_edge_config_fingerprint": (
+                XSP_OPENING_EDGE_CONFIG_FINGERPRINT
+            ),
             "max_entries_per_session": 5,
             "round_trip_friction_points": 0.10,
             "annualized_trade_floor": ">200",
