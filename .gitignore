@@ -13,6 +13,9 @@ backtests/*
 !backtests/tqqq/**
 !backtests/mnq/
 !backtests/mnq/**
+!backtests/xsp/
+!backtests/xsp/**
+backtests/xsp/__pycache__/
 db/quotes/
 docs/todo/
 tradebot/backtest/spot_milestones.tqqq_*.json

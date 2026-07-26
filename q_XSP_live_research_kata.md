@@ -34,16 +34,21 @@
   opening Codex or aging the causal XSP `-1/76/.94/24h` signal.
 - **Historical campaign verdict:** the fixed-unit `5m/15m` families and all
   `7,556` cap-independent `30m` candidates are rejected. No historical
-  bar-only XSP crown exists; prospective quote/liquidity evolution and
-  same-tape microstructure are now the only admissible candidate frontier.
+  bar-only XSP crown exists. E-161's static multiscale pocket collapsed in
+  calendar 2023; E-162's causal walk-forward law and E-163's distinct
+  directional-expansion source both failed before opening later partitions.
+  Historical bar-only direction-source curation is closed; prospective
+  quote/liquidity evolution and same-tape microstructure are the active
+  admission frontier.
 - **Forward frontier:** let the resilient read-only producer begin Sunday
   `20:15 ET` / Monday `10:15 AEST`; prove process start and restart continuity;
   inspect the exact one-shot Monday `09:37 ET` / `23:37 AEST` checkpoint made
   reboot-durable at E-151 and require `EVALUATED`,
   `order_authority=none`; only then enable `09:42..16:02 ET`.
 - **Do not:** trigger an extra news run, deploy mixed revisions, backfill forward
-  evidence, retune rejected OHLC/slope families, promote delayed quotes, submit
-  an order, or call abstention/profitability infrastructure an economic win.
+  evidence, retune rejected historical bar-only neighborhoods, promote delayed
+  quotes, submit an order, or call abstention/profitability infrastructure an
+  economic win.
 
 The original detailed mandate, hypotheses, phase prose, and execution narrative
 are preserved verbatim in
@@ -135,14 +140,15 @@ efficiency, and cross-horizon coherence. Frozen historical performance:
   lag `1.5` bars;
 - absolute-window extrema: only `16/34`; another `18/34` were boundary-censored.
 
-This is useful causal telemetry, not a profitable strategy. The frozen
+This is useful causal telemetry, not yet a profitable strategy. The frozen
 directional-turn family (`1,296` lifecycle cells plus its bounded admission,
 reversal-cascade, VIX, and TICK/TRIN extensions) failed its chronological
 economics. That verdict closes those exact families only: it did **not** fairly
 exercise the wider canonical EMA/source, timing, permission, lifecycle, exit,
 shock/risk, and Cartesian space on XSP. Preserve the observer for traces and
-counterfactuals; do not threshold-mine its rejected slope/ATR neighborhood.
-Close the broader gap through the staged fixed-unit campaign above.
+counterfactuals; do not threshold-mine its rejected one-variable slope/ATR
+neighborhood. The active interaction campaign below is a separate causal
+mechanism with an explicit high-density floor, not a relaxation of E-158.
 
 ### Active prospective hypotheses
 
@@ -299,6 +305,91 @@ detection. One final bar-only test was allowed without reopening its thresholds:
 E-158 completed this exact contract: no training threshold passed, so 2023 and
 2024 remained sealed and bar-only directional curation is closed.
 
+### Multiscale interaction campaign — frozen before challenge
+
+The recovered E-158 generator proves its best dense pocket was not a simple
+gate: every single and two-label discovery bucket with at least `234` normal
+engine trades remained net-negative. The new user-authorized campaign may
+therefore test only the interaction the linear main-effect model could not
+express:
+
+- frozen detector, E-051 lifecycle, next-open fill, one `$1_per_XSP_point`
+  unit, `$0.10` round-trip friction, one open position, four entries/session,
+  both directions, and EOD flattening remain unchanged;
+- slow `60/120m` signed slope/TR is a permission context; fast `5/15/30m`
+  slope/velocity reversal and causal turn order provide timing; ATR ratio,
+  velocity, and acceleration identify compression-to-expansion phase;
+- only compact continuous products among those three families may augment the
+  exact E-158 main effects. Detector thresholds, hidden regimes, volume,
+  future bars, news backfill, options, and outcome-derived exits are forbidden;
+- discovery is still `2021-07-26..2022-12-30`. Candidate identities include
+  every coefficient, scaler, interaction, threshold, source hash, and ordered
+  decision/trade ledger. No later partition may repair them;
+- **density floor:** at least the E-158 dense pocket's `234` trades across
+  `363` sessions (`0.6446/session`), with both directions represented. Sparse
+  high-PF pockets are immediate failures;
+- discovery additionally requires positive net, daily LCB95 `>0`, PF
+  `>=1.10`, drawdown `<=25`, top-five positive-day concentration `<0.50`, and
+  nonnegative P&L on each side. Only then open calendar `2023`; only an
+  unchanged audit pass opens `2024-01-01..2024-07-23`;
+- an unchanged survivor must next pass the remaining authenticated annual
+  slices and current forward shadow evidence before selection. Failure closes
+  this interaction family without another neighboring retune.
+
+E-161 rejects that static identity. One adaptive mechanism is now
+preregistered before its first outcome:
+
+- the algorithm—not any monthly coefficient—is the candidate. At each calendar
+  month boundary it fits one L2 ridge net-points permission model using only
+  raw directional-turn shadow outcomes whose exits already matured before that
+  boundary;
+- trailing shadow windows are exactly `126`, `252`, or all available sessions;
+  L2 is `10/40/100`; prior-score admission rates are
+  `0.18/0.25/0.35/0.45`. Those `36` identities are the entire search;
+- the feature vocabulary, E-051 lifecycle, costs, density floor, both-side
+  requirement, and all safety/reliability gates remain E-161-identical. Each
+  monthly threshold is derived only from scores available before that month;
+- calendar `2023` is algorithm discovery because its static outcome is already
+  exposed. Freeze the highest daily-LCB passing identity once. Challenge that
+  unchanged window/L2/rate law sequentially over calendar `2024`, `2025`, and
+  `2026` through July 24. A failed challenge seals every later partition;
+- this requires a future live shadow ledger that matures every raw turn,
+  including rejected ones. Until that owner exists and prospective parity is
+  proven, even a historical pass has research authority only.
+
+E-162 rejects all `36` adaptive identities before opening 2024. The remaining
+bar-only experiment changes the source semantics rather than its admission:
+
+- derive one causal **directional expansion** event from every existing shared
+  impulse snapshot instead of waiting for `turn_event`. Use only the available
+  `5/15/30m` signed slope/TR, aligned slope velocity, coherence, and ATR
+  velocity/acceleration; `60/120m` slope may veto opposition only when already
+  warmed and can never make an early event ready;
+- grid exactly: score floor `0.25/0.35/0.45`; coherence `2/3` or `1`; aligned
+  velocity floor `0/0.2/0.4`; ATR phase `off/velocity/acceleration`; end time
+  `10:30/11:00/11:45 ET`; cooldown `6/12` bars; slow permission `off` or
+  `aligned_if_present` — `648` identities;
+- fire only when a qualified direction becomes newly active or flips after the
+  cooldown. Falling below qualification rearms the transition; continuously
+  qualified bars never spray repeated entries;
+- freeze the same E-051 lifecycle, next-open fills, both directions, one unit,
+  `$0.10` friction, EOD flattening, and the `234/363` discovery-trade floor.
+  Rank passing discovery identities by daily LCB then net;
+- calendar `2021-07-26..2022-12-30` is discovery. Freeze one identity before
+  calendar `2023`; open `2024-01-01..2024-07-23` only if the unchanged 2023
+  gates pass. No static/adaptive admission model, hidden regime, XSP volume,
+  news backfill, option evidence, or future bar may participate.
+
+E-163 rejects the directional-expansion family in discovery. Of `648`
+preregistered identities, `588` cleared the `234`-event density floor and
+seven were net-positive, but none had positive daily LCB95 or PF `>=1.10`.
+The least-bad reliable-rank identity made `+1.59/264`, PF `1.017`, daily
+LCB95 `-0.0718`; the best net was only `+4.06/357`, PF `1.033`, with its up
+side negative. Calendar 2023 and the 2024 holdout remained sealed. This closes
+historical bar-only direction-source curation; the next admission information
+must be timestamp-correct prospective microstructure/news or another
+materially independent causal class.
+
 ---
 
 ## 4. Forward-runtime contract
@@ -403,23 +494,33 @@ behavior but leaves the profit objective open.
     without changing identities, costs, evidence, or cadence. A final frozen
     multivariate admission falsification also failed its training reliability
     gate before opening 2023/2024, so detector-threshold curation is closed.
-11. `[WIP]` The natural combined-source news cycle passed at E-147. Producer
+11. `[DONE]` The static multiscale interaction campaign retained 12 dense
+    discovery cells; its frozen leader earned `+54.57/413` with positive
+    daily LCB and both directions, then lost `-20.39/189` unchanged in calendar
+    2023. The 2024 holdout stayed sealed and the static family is rejected.
+12. `[DONE]` All `36` causal walk-forward identities failed calendar 2023;
+    zero opened 2024. The best made only `118` trades and lost `-7.99`, while
+    density-qualified variants also lost. Monthly adaptation is rejected.
+13. `[DONE]` The frozen `648`-identity directional-expansion source campaign
+    retained seven net-positive dense cells but zero reliable pass; 2023/2024
+    stayed sealed. Historical bar-only direction-source curation is closed.
+14. `[WIP]` The natural combined-source news cycle passed at E-147. Producer
     recovery was strengthened at E-148 and deployed exactly at E-149 so
     recorder-owned reconnect survives a sleeping Mac/tunnel outage. E-159 proves
     full-process same-date/torn-tail/universe/read-only restart behavior; prove
     the actual Sunday process start and continuity. The shadow timer remains
     disabled.
-12. `[WIP]` An exact reboot-durable one-shot timer now owns Monday's first
+15. `[WIP]` An exact reboot-durable one-shot timer now owns Monday's first
     checkpoint without arming the recurring cadence. Inspect and prove it,
     remove that temporary timer, then collect every canonical RTH slot and exact
     option/news context without backfill.
-13. `[TODO]` Accumulate preregistered parity, pre-open, news, and microstructure
+16. `[TODO]` Accumulate preregistered parity, pre-open, news, and microstructure
     cohorts; compare identical TA-only and augmented decisions.
-14. `[TODO]` Admit a directional candidate only after positive chronological and
+17. `[TODO]` Admit a directional candidate only after positive chronological and
     prospective economics; freeze its identity/risk limits before selection.
-15. `[TODO]` Run the immutable `24h → 48h → five-session` shadow sequence and
+18. `[TODO]` Run the immutable `24h → 48h → five-session` shadow sequence and
     issue the final promotion/drift/risk verdict.
-16. `[BLOCKED]` Any option structure or live-capital canary belongs to a later
+19. `[BLOCKED]` Any option structure or live-capital canary belongs to a later
     quest after directional causality is proven.
 
 ### Current verification state
@@ -635,6 +736,9 @@ Add rows; never rewrite an unfavorable receipt.
 | E-158 | 2026-07-26 19:18 AEST | 2 | Frozen directional meta-admission falsification | `backtests/out/xsp/xsp_directional_meta_admission_20260726.json`; authenticated 2021–2024 XSP tape | artifact `276d4031…`; source `b7b90395…`; `363` training sessions; `1,214` labeled normal-engine trades; AUC `0.6016`; `0/7` thresholds passed | The production detector remained frozen after a half-year audit showed precision `0.575..0.606` and recall `0.727..0.802`. One preregistered L2-linear admission owner used only timestamp-available direction/time/ordinal, readiness, slope/velocity/efficiency/TR, ATR, retrace, coherence, and conviction evidence from 2021–2022 normal-lifecycle trades. At threshold `0.45`, both sides and aggregate P&L were positive (`+23.22/234`, PF `1.269`) but clustered daily LCB95 remained negative (`-0.0191`). Higher thresholds manufactured attractive PF by collapsing cadence from `102` to `2` trades and increasing concentration. No threshold jointly passed reliability, `0.40/session` cadence, both-side economics, drawdown, and concentration, so calendar 2023 and the 2024 holdout remained sealed. No coefficients, detector policy, production source, candidate, selection, clock, broker, or order changed. |
 | E-159 | 2026-07-26 19:32 AEST | 1/4 | Full-process Monday tape restart regression | `tests/test_option_quote_capture.py`; unchanged canonical recorder/calendar/ledger owners | test `eee07541…`; recorder `4a9022ce…`; market `98e43d84…`; ledger `95e22660…`; focused `86 passed`; full `832 passed, 4 deselected`; Ruff/diff clean | The previously separate tail-repair, cadence, retained-universe, trading-date, and read-only proofs are now exercised through two complete recorder processes. Process one writes the Monday exchange-date tape; a torn JSON tail is injected; process two repairs the same file, restores the qualified option universe, performs zero redundant contract qualification, appends one valid row, and connects read-only. This closes the deterministic restart-proof gap without changing recorder, calendar, quote, broker, strategy, timer, selection, clock, or order behavior. The actual Sunday scheduled start/restart receipt remains required. |
 | E-160 | 2026-07-26 19:40 AEST | 1/4 | Reboot-durable session-recorder trigger | Mac/GitHub/q `48d53cf755582083387780224a1ac4c934541235`; installed q `tradebot-xsp-quotes.timer` | timer `a57969bc…`; test `827efbd9…`; focused `86 passed`; full `832 passed, 4 deselected`; systemd verify and byte comparison clean; `Persistent=yes`; next `2026-07-27 10:15 AEST`; quote/shadow/news services inactive | The recorder already recovered correctly after process failure but its non-persistent daily trigger could disappear if q rebooted across Sunday `20:15 ET`. Only the once-per-session quote timer is now persistent. A catch-up inside the exchange capture window resumes the same trading-date tape; a catch-up after `17:00 ET` exits through the existing broker-silent closed-window guard. The high-frequency shadow timer remains non-persistent. Loading the unit did not start the tunnel, recorder, shadow, news, profitability clock, broker, or order path. The actual Sunday start/restart receipt remains required. |
+| E-161 | 2026-07-26 20:02 AEST | 2 | Dense multiscale interaction falsification | `backtests/xsp/xsp_directional_interaction_campaign.py`; `backtests/out/xsp/xsp_directional_interaction_admission_20260726.json` | campaign `9b312514…`; artifact `3228f984…`; `45` cells in `19.3s`; `12` discovery passes; audit opened; holdout sealed | The exact E-158 generator was recovered from the durable session, including its feature order, scaler, optimizer, regularization, thresholds, and normal-engine projection. A discovery census first proved that every single or two-label slow/fast/ATR bucket dense enough for `234` trades still lost. The preregistered nonlinear family then retained complete coefficients/scalers/decisions/trades for positive-trade, trail-capture, and net-points objectives across three regularizations and five dense admission counts. Its frozen leader (`net_points`, L2 `40`, target `450`) earned `+54.57` over `413` trades (`1.138/session`), PF `1.390`, daily LCB95 `+0.0390`, drawdown `13.70`, and positive P&L on both directions. Unchanged in calendar 2023 it lost `-20.39/189`, PF `0.660`, daily LCB95 `-0.1492`, with both directions negative. The 2024 holdout remained sealed. This proves a strong static discovery pocket but rejects its permanence; no detector, lifecycle, candidate, selection, clock, broker, or order changed. |
+| E-162 | 2026-07-26 20:11 AEST | 2 | Causal monthly walk-forward admission rejection | shared interaction campaign; `backtests/out/xsp/xsp_directional_walk_forward_admission_20260726.json`; authenticated eight-shard five-year tape | campaign-at-run `84fc3803…`; artifact `fed94470…`; `97,530` bars / `1,255` sessions / `5,177` raw events / `4,125` matured shadow outcomes; `36` identities in `24.1s`; `0` passes | Every calendar-month model used only raw-turn outcomes exited before that month and derived its threshold from the same prior-score window. The frozen grid covered `126/252/expanding` sessions, L2 `10/40/100`, and admission rates `0.18/0.25/0.35/0.45`. None passed calendar 2023. The best daily-LCB identity admitted `124` events but yielded only `118` trades (`0.472/session`) and lost `-7.99`, PF `0.776`, with both sides negative; density-qualified variants also lost. No 2024 challenge opened. This rejects monthly coefficient adaptation of the turn-entry mechanism, not the shared sensor or a distinct expansion source. No production source, selector, clock, broker, or order changed. |
+| E-163 | 2026-07-26 20:29 AEST | 2 | Directional-expansion source rejection | shared interaction campaign; `backtests/out/xsp/xsp_directional_expansion_source_20260726.json`; authenticated XSP five-minute tape | campaign `9cb602c2…`; artifact `b69ca78f…`; `648` identities / `637` unique entry tapes in `138.5s`; `588` density-qualified; `7` net-positive; `0` passes | The preregistered source fired on new or flipped coherent `5/15/30m` slope/TR and aligned-velocity expansion, optionally requiring positive ATR velocity/acceleration and already-warmed `60/120m` alignment. Every identity retained the same next-open execution, E-051 lifecycle, one-unit economics, `$0.10` friction, both directions, EOD flattening, and `234/363` density floor. Seven dense identities were net-positive, but none achieved positive daily LCB95 or PF `>=1.10`. The least-bad reliability rank made `+1.59/264`, PF `1.017`, daily LCB95 `-0.0718`, with both sides slightly positive; the best net made `+4.06/357`, PF `1.033`, but lost on up entries. Calendar 2023 and 2024 remained sealed. Research execution deduplicated byte-equivalent entry tapes only; identity/economics stayed unchanged. No production source, selector, candidate, clock, broker, or order changed. |
 
 ---
 
@@ -781,6 +885,9 @@ Add rows; never rewrite an unfavorable receipt.
 | D-129 | Close adjacent historical bar-only XSP admission | The cap-independent preregistered audit gave every `30m` four-week-qualified identity the same five annual gates and reached zero before the final slice. More nearby horizons, thresholds, friction relief, or gate permutations would outcome-mine a rejected evidence class | A materially independent prospective quote/liquidity or same-tape microstructure mechanism earns positive chronological and forward economics under a new preregistered identity |
 | D-130 | Do not curate the stable turn detector into sparse in-sample wins | The detector's half-year precision/recall is stable; the economic failure comes from adverse path and false admission. A frozen multivariate model found positive in-sample pockets only by retaining a negative daily lower bound or starving cadence/concentrating gains, and therefore never earned authority to expose later partitions | Timestamp-correct prospective microstructure or another independent causal feature improves the unchanged detector's admission economics across complete sessions without relaxing cadence, reliability, side, cost, or concentration gates |
 | D-131 | Make only the once-per-session quote trigger persistent | In-process recovery cannot help if q reboots across the sole daily trigger. Persistence is safe because an in-window catch-up resumes the same durable tape and an expired catch-up is rejected before broker work; applying it to the high-frequency shadow cadence could instead create bursts and stale evaluations | A broker-native durable capture scheduler subsumes the trigger while preserving trading-date identity, exact cadence, restart deduplication, and the same closed-window no-broker boundary |
+| D-132 | Reject static multiscale coefficients; test causal walk-forward adaptation once | Twelve independently regularized/density-varied discovery cells passed, yet the preregistered leader reversed both sides and lost sharply in the next calendar year. Nearby static thresholds would therefore tune to a known regime. A fixed walk-forward law is materially different: it may recalibrate only from already-matured prior shadow outcomes and must preserve the same density/economic gates | A content-addressed monthly walk-forward identity passes untouched annual slices and prospective shadow evidence without outcome-aware window, feature, threshold, or lifecycle changes |
+| D-133 | Stop curating turn events; test coherent directional expansion as a distinct source | Static and monthly-adaptive admission both failed because the raw event remains a retracement/turn that repeatedly reaches its initial stop. The opening-drive hypothesis is instead a new transition into aligned fast slope, velocity, and volatility expansion. Projecting that event from the same causal snapshots isolates source semantics without changing the engine or exits | One frozen expansion identity preserves density and positive chronology through 2023/2024, then earns prospective shadow parity; otherwise historical bar-only direction-source research closes |
+| D-134 | Close historical bar-only direction-source curation | The final materially distinct expansion source produced adequate cadence and a few positive point estimates, but zero reliable discovery pass before any later partition was exposed. Retuning neighboring slope, velocity, ATR, clock, cooldown, or permission thresholds would now select against known outcomes rather than test new information | Timestamp-correct prospective quote/liquidity evolution, causal-news context, or another independently sourced mechanism improves the unchanged detector's admission economics under a preregistered paired comparison |
 
 ---
 
@@ -881,7 +988,7 @@ promote/hold/revise/stop verdict with its remaining-risk register.
   The selected-economics authority now freezes independent, content-addressed
   `24h`, `48h`, and five-session evidence prefixes; later P&L, gaps, or retries
   cannot rewrite them. The combined WIP is green at
-  `831 passed, 4 deselected`, and every unique behavior in q's eleven-commit
+  `832 passed, 4 deselected`, and every unique behavior in q's eleven-commit
   news delta has been absorbed into the stronger combined publication
   architecture. The production foundation at `b943ea4` and operational
   corrections through E-149 are fully verified; q's pinned runtime and
