@@ -71,7 +71,7 @@ Optional env vars:
 - `IBKR_CLIENT_ID_BACKOFF_JITTER_RATIO` (default `0.15`)
 - `IBKR_CLIENT_ID_STATE_FILE` (default `${TMPDIR:-/tmp}/tradebot_ib_client_ids.json`)
 
-The experimental news signal is an independent one-shot command:
+The experimental XSP/MCL/GC news signal is an independent one-shot command:
 
 ```bash
 python -m tradebot.news

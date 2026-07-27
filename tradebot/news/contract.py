@@ -12,7 +12,9 @@ import re
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 
-SCHEMA = "tradebot.news-signal.v3"
+SCHEMA = "tradebot.news-signal.v4"
+LEGACY_SCHEMAS = frozenset({"tradebot.news-signal.v3"})
+SUPPORTED_SCHEMAS = frozenset({SCHEMA, *LEGACY_SCHEMAS})
 SCORE_VERSION = "causal-impact-100.v2"
 MAX_MEMORY_LINES = 400
 MAX_MEMORY_CHARS = 64_000
@@ -45,15 +47,17 @@ MEMORY_SECTION_LIMITS = {
     "## Active Regimes": 10,
     "## Durable Causal Priors": 12,
 }
+ASSET_SYMBOLS = ("XSP", "MCL", "GC")
+EVENT_ASSET_KEYS = tuple(symbol.lower() for symbol in ASSET_SYMBOLS)
 EVENT_ID_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 EMPTY_MEMORY = """# Trade Research Memory
 
-_Curated causal memory for XSP and MCL. This is not a news diary._
+_Curated causal memory for XSP, MCL, and GC. This is not a news diary._
 
 ## Mission
 
 Retain only causal structures that materially alter the expected distribution
-of XSP or MCL. Separate probability, evidence confidence, contract impact, and
+of XSP, MCL, or GC. Separate probability, evidence confidence, contract impact, and
 realized response.
 
 ## Calibration Anchors
@@ -62,6 +66,8 @@ realized response.
   economic or market function within the scored horizon.
 - **MCL reference ceiling — 100.** A verified sustained physical closure of
   Bab el-Mandeb, Hormuz, or an equivalent oil-supply loss within the horizon.
+- **GC reference ceiling — 100.** A verified systemic monetary or financial-function
+  break, or sustained physical delivery failure, within the scored horizon.
 - **Broad reciprocal-tariff escalation — 2025-04.** Reconstructed XSP -1 /
   impact 93 / confidence .99 (26 magnitude + 25 transmission + 19 surprise +
   15 immediacy + 8 persistence). The S&P 500 fell 12.14% from April 2 to
@@ -157,8 +163,7 @@ def output_schema() -> dict[str, object]:
             "mechanism",
             "invalidation",
             "evidence_urls",
-            "xsp",
-            "mcl",
+            *EVENT_ASSET_KEYS,
         ],
         "properties": {
             "id": {"type": "string", "minLength": 1, "maxLength": 64},
@@ -185,8 +190,7 @@ def output_schema() -> dict[str, object]:
                 "minItems": 1,
                 "maxItems": MAX_EVIDENCE_URLS,
             },
-            "xsp": score,
-            "mcl": score,
+            **{asset: score for asset in EVENT_ASSET_KEYS},
         },
     }
     signal = {
@@ -249,8 +253,8 @@ def output_schema() -> dict[str, object]:
             "assets": {
                 "type": "object",
                 "additionalProperties": False,
-                "required": ["XSP", "MCL"],
-                "properties": {"XSP": signal, "MCL": signal},
+                "required": list(ASSET_SYMBOLS),
+                "properties": {symbol: signal for symbol in ASSET_SYMBOLS},
             },
             "memory_markdown": {
                 "type": "string",
@@ -417,11 +421,11 @@ def observe_news_signal(
     """Validate one published aggregate and fail closed outside its horizon."""
 
     key = str(symbol or "").strip().upper()
-    if key not in ("XSP", "MCL"):
+    if key not in ASSET_SYMBOLS:
         raise NewsError(f"unsupported news-signal symbol: {key or '<empty>'}")
     if as_of.tzinfo is None or as_of.utcoffset() is None:
         raise NewsError("news-signal decision time must be timezone-aware")
-    if snapshot.get("schema") != SCHEMA or snapshot.get("score_version") != SCORE_VERSION:
+    if snapshot.get("schema") not in SUPPORTED_SCHEMAS or snapshot.get("score_version") != SCORE_VERSION:
         raise NewsError("news-signal snapshot schema/version mismatch")
     identifier = snapshot.get("publication_id")
     if identifier is not None and (
@@ -578,9 +582,9 @@ ACTIVE_EVENT_KEYS = {
     "mechanism",
     "invalidation",
     "evidence_urls",
-    "xsp",
-    "mcl",
+    *EVENT_ASSET_KEYS,
 }
+LEGACY_ACTIVE_EVENT_KEYS = ACTIVE_EVENT_KEYS - {"gc"}
 NON_MATERIAL_EVENT_KEYS = {
     "last_material_change_utc",
     "last_verified_utc",
@@ -590,6 +594,13 @@ NON_MATERIAL_EVENT_KEYS = {
 
 def _material_event_view(event: dict[str, object]) -> dict[str, object]:
     return {key: value for key, value in event.items() if key not in NON_MATERIAL_EVENT_KEYS}
+
+
+def _material_event_changed(current: dict[str, object], previous: dict[str, object]) -> bool:
+    current_view = _material_event_view(current)
+    if "gc" not in previous:
+        current_view.pop("gc", None)
+    return current_view != _material_event_view(previous)
 
 
 def _validate_active_event(
@@ -602,7 +613,9 @@ def _validate_active_event(
 ) -> dict[str, object]:
     if not isinstance(event, dict):
         raise NewsError(f"{label} must be an object")
-    _assert_exact_keys(event, ACTIVE_EVENT_KEYS, label)
+    event_keys = set(event)
+    if event_keys != ACTIVE_EVENT_KEYS and (is_output or event_keys != LEGACY_ACTIVE_EVENT_KEYS):
+        raise NewsError(f"{label} keys differ: {sorted(event_keys)}")
     event_id = _assert_text(event["id"], label=f"{label}.id", limit=64)
     if EVENT_ID_PATTERN.fullmatch(event_id) is None:
         raise NewsError(f"{label}.id must be stable lowercase kebab-case")
@@ -654,7 +667,9 @@ def _validate_active_event(
     if event["status"] == "confirmed" and event["basis"] == "summary_only":
         raise NewsError(f"{label} cannot be confirmed from summaries only")
 
-    for asset in ("xsp", "mcl"):
+    for asset in EVENT_ASSET_KEYS:
+        if asset not in event:
+            continue
         _validate_score(
             event[asset],
             basis=str(event["basis"]),
@@ -678,7 +693,7 @@ def _validate_active_event(
         else:
             if event["first_seen_utc"] != previous["first_seen_utc"]:
                 raise NewsError(f"{label}.first_seen_utc is immutable")
-            materially_changed = _material_event_view(event) != _material_event_view(previous)
+            materially_changed = _material_event_changed(event, previous)
             expected_change = _utc_iso(as_of) if materially_changed else previous["last_material_change_utc"]
             if event["last_material_change_utc"] != expected_change:
                 raise NewsError(f"{label}.last_material_change_utc does not match its material diff")
@@ -690,7 +705,7 @@ def _validate_active_event(
 
         if review_after <= as_of:
             raise NewsError(f"{label}.review_after_utc must be in the future")
-        peak_impact = max(int(event["xsp"]["impact"]), int(event["mcl"]["impact"]))
+        peak_impact = max(int(event[asset]["impact"]) for asset in EVENT_ASSET_KEYS)
         review_limit = (
             timedelta(hours=24)
             if peak_impact >= 80 or event["state"] == "resolving"
@@ -703,7 +718,7 @@ def _validate_active_event(
     return event
 
 
-def validate_memory_markdown(value: object) -> str:
+def validate_memory_markdown(value: object, *, require_gc_reference: bool = False) -> str:
     if not isinstance(value, str) or not value.strip():
         raise NewsError("memory_markdown must be non-empty")
     if len(value) > MAX_MEMORY_CHARS:
@@ -731,7 +746,9 @@ def validate_memory_markdown(value: object) -> str:
         if sum(line.startswith("### ") for line in lines[start:stop]) > limit:
             raise NewsError(f"{heading} exceeds its {limit}-entry ceiling")
     if "XSP reference ceiling" not in value or "MCL reference ceiling" not in value:
-        raise NewsError("memory_markdown must preserve both 100-point reference ceilings")
+        raise NewsError("memory_markdown must preserve both XSP and MCL reference ceilings")
+    if require_gc_reference and "GC reference ceiling" not in value:
+        raise NewsError("memory_markdown must preserve the GC 100-point reference ceiling")
     return value.rstrip() + "\n"
 
 
@@ -754,11 +771,7 @@ def validate_analysis(
     previous_by_id = {str(event["id"]): event for event in previous_events}
     active_ids: set[str] = set()
     for index, event in enumerate(events):
-        previous = (
-            previous_by_id.get(str(event.get("id")))
-            if isinstance(event, dict) and set(event) == ACTIVE_EVENT_KEYS
-            else None
-        )
+        previous = previous_by_id.get(str(event.get("id"))) if isinstance(event, dict) else None
         if isinstance(event, dict) and set(event) == ACTIVE_EVENT_KEYS:
             if previous is None:
                 event["first_seen_utc"] = _utc_iso(as_of)
@@ -767,7 +780,7 @@ def validate_analysis(
                 event["first_seen_utc"] = previous["first_seen_utc"]
                 event["last_material_change_utc"] = (
                     _utc_iso(as_of)
-                    if _material_event_view(event) != _material_event_view(previous)
+                    if _material_event_changed(event, previous)
                     else previous["last_material_change_utc"]
                 )
         validated = _validate_active_event(
@@ -810,7 +823,7 @@ def validate_analysis(
     assets = value["assets"]
     if not isinstance(assets, dict):
         raise NewsError("assets must be an object")
-    _assert_exact_keys(assets, {"XSP", "MCL"}, "assets")
+    _assert_exact_keys(assets, set(ASSET_SYMBOLS), "assets")
     signal_keys = {
         "direction",
         "impact",
@@ -821,7 +834,7 @@ def validate_analysis(
         "calibration",
         "drivers",
     }
-    for symbol in ("XSP", "MCL"):
+    for symbol in ASSET_SYMBOLS:
         signal = assets[symbol]
         if not isinstance(signal, dict):
             raise NewsError(f"{symbol} signal must be an object")
@@ -865,7 +878,10 @@ def validate_analysis(
         event["mcl"]["impact"] == 100 for event in events
     ):
         raise NewsError("aggregate MCL impact 100 requires a maximum-impact event")
-    value["memory_markdown"] = validate_memory_markdown(value["memory_markdown"])
+    value["memory_markdown"] = validate_memory_markdown(
+        value["memory_markdown"],
+        require_gc_reference=True,
+    )
     return value
 
 

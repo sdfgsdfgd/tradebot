@@ -64,12 +64,13 @@ def _memory() -> str:
 
 ## Mission
 
-Retain only causal trend evidence for XSP and MCL.
+Retain only causal trend evidence for XSP, MCL, and GC.
 
 ## Calibration Anchors
 
 - **XSP reference ceiling — 100.** System-scale US economic or market dysfunction.
 - **MCL reference ceiling — 100.** Confirmed sustained physical oil-chokepoint closure.
+- **GC reference ceiling — 100.** Systemic monetary or financial-function break.
 
 ### Oil chokepoint closure
 - MCL 100 requires confirmed cross-source physical evidence.
@@ -114,6 +115,7 @@ def _event(
         "evidence_urls": urls[:2],
         "xsp": _score(-1, 70),
         "mcl": _score(1, 100),
+        "gc": _score(1, 55),
     }
 
 
@@ -154,6 +156,16 @@ def _analysis(
                 "calibration": "Matches the physical-closure ceiling.",
                 "drivers": [event["id"]],
             },
+            "GC": {
+                "direction": 1,
+                "impact": 55,
+                "confidence": 0.9,
+                "horizon_hours": 24,
+                "change": "new" if previous is None else "unchanged",
+                "mechanism": "Oil scarcity and financial stress support gold despite dollar uncertainty.",
+                "calibration": "Below the GC systemic-monetary ceiling.",
+                "drivers": [event["id"]],
+            },
         },
         "memory_markdown": _memory(),
     }
@@ -173,7 +185,7 @@ def _zero_analysis() -> dict[str, object]:
     return {
         "active_events": [],
         "removals": [],
-        "assets": {"XSP": dict(zero), "MCL": dict(zero)},
+        "assets": {"XSP": dict(zero), "MCL": dict(zero), "GC": dict(zero)},
         "memory_markdown": _memory(),
     }
 
@@ -247,6 +259,22 @@ def test_asset_observation_validates_new_content_addresses_and_reads_legacy() ->
     value["run_status"] = "no_new_evidence"
     with pytest.raises(NewsError, match="publication ID mismatch"):
         observe_news_signal(value, symbol="XSP", as_of=NOW)
+
+
+def test_v3_history_keeps_xsp_observation_but_cannot_fabricate_gc() -> None:
+    value = {
+        "schema": "tradebot.news-signal.v3",
+        "score_version": news.SCORE_VERSION,
+        "run_status": "published",
+        "signal_as_of_utc": _iso(NOW),
+        "snapshot_as_of_utc": _iso(NOW),
+        "analysis": {"assets": _analysis([])["assets"]},
+    }
+    value["analysis"]["assets"].pop("GC")
+
+    assert observe_news_signal(value, symbol="XSP", as_of=NOW).usable is True
+    with pytest.raises(NewsError, match="lacks GC aggregate"):
+        observe_news_signal(value, symbol="GC", as_of=NOW)
 
 
 def test_news_history_selects_the_latest_causally_available_publication(
@@ -573,6 +601,89 @@ def test_memory_contract_rejects_growth_and_old_horizon_sections() -> None:
         validate_memory_markdown(_memory() + "\n## 1D - Active Trend Tape\n")
 
 
+def test_v4_output_requires_gc_while_legacy_memory_remains_readable() -> None:
+    articles = parse_finviz_news(_html(), observed_at=NOW)
+    value = _analysis([article.url for article in articles])
+    value["assets"].pop("GC")
+    with pytest.raises(NewsError, match="assets keys differ"):
+        validate_analysis(value, previous_events=[], as_of=NOW)
+
+    value = _analysis([article.url for article in articles])
+    value["active_events"][0].pop("gc")
+    with pytest.raises(NewsError, match="active event 0 keys differ"):
+        validate_analysis(value, previous_events=[], as_of=NOW)
+
+    legacy_memory = _memory().replace(
+        "- **GC reference ceiling — 100.** Systemic monetary or financial-function break.\n",
+        "",
+    )
+    assert validate_memory_markdown(legacy_memory) == legacy_memory
+    with pytest.raises(NewsError, match="GC 100-point reference ceiling"):
+        validate_memory_markdown(legacy_memory, require_gc_reference=True)
+
+
+def test_v3_event_ledger_migrates_to_gc_without_timestamp_churn(tmp_path: Path) -> None:
+    articles = parse_finviz_news(_html(), observed_at=NOW)
+    legacy_event = _event([article.url for article in articles])
+    legacy_event.pop("gc")
+    legacy_memory = _memory().replace(
+        "- **GC reference ceiling — 100.** Systemic monetary or financial-function break.\n",
+        "",
+    )
+    legacy_assets = _analysis([article.url for article in articles])["assets"]
+    legacy_assets.pop("GC")
+    (tmp_path / "trade-events.jsonl").write_text(
+        json.dumps(legacy_event) + "\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "trade-research.md").write_text(legacy_memory, encoding="utf-8")
+    (tmp_path / "latest.json").write_text(
+        json.dumps(
+            {
+                "schema": "tradebot.news-signal.v3",
+                "score_version": news.SCORE_VERSION,
+                "run_status": "published",
+                "signal_as_of_utc": _iso(NOW),
+                "snapshot_as_of_utc": _iso(NOW),
+                "analysis": {"assets": legacy_assets},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    def grader(prompt: str, _schema: dict, **_kwargs) -> tuple[dict, dict]:
+        inputs = json.loads(prompt.split("INPUT:\n", 1)[1])
+        prior = inputs["active_events"][0]
+        assert "gc" not in prior
+        assert "previous_assets lacks GC" in prompt
+        value = _analysis(
+            [article["url"] for article in inputs["articles"]],
+            as_of=datetime.fromisoformat(inputs["as_of_utc"].replace("Z", "+00:00")),
+            previous=prior,
+        )
+        value["assets"]["XSP"]["change"] = "unchanged"
+        value["assets"]["MCL"]["change"] = "unchanged"
+        value["assets"]["GC"]["change"] = "new"
+        return value, {"version": "test"}
+
+    result = run_once(
+        data_dir=tmp_path,
+        now=NOW + timedelta(hours=1),
+        fetcher=lambda *_args, **_kwargs: _html(),
+        grader=grader,
+    )
+
+    assert result["status"] == "published"
+    event = json.loads((tmp_path / "trade-events.jsonl").read_text(encoding="utf-8"))
+    latest = json.loads((tmp_path / "latest.json").read_text(encoding="utf-8"))
+    assert event["gc"]["impact"] == 55
+    assert event["first_seen_utc"] == legacy_event["first_seen_utc"]
+    assert event["last_material_change_utc"] == legacy_event["last_material_change_utc"]
+    assert latest["schema"] == news.SCHEMA
+    assert latest["analysis"]["assets"]["GC"]["change"] == "new"
+    assert "GC reference ceiling" in (tmp_path / "trade-research.md").read_text()
+
+
 def test_prompt_contains_state_paths_and_compact_causal_contract() -> None:
     articles = parse_finviz_news(_html(), observed_at=NOW)
     prior = _event([article.url for article in articles])
@@ -596,10 +707,12 @@ def test_prompt_contains_state_paths_and_compact_causal_contract() -> None:
     assert '"previous_assets":{"XSP"' in prompt
     assert "/Users/x/.codex/trade-research.md" in prompt
     assert "/Users/x/.codex/trade-events.jsonl" in prompt
-    assert "There is no topical keyword\nfilter" in prompt
+    assert "There is no topical keyword filter" in prompt
     assert "Open at most eight substantive pages" in prompt
     assert "republishers must not upgrade basis" in prompt
     assert "fact -> changed physical/economic variable -> contract transmission" in prompt
+    assert "geopolitical event has no default sign" in prompt
+    assert "previous_assets lacks GC" not in prompt
     assert "no\nword or thought is truncated" in prompt
     assert "complete replacement" in prompt
     inputs = json.loads(prompt.split("INPUT:\n", 1)[1])
