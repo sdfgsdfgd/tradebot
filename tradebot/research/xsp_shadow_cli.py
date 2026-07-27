@@ -23,17 +23,28 @@ from .xsp_shadow import (
     XSP_DIRECTIONAL_HISTORY_DURATION,
     advance_xsp_shadow_from_ibkr,
 )
+from .xsp_opening_edge_v2 import (
+    XSP_OPENING_EDGE_V2_HISTORY_DURATION,
+    advance_xsp_opening_edge_v2_from_ibkr,
+    load_xsp_opening_edge_v2_spec,
+    xsp_opening_edge_v2_run_start,
+)
 
 
 async def _main_async(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Advance the non-submitting XSP directional shadow."
+        description="Advance one explicit non-submitting XSP observer."
+    )
+    parser.add_argument(
+        "--mode",
+        choices=("directional-v1", "opening-edge-v2"),
+        default="directional-v1",
     )
     parser.add_argument(
         "--ledger",
         default="db/calibration/xsp_live_calibration.jsonl",
     )
-    parser.add_argument("--duration", default=XSP_DIRECTIONAL_HISTORY_DURATION)
+    parser.add_argument("--duration")
     parser.add_argument("--option-tape")
     parser.add_argument(
         "--news-signal",
@@ -48,7 +59,7 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
     selected_path = Path(args.selected_run).expanduser()
     selected_run = None
     selected_policy = None
-    if selected_path.exists():
+    if args.mode == "directional-v1" and selected_path.exists():
         loaded_selection = json.loads(selected_path.read_text())
         if not isinstance(loaded_selection, dict):
             raise ValueError("selected XSP shadow run must be an object")
@@ -94,16 +105,37 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
     except (OSError, json.JSONDecodeError) as exc:
         news.append({"load_error": str(exc)})
     ledger = LiveCalibrationLedger(args.ledger)
+    v2_run_start = None
     try:
-        receipt = await advance_xsp_shadow_from_ibkr(
-            ledger,
-            client=client,
-            observed_at=observed_at,
-            duration_str=str(args.duration),
-            option_snapshots=options,
-            news_snapshot=tuple(news),
-            selected_run=selected_run,
-        )
+        if args.mode == "opening-edge-v2":
+            v2_spec = load_xsp_opening_edge_v2_spec()
+            v2_run_start = xsp_opening_edge_v2_run_start(
+                tuple(ledger.records()),
+                observed_at=observed_at,
+            )
+            receipt = await advance_xsp_opening_edge_v2_from_ibkr(
+                ledger,
+                client=client,
+                observed_at=observed_at,
+                run_started_at=v2_run_start,
+                duration_str=str(
+                    args.duration or XSP_OPENING_EDGE_V2_HISTORY_DURATION
+                ),
+                news_snapshot=tuple(news),
+                spec=v2_spec,
+            )
+        else:
+            receipt = await advance_xsp_shadow_from_ibkr(
+                ledger,
+                client=client,
+                observed_at=observed_at,
+                duration_str=str(
+                    args.duration or XSP_DIRECTIONAL_HISTORY_DURATION
+                ),
+                option_snapshots=options,
+                news_snapshot=tuple(news),
+                selected_run=selected_run,
+            )
     finally:
         await client.disconnect()
     completed_at = datetime.now(tz=timezone.utc)
@@ -111,11 +143,16 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
         json.dumps(
             {
                 **receipt,
+                "mode": str(args.mode),
                 "fundamental_defensive_benchmark": (
                     xsp_fundamental_defensive_benchmark(ledger)
+                    if args.mode == "directional-v1"
+                    else None
                 ),
                 "option_parity_participation_benchmark": (
                     xsp_option_parity_participation_benchmark(ledger)
+                    if args.mode == "directional-v1"
+                    else None
                 ),
                 "profitability": (
                     ledger.xsp_profitability_receipt(
@@ -142,6 +179,11 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
                     if selected_policy is not None
                     else None
                 ),
+                "v2_run_started_at_utc": (
+                    v2_run_start.astimezone(timezone.utc).isoformat()
+                    if v2_run_start is not None
+                    else None
+                ),
                 "completed_at_utc": completed_at.isoformat(),
             },
             allow_nan=False,
@@ -149,7 +191,16 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
             sort_keys=True,
         )
     )
-    return 0 if receipt.get("evaluation_status") == "EVALUATED" else 2
+    successful_preflight = (
+        args.mode == "opening-edge-v2"
+        and receipt.get("broker_request_skipped") == "run_not_started"
+    )
+    return (
+        0
+        if receipt.get("evaluation_status") == "EVALUATED"
+        or successful_preflight
+        else 2
+    )
 
 
 def main(argv: Sequence[str] | None = None) -> int:

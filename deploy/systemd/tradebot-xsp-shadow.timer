@@ -1,10 +1,13 @@
 [Unit]
-Description=Advance the XSP shadow after each completed five-minute RTH bar
+Description=Advance the XSP v2 observer after each completed GTH/RTH bar
 
 [Timer]
-OnCalendar=Mon..Fri *-*-* 09:37/5:00 America/New_York
+OnCalendar=Sun *-*-* 20..23:22/5:00 America/New_York
+OnCalendar=Mon..Thu *-*-* 20..23:22/5:00 America/New_York
+OnCalendar=Mon..Fri *-*-* 00..08:02/5:00 America/New_York
+OnCalendar=Mon..Fri *-*-* 09:02,07,12,17,22,27,37,42,47,52,57:00 America/New_York
 OnCalendar=Mon..Fri *-*-* 10..15:02/5:00 America/New_York
-OnCalendar=Mon..Fri *-*-* 16:02:00 America/New_York
+OnCalendar=Mon..Fri *-*-* 16:02,07,12,17:00 America/New_York
 AccuracySec=15s
 RandomizedDelaySec=0
 Persistent=false

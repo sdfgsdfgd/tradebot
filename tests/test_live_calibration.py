@@ -48,13 +48,16 @@ from tradebot.research.xsp_context import (
     xsp_option_context_at,
 )
 from tradebot.research.xsp_opening_edge_v2 import (
+    XSP_OPENING_EDGE_V2_HISTORY_DURATION,
     XSP_OPENING_EDGE_V2_EXECUTION_GATE,
     XSP_OPENING_EDGE_V2_VERSION,
+    advance_xsp_opening_edge_v2_from_ibkr,
     load_xsp_opening_edge_v2_spec,
     next_xsp_v2_run_start,
     split_xsp_v2_sessions,
     xsp_opening_edge_v2_bundle,
     xsp_opening_edge_v2_equities,
+    xsp_opening_edge_v2_run_start,
 )
 from tradebot.backtest.models import Bar
 from tradebot.time_utils import ET_ZONE
@@ -175,6 +178,291 @@ def test_opening_edge_v2_paired_equity_keeps_cost_attribution_separate() -> None
         "cumulative_cost_points"
     ]
     assert research["reconciled"] is broker["reconciled"] is True
+
+
+def test_opening_edge_v2_observer_freezes_start_before_broker_work(
+    tmp_path,
+) -> None:
+    class _NoBroker:
+        async def qualify_proxy_contracts(self, _contract):
+            raise AssertionError("preflight must not contact IBKR")
+
+    ledger = LiveCalibrationLedger(tmp_path / "v2-preflight.jsonl")
+    run_start = datetime(2026, 7, 27, 20, 15, tzinfo=ET_ZONE)
+    preflight_at = datetime(2026, 7, 27, 17, 5, tzinfo=ET_ZONE)
+    preflight = asyncio.run(
+        advance_xsp_opening_edge_v2_from_ibkr(
+            ledger,
+            client=_NoBroker(),
+            observed_at=preflight_at,
+            run_started_at=run_start,
+            recorded_at=preflight_at,
+        )
+    )
+
+    assert preflight["evaluation_status"] == "CLOSED"
+    assert preflight["broker_request_skipped"] == "run_not_started"
+    assert preflight["run_started_at_utc"] == "2026-07-28T00:15:00+00:00"
+    assert preflight["order_authority"] == "none"
+    [checkpoint] = list(ledger.records())
+    assert checkpoint["evidence"]["paired_equity"] is None
+    assert checkpoint["evidence"]["order_authority"] == "none"
+    assert xsp_opening_edge_v2_run_start(
+        tuple(ledger.records()),
+        observed_at=preflight_at,
+    ) == datetime(2026, 7, 28, 0, 15, tzinfo=timezone.utc)
+
+    with pytest.raises(ValueError, match="run start drift"):
+        asyncio.run(
+            advance_xsp_opening_edge_v2_from_ibkr(
+                ledger,
+                client=_NoBroker(),
+                observed_at=preflight_at,
+                run_started_at=datetime(
+                    2026,
+                    7,
+                    28,
+                    20,
+                    15,
+                    tzinfo=ET_ZONE,
+                ),
+                recorded_at=preflight_at,
+            )
+        )
+    with pytest.raises(ValueError, match="frozen before observation"):
+        asyncio.run(
+            advance_xsp_opening_edge_v2_from_ibkr(
+                LiveCalibrationLedger(tmp_path / "v2-backfill.jsonl"),
+                client=_NoBroker(),
+                observed_at=datetime(
+                    2026,
+                    7,
+                    27,
+                    20,
+                    31,
+                    tzinfo=ET_ZONE,
+                ),
+                run_started_at=run_start,
+                recorded_at=datetime(
+                    2026,
+                    7,
+                    27,
+                    20,
+                    31,
+                    tzinfo=ET_ZONE,
+                ),
+            )
+        )
+    with pytest.raises(ValueError, match="exact GTH boundary"):
+        asyncio.run(
+            advance_xsp_opening_edge_v2_from_ibkr(
+                LiveCalibrationLedger(tmp_path / "v2-off-boundary.jsonl"),
+                client=_NoBroker(),
+                observed_at=preflight_at,
+                run_started_at=run_start + timedelta(minutes=5),
+                recorded_at=preflight_at,
+            )
+        )
+
+
+def test_opening_edge_v2_observer_uses_spy_full_session_and_xsp_rth(
+    tmp_path,
+) -> None:
+    spy_contract = Contract(
+        conId=756733,
+        symbol="SPY",
+        secType="STK",
+        exchange="SMART",
+        currency="USD",
+    )
+    xsp_contract = Contract(
+        conId=416904,
+        symbol="XSP",
+        secType="IND",
+        exchange="CBOE",
+        currency="USD",
+    )
+
+    class _Client:
+        def __init__(self) -> None:
+            self.requests = {}
+
+        async def qualify_proxy_contracts(self, contract):
+            return [spy_contract if contract.secType == "STK" else xsp_contract]
+
+        async def historical_bars_ohlcv(self, contract, **kwargs):
+            self.requests[contract.symbol] = kwargs
+            rth = [
+                Bar(
+                    datetime(2026, 7, 27, 9, 30)
+                    + timedelta(minutes=5 * index),
+                    100.0 + index * 0.1,
+                    100.2 + index * 0.1,
+                    99.8 + index * 0.1,
+                    100.1 + index * 0.1,
+                    1.0,
+                )
+                for index in range(12)
+            ]
+            if contract.symbol == "XSP":
+                return rth
+            return [
+                *rth,
+                *[
+                    Bar(
+                        datetime(2026, 7, 27, 20, 15)
+                        + timedelta(minutes=5 * index),
+                        102.0 + index * 0.1,
+                        102.2 + index * 0.1,
+                        101.8 + index * 0.1,
+                        102.1 + index * 0.1,
+                        1.0,
+                    )
+                    for index in range(3)
+                ],
+            ]
+
+        def last_historical_request(self, contract):
+            return {"status": "ok", "symbol": contract.symbol}
+
+    ledger = LiveCalibrationLedger(tmp_path / "v2-forward.jsonl")
+    run_start = datetime(2026, 7, 27, 20, 15, tzinfo=ET_ZONE)
+    preflight_at = datetime(2026, 7, 27, 17, 5, tzinfo=ET_ZONE)
+    client = _Client()
+    asyncio.run(
+        advance_xsp_opening_edge_v2_from_ibkr(
+            ledger,
+            client=client,
+            observed_at=preflight_at,
+            run_started_at=run_start,
+            recorded_at=preflight_at,
+        )
+    )
+    observed_at = datetime(2026, 7, 27, 20, 31, tzinfo=ET_ZONE)
+    receipt = asyncio.run(
+        advance_xsp_opening_edge_v2_from_ibkr(
+            ledger,
+            client=client,
+            observed_at=observed_at,
+            run_started_at=run_start,
+            recorded_at=observed_at,
+        )
+    )
+
+    assert client.requests["SPY"] == {
+        "duration_str": XSP_OPENING_EDGE_V2_HISTORY_DURATION,
+        "bar_size": "5 mins",
+        "use_rth": False,
+        "what_to_show": "TRADES",
+        "cache_ttl_sec": 0.0,
+    }
+    assert client.requests["XSP"]["use_rth"] is True
+    assert receipt["evaluation_status"] == "EVALUATED"
+    assert receipt["freshness_ok"] is True
+    assert receipt["rth_signal_source"] == "XSP"
+    assert receipt["spy_contract"] == {
+        "con_id": 756733,
+        "symbol": "SPY",
+        "sec_type": "STK",
+        "exchange": "SMART",
+        "currency": "USD",
+    }
+    paired = receipt["paired_equity"]
+    assert paired["rth_signal_source"] == "XSP"
+    assert paired["execution_symbol"] == "SPY"
+    assert paired["execution_eligibility"]["eligible"] is False
+    assert {
+        profile["order_authority"]
+        for profile in paired["profiles"].values()
+    } == {"none"}
+    checkpoints = [
+        row for row in ledger.records() if row["kind"] == "checkpoint"
+    ]
+    assert [row["status"] for row in checkpoints] == ["CLOSED", "EVALUATED"]
+    assert all(
+        row["evidence"]["run_started_at_utc"]
+        == "2026-07-28T00:15:00+00:00"
+        for row in checkpoints
+    )
+
+
+def test_opening_edge_v2_observer_records_spy_fallback_as_stale(
+    tmp_path,
+) -> None:
+    spy_contract = Contract(
+        conId=756733,
+        symbol="SPY",
+        secType="STK",
+        exchange="SMART",
+        currency="USD",
+    )
+
+    class _Client:
+        async def qualify_proxy_contracts(self, contract):
+            return [spy_contract] if contract.secType == "STK" else []
+
+        async def historical_bars_ohlcv(self, _contract, **_kwargs):
+            gth = [
+                Bar(
+                    datetime(2026, 7, 27, 20, 15)
+                    + timedelta(minutes=5 * index),
+                    100.0,
+                    100.2,
+                    99.8,
+                    100.0,
+                    1.0,
+                )
+                for index in range(4)
+            ]
+            rth = [
+                Bar(
+                    datetime(2026, 7, 28, 9, 30)
+                    + timedelta(minutes=5 * index),
+                    101.0,
+                    101.2,
+                    100.8,
+                    101.0,
+                    1.0,
+                )
+                for index in range(2)
+            ]
+            return [*gth, *rth]
+
+        def last_historical_request(self, contract):
+            return {"status": "ok", "symbol": contract.symbol}
+
+    ledger = LiveCalibrationLedger(tmp_path / "v2-rth-fallback.jsonl")
+    client = _Client()
+    run_start = datetime(2026, 7, 27, 20, 15, tzinfo=ET_ZONE)
+    preflight_at = datetime(2026, 7, 27, 17, 5, tzinfo=ET_ZONE)
+    asyncio.run(
+        advance_xsp_opening_edge_v2_from_ibkr(
+            ledger,
+            client=client,
+            observed_at=preflight_at,
+            run_started_at=run_start,
+            recorded_at=preflight_at,
+        )
+    )
+    observed_at = datetime(2026, 7, 28, 9, 41, tzinfo=ET_ZONE)
+    receipt = asyncio.run(
+        advance_xsp_opening_edge_v2_from_ibkr(
+            ledger,
+            client=client,
+            observed_at=observed_at,
+            run_started_at=run_start,
+            recorded_at=observed_at,
+        )
+    )
+
+    assert receipt["paired_equity"] is not None
+    assert receipt["rth_signal_source"] == "SPY"
+    assert receipt["evaluation_status"] == "STALE_DATA"
+    assert receipt["freshness_ok"] is False
+    checkpoint = list(ledger.records())[-1]
+    assert checkpoint["evidence"]["xsp_error"] == "qualification_unavailable"
+    assert checkpoint["evidence"]["rth_provenance_fresh"] is False
+    assert checkpoint["evidence"]["order_authority"] == "none"
 
 
 def test_shadow_history_window_keeps_prior_rth_warmup_across_weekend() -> None:
@@ -1087,8 +1375,6 @@ def test_profitability_rejects_wrong_session_and_false_rollup(
 
 
 def test_shadow_systemd_cadence_is_bounded_and_runtime_gated() -> None:
-    from tradebot.engines.market import xsp_rth_evaluation_slots
-
     root = Path(__file__).resolve().parents[1]
     service = (
         root / "deploy/systemd/tradebot-xsp-shadow.service"
@@ -1099,18 +1385,24 @@ def test_shadow_systemd_cadence_is_bounded_and_runtime_gated() -> None:
         "ExecCondition=/usr/bin/test -x "
         "%h/.local/share/tradebot/venv/bin/python"
     ) in service
-    assert "ExecStart=/usr/bin/env python3 -m tradebot.research.xsp_shadow" in service
+    assert (
+        "ExecStart=/usr/bin/env python3 -m tradebot.research.xsp_shadow "
+        "--mode opening-edge-v2"
+    ) in service
     assert "TimeoutStartSec=2min" in service
     assert "NoNewPrivileges=true" in service
-    assert "Mon..Fri *-*-* 09:37/5:00 America/New_York" in timer
+    assert "Sun *-*-* 20..23:22/5:00 America/New_York" in timer
+    assert "Mon..Thu *-*-* 20..23:22/5:00 America/New_York" in timer
+    assert "Mon..Fri *-*-* 00..08:02/5:00 America/New_York" in timer
+    assert (
+        "Mon..Fri *-*-* 09:02,07,12,17,22,27,37,42,47,52,57:00 "
+        "America/New_York"
+    ) in timer
     assert "Mon..Fri *-*-* 10..15:02/5:00 America/New_York" in timer
-    assert "Mon..Fri *-*-* 16:02:00 America/New_York" in timer
-    assert timer.count("OnCalendar=") == 3
+    assert "Mon..Fri *-*-* 16:02,07,12,17:00 America/New_York" in timer
+    assert timer.count("OnCalendar=") == 6
     assert "Persistent=false" in timer
     assert "RandomizedDelaySec=0" in timer
-    assert len(xsp_rth_evaluation_slots(date(2026, 7, 27))) == 78
-    assert len(xsp_rth_evaluation_slots(date(2026, 11, 27))) == 42
-    assert xsp_rth_evaluation_slots(date(2026, 7, 4)) == ()
 
 
 def test_result_settles_one_frozen_forecast_once(tmp_path) -> None:
@@ -1575,6 +1867,82 @@ def test_shadow_cli_fails_when_the_checkpoint_is_not_evaluated(
         )
     ) == 2
     capsys.readouterr()
+
+
+def test_shadow_cli_v2_prefreezes_without_loading_v1_selection(
+    tmp_path,
+    monkeypatch,
+    capsys,
+) -> None:
+    from tradebot.research.xsp_shadow_cli import _main_async
+
+    captured = {}
+    run_start = datetime(2026, 7, 28, 0, 15, tzinfo=timezone.utc)
+    selected_path = tmp_path / "obsolete-v1-selection.json"
+    selected_path.write_text("not valid JSON", encoding="utf-8")
+
+    class _Client:
+        def __init__(self, _config):
+            pass
+
+        async def disconnect(self):
+            captured["disconnected"] = True
+
+    async def _advance_v2(_ledger, **kwargs):
+        captured.update(kwargs)
+        return {
+            "status": "ok",
+            "evaluation_status": "CLOSED",
+            "broker_request_skipped": "run_not_started",
+            "order_authority": "none",
+        }
+
+    async def _advance_v1(*_args, **_kwargs):
+        raise AssertionError("v2 mode must not enter the v1 observer")
+
+    monkeypatch.setattr("tradebot.client.IBKRClient", _Client)
+    monkeypatch.setattr(
+        "tradebot.research.xsp_shadow_cli.load_xsp_opening_edge_v2_spec",
+        lambda: "v2-spec",
+    )
+    monkeypatch.setattr(
+        "tradebot.research.xsp_shadow_cli.xsp_opening_edge_v2_run_start",
+        lambda *_args, **_kwargs: run_start,
+    )
+    monkeypatch.setattr(
+        "tradebot.research.xsp_shadow_cli.advance_xsp_opening_edge_v2_from_ibkr",
+        _advance_v2,
+    )
+    monkeypatch.setattr(
+        "tradebot.research.xsp_shadow_cli.advance_xsp_shadow_from_ibkr",
+        _advance_v1,
+    )
+
+    assert asyncio.run(
+        _main_async(
+            (
+                "--mode",
+                "opening-edge-v2",
+                "--ledger",
+                str(tmp_path / "v2-cli.jsonl"),
+                "--news-signal",
+                str(tmp_path / "missing-news.json"),
+                "--selected-run",
+                str(selected_path),
+            )
+        )
+    ) == 0
+    output = json.loads(capsys.readouterr().out)
+
+    assert captured["run_started_at"] == run_start
+    assert captured["duration_str"] == XSP_OPENING_EDGE_V2_HISTORY_DURATION
+    assert captured["news_snapshot"] == ()
+    assert captured["spec"] == "v2-spec"
+    assert captured["disconnected"] is True
+    assert output["mode"] == "opening-edge-v2"
+    assert output["selected_run_id"] is None
+    assert output["v2_run_started_at_utc"] == run_start.isoformat()
+    assert output["order_authority"] == "none"
 
 
 @pytest.mark.parametrize(

@@ -24,12 +24,12 @@ output belongs in commit/final verification, not in this management brain.
 | Selected shadow | Opening Edge v1 predecessor `9fac460e…`; cannot confer v2 authority |
 | Research crown | **Opening Edge v2 — Balanced 24/5**; `xsp.opening-edge-v2-balanced-24x5.v1` |
 | Runtime parity | v2 RTH/GTH ledgers reproduce frozen research; explicit same-resolution SPY fills are now honored and content-addressed |
-| Runtime source anchor | crown is published; execution owner is in the current green publication transaction; q remains on pre-v2 source while its recorder is active |
+| Runtime source anchor | crown and paired observer are locally proven; publish the observer revision now, but keep q on pre-v2 source until its recorder exits |
 | Order/capital authority | `none` |
 | Profitability clock | v2 `NOT_STARTED`; predecessor evidence does not transfer |
 | Execution verdict | `HOLD`: exact signal transport survives, measured one-share SPY costs do not |
 | Next irreversible evidence | none; do not freeze v2 until an unchanged executable transport passes net economics |
-| First active work | publish the execution receipt, then deploy only the paired non-submitting observer after the active q recorder exits |
+| First active work | publish the preflight/restart-safe observer revision, then install it only after the active q recorder exits |
 
 ### Immediate sequence
 
@@ -42,8 +42,10 @@ output belongs in commit/final verification, not in this management brain.
    USD `1,000` reference under measured broker costs.
 5. `[DONE]` Reconcile q state: pre-v2 clean source, active quote recorder,
    failed first v1 checkpoint, disabled recurring shadow, and no v2 selection.
-6. `[WIP]` Publish and safely install only the paired non-submitting v2
-   observer after the recorder exits; never backfill its prospective start.
+6. `[WIP]` The paired v2 observer is locally proven: prefreeze the exact next
+   `20:15 ET` boundary, reject late/off-boundary/drifted starts, and preserve
+   XSP RTH provenance across GTH restarts. Publish it now; install only after
+   recorder quiescence.
 7. `[TODO]` Accumulate compact TA/news/execution observations while preserving
    `NO_TRADE`; restart milestone clocks only after executable economics pass.
 
@@ -178,9 +180,11 @@ decelerating; no XSP outcome exists yet, so this is context—not a pivot claim.
 5. `[DONE]` Reconcile q: the active recorder remains pinned to clean pre-v2
    source, the first v1 checkpoint failed closed, the recurring shadow is
    disabled, and no v2 selection or clock exists.
-6. `[WIP]` Publish and install one paired v2 observer only after recorder
-   quiescence. Record research-cost and broker-cost equity, exact source,
-   compact news pressure/delta, freshness, and `order_authority=none`.
+6. `[WIP]` Publish the locally proven paired v2 observer, then install it only
+   after recorder quiescence. Its explicit mode ignores v1 selection, freezes
+   the next untouched GTH boundary before outcomes, rejects backfill/drift,
+   records paired costs/source/news/freshness, and retains
+   `order_authority=none`.
 7. `[TODO]` Find an executable fixed-unit transport whose unchanged economics
    pass before freezing v2 and restarting `24h → 48h → five-session`.
 7. `[BLOCKED]` Option structures and any live-capital canary belong to a later
@@ -233,7 +237,9 @@ must be advanced, traced, and consumed identically; otherwise remove the lie.
   the seven-day evidence deadline without a long-horizon broker request.
 - Closed/holiday/unsupported sessions do no broker work and are not
   `EVALUATED`.
-- Quote timer is persistent; high-frequency shadow timer is not.
+- Quote timer is persistent; the bounded v2 observer timer is not. Its six
+  calendar lanes cover completed GTH/RTH bars plus one `16:17 ET`
+  RTH-finalization read; Curb never owns a trade.
 - Current q census remains clean on pre-v2 `c93bc63…`; its quote recorder is
   active, first v1 shadow checkpoint failed closed, and recurring shadow timer
   is disabled. V2 publication must not change its imported source mid-session.
@@ -281,6 +287,7 @@ and
 | E-187 | the first natural post-freeze news transition retained a bearish level with a weakening, decelerating pressure impulse; no price outcome or authority exists yet |
 | E-188 | Opening Edge v2 became the balanced 24/5 historical crown; exact centralized RTH/GTH ledgers and a hash-bound SPY shadow selector preserve zero order authority |
 | E-189 | exact SPY signal/fill transport preserves the 725-trade edge under research friction, but measured one-share broker costs exhaust the capital reference; operational v2 is HOLD |
+| E-190 | the paired v2 observer boundary is locally proven: only a pre-outcome exact GTH start may open the run; restart drift/backfill is rejected; SPY full-session execution retains XSP RTH provenance; proxy fallback is explicitly stale; q activation remains deferred |
 
 ### Decision anchors
 
@@ -305,6 +312,7 @@ and
 | D-157 | confidence-weighted news pressure, change, and interval-normalized velocity are observational coordinates; only prospective volatility-conditioned paired evidence may earn a later conservative gate |
 | D-158 | v2 may use XSP as its RTH signal and one SPY share as execution, but it cannot inherit v1's selected receipt or start a clock before exact SPY cost/tracking replay and a new freeze |
 | D-159 | signal portability and executable economics are separate gates; failed one-share SPY costs forbid selection while paired counterfactual observation may continue |
+| D-160 | reuse one explicit observer mode and ledger; freeze the next `20:15 ET` start before outcomes, allow causal history only as warmup/restart reconstruction, and refuse any late first invocation, changed start/config, stale exact-RTH fallback, selection, or order authority |
 
 ---
 
@@ -367,7 +375,8 @@ Opening Edge v2 is the historical research crown, but executable one-share SPY
 economics are `HOLD`. Broker/order strategy remains `NO_TRADE`, v1's selected
 receipt cannot transfer, v2 has no selected identity, order authority is
 `none`, and the profitability clock is `NOT_STARTED`. The immediate quest is
-to publish and safely run the paired non-submitting observer, preserve compact
+to publish and safely activate the already-proven observer after recorder
+quiescence, preserve compact
 TA/news/execution evidence, and identify a fixed-unit transport whose unchanged
 net economics can legitimately restart `24h → 48h → five-session`.
 

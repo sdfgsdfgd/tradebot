@@ -99,9 +99,12 @@ systemctl --user enable --now \
   tradebot-news.timer tradebot-xsp-quotes.timer
 ```
 
-At Monday `09:37 ET`, manually run the one-shot shadow after the completed
-`09:30..09:35` cash bar. Verify that it appended an `EVALUATED` checkpoint with
-`order_authority=none`, then arm the remaining `09:42..16:02` schedule:
+After installation and before the next `20:15 ET` GTH boundary, manually run
+the one-shot observer once. It must append a `CLOSED/run_not_started`
+preflight that freezes the next untouched GTH boundary without contacting
+IBKR. After the first completed `20:15..20:20` SPY bar, run it again and verify
+an `EVALUATED` paired XSP/SPY checkpoint with `order_authority=none`; only then
+arm the remaining GTH/RTH schedule:
 
 ```bash
 systemctl --user start tradebot-xsp-shadow.service
@@ -110,7 +113,8 @@ systemctl --user enable --now tradebot-xsp-shadow.timer
 ```
 
 The quote timer starts one bounded recorder per exchange session; the shadow
-timer runs one non-submitting evaluation after each completed cash-RTH bar.
+timer runs one non-submitting v2 evaluation after each completed GTH/RTH bar
+and once at `16:17 ET` to close-align the final RTH bar without trading Curb.
 The quote timer is persistent so a q reboot resumes the current capture window;
 the recorder's closed-window guard prevents an expired catch-up from reaching
 the broker. The high-frequency shadow timer remains non-persistent.
