@@ -23,7 +23,7 @@ output belongs in commit/final verification, not in this management brain.
 | Selected shadow | Opening Edge v1; `9fac460e…`; evidence-only |
 | Research crown | `xsp.opening-edge-directional.v1` / Opening Edge v1 |
 | Runtime revision | `close-time-parity-r1`; same physical crown, not v2 |
-| Runtime source anchor | q/origin `87a21e7`; local is one verified commit ahead for post-capture sync |
+| Runtime source anchor | q/origin `87a21e7`; local is two verified commits ahead for post-capture sync |
 | Order/capital authority | `none` |
 | Profitability clock | `ARMED`; starts only at the first exact `EVALUATED` selected checkpoint |
 | Next irreversible evidence | Monday's first exact selected-shadow checkpoint |
@@ -35,13 +35,14 @@ output belongs in commit/final verification, not in this management brain.
    A Gateway token fault withheld its API listener until the user's `13:59`
    repair; the unchanged process self-healed after `197` bounded retries and
    wrote its first GTH row at `14:00`. Do not backfill the missing prefix.
-2. `[WIP]` The recovered tape reached `20` ordered GTH rows through
-   `15:35 AEST`, one chain fingerprint, and a coherently retained `42→50`
+2. `[WIP]` The recovered tape reached `34` ordered GTH rows through
+   `16:45 AEST`, one chain fingerprint, and a coherently retained `42→50`
    contract universe with zero service/tunnel restarts. Strict `30s` parity
-   is usable in only `1/20`; age-only `360s` replay admits `15/20`, while the
-   preregistered model-consensus-only GTH interpretation honestly retains
-   `10/20`. Preserve the raw tape and strict execution policy unchanged until
-   capture ends.
+   remains sparse (`2/34`); the preregistered model-consensus-only `360s`
+   interpretation retains `16/34` and now proves its first same-expiry,
+   five-pair `2h` path (`00:35:06→02:35:16 ET`, `+1.675` points). Preserve the
+   raw tape and strict execution policy unchanged until capture ends; `4h/6h`
+   and the final pre-open boundary remain unknown.
 3. Inspect the reboot-durable one-shot Monday `09:37 ET` /
    `23:37 AEST` receipt. Require fresh close-aligned data, `EVALUATED`,
    selected-equity run `9fac460e…`, coherent candidate equity, actual
@@ -169,7 +170,7 @@ stale, underwarmed, failed, or horizon-expired evidence means no extra gate.
 
 | Evidence lane | Frozen question | Authority |
 |---|---|---|
-| Causal news | Log signed pressure `direction × impact / 100` in each selected checkpoint, then causally join entries/flips/exits without treating it as percent price causation. Do opposing states avoid adverse selection; do aligned high-impact states justify patient holds? | defensive context only; no entry or lifecycle authority |
+| Causal news | Derive signed pressure `direction × impact / 100 × confidence`, its change, exact publication interval, and hourly pressure velocity from each compact selected checkpoint; then causally join realized volatility, entries/flips/exits, MFE/MAE, and P&L without treating impact as percent price causation. Do opposing pressure pivots avoid adverse selection; do aligned event-dominated states justify patient holds? | defensive context only; no entry or lifecycle authority |
 | Option parity | Does exact-sign, independently non-overlapping parity improve same-tape directional outcomes? | observe only; at least 30 pairs / five sessions |
 | Option liquidity | Do pair count, parity dispersion, relative spread, quote age, and strengthening beat TA-only and parity alone? | threshold-free Pareto observation |
 | Pre-open bridge | Under a frozen `360s`, model-consensus-only GTH/Curb anchor, do exact `2h/4h/6h` velocities distinguish strengthening, exhaustion, or reversal into the first RTH turn? | separately versioned replay; descriptive cohorts only |
@@ -178,6 +179,11 @@ stale, underwarmed, failed, or horizon-expired evidence means no extra gate.
 
 News and option evidence begins only at append time. Historical headlines may
 explain plausibility but cannot label old trades or support value claims.
+
+The first post-freeze natural news transition is XSP `-1/66/.95/24h`:
+signed pressure `-0.627`, delta `+0.0285` over `14,979s`, or
+`+0.00685/hour`. Bearish pressure is weakening, but the easing impulse is
+decelerating; no XSP outcome exists yet, so this is context—not a pivot claim.
 
 ### Active task tree
 
@@ -191,18 +197,22 @@ explain plausibility but cannot label old trades or support value claims.
    envelope, and `order_authority=none`; broker selection remains `NO_TRADE`.
 3. `[WIP]` The quote producer started naturally and survived the Gateway token
    outage with zero process restarts; after the `13:59 AEST` repair it
-   self-healed and created the Monday GTH tape. The first `20` ordered rows
+   self-healed and created the Monday GTH tape. Its first `34` ordered rows
    retain one chain identity while the qualified universe expands `42→50`;
-   delayed observations remain research-only. Continue full-session integrity
-   and read-only proof; the missing GTH prefix remains explicit unavailable
-   evidence.
+   the frozen model-only replay has its first authentic `2h` pair, while
+   `4h/6h` and the pre-open boundary remain unproved. Continue full-session
+   integrity and read-only proof; the missing GTH prefix remains explicit
+   unavailable evidence.
 4. `[WIP]` Inspect Monday's one-shot selected checkpoint; remove its temporary
    timer and arm recurring cadence only after an exact `EVALUATED` receipt
    starts the frozen clock without changing strategy identity.
-5. `[TODO]` Causally join append-time news history to every selected
-   checkpoint and entry/flip/exit, then accumulate identical TA-only, news,
-   parity, liquidity, pre-open, and candidate-equity observations. Missing or
-   stale news is unavailable—not neutral—and no pre-history is backfilled.
+5. `[WIP]` The first natural post-freeze news cycle succeeded and retained a
+   compact bearish-but-weakening pressure transition. Causally join append-time
+   history to every selected checkpoint and entry/flip/exit; compare pressure
+   level and velocity beside realized volatility, MFE/MAE, and P&L across
+   identical TA-only, news, parity, liquidity, pre-open, and candidate-equity
+   observations. Missing or stale news is unavailable—not neutral—and no
+   pre-history is backfilled.
 6. `[TODO]` Execute the immutable `24h → 48h → five-session` sequence and
    issue the final economic, drift, safety, and promotion verdict.
 7. `[BLOCKED]` Option structures and any live-capital canary belong to a later
@@ -296,6 +306,8 @@ and
 | E-183 | checkpoint completion time is now real evidence: evaluation and recording must both land within the frozen `90s` slot tolerance |
 | E-184 | source-consistent inverse-quality confirmation changed only four five-year paths, worsened 2023/drawdown, and earned no new crown or runtime knob |
 | E-185 | the first 20-row GTH prefix proves strict execution freshness and pre-open research age/anchor semantics must remain separate |
+| E-186 | the first authentic model-only `2h` GTH path passed unchanged pair, dispersion, age, expiry, and causal-anchor gates; longer horizons remain unproved |
+| E-187 | the first natural post-freeze news transition retained a bearish level with a weakening, decelerating pressure impulse; no price outcome or authority exists yet |
 
 ### Decision anchors
 
@@ -317,6 +329,7 @@ and
 | D-154 | historical inverse-source quality tuning is closed; only prospective independent evidence may reopen flip ownership |
 | D-155 | pre-open replay uses a frozen `360s` model-consensus GTH/Curb contract; it cannot rewrite strict execution or first-seen evidence |
 | D-156 | signed news impact begins as logged prospective context, not a literal percentage contribution or trade multiplier |
+| D-157 | confidence-weighted news pressure, change, and interval-normalized velocity are observational coordinates; only prospective volatility-conditioned paired evidence may earn a later conservative gate |
 
 ---
 
@@ -379,8 +392,9 @@ Opening Edge v1 is the sole XSP research crown and the preselected synthetic
 shadow; broker/order selection remains `NO_TRADE`, order authority is `none`,
 and the profitability clock is armed but cannot start before Monday's first
 exact `EVALUATED` checkpoint. The recorder has recovered into the Monday GTH
-session; its missing token-outage prefix remains explicitly unavailable. The
-immediate quest is stable forward evidence, then immutable
+session and produced the first authentic model-only `2h` pre-open path; its
+missing token-outage prefix and longer `4h/6h` horizons remain explicitly
+unavailable. The immediate quest is stable forward evidence, then immutable
 `24h → 48h → five-session` profitability and calibration—not more historical
 decimal mining, breadth work, or options capital.
 

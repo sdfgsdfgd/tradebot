@@ -20,6 +20,8 @@ XSP_OPTION_CONTEXT_MAX_LAG = timedelta(minutes=7)
 XSP_OPTION_CHANGE_MAX_SPAN = timedelta(minutes=15)
 XSP_PREOPEN_PARITY_HORIZONS_MINUTES = (120, 240, 360)
 XSP_PREOPEN_BOUNDARY_MAX_LAG = timedelta(minutes=10)
+XSP_PREOPEN_RESEARCH_VERSION = "xsp.preopen-option-path.v2"
+XSP_PREOPEN_RESEARCH_MAX_AGE_SECONDS = 360.0
 
 
 def _xsp_preopen_option_path(
@@ -30,8 +32,11 @@ def _xsp_preopen_option_path(
     """Freeze the final causal GTH parity path for an RTH decision."""
 
     base: dict[str, object] = {
+        "schema": XSP_PREOPEN_RESEARCH_VERSION,
         "source": "option_nbbo_parity",
         "authority": "observation_only",
+        "anchor_policy": "option_model_consensus_only",
+        "max_age_seconds": XSP_PREOPEN_RESEARCH_MAX_AGE_SECONDS,
         "horizons_minutes": XSP_PREOPEN_PARITY_HORIZONS_MINUTES,
     }
     trading_date = xsp_trading_date(decision_at)
@@ -50,7 +55,11 @@ def _xsp_preopen_option_path(
             or xsp_trading_date(captured_at) != trading_date
         ):
             continue
-        observation = option_parity_observation(snapshot)
+        observation = option_parity_observation(
+            snapshot,
+            max_age_sec=XSP_PREOPEN_RESEARCH_MAX_AGE_SECONDS,
+            allow_underlying_anchor=False,
+        )
         if observation["usable"]:
             observations.append((captured_at, snapshot, observation))
     endpoints = [
@@ -261,23 +270,25 @@ def xsp_fundamental_context_at(
     }
     if snapshot is None:
         return {**context, "usable": False, "reason": "missing"}
+    history: Sequence[Mapping[str, object]] = ()
     selected: Mapping[str, object] | None
     if isinstance(snapshot, Mapping):
         selected = snapshot
     else:
+        history = snapshot
         try:
-            selected = select_news_snapshot_at(snapshot, as_of=decision_at)
+            selected = select_news_snapshot_at(history, as_of=decision_at)
         except NewsError:
             return {
                 **context,
-                "snapshot_fingerprint": calibration_fingerprint(snapshot),
+                "snapshot_fingerprint": calibration_fingerprint(history),
                 "usable": False,
                 "reason": "invalid_snapshot_history",
             }
         if selected is None:
             return {
                 **context,
-                "snapshot_fingerprint": calibration_fingerprint(snapshot),
+                "snapshot_fingerprint": calibration_fingerprint(history),
                 "usable": False,
                 "reason": "not_recorded_at_decision",
             }
@@ -294,8 +305,74 @@ def xsp_fundamental_context_at(
             "usable": False,
             "reason": "invalid_snapshot",
         }
+    pressure = (
+        round(
+            observation.direction
+            * observation.impact
+            / 100.0
+            * observation.confidence,
+            6,
+        )
+        if observation.usable
+        else None
+    )
+    previous_pressure = None
+    pressure_interval_seconds = None
+    if history:
+        try:
+            selected_at = datetime.fromisoformat(
+                str(selected["snapshot_as_of_utc"]).replace("Z", "+00:00")
+            )
+            previous = select_news_snapshot_at(
+                history,
+                as_of=selected_at - timedelta(microseconds=1),
+            )
+            if previous is not None:
+                previous_observation = observe_news_signal(
+                    previous,
+                    symbol="XSP",
+                    as_of=decision_at,
+                )
+                if previous_observation.run_status in (
+                    "published",
+                    "no_new_evidence",
+                ):
+                    previous_at = datetime.fromisoformat(
+                        previous_observation.snapshot_as_of_utc.replace(
+                            "Z",
+                            "+00:00",
+                        )
+                    )
+                    pressure_interval_seconds = (
+                        selected_at - previous_at
+                    ).total_seconds()
+                    previous_pressure = round(
+                        previous_observation.direction
+                        * previous_observation.impact
+                        / 100.0
+                        * previous_observation.confidence,
+                        6,
+                    )
+        except (KeyError, TypeError, ValueError, NewsError):
+            previous_pressure = None
+            pressure_interval_seconds = None
+    pressure_delta = (
+        round(pressure - previous_pressure, 6)
+        if pressure is not None and previous_pressure is not None
+        else None
+    )
     return {
         **context,
         "snapshot_fingerprint": calibration_fingerprint(selected),
         **observation.as_payload(),
+        "signed_pressure": pressure,
+        "pressure_delta": pressure_delta,
+        "pressure_interval_seconds": pressure_interval_seconds,
+        "pressure_velocity_per_hour": (
+            round(pressure_delta * 3600.0 / pressure_interval_seconds, 6)
+            if pressure_delta is not None
+            and pressure_interval_seconds is not None
+            and pressure_interval_seconds > 0.0
+            else None
+        ),
     }

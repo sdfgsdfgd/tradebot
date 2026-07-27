@@ -539,6 +539,27 @@ def test_option_parity_observation_uses_nearest_five_timestamped_pairs() -> None
     assert observation["market_data_types"] == {"3": 10}
 
 
+def test_option_parity_observation_can_require_option_model_anchor() -> None:
+    snapshot = _parity_snapshot()
+    snapshot = replace(
+        snapshot,
+        options=[
+            replace(option, model_under_price=740.6)
+            for option in snapshot.options
+        ],
+    )
+
+    observation = option_parity_observation(
+        snapshot,
+        allow_underlying_anchor=False,
+    )
+
+    assert observation["usable"] is True
+    assert observation["anchor"] == pytest.approx(740.6)
+    assert observation["anchor_source"] == "option_model_consensus"
+    assert observation["value"] == pytest.approx(740.5)
+
+
 def test_option_parity_observation_fails_closed_without_provenance_or_pairs() -> None:
     observation = option_parity_observation(_parity_snapshot(pairs=2, provenance=False))
 

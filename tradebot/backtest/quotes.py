@@ -794,6 +794,7 @@ def option_parity_observation(
     max_age_sec: float = 30.0,
     min_pairs: int = 3,
     max_pairs: int = 5,
+    allow_underlying_anchor: bool = True,
 ) -> dict[str, object]:
     """Observe nearby call/put parity and liquidity without trading authority."""
     observed_at = _parse_datetime(snapshot.ts)
@@ -803,10 +804,15 @@ def option_parity_observation(
         if observed_at is not None and underlying_at is not None
         else None
     )
-    anchor = _midpoint(
-        snapshot.underlying.bid, snapshot.underlying.ask
-    ) or _none_if_nan(snapshot.underlying.last)
-    anchor_source = "underlying"
+    anchor = (
+        _midpoint(snapshot.underlying.bid, snapshot.underlying.ask)
+        or _none_if_nan(snapshot.underlying.last)
+        if allow_underlying_anchor
+        else None
+    )
+    anchor_source = (
+        "underlying" if allow_underlying_anchor else "option_model_consensus"
+    )
     if (
         anchor is None
         or anchor <= 0

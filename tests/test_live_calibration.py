@@ -258,6 +258,7 @@ def _option_snapshot(
             right=right,
             bid=midpoint - option_half_spread,
             ask=midpoint + option_half_spread,
+            model_under_price=parity_value,
             market_data_type=3,
             quote_time=(ts - timedelta(seconds=quote_age_seconds)).isoformat(),
         )
@@ -1245,18 +1246,26 @@ def test_option_context_freezes_exact_causal_gth_preopen_path() -> None:
     )
 
     path = context["preopen_path"]
+    assert path["schema"] == "xsp.preopen-option-path.v2"
+    assert path["anchor_policy"] == "option_model_consensus_only"
+    assert path["max_age_seconds"] == 360.0
     assert path["usable"] is True
     assert path["trading_date"] == "2026-07-27"
     assert path["end_ts"] == boundary.isoformat()
     assert path["end_market_data_types"] == {"3": 6}
-    assert path["end_anchor_source"] == "underlying"
-    assert path["end_reference_value"] == pytest.approx(100.05)
-    assert path["end_strikes"] == (100.0, 101.0, 99.0)
+    assert path["end_anchor_source"] == "option_model_consensus"
+    assert path["end_reference_value"] == pytest.approx(100.60)
+    assert path["end_strikes"] == (101.0, 100.0, 99.0)
     assert path["end_max_age_seconds"] == pytest.approx(5.0)
     assert path["end_median_relative_spread"] > 0
     assert path["horizons"]["120"]["anchor_market_data_types"] == {"3": 6}
-    assert path["horizons"]["120"]["anchor_source"] == "underlying"
-    assert path["horizons"]["120"]["anchor_reference_value"] == pytest.approx(100.05)
+    assert (
+        path["horizons"]["120"]["anchor_source"]
+        == "option_model_consensus"
+    )
+    assert path["horizons"]["120"]["anchor_reference_value"] == pytest.approx(
+        100.40
+    )
     assert path["horizons"]["120"]["anchor_strikes"] == (100.0, 101.0, 99.0)
     assert path["horizons"]["120"]["anchor_max_age_seconds"] == pytest.approx(5.0)
     assert path["horizons"]["120"]["anchor_median_relative_spread"] > 0
@@ -1606,8 +1615,17 @@ def test_option_parity_benchmark_classifies_pareto_liquidity_without_thresholds(
     )
 
 
-def test_option_parity_benchmark_classifies_preopen_reversal_without_authority(
+@pytest.mark.parametrize(
+    ("schema", "expected_cohort"),
+    (
+        ("xsp.preopen-option-path.v2", "reversal_into"),
+        ("xsp.preopen-option-path.v1", "unavailable"),
+    ),
+)
+def test_option_parity_benchmark_requires_current_preopen_schema(
     tmp_path,
+    schema,
+    expected_cohort,
 ) -> None:
     boundary = NOW.replace(minute=30) - timedelta(minutes=10)
     option_context = xsp_option_context_at(
@@ -1633,6 +1651,7 @@ def test_option_parity_benchmark_classifies_preopen_reversal_without_authority(
         ],
         decision_at=NOW,
     )
+    option_context["preopen_path"]["schema"] = schema
     ledger = LiveCalibrationLedger(tmp_path / "preopen-reversal.jsonl")
     forecast = _forecast(
         ledger,
@@ -1663,8 +1682,8 @@ def test_option_parity_benchmark_classifies_preopen_reversal_without_authority(
 
     benchmark = xsp_option_parity_participation_benchmark(ledger)
 
-    assert benchmark["preopen_cohorts"]["reversal_into"]["pairs"] == 1
-    assert benchmark["prospective_preopen_cohorts"]["reversal_into"]["pairs"] == 1
+    assert benchmark["preopen_cohorts"][expected_cohort]["pairs"] == 1
+    assert benchmark["prospective_preopen_cohorts"][expected_cohort]["pairs"] == 1
     assert benchmark["complete_session_preopen_usable_pairs"] == 0
     assert benchmark["promotion_eligible"] is False
     assert benchmark["policy"]["action"] == "classify_only"
@@ -2188,16 +2207,26 @@ def test_fundamental_context_is_timestamp_correct_and_observation_only() -> None
     assert fresh["usable"] is True
     assert fresh["authority"] == "observation_only"
     assert fresh["drivers"] == ["hormuz-risk"]
+    assert fresh["signed_pressure"] == pytest.approx(-0.666)
+    assert fresh["pressure_delta"] is None
+    assert fresh["pressure_interval_seconds"] is None
+    assert fresh["pressure_velocity_per_hour"] is None
     assert future["reason"] == "future"
+    assert future["signed_pressure"] is None
     assert stale["reason"] == "stale"
+    assert stale["signed_pressure"] is None
 
 
 def test_fundamental_context_uses_the_latest_publication_available_at_decision() -> None:
     prior = _news_snapshot(NOW - timedelta(minutes=5))
+    earlier = _news_snapshot(NOW - timedelta(hours=3))
+    earlier["analysis"]["assets"]["XSP"].update(
+        {"direction": 1, "impact": 50, "confidence": 0.8}
+    )
     future = _news_snapshot(NOW + timedelta(seconds=1))
 
     context = xsp_fundamental_context_at(
-        (future, prior),
+        (future, prior, earlier),
         decision_at=NOW,
     )
     unavailable = xsp_fundamental_context_at(
@@ -2208,6 +2237,10 @@ def test_fundamental_context_uses_the_latest_publication_available_at_decision()
     assert context["usable"] is True
     assert context["signal_as_of_utc"] == prior["signal_as_of_utc"]
     assert context["snapshot_fingerprint"] != calibration_fingerprint(future)
+    assert context["signed_pressure"] == pytest.approx(-0.666)
+    assert context["pressure_delta"] == pytest.approx(-1.066)
+    assert context["pressure_interval_seconds"] == 10_500.0
+    assert context["pressure_velocity_per_hour"] == pytest.approx(-0.365486)
     assert unavailable["usable"] is False
     assert unavailable["reason"] == "not_recorded_at_decision"
 
@@ -2877,11 +2910,25 @@ def test_first_opening_edge_checkpoint_starts_selected_profitability(
         "direction",
         "impact",
         "confidence",
+        "age_seconds",
+        "horizon_hours",
+        "reason",
+        "signed_pressure",
+        "pressure_delta",
+        "pressure_interval_seconds",
+        "pressure_velocity_per_hour",
     }
     assert pressure["usable"] is True
     assert pressure["direction"] == -1
     assert pressure["impact"] == 74
     assert pressure["confidence"] == 0.9
+    assert pressure["age_seconds"] == 300.0
+    assert pressure["horizon_hours"] == 4
+    assert pressure["reason"] == "fresh"
+    assert pressure["signed_pressure"] == pytest.approx(-0.666)
+    assert pressure["pressure_delta"] is None
+    assert pressure["pressure_interval_seconds"] is None
+    assert pressure["pressure_velocity_per_hour"] is None
     assert profitability["status"] == "ACTIVE"
     assert profitability["clock"]["run_started_at_utc"] == (
         "2026-07-27T13:30:00+00:00"

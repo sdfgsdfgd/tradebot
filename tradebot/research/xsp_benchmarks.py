@@ -20,6 +20,7 @@ from .xsp_candidate import (
     XSP_OPENING_EDGE_CONFIG_FINGERPRINT,
     XSP_OPENING_EDGE_VERSION,
 )
+from .xsp_context import XSP_PREOPEN_RESEARCH_VERSION
 
 
 XSP_OPTION_PARITY_OBSERVER_VERSION = "xsp.option-parity-participation.v2"
@@ -571,6 +572,7 @@ def xsp_option_parity_participation_benchmark(
                     )
         preopen_usable = bool(
             isinstance(preopen, Mapping)
+            and preopen.get("schema") == XSP_PREOPEN_RESEARCH_VERSION
             and preopen.get("source") == "option_nbbo_parity"
             and preopen.get("authority") == "observation_only"
             and preopen.get("usable") is True

@@ -585,6 +585,13 @@ async def advance_xsp_shadow_from_ibkr(
             "direction",
             "impact",
             "confidence",
+            "age_seconds",
+            "horizon_hours",
+            "reason",
+            "signed_pressure",
+            "pressure_delta",
+            "pressure_interval_seconds",
+            "pressure_velocity_per_hour",
         )
     }
     run_started_at = (
