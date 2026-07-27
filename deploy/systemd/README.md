@@ -72,7 +72,7 @@ test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
 /usr/bin/python3 -m venv ~/.local/share/tradebot/venv
 ~/.local/share/tradebot/venv/bin/pip install --requirement requirements.txt
 ~/.local/share/tradebot/venv/bin/pip check
-~/.local/share/tradebot/venv/bin/python -c 'import ib_insync, textual'
+~/.local/share/tradebot/venv/bin/python -c 'import ib_insync, textual; from zoneinfo import ZoneInfo; ZoneInfo("US/Eastern")'
 install -m 0644 deploy/systemd/tradebot-news.{service,timer} ~/.config/systemd/user/
 install -m 0644 deploy/systemd/tradebot-ib-gateway-tunnel.service ~/.config/systemd/user/
 install -m 0644 deploy/systemd/tradebot-xsp-{quotes,shadow}.{service,timer} ~/.config/systemd/user/

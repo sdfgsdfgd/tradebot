@@ -1,0 +1,99 @@
+{
+  "schema": "xsp.opening-edge-v2-upro-spxu-acceptance-receipt.v1",
+  "issued_at_utc": "2026-07-27T21:41:28Z",
+  "authority": "research_and_broker_preview_only",
+  "order_authority": "none",
+  "profitability_clock_started": false,
+  "candidate": {
+    "up": {
+      "symbol": "UPRO",
+      "quantity": 9
+    },
+    "down": {
+      "symbol": "SPXU",
+      "quantity": 31
+    },
+    "starting_cash_usd": 1350.0,
+    "current_settlement": "strict_T_plus_1_settled_cash_only",
+    "historical_stress": "T_plus_2_before_2024_05_28_then_T_plus_1"
+  },
+  "evidence": {
+    "preregistered_gate_sha256": "4da254ea0be85fc4fa1dc3fa90388796b45b80eb9e8f26ef1b10df7f3c7aabbd",
+    "authenticated_fetch_sha256": "cf77ce86cc548afc5b16f51aafd0f1ed9eabe1588d5601df0ec48cade979d2d8",
+    "tape_audit_sha256": "f464ede8c700d7fe9fb2bb29ea90eb61c88ea1203396d2e2f634e47fb00ed5ee",
+    "full_replay_sha256": "4e77ba1e7b1a56b72356ce8fb6f6cf1dc1ce4365c74be531f6c9908efecda849",
+    "rth_fallback_sha256": "0244265e673125fed176a37329eda667ea1da8ad7e0712c588ec41489d26af67",
+    "full_acceptance_sha256": "0b282a7c1c9fe99cb74fda95e92b8af651fe642cae0bfe8f6fe7c131c5647272",
+    "full_acceptance_fingerprint": "6daf93c4272b7a26e91d7546be26308c1d48be0fcab043e3247fee1fc3f7b681",
+    "upro": {
+      "bars": 211679,
+      "contract_con_id": 61228752,
+      "bar_digest_sha256": "b29789504d2966a61d02b5329d1b830889f86bf915e5f7bf0e2e150668034537",
+      "cache_file_sha256": "fcf16e45f79fac4a6597ad443b195bc804ceeb8dc9b126290ff11437bb0ff3da"
+    },
+    "spxu": {
+      "bars": 210698,
+      "contract_con_id": 828937771,
+      "bar_digest_sha256": "d8dc28c0431f1d0a78e74bc2fcf39f618643ccc8a56a3f6f5db5a9374d2b5aed",
+      "cache_file_sha256": "2c0b198e89cd31d06c70863d42da6334f90ec8dc19fada1d455d67634e6f8f9b"
+    }
+  },
+  "balanced_24x5": {
+    "passed": false,
+    "selected_fill_issues": 116,
+    "scheduled_fill_issues": 116,
+    "issue_breakdown": {
+      "zero_volume_gth_spxu_entry": 66,
+      "zero_volume_gth_spxu_exit": 48,
+      "missing_split_day_gth_spxu_entry": 1,
+      "missing_split_day_gth_spxu_exit": 1
+    },
+    "frozen_runner_terminal_error": "missing SPXU entry execution bar at 2025-11-20 05:25:00",
+    "conclusion": "Authentic GTH SPXU fills are not reproducible at the selected timestamps; headline economics are ineligible."
+  },
+  "rth_core": {
+    "authenticated_rth_fill_liquidity": true,
+    "unconstrained_lifecycle": {
+      "exact_ordered_match": true,
+      "expected_trades": 546,
+      "observed_trades": 546,
+      "ledger_sha256": "08a8c1527e2bded166cb10da538457e32f8dd8c4bb367ffe74f4a562d7d30576"
+    },
+    "fixed_measured_t_plus_1": {
+      "passed": false,
+      "executed_trades": 210,
+      "blocked_entries": 472,
+      "net_usd": -583.6921839420156,
+      "profit_factor": 0.3438860983969976,
+      "trade_close_drawdown_usd": 583.6921839420156,
+      "intrabar_drawdown_usd": 588.6420819720156,
+      "up_net_usd": -583.6921839420156,
+      "down_net_usd": 0.0,
+      "recent_trades": 0,
+      "year_1_net_usd": -328.27936328600333,
+      "year_2_net_usd": -255.4128206560123,
+      "year_3_trades": 0
+    },
+    "fixed_measured_scheduled_next_open": {
+      "passed": false,
+      "executed_trades": 210,
+      "blocked_entries": 472,
+      "net_usd": -582.7922024820157,
+      "profit_factor": 0.34526840782930956,
+      "trade_close_drawdown_usd": 582.7922024820167,
+      "intrabar_drawdown_usd": 587.8320986580156
+    },
+    "tiered_observation": {
+      "passed": false,
+      "operationally_current": false,
+      "executed_trades": 268,
+      "blocked_entries": 397,
+      "net_usd": -237.04319078201752,
+      "profit_factor": 0.7347953827685638,
+      "intrabar_drawdown_usd": 381.37100538701566
+    },
+    "conclusion": "Exact RTH signal/fill parity survives, but the fixed current-share pair cannot express both directions inside the cash sleeve and fails cadence, period, attribution, PF, and drawdown gates."
+  },
+  "verdict": "HOLD",
+  "selected_shadow_created": false
+}
