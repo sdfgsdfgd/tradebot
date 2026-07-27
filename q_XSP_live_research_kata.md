@@ -1,14 +1,17 @@
 # XSP Mastery — Live Research Kata
 
-- **Status:** `[ACTIVE] v2 observer parity repaired; one-share SPY execution HOLD`
+- **Status:** `[ACTIVE] v2 observer parity repaired; cash-ETF transport audit`
 - **Authority:** canonical resume state, active task tree, critical evidence
   index, and promotion contract
 - **Cold history:** [`q_XSP_live_research_kata-archive.md`](q_XSP_live_research_kata-archive.md)
 - **Leaderboard:** [`backtests/xsp/leaderboard.md`](backtests/xsp/leaderboard.md)
-- **Scope:** XSP signal mastery; one whole SPY share is the chosen execution
-  proxy for the fixed-unit directional proof
-- **Capital premise:** user-reported liquidity near USD 1,000; broker truth must
-  be re-read before any later capital quest
+- **Scope:** XSP signal mastery; one-share SPY execution is rejected and the
+  cash-compatible UPRO/SPXU pair is the current fixed-unit transport candidate
+- **Capital premise:** broker-read `INDIVIDUAL/STKCASH` state is about
+  AUD `2,025` NLV and AUD `1,935` BuyingPower/TotalCash; USD `1,228.61` plus
+  AUD `176.94` converts to about USD `1,352`, so preserve a fixed USD `1,350`
+  executable sleeve after one bounded FX normalization and re-read it before
+  any selection
 
 **Operating rule:** update this file only when the frontier, authority, strategy,
 evidence conclusion, risk boundary, or next action changes. Routine test/lint
@@ -27,9 +30,9 @@ output belongs in commit/final verification, not in this management brain.
 | Runtime source anchor | corrected paired observer is published on `origin/main`; keep q on pre-v2 source until its recorder exits |
 | Order/capital authority | `none` |
 | Profitability clock | v2 `NOT_STARTED`; predecessor evidence does not transfer |
-| Execution verdict | `HOLD`: exact signal transport survives, measured one-share SPY costs do not |
+| Execution verdict | one-share SPY is `HOLD`; `9 UPRO` up / `31 SPXU` down is research-qualified recently but awaits authentic three-year and exact T+1 replay |
 | Next irreversible evidence | none; do not freeze v2 until an unchanged executable transport passes net economics |
-| First active work | install the published observer only after q recorder quiescence, then prove restart/no-backfill parity |
+| First active work | finish authentic UPRO/SPXU Fixed/Tiered and cash-state economics; install the observer only after q recorder quiescence |
 
 ### Immediate sequence
 
@@ -38,8 +41,9 @@ output belongs in commit/final verification, not in this management brain.
    and expose named SPY shadow leaves without order authority.
 3. `[DONE]` Replay authentic SPY execution with exact XSP RTH signal transport,
    measured spread/commission, and explicit same-resolution signal/fill tapes.
-4. `[HOLD]` Do not freeze a v2 selected run: one SPY share exhausts the
-   USD `1,000` reference under measured broker costs.
+4. `[WIP]` Do not freeze a v2 selected run: one SPY share is economically
+   rejected; prove the unchanged `9 UPRO` / `31 SPXU` candidate over authentic
+   annual/three-year bars and the exact settled-cash state first.
 5. `[DONE]` Reconcile q state: pre-v2 clean source, active quote recorder,
    failed first v1 checkpoint, disabled recurring shadow, and no v2 selection.
 6. `[WIP]` The corrected paired observer is published: exact prior-close
@@ -50,9 +54,10 @@ output belongs in commit/final verification, not in this management brain.
 
 ### Never infer
 
-- XSP is the RTH index signal/reference; the user selected one whole SPY share
-  as the real execution instrument. Historical synthetic economics are not a
-  substitute for an exact SPY replay.
+- XSP is the RTH index signal/reference. One-share SPY has been economically
+  rejected; UPRO/SPXU is only the current cash-ETF transport candidate.
+  Historical synthetic economics are not a substitute for authentic ETF fills
+  and exact settled-cash replay.
 - Shadow selection freezes attribution before outcomes; it grants no broker,
   order, option, or capital authority.
 - Historical positive P&L, safe abstention, infrastructure uptime, delayed
@@ -71,9 +76,10 @@ demote, combine, or switch only through frozen evidence and never while a
 position is open.
 
 The current quest proves direction before options: first earn stable positive
-economics with one unlevered XSP-equivalent unit; only a later quest may convert
-that cause into debit options, credit spreads, condors, previews, paper/canary,
-or live capital.
+economics with one fixed-size, cash-bounded spot-ETF transport. Embedded ETF
+leverage must be explicit, but there is no margin borrowing, short sale, or
+option structure. Only a later quest may convert that cause into debit options,
+credit spreads, condors, or other option packages.
 
 ### Required graduation
 
@@ -132,6 +138,41 @@ short-window tuning is never validation.
   `$1.01540245` commission per side (`2.0608049` points round trip). Full-tape
   fixed-cost net is `-1243.10`; even a hindsight-best cadence-valid
   `479`-trade subset loses `-401.96` and can afford at most `1.221649` points.
+- **Cash-ETF transport frontier:** authentic contract, quote, session, spread,
+  commission, and recent-fill comparison selects UPRO/SPXU over SPXL/SPXS as
+  the research pair (`up → 9 UPRO`, `down → 31 SPXU`). This is not selected:
+  annual/three-year ETF economics, current Fixed versus conservative Tiered
+  fees, and the path-changing historical/current settlement state remain
+  decisive. A non-transmitting Fixed broker preview at the exact quantities
+  returned `PreSubmitted`, empty warnings, and `LMT/GTC`: `9 UPRO @ 135.57`
+  cost `$1,220.13 + $1.000027`, while `31 SPXU @ 38.74` cost
+  `$1,200.94 + $1.000093`. Both fit the existing USD `$1,228.61` cash without
+  FX conversion; patient-to-relentless execution may only reprice that limit
+  and must never convert it to a market-style order. The account currently
+  returns delayed ETF quotes and refuses regulatory snapshots; historical
+  economics may qualify the shadow transport, but live order authority remains
+  closed until broker-qualified real-time UPRO/SPXU pricing is available.
+- **Pre-outcome transport gate:** require complete authentic bars, exact
+  lifecycle/fill parity, and positive ETF volume at every selected entry and
+  exit bar; explicit SPXU `1:5` (`2024-04-10`) and `1:4`
+  (`2025-11-20`) reverse-split normalization with no selected trade crossing
+  an unexplained discontinuity; strict current T+1 settled-cash mechanics on
+  every price path plus a separately labeled historical T+2-before-`2024-05-28`
+  stress replay; at least `480` executed trades over three years (`160/year`);
+  positive recent, every annual slice, both directions, both lanes, and
+  full-three-year net; PF `>1`; full net greater than drawdown; drawdown below
+  `10%` of the USD `1,350` sleeve under both trade-close and conservative
+  five-minute intrabar liquidation marks; and no cash exhaustion. If and only
+  if the balanced lane fails, challenge the
+  already named unchanged `RTH Core` against the same law without inventing a
+  GTH requirement. Fixed uses the measured `$1 + CAT` buy minimum and adds
+  published SEC/TAF sale fees; conservative Tiered assumes liquidity removal
+  at `$0.35` minimum plus venue, clearing, CAT, SEC/TAF, and pass-through fees.
+  Current Fixed pricing must pass operationally. A Tiered-only pass remains
+  `HOLD` until an independently confirmed account-pricing change and preview.
+  The complete pre-outcome contract is frozen as
+  [`opening_edge_v2_upro_spxu_preregistered_gate.json`](backtests/xsp/opening_edge_v2_upro_spxu_preregistered_gate.json)
+  (`d9eda68b…`).
 - **Authority:** historical crown and visible SPY shadow selector only.
   Operational v2 is `HOLD`; no selected identity or profitability clock exists.
 
@@ -162,10 +203,10 @@ stale, underwarmed, failed, or horizon-expired evidence means no extra gate.
 News and option evidence begins only at append time. Historical headlines may
 explain plausibility but cannot label old trades or support value claims.
 
-The first post-freeze natural news transition is XSP `-1/66/.95/24h`:
-signed pressure `-0.627`, delta `+0.0285` over `14,979s`, or
-`+0.00685/hour`. Bearish pressure is weakening, but the easing impulse is
-decelerating; no XSP outcome exists yet, so this is context—not a pivot claim.
+The latest natural news transition is XSP `-1/62/.96/24h`: signed pressure
+`-0.5952`, delta `-0.0347` over `15,027s`, or `-0.00831/hour`. Bearish pressure
+is strengthening again; no joined XSP outcome exists yet, so this is compact
+causal context—not a pivot claim or permission gate.
 
 ### Active task tree
 
@@ -187,8 +228,9 @@ decelerating; no XSP outcome exists yet, so this is context—not a pivot claim.
    quiescence. It anchors GTH causally, uses one shared 24/5 exit
    clock, rejects missing anchors/backfill/drift, records compact paired
    cost/source/news/freshness, and retains `order_authority=none`.
-7. `[TODO]` Find an executable fixed-unit transport whose unchanged economics
-   pass before freezing v2 and restarting `24h → 48h → five-session`.
+7. `[WIP]` Challenge the frozen UPRO/SPXU research pair under authentic
+   annual/three-year fills, present Fixed and conservative Tiered fees, and an
+   exact parity-proven settled-cash state before any v2 freeze.
 8. `[BLOCKED]` Option structures and any live-capital canary belong to a later
    quest after directional causality is proven.
 
@@ -375,14 +417,13 @@ five-session receipts exist and the final calibration/risk verdict is explicit.
 
 ## Conclusion
 
-Opening Edge v2 is the historical research crown, but executable one-share SPY
-economics are `HOLD`. Broker/order strategy remains `NO_TRADE`, v1's selected
-receipt cannot transfer, v2 has no selected identity, order authority is
-`none`, and the profitability clock is `NOT_STARTED`. The immediate quest is
-to publish and safely activate the already-proven observer after recorder
-quiescence, preserve compact
-TA/news/execution evidence, and identify a fixed-unit transport whose unchanged
-net economics can legitimately restart `24h → 48h → five-session`.
+Opening Edge v2 is the historical research crown; one-share SPY execution is
+`HOLD`, while UPRO/SPXU is only a research-qualified transport candidate.
+Broker/order strategy remains `NO_TRADE`, v1's selected receipt cannot
+transfer, v2 has no selected identity, order authority is `none`, and the
+profitability clock is `NOT_STARTED`. The immediate quest is exact
+UPRO/SPXU annual/three-year and T+1 economics, followed by safe observer
+activation after recorder quiescence and compact TA/news/execution evidence.
 
 **Predictive observation:** the current bottleneck is transport cost, not
 directional signal quality. The next valid breakthrough must reduce executable

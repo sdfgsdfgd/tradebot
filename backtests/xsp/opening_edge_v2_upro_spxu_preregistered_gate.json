@@ -1,0 +1,51 @@
+{
+  "schema": "xsp.opening-edge-v2-upro-spxu-preregistered-gate.v1",
+  "frozen_at_utc": "2026-07-27T19:44:42Z",
+  "authority": "research_and_broker_preview_only",
+  "order_authority": "none",
+  "profitability_clock_started": false,
+  "candidate": {
+    "up": {"symbol": "UPRO", "quantity": 9},
+    "down": {"symbol": "SPXU", "quantity": 31},
+    "starting_cash_usd": 1350.0,
+    "current_settlement": "strict_T_plus_1_settled_cash_only",
+    "historical_stress": "T_plus_2_before_2024_05_28_then_T_plus_1"
+  },
+  "source_sha256": {
+    "tradebot/backtest/data.py": "10dff5ef6448716fa36fc9eedc238de6dc21b879f833b3439939da06df10ef55",
+    "tradebot/chart_data/history.py": "c0f70183370aa260881f28669b7c39b119b5ab49955392302bbff2a9df0a42ae",
+    "/tmp/xsp_v2_etf_full_fetch.py": "77f15867436326ace63490d22672745aa6ddb0d97b0bf770d5587f5d050deb6d",
+    "/tmp/xsp_v2_etf_full_replay.py": "6844d8952f44944f8a38f5ef02aba2aee9d987e5e8376a6f3ef49f24b6c62356",
+    "/tmp/xsp_v2_cash_state_replay.py": "01a28c6a43c22f9f29ae56a111dc63164464de4fa2d3dfa5d05ba6baf4e26599",
+    "/tmp/xsp_v2_etf_cash_economics.py": "4c1262935aeba499218784bad85d4e08039deea923b2818c1f524982a29d8b98",
+    "/tmp/xsp_v2_etf_tape_audit.py": "e4a175abd3de452c2772a42f729eba660602536daaafc5d85f7806466821f910",
+    "/tmp/xsp_v2_etf_acceptance.py": "0acffdf445221acb590fcba3b0d5b122c303fe2bad04c3932244239442c48a61",
+    "/tmp/test_xsp_v2_transport.py": "2e384f9c84c95bb1c68836db284f4a26e923d89d268cec182a63f88da265e1aa",
+    "/tmp/xsp-v2-signal-ledger-census-20260728.json": "cb95dd07d630032db3c0c96202cf8e7c8964b365ac3b5c027130cf89e2b64f9a"
+  },
+  "gate": {
+    "complete_authenticated_bars": true,
+    "exact_ordered_lifecycle_and_fill_parity": true,
+    "selected_fill_bars_positive_volume": true,
+    "known_reverse_splits_normalized": true,
+    "minimum_three_year_trades": 480,
+    "positive_periods": ["recent", "year_1", "year_2", "year_3", "full_three_year"],
+    "positive_attribution": ["up", "down", "rth", "gth"],
+    "minimum_profit_factor": 1.0,
+    "minimum_net_to_drawdown": 1.0,
+    "maximum_drawdown_usd": 135.0,
+    "drawdown_modes": ["trade_close", "five_minute_intrabar"],
+    "capital_insufficiency_allowed": false,
+    "operational_pricing_must_pass": "fixed_measured"
+  },
+  "fallback": {
+    "allowed_only_if_balanced_fails": "unchanged_RTH_Core",
+    "forbidden": ["new_threshold_tuning", "option_transport", "market_order"]
+  },
+  "live_authority_requires": [
+    "historical_gate_pass",
+    "broker_qualified_real_time_quotes",
+    "fresh_non_backfilled_observer_receipt",
+    "new_content_addressed_selected_shadow"
+  ]
+}
