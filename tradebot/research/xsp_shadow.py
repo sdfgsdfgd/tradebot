@@ -430,6 +430,7 @@ async def advance_xsp_shadow_from_ibkr(
     option_snapshots: Sequence[QuoteSnapshot] = (),
     news_snapshot: Mapping[str, object] | Sequence[Mapping[str, object]] | None = None,
     selected_run: Mapping[str, object] | None = None,
+    recorded_at: datetime | None = None,
 ) -> dict[str, object]:
     """Advance the non-submitting shadow from canonical IBKR XSP history."""
 
@@ -456,6 +457,11 @@ async def advance_xsp_shadow_from_ibkr(
         else None
     )
     if skip_reason is not None:
+        checkpoint_recorded_at = (
+            _utc(recorded_at, naive_ts_mode="et")
+            if recorded_at is not None
+            else datetime.now(UTC)
+        )
         evaluation_status = (
             "UNSUPPORTED_SESSION"
             if skip_reason == "unsupported_session"
@@ -484,7 +490,7 @@ async def advance_xsp_shadow_from_ibkr(
                 "broker_request_skipped": skip_reason,
                 "order_authority": "none",
             },
-            recorded_at=observed_utc,
+            recorded_at=checkpoint_recorded_at,
         )
         return {
             **ledger.receipt(),
@@ -497,6 +503,7 @@ async def advance_xsp_shadow_from_ibkr(
             "complete_close_aligned_bars": 0,
             "historical_request": None,
             "broker_request_skipped": skip_reason,
+            "recorded_at_utc": checkpoint_recorded_at.isoformat(),
         }
 
     qualified = await client.qualify_proxy_contracts(Index("XSP", "CBOE", "USD"))
@@ -601,6 +608,11 @@ async def advance_xsp_shadow_from_ibkr(
             run_id=policy.run_id,
             capital_sleeve=policy.capital_sleeve,
         )
+    checkpoint_recorded_at = (
+        _utc(recorded_at, naive_ts_mode="et")
+        if recorded_at is not None
+        else datetime.now(UTC)
+    )
     ledger.checkpoint(
         evaluation_as_of=observed_utc,
         strategy_id=XSP_OPENING_EDGE_VERSION,
@@ -622,7 +634,7 @@ async def advance_xsp_shadow_from_ibkr(
             "cash_history_fresh": freshness_ok,
             "order_authority": "none",
         },
-        recorded_at=observed_utc,
+        recorded_at=checkpoint_recorded_at,
     )
     ledger.checkpoint(
         evaluation_as_of=observed_utc,
@@ -645,7 +657,7 @@ async def advance_xsp_shadow_from_ibkr(
             "option_snapshots": len(option_snapshots),
             "order_authority": "none",
         },
-        recorded_at=observed_utc,
+        recorded_at=checkpoint_recorded_at,
     )
     receipt.update(ledger.receipt())
     return {
@@ -666,6 +678,7 @@ async def advance_xsp_shadow_from_ibkr(
         "historical_request": historical_request,
         "opening_edge_candidate": candidate_equity,
         "selected_equity": selected_equity,
+        "recorded_at_utc": checkpoint_recorded_at.isoformat(),
     }
 
 

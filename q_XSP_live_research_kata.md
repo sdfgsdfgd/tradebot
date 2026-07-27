@@ -27,18 +27,25 @@ output belongs in commit/final verification, not in this management brain.
 | Order/capital authority | `none` |
 | Profitability clock | `ARMED`; starts only at the first exact `EVALUATED` selected checkpoint |
 | Next irreversible evidence | Monday's first exact selected-shadow checkpoint |
-| First active work | Prove q quote-producer startup at `10:15 AEST`, then selected-shadow checkpoint at `23:37 AEST` |
+| First active work | Prove the recovered quote recorder's stable GTH cadence, then the selected-shadow checkpoint at `23:37 AEST` |
 
 ### Immediate sequence
 
-1. Let q's persistent quote trigger start Sunday `20:15 ET` / Monday
-   `10:15 AEST`; do not backfill or manually create the evidence.
-2. Prove recorder process start, same-session restart continuity, exact
-   trading-date tape identity, and read-only broker behavior.
+1. `[DONE]` q's persistent trigger started the recorder at `10:15 AEST`.
+   A Gateway token fault withheld its API listener until the user's `13:59`
+   repair; the unchanged process self-healed after `197` bounded retries and
+   wrote its first GTH row at `14:00`. Do not backfill the missing prefix.
+2. `[WIP]` Initial recovery cadence is exact at `14:00/14:05/14:10 AEST`
+   with the same `42`-contract universe and zero service/tunnel restarts.
+   Continue proving full-session continuity, tape integrity, and read-only
+   behavior. Preserve the raw tape unchanged: most delayed GTH option ticks
+   currently arrive about one capture interval old, and XSP's unchanged cash
+   last can carry a fresh-looking request timestamp; neither may be promoted
+   into executable freshness or directional authority.
 3. Inspect the reboot-durable one-shot Monday `09:37 ET` /
    `23:37 AEST` receipt. Require fresh close-aligned data, `EVALUATED`,
-   selected-equity run `9fac460e…`, coherent candidate equity, and
-   `order_authority=none`.
+   selected-equity run `9fac460e…`, coherent candidate equity, actual
+   completion within the frozen `90s` tolerance, and `order_authority=none`.
 4. Remove the temporary one-shot timer, then arm `09:42..16:02 ET` only if
    that checkpoint is exact.
 5. Accumulate the unchanged selected shadow through the immutable
@@ -162,10 +169,10 @@ stale, underwarmed, failed, or horizon-expired evidence means no extra gate.
 
 | Evidence lane | Frozen question | Authority |
 |---|---|---|
-| Causal news | Does fresh opposite XSP pressure avoid adverse selection; how do `new/strengthening/weakening/reversal` states change attribution? | defensive context only |
+| Causal news | Does fresh opposite XSP pressure avoid adverse selection; do aligned high-impact states justify a separately attributed patience/hold counterfactual; how do `new/strengthening/weakening/reversal` states change either result? | defensive context only; no entry or lifecycle authority |
 | Option parity | Does exact-sign, independently non-overlapping parity improve same-tape directional outcomes? | observe only; at least 30 pairs / five sessions |
 | Option liquidity | Do pair count, parity dispersion, relative spread, quote age, and strengthening beat TA-only and parity alone? | threshold-free Pareto observation |
-| Pre-open bridge | Does exact `2h/4h/6h` GTH path improve the first RTH decision? | descriptive until complete prospective evidence |
+| Pre-open bridge | Do the sign and magnitude ordering of exact `2h/4h/6h` GTH velocities distinguish strengthening, exhaustion, or reversal into the first RTH turn? | preregistered descriptive cohorts until complete prospective evidence |
 | Crash/rebound | Can displacement + multiscale reversal + fresh GTH/news distinguish crash/rebound episodes? | peer state; never a regime router |
 | Microstructure | Can top-of-book/package liquidity, spread state, and quote evolution distinguish valuable turns? | primary new admission frontier |
 
@@ -182,8 +189,12 @@ explain plausibility but cannot label old trades or support value claims.
 2. `[DONE]` Freeze the exact Opening Edge v1 shadow identity before Monday
    outcomes. Selection `9fac460e…` binds config `bbb0a391…`, the frozen risk
    envelope, and `order_authority=none`; broker selection remains `NO_TRADE`.
-3. `[WIP]` Prove Sunday/Monday quote-producer start, reconnect, same-date
-   restart, universe retention, tape integrity, and read-only behavior.
+3. `[WIP]` The quote producer started naturally and survived the Gateway token
+   outage with zero process restarts; after the `13:59 AEST` repair it
+   self-healed and created the Monday GTH tape. Three exact five-minute rows
+   retain all `42` contracts with improving two-sided coverage. Continue
+   full-session integrity and read-only proof; the missing GTH prefix remains
+   explicit unavailable evidence.
 4. `[WIP]` Inspect Monday's one-shot selected checkpoint; remove its temporary
    timer and arm recurring cadence only after an exact `EVALUATED` receipt
    starts the frozen clock without changing strategy identity.
@@ -278,6 +289,8 @@ and
 | E-177 | the corrected-lifecycle tournament retained Opening Edge v1; q revision, crown fingerprint, timers, and on-demand read-only Gateway tunnel were preflighted for Monday |
 | E-178…E-179 | exact Opening Edge v1 shadow selection was frozen pre-outcome; two-week history preserves the complete run through its seven-day deadline |
 | E-181 | loss-conditioned flip and handoff challengers failed recent/one-year gates; the crown lifecycle remains unchanged |
+| E-182 | the natural quote producer survived a Gateway token outage and self-healed without restart after the user's repair; the pre-recovery GTH prefix is unavailable, never backfilled |
+| E-183 | checkpoint completion time is now real evidence: evaluation and recording must both land within the frozen `90s` slot tolerance |
 
 ### Decision anchors
 
@@ -295,6 +308,7 @@ and
 | D-145 | active authority stays minimal and priority-ordered; full receipts, closed narratives, and superseded state live behind stable archive markers |
 | D-148…D-150 | stop historical tuning; preselect the unchanged crown and retain enough history to reproduce its full weekly path |
 | D-152 | P&L-conditioned flip ownership is closed; wait for independent prospective evidence |
+| D-153 | a timely invocation cannot mask a late result; profitability coverage requires actual checkpoint completion inside the same slot tolerance |
 
 ---
 
@@ -356,9 +370,11 @@ five-session receipts exist and the final calibration/risk verdict is explicit.
 Opening Edge v1 is the sole XSP research crown and the preselected synthetic
 shadow; broker/order selection remains `NO_TRADE`, order authority is `none`,
 and the profitability clock is armed but cannot start before Monday's first
-exact `EVALUATED` checkpoint. The immediate quest is that prospective evidence,
-then immutable `24h → 48h → five-session` profitability and calibration—not
-more historical decimal mining, breadth work, or options capital.
+exact `EVALUATED` checkpoint. The recorder has recovered into the Monday GTH
+session; its missing token-outage prefix remains explicitly unavailable. The
+immediate quest is stable forward evidence, then immutable
+`24h → 48h → five-session` profitability and calibration—not more historical
+decimal mining, breadth work, or options capital.
 
 **Predictive observation:** the crown's strongest next improvement is likely a
 materially different shared-engine mechanism or authentic forward

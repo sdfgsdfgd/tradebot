@@ -123,6 +123,7 @@ def _append_selected_session(
     session_rollup_gross: float | None = None,
     owned_from: datetime | None = None,
     checkpoint_delay: timedelta = timedelta(0),
+    recording_delay: timedelta = timedelta(0),
 ) -> tuple[float, float, int, float, float]:
     from tradebot.engines.market import xsp_rth_evaluation_slots
 
@@ -177,7 +178,7 @@ def _append_selected_session(
                 },
                 "order_authority": "none",
             },
-            recorded_at=evaluation_at,
+            recorded_at=evaluation_at + recording_delay,
         )
     return (
         cumulative_gross + session_gross,
@@ -808,6 +809,40 @@ def test_profitability_prefix_allows_real_checkpoint_jitter(tmp_path) -> None:
     assert milestone["evidence_as_of_utc"] == datetime(
         2026, 7, 28, 9, 38, 30, tzinfo=ET_ZONE
     ).astimezone(timezone.utc).isoformat()
+
+
+def test_profitability_rejects_checkpoint_recorded_after_slot_tolerance(
+    tmp_path,
+) -> None:
+    ledger = LiveCalibrationLedger(tmp_path / "calibration.jsonl")
+    policy = _profitability_policy()
+    _append_selected_session(
+        ledger,
+        policy=policy,
+        day=date(2026, 7, 27),
+        cumulative_gross=0.0,
+        cumulative_costs=0.0,
+        closed_trades=0,
+        gross_wins=0.0,
+        top_five_wins=0.0,
+        recording_delay=timedelta(
+            seconds=policy.slot_tolerance_seconds + 1
+        ),
+    )
+
+    receipt = ledger.xsp_profitability_receipt(
+        policy=policy,
+        as_of=datetime(2026, 7, 27, 16, 4, tzinfo=ET_ZONE),
+    )
+
+    assert receipt["status"] == "INVALID_EVIDENCE"
+    assert receipt["clock"]["coverage_broken"] is True
+    assert receipt["clock"]["complete_sessions"] == 0
+    assert ledger.complete_xsp_checkpoint_sessions(
+        strategy_id=policy.strategy_id,
+        strategy_version=policy.strategy_version,
+        slot_tolerance_seconds=policy.slot_tolerance_seconds,
+    ) == ()
 
 
 def test_profitability_later_gap_does_not_erase_anchored_milestones(tmp_path) -> None:
@@ -2614,6 +2649,7 @@ def test_shadow_skips_broker_outside_supported_cash_window(tmp_path) -> None:
                 ledger,
                 client=_Client(),
                 observed_at=observed_at,
+                recorded_at=observed_at,
             )
         )
 
@@ -2669,18 +2705,13 @@ def test_ibkr_shadow_boundary_qualifies_and_close_aligns_xsp(tmp_path) -> None:
             }
 
     client = _Client()
+    observed_at = datetime(2026, 7, 27, 9, 41, tzinfo=ET_ZONE)
     receipt = asyncio.run(
         advance_xsp_shadow_from_ibkr(
             LiveCalibrationLedger(tmp_path / "forward.jsonl"),
             client=client,
-            observed_at=datetime(
-                2026,
-                7,
-                27,
-                9,
-                41,
-                tzinfo=ET_ZONE,
-            ),
+            observed_at=observed_at,
+            recorded_at=observed_at,
         )
     )
 
@@ -2697,6 +2728,7 @@ def test_ibkr_shadow_boundary_qualifies_and_close_aligns_xsp(tmp_path) -> None:
     assert receipt["checkpoint_statuses"] == {"EVALUATED": 2}
     assert receipt["processed_bars"] == 2
     assert receipt["latest_bar_close_utc"] == "2026-07-27T13:40:00+00:00"
+    assert receipt["recorded_at_utc"] == "2026-07-27T13:41:00+00:00"
     assert receipt["contract"] == {
         "con_id": 416904,
         "symbol": "XSP",
@@ -2748,21 +2780,17 @@ def test_ibkr_shadow_boundary_qualifies_and_close_aligns_xsp(tmp_path) -> None:
     assert all(
         checkpoint["evidence"]["cash_history_fresh"] is True
         and checkpoint["evidence"]["order_authority"] == "none"
+        and checkpoint["recorded_at_utc"] == "2026-07-27T13:41:00+00:00"
         for checkpoint in checkpoints
     )
 
+    unsupported_at = datetime(2026, 7, 27, 8, 34, tzinfo=ET_ZONE)
     unsupported = asyncio.run(
         advance_xsp_shadow_from_ibkr(
             LiveCalibrationLedger(tmp_path / "gth.jsonl"),
             client=client,
-            observed_at=datetime(
-                2026,
-                7,
-                27,
-                8,
-                34,
-                tzinfo=ET_ZONE,
-            ),
+            observed_at=unsupported_at,
+            recorded_at=unsupported_at,
         )
     )
     assert unsupported["session"] == "GTH"
@@ -2818,6 +2846,7 @@ def test_first_opening_edge_checkpoint_starts_selected_profitability(
             client=_Client(),
             observed_at=observed_at,
             selected_run=selection,
+            recorded_at=observed_at,
         )
     )
     policy = xsp_profitability_policy_from_selected_run(selection)

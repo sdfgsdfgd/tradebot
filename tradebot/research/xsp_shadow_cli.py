@@ -106,6 +106,7 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
         )
     finally:
         await client.disconnect()
+    completed_at = datetime.now(tz=timezone.utc)
     print(
         json.dumps(
             {
@@ -119,7 +120,7 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
                 "profitability": (
                     ledger.xsp_profitability_receipt(
                         policy=selected_policy,
-                        as_of=observed_at,
+                        as_of=completed_at,
                     )
                     if selected_policy is not None
                     else None
@@ -141,6 +142,7 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
                     if selected_policy is not None
                     else None
                 ),
+                "completed_at_utc": completed_at.isoformat(),
             },
             allow_nan=False,
             indent=2,

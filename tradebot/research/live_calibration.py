@@ -464,8 +464,7 @@ class LiveCalibrationLedger:
         slot_tolerance_seconds: float = 90.0,
     ) -> tuple[str, ...]:
         """Return only dates with one coherent EVALUATED checkpoint per slot."""
-
-        by_day: dict[date, list[tuple[dict[str, object], datetime]]] = {}
+        by_day: dict[date, list[tuple[dict[str, object], datetime, datetime]]] = {}
         for row in self.records():
             if (
                 row.get("kind") != "checkpoint"
@@ -478,10 +477,11 @@ class LiveCalibrationLedger:
                 evaluation_at = datetime.fromisoformat(
                     _utc_iso(str(row["evaluation_as_of_utc"]))
                 )
+                recorded_at = datetime.fromisoformat(_utc_iso(str(row["recorded_at_utc"])))
                 trading_day = date.fromisoformat(str(row["trading_date"]))
             except (KeyError, TypeError, ValueError):
                 continue
-            by_day.setdefault(trading_day, []).append((row, evaluation_at))
+            by_day.setdefault(trading_day, []).append((row, evaluation_at, recorded_at))
 
         complete = []
         for trading_day, rows in sorted(by_day.items()):
@@ -492,9 +492,9 @@ class LiveCalibrationLedger:
                 slot_utc = slot.astimezone(timezone.utc)
                 candidates = [
                     row
-                    for row, evaluation_at in rows
-                    if abs((evaluation_at - slot_utc).total_seconds())
-                    <= slot_tolerance_seconds
+                    for row, evaluation_at, recorded_at in rows
+                    if abs((evaluation_at - slot_utc).total_seconds()) <= slot_tolerance_seconds
+                    and abs((recorded_at - slot_utc).total_seconds()) <= slot_tolerance_seconds
                 ]
                 signatures = {
                     (str(row.get("status")), _digest(row.get("evidence")))
@@ -560,7 +560,7 @@ class LiveCalibrationLedger:
             )
 
         errors: set[str] = set()
-        parsed: list[tuple[dict[str, object], datetime, date, dict[str, object]]] = []
+        parsed: list[tuple[dict[str, object], datetime, datetime, date, dict[str, object]]] = []
         run_started: datetime | None = None
         for row in matching:
             try:
@@ -664,7 +664,7 @@ class LiveCalibrationLedger:
                 continue
             frozen.update(numeric)
             frozen["closed_trades"] = closed_trades
-            parsed.append((row, evaluation_at, trading_day, frozen))
+            parsed.append((row, evaluation_at, recorded_at, trading_day, frozen))
 
         if run_started is None:
             return self._xsp_profitability_empty(
@@ -702,19 +702,19 @@ class LiveCalibrationLedger:
                 candidates = [
                     item
                     for item in parsed
-                    if item[2] == trading_day
+                    if item[3] == trading_day
                     and item[0].get("session") == "RTH"
-                    and abs((item[1] - slot_utc).total_seconds())
-                    <= policy.slot_tolerance_seconds
+                    and abs((item[1] - slot_utc).total_seconds()) <= policy.slot_tolerance_seconds
+                    and abs((item[2] - slot_utc).total_seconds()) <= policy.slot_tolerance_seconds
                 ]
                 if not candidates:
                     missing_slots.append(slot.isoformat())
                     continue
-                signatures = {(str(item[0].get("status")), _digest(item[3])) for item in candidates}
+                signatures = {(str(item[0].get("status")), _digest(item[4])) for item in candidates}
                 if len(signatures) != 1:
                     conflict_slots.append(slot.isoformat())
                     continue
-                chosen = min(candidates, key=lambda item: item[1])
+                chosen = min(candidates, key=lambda item: (item[2], item[1]))
                 if chosen[0].get("status") != "EVALUATED":
                     missing_slots.append(slot.isoformat())
                     continue
@@ -724,16 +724,16 @@ class LiveCalibrationLedger:
             coverage_broken = coverage_broken or not covered
             if covered:
                 bases = [
-                    tuple(item[3][f"cumulative_{key}_points"] - item[3][f"session_{key}_points"] for key in ("gross", "cost", "net"))
+                    tuple(item[4][f"cumulative_{key}_points"] - item[4][f"session_{key}_points"] for key in ("gross", "cost", "net"))
                     for item in slot_rows
                 ]
                 if any(abs(left - right) > 1e-7 for base in bases for left, right in zip(base, bases[0])) or (
                     prior_close and any(abs(left - right) > 1e-7 for left, right in zip(bases[0], prior_close))
                 ):
                     errors.add("inconsistent_session_rollup")
-                prior_close = tuple(slot_rows[-1][3][f"cumulative_{key}_points"] for key in ("gross", "cost", "net"))
-                ordered_equity.extend(item[3] for item in slot_rows)
-                equity_path.extend(float(item[3]["cumulative_net_points"]) for item in slot_rows)
+                prior_close = tuple(slot_rows[-1][4][f"cumulative_{key}_points"] for key in ("gross", "cost", "net"))
+                ordered_equity.extend(item[4] for item in slot_rows)
+                equity_path.extend(float(item[4]["cumulative_net_points"]) for item in slot_rows)
             sessions.append(
                 {
                     "trading_date": trading_day.isoformat(),
@@ -745,7 +745,7 @@ class LiveCalibrationLedger:
                     "covered_to_as_of": covered,
                     "complete": complete,
                     "completed_at_utc": slots[-1].astimezone(timezone.utc).isoformat() if complete else None,
-                    "net_points": float(slot_rows[-1][3]["session_net_points"]) if covered else None,
+                    "net_points": float(slot_rows[-1][4]["session_net_points"]) if covered else None,
                 }
             )
 
