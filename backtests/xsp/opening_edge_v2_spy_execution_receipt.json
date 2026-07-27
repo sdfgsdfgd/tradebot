@@ -1,5 +1,5 @@
 {
-  "schema": "xsp.opening-edge-v2-spy-execution-receipt.v1",
+  "schema": "xsp.opening-edge-v2-spy-execution-receipt.v2",
   "authority": "research_and_broker_preview_only",
   "order_authority": "none",
   "crown": {
@@ -31,6 +31,21 @@
     "spy_full24_bars": 214851,
     "spy_full24_sha256": "d798421fbe22d69e7399903adeb70b03235ef1f093c45fee55dd602d83c9e06d",
     "synthetic_tape_sha256": "6d239c88dadbbb259a8e1e691c7311a05436859db7f1fe330b21d84daa3c67df"
+  },
+  "observer_parity": {
+    "gth_signal_source": "prior_xsp_close_anchored_spy_returns",
+    "projected_gth_bars": 117433,
+    "projected_tape_sha256": "7682a3598ccfc0ff0a546562da3b29db08e83e3d8bb851ea47e1b2b0f603c542",
+    "ordered_economic_ledger_equal": true,
+    "ordered_spy_fill_ledger_sha256": "04987ff5f93e206bb7f3d8b5de98cd3cc2e02ffaa25f2da0ff4376046d70ada6",
+    "legacy_reference_ledger_sha256": "2258de539cc5aca979d55532b2c70c39c26cc0c9f9e366f472f7f2df6491d2bf",
+    "terminal_reason_revision": {
+      "from": "close_eod",
+      "to": "exit_time",
+      "at_et": "09:25",
+      "trades": 10
+    },
+    "parity_fingerprint": "ad220eceb0b6198dff3d38848f3458b6d70101ec9fd3493c08353358fcc37fda"
   },
   "cost_profiles": {
     "frozen_research": {
@@ -90,6 +105,30 @@
         "max_drawdown": 758.8024
       }
     }
+  },
+  "fixed_transport_ceiling": {
+    "authority": "hindsight_upper_bound_no_order_authority",
+    "sessions": 754,
+    "measured_round_trip_points": 2.0608049,
+    "full": {
+      "gross_points": 250.98,
+      "net_points": -1243.1036,
+      "trades": 725
+    },
+    "all_positive_gross_oracle": {
+      "gross_points": 604.28,
+      "net_points": -158.2178,
+      "trades": 370,
+      "trades_per_year": 123.6605
+    },
+    "cadence_floor_oracle": {
+      "gross_points": 585.17,
+      "net_points": -401.9555,
+      "trades": 479,
+      "trades_per_year": 160.0902,
+      "maximum_affordable_round_trip_points": 1.221649
+    },
+    "exact_same_timestamp_transitions": 0
   },
   "warm_prefix_replay": {
     "net_pnl": 178.29,

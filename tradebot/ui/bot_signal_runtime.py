@@ -7,7 +7,7 @@ import json
 from datetime import datetime, time, timedelta
 
 from ..engines.shock import normalize_shock_detector, normalize_shock_gate_mode
-from ..engines.market import xsp_trading_date
+from ..engines.market import spot_exit_time_reached_et, xsp_trading_date
 from ..engine import (
     cooldown_ok_by_time,
     normalize_spot_entry_signal,
@@ -2355,7 +2355,16 @@ class BotSignalRuntimeMixin:
             )
 
             exit_time = parse_time_hhmm(instance.strategy.get("spot_exit_time_et"))
-            if exit_time is not None and now_et.time() >= exit_time:
+            exit_bar = parse_bar_size(self._signal_bar_size(instance))
+            if exit_time is not None and spot_exit_time_reached_et(
+                snap.bar_ts,
+                exit_time=exit_time,
+                next_open_session_mode=instance.strategy.get(
+                    "spot_next_open_session"
+                ),
+                bar_duration=exit_bar.duration if exit_bar else timedelta(minutes=5),
+                naive_ts_mode="et",
+            ):
                 exit_candidates["exit_time"] = True
 
             if bool(instance.strategy.get("spot_close_eod")) and (

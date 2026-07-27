@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from bisect import bisect_left
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, replace
 from datetime import date, datetime, time, timedelta, timezone
@@ -17,6 +18,7 @@ from ..backtest.spot_codec import (
     strategy_from_payload,
 )
 from ..engines.market import (
+    is_early_close_day,
     xsp_bar_session_label_et,
     xsp_bar_trading_date,
     xsp_session_label_et,
@@ -250,6 +252,45 @@ def split_xsp_v2_sessions(
     return tuple(gth), tuple(rth)
 
 
+def xsp_opening_edge_v2_gth_signal_bars(
+    spy_bars: Sequence[Bar],
+    xsp_rth_bars: Sequence[Bar],
+) -> tuple[Bar, ...]:
+    """Project GTH SPY returns from the last exact completed XSP RTH close."""
+    spy_by_ts = {row.ts: row for row in spy_bars}
+    anchors: dict[date, float] = {}
+    for row in xsp_rth_bars:
+        day = xsp_bar_trading_date(row.ts)
+        expected = time(13, 0) if day and is_early_close_day(day) else time(16, 0)
+        spy = spy_by_ts.get(row.ts)
+        if (
+            day is not None
+            and to_et(row.ts, naive_ts_mode="utc").time() == expected
+            and spy is not None
+            and float(spy.close) > 0.0
+        ):
+            anchors[day] = float(row.close) / float(spy.close)
+    anchor_days = sorted(anchors)
+    projected = []
+    for row in spy_bars:
+        day = xsp_bar_trading_date(row.ts)
+        index = bisect_left(anchor_days, day) - 1 if day is not None else -1
+        if xsp_bar_session_label_et(row.ts) != "GTH" or index < 0:
+            continue
+        scale = anchors[anchor_days[index]]
+        projected.append(
+            Bar(
+                row.ts,
+                float(row.open) * scale,
+                float(row.high) * scale,
+                float(row.low) * scale,
+                float(row.close) * scale,
+                0.0,
+            )
+        )
+    return tuple(projected)
+
+
 def _lane_result(
     spec: XspOpeningEdgeV2Spec,
     *,
@@ -404,7 +445,7 @@ def _equity(
         "unit": XSP_OPENING_EDGE_V2_UNIT,
         "cost_profile": dict(XSP_OPENING_EDGE_V2_COSTS[cost_profile]),
         "rth_signal_symbol": str(rth_signal_symbol).upper(),
-        "gth_signal_symbol": "SPY",
+        "gth_signal_symbol": "XSP",
         "signal_clock": "XSP",
         "execution_symbol": "SPY",
         "cumulative_gross_points": cumulative_gross,
@@ -459,8 +500,14 @@ def xsp_opening_edge_v2_equities(
         if xsp_rth_bars
         else ()
     )
-    rth_signal = normalized_xsp or spy_rth
-    rth_signal_symbol = "XSP" if normalized_xsp else "SPY"
+    gth_signal = xsp_opening_edge_v2_gth_signal_bars(
+        normalized_spy,
+        normalized_xsp,
+    )
+    if not normalized_xsp or not gth_signal:
+        raise ValueError("Opening Edge v2 requires exact XSP anchors")
+    rth_signal = normalized_xsp
+    rth_signal_symbol = "XSP"
     run_trading_date = xsp_trading_date(run_started_at)
     if run_trading_date is None:
         raise ValueError("Opening Edge v2 run start must be inside an XSP session")
@@ -470,7 +517,7 @@ def xsp_opening_edge_v2_equities(
             spec,
             lane="gth",
             cost_profile=cost_profile,
-            signal_bars=spy_gth,
+            signal_bars=gth_signal,
             execution_bars=spy_gth,
             run_trading_date=run_trading_date,
             observed_at=observed_at,
@@ -500,6 +547,14 @@ def xsp_opening_edge_v2_equities(
         "crown_artifact_sha256": spec.artifact_sha256,
         "crown_config_fingerprint": spec.config_fingerprint,
         "rth_signal_source": rth_signal_symbol,
+        "gth_signal_source": "prior_xsp_close_anchored_spy_returns",
+        "gth_signal_bars": len(gth_signal),
+        "gth_signal_tape_fingerprint": calibration_fingerprint(
+            [
+                (row.ts.isoformat(), row.open, row.high, row.low, row.close)
+                for row in gth_signal
+            ]
+        ),
         "execution_symbol": "SPY",
         "signal_clock": "XSP",
         "spy_tape_fingerprint": calibration_fingerprint(
@@ -794,6 +849,11 @@ async def advance_xsp_opening_edge_v2_from_ibkr(
         observed_at=observed_utc,
         naive_ts_mode="et",
     )
+    gth_anchor_ready = bool(
+        xsp_opening_edge_v2_gth_signal_bars(normalized_spy, normalized_xsp)
+    )
+    if normalized_xsp and not gth_anchor_ready and xsp_error is None:
+        xsp_error = "missing_completed_anchor"
     latest_xsp_close = (
         normalized_xsp[-1].ts.replace(tzinfo=timezone.utc)
         if normalized_xsp
@@ -824,7 +884,7 @@ async def advance_xsp_opening_edge_v2_from_ibkr(
             run_started_at=run_started_utc,
             naive_ts_mode="et",
         )
-        if spy_gth and spy_rth
+        if spy_gth and spy_rth and gth_anchor_ready
         else None
     )
     evaluation_status = (
@@ -908,9 +968,7 @@ async def advance_xsp_opening_edge_v2_from_ibkr(
                 else None
             ),
             "latest_xsp_age_sec": latest_xsp_age,
-            "rth_signal_source": (
-                "XSP" if normalized_xsp else "SPY"
-            ),
+            "rth_signal_source": "XSP" if normalized_xsp else None,
             "rth_provenance_fresh": rth_provenance_fresh,
             "xsp_error": xsp_error,
             "fundamental_pressure": fundamental_log,
@@ -933,9 +991,7 @@ async def advance_xsp_opening_edge_v2_from_ibkr(
         "spy_complete_close_aligned_bars": len(normalized_spy),
         "xsp_raw_bars": len(raw_xsp),
         "xsp_complete_close_aligned_bars": len(normalized_xsp),
-        "rth_signal_source": (
-            "XSP" if normalized_xsp else "SPY"
-        ),
+        "rth_signal_source": "XSP" if normalized_xsp else None,
         "checkpoint_id": checkpoint["checkpoint_id"],
         "paired_equity": paired_equity,
         "recorded_at_utc": checkpoint_recorded_at.isoformat(),

@@ -57,6 +57,7 @@ from tradebot.research.xsp_opening_edge_v2 import (
     split_xsp_v2_sessions,
     xsp_opening_edge_v2_bundle,
     xsp_opening_edge_v2_equities,
+    xsp_opening_edge_v2_gth_signal_bars,
     xsp_opening_edge_v2_run_start,
 )
 from tradebot.backtest.models import Bar
@@ -73,6 +74,9 @@ def test_opening_edge_v2_current_crown_is_content_addressed_and_fail_closed() ->
             spec.artifact_path.parent
             / "opening_edge_v2_spy_execution_receipt.json"
         ).read_text()
+    )
+    assert execution_receipt["schema"] == (
+        "xsp.opening-edge-v2-spy-execution-receipt.v2"
     )
     rth = xsp_opening_edge_v2_bundle(
         spec,
@@ -110,6 +114,16 @@ def test_opening_edge_v2_current_crown_is_content_addressed_and_fail_closed() ->
     assert execution_receipt["verdict"]["status"] == (
         XSP_OPENING_EDGE_V2_EXECUTION_GATE["verdict"]
     )
+    assert execution_receipt["observer_parity"][
+        "ordered_economic_ledger_equal"
+    ] is True
+    ceiling = execution_receipt["fixed_transport_ceiling"]
+    assert ceiling["cadence_floor_oracle"][
+        "maximum_affordable_round_trip_points"
+    ] == 1.221649
+    assert ceiling["measured_round_trip_points"] > ceiling[
+        "cadence_floor_oracle"
+    ]["maximum_affordable_round_trip_points"]
 
 
 def test_opening_edge_v2_uses_xsp_clock_and_never_backfills_a_live_start() -> None:
@@ -135,6 +149,8 @@ def test_opening_edge_v2_uses_xsp_clock_and_never_backfills_a_live_start() -> No
 
 def test_opening_edge_v2_paired_equity_keeps_cost_attribution_separate() -> None:
     spec = load_xsp_opening_edge_v2_spec()
+    prior_spy = Bar(datetime(2026, 7, 27, 20, 0), 200, 200, 200, 200, 1)
+    prior_xsp = Bar(datetime(2026, 7, 27, 20, 0), 100, 100, 100, 100, 0)
     gth = [
         Bar(
             datetime(2026, 7, 28, 0, 20) + timedelta(minutes=5 * index),
@@ -159,14 +175,20 @@ def test_opening_edge_v2_paired_equity_keeps_cost_attribution_separate() -> None
     ]
     paired = xsp_opening_edge_v2_equities(
         spec=spec,
-        spy_bars=(*gth, *rth),
+        spy_bars=(prior_spy, *gth, *rth),
+        xsp_rth_bars=(prior_xsp, *rth),
         observed_at=datetime(2026, 7, 28, 20, 1, tzinfo=timezone.utc),
         run_started_at=datetime(2026, 7, 28, 0, 15, tzinfo=timezone.utc),
     )
     research = paired["profiles"]["research"]
     broker = paired["profiles"]["broker"]
 
-    assert paired["rth_signal_source"] == "SPY"
+    assert paired["rth_signal_source"] == "XSP"
+    assert paired["gth_signal_source"] == (
+        "prior_xsp_close_anchored_spy_returns"
+    )
+    assert research["gth_signal_symbol"] == broker["gth_signal_symbol"] == "XSP"
+    assert paired["gth_signal_bars"] == len(gth)
     assert paired["signal_clock"] == "XSP"
     assert paired["execution_symbol"] == "SPY"
     assert paired["execution_eligibility"]["eligible"] is False
@@ -178,6 +200,26 @@ def test_opening_edge_v2_paired_equity_keeps_cost_attribution_separate() -> None
         "cumulative_cost_points"
     ]
     assert research["reconciled"] is broker["reconciled"] is True
+
+
+def test_opening_edge_v2_gth_projection_uses_prior_completed_xsp_close() -> None:
+    prior_close = datetime(2026, 7, 24, 20, 0)
+    future_close = datetime(2026, 7, 27, 20, 0)
+    projected = xsp_opening_edge_v2_gth_signal_bars(
+        (
+            Bar(prior_close, 200, 200, 200, 200, 1),
+            Bar(datetime(2026, 7, 27, 0, 20), 202, 204, 200, 203, 9),
+            Bar(future_close, 300, 300, 300, 300, 1),
+        ),
+        (
+            Bar(prior_close, 100, 100, 100, 100, 0),
+            Bar(future_close, 300, 300, 300, 300, 0),
+        ),
+    )
+
+    assert projected == (
+        Bar(datetime(2026, 7, 27, 0, 20), 101, 102, 100, 101.5, 0),
+    )
 
 
 def test_opening_edge_v2_observer_freezes_start_before_broker_work(
@@ -304,6 +346,9 @@ def test_opening_edge_v2_observer_uses_spy_full_session_and_xsp_rth(
                 )
                 for index in range(12)
             ]
+            rth.append(
+                Bar(datetime(2026, 7, 27, 15, 55), 102, 102.2, 101.8, 102.1, 1)
+            )
             if contract.symbol == "XSP":
                 return rth
             return [
@@ -369,6 +414,10 @@ def test_opening_edge_v2_observer_uses_spy_full_session_and_xsp_rth(
     }
     paired = receipt["paired_equity"]
     assert paired["rth_signal_source"] == "XSP"
+    assert paired["gth_signal_source"] == (
+        "prior_xsp_close_anchored_spy_returns"
+    )
+    assert paired["gth_signal_bars"] == 3
     assert paired["execution_symbol"] == "SPY"
     assert paired["execution_eligibility"]["eligible"] is False
     assert {
@@ -386,8 +435,17 @@ def test_opening_edge_v2_observer_uses_spy_full_session_and_xsp_rth(
     )
 
 
-def test_opening_edge_v2_observer_records_spy_fallback_as_stale(
+@pytest.mark.parametrize(
+    ("xsp_qualified", "expected_error"),
+    (
+        (False, "qualification_unavailable"),
+        (True, "missing_completed_anchor"),
+    ),
+)
+def test_opening_edge_v2_observer_fails_closed_without_exact_xsp_anchor(
     tmp_path,
+    xsp_qualified,
+    expected_error,
 ) -> None:
     spy_contract = Contract(
         conId=756733,
@@ -396,10 +454,19 @@ def test_opening_edge_v2_observer_records_spy_fallback_as_stale(
         exchange="SMART",
         currency="USD",
     )
+    xsp_contract = Contract(
+        conId=416904,
+        symbol="XSP",
+        secType="IND",
+        exchange="CBOE",
+        currency="USD",
+    )
 
     class _Client:
         async def qualify_proxy_contracts(self, contract):
-            return [spy_contract] if contract.secType == "STK" else []
+            if contract.secType == "STK":
+                return [spy_contract]
+            return [xsp_contract] if xsp_qualified else []
 
         async def historical_bars_ohlcv(self, _contract, **_kwargs):
             gth = [
@@ -455,13 +522,15 @@ def test_opening_edge_v2_observer_records_spy_fallback_as_stale(
         )
     )
 
-    assert receipt["paired_equity"] is not None
-    assert receipt["rth_signal_source"] == "SPY"
-    assert receipt["evaluation_status"] == "STALE_DATA"
+    assert receipt["paired_equity"] is None
+    assert receipt["rth_signal_source"] == (
+        "XSP" if xsp_qualified else None
+    )
+    assert receipt["evaluation_status"] == "NO_DATA"
     assert receipt["freshness_ok"] is False
     checkpoint = list(ledger.records())[-1]
-    assert checkpoint["evidence"]["xsp_error"] == "qualification_unavailable"
-    assert checkpoint["evidence"]["rth_provenance_fresh"] is False
+    assert checkpoint["evidence"]["xsp_error"] == expected_error
+    assert checkpoint["evidence"]["rth_provenance_fresh"] is xsp_qualified
     assert checkpoint["evidence"]["order_authority"] == "none"
 
 

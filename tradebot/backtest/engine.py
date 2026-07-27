@@ -32,7 +32,7 @@ from .spot_tape import prepare_spot_evaluator_tape
 from ..chart_data.cache import series_cache_service
 from ..chart_data.series import BarSeries, BarSeriesSignature, bars_list
 from ..engines.risk import risk_overlay_policy_from_filters
-from ..engines.market import instrument_trading_date
+from ..engines.market import instrument_trading_date, spot_exit_time_reached_et
 from ..engines.signals import EmaDecisionSnapshot
 from ..option_package import option_product_facts
 from ..signals import bar_sizes_equal
@@ -75,7 +75,6 @@ from ..spot.scenario import (
 )
 from ..engine import (
     _trade_date as _trade_date,
-    _ts_to_et,
     bars_elapsed,
     cooldown_ok_by_index,
     parse_time_hhmm,
@@ -2720,8 +2719,13 @@ def _run_spot_backtest_exec_loop(
                     exit_ref_by_reason["flip"] = float(bar.close)
                     apply_slippage_by_reason["flip"] = True
                 if spot_exit_time is not None:
-                    ts_et = _ts_to_et(bar.ts)
-                    if ts_et.time() >= spot_exit_time:
+                    if spot_exit_time_reached_et(
+                        bar.ts,
+                        exit_time=spot_exit_time,
+                        next_open_session_mode=getattr(
+                            cfg.strategy, "spot_next_open_session", "auto"
+                        ),
+                    ):
                         exit_candidates["exit_time"] = True
                         exit_ref_by_reason["exit_time"] = float(bar.close)
                         apply_slippage_by_reason["exit_time"] = True

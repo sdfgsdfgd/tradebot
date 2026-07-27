@@ -104,6 +104,30 @@ def xsp_bar_trading_date(
     return xsp_trading_date(closed_et - bar_duration)
 
 
+def spot_exit_time_reached_et(
+    closed_at: datetime,
+    *,
+    exit_time: time,
+    next_open_session_mode: object,
+    bar_duration: timedelta = timedelta(minutes=5),
+    naive_ts_mode: NaiveTsModeInput = "utc",
+) -> bool:
+    """Compare an exit clock inside its actual regular or 24/5 trading day."""
+    closed_et = to_et(closed_at, naive_ts_mode=naive_ts_mode)
+    mode = str(next_open_session_mode or "auto").strip().lower()
+    if mode in {"always", "full24", "tradable", "tradable_24x5", "overnight_plus_extended"}:
+        trading_day = xsp_bar_trading_date(
+            closed_at,
+            bar_duration=bar_duration,
+            naive_ts_mode=naive_ts_mode,
+        )
+        return bool(
+            trading_day is not None
+            and closed_et >= datetime.combine(trading_day, exit_time, tzinfo=ET_ZONE)
+        )
+    return closed_et.time() >= exit_time
+
+
 def instrument_trading_date(
     *,
     symbol: str,

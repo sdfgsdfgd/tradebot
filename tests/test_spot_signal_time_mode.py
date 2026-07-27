@@ -1,8 +1,9 @@
 import unittest
-from datetime import datetime
+from datetime import datetime, time, timedelta
 from types import SimpleNamespace
 
 from tradebot.backtest.models import Bar
+from tradebot.engines.market import spot_exit_time_reached_et
 from tradebot.spot.gates import signal_filters_ok
 from tradebot.spot.lifecycle import decide_flat_position_intent
 from tradebot.spot_engine import SpotSignalEvaluator
@@ -32,6 +33,30 @@ def _risk_filters() -> dict[str, object]:
 
 
 class SpotSignalTimeModeTests(unittest.TestCase):
+    def test_24x5_exit_clock_uses_trading_date_across_midnight(self) -> None:
+        self.assertFalse(
+            spot_exit_time_reached_et(
+                datetime(2026, 7, 27, 0, 20),
+                exit_time=time(9, 25),
+                next_open_session_mode="always",
+            )
+        )
+        self.assertTrue(
+            spot_exit_time_reached_et(
+                datetime(2026, 7, 27, 13, 25),
+                exit_time=time(9, 25),
+                next_open_session_mode="always",
+            )
+        )
+        self.assertTrue(
+            spot_exit_time_reached_et(
+                datetime(2026, 7, 27, 20, 0),
+                exit_time=time(16),
+                next_open_session_mode="rth",
+                bar_duration=timedelta(minutes=5),
+            )
+        )
+
     def test_signal_filters_entry_gate_bypass_ignores_permission_and_shock_gate(self) -> None:
         filters = {
             "shock_mode": "block_longs",

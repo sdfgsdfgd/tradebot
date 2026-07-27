@@ -1,6 +1,6 @@
 # XSP Mastery — Live Research Kata
 
-- **Status:** `[ACTIVE] v2 signal transport proven; one-share SPY execution HOLD`
+- **Status:** `[ACTIVE] v2 observer parity repaired; one-share SPY execution HOLD`
 - **Authority:** canonical resume state, active task tree, critical evidence
   index, and promotion contract
 - **Cold history:** [`q_XSP_live_research_kata-archive.md`](q_XSP_live_research_kata-archive.md)
@@ -23,13 +23,13 @@ output belongs in commit/final verification, not in this management brain.
 | Broker/order strategy | `NO_TRADE` |
 | Selected shadow | Opening Edge v1 predecessor `9fac460e…`; cannot confer v2 authority |
 | Research crown | **Opening Edge v2 — Balanced 24/5**; `xsp.opening-edge-v2-balanced-24x5.v1` |
-| Runtime parity | v2 RTH/GTH ledgers reproduce frozen research; explicit same-resolution SPY fills are now honored and content-addressed |
-| Runtime source anchor | crown and paired observer are locally proven; publish the observer revision now, but keep q on pre-v2 source until its recorder exits |
+| Runtime parity | Exact prior-XSP-close GTH projection plus XSP RTH signal reproduces all `725` ordered SPY fills; the shared 24/5 exit clock now honors the session trading date |
+| Runtime source anchor | corrected paired observer is published on `origin/main`; keep q on pre-v2 source until its recorder exits |
 | Order/capital authority | `none` |
 | Profitability clock | v2 `NOT_STARTED`; predecessor evidence does not transfer |
 | Execution verdict | `HOLD`: exact signal transport survives, measured one-share SPY costs do not |
 | Next irreversible evidence | none; do not freeze v2 until an unchanged executable transport passes net economics |
-| First active work | publish the preflight/restart-safe observer revision, then install it only after the active q recorder exits |
+| First active work | install the published observer only after q recorder quiescence, then prove restart/no-backfill parity |
 
 ### Immediate sequence
 
@@ -42,10 +42,9 @@ output belongs in commit/final verification, not in this management brain.
    USD `1,000` reference under measured broker costs.
 5. `[DONE]` Reconcile q state: pre-v2 clean source, active quote recorder,
    failed first v1 checkpoint, disabled recurring shadow, and no v2 selection.
-6. `[WIP]` The paired v2 observer is locally proven: prefreeze the exact next
-   `20:15 ET` boundary, reject late/off-boundary/drifted starts, and preserve
-   XSP RTH provenance across GTH restarts. Publish it now; install only after
-   recorder quiescence.
+6. `[WIP]` The corrected paired observer is published: exact prior-close
+   anchoring, session-aware `09:25 ET` lifecycle, pre-outcome `20:15 ET` start,
+   and missing-anchor refusal. Install only after recorder quiescence.
 7. `[TODO]` Accumulate compact TA/news/execution observations while preserving
    `NO_TRADE`; restart milestone clocks only after executable economics pass.
 
@@ -112,23 +111,27 @@ short-window tuning is never validation.
   efficiency, retrace, and coherence. Opening Edge v1's source-consistent
   flip/EOD lifecycle remains; two scale-free bullish
   exhaustion/maturation signatures veto flat admission only.
-- **GTH owner:** SPY all-hours fast-to-slow velocity cascade; fast votes
+- **GTH owner:** prior-XSP-close-anchored SPY returns feed the all-hours
+  fast-to-slow velocity cascade; fast votes
   `>=2`, exactly one slow vote, ATR ratio `>=1`, down entry only, up evidence
   retained for exits, and flat by `09:25 ET`.
-- **Execution mapping:** RTH signal XSP IND → one SPY share; GTH signal and
-  execution SPY. No EMA/regime authority, initial stop, trail, target, fizzle,
-  or GTH quota.
+- **Execution mapping:** RTH signal XSP IND → raw SPY fills; GTH signal is an
+  XSP-level prior-close projection → raw SPY fills. No EMA/regime authority,
+  initial stop, trail, target, fizzle, or GTH quota.
 - **Three-year evidence:** `+179.6656/725`, `242.31/year`, PF `1.4562`,
   DD `26.4689`; annual `+15.6348/+29.3083/+134.7224`; recent
   `+11.6675/16`. Both directions and both lanes are positive.
-- **Parity:** centralized RTH/GTH ordered-ledger hashes
-  `1c511d2f…` / `9e04807f…`; no research-only policy copy remains.
+- **Parity:** all `117,433` projected GTH bars and `725` ordered economic
+  trades match; canonical SPY-fill ledger `04987ff5…`. Ten terminal labels
+  correctly become explicit `09:25 exit_time` instead of incidental
+  `close_eod`; no economic path changes.
 - **Authentic SPY transport:** the same `725` entries retain about `+178.48`
   on the cold-cut audit and `+178.29` with causal pre-run warmup under frozen
   `$0.10` friction. The signal edge transports; it is not an XSP-price artifact.
 - **Measured execution:** SPY preview was `0.03` spread plus up to
-  `$1.01540245` commission per side (`2.0608049` points round trip). Replay
-  falls to about `-755.89` and stops after `415` closes as capital is exhausted.
+  `$1.01540245` commission per side (`2.0608049` points round trip). Full-tape
+  fixed-cost net is `-1243.10`; even a hindsight-best cadence-valid
+  `479`-trade subset loses `-401.96` and can afford at most `1.221649` points.
 - **Authority:** historical crown and visible SPY shadow selector only.
   Operational v2 is `HOLD`; no selected identity or profitability clock exists.
 
@@ -180,14 +183,13 @@ decelerating; no XSP outcome exists yet, so this is context—not a pivot claim.
 5. `[DONE]` Reconcile q: the active recorder remains pinned to clean pre-v2
    source, the first v1 checkpoint failed closed, the recurring shadow is
    disabled, and no v2 selection or clock exists.
-6. `[WIP]` Publish the locally proven paired v2 observer, then install it only
-   after recorder quiescence. Its explicit mode ignores v1 selection, freezes
-   the next untouched GTH boundary before outcomes, rejects backfill/drift,
-   records paired costs/source/news/freshness, and retains
-   `order_authority=none`.
+6. `[WIP]` Install the published corrected v2 observer only after recorder
+   quiescence. It anchors GTH causally, uses one shared 24/5 exit
+   clock, rejects missing anchors/backfill/drift, records compact paired
+   cost/source/news/freshness, and retains `order_authority=none`.
 7. `[TODO]` Find an executable fixed-unit transport whose unchanged economics
    pass before freezing v2 and restarting `24h → 48h → five-session`.
-7. `[BLOCKED]` Option structures and any live-capital canary belong to a later
+8. `[BLOCKED]` Option structures and any live-capital canary belong to a later
    quest after directional causality is proven.
 
 ---
@@ -288,6 +290,7 @@ and
 | E-188 | Opening Edge v2 became the balanced 24/5 historical crown; exact centralized RTH/GTH ledgers and a hash-bound SPY shadow selector preserve zero order authority |
 | E-189 | exact SPY signal/fill transport preserves the 725-trade edge under research friction, but measured one-share broker costs exhaust the capital reference; operational v2 is HOLD |
 | E-190 | the paired v2 observer boundary is locally proven: only a pre-outcome exact GTH start may open the run; restart drift/backfill is rejected; SPY full-session execution retains XSP RTH provenance; proxy fallback is explicitly stale; q activation remains deferred |
+| E-191 | the observer now reproduces the anchored crown exactly; a shared session-date exit clock repairs 24/5 flattening, missing XSP anchors fail closed, and the fixed one-share SPY transport is impossible even under a hindsight cadence oracle |
 
 ### Decision anchors
 
@@ -313,6 +316,7 @@ and
 | D-158 | v2 may use XSP as its RTH signal and one SPY share as execution, but it cannot inherit v1's selected receipt or start a clock before exact SPY cost/tracking replay and a new freeze |
 | D-159 | signal portability and executable economics are separate gates; failed one-share SPY costs forbid selection while paired counterfactual observation may continue |
 | D-160 | reuse one explicit observer mode and ledger; freeze the next `20:15 ET` start before outcomes, allow causal history only as warmup/restart reconstruction, and refuse any late first invocation, changed start/config, stale exact-RTH fallback, selection, or order authority |
+| D-161 | GTH direction uses prior-XSP-close-anchored SPY returns and raw SPY fills; 24/5 exit clocks compare within the exchange trading date, while absent exact anchors produce `NO_DATA`, never raw-SPY fallback |
 
 ---
 
