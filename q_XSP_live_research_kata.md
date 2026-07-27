@@ -158,7 +158,10 @@ short-window tuning is never validation.
   (`2025-11-20`) reverse-split normalization with no selected trade crossing
   an unexplained discontinuity; strict current T+1 settled-cash mechanics on
   every price path plus a separately labeled historical T+2-before-`2024-05-28`
-  stress replay; at least `480` executed trades over three years (`160/year`);
+  stress replay; the same complete economic gate must also pass when every
+  scheduled RTH/GTH exit moves from the modeled close to the next tradable
+  bar's open, with positive volume at those shifted fills; at least `480`
+  executed trades over three years (`160/year`);
   positive recent, every annual slice, both directions, both lanes, and
   full-three-year net; PF `>1`; full net greater than drawdown; drawdown below
   `10%` of the USD `1,350` sleeve under both trade-close and conservative
@@ -172,7 +175,7 @@ short-window tuning is never validation.
   `HOLD` until an independently confirmed account-pricing change and preview.
   The complete pre-outcome contract is frozen as
   [`opening_edge_v2_upro_spxu_preregistered_gate.json`](backtests/xsp/opening_edge_v2_upro_spxu_preregistered_gate.json)
-  (`d9eda68b…`).
+  (`4da254ea…`).
 - **Authority:** historical crown and visible SPY shadow selector only.
   Operational v2 is `HOLD`; no selected identity or profitability clock exists.
 

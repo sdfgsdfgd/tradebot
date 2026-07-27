@@ -1,6 +1,6 @@
 {
   "schema": "xsp.opening-edge-v2-upro-spxu-preregistered-gate.v1",
-  "frozen_at_utc": "2026-07-27T19:44:42Z",
+  "frozen_at_utc": "2026-07-27T20:06:41Z",
   "authority": "research_and_broker_preview_only",
   "order_authority": "none",
   "profitability_clock_started": false,
@@ -17,16 +17,17 @@
     "/tmp/xsp_v2_etf_full_fetch.py": "77f15867436326ace63490d22672745aa6ddb0d97b0bf770d5587f5d050deb6d",
     "/tmp/xsp_v2_etf_full_replay.py": "6844d8952f44944f8a38f5ef02aba2aee9d987e5e8376a6f3ef49f24b6c62356",
     "/tmp/xsp_v2_cash_state_replay.py": "01a28c6a43c22f9f29ae56a111dc63164464de4fa2d3dfa5d05ba6baf4e26599",
-    "/tmp/xsp_v2_etf_cash_economics.py": "4c1262935aeba499218784bad85d4e08039deea923b2818c1f524982a29d8b98",
-    "/tmp/xsp_v2_etf_tape_audit.py": "e4a175abd3de452c2772a42f729eba660602536daaafc5d85f7806466821f910",
-    "/tmp/xsp_v2_etf_acceptance.py": "0acffdf445221acb590fcba3b0d5b122c303fe2bad04c3932244239442c48a61",
-    "/tmp/test_xsp_v2_transport.py": "2e384f9c84c95bb1c68836db284f4a26e923d89d268cec182a63f88da265e1aa",
+    "/tmp/xsp_v2_etf_cash_economics.py": "840bdc7e5f201e9bf4d3b611954c70bf070169be81b9e1a60945b344cbd4d55a",
+    "/tmp/xsp_v2_etf_tape_audit.py": "09f01bf6e39f6f484dc42ac558768a52b7cd9ba8049a48fba8332c9370ca374d",
+    "/tmp/xsp_v2_etf_acceptance.py": "1001c236e301d38f496f89545d4146b3b3cf7d76d1715208f5433cc58f68130d",
+    "/tmp/test_xsp_v2_transport.py": "b24341e02350583fec45d9216ebd244e3282922364e4425faf38d5dbbcb57185",
     "/tmp/xsp-v2-signal-ledger-census-20260728.json": "cb95dd07d630032db3c0c96202cf8e7c8964b365ac3b5c027130cf89e2b64f9a"
   },
   "gate": {
     "complete_authenticated_bars": true,
     "exact_ordered_lifecycle_and_fill_parity": true,
     "selected_fill_bars_positive_volume": true,
+    "scheduled_exit_next_open_stress": true,
     "known_reverse_splits_normalized": true,
     "minimum_three_year_trades": 480,
     "positive_periods": ["recent", "year_1", "year_2", "year_3", "full_three_year"],
@@ -45,6 +46,7 @@
   "live_authority_requires": [
     "historical_gate_pass",
     "broker_qualified_real_time_quotes",
+    "broker_previewed_scheduled_exit_protocol",
     "fresh_non_backfilled_observer_receipt",
     "new_content_addressed_selected_shadow"
   ]
