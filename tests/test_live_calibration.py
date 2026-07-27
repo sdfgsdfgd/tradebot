@@ -47,11 +47,134 @@ from tradebot.research.xsp_context import (
     xsp_fundamental_context_at,
     xsp_option_context_at,
 )
+from tradebot.research.xsp_opening_edge_v2 import (
+    XSP_OPENING_EDGE_V2_EXECUTION_GATE,
+    XSP_OPENING_EDGE_V2_VERSION,
+    load_xsp_opening_edge_v2_spec,
+    next_xsp_v2_run_start,
+    split_xsp_v2_sessions,
+    xsp_opening_edge_v2_bundle,
+    xsp_opening_edge_v2_equities,
+)
 from tradebot.backtest.models import Bar
 from tradebot.time_utils import ET_ZONE
 
 
 NOW = datetime(2026, 7, 27, 13, 35, tzinfo=timezone.utc)
+
+
+def test_opening_edge_v2_current_crown_is_content_addressed_and_fail_closed() -> None:
+    spec = load_xsp_opening_edge_v2_spec()
+    execution_receipt = json.loads(
+        (
+            spec.artifact_path.parent
+            / "opening_edge_v2_spy_execution_receipt.json"
+        ).read_text()
+    )
+    rth = xsp_opening_edge_v2_bundle(
+        spec,
+        lane="rth",
+        start=date(2026, 7, 28),
+        end=date(2026, 7, 28),
+        cost_profile="research",
+    )
+    gth = xsp_opening_edge_v2_bundle(
+        spec,
+        lane="gth",
+        start=date(2026, 7, 28),
+        end=date(2026, 7, 28),
+        cost_profile="broker",
+    )
+
+    assert XSP_OPENING_EDGE_V2_VERSION == (
+        "xsp.opening-edge-v2-balanced-24x5.v1"
+    )
+    assert spec.artifact_sha256 == (
+        "f879cc20c4434e33626c143ccd85db4d608370a6fb7c321b1ee0f1f2c08afff2"
+    )
+    assert spec.group["authority"] == "historical_research_crown_only"
+    assert rth.strategy.symbol == "SPY"
+    assert rth.backtest.use_rth is True
+    assert rth.strategy.spot_commission_per_share == 0.05
+    assert gth.strategy.symbol == "XSP"
+    assert gth.backtest.use_rth is False
+    assert gth.strategy.spot_commission_per_share == 1.01540245
+    assert XSP_OPENING_EDGE_V2_EXECUTION_GATE["eligible"] is False
+    assert execution_receipt["crown"]["sha256"] == spec.artifact_sha256
+    assert execution_receipt["source_audit"]["sha256"] == (
+        XSP_OPENING_EDGE_V2_EXECUTION_GATE["audit_sha256"]
+    )
+    assert execution_receipt["verdict"]["status"] == (
+        XSP_OPENING_EDGE_V2_EXECUTION_GATE["verdict"]
+    )
+
+
+def test_opening_edge_v2_uses_xsp_clock_and_never_backfills_a_live_start() -> None:
+    bars = (
+        Bar(datetime(2026, 7, 28, 0, 20), 100, 101, 99, 100, 1),
+        Bar(datetime(2026, 7, 28, 13, 35), 101, 102, 100, 101, 1),
+        Bar(datetime(2026, 7, 28, 20, 20), 102, 103, 101, 102, 1),
+    )
+    gth, rth = split_xsp_v2_sessions(bars)
+
+    assert [row.ts for row in gth] == [datetime(2026, 7, 28, 0, 20)]
+    assert [row.ts for row in rth] == [datetime(2026, 7, 28, 13, 35)]
+    observed = datetime(2026, 7, 27, 11, 30, tzinfo=ET_ZONE)
+    assert next_xsp_v2_run_start(observed) == datetime(
+        2026,
+        7,
+        28,
+        0,
+        15,
+        tzinfo=timezone.utc,
+    )
+
+
+def test_opening_edge_v2_paired_equity_keeps_cost_attribution_separate() -> None:
+    spec = load_xsp_opening_edge_v2_spec()
+    gth = [
+        Bar(
+            datetime(2026, 7, 28, 0, 20) + timedelta(minutes=5 * index),
+            100.0 + index * 0.05,
+            100.1 + index * 0.05,
+            99.9 + index * 0.05,
+            100.05 + index * 0.05,
+            1.0,
+        )
+        for index in range(100)
+    ]
+    rth = [
+        Bar(
+            datetime(2026, 7, 28, 13, 35) + timedelta(minutes=5 * index),
+            105.0 + index * 0.05,
+            105.1 + index * 0.05,
+            104.9 + index * 0.05,
+            105.05 + index * 0.05,
+            1.0,
+        )
+        for index in range(78)
+    ]
+    paired = xsp_opening_edge_v2_equities(
+        spec=spec,
+        spy_bars=(*gth, *rth),
+        observed_at=datetime(2026, 7, 28, 20, 1, tzinfo=timezone.utc),
+        run_started_at=datetime(2026, 7, 28, 0, 15, tzinfo=timezone.utc),
+    )
+    research = paired["profiles"]["research"]
+    broker = paired["profiles"]["broker"]
+
+    assert paired["rth_signal_source"] == "SPY"
+    assert paired["signal_clock"] == "XSP"
+    assert paired["execution_symbol"] == "SPY"
+    assert paired["execution_eligibility"]["eligible"] is False
+    assert research["order_authority"] == broker["order_authority"] == "none"
+    assert research["config_fingerprint"] != broker["config_fingerprint"]
+    assert research["cost_profile"]["round_trip_points"] == 0.10
+    assert broker["cost_profile"]["round_trip_points"] == 2.0608049
+    assert research["cumulative_cost_points"] <= broker[
+        "cumulative_cost_points"
+    ]
+    assert research["reconciled"] is broker["reconciled"] is True
 
 
 def test_shadow_history_window_keeps_prior_rth_warmup_across_weekend() -> None:

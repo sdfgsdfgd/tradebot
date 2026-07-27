@@ -632,6 +632,7 @@
         "tradebot/research/xsp_benchmarks.py",
         "tradebot/research/xsp_candidate.py",
         "tradebot/research/xsp_context.py",
+        "tradebot/research/xsp_opening_edge_v2.py",
         "tradebot/research/xsp_shadow.py",
         "tradebot/research/xsp_shadow_cli.py",
         "tradebot/ui/bot_journal.py"

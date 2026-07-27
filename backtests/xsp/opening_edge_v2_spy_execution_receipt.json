@@ -1,0 +1,107 @@
+{
+  "schema": "xsp.opening-edge-v2-spy-execution-receipt.v1",
+  "authority": "research_and_broker_preview_only",
+  "order_authority": "none",
+  "crown": {
+    "path": "backtests/xsp/opening_edge_v2_balanced_24x5.json",
+    "sha256": "f879cc20c4434e33626c143ccd85db4d608370a6fb7c321b1ee0f1f2c08afff2"
+  },
+  "source_audit": {
+    "path": "backtests/out/xsp/xsp_spy_execution_economics_20260727.json",
+    "sha256": "7a19334c1d2288a5d85bb7e454ebef9f440a54409de0e96d40a9affab263858b",
+    "fingerprint": "e4a88d284824317ceee66d11f903efcbfa9eb186d50044e872a427f95a759010"
+  },
+  "broker_preview": {
+    "symbol": "SPY",
+    "con_id": 756733,
+    "market_data_type": 3,
+    "bid": 738.04,
+    "ask": 738.07,
+    "spread": 0.03,
+    "buy_commission": 1.000003,
+    "sell_commission": 1.01540245,
+    "modeled_commission_per_side": 1.01540245
+  },
+  "data": {
+    "xsp_rth_bars": 58560,
+    "xsp_rth_sha256": "ccde9e4b908aa907bb0d5a6d620dcc23fc95defaabde406b6e9f9c3835d9a879",
+    "spy_rth_bars": 58560,
+    "spy_rth_sha256": "748eab8fa6e716330a3725df615254194f9f6ff46a912fcc9d77ab498f743a78",
+    "spy_gth_bars": 117433,
+    "spy_full24_bars": 214851,
+    "spy_full24_sha256": "d798421fbe22d69e7399903adeb70b03235ef1f093c45fee55dd602d83c9e06d",
+    "synthetic_tape_sha256": "6d239c88dadbbb259a8e1e691c7311a05436859db7f1fe330b21d84daa3c67df"
+  },
+  "cost_profiles": {
+    "frozen_research": {
+      "spread": 0.0,
+      "commission_per_side": 0.05,
+      "round_trip_points": 0.1
+    },
+    "measured_broker": {
+      "spread": 0.03,
+      "commission_per_side": 1.01540245,
+      "round_trip_points": 2.0608049
+    }
+  },
+  "exact_xsp_signal_spy_execution": {
+    "frozen_research": {
+      "recent": {
+        "net_pnl": 12.33,
+        "trades": 16,
+        "profit_factor": 2.5374,
+        "max_drawdown": 8.34
+      },
+      "year_1": {
+        "net_pnl": 16.54,
+        "trades": 244,
+        "profit_factor": 1.1469,
+        "max_drawdown": 19.0
+      },
+      "year_2": {
+        "net_pnl": 28.68,
+        "trades": 230,
+        "profit_factor": 1.1945,
+        "max_drawdown": 26.64
+      },
+      "year_3": {
+        "net_pnl": 133.26,
+        "trades": 251,
+        "profit_factor": 2.0226,
+        "max_drawdown": 23.2
+      },
+      "full_three_year": {
+        "net_pnl": 178.48,
+        "trades": 725,
+        "trades_per_year": 242.3077,
+        "profit_factor": 1.4572,
+        "max_drawdown": 26.64,
+        "up_pnl": 72.16,
+        "down_pnl": 106.32,
+        "rth_pnl": 168.34,
+        "gth_pnl": 10.14
+      }
+    },
+    "measured_broker": {
+      "full_three_year_until_capital_exhaustion": {
+        "net_pnl": -758.8024,
+        "trades": 413,
+        "profit_factor": 0.0897,
+        "max_drawdown": 758.8024
+      }
+    }
+  },
+  "warm_prefix_replay": {
+    "net_pnl": 178.29,
+    "trades": 725,
+    "max_drawdown": 27.08,
+    "note": "Pre-run bars warm the multitimeframe sensor but cannot own trades."
+  },
+  "verdict": {
+    "status": "HOLD",
+    "eligible": false,
+    "reason": "measured_spy_cost_exceeds_historical_edge",
+    "selection_authority": "none",
+    "profitability_clock": "NOT_STARTED"
+  }
+}

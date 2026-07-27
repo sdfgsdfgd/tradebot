@@ -1,6 +1,6 @@
 # XSP Mastery — Live Research Kata
 
-- **Status:** `[PAUSED] Opening Edge v2 SPY execution-proof handoff`
+- **Status:** `[ACTIVE] v2 signal transport proven; one-share SPY execution HOLD`
 - **Authority:** canonical resume state, active task tree, critical evidence
   index, and promotion contract
 - **Cold history:** [`q_XSP_live_research_kata-archive.md`](q_XSP_live_research_kata-archive.md)
@@ -23,24 +23,29 @@ output belongs in commit/final verification, not in this management brain.
 | Broker/order strategy | `NO_TRADE` |
 | Selected shadow | Opening Edge v1 predecessor `9fac460e…`; cannot confer v2 authority |
 | Research crown | **Opening Edge v2 — Balanced 24/5**; `xsp.opening-edge-v2-balanced-24x5.v1` |
-| Runtime parity | v2 RTH/GTH ledgers exactly reproduce frozen research; UI selector is shadow-only |
-| Runtime source anchor | v2 milestone source-controlled on `main`; q deployment/activation requires separate proof |
+| Runtime parity | v2 RTH/GTH ledgers reproduce frozen research; explicit same-resolution SPY fills are now honored and content-addressed |
+| Runtime source anchor | crown is published; execution owner is in the current green publication transaction; q remains on pre-v2 source while its recorder is active |
 | Order/capital authority | `none` |
 | Profitability clock | v2 `NOT_STARTED`; predecessor evidence does not transfer |
-| Next irreversible evidence | Freeze a new v2 selected-run identity only after exact one-share SPY cost/tracking replay |
-| First active work | Complete the local crown handoff, then reconcile current q/runtime state before resuming prospective evidence |
+| Execution verdict | `HOLD`: exact signal transport survives, measured one-share SPY costs do not |
+| Next irreversible evidence | none; do not freeze v2 until an unchanged executable transport passes net economics |
+| First active work | publish the execution receipt, then deploy only the paired non-submitting observer after the active q recorder exits |
 
 ### Immediate sequence
 
 1. `[DONE]` Crown Opening Edge v2 from the frozen balanced 24/5 evidence.
 2. `[DONE]` Reproduce every RTH and GTH trade through the centralized runtime
    and expose named SPY shadow leaves without order authority.
-3. `[TODO]` Replay the exact strategy on authentic SPY signal/execution prices
-   with measured commission, spread/slippage, and XSP-to-SPY RTH tracking.
-4. `[TODO]` If that unchanged replay remains eligible, freeze a new
-   content-addressed v2 selected-run identity before prospective outcomes.
-5. `[TODO]` Reconcile q timers, recorder, selected-shadow, and evidence state;
-   then resume the immutable `24h → 48h → five-session` sequence.
+3. `[DONE]` Replay authentic SPY execution with exact XSP RTH signal transport,
+   measured spread/commission, and explicit same-resolution signal/fill tapes.
+4. `[HOLD]` Do not freeze a v2 selected run: one SPY share exhausts the
+   USD `1,000` reference under measured broker costs.
+5. `[DONE]` Reconcile q state: pre-v2 clean source, active quote recorder,
+   failed first v1 checkpoint, disabled recurring shadow, and no v2 selection.
+6. `[WIP]` Publish and safely install only the paired non-submitting v2
+   observer after the recorder exits; never backfill its prospective start.
+7. `[TODO]` Accumulate compact TA/news/execution observations while preserving
+   `NO_TRADE`; restart milestone clocks only after executable economics pass.
 
 ### Never infer
 
@@ -116,9 +121,14 @@ short-window tuning is never validation.
   `+11.6675/16`. Both directions and both lanes are positive.
 - **Parity:** centralized RTH/GTH ordered-ledger hashes
   `1c511d2f…` / `9e04807f…`; no research-only policy copy remains.
+- **Authentic SPY transport:** the same `725` entries retain about `+178.48`
+  on the cold-cut audit and `+178.29` with causal pre-run warmup under frozen
+  `$0.10` friction. The signal edge transports; it is not an XSP-price artifact.
+- **Measured execution:** SPY preview was `0.03` spread plus up to
+  `$1.01540245` commission per side (`2.0608049` points round trip). Replay
+  falls to about `-755.89` and stops after `415` closes as capital is exhausted.
 - **Authority:** historical crown and visible SPY shadow selector only.
-  Historical `$0.10` friction and synthetic GTH history must survive exact SPY
-  cost/tracking replay before a new selected identity can exist.
+  Operational v2 is `HOLD`; no selected identity or profitability clock exists.
 
 Opening Edge v1 remains an immutable predecessor and its `9fac460e…`
 selected-shadow receipt remains attributable only to v1. The complete edge
@@ -162,15 +172,17 @@ decelerating; no XSP outcome exists yet, so this is context—not a pivot claim.
    shared runtime.
 3. `[DONE]` Publish named SPY Bot UI shadow leaves: XSP→SPY `RTH Core` and
    SPY→SPY `GTH Down Sleeve`; both remain `order_authority=none`.
-4. `[TODO]` Replay exact one-share SPY prices, commission, spread/slippage,
-   overnight availability, and XSP-to-SPY RTH tracking. Reject v2 operational
-   candidacy if the frozen edge does not survive.
-5. `[TODO]` Reconcile current q services/timers/evidence after this paused
-   research detour. If the SPY replay passes, freeze a new v2 selected identity
-   before any prospective outcome.
-6. `[TODO]` Resume the immutable `24h → 48h → five-session` sequence and
-   causally join compact news pressure/pressure-delta observations without
-   giving them historical or order authority.
+4. `[DONE]` Authentic SPY signal/fill transport preserves the crown under
+   historical friction, while measured one-share costs fail decisively; v2
+   operational candidacy is `HOLD`.
+5. `[DONE]` Reconcile q: the active recorder remains pinned to clean pre-v2
+   source, the first v1 checkpoint failed closed, the recurring shadow is
+   disabled, and no v2 selection or clock exists.
+6. `[WIP]` Publish and install one paired v2 observer only after recorder
+   quiescence. Record research-cost and broker-cost equity, exact source,
+   compact news pressure/delta, freshness, and `order_authority=none`.
+7. `[TODO]` Find an executable fixed-unit transport whose unchanged economics
+   pass before freezing v2 and restarting `24h → 48h → five-session`.
 7. `[BLOCKED]` Option structures and any live-capital canary belong to a later
    quest after directional causality is proven.
 
@@ -187,7 +199,7 @@ decelerating; no XSP outcome exists yet, so this is context—not a pivot claim.
 | Lifecycle | `tradebot/spot/lifecycle.py` + shared position-intent path | persistent source owner; optional stop/trail semantics are honest |
 | Historical/cache truth | canonical chart-data/history owners | sparse, provenance-bound, gap-aware, close-aligned, no fabricated absence |
 | Forward option tape | `tradebot/backtest/tools/record_quotes.py` | restart-safe GTH/RTH/Curb tape with actual MD provenance |
-| Broker shadow/transport | `tradebot/research/xsp_shadow.py` + Bot UI signal/execution contracts | RTH XSP IND signal → SPY share; GTH SPY signal/execution; bounded and non-submitting |
+| Broker shadow/transport | `tradebot/research/xsp_opening_edge_v2.py` + `xsp_shadow.py` + Bot UI contracts | explicit XSP clock, XSP/SPY signal provenance, SPY fills, paired costs, bounded and non-submitting |
 | Evidence/economics | `tradebot/research/live_calibration.py` | append-only forecasts/results/checkpoints and immutable milestones |
 | External decision context | `tradebot/research/xsp_context.py` | timestamp-causal option/news projection; no breadth runtime |
 | Candidate reducers | `tradebot/research/xsp_benchmarks.py` | pure comparison; no broker/order imports |
@@ -222,9 +234,11 @@ must be advanced, traced, and consumed identically; otherwise remove the lie.
 - Closed/holiday/unsupported sessions do no broker work and are not
   `EVALUATED`.
 - Quote timer is persistent; high-frequency shadow timer is not.
-- Last recorded q runtime imports Opening Edge v1 fingerprint `bbb0a391…`.
-  V2 source is versioned, but q deployment, selection, and activation must be
-  proved separately before resuming prospective evidence. The prior
+- Current q census remains clean on pre-v2 `c93bc63…`; its quote recorder is
+  active, first v1 shadow checkpoint failed closed, and recurring shadow timer
+  is disabled. V2 publication must not change its imported source mid-session.
+  Deployment, observer restart parity, selection, and activation remain
+  separate proofs. The prior
   dependency preflight proved the on-demand localhost tunnel reaches the live
   Gateway and stops under `StopWhenUnneeded=yes`.
 - Exact activation transaction: [`deploy/systemd/README.md`](deploy/systemd/README.md).
@@ -266,6 +280,7 @@ and
 | E-186 | the first authentic model-only `2h` GTH path passed unchanged pair, dispersion, age, expiry, and causal-anchor gates; longer horizons remain unproved |
 | E-187 | the first natural post-freeze news transition retained a bearish level with a weakening, decelerating pressure impulse; no price outcome or authority exists yet |
 | E-188 | Opening Edge v2 became the balanced 24/5 historical crown; exact centralized RTH/GTH ledgers and a hash-bound SPY shadow selector preserve zero order authority |
+| E-189 | exact SPY signal/fill transport preserves the 725-trade edge under research friction, but measured one-share broker costs exhaust the capital reference; operational v2 is HOLD |
 
 ### Decision anchors
 
@@ -289,6 +304,7 @@ and
 | D-156 | signed news impact begins as logged prospective context, not a literal percentage contribution or trade multiplier |
 | D-157 | confidence-weighted news pressure, change, and interval-normalized velocity are observational coordinates; only prospective volatility-conditioned paired evidence may earn a later conservative gate |
 | D-158 | v2 may use XSP as its RTH signal and one SPY share as execution, but it cannot inherit v1's selected receipt or start a clock before exact SPY cost/tracking replay and a new freeze |
+| D-159 | signal portability and executable economics are separate gates; failed one-share SPY costs forbid selection while paired counterfactual observation may continue |
 
 ---
 
@@ -347,17 +363,15 @@ five-session receipts exist and the final calibration/risk verdict is explicit.
 
 ## Conclusion
 
-Opening Edge v1 is the sole XSP research crown and the preselected synthetic
-shadow; broker/order selection remains `NO_TRADE`, order authority is `none`,
-and the profitability clock is armed but cannot start before Monday's first
-exact `EVALUATED` checkpoint. The recorder has recovered into the Monday GTH
-session and produced the first authentic model-only `2h` pre-open path; its
-missing token-outage prefix and longer `4h/6h` horizons remain explicitly
-unavailable. The immediate quest is stable forward evidence, then immutable
-`24h → 48h → five-session` profitability and calibration—not more historical
-decimal mining, breadth work, or options capital.
+Opening Edge v2 is the historical research crown, but executable one-share SPY
+economics are `HOLD`. Broker/order strategy remains `NO_TRADE`, v1's selected
+receipt cannot transfer, v2 has no selected identity, order authority is
+`none`, and the profitability clock is `NOT_STARTED`. The immediate quest is
+to publish and safely run the paired non-submitting observer, preserve compact
+TA/news/execution evidence, and identify a fixed-unit transport whose unchanged
+net economics can legitimately restart `24h → 48h → five-session`.
 
-**Predictive observation:** the crown's strongest next improvement is likely a
-materially different shared-engine mechanism or authentic forward
-liquidity/causal context—not another breadth threshold, slope decimal, or
-tighter exit.
+**Predictive observation:** the current bottleneck is transport cost, not
+directional signal quality. The next valid breakthrough must reduce executable
+friction or increase per-trade captured movement without reopening historical
+decimal mining, breadth work, or options/upsizing authority.

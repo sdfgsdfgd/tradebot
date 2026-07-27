@@ -167,7 +167,7 @@ def _spot_exec_alignment(
     return out
 
 
-_SPOT_SERIES_PACK_CACHE_VERSION = "spot-series-pack-v5"
+_SPOT_SERIES_PACK_CACHE_VERSION = "spot-series-pack-v6"
 
 
 BarSeriesInput = Union[list[Bar], BarSeries[Bar]]
@@ -410,11 +410,15 @@ def _spot_prepare_summary_series_pack(
     signal_list = _bars_input_list(signal_bars)
     exec_list = _bars_input_optional_list(exec_bars)
     exec_bar_size = str(getattr(cfg.strategy, "spot_exec_bar_size", "") or "").strip()
-    if exec_bar_size and not bar_sizes_equal(exec_bar_size, cfg.backtest.bar_size):
-        if not exec_list:
+    if exec_list is None:
+        if exec_bar_size and not bar_sizes_equal(
+            exec_bar_size,
+            cfg.backtest.bar_size,
+        ):
             return "", None
-    else:
         exec_list = signal_list
+    elif not exec_list:
+        return "", None
 
     pack_key, pack_key_hash = _spot_series_pack_key(
         signal_bars=signal_list,
@@ -1740,19 +1744,21 @@ def _spot_resolve_run_bars(
     exec_bar_size = str(
         getattr(cfg.strategy, "spot_exec_bar_size", "") or ""
     ).strip()
-    if exec_bar_size and not bar_sizes_equal(exec_bar_size, cfg.backtest.bar_size):
-        if execution is None:
+    if execution is None:
+        if exec_bar_size and not bar_sizes_equal(
+            exec_bar_size,
+            cfg.backtest.bar_size,
+        ):
             raise ValueError(
                 "spot_exec_bar_size is set but exec_bars was not provided "
                 f"(signal={cfg.backtest.bar_size!r} exec={exec_bar_size!r})"
             )
-        if not execution:
-            raise ValueError(
-                "spot_exec_bar_size is set but exec_bars is empty "
-                f"(signal={cfg.backtest.bar_size!r} exec={exec_bar_size!r})"
-            )
-    else:
         execution = signal
+    elif not execution:
+        raise ValueError(
+            "exec_bars was provided but empty "
+            f"(signal={cfg.backtest.bar_size!r} exec={exec_bar_size!r})"
+        )
     return _SpotRunBars(
         signal=signal,
         execution=execution,

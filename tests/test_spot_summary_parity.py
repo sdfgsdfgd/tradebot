@@ -75,7 +75,8 @@ def test_spot_run_bars_owns_resolution_selection_and_validation() -> None:
     cfg.strategy.spot_exec_bar_size = "30 mins"
     assert _spot_resolve_run_bars(
         cfg, bars=signal, exec_bars=execution
-    ).execution is signal
+    ).execution is execution
+    assert _spot_resolve_run_bars(cfg, bars=signal).execution is signal
 
 
 def test_spot_summary_matches_detailed_lifecycle_on_flip_reentry_path() -> None:
