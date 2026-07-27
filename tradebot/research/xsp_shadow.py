@@ -572,6 +572,21 @@ async def advance_xsp_shadow_from_ibkr(
         naive_ts_mode="et",
         freeze_new=freshness_ok,
     )
+    fundamental_context = xsp_fundamental_context_at(
+        news_snapshot,
+        decision_at=observed_utc,
+    )
+    fundamental_log = {
+        field: fundamental_context.get(field)
+        for field in (
+            "usable",
+            "signal_as_of_utc",
+            "snapshot_fingerprint",
+            "direction",
+            "impact",
+            "confidence",
+        )
+    }
     run_started_at = (
         xsp_opening_edge_run_start(
             tuple(ledger.records()),
@@ -632,6 +647,7 @@ async def advance_xsp_shadow_from_ibkr(
                 naive_ts_mode="et",
             ),
             "cash_history_fresh": freshness_ok,
+            "fundamental_pressure": fundamental_log,
             "order_authority": "none",
         },
         recorded_at=checkpoint_recorded_at,

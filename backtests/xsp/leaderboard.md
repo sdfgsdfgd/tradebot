@@ -357,6 +357,21 @@ its predecessor’s numbers.
 
 ## Crown history — newest first
 
+### CH-005 · 2026-07-27 · Inverse-source quality confirmation · Rejected
+
+- A source-consistent `3×4×3` family required raw reversal coherence,
+  instantaneous signed strength, and retrace quality before either entry or
+  exit could accept the new persistent direction.
+- The true no-quality control reproduced the crown exactly. Every material
+  confirmation failed the recent cadence/economics gate.
+- The sole survivor merely rejected a smoothed reversal when the current raw
+  score already pointed the other way: recent and one-year ledgers were
+  identical; five years changed four paths and moved from `+120.59/1,019`,
+  PF `1.1705`, DD `59.95` to `+121.47/1,018`, PF `1.1720`, DD `60.26`.
+- Annual deltas were `0/0/-0.31/+0.06/+1.13/0` for `2021..2026`; the change
+  worsened the weak 2023 slice and removed one 2025 trade. No stable mechanism
+  or successor was earned, so no runtime policy was added.
+
 ### CH-004 · 2026-07-27 · Corrected-lifecycle tournament · Rejected
 
 - EMA, ORB/reclaim, impulse confirmation/veto, supplemental EMA timing,

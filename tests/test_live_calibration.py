@@ -2845,6 +2845,7 @@ def test_first_opening_edge_checkpoint_starts_selected_profitability(
             ledger,
             client=_Client(),
             observed_at=observed_at,
+            news_snapshot=_news_snapshot(observed_at - timedelta(minutes=5)),
             selected_run=selection,
             recorded_at=observed_at,
         )
@@ -2855,6 +2856,12 @@ def test_first_opening_edge_checkpoint_starts_selected_profitability(
         as_of=observed_at,
     )
     selected = receipt["selected_equity"]
+    checkpoint = next(
+        row
+        for row in ledger.records()
+        if row.get("kind") == "checkpoint"
+        and row.get("strategy_version") == XSP_OPENING_EDGE_VERSION
+    )
 
     assert receipt["evaluation_status"] == "EVALUATED"
     assert selected["schema"] == SELECTED_EQUITY_SCHEMA
@@ -2862,6 +2869,19 @@ def test_first_opening_edge_checkpoint_starts_selected_profitability(
     assert selected["cumulative_net_points"] == 0.0
     assert selected["closed_trades"] == 0
     assert selected["order_authority"] == "none"
+    pressure = checkpoint["evidence"]["fundamental_pressure"]
+    assert set(pressure) == {
+        "usable",
+        "signal_as_of_utc",
+        "snapshot_fingerprint",
+        "direction",
+        "impact",
+        "confidence",
+    }
+    assert pressure["usable"] is True
+    assert pressure["direction"] == -1
+    assert pressure["impact"] == 74
+    assert pressure["confidence"] == 0.9
     assert profitability["status"] == "ACTIVE"
     assert profitability["clock"]["run_started_at_utc"] == (
         "2026-07-27T13:30:00+00:00"
