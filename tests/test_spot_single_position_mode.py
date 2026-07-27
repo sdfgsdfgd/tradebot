@@ -322,6 +322,48 @@ def test_complete_session_cannot_reenter_after_eod_close_but_prefix_stays_open()
     ]
 
 
+def test_xsp_sunday_gth_signal_uses_monday_entry_permission() -> None:
+    day = date(2026, 7, 27)
+    bars = _bars_5m(
+        start=datetime(2026, 7, 27, 0, 15),  # Sunday 20:15 ET.
+        end=datetime(2026, 7, 27, 1, 15),
+        start_price=100.0,
+        end_price=106.0,
+    )
+    cfg = _base_cfg(day)
+    cfg = replace(
+        cfg,
+        backtest=replace(cfg.backtest, bar_size="5 mins", use_rth=False),
+        strategy=replace(
+            cfg.strategy,
+            symbol="XSP",
+            entry_days=(0,),
+            max_entries_per_day=1,
+            exit_on_signal_flip=False,
+            spot_close_eod=False,
+            spot_controlled_flip=False,
+            spot_entry_fill_mode="close",
+            spot_stop_loss_pct=None,
+        ),
+    )
+
+    result = _run_spot_backtest_exec_loop(
+        cfg,
+        signal_bars=bars,
+        exec_bars=bars,
+        meta=ContractMeta(
+            symbol="XSP",
+            exchange="CBOE",
+            multiplier=1.0,
+            min_tick=0.01,
+        ),
+    )
+
+    assert len(result.trades) == 1
+    assert result.trades[0].qty > 0
+    assert result.trades[0].entry_time < datetime(2026, 7, 27, 4, 0)
+
+
 def test_spot_strategy_ignores_legacy_unknown_field() -> None:
     day = date(2024, 1, 1)
     # Keep synthetic tape on the intended ET trade date (09:00 ET in UTC).

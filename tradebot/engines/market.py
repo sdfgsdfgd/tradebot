@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta
 
-from ..time_utils import ET_ZONE, to_utc_naive, trade_date
+from ..time_utils import ET_ZONE, NaiveTsModeInput, to_et, to_utc_naive, trade_date
 
 SESSION_ORDER = (
     "OVERNIGHT_EARLY",
@@ -78,6 +78,51 @@ def xsp_trading_date(now: datetime) -> date | None:
         return None
     current = now.time().replace(tzinfo=None)
     return now.date() + timedelta(days=current >= time(20, 15))
+
+
+def xsp_bar_session_label_et(
+    closed_at: datetime,
+    *,
+    bar_duration: timedelta = timedelta(minutes=5),
+    naive_ts_mode: NaiveTsModeInput = "utc",
+) -> str | None:
+    """Classify a close-stamped XSP bar by the session in which it opened."""
+
+    closed_et = to_et(closed_at, naive_ts_mode=naive_ts_mode)
+    return xsp_session_label_et(closed_et - bar_duration)
+
+
+def xsp_bar_trading_date(
+    closed_at: datetime,
+    *,
+    bar_duration: timedelta = timedelta(minutes=5),
+    naive_ts_mode: NaiveTsModeInput = "utc",
+) -> date | None:
+    """Map a close-stamped XSP bar to its exchange trading date."""
+
+    closed_et = to_et(closed_at, naive_ts_mode=naive_ts_mode)
+    return xsp_trading_date(closed_et - bar_duration)
+
+
+def instrument_trading_date(
+    *,
+    symbol: str,
+    closed_at: datetime,
+    use_rth: bool,
+    bar_duration: timedelta = timedelta(minutes=5),
+    naive_ts_mode: NaiveTsModeInput = "utc",
+) -> date:
+    """Return the canonical trade date for one close-stamped instrument bar."""
+
+    if str(symbol or "").strip().upper() == "XSP" and not bool(use_rth):
+        resolved = xsp_bar_trading_date(
+            closed_at,
+            bar_duration=bar_duration,
+            naive_ts_mode=naive_ts_mode,
+        )
+        if resolved is not None:
+            return resolved
+    return trade_date(closed_at, naive_ts_mode=naive_ts_mode)
 
 
 def xsp_capture_window_date(now: datetime) -> date | None:

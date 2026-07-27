@@ -12,10 +12,7 @@ from datetime import time
 
 from .chart_data.series import BarSeries
 from .engine import parse_time_hhmm
-from .engines.directional_impulse import (
-    DirectionalImpulseEngine,
-    DirectionalTurnPolicy,
-)
+from .engines.directional_impulse import DirectionalImpulseEngine
 from .engines.risk import RiskOverlaySnapshot, build_tr_pct_risk_overlay_engine
 from .engines.shock import build_shock_engine, normalize_shock_detector, normalize_shock_direction_source
 from .engines.signals import (
@@ -26,6 +23,7 @@ from .engines.signals import (
 )
 from .signals import ema_periods, parse_bar_size
 from .spot.entry_control import SpotEntryControlPlan
+from .spot.directional_cascade import DirectionalCascadeEngine
 from .spot.evaluator_common import BarLike, SpotSignalSnapshot, _bars_input_list
 from .spot.lifecycle import SpotExcursionPolicy
 from .spot.policy_contract import source_value as _get
@@ -61,8 +59,14 @@ class SpotSignalEvaluator(
     ) -> None:
         self._strategy = strategy
         self._filters = filters
+        self._symbol = str(_get(strategy, "symbol", "") or "").strip().upper()
         self._bar_size = str(bar_size)
         self._use_rth = bool(use_rth)
+        signal_bar = parse_bar_size(self._bar_size)
+        self._signal_bar_duration = (
+            signal_bar.duration if signal_bar is not None else None
+        )
+        self._xsp_session_clock = self._symbol == "XSP" and not self._use_rth
         self._naive_ts_mode = normalize_naive_ts_mode(naive_ts_mode, default="utc").value
 
         self._rv_lookback = max(1, int(rv_lookback))
@@ -136,14 +140,19 @@ class SpotSignalEvaluator(
         self._branch_b_max_signed_slope_pct: float | None = None
 
         # One evidence engine serves observation and explicit source selection.
-        signal_bar = parse_bar_size(self._bar_size)
         self._directional_impulse_engine = (
             DirectionalImpulseEngine(
-                bar_duration=signal_bar.duration if signal_bar is not None else None,
-                turn_policy=DirectionalTurnPolicy(),
+                bar_duration=self._signal_bar_duration,
+                turn_policy=self._entry_control_plan.directional_impulse_turn,
             )
             if entry_signal == "directional_impulse"
             or self._entry_control_plan.directional_impulse == "observe"
+            else None
+        )
+        cascade_policy = self._entry_control_plan.directional_impulse_cascade
+        self._directional_cascade_engine = (
+            DirectionalCascadeEngine(cascade_policy)
+            if cascade_policy is not None
             else None
         )
 

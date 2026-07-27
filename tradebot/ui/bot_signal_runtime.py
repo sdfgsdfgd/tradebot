@@ -7,6 +7,7 @@ import json
 from datetime import datetime, time, timedelta
 
 from ..engines.shock import normalize_shock_detector, normalize_shock_gate_mode
+from ..engines.market import xsp_trading_date
 from ..engine import (
     cooldown_ok_by_time,
     normalize_spot_entry_signal,
@@ -2861,6 +2862,14 @@ class BotSignalRuntimeMixin:
             return weekday
         if bool(self._signal_use_rth(instance)):
             return weekday
+        symbol = str(
+            getattr(instance, "symbol", "")
+            or instance.strategy.get("symbol")
+            or ""
+        ).strip().upper()
+        if symbol == "XSP":
+            trading_day = xsp_trading_date(ts_et)
+            return int(trading_day.weekday()) if trading_day is not None else weekday
         sec_type = str(instance.strategy.get("spot_sec_type") or "STK").strip().upper()
         if sec_type != "STK":
             return weekday

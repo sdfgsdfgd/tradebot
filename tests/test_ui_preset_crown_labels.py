@@ -70,6 +70,88 @@ def test_tqqq_preset_track_headers_show_loaded_crown_versions_and_clean_leaf_tit
     assert " 2025=" not in hf_leaf
 
 
+def test_xsp_balanced_crown_loads_named_shadow_lanes() -> None:
+    screen = _screen()
+    screen._load_leaderboard()
+
+    labels = _labels(screen)
+    assert "▾ SPY v2" in labels
+    assert "  ▾ SPY - Spot v2" in labels
+    assert "    RTH Core" in labels
+    assert "    GTH Down Sleeve" in labels
+
+    xsp = [
+        preset
+        for preset in screen._presets
+        if "XSP Opening Edge v2" in preset.group
+    ]
+    assert len(xsp) == 2
+    assert {
+        str(preset.entry.get("symbol") or "").upper() for preset in xsp
+    } == {"SPY"}
+    assert {
+        str(preset.entry["strategy"].get("order_authority"))
+        for preset in xsp
+    } == {"none"}
+    for preset in xsp:
+        instance = SimpleNamespace(strategy=preset.entry["strategy"])
+        assert screen._allowed_entry_directions(instance) == set()
+
+
+def test_xsp_rth_shadow_uses_xsp_signal_and_spy_execution_contracts() -> None:
+    class _Client:
+        async def qualify_proxy_contracts(self, contract):
+            return [contract]
+
+    screen = _screen()
+    screen._client = _Client()
+    instance = SimpleNamespace(
+        strategy={
+            "instrument": "spot",
+            "spot_sec_type": "STK",
+            "spot_exchange": "SMART",
+            "signal_proxy_symbol": "XSP",
+            "signal_proxy_sec_type": "IND",
+            "signal_proxy_exchange": "CBOE",
+        }
+    )
+
+    execution = asyncio.run(screen._spot_contract(instance, "SPY"))
+    signal = asyncio.run(screen._signal_contract(instance, "SPY"))
+    assert execution is not None
+    assert execution.secType == "STK"
+    assert execution.symbol == "SPY"
+    assert execution.exchange == "SMART"
+    assert signal is not None
+    assert signal.secType == "IND"
+    assert signal.symbol == "XSP"
+    assert signal.exchange == "CBOE"
+
+
+def test_xsp_gth_shadow_uses_spy_for_signal_and_execution() -> None:
+    class _Client:
+        async def qualify_proxy_contracts(self, contract):
+            return [contract]
+
+    screen = _screen()
+    screen._client = _Client()
+    instance = SimpleNamespace(
+        strategy={
+            "instrument": "spot",
+            "spot_sec_type": "STK",
+            "spot_exchange": "SMART",
+        }
+    )
+
+    execution = asyncio.run(screen._spot_contract(instance, "SPY"))
+    signal = asyncio.run(screen._signal_contract(instance, "SPY"))
+    assert execution is not None
+    assert signal is not None
+    assert execution.secType == signal.secType == "STK"
+    assert execution.symbol == signal.symbol == "SPY"
+    assert execution.exchange == signal.exchange == "SMART"
+
+
 def test_open_config_for_preset_refuses_missing_signal_transport_defaults() -> None:
     events: list[str] = []
 

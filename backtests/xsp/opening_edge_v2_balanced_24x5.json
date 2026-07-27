@@ -1,0 +1,243 @@
+{
+  "schema": "xsp.opening-edge-v2-balanced-24x5.v1",
+  "authority": "historical_research_crown_only",
+  "order_authority": "none",
+  "unit": "$1_per_XSP_point",
+  "data_provenance": {
+    "rth": "authenticated XSP IND five-minute bars",
+    "gth_curb": "prior-XSP-close-anchored SPY five-minute return proxy",
+    "rth_live_signal": "XSP IND",
+    "gth_live_signal": "SPY STK",
+    "execution_proxy": "one SPY STK share",
+    "execution_economics": "pending exact commission and overnight-spread replay"
+  },
+  "crown_metrics": {
+    "recent": {
+      "start": "2026-06-29",
+      "end": "2026-07-24",
+      "net_pnl": 11.6675,
+      "trades": 16,
+      "trades_per_year": 212.2105,
+      "profit_factor": 2.3674,
+      "max_drawdown": 8.6825
+    },
+    "year_1": {
+      "start": "2023-07-24",
+      "end": "2024-07-23",
+      "net_pnl": 15.6348,
+      "trades": 244,
+      "profit_factor": 1.1364,
+      "max_drawdown": 19.0612
+    },
+    "year_2": {
+      "start": "2024-07-24",
+      "end": "2025-07-23",
+      "net_pnl": 29.3083,
+      "trades": 230,
+      "profit_factor": 1.198,
+      "max_drawdown": 26.4689
+    },
+    "year_3": {
+      "start": "2025-07-24",
+      "end": "2026-07-24",
+      "net_pnl": 134.7224,
+      "trades": 251,
+      "profit_factor": 2.0272,
+      "max_drawdown": 23.86
+    },
+    "full_three_year": {
+      "start": "2023-07-24",
+      "end": "2026-07-24",
+      "net_pnl": 179.6656,
+      "trades": 725,
+      "trades_per_year": 242.3077,
+      "profit_factor": 1.4562,
+      "max_drawdown": 26.4689,
+      "pnl_over_dd": 6.7878
+    }
+  },
+  "receipts": {
+    "finalist": "backtests/out/xsp/xsp_24x5_finalists_20260727.json",
+    "finalist_sha256": "59bbe144b0fae663d28877e077ac234c4e0b2c7d0e57a48d52f3c0f02e2fd82f",
+    "combined_ledger_sha256": "5af0c8b2b977396817e649540f3582285fd9f52120d17f05ce4b6ed0461e5a24",
+    "rth_parity": "backtests/out/xsp/xsp_rth_balanced_runtime_parity_20260727.json",
+    "rth_ledger_sha256": "1c511d2f35259d6319efe1c829d609ce222eaa8cdf2081fe0b55f06bab788520",
+    "gth_parity": "backtests/out/xsp/xsp_gth_balanced_runtime_parity_20260727.json",
+    "gth_ledger_sha256": "9e04807fb77df431b7af27b8be6d5f5288c8512bfe80cb78b3c1fe70cabb8a98",
+    "tape_sha256": "6d239c88dadbbb259a8e1e691c7311a05436859db7f1fe330b21d84daa3c67df"
+  },
+  "groups": [
+    {
+      "_key": "xsp-opening-edge-v2-balanced-24x5",
+      "name": "Spot (SPY) — XSP Opening Edge v2 — Balanced 24/5",
+      "authority": "historical_research_crown_only",
+      "filters": {
+        "cooldown_bars": 0
+      },
+      "entries": [
+        {
+          "name": "RTH Core",
+          "symbol": "SPY",
+          "metrics": {
+            "pnl": 169.46,
+            "trades": 546,
+            "profit_factor": 1.4909,
+            "max_drawdown": 28.2,
+            "pnl_over_dd": 6.0092
+          },
+          "strategy": {
+            "name": "Opening Edge v2 RTH Core",
+            "instrument": "spot",
+            "symbol": "SPY",
+            "order_authority": "none",
+            "unit": "one_SPY_share_execution_proxy",
+            "spot_sec_type": "STK",
+            "spot_exchange": "SMART",
+            "signal_proxy_symbol": "XSP",
+            "signal_proxy_sec_type": "IND",
+            "signal_proxy_exchange": "CBOE",
+            "signal_proxy_provenance": "authenticated XSP index RTH",
+            "signal_bar_size": "5 mins",
+            "signal_use_rth": true,
+            "entry_signal": "directional_impulse",
+            "directional_impulse_admission": {
+              "mode": "opening_edge",
+              "start_minute_et": 575,
+              "core_end_minute_et": 680,
+              "late_up_end_minute_et": 690,
+              "atr_velocity_min": 0.0,
+              "atr_velocity_max": 0.055,
+              "down_retrace_min": 1.25,
+              "late_up_retrace_min": 1.25,
+              "late_up_retrace_max": 1.7,
+              "late_up_coherence_min": 0.75,
+              "bull_exhaustion_fast_velocity_tr_min": 0.58,
+              "bull_exhaustion_h3_slope_tr_min": 0.04,
+              "bull_maturation_h6_slope_tr_min": 0.13,
+              "bull_maturation_curve_1v3_max": 0.32
+            },
+            "directional_spot": {
+              "up": {
+                "action": "BUY",
+                "qty": 1
+              },
+              "down": {
+                "action": "SELL",
+                "qty": 1
+              }
+            },
+            "regime_mode": "off",
+            "regime2_mode": "off",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "max_entries_per_day": 5,
+            "spot_entry_fill_mode": "next_open",
+            "spot_flip_exit_fill_mode": "next_open",
+            "spot_next_open_session": "rth",
+            "spot_controlled_flip": true,
+            "exit_on_signal_flip": true,
+            "flip_exit_min_hold_bars": 12,
+            "flip_exit_only_if_profit": false,
+            "spot_close_eod": true,
+            "spot_exit_mode": "pct",
+            "spot_profit_target_pct": null,
+            "spot_stop_loss_pct": null,
+            "spot_excursion_exit": null,
+            "spot_intrabar_exits": true,
+            "spot_mark_to_market": "close",
+            "spot_drawdown_mode": "intrabar",
+            "spot_sizing_mode": "fixed",
+            "spot_min_qty": 1,
+            "spot_max_qty": 1,
+            "spot_spread": 0.0,
+            "spot_commission_per_share": 0.05,
+            "spot_commission_min": 0.0,
+            "spot_slippage_per_share": 0.0
+          }
+        },
+        {
+          "name": "GTH Down Sleeve",
+          "symbol": "SPY",
+          "metrics": {
+            "pnl": 10.2056,
+            "trades": 179,
+            "profit_factor": 1.2098,
+            "max_drawdown": 13.9744,
+            "pnl_over_dd": 0.7303
+          },
+          "strategy": {
+            "name": "Opening Edge v2 GTH Down Sleeve",
+            "instrument": "spot",
+            "symbol": "SPY",
+            "order_authority": "none",
+            "unit": "one_SPY_share_execution_proxy",
+            "spot_sec_type": "STK",
+            "spot_exchange": "SMART",
+            "signal_proxy_provenance": "SPY all-hours proxy and execution tape",
+            "signal_bar_size": "5 mins",
+            "signal_use_rth": false,
+            "entry_signal": "directional_impulse",
+            "directional_impulse_admission": {
+              "mode": "xsp",
+              "state_mode": "opening_edge_v2_gth",
+              "smooth_alpha": 0.9,
+              "turn_score": 0.03,
+              "retrace_atr": 1.0,
+              "min_state_bars": 9,
+              "cooldown_bars": 6,
+              "atr_velocity_min": 0.0,
+              "atr_velocity_max": 0.055,
+              "down_retrace_min": 1.25,
+              "xsp_start_minute_et": 0,
+              "xsp_end_minute_et": 1439
+            },
+            "directional_spot": {
+              "down": {
+                "action": "SELL",
+                "qty": 1
+              }
+            },
+            "regime_mode": "off",
+            "regime2_mode": "off",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "max_entries_per_day": 0,
+            "spot_entry_fill_mode": "next_open",
+            "spot_flip_exit_fill_mode": "next_open",
+            "spot_next_open_session": "always",
+            "spot_controlled_flip": true,
+            "exit_on_signal_flip": true,
+            "flip_exit_min_hold_bars": 3,
+            "flip_exit_only_if_profit": false,
+            "spot_close_eod": false,
+            "spot_exit_time_et": "09:25",
+            "spot_exit_mode": "pct",
+            "spot_profit_target_pct": null,
+            "spot_stop_loss_pct": null,
+            "spot_excursion_exit": null,
+            "spot_intrabar_exits": true,
+            "spot_mark_to_market": "close",
+            "spot_drawdown_mode": "intrabar",
+            "spot_sizing_mode": "fixed",
+            "spot_min_qty": 1,
+            "spot_max_qty": 1,
+            "spot_spread": 0.0,
+            "spot_commission_per_share": 0.05,
+            "spot_commission_min": 0.0,
+            "spot_slippage_per_share": 0.0
+          }
+        }
+      ]
+    }
+  ]
+}

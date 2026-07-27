@@ -1,0 +1,18 @@
+{
+  "schema": "tradebot.spot.champion.v1",
+  "symbol": "XSP",
+  "track": "LF",
+  "version": "2",
+  "artifact": "backtests/xsp/opening_edge_v2_balanced_24x5.json",
+  "artifact_sha256": "f879cc20c4434e33626c143ccd85db4d608370a6fb7c321b1ee0f1f2c08afff2",
+  "strategy_key": "xsp-opening-edge-v2-balanced-24x5",
+  "promoted_at": "2026-07-27T14:15:32Z",
+  "promotion": {
+    "authority": "user_explicit_historical_research_crown",
+    "eligible": true,
+    "order_authority": "none",
+    "profitability_clock": "not_started",
+    "candidate": "Opening Edge v2 — Balanced 24/5",
+    "reason": "All three annual slices, the recent tape, full-three-year economics, and the strict cadence floor are positive under the frozen one-unit contract."
+  }
+}

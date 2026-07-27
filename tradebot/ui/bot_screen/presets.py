@@ -23,9 +23,12 @@ class BotPresetsMixin:
         - `backtests/tqqq/readme-hf.md` (TQQQ HF spot champ)
         - `backtests/slv/readme-lf.md` (SLV spot champ)
         - `backtests/slv/readme-hf.md` (SLV HF spot champ)
+        - `backtests/xsp/current-lf.json` (XSP synthetic directional crown)
         """
 
-        groups, warnings = load_current_champion_groups(symbols=("TQQQ", "SLV"))
+        groups, warnings = load_current_champion_groups(
+            symbols=("TQQQ", "SLV", "XSP")
+        )
         self._spot_champ_version = next(
             (
                 str(group.get("_version"))
@@ -285,7 +288,17 @@ class BotPresetsMixin:
                 sl = 0.0
             return _fmt_pct(pt), _fmt_pct(sl)
 
-        def _short_preset_name(*, group_name: str, symbol: str, instrument: str, source: str) -> str:
+        def _short_preset_name(
+            *,
+            group_name: str,
+            entry: dict,
+            symbol: str,
+            instrument: str,
+            source: str,
+        ) -> str:
+            entry_name = str(entry.get("name") or entry.get("label") or "").strip()
+            if entry_name:
+                return entry_name
             base = _clean_group_label(group_name)
             if instrument == "spot" and symbol and f"Spot ({symbol})" in base:
                 base = base.split(f"Spot ({symbol})", 1)[1].strip()
@@ -337,7 +350,13 @@ class BotPresetsMixin:
                     signal_bar = str(payload.get("bar_size") or "").strip()
                 tf = signal_bar or "?"
 
-                name = _short_preset_name(group_name=group_name, symbol=symbol, instrument=instrument, source=source)
+                name = _short_preset_name(
+                    group_name=group_name,
+                    entry=entry,
+                    symbol=symbol,
+                    instrument=instrument,
+                    source=source,
+                )
                 row_id = f"preset:{source}:{group_name}:{entry_idx}"
                 preset = _BotPreset(group=group_name, entry=entry, key=row_id)
 

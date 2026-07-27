@@ -8,6 +8,8 @@ from tradebot.engines.directional_impulse import (
     DIRECTIONAL_IMPULSE_WARMUP_BARS,
     DirectionalImpulseAdmissionPolicy,
     DirectionalImpulseEngine,
+    DirectionalImpulseHorizon,
+    DirectionalImpulseSnapshot,
     DirectionalTurnPolicy,
 )
 from tradebot.research.evidence import (
@@ -15,6 +17,10 @@ from tradebot.research.evidence import (
     xsp_directional_turn_census,
 )
 from tradebot.spot.entry_control import SpotEntryControlPlan
+from tradebot.spot.directional_cascade import (
+    DirectionalCascadeEngine,
+    DirectionalCascadePolicy,
+)
 from tradebot.spot.lifecycle import SpotExcursionPolicy, SpotExcursionState
 from tradebot.spot_engine import SpotSignalEvaluator
 
@@ -22,6 +28,74 @@ from tradebot.spot_engine import SpotSignalEvaluator
 def _bar(index: int, close: float, *, spread: float = 0.2) -> Bar:
     ts = datetime(2026, 7, 20, 13, 30) + timedelta(minutes=5 * index)
     return Bar(ts, close, close + spread, close - spread, close, 1_000.0)
+
+
+def _horizon(
+    bars: int,
+    *,
+    slope: float,
+    velocity: float,
+) -> DirectionalImpulseHorizon:
+    return DirectionalImpulseHorizon(
+        bars=bars,
+        elapsed_minutes=bars * 5.0,
+        observations=bars + 1,
+        anchor_lag_minutes=0.0,
+        return_pct=slope * bars,
+        slope_pct_per_bar=slope,
+        slope_velocity_pct_per_bar=velocity,
+        slope_angle_deg=0.0,
+        efficiency=1.0,
+        tr_mean_pct=1.0,
+        turn=None,
+        turn_age_bars=None,
+    )
+
+
+def _impulse(
+    direction: str,
+    *,
+    coherence: float = 0.5,
+    h6_slope: float = 0.0,
+) -> DirectionalImpulseSnapshot:
+    sign = 1.0 if direction == "up" else -1.0
+    return DirectionalImpulseSnapshot(
+        ready=True,
+        direction=direction,
+        abstain_reason=None,
+        direction_score=sign,
+        coherence=coherence,
+        conviction=1.0,
+        atr_fast_pct=1.0,
+        atr_slow_pct=1.0,
+        atr_ratio=1.0,
+        atr_velocity_pct=0.0,
+        atr_acceleration_pct=0.0,
+        turn_sequence_direction=direction,
+        turn_sequence_order="fast_to_slow",
+        turn_sequence_span_bars=1,
+        observed_horizons=5,
+        required_turn_horizons=3,
+        turn_ready=True,
+        turn_abstain_reason=None,
+        smoothed_direction_score=sign,
+        trend_state=direction,
+        state_age_bars=9,
+        retrace_atr=1.0,
+        turn_event=direction,
+        horizons=tuple(
+            _horizon(
+                bars,
+                slope=(
+                    h6_slope
+                    if bars == 6
+                    else sign * (0.1 if bars in (1, 3, 12) else -0.1)
+                ),
+                velocity=sign * (0.1 if bars in (1, 3, 12) else -0.1),
+            )
+            for bars in (1, 3, 6, 12, 24)
+        ),
+    )
 
 
 def test_directional_impulse_is_causal_multihorizon_and_symmetric() -> None:
@@ -143,6 +217,254 @@ def test_opening_edge_policy_uses_causal_bar_close_clock() -> None:
     assert admission["start_minute_et"] == 9 * 60 + 35
     assert admission["core_end_minute_et"] == 11 * 60 + 20
     assert admission["late_up_end_minute_et"] == 11 * 60 + 30
+
+
+def test_opening_edge_bullish_vetoes_are_scale_free_and_admission_only() -> None:
+    policy = DirectionalImpulseAdmissionPolicy.from_mapping(
+        {
+            "mode": "opening_edge",
+            "atr_velocity_max": 1.0,
+            "bull_exhaustion_fast_velocity_tr_min": 0.58,
+            "bull_exhaustion_h3_slope_tr_min": 0.04,
+            "bull_maturation_h6_slope_tr_min": 0.13,
+            "bull_maturation_curve_1v3_max": 0.32,
+        }
+    )
+    assert policy is not None
+    common = {
+        "minute_et": 10 * 60,
+        "atr_velocity": 0.01,
+        "retrace_atr": 1.5,
+        "coherence": 0.75,
+    }
+    assert policy.allows(
+        direction="up",
+        horizons=(
+            _horizon(1, slope=0.50, velocity=0.60),
+            _horizon(3, slope=0.05, velocity=0.60),
+            _horizon(6, slope=0.10, velocity=0.60),
+        ),
+        **common,
+    ) == (False, "bull_exhaustion")
+    assert policy.allows(
+        direction="up",
+        horizons=(
+            _horizon(1, slope=0.30, velocity=0.20),
+            _horizon(3, slope=0.10, velocity=0.20),
+            _horizon(6, slope=0.14, velocity=0.20),
+        ),
+        **common,
+    ) == (False, "bull_maturation")
+    assert policy.allows(
+        direction="up",
+        horizons=(
+            _horizon(1, slope=0.60, velocity=0.20),
+            _horizon(3, slope=0.10, velocity=0.20),
+            _horizon(6, slope=0.14, velocity=0.20),
+        ),
+        **common,
+    ) == (True, "core")
+    assert policy.allows(direction="down", horizons=(), **common) == (
+        True,
+        "core",
+    )
+    assert policy.allows(direction="up", horizons=(), **common) == (
+        False,
+        "bull_sensor_unready",
+    )
+    assert policy.as_payload()["bull_maturation_curve_1v3_max"] == 0.32
+    with pytest.raises(ValueError, match="incomplete"):
+        DirectionalImpulseAdmissionPolicy.from_mapping(
+            {
+                "mode": "opening_edge",
+                "bull_exhaustion_fast_velocity_tr_min": 0.58,
+            }
+        )
+
+
+def test_xsp_session_turn_and_admission_are_one_control_plane() -> None:
+    plan = SpotEntryControlPlan.from_sources(
+        strategy={
+            "entry_signal": "directional_impulse",
+            "regime_mode": "off",
+            "regime2_mode": "off",
+            "directional_impulse_admission": {"mode": "xsp"},
+        },
+        filters=None,
+        bar_size="5 mins",
+    )
+
+    assert plan.directional_impulse_turn.session_mode == "xsp"
+    assert plan.directional_impulse_admission is not None
+    assert plan.directional_impulse_admission.mode == "xsp"
+    assert plan.directional_impulse_turn.contains(
+        datetime(2026, 7, 27, 12, 25)
+    )
+    assert not plan.directional_impulse_turn.contains(
+        datetime(2026, 7, 27, 21, 5)
+    )
+    assert plan.as_payload()["directional_impulse_turn"]["session_mode"] == "xsp"
+    assert plan.as_payload()["directional_impulse_admission"]["mode"] == "xsp"
+
+
+def test_xsp_session_window_is_shared_by_turn_and_admission() -> None:
+    raw = {
+        "mode": "xsp",
+        "xsp_start_minute_et": 2 * 60,
+        "xsp_end_minute_et": 3 * 60,
+    }
+    plan = SpotEntryControlPlan.from_sources(
+        strategy={
+            "entry_signal": "directional_impulse",
+            "regime_mode": "off",
+            "regime2_mode": "off",
+            "directional_impulse_admission": raw,
+        },
+        filters=None,
+        bar_size="5 mins",
+    )
+
+    assert plan.directional_impulse_turn.contains(
+        datetime(2026, 7, 27, 6, 30)
+    )
+    assert not plan.directional_impulse_turn.contains(
+        datetime(2026, 7, 27, 5, 30)
+    )
+    allowed, reason = plan.directional_impulse_admission.allows(
+        direction="up",
+        minute_et=150,
+        atr_velocity=0.01,
+        retrace_atr=1.0,
+        coherence=0.5,
+    )
+    assert allowed is True
+    assert reason == "xsp"
+    assert plan.directional_impulse_admission.allows(
+        direction="up",
+        minute_et=90,
+        atr_velocity=0.01,
+        retrace_atr=1.0,
+        coherence=0.5,
+    ) == (False, "time")
+
+
+def test_opening_edge_v2_gth_cascade_is_the_central_alternative_owner() -> None:
+    raw = {
+        "mode": "xsp",
+        "state_mode": "opening_edge_v2_gth",
+        "smooth_alpha": 0.90,
+        "turn_score": 0.03,
+        "retrace_atr": 1.0,
+        "min_state_bars": 9,
+        "cooldown_bars": 6,
+    }
+    plan = SpotEntryControlPlan.from_sources(
+        strategy={
+            "entry_signal": "directional_impulse",
+            "regime_mode": "off",
+            "directional_impulse_admission": raw,
+        },
+        filters=None,
+        bar_size="5 mins",
+    )
+
+    assert plan.directional_impulse_admission is None
+    assert plan.directional_impulse_cascade == DirectionalCascadePolicy()
+    assert plan.source_gates == ("directional_impulse_cascade",)
+    assert plan.as_payload()["directional_impulse_cascade"] == {
+        "mode": "opening_edge_v2_gth",
+        "session": "GTH",
+        "fast_velocity_min": 2,
+        "slow_velocity_exact": 1,
+        "atr_ratio_min": 1.0,
+        "up_opposed_horizon_bars": 6,
+        "initial_down_coherence_max": 0.75,
+        "down_reaffirm_fast_slope_max": 2,
+        "down_reaffirm_slow_slope_max": 1,
+        "initial_down_maturation_bars": 1,
+        "initial_down_maturation_fast_velocity_min": 2,
+    }
+
+
+def test_opening_edge_v2_gth_cascade_matures_down_and_blocks_late_up() -> None:
+    engine = DirectionalCascadeEngine(DirectionalCascadePolicy())
+    first = engine.update(
+        proposed_direction="down",
+        impulse=_impulse("down", coherence=1.0),
+        close=100.0,
+        ts=datetime(2026, 7, 27, 4, 0),
+        bar_duration=timedelta(minutes=5),
+        naive_ts_mode="utc",
+    )
+    assert first.direction is None
+    assert first.reason == "initial_down_armed"
+
+    matured = engine.update(
+        proposed_direction=None,
+        impulse=_impulse("down", coherence=1.0),
+        close=99.5,
+        ts=datetime(2026, 7, 27, 4, 5),
+        bar_duration=timedelta(minutes=5),
+        naive_ts_mode="utc",
+    )
+    assert matured.direction == "down"
+    assert matured.reason == "initial_down_matured"
+
+    late_up = engine.update(
+        proposed_direction="up",
+        impulse=_impulse("up", h6_slope=0.2),
+        close=100.0,
+        ts=datetime(2026, 7, 27, 4, 10),
+        bar_duration=timedelta(minutes=5),
+        naive_ts_mode="utc",
+    )
+    assert late_up.direction is None
+    assert late_up.reason == "same_session_reversal"
+    assert late_up.controls == (
+        "directional_impulse_cascade:block:same_session_reversal_up",
+    )
+
+
+def test_opening_edge_plus_xsp_unifies_disjoint_session_sleeves() -> None:
+    raw = {
+        "mode": "opening_edge_plus_xsp",
+        "xsp_start_minute_et": 2 * 60,
+        "xsp_end_minute_et": 2 * 60 + 55,
+    }
+    plan = SpotEntryControlPlan.from_sources(
+        strategy={
+            "entry_signal": "directional_impulse",
+            "regime_mode": "off",
+            "regime2_mode": "off",
+            "directional_impulse_admission": raw,
+        },
+        filters=None,
+        bar_size="5 mins",
+    )
+
+    assert plan.directional_impulse_turn.contains(
+        datetime(2026, 7, 27, 6, 30)
+    )
+    assert plan.directional_impulse_turn.contains(
+        datetime(2026, 7, 27, 14, 0)
+    )
+    assert not plan.directional_impulse_turn.contains(
+        datetime(2026, 7, 27, 10, 0)
+    )
+    assert plan.directional_impulse_admission.allows(
+        direction="up",
+        minute_et=150,
+        atr_velocity=0.01,
+        retrace_atr=1.0,
+        coherence=0.5,
+    ) == (True, "xsp")
+    assert plan.directional_impulse_admission.allows(
+        direction="up",
+        minute_et=10 * 60,
+        atr_velocity=0.01,
+        retrace_atr=1.0,
+        coherence=0.5,
+    ) == (True, "core")
 
 
 def test_entry_control_plan_centralizes_source_permissions_and_order() -> None:

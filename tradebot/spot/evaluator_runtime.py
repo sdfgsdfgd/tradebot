@@ -32,7 +32,11 @@ class SpotSignalRuntimeMixin:
                 high=float(bar.high),
                 low=float(bar.low),
                 close=float(close),
-                session_key=self._sig_last_date if self._use_rth else None,
+                session_key=(
+                    self._sig_last_date
+                    if self._use_rth or self._xsp_session_clock
+                    else None
+                ),
                 ts=to_et(bar.ts, naive_ts_mode=self._naive_ts_mode),
             )
             if self._directional_impulse_engine is not None

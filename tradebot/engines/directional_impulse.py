@@ -8,6 +8,7 @@ from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, time, timedelta
 
+from .market import xsp_bar_session_label_et
 from ..time_utils import to_et as _to_et
 
 
@@ -57,6 +58,7 @@ DIRECTIONAL_IMPULSE_WARMUP_BARS = max(DIRECTIONAL_IMPULSE_HORIZONS) + 1
 class DirectionalTurnPolicy:
     """Frozen causal interpretation of XSP's early-session impulse evidence."""
 
+    session_mode: str = "window"
     smooth_alpha: float = 0.90
     initial_score: float = 0.075
     turn_score: float = 0.02
@@ -67,9 +69,115 @@ class DirectionalTurnPolicy:
     bar_duration: timedelta = timedelta(minutes=5)
     start_et: time = time(9, 35)
     end_et: time = time(11, 50)
+    xsp_start_minute_et: int = 0
+    xsp_end_minute_et: int = 1439
+
+    def __post_init__(self) -> None:
+        if self.session_mode not in ("window", "xsp", "opening_edge_plus_xsp"):
+            raise ValueError("invalid directional impulse session mode")
+        if self.bar_duration.total_seconds() <= 0.0:
+            raise ValueError("directional impulse bar duration must be positive")
+        if self.session_mode == "window" and self.start_et > self.end_et:
+            raise ValueError("directional impulse window cannot cross midnight")
+        if not 0.0 <= self.smooth_alpha <= 1.0:
+            raise ValueError("invalid directional impulse smoothing")
+        if self.min_state_bars < 0 or self.cooldown_bars < 0:
+            raise ValueError("invalid directional impulse bar count")
+        if self.min_observed_horizons < 1:
+            raise ValueError("invalid directional impulse horizon count")
+        if not (
+            0 <= self.xsp_start_minute_et < 1440
+            and 0 <= self.xsp_end_minute_et < 1440
+        ):
+            raise ValueError("invalid directional impulse XSP window")
+
+    @classmethod
+    def from_mapping(
+        cls,
+        raw: Mapping[str, object] | None,
+    ) -> "DirectionalTurnPolicy":
+        if raw is None:
+            return cls()
+        if not isinstance(raw, Mapping):
+            raise ValueError("directional_impulse_turn must be an object")
+
+        def value(name: str, default: object, cast):
+            try:
+                return cast(raw.get(name, default))
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"invalid directional impulse turn value: {name}"
+                ) from exc
+
+        def clock(name: str, default: time) -> time:
+            raw_value = raw.get(name, default)
+            if isinstance(raw_value, time):
+                return raw_value
+            try:
+                return time.fromisoformat(str(raw_value))
+            except ValueError as exc:
+                raise ValueError(
+                    f"invalid directional impulse turn value: {name}"
+                ) from exc
+
+        mode_raw = raw.get("session_mode")
+        if mode_raw is None:
+            admission_mode = str(raw.get("mode", "") or "").strip().lower()
+            mode_raw = {
+                "xsp": "xsp",
+                "all_xsp": "xsp",
+                "xsp_24x5": "xsp",
+                "xsp_session": "xsp",
+                "opening_edge_plus_xsp": "opening_edge_plus_xsp",
+                "hybrid": "opening_edge_plus_xsp",
+            }.get(admission_mode, "window")
+        mode = str(mode_raw or "window").strip().lower()
+        if mode in ("all_xsp", "xsp_24x5", "xsp_session"):
+            mode = "xsp"
+        if mode == "hybrid":
+            mode = "opening_edge_plus_xsp"
+        return cls(
+            session_mode=mode,
+            smooth_alpha=value("smooth_alpha", 0.90, float),
+            initial_score=value("initial_score", 0.075, float),
+            turn_score=value("turn_score", 0.02, float),
+            retrace_atr=value("retrace_atr", 0.75, float),
+            min_state_bars=value("min_state_bars", 3, int),
+            cooldown_bars=value("cooldown_bars", 3, int),
+            min_observed_horizons=value("min_observed_horizons", 3, int),
+            bar_duration=timedelta(
+                seconds=value("bar_duration_seconds", 300.0, float)
+            ),
+            start_et=clock("start_et", time(9, 35)),
+            end_et=clock("end_et", time(11, 50)),
+            xsp_start_minute_et=value("xsp_start_minute_et", 0, int),
+            xsp_end_minute_et=value("xsp_end_minute_et", 1439, int),
+        )
+
+    def contains(self, ts: datetime) -> bool:
+        current_et = _to_et(ts, naive_ts_mode="utc")
+        if self.session_mode != "window":
+            minute = current_et.hour * 60 + current_et.minute
+            in_window = (
+                self.xsp_start_minute_et <= minute <= self.xsp_end_minute_et
+                if self.xsp_start_minute_et <= self.xsp_end_minute_et
+                else minute >= self.xsp_start_minute_et
+                or minute <= self.xsp_end_minute_et
+            )
+            in_xsp = in_window and xsp_bar_session_label_et(
+                ts,
+                bar_duration=self.bar_duration,
+                naive_ts_mode="utc",
+            ) is not None
+            return in_xsp or (
+                self.session_mode == "opening_edge_plus_xsp"
+                and self.start_et <= current_et.time() <= self.end_et
+            )
+        return self.start_et <= current_et.time() <= self.end_et
 
     def as_payload(self) -> dict[str, object]:
-        return {
+        payload = {
+            "session_mode": self.session_mode,
             "smooth_alpha": float(self.smooth_alpha),
             "initial_score": float(self.initial_score),
             "turn_score": float(self.turn_score),
@@ -81,12 +189,21 @@ class DirectionalTurnPolicy:
             "start_et": self.start_et.isoformat(timespec="minutes"),
             "end_et": self.end_et.isoformat(timespec="minutes"),
         }
+        if self.session_mode != "window":
+            payload.update(
+                {
+                    "xsp_start_minute_et": int(self.xsp_start_minute_et),
+                    "xsp_end_minute_et": int(self.xsp_end_minute_et),
+                }
+            )
+        return payload
 
 
 @dataclass(frozen=True)
 class DirectionalImpulseAdmissionPolicy:
     """Optional causal admission layer; the raw turn still owns source state."""
 
+    mode: str = "opening_edge"
     start_minute_et: int = 575
     core_end_minute_et: int = 680
     late_up_end_minute_et: int = 690
@@ -96,8 +213,16 @@ class DirectionalImpulseAdmissionPolicy:
     late_up_retrace_min: float = 1.25
     late_up_retrace_max: float = 1.70
     late_up_coherence_min: float = 0.75
+    bull_exhaustion_fast_velocity_tr_min: float | None = None
+    bull_exhaustion_h3_slope_tr_min: float | None = None
+    bull_maturation_h6_slope_tr_min: float | None = None
+    bull_maturation_curve_1v3_max: float | None = None
+    xsp_start_minute_et: int = 0
+    xsp_end_minute_et: int = 1439
 
     def __post_init__(self) -> None:
+        if self.mode not in ("opening_edge", "xsp", "opening_edge_plus_xsp"):
+            raise ValueError("invalid directional impulse admission mode")
         if not (
             0 <= self.start_minute_et
             <= self.core_end_minute_et
@@ -111,6 +236,29 @@ class DirectionalImpulseAdmissionPolicy:
             raise ValueError("invalid directional impulse late-up retrace band")
         if not 0.0 <= self.late_up_coherence_min <= 1.0:
             raise ValueError("invalid directional impulse coherence floor")
+        pairs = (
+            (
+                self.bull_exhaustion_fast_velocity_tr_min,
+                self.bull_exhaustion_h3_slope_tr_min,
+            ),
+            (
+                self.bull_maturation_h6_slope_tr_min,
+                self.bull_maturation_curve_1v3_max,
+            ),
+        )
+        if any((left is None) != (right is None) for left, right in pairs):
+            raise ValueError("incomplete directional impulse bullish veto")
+        if any(
+            value is not None and not math.isfinite(float(value))
+            for pair in pairs
+            for value in pair
+        ):
+            raise ValueError("invalid directional impulse bullish veto")
+        if not (
+            0 <= self.xsp_start_minute_et < 1440
+            and 0 <= self.xsp_end_minute_et < 1440
+        ):
+            raise ValueError("invalid directional impulse XSP window")
 
     @classmethod
     def from_mapping(
@@ -124,7 +272,11 @@ class DirectionalImpulseAdmissionPolicy:
         mode = str(raw.get("mode", "off") or "off").strip().lower()
         if mode in ("off", "none", "disabled"):
             return None
-        if mode != "opening_edge":
+        if mode in ("all_xsp", "xsp_24x5", "xsp_session"):
+            mode = "xsp"
+        if mode == "hybrid":
+            mode = "opening_edge_plus_xsp"
+        if mode not in ("opening_edge", "xsp", "opening_edge_plus_xsp"):
             raise ValueError(f"unsupported directional impulse admission mode: {mode}")
 
         def value(name: str, default: int | float, cast):
@@ -135,7 +287,12 @@ class DirectionalImpulseAdmissionPolicy:
                     f"invalid directional impulse admission value: {name}"
                 ) from exc
 
+        def optional(name: str) -> float | None:
+            raw_value = raw.get(name)
+            return None if raw_value is None else value(name, 0.0, float)
+
         return cls(
+            mode=mode,
             start_minute_et=value("start_minute_et", 575, int),
             core_end_minute_et=value("core_end_minute_et", 680, int),
             late_up_end_minute_et=value("late_up_end_minute_et", 690, int),
@@ -145,6 +302,20 @@ class DirectionalImpulseAdmissionPolicy:
             late_up_retrace_min=value("late_up_retrace_min", 1.25, float),
             late_up_retrace_max=value("late_up_retrace_max", 1.70, float),
             late_up_coherence_min=value("late_up_coherence_min", 0.75, float),
+            bull_exhaustion_fast_velocity_tr_min=optional(
+                "bull_exhaustion_fast_velocity_tr_min"
+            ),
+            bull_exhaustion_h3_slope_tr_min=optional(
+                "bull_exhaustion_h3_slope_tr_min"
+            ),
+            bull_maturation_h6_slope_tr_min=optional(
+                "bull_maturation_h6_slope_tr_min"
+            ),
+            bull_maturation_curve_1v3_max=optional(
+                "bull_maturation_curve_1v3_max"
+            ),
+            xsp_start_minute_et=value("xsp_start_minute_et", 0, int),
+            xsp_end_minute_et=value("xsp_end_minute_et", 1439, int),
         )
 
     def allows(
@@ -155,6 +326,7 @@ class DirectionalImpulseAdmissionPolicy:
         atr_velocity: float | None,
         retrace_atr: float | None,
         coherence: float | None,
+        horizons: tuple[DirectionalImpulseHorizon, ...] = (),
     ) -> tuple[bool, str]:
         if direction not in ("up", "down"):
             return False, "no_turn"
@@ -162,23 +334,81 @@ class DirectionalImpulseAdmissionPolicy:
         if not self.atr_velocity_min < velocity < self.atr_velocity_max:
             return False, "atr_velocity"
         retrace = float(retrace_atr or 0.0)
-        if self.start_minute_et <= int(minute_et) <= self.core_end_minute_et:
+        in_xsp = (
+            self.xsp_start_minute_et
+            <= int(minute_et)
+            <= self.xsp_end_minute_et
+            if self.xsp_start_minute_et <= self.xsp_end_minute_et
+            else int(minute_et) >= self.xsp_start_minute_et
+            or int(minute_et) <= self.xsp_end_minute_et
+        )
+        if self.mode == "xsp" and not in_xsp:
+            return False, "time"
+        if self.mode != "opening_edge" and in_xsp:
             return (
-                (True, "core")
+                (True, "xsp")
                 if direction == "up" or retrace >= self.down_retrace_min
                 else (False, "down_retrace")
             )
-        if direction == "up" and int(minute_et) <= self.late_up_end_minute_et:
+        if self.start_minute_et <= int(minute_et) <= self.core_end_minute_et:
+            allowed = direction == "up" or retrace >= self.down_retrace_min
+            reason = "core" if allowed else "down_retrace"
+        elif direction == "up" and int(minute_et) <= self.late_up_end_minute_et:
             allowed = bool(
                 self.late_up_retrace_min <= retrace < self.late_up_retrace_max
                 and float(coherence or 0.0) >= self.late_up_coherence_min
             )
-            return allowed, "late_up" if allowed else "late_up_quality"
-        return False, "time"
+            reason = "late_up" if allowed else "late_up_quality"
+        else:
+            allowed, reason = False, "time"
+        if not allowed:
+            return allowed, reason
+        if direction == "up" and any(
+            value is not None
+            for value in (
+                self.bull_exhaustion_fast_velocity_tr_min,
+                self.bull_maturation_h6_slope_tr_min,
+            )
+        ):
+            rows = {int(row.bars): row for row in horizons}
+            if any(
+                bars not in rows or float(rows[bars].tr_mean_pct) <= 0.0
+                for bars in (1, 3, 6)
+            ):
+                return False, "bull_sensor_unready"
+            slopes = {
+                bars: float(rows[bars].slope_pct_per_bar)
+                / float(rows[bars].tr_mean_pct)
+                for bars in (1, 3, 6)
+            }
+            velocities = {
+                bars: (
+                    float(rows[bars].slope_velocity_pct_per_bar)
+                    / float(rows[bars].tr_mean_pct)
+                    if rows[bars].slope_velocity_pct_per_bar is not None
+                    else 0.0
+                )
+                for bars in (1, 3, 6)
+            }
+            if (
+                self.bull_exhaustion_fast_velocity_tr_min is not None
+                and sum(velocities.values()) / 3.0
+                >= self.bull_exhaustion_fast_velocity_tr_min
+                and slopes[3] >= self.bull_exhaustion_h3_slope_tr_min
+            ):
+                return False, "bull_exhaustion"
+            if (
+                self.bull_maturation_h6_slope_tr_min is not None
+                and slopes[6] >= self.bull_maturation_h6_slope_tr_min
+                and slopes[1] - slopes[3]
+                <= self.bull_maturation_curve_1v3_max
+            ):
+                return False, "bull_maturation"
+        return allowed, reason
 
     def as_payload(self) -> dict[str, object]:
-        return {
-            "mode": "opening_edge",
+        payload = {
+            "mode": self.mode,
             "start_minute_et": int(self.start_minute_et),
             "core_end_minute_et": int(self.core_end_minute_et),
             "late_up_end_minute_et": int(self.late_up_end_minute_et),
@@ -189,6 +419,23 @@ class DirectionalImpulseAdmissionPolicy:
             "late_up_retrace_max": float(self.late_up_retrace_max),
             "late_up_coherence_min": float(self.late_up_coherence_min),
         }
+        if self.mode != "opening_edge":
+            payload.update(
+                {
+                    "xsp_start_minute_et": int(self.xsp_start_minute_et),
+                    "xsp_end_minute_et": int(self.xsp_end_minute_et),
+                }
+            )
+        for name in (
+            "bull_exhaustion_fast_velocity_tr_min",
+            "bull_exhaustion_h3_slope_tr_min",
+            "bull_maturation_h6_slope_tr_min",
+            "bull_maturation_curve_1v3_max",
+        ):
+            value = getattr(self, name)
+            if value is not None:
+                payload[name] = float(value)
+        return payload
 
 
 @dataclass(frozen=True)
@@ -615,8 +862,7 @@ class DirectionalImpulseEngine:
             elif self._bar_duration != policy.bar_duration:
                 turn_abstain_reason = "unsupported_bar_size"
             else:
-                current_et = _to_et(ts, naive_ts_mode="utc")
-                in_window = policy.start_et <= current_et.time() <= policy.end_et
+                in_window = policy.contains(ts)
                 if not in_window:
                     turn_abstain_reason = "outside_window"
                 else:

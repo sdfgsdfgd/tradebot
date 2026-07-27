@@ -967,6 +967,34 @@ def test_entry_weekday_maps_sunday_overnight_to_monday_for_spot_non_rth() -> Non
     assert harness._can_order_now(instance, now_et=sunday_overnight) is True
 
 
+def test_entry_weekday_uses_xsp_trading_date_at_exact_gth_open() -> None:
+    harness = _EntryDayHarness()
+    instance = _new_instance(
+        strategy={
+            "instrument": "spot",
+            "symbol": "XSP",
+            "signal_use_rth": False,
+            "entry_days": ["Mon", "Tue", "Wed", "Thu", "Fri"],
+        }
+    )
+    instance.symbol = "XSP"
+
+    assert (
+        harness._entry_weekday_for_ts(
+            instance,
+            datetime(2026, 7, 26, 20, 14),
+        )
+        == 6
+    )
+    assert (
+        harness._entry_weekday_for_ts(
+            instance,
+            datetime(2026, 7, 26, 20, 15),
+        )
+        == 0
+    )
+
+
 def test_entry_weekday_keeps_sunday_for_rth_mode() -> None:
     harness = _EntryDayHarness()
     instance = _new_instance(

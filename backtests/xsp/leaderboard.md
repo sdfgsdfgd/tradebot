@@ -20,11 +20,218 @@ An impressive backtest can earn the first. It cannot grant the second.
 
 | Rank | Track | Crown | Identity | State |
 |---:|---|---|---|---|
-| 1 | RTH directional, one `$1/XSP-point` unit | **Opening Edge v1** | `xsp.opening-edge-directional.v1` | Frozen research champion; prospective counterfactual only |
-| — | Selected synthetic shadow | **Opening Edge v1** | `9fac460e…` | Armed before outcomes; first exact checkpoint starts evidence clock |
+| 1 | Balanced 24/5, one `$1/XSP-point` research unit | **Opening Edge v2 — Balanced 24/5** | `xsp.opening-edge-v2-balanced-24x5.v1` | Frozen historical crown; SPY selector is shadow-only |
+| 2 | RTH directional, one `$1/XSP-point` unit | **Opening Edge v1** | `xsp.opening-edge-directional.v1` | Immutable predecessor |
+| — | Previously selected synthetic shadow | **Opening Edge v1** | `9fac460e…` | Unchanged; v2 has not inherited its prospective evidence |
 | — | Operational/live | **Vacant** | `NO_TRADE` | Profitability clock not started; order authority `none` |
 
-### #1 — Opening Edge v1
+### #1 — Opening Edge v2 — Balanced 24/5
+
+**Crown thesis:** retain Opening Edge’s causal XSP RTH turn owner, remove two
+portable classes of already-mature bullish admission, and add a non-overlapping
+SPY-derived GTH down sleeve whose fast-to-slow velocity cascade can own direction
+without EMA, stops, trails, or a daily quota.
+
+| Contract | Frozen value |
+|---|---|
+| Historical unit | One synthetic `$1 per XSP point`; `$0.10` round-trip friction |
+| Live execution mapping | One whole SPY share; RTH signal remains XSP IND, GTH signal/execution is SPY STK |
+| RTH source | XSP-native `directional_impulse`, five-minute authenticated index bars |
+| RTH horizons | `5/15/30/60/120m` signed slope/velocity/acceleration, ATR-normalized geometry, efficiency, retrace, coherence |
+| RTH lifecycle | Opening Edge v1 next-open entry, source-consistent flip after 12 bars, EOD flat |
+| GTH source | SPY five-minute all-hours path projected onto the prior XSP close for historical comparison |
+| GTH cascade | At least two fast slope-velocity votes; exactly one `60/120m` slow velocity vote; fast/slow ATR `>=1` |
+| GTH ownership | Down entries only; qualified up evidence remains exit authority; flat by `09:25 ET` |
+| Disabled | EMA authority, regime routing, initial stop, trail, target, fizzle, GTH trade quota |
+| Crown artifact | `backtests/xsp/opening_edge_v2_balanced_24x5.json` |
+| Historical finalist | `backtests/out/xsp/xsp_24x5_finalists_20260727.json` |
+| Finalist / config fingerprint | `59bbe144…` / `d032c247…` |
+| Combined ledger / tape | `5af0c8b2…` / `6d239c88…` |
+| Authority | Historical research crown only; `order_authority=none`; profitability clock not started |
+
+The frozen results are positive in every available July-to-July annual slice,
+the recent acceptance tape, both directions, and both non-overlapping lanes:
+
+| Window | Trades | Annualized | Net points | PF | Drawdown |
+|---|---:|---:|---:|---:|---:|
+| 2026-06-29..07-24 | 16 | 212.21 | **+11.6675** | 2.3674 | 8.6825 |
+| 2023-07-24..2024-07-23 | 244 | 244.00 | **+15.6348** | 1.1364 | 19.0612 |
+| 2024-07-24..2025-07-23 | 230 | 230.00 | **+29.3083** | 1.1980 | 26.4689 |
+| 2025-07-24..2026-07-24 | 251 | 251.00 | **+134.7224** | 2.0272 | 23.8600 |
+| 2023-07-24..2026-07-24 | **725** | **242.31** | **+179.6656** | **1.4562** | **26.4689** |
+
+- Direction attribution: `down +108.4056`, `up +71.2600`.
+- Lane attribution: `RTH +169.4600/546`, `GTH +10.2056/179`.
+- Full-three-year P&L/drawdown: `6.7878`.
+- On the identical three-year tape, Opening Edge v1 produced
+  `+121.17/622`; v2 improves net, cadence, PF, drawdown, all three annual
+  slices, and the recent window. This is why v2 is a crown rather than a
+  parity-fix rename.
+
+#### The decisive RTH signatures
+
+The final improvement did not come from another generic trend filter. Exact
+entry anatomy isolated two scale-free **bullish exhaustion/maturation**
+signatures. They veto only flat `up` admission; the unchanged raw source still
+owns exits from an opposing position.
+
+1. **Already-expanded impulse:** block an up entry when the mean of the
+   `5/15/30m` slope-velocity values, each divided by its own horizon TR, is
+   `>=0.58`, while the `15m` slope/TR is already `>=0.04`.
+2. **Developed, maturing upslope:** block an up entry when `30m` slope/TR is
+   `>=0.13` and the `5m - 15m` slope/TR curve is `<=0.32`.
+
+The first signature matched 57 former longs. Every annual cohort lost
+(`-13.63/-11.11/-11.86`), for `-36.60` total and PF `0.384`.
+Its 24 non-extrema entries lost `-31.22`, PF `0.11`, with 120-minute
+MAE `2.18` versus MFE `0.67`. Replaying the lifecycle rather than deleting
+trades statically improved net by `40.43` and drawdown by `16.95`.
+
+The second signature was not a magic decimal: the complete
+`30m slope/TR .11..15 × 5m-15m curve .28..36` neighborhood kept all annual
+slices positive and recent RTH economics at `+12.63`. The robust center
+`.13/.32` was frozen.
+
+#### The GTH cascade and why it is not an EMA sleeve
+
+The all-hours lane is an alternative directional owner:
+
+- at least two of the `5/15/30m` slope-velocity horizons point into the
+  proposal;
+- exactly one of the `60/120m` horizons has joined the turn;
+- fast ATR is not below slow ATR;
+- an up proposal additionally requires the `30m` slope still to be opposed,
+  identifying a reversal cascade rather than an already-developed chase;
+- a down reaffirmation must re-prove the ordered cascade;
+- a first down with coherence `<=0.75` may establish immediately; otherwise it
+  gets one causal bar to prove a lower price and at least two fast velocity
+  votes;
+- only down proposals enter, but valid up proposals close the down state.
+
+The lane contributes `+10.2056/179`, PF `1.2098`, DD `13.9744`.
+Its exact shared-runtime ledger matches the frozen research ledger trade for
+trade: SHA-256 `9e04807f…`. The RTH lane likewise matches exactly at
+`+169.46/546`, with ledger SHA-256 `1c511d2f…`. This proved that GTH is not a
+gate downstream of Opening Edge’s RTH ATR policy; it is a peer admission owner,
+so no hidden RTH rule can silently veto it.
+
+#### How the 24/5 signal was sharpened
+
+The pure continuous sensor exposed the useful vocabulary before it exposed a
+stationary strategy:
+
+- Literal continuous 24/5 produced `3,144` three-year trades. On the recent
+  tape it made `187` trades, lost `-5.45` after friction, but captured about
+  `+13.25` gross movement. The information existed; re-flip churn consumed it.
+- Requiring fast slope-velocity votes `>=2`, exactly one slow vote, and ATR
+  ratio `>=1.05` produced `+11.01/40`, PF `2.26`, DD `3.09`.
+- Relaxing ATR ratio to the stable `>=1.00` center and adding three-bar flip
+  hysteresis produced `+12.06/44`, PF `2.20`, DD `3.90`, with a slightly
+  positive daily LCB95. Positive ATR-velocity, ATR-acceleration, and coherence
+  floors were unnecessary.
+- `65.2%` of those entries landed from one bar before through three bars after
+  a material `±30m` top/bottom. The 28 extrema-adjacent trades earned
+  `+13.88`, with MFE `1.25` versus MAE `0.33`; the 15 other trades lost
+  `-4.34`, won only `13.3%`, and had MAE greater than MFE.
+- Three-bar price follow-through raised purity but fell to `+7.87/31`.
+  An acceleration cap reached `+12.17/29`, PF `3.32`, but had no older-window
+  proof.
+- Persistent turn-state hysteresis reached a spectacular recent
+  `+11.16/17`, PF `6.51`, DD `3.76`; the same fixed rule lost
+  `-38.36/258` in the first older year. Recent extrema precision alone was
+  therefore not crown evidence.
+
+Older anatomy explained the nonstationarity:
+
+- `GTH→RTH +21.18/29` and `RTH→Curb +24.47/77` were strong;
+- `GTH→GTH -104.03/965` and `RTH→RTH -78.12/564` were poisonous;
+- first daily establishment was a larger failure surface than same-session
+  re-flips;
+- cross-session state continuity mattered more than a fixed cooldown;
+- ordered reversal tension—`15m` slope velocity newly aligned while `30m`
+  slope remained opposed—had stable extrema-label AUC
+  `0.712/0.725/0.731`, but a binary gate was too sparse to satisfy cadence.
+- After the Sunday-evening trading-date repair, all `838/838` older entries
+  reconciled to their causal proposals: 358 extrema-adjacent trades earned
+  `+64.51`, while the other 480 lost `-134.64`. This is the durable mastery
+  target—not merely suppressing a few inverse flips.
+
+Five frozen pure-transition variants all lost over three years
+(`-163.78..-51.83` across `791..1,757` trades). Ordered proof for up
+proposals cut one continuous path from `-73.05` to `-18.53` at `205/year`;
+direct `30m` opposition reached `-16.37` at `200/year`. Re-proving the cascade
+for GTH down re-entry then produced `+9.31/520` at `174/year`; restricting
+immediate initial downs by coherence reached `+23.47/396`, and one-bar
+maturation reached `+25.47/436`, but both missed cadence. The final
+non-overlapping down sleeve preserves the useful mechanism without pretending
+the pure continuous lane had earned coronation.
+
+#### ATR/velocity lessons retained for future challengers
+
+- Fast/slow ATR level is insufficient: fast ATR can remain above slow ATR
+  while the slower volatility background is collapsing.
+- Year-1 reversals were especially toxic when slow ATR changed by roughly less
+  than `-3%` or more than `+20%` over 15 minutes.
+- Very large reversal score, retrace, or ATR expansion was often exhaustion,
+  not stronger truth; one observed event reached `6.18×` fast/slow ATR.
+- Adaptive confirmation reduced the fixed state rule’s Year-1 loss from
+  `-38.36` to `-28.66` at 208 trades, and to `-22.68` at only 152 trades.
+  No relative-ATR cell achieved both positive economics and cadence, so this
+  mechanism remains telemetry rather than another shipped gate.
+- A 66-field regularized linear admission scorer, sparse EMA GTH sleeves,
+  daily-incumbent rules, and structural-long bearish overrides also failed
+  their development law. The sparse EMA search completed all `108` cells with
+  zero Year-1/Year-2 survivors; the clock-free linear scorer lost in all `48`
+  identities. They are closed families, not reasons to restart a broad
+  indicator sweep.
+- A shared calendar defect had treated Sunday-evening XSP GTH bars as civil
+  Sunday at the entry-day gate while session accounting called them Monday.
+  Correcting the trading date restored `502/502` expected admissions, but the
+  exact rerun still rejected all 37 structural-long identities. This was an
+  engine truth repair, not alpha.
+
+The next materially new challenger should compare opposing evidence against an
+incumbent directional state, normalized by strictly prior volatility and
+time-of-session noise. It should preserve session-boundary state and use
+prospective news pressure/pressure-delta only as independently timestamped
+context—not backfill history or become a hidden regime router.
+
+#### Data, execution, and authority boundary
+
+The historical all-hours tape contains `184,957` five-minute bars over `754`
+sessions. XSP supplies authenticated RTH observations; GTH/Curb uses SPY
+returns anchored to the prior XSP close. Reliable all-hours history begins in
+July 2023, so three years is the maximum defensible challenge for this branch.
+
+The Bot UI exposes two named SPY leaves:
+
+- **RTH Core:** XSP IND signal, one SPY STK execution proxy;
+- **GTH Down Sleeve:** SPY STK signal and one SPY STK execution proxy.
+
+Both are visibly shadow-only and return an empty allowed-direction set because
+`order_authority=none`. The historical `$0.10` friction is not a claim about
+actual IBKR SPY commission or overnight spread. Exact SPY fills/costs must be
+replayed before v2 can inherit a prospective selection, start a profitability
+clock, or approach an order path.
+
+#### Aggressive variant — recorded, not crowned
+
+The higher-return union is a valuable challenger:
+
+| Window | Net | Trades | PF | Drawdown |
+|---|---:|---:|---:|---:|
+| Recent | `+9.7675` | 14 | 2.8351 | 5.4200 |
+| Year 1 | `+22.1648` | — | — | — |
+| Year 2 | `+26.2683` | — | — | — |
+| Year 3 | `+142.4924` | — | — | — |
+| Full three years | **`+190.9256`** | **705** | **1.5144** | **31.8189** |
+
+It is not the crown: balanced v2 has lower drawdown, stronger Year 2, stronger
+recent P&L, higher recent and full cadence, and one fewer admission clause.
+The aggressive union remains the correct reference for a future independently
+frozen risk/return contest.
+
+### #2 — Opening Edge v1
 
 **Crown thesis:** detect a causal multitimeframe XSP turn, admit only the
 opening-window subset whose ATR velocity and retrace geometry distinguish
@@ -64,7 +271,7 @@ prices, sides, exits, P&L, and crown metrics. The old clock labels above are
 therefore preserved only through the original artifact; they do not define a
 second strategy.
 
-### Crown economics
+### Opening Edge v1 economics
 
 All results use the same normal engine, one unit, next-open fills, EOD
 flattening, and frozen `$0.10` round-trip cost.
@@ -83,7 +290,7 @@ lose.
 
 ---
 
-## Where the edge came from
+## Opening Edge v1 edge lineage
 
 ### 1. The sensor found turns; the original lifecycle hid them
 
@@ -185,11 +392,19 @@ manufacture this crown.
 
 ---
 
-## Crown authority and Monday handoff
+## Prospective authority and handoff
+
+Opening Edge v2 supersedes v1 as the historical leader, but historical
+coronation cannot silently transfer v1's already-frozen prospective identity.
+The Bot UI selector is therefore visible and inspectable while remaining
+non-submitting. Before a v2 selection can be frozen, the exact one-share SPY
+ledger must include measured commission, spread/slippage, RTH XSP-to-SPY
+tracking, GTH availability, and restart-safe signal/execution provenance.
 
 The same typed `DirectionalImpulseAdmissionPolicy` now owns campaign,
 backtest, live diagnostics, and prospective replay configuration. A causal
-prefix run through the normal engine reproduces the recent crown exactly:
+prefix run through the normal engine reproduces the **v1** selected-shadow
+baseline exactly:
 
 ```text
 gross +12.68
@@ -200,13 +415,14 @@ drawdown 7.83
 safety breaches 0
 ```
 
-The prospective checkpoint emits restart-stable, content-addressed
+That predecessor's prospective checkpoint emits restart-stable,
+content-addressed
 `xsp.candidate-equity.v1`. Before any Monday outcome, selection
 `9fac460e…` bound that unchanged ledger and config `bbb0a391…` to one
 `xsp.selected-shadow-run.v1`; its receipt SHA-256 is `faf294f7…`. This makes
-the first exact `EVALUATED` checkpoint eligible to start the profitability
-clock. It cannot submit an order, replace broker `NO_TRADE`, trade XSP, or
-grant capital authority.
+the first exact `EVALUATED` checkpoint eligible under the predecessor contract,
+but that clock remains unstarted. It cannot submit an order, replace broker
+`NO_TRADE`, transfer authority to v2, or grant capital authority.
 
 Promotion requires, in order:
 
@@ -220,7 +436,7 @@ Promotion requires, in order:
 
 ---
 
-## Rolling robustness truth
+## Opening Edge v1 rolling robustness truth
 
 The crown is profitable over the complete five-year tape, but it is not yet a
 stable-income strategy:
@@ -298,15 +514,16 @@ late evidence leaves the crown unchanged.
 | Shared multitimeframe directional source | Covered | Keep frozen; observe prospective drift |
 | Central admission/control trace | Covered | Every candidate entry retains pass/block causes |
 | Source-consistent flip/EOD lifecycle | Covered | Compare exit counterfactuals without mutating crown |
-| Exact normal-engine prefix replay | Covered | Monday restart and incomplete-session receipt |
-| Content-addressed candidate equity | Selected shadow armed | Persist first fresh q checkpoint; verify `9fac460e…` restart identity |
+| Opening Edge v2 RTH/GTH runtime parity | Covered | Preserve exact ledgers `1c511d2f…` / `9e04807f…` |
+| SPY selector transport | Shadow-only | Replay one-share SPY costs/tracking before v2 selection |
+| Content-addressed candidate equity | v1 predecessor frozen | Do not let `9fac460e…` imply v2 authority |
 | Authentic XSP option/underlier tape | Covered infrastructure | Continue forward capture as independent context |
 | Causal news context | Experimental | Paired TA-only vs TA+news veto; never historical-backfill |
 | Quote/liquidity admission | Open | Test whether spread, depth, freshness, and quote movement reject adverse entries |
 | Weak-year explanation | Partly covered | Two path signatures explain the collapse; require timestamp-correct prospective discrimination |
 | Unconditional path telemetry | Covered | Every backtest trade now records bars held, MFE, and MAE even when stop/trail policy is absent |
 | Exit quality | Partly covered | Exit-to-flat and high-activation trails rejected; use independent prospective evidence |
-| Operational selection | Blocked | Shadow selection is not broker authority; only the complete 24h/48h/week ladder can reopen promotion |
+| Operational selection | Paused / `NO_TRADE` | Exact SPY replay, then a new v2 freeze and the complete 24h/48h/week ladder |
 
 ### Highest-value arcane seams
 
@@ -356,6 +573,31 @@ its predecessor’s numbers.
 ---
 
 ## Crown history — newest first
+
+### CR-002 · 2026-07-28 · Opening Edge v2 — Balanced 24/5
+
+- **Change:** first balanced all-hours XSP research crown; explicitly crowned
+  by the user after exact annual, recent, neighborhood, and runtime-parity
+  review.
+- **Predecessor:** Opening Edge v1.
+- **Earned by:** `+179.6656/725`, PF `1.4562`, DD `26.4689`,
+  `242.31/year`, positive recent and every annual slice, positive RTH/GTH and
+  up/down attribution, scale-free RTH poison signatures, and exact centralized
+  RTH/GTH ledgers.
+- **Execution mapping:** RTH signal XSP IND → one SPY share; GTH signal and
+  execution SPY. UI leaves are named `RTH Core` and `GTH Down Sleeve`.
+- **Did not earn:** selected-run inheritance, profitability-clock state, broker
+  or order authority. Actual SPY cost/tracking replay remains mandatory.
+
+### CH-006 · 2026-07-28 · Opening Edge v2 aggressive union · Retained
+
+- Full three years `+190.9256/705`, PF `1.5144`, DD `31.8189`;
+  annual `+22.1648/+26.2683/+142.4924`; recent `+9.7675/14`.
+- It remains below the balanced crown because balanced has materially lower
+  drawdown, stronger Year 2 and recent P&L, higher cadence, and a simpler
+  admission identity.
+- Retain as an independently frozen risk/return challenger; do not merge its
+  extra weak-fast clause into the crown.
 
 ### CH-005 · 2026-07-27 · Inverse-source quality confirmation · Rejected
 
@@ -435,6 +677,17 @@ its predecessor’s numbers.
   tape, then independent news/microstructure admission evidence.
 
 ### Reproduce
+
+Opening Edge v2 is reproduced by its content-addressed artifact and the two
+exact central-runtime parity receipts:
+
+```text
+backtests/xsp/opening_edge_v2_balanced_24x5.json
+backtests/out/xsp/xsp_rth_balanced_runtime_parity_20260727.json
+backtests/out/xsp/xsp_gth_balanced_runtime_parity_20260727.json
+```
+
+Opening Edge v1's historical campaign remains:
 
 ```bash
 PYTHONUNBUFFERED=1 venv/bin/python -u \

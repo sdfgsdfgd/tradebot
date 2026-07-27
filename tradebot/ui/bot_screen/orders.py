@@ -378,6 +378,8 @@ class BotOrdersMixin:
 
     def _allowed_entry_directions(self, instance: _BotInstance) -> set[str]:
         strategy = instance.strategy or {}
+        if str(strategy.get("order_authority") or "").strip().lower() == "none":
+            return set()
         instrument = self._strategy_instrument(strategy)
         if instrument == "spot":
             return set(spot_allowed_entry_directions(strategy))

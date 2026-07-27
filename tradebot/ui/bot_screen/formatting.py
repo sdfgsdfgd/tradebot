@@ -139,8 +139,29 @@ def _preset_lines(preset: _BotPreset) -> list[Text]:
             mode_parts.append(
                 f"RECLAIM: {window}m break={depth}r c{confirm} by {deadline}"
             )
+        elif entry_signal == "directional_impulse":
+            state_mode = str(
+                (
+                    strat.get("directional_impulse_admission")
+                    if isinstance(strat.get("directional_impulse_admission"), dict)
+                    else {}
+                ).get("state_mode")
+                or ""
+            ).strip()
+            mode_parts.append(
+                "DIR: multitimeframe impulse"
+                + (f" / {state_mode}" if state_mode else "")
+            )
         else:
             mode_parts.append(f"EMA: {strat.get('ema_preset', '')} cross c{confirm}")
+        if str(strat.get("order_authority") or "").strip().lower() == "none":
+            mode_parts.append("Authority: SHADOW")
+        signal_proxy = str(strat.get("signal_proxy_symbol") or "").strip().upper()
+        if signal_proxy:
+            signal_proxy_type = str(
+                strat.get("signal_proxy_sec_type") or "STK"
+            ).strip().upper()
+            mode_parts.append(f"Signal: {signal_proxy} {signal_proxy_type}")
         if regime_mode == "supertrend":
             atr_p = strat.get("supertrend_atr_period", "?")
             mult = strat.get("supertrend_multiplier", "?")
@@ -187,13 +208,18 @@ def _preset_lines(preset: _BotPreset) -> list[Text]:
         )
     except (TypeError, ValueError, ZeroDivisionError):
         pnl_over_dd = None
+    win_rate = metrics.get("win_rate")
+    try:
+        win_text = f"{float(win_rate) * 100.0:.1f}%" if win_rate is not None else "-"
+    except (TypeError, ValueError):
+        win_text = "-"
     lines = [
         Text(preset.group),
         Text(f"Legs: {legs_label}", style="dim"),
         Text(mode, style="dim"),
         Text(
             f"PnL: {pnl:.2f}  "
-            f"Win: {float(metrics.get('win_rate', 0.0)) * 100.0:.1f}%  "
+            f"Win: {win_text}  "
             f"Trades: {int(metrics.get('trades', 0))}",
             style="dim",
         ),

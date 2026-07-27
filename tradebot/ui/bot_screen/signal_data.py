@@ -6,7 +6,7 @@ import asyncio
 import math
 from datetime import datetime, time, timedelta
 
-from ib_insync import Contract, Stock
+from ib_insync import Contract, Index, Stock
 
 from ...contract_identity import future_exchange_for_symbol, is_future_symbol
 from ...chart_data.history import normalize_bars_to_close
@@ -28,7 +28,7 @@ class BotSignalDataMixin:
     def _spot_sec_type(self, instance: _BotInstance, symbol: str) -> str:
         raw = (instance.strategy or {}).get("spot_sec_type")
         cleaned = str(raw or "").strip().upper()
-        if cleaned in ("STK", "FUT"):
+        if cleaned in ("STK", "FUT", "IND"):
             return cleaned
         return "FUT" if is_future_symbol(symbol) else "STK"
 
@@ -39,6 +39,8 @@ class BotSignalDataMixin:
             return cleaned
         if sec_type == "FUT":
             return future_exchange_for_symbol(symbol) or "CME"
+        if sec_type == "IND":
+            return "CBOE"
         return "SMART"
 
     async def _spot_contract(self, instance: _BotInstance, symbol: str) -> Contract | None:
@@ -50,12 +52,44 @@ class BotSignalDataMixin:
                 return None
             return contract
 
-        contract = Stock(symbol=str(symbol).strip().upper(), exchange="SMART", currency="USD")
+        normalized = str(symbol).strip().upper()
+        contract = (
+            Index(symbol=normalized, exchange=exchange, currency="USD")
+            if sec_type == "IND"
+            else Stock(symbol=normalized, exchange=exchange, currency="USD")
+        )
         qualified = await self._client.qualify_proxy_contracts(contract)
         return qualified[0] if qualified else contract
 
     async def _signal_contract(self, instance: _BotInstance, symbol: str) -> Contract | None:
         if self._strategy_instrument(instance.strategy) == "spot":
+            proxy_symbol = str(
+                (instance.strategy or {}).get("signal_proxy_symbol") or ""
+            ).strip().upper()
+            if proxy_symbol:
+                proxy_exchange = str(
+                    (instance.strategy or {}).get("signal_proxy_exchange")
+                    or "SMART"
+                ).strip().upper()
+                proxy_sec_type = str(
+                    (instance.strategy or {}).get("signal_proxy_sec_type")
+                    or "STK"
+                ).strip().upper()
+                contract = (
+                    Index(
+                        symbol=proxy_symbol,
+                        exchange=proxy_exchange,
+                        currency="USD",
+                    )
+                    if proxy_sec_type == "IND"
+                    else Stock(
+                        symbol=proxy_symbol,
+                        exchange=proxy_exchange,
+                        currency="USD",
+                    )
+                )
+                qualified = await self._client.qualify_proxy_contracts(contract)
+                return qualified[0] if qualified else contract
             return await self._spot_contract(instance, symbol)
         contract = Stock(symbol=str(symbol).strip().upper(), exchange="SMART", currency="USD")
         qualified = await self._client.qualify_proxy_contracts(contract)

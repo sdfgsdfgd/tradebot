@@ -13,7 +13,7 @@ from textual.widgets import DataTable, Footer, Header, Static
 
 from ...contract_identity import is_future_symbol
 from ..bot_models import _BotConfigField, _BotConfigResult
-from ..common import _parse_float
+from ..common import _append_digit, _parse_float
 from .formatting import (
     _get_path,
     _legs_direction_hint,
@@ -21,6 +21,7 @@ from .formatting import (
     _parse_entry_days,
     _set_path,
 )
+
 
 class BotConfigScreen(Screen[Optional[_BotConfigResult]]):
     _HOUR_FILTER_PATHS = {
@@ -256,7 +257,12 @@ class BotConfigScreen(Screen[Optional[_BotConfigResult]]):
         if instrument == "spot":
             self._fields.extend(
                 [
-                    _BotConfigField("Spot secType", "enum", "spot_sec_type", options=("STK", "FUT")),
+                    _BotConfigField(
+                        "Spot secType",
+                        "enum",
+                        "spot_sec_type",
+                        options=("STK", "FUT", "IND"),
+                    ),
                     _BotConfigField("Spot exchange", "text", "spot_exchange"),
                     _BotConfigField("Spot close EOD", "bool", "spot_close_eod"),
                     _BotConfigField("Spot exit time (ET)", "text", "spot_exit_time_et"),

@@ -32,6 +32,7 @@ from .spot_tape import prepare_spot_evaluator_tape
 from ..chart_data.cache import series_cache_service
 from ..chart_data.series import BarSeries, BarSeriesSignature, bars_list
 from ..engines.risk import risk_overlay_policy_from_filters
+from ..engines.market import instrument_trading_date
 from ..engines.signals import EmaDecisionSnapshot
 from ..option_package import option_product_facts
 from ..signals import bar_sizes_equal
@@ -73,8 +74,7 @@ from ..spot.scenario import (
     write_rows_csv,
 )
 from ..engine import (
-    _trade_date,
-    _trade_weekday,
+    _trade_date as _trade_date,
     _ts_to_et,
     bars_elapsed,
     cooldown_ok_by_index,
@@ -372,13 +372,32 @@ def _spot_series_pack_key(
     *,
     signal_bars: list[Bar],
     exec_bars: list[Bar],
+    session_key: tuple[object, ...],
 ) -> tuple[tuple[object, ...], str]:
     key = (
         str(_SPOT_SERIES_PACK_CACHE_VERSION),
+        session_key,
         _spot_bars_signature(signal_bars),
         _spot_bars_signature(exec_bars),
     )
     return key, hashlib.sha1(repr(key).encode("utf-8")).hexdigest()
+
+
+def _spot_series_session_key(cfg: ConfigBundle) -> tuple[object, ...]:
+    exec_bar_size = str(
+        getattr(cfg.strategy, "spot_exec_bar_size", "")
+        or cfg.backtest.bar_size
+    )
+    parsed = parse_bar_size(exec_bar_size)
+    return (
+        str(cfg.strategy.symbol or "").strip().upper(),
+        bool(cfg.backtest.use_rth),
+        (
+            float(parsed.duration.total_seconds())
+            if parsed is not None
+            else exec_bar_size
+        ),
+    )
 
 
 def _spot_prepare_summary_series_pack(
@@ -400,6 +419,7 @@ def _spot_prepare_summary_series_pack(
     pack_key, pack_key_hash = _spot_series_pack_key(
         signal_bars=signal_list,
         exec_bars=exec_list,
+        session_key=_spot_series_session_key(cfg),
     )
     cached = _SERIES_CACHE.get(namespace=_SPOT_SERIES_PACK_NAMESPACE, key=pack_key)
     if isinstance(cached, _SpotSeriesPack):
@@ -420,6 +440,7 @@ def _spot_build_series_pack(
     pack_key, pack_key_hash = _spot_series_pack_key(
         signal_bars=signal_bars,
         exec_bars=exec_bars,
+        session_key=_spot_series_session_key(cfg),
     )
     cached = _SERIES_CACHE.get(namespace=_SPOT_SERIES_PACK_NAMESPACE, key=pack_key)
     if isinstance(cached, _SpotSeriesPack):
@@ -439,9 +460,28 @@ def _spot_build_series_pack(
         )
         return loaded
 
+    exec_bar_size = str(
+        getattr(cfg.strategy, "spot_exec_bar_size", "")
+        or cfg.backtest.bar_size
+    )
+    parsed_exec_bar = parse_bar_size(exec_bar_size)
+    exec_duration = (
+        parsed_exec_bar.duration
+        if parsed_exec_bar is not None
+        else timedelta(minutes=5)
+    )
     pack = _SpotSeriesPack(
         align=_spot_exec_alignment(signal_bars, exec_bars),
-        exec_dates=[_trade_date(bar.ts) for bar in exec_bars],
+        exec_dates=[
+            instrument_trading_date(
+                symbol=cfg.strategy.symbol,
+                closed_at=bar.ts,
+                use_rth=cfg.backtest.use_rth,
+                bar_duration=exec_duration,
+                naive_ts_mode="utc",
+            )
+            for bar in exec_bars
+        ],
     )
     _SERIES_CACHE.set(namespace=_SPOT_SERIES_PACK_NAMESPACE, key=pack_key, value=pack)
     if use_persist:
@@ -1037,6 +1077,7 @@ def _spot_flat_entry_decision_from_signal(
     exit_mode: str,
     atr_value: float | None,
     lifecycle_inputs: Mapping[str, object],
+    entry_weekday: int,
     entry_gate_bypass: bool = False,
     capture_trace: bool = True,
 ):
@@ -1061,7 +1102,7 @@ def _spot_flat_entry_decision_from_signal(
         entries_today=int(entries_today),
     )
     entry_day_ok = lifecycle_entry_day_allowed(
-        weekday=_trade_weekday(signal_bar.ts),
+        weekday=int(entry_weekday),
         entry_days=getattr(strategy, "entry_days", ()),
     )
     return decide_flat_position_intent(
@@ -2371,7 +2412,7 @@ def _run_spot_backtest_exec_loop(
                 max_entries_per_day=int(cfg.strategy.max_entries_per_day),
                 entries_today=int(entries_today),
             ) and lifecycle_entry_day_allowed(
-                weekday=_trade_weekday(bar.ts),
+                weekday=int(bar_day.weekday()),
                 entry_days=cfg.strategy.entry_days,
             )
             if can_fill_pending:
@@ -2891,6 +2932,7 @@ def _run_spot_backtest_exec_loop(
                 if sig_snap is not None and sig_snap.atr is not None
                 else None,
                 lifecycle_inputs=signal_inputs,
+                entry_weekday=int(bar_day.weekday()),
                 capture_trace=bool(capture_decision_trace),
             )
             _capture_lifecycle(

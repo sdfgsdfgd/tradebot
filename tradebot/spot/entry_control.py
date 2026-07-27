@@ -10,7 +10,11 @@ from ..engine import (
     resolve_spot_regime2_spec,
     resolve_spot_regime_spec,
 )
-from ..engines.directional_impulse import DirectionalImpulseAdmissionPolicy
+from ..engines.directional_impulse import (
+    DirectionalImpulseAdmissionPolicy,
+    DirectionalTurnPolicy,
+)
+from .directional_cascade import DirectionalCascadePolicy
 from .evaluator_common import SpotGateBand, SpotRegimeGatePolicy
 from .graph import SpotPolicyGraph
 from .policy_contract import normalize_shock_gate_mode
@@ -281,7 +285,9 @@ class SpotEntryControlPlan:
     allowed_directions: tuple[str, ...]
     graph_entry_policy: str
     directional_impulse: str
+    directional_impulse_turn: DirectionalTurnPolicy
     directional_impulse_admission: DirectionalImpulseAdmissionPolicy | None
+    directional_impulse_cascade: DirectionalCascadePolicy | None
     fundamental_pressure: str
     regime_gates: SpotRegimeGatePolicy
     observations: tuple[str, ...] = ("directional_impulse",)
@@ -367,8 +373,13 @@ class SpotEntryControlPlan:
         source = normalize_spot_entry_signal(
             _get(strategy, "entry_signal", "ema")
         )
-        impulse_admission = DirectionalImpulseAdmissionPolicy.from_mapping(
-            _get(strategy, "directional_impulse_admission", None)
+        impulse_raw = _get(strategy, "directional_impulse_admission", None)
+        impulse_turn = DirectionalTurnPolicy.from_mapping(impulse_raw)
+        impulse_cascade = DirectionalCascadePolicy.from_mapping(impulse_raw)
+        impulse_admission = (
+            None
+            if impulse_cascade is not None
+            else DirectionalImpulseAdmissionPolicy.from_mapping(impulse_raw)
         )
         dual_branch = bool(
             source == "ema"
@@ -398,6 +409,11 @@ class SpotEntryControlPlan:
                     "directional_impulse_admission",
                     source == "directional_impulse"
                     and impulse_admission is not None,
+                ),
+                (
+                    "directional_impulse_cascade",
+                    source == "directional_impulse"
+                    and impulse_cascade is not None,
                 ),
                 (
                     "ratsv",
@@ -436,7 +452,9 @@ class SpotEntryControlPlan:
             allowed_directions=spot_allowed_entry_directions(strategy),
             graph_entry_policy=str(graph.entry_policy),
             directional_impulse=impulse_mode,
+            directional_impulse_turn=impulse_turn,
             directional_impulse_admission=impulse_admission,
+            directional_impulse_cascade=impulse_cascade,
             fundamental_pressure=news_mode,
             regime_gates=regime_gates,
             observations=tuple(
@@ -467,6 +485,12 @@ class SpotEntryControlPlan:
                 if self.directional_impulse_admission is not None
                 else None
             ),
+            "directional_impulse_cascade": (
+                self.directional_impulse_cascade.as_payload()
+                if self.directional_impulse_cascade is not None
+                else None
+            ),
+            "directional_impulse_turn": self.directional_impulse_turn.as_payload(),
             "confirmations": {
                 "primary_regime": self.primary_regime,
                 "regime2": self.confirmation_regime,

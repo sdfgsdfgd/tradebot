@@ -1,15 +1,18 @@
 import unittest
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, time, timedelta, timezone
 
 from tradebot.engines.market import (
     SESSION_ORDER,
     expected_sessions,
     et_day_from_utc_naive,
     full24_post_close_time_et,
+    instrument_trading_date,
     is_early_close_day,
     is_trading_day,
     session_label_et,
     utc_bounds_for_et_day,
+    xsp_bar_session_label_et,
+    xsp_bar_trading_date,
     xsp_capture_window_date,
     xsp_session_label_et,
     xsp_trading_date,
@@ -52,6 +55,69 @@ class BacktestTradingCalendarTests(unittest.TestCase):
             date(2026, 7, 27),
         )
         self.assertIsNone(xsp_trading_date(datetime(2026, 7, 25, 10, 0)))
+
+    def test_xsp_close_stamped_bars_retain_their_opening_session(self) -> None:
+        span = timedelta(minutes=5)
+        self.assertEqual(
+            xsp_bar_session_label_et(
+                datetime(2026, 7, 26, 20, 20),
+                bar_duration=span,
+                naive_ts_mode="et",
+            ),
+            "GTH",
+        )
+        self.assertEqual(
+            xsp_bar_session_label_et(
+                datetime(2026, 7, 27, 9, 25),
+                bar_duration=span,
+                naive_ts_mode="et",
+            ),
+            "GTH",
+        )
+        self.assertEqual(
+            xsp_bar_session_label_et(
+                datetime(2026, 7, 27, 9, 35),
+                bar_duration=span,
+                naive_ts_mode="et",
+            ),
+            "RTH",
+        )
+        self.assertEqual(
+            xsp_bar_session_label_et(
+                datetime(2026, 7, 27, 17, 0),
+                bar_duration=span,
+                naive_ts_mode="et",
+            ),
+            "CURB",
+        )
+        self.assertEqual(
+            xsp_bar_trading_date(
+                datetime(2026, 7, 26, 20, 20),
+                bar_duration=span,
+                naive_ts_mode="et",
+            ),
+            date(2026, 7, 27),
+        )
+        self.assertEqual(
+            instrument_trading_date(
+                symbol="XSP",
+                closed_at=datetime(2026, 7, 27, 0, 20),
+                use_rth=False,
+                bar_duration=span,
+                naive_ts_mode="et",
+            ),
+            date(2026, 7, 27),
+        )
+        self.assertEqual(
+            instrument_trading_date(
+                symbol="XSP",
+                closed_at=datetime(2026, 7, 27, 20, 20),
+                use_rth=False,
+                bar_duration=span,
+                naive_ts_mode="et",
+            ),
+            date(2026, 7, 28),
+        )
 
     def test_xsp_capture_window_spans_transition_gap_and_stops_at_close(self) -> None:
         self.assertEqual(

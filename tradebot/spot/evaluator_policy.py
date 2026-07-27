@@ -8,6 +8,7 @@ from statistics import median
 
 from ..engine import _trade_date as _trade_date_shared, _trade_hour_et as _trade_hour_et_shared
 from ..engines.directional_impulse import DirectionalImpulseSnapshot
+from ..engines.market import instrument_trading_date
 from ..engines.risk import RiskOverlaySnapshot
 from ..engines.signals import (
     EmaDecisionSnapshot,
@@ -83,6 +84,7 @@ class SpotSignalPolicyMixin:
                     atr_velocity=directional_impulse.atr_velocity_pct,
                     retrace_atr=directional_impulse.retrace_atr,
                     coherence=directional_impulse.coherence,
+                    horizons=directional_impulse.horizons,
                 )
                 controls.append(
                     f"directional_impulse_admission:"
@@ -90,6 +92,21 @@ class SpotSignalPolicyMixin:
                 )
                 if not allowed:
                     candidate = candidate.block("directional_impulse_admission")
+            cascade = self._directional_cascade_engine
+            if cascade is not None:
+                decision = cascade.update(
+                    proposed_direction=candidate.direction,
+                    impulse=directional_impulse,
+                    close=close,
+                    ts=bar.ts,
+                    bar_duration=self._signal_bar_duration,
+                    naive_ts_mode=self._naive_ts_mode,
+                )
+                controls.extend(decision.controls)
+                if decision.direction in ("up", "down"):
+                    candidate = SpotEntryCandidate(decision.direction)
+                elif candidate.active:
+                    candidate = candidate.block("directional_impulse_cascade")
             direction = candidate.direction
             signal = EmaDecisionSnapshot(
                 ema_fast=None,
@@ -195,6 +212,14 @@ class SpotSignalPolicyMixin:
             return None
 
     def _trade_date(self, ts: datetime) -> date:
+        if self._xsp_session_clock and self._signal_bar_duration is not None:
+            return instrument_trading_date(
+                symbol=self._symbol,
+                closed_at=ts,
+                use_rth=self._use_rth,
+                bar_duration=self._signal_bar_duration,
+                naive_ts_mode=self._naive_ts_mode,
+            )
         return _trade_date_shared(ts, naive_ts_mode=self._naive_ts_mode)
 
     def _ratsv_tr_fast_slow(self) -> tuple[float | None, float | None]:
