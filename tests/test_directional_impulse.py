@@ -1,7 +1,9 @@
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 import pytest
 
+from tradebot.backtest.data import ContractMeta
+from tradebot.backtest.engine import _run_spot_backtest
 from tradebot.backtest.models import Bar
 from tradebot.backtest.spot_context import spot_signal_warmup_days_from_strategy
 from tradebot.engines.directional_impulse import (
@@ -16,6 +18,7 @@ from tradebot.research.evidence import (
     XSP_DIRECTIONAL_TURN_SCHEMA,
     xsp_directional_turn_census,
 )
+from tradebot.research.xsp_candidate import xsp_opening_edge_bundle
 from tradebot.spot.entry_control import SpotEntryControlPlan
 from tradebot.spot.directional_cascade import (
     DirectionalCascadeEngine,
@@ -807,6 +810,50 @@ def test_directional_admission_preserves_raw_turn_and_central_trace() -> None:
         ).source_gates
         == ("directional_impulse_admission",)
     )
+
+
+def test_spot_result_preserves_latest_blocked_directional_turn() -> None:
+    bars = tuple(
+        _bar(index, close, spread=0.1)
+        for index, close in enumerate(
+            (100.0, 101.0, 102.0, 103.0, 104.0, 105.0, 106.0, 104.0)
+        )
+    )
+    result = _run_spot_backtest(
+        xsp_opening_edge_bundle(
+            start=date(2026, 7, 20),
+            end=date(2026, 7, 20),
+        ),
+        bars,
+        ContractMeta(
+            symbol="XSP",
+            exchange="CBOE",
+            multiplier=1.0,
+            min_tick=0.01,
+        ),
+        final_session_complete=False,
+    )
+
+    snapshot = result.latest_signal_snapshot
+    assert snapshot is not None
+    assert result.trades == []
+    assert snapshot["signal_bar_ts"] == bars[-1].ts.isoformat()
+    assert snapshot["signal_snapshot_age_bars"] == 0
+    assert snapshot["entry_control"]["proposed_direction"] == "down"
+    assert snapshot["entry_control"]["direction"] is None
+    assert (
+        snapshot["entry_control"]["blocked_by"]
+        == "directional_impulse_admission"
+    )
+    assert (
+        "directional_impulse_admission:block:atr_velocity"
+        in snapshot["entry_control"]["controls"]
+    )
+    assert snapshot["entry_control"]["plan"]["source_gates"] == [
+        "directional_impulse_admission"
+    ]
+    assert snapshot["directional_impulse"]["turn_event"] == "down"
+    assert snapshot["directional_impulse"]["horizons"]
 
 
 def test_directional_turn_uses_same_timeframe_ema_confirmation() -> None:

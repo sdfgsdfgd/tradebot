@@ -44,7 +44,11 @@ from .chart_data.history import (
     write_history_chunk,
 )
 from .chart_data.series import OhlcvBar
-from .engines.market import expected_sessions, session_label_et
+from .engines.market import (
+    equity_rth_close_time_et,
+    expected_sessions,
+    session_label_et,
+)
 from .config import IBKRConfig
 from .live.execution import order_ids
 from .signals import parse_bar_size
@@ -188,8 +192,9 @@ class BrokerOrderPreview:
 def _session_flags(now: datetime) -> tuple[bool, bool]:
     """Return (outside_rth, include_overnight) for US equity sessions."""
     current = now.time()
+    rth_end = equity_rth_close_time_et(now.date())
     outside_rth = (_PREMARKET_START <= current < _RTH_START) or (
-        _RTH_END <= current < _AFTER_END
+        rth_end <= current < _AFTER_END
     )
     include_overnight = current >= _AFTER_END or current < _OVERNIGHT_END
     return outside_rth, include_overnight
@@ -197,11 +202,12 @@ def _session_flags(now: datetime) -> tuple[bool, bool]:
 
 def _session_bucket(now: datetime) -> str:
     current = now.time()
-    if _RTH_START <= current < _RTH_END:
+    rth_end = equity_rth_close_time_et(now.date())
+    if _RTH_START <= current < rth_end:
         return "RTH"
     if _PREMARKET_START <= current < _RTH_START:
         return "PRE"
-    if _RTH_END <= current < _AFTER_END:
+    if rth_end <= current < _AFTER_END:
         return "POST"
     return "OVERNIGHT"
 
@@ -725,6 +731,7 @@ class IBKRClient:
         self._proxy_session_bucket: str | None = _session_bucket(_now_et())
         self._proxy_session_include_overnight: bool | None = None
         self._detail_tickers: dict[int, tuple[IB, Ticker]] = {}
+        self._detail_ticker_generic_ticks: dict[int, str] = {}
         self._ticker_owners: dict[int, set[str]] = {}
         self._historical_bar_cache: dict[
             tuple[str, int, str, str, bool, str, str],
@@ -976,6 +983,7 @@ class IBKRClient:
         self._main_contract_watchdog_tasks = {}
         self._contract_price_increment_tasks = {}
         self._detail_tickers = {}
+        self._detail_ticker_generic_ticks = {}
         self._ticker_owners = {}
         self._pnl = None
         self._pnl_account = None
@@ -1490,9 +1498,48 @@ class IBKRClient:
         except Exception:
             pass
 
-    async def ensure_ticker(self, contract: Contract, *, owner: str = "default") -> Ticker:
+    @staticmethod
+    def _normalize_generic_ticks(value: str | None) -> str:
+        ticks = {
+            token.strip()
+            for token in str(value or "").split(",")
+            if token.strip()
+        }
+        return ",".join(sorted(ticks, key=lambda token: (not token.isdigit(), token)))
+
+    def _request_detail_ticker(
+        self,
+        ib: IB,
+        contract: Contract,
+        *,
+        generic_ticks: str | None = None,
+    ) -> Ticker:
+        con_id = int(getattr(contract, "conId", 0) or 0)
+        requested = self._normalize_generic_ticks(generic_ticks)
+        retained = self._detail_ticker_generic_ticks.get(con_id, "")
+        combined = self._normalize_generic_ticks(
+            ",".join(value for value in (retained, requested) if value)
+        )
+        ticker = (
+            ib.reqMktData(contract, combined)
+            if combined
+            else ib.reqMktData(contract)
+        )
+        if con_id:
+            self._detail_ticker_generic_ticks[con_id] = combined
+        setattr(ticker, "tbGenericTicks", combined)
+        return ticker
+
+    async def ensure_ticker(
+        self,
+        contract: Contract,
+        *,
+        owner: str = "default",
+        generic_ticks: str | None = None,
+    ) -> Ticker:
         con_id = int(contract.conId or 0)
         sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
+        requested_generic_ticks = self._normalize_generic_ticks(generic_ticks)
         use_proxy = sec_type in ("STK", "OPT")
         contract_force_delayed = bool(
             use_proxy and con_id and con_id in self._proxy_contract_force_delayed
@@ -1536,12 +1583,30 @@ class IBKRClient:
             desired_exchange = str(getattr(req_contract, "exchange", "") or "").strip().upper()
             current_exchange = str(getattr(cached_ticker.contract, "exchange", "") or "").strip().upper()
             exchange_sensitive = sec_type in ("STK", "OPT", "FUT", "FOP")
-            if exchange_sensitive and desired_exchange and desired_exchange != current_exchange:
+            current_generic_ticks = self._detail_ticker_generic_ticks.get(
+                con_id,
+                str(getattr(cached_ticker, "tbGenericTicks", "") or ""),
+            )
+            generic_upgrade = bool(
+                requested_generic_ticks
+                and not set(requested_generic_ticks.split(",")).issubset(
+                    set(current_generic_ticks.split(","))
+                )
+            )
+            if (
+                exchange_sensitive
+                and desired_exchange
+                and desired_exchange != current_exchange
+            ) or generic_upgrade:
                 try:
                     cached_ib.cancelMktData(cached_ticker.contract)
                 except Exception:
                     pass
-                ticker = ib.reqMktData(req_contract)
+                ticker = self._request_detail_ticker(
+                    ib,
+                    req_contract,
+                    generic_ticks=requested_generic_ticks,
+                )
                 try:
                     setattr(ticker, "tbRequestedMdType", int(requested_md_type))
                 except Exception:
@@ -1585,7 +1650,11 @@ class IBKRClient:
                 ticker=cached_ticker,
             )
             return cached_ticker
-        ticker = ib.reqMktData(req_contract)
+        ticker = self._request_detail_ticker(
+            ib,
+            req_contract,
+            generic_ticks=requested_generic_ticks,
+        )
         try:
             setattr(ticker, "tbRequestedMdType", int(requested_md_type))
         except Exception:
@@ -1672,6 +1741,7 @@ class IBKRClient:
         quantity: float,
         limit_price: float,
         outside_rth: bool,
+        order_ref: str | None = None,
     ) -> tuple[Contract, LimitOrder]:
         order_contract = contract
         tif = "GTC"
@@ -1696,6 +1766,15 @@ class IBKRClient:
                 pass
         limit_price = self._normalize_limit_price_increment(order_contract, float(limit_price))
         order = LimitOrder(action, quantity, limit_price, tif=tif)
+        normalized_order_ref = str(order_ref or "").strip()
+        if order_ref is not None and (
+            not normalized_order_ref
+            or not normalized_order_ref.isascii()
+            or len(normalized_order_ref) > 32
+        ):
+            raise ValueError("order_ref must be 1..32 ASCII characters")
+        if normalized_order_ref:
+            order.orderRef = normalized_order_ref
         account = self._resolve_account(self._config.account)
         if account:
             order.account = account
@@ -1711,6 +1790,7 @@ class IBKRClient:
         quantity: float,
         limit_price: float,
         outside_rth: bool,
+        order_ref: str | None = None,
     ) -> BrokerOrderPreview:
         await self.connect()
         order_contract, order = await self._prepare_limit_order(
@@ -1719,6 +1799,7 @@ class IBKRClient:
             quantity,
             limit_price,
             outside_rth,
+            order_ref,
         )
         state = await self._ib.whatIfOrderAsync(order_contract, order)
         return self._normalize_order_preview(state)
@@ -1730,6 +1811,7 @@ class IBKRClient:
         quantity: float,
         limit_price: float,
         outside_rth: bool,
+        order_ref: str | None = None,
     ) -> Trade:
         await self.connect()
         order_contract, order = await self._prepare_limit_order(
@@ -1738,6 +1820,7 @@ class IBKRClient:
             quantity,
             limit_price,
             outside_rth,
+            order_ref,
         )
         return self._ib.placeOrder(order_contract, order)
 
@@ -1769,6 +1852,44 @@ class IBKRClient:
             if trade_con_id in targets:
                 trades.append(trade)
         return trades
+
+    def open_trades(self) -> list[Trade]:
+        """Return the broker's currently open orders for the active account."""
+
+        if not self._ib.isConnected():
+            return []
+        try:
+            return list(self._ib.openTrades() or ())
+        except Exception:
+            return []
+
+    async def reconcile_trades_for_order_ref(
+        self,
+        order_ref: str,
+        *,
+        force: bool = True,
+    ) -> list[Trade]:
+        """Refresh and return every broker order matching one durable reference."""
+
+        reference = str(order_ref or "").strip()
+        if not reference:
+            raise ValueError("order_ref is required")
+        if not self._ib.isConnected():
+            await self.connect()
+        if force:
+            async with self._order_reconcile_lock:
+                if await self._sync_order_snapshots(include_completed=True):
+                    self._last_order_reconcile_mono = time.monotonic()
+        try:
+            trades = self._ib.trades()
+        except Exception:
+            trades = []
+        return [
+            trade
+            for trade in trades or ()
+            if str(getattr(getattr(trade, "order", None), "orderRef", "") or "")
+            == reference
+        ]
 
     @staticmethod
     def _ids_match(
@@ -4921,6 +5042,7 @@ class IBKRClient:
             self._ticker_owners.pop(con_id, None)
 
         entry = self._detail_tickers.pop(con_id, None)
+        self._detail_ticker_generic_ticks.pop(con_id, None)
         if entry:
             ib, ticker = entry
             try:
@@ -4982,6 +5104,35 @@ class IBKRClient:
         if parsed is None:
             return None, chosen.currency, None
         return parsed, chosen.currency, None
+
+    def account_text_value(
+        self,
+        tag: str,
+        *,
+        currency: str | None = None,
+    ) -> str | None:
+        """Return one nonnumeric account field from the active account."""
+
+        desired_currency = str(currency or "").strip().upper() or None
+        account = self._resolve_account(self._config.account)
+        values = [
+            value
+            for value in self._ib.accountValues(account)
+            if value.tag == tag
+            and (
+                desired_currency is None
+                or str(value.currency or "").strip().upper()
+                == desired_currency
+            )
+        ]
+        chosen = _pick_account_value(values)
+        text = str(getattr(chosen, "value", "") or "").strip()
+        return text or None
+
+    def account_id(self) -> str:
+        """Return the broker account currently bound to this client."""
+
+        return self._resolve_account(self._config.account)
 
     def account_exchange_rate(self, currency: str) -> float | None:
         target = str(currency or "").strip().upper()
@@ -6114,6 +6265,51 @@ class IBKRClient:
             return True
         return False
 
+    @staticmethod
+    def _sync_generic_ticks_for_ticker(ticker: Ticker) -> None:
+        retained = dict(getattr(ticker, "tbGenericTickValues", {}) or {})
+        for tick in getattr(ticker, "ticks", ()) or ():
+            try:
+                tick_type = int(getattr(tick, "tickType", -1))
+                value = float(getattr(tick, "price", float("nan")))
+            except (TypeError, ValueError):
+                continue
+            if tick_type < 0 or not math.isfinite(value):
+                continue
+            observed_at = getattr(tick, "time", None)
+            if not isinstance(observed_at, datetime):
+                observed_at = datetime.now(timezone.utc)
+            elif observed_at.tzinfo is None:
+                observed_at = observed_at.replace(tzinfo=timezone.utc)
+            retained[tick_type] = {
+                "value": value,
+                "observed_at_utc": observed_at.astimezone(
+                    timezone.utc
+                ).isoformat(),
+            }
+        if retained:
+            setattr(ticker, "tbGenericTickValues", retained)
+
+    @staticmethod
+    def generic_tick_value(
+        ticker: Ticker | None,
+        tick_type: int,
+    ) -> tuple[float | None, datetime | None]:
+        values = getattr(ticker, "tbGenericTickValues", None)
+        row = values.get(int(tick_type)) if isinstance(values, dict) else None
+        if not isinstance(row, dict):
+            return None, None
+        try:
+            value = float(row.get("value"))
+            observed_at = datetime.fromisoformat(
+                str(row.get("observed_at_utc")).replace("Z", "+00:00")
+            )
+        except (TypeError, ValueError):
+            return None, None
+        if not math.isfinite(value) or observed_at.tzinfo is None:
+            return None, None
+        return value, observed_at.astimezone(timezone.utc)
+
     def _tag_ticker_quote_meta(
         self,
         ticker: Ticker,
@@ -6529,7 +6725,10 @@ class IBKRClient:
                 self._ib_proxy.cancelMktData(contract)
             except Exception:
                 pass
-            ticker = self._ib_proxy.reqMktData(req_contract)
+            ticker = self._request_detail_ticker(
+                self._ib_proxy,
+                req_contract,
+            )
             try:
                 setattr(ticker, "tbRequestedMdType", 1)
             except Exception:
@@ -6577,7 +6776,10 @@ class IBKRClient:
                 self._ib_proxy.cancelMktData(contract)
             except Exception:
                 pass
-            ticker = self._ib_proxy.reqMktData(req_contract)
+            ticker = self._request_detail_ticker(
+                self._ib_proxy,
+                req_contract,
+            )
             try:
                 setattr(ticker, "tbRequestedMdType", 3)
             except Exception:
@@ -6706,7 +6908,10 @@ class IBKRClient:
                     pass
                 self._detail_tickers[con_id] = (
                     self._ib_proxy,
-                    self._ib_proxy.reqMktData(req_contract),
+                    self._request_detail_ticker(
+                        self._ib_proxy,
+                        req_contract,
+                    ),
                 )
             await self._ensure_proxy_tickers()
 
@@ -6725,6 +6930,7 @@ class IBKRClient:
         self._maybe_reset_proxy_contract_delay_on_session_change()
         event_tickers = self._event_tickers(*_, **__)
         for ticker in event_tickers:
+            self._sync_generic_ticks_for_ticker(ticker)
             self._sync_stream_quote_meta_for_ticker(ticker)
         if self._update_callback:
             self._update_callback()
@@ -6820,7 +7026,10 @@ class IBKRClient:
                         else:
                             md_type = 3
                             self._ib.reqMarketDataType(md_type)
-                        refreshed = self._ib.reqMktData(req_contract)
+                        refreshed = self._request_detail_ticker(
+                            self._ib,
+                            req_contract,
+                        )
                         try:
                             setattr(refreshed, "tbRequestedMdType", int(md_type))
                         except Exception:
@@ -6869,7 +7078,10 @@ class IBKRClient:
                         else:
                             req_contract.exchange = "SMART"
                     try:
-                        refreshed = self._ib_proxy.reqMktData(req_contract)
+                        refreshed = self._request_detail_ticker(
+                            self._ib_proxy,
+                            req_contract,
+                        )
                         try:
                             setattr(refreshed, "tbRequestedMdType", int(md_type))
                         except Exception:

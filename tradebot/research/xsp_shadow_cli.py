@@ -32,6 +32,14 @@ from .xsp_opening_edge_v2 import (
 from .xsp_execution_observer import (
     advance_xsp_v2_etf_execution_observer,
 )
+from .xsp_live_transport import (
+    latest_xsp_v2_source_receipt,
+    load_xsp_v2_transport_selection,
+    select_xsp_v2_transport,
+    write_xsp_v2_transport_selection,
+    xsp_v2_broker_snapshot,
+)
+from .xsp_live_transport_runtime import advance_xsp_v2_live_transport
 
 
 async def _main_async(argv: Sequence[str] | None = None) -> int:
@@ -57,23 +65,83 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
         "--selected-run",
         default="db/calibration/xsp_selected_shadow.json",
     )
+    parser.add_argument(
+        "--selected-transport",
+        default="db/calibration/xsp_selected_live_transport.json",
+    )
+    parser.add_argument("--freeze-selected-transport", action="store_true")
+    parser.add_argument("--transport-ranking")
+    parser.add_argument("--transport-dwell")
+    parser.add_argument("--transport-preview")
     args = parser.parse_args(argv)
 
     selected_path = Path(args.selected_run).expanduser()
+    selected_transport_path = Path(args.selected_transport).expanduser()
+    if args.freeze_selected_transport:
+        evidence_paths = tuple(
+            Path(value).expanduser()
+            for value in (
+                args.transport_ranking,
+                args.transport_dwell,
+                args.transport_preview,
+            )
+            if value
+        )
+        if args.mode != "opening-edge-v2" or len(evidence_paths) != 3:
+            raise ValueError(
+                "transport selection requires v2 ranking, dwell, and preview"
+            )
+        if selected_transport_path.exists():
+            existing = load_xsp_v2_transport_selection(selected_transport_path)
+            print(json.dumps(existing, allow_nan=False, indent=2, sort_keys=True))
+            return 0
+        from ..client import IBKRClient
+
+        config = auxiliary_client_config(load_config(), 84)
+        if not config.readonly:
+            raise ValueError("transport selection requires a read-only broker client")
+        client = IBKRClient(config)
+        ledger = LiveCalibrationLedger(args.ledger)
+        try:
+            source = latest_xsp_v2_source_receipt(tuple(ledger.records()))
+            broker = await xsp_v2_broker_snapshot(client)
+            selection = select_xsp_v2_transport(
+                ranking_path=evidence_paths[0],
+                dwell_path=evidence_paths[1],
+                preview_path=evidence_paths[2],
+                source_receipt=source,
+                broker_snapshot=broker,
+                selected_at=datetime.now(timezone.utc),
+            )
+            write_xsp_v2_transport_selection(
+                selected_transport_path,
+                selection,
+            )
+        finally:
+            await client.disconnect()
+        print(json.dumps(selection, allow_nan=False, indent=2, sort_keys=True))
+        return 0
     selected_run = None
     selected_policy = None
     if args.mode == "directional-v1" and selected_path.exists():
         loaded_selection = json.loads(selected_path.read_text())
         if not isinstance(loaded_selection, dict):
             raise ValueError("selected XSP shadow run must be an object")
-        selected_policy = xsp_profitability_policy_from_selected_run(
-            loaded_selection
-        )
+        selected_policy = xsp_profitability_policy_from_selected_run(loaded_selection)
         selected_run = loaded_selection
+    selected_transport = (
+        load_xsp_v2_transport_selection(selected_transport_path)
+        if args.mode == "opening-edge-v2" and selected_transport_path.exists()
+        else None
+    )
 
     from ..client import IBKRClient
 
     config = auxiliary_client_config(load_config(), 80)
+    if selected_transport is not None and config.readonly:
+        raise ValueError(
+            "selected XSP transport requires an explicitly writable broker connection"
+        )
     client = IBKRClient(config)
     observed_at = datetime.now(tz=timezone.utc)
     option_day = xsp_trading_date(observed_at) or observed_at.date()
@@ -86,9 +154,7 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
     news_path = Path(args.news_signal).expanduser()
     previous_month = option_day.replace(day=1) - timedelta(days=1)
     history_paths = tuple(
-        news_path.parent
-        / "history"
-        / f"{month.year:04d}-{month.month:02d}.jsonl"
+        news_path.parent / "history" / f"{month.year:04d}-{month.month:02d}.jsonl"
         for month in (previous_month, option_day)
     )
     news = []
@@ -110,6 +176,7 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
     ledger = LiveCalibrationLedger(args.ledger)
     v2_run_start = None
     execution_observation = None
+    transport_execution = None
     try:
         if args.mode == "opening-edge-v2":
             v2_spec = load_xsp_opening_edge_v2_spec()
@@ -122,28 +189,30 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
                 client=client,
                 observed_at=observed_at,
                 run_started_at=v2_run_start,
-                duration_str=str(
-                    args.duration or XSP_OPENING_EDGE_V2_HISTORY_DURATION
-                ),
+                duration_str=str(args.duration or XSP_OPENING_EDGE_V2_HISTORY_DURATION),
                 news_snapshot=tuple(news),
                 spec=v2_spec,
             )
-            execution_observation = (
-                await advance_xsp_v2_etf_execution_observer(
+            execution_observation = await advance_xsp_v2_etf_execution_observer(
+                ledger,
+                client=client,
+                source_receipt=receipt,
+                observed_at=observed_at,
+            )
+            if selected_transport is not None:
+                transport_execution = await advance_xsp_v2_live_transport(
                     ledger,
                     client=client,
+                    selection=selected_transport,
                     source_receipt=receipt,
                     observed_at=observed_at,
                 )
-            )
         else:
             receipt = await advance_xsp_shadow_from_ibkr(
                 ledger,
                 client=client,
                 observed_at=observed_at,
-                duration_str=str(
-                    args.duration or XSP_DIRECTIONAL_HISTORY_DURATION
-                ),
+                duration_str=str(args.duration or XSP_DIRECTIONAL_HISTORY_DURATION),
                 option_snapshots=options,
                 news_snapshot=tuple(news),
                 selected_run=selected_run,
@@ -180,16 +249,18 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
                     "index": config.proxy_client_id + 1,
                 },
                 "broker_readonly": config.readonly,
-                "order_authority": "none",
+                "order_authority": (
+                    selected_transport["order_authority"]
+                    if selected_transport is not None
+                    else "none"
+                ),
                 "option_tape": str(option_path),
                 "news_signal": str(news_path),
                 "news_history": [str(path) for path in history_paths],
                 "news_publications": len(news),
                 "selected_run": str(selected_path),
                 "selected_run_id": (
-                    selected_policy.run_id
-                    if selected_policy is not None
-                    else None
+                    selected_policy.run_id if selected_policy is not None else None
                 ),
                 "v2_run_started_at_utc": (
                     v2_run_start.astimezone(timezone.utc).isoformat()
@@ -197,6 +268,13 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
                     else None
                 ),
                 "execution_observation": execution_observation,
+                "selected_transport": str(selected_transport_path),
+                "selected_transport_id": (
+                    selected_transport["selection_id"]
+                    if selected_transport is not None
+                    else None
+                ),
+                "transport_execution": transport_execution,
                 "completed_at_utc": completed_at.isoformat(),
             },
             allow_nan=False,
@@ -210,8 +288,7 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
     )
     return (
         0
-        if receipt.get("evaluation_status") == "EVALUATED"
-        or successful_preflight
+        if receipt.get("evaluation_status") == "EVALUATED" or successful_preflight
         else 2
     )
 

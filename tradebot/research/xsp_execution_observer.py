@@ -107,7 +107,7 @@ def load_xsp_v2_etf_transport(
     )
 
 
-def _position_state(
+def xsp_v2_position_state(
     paired_equity: Mapping[str, object],
 ) -> tuple[str, dict[str, object] | None]:
     profiles = paired_equity.get("profiles")
@@ -348,7 +348,7 @@ async def advance_xsp_v2_etf_execution_observer(
         }
     paired = source_receipt["paired_equity"]
     assert isinstance(paired, Mapping)
-    run_key, raw_current = _position_state(paired)
+    run_key, raw_current = xsp_v2_position_state(paired)
     records = tuple(ledger.records())
     prior_exists, raw_prior = _prior_state(records, run_key=run_key)
     if (not prior_exists and raw_current is None) or (

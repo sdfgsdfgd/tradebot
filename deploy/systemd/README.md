@@ -113,9 +113,16 @@ systemctl --user enable --now tradebot-xsp-shadow.timer
 ```
 
 The quote timer starts one bounded recorder per exchange session; the shadow
-timer runs one non-submitting v2 evaluation after each completed GTH/RTH bar
-and once at `16:17 ET` to close-align the final RTH bar without trading Curb.
+timer runs one v2 evaluation after each completed GTH/RTH bar and once at
+`16:17 ET` to close-align the final RTH bar. A selected cash sleeve begins its
+already-validated SELL ladder at `15:57 ET` (`12:57` on early-close days),
+forbids every later BUY, and lets later RTH/Curb/GTH recurrences only reconcile
+or reduce a position that did not flatten.
 The quote timer is persistent so a q reboot resumes the current capture window;
 the recorder's closed-window guard prevents an expired catch-up from reaching
 the broker. The high-frequency shadow timer remains non-persistent.
+The installed service remains broker-read-only while no validated
+`xsp_selected_live_transport.json` exists. A selection transaction must
+separately install `tradebot-xsp-shadow-selected-live.conf` as a systemd
+drop-in; a selected file without that explicit writable boundary fails closed.
 Neither timer starts a profitability clock while `NO_TRADE` remains selected.

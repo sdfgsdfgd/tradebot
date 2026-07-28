@@ -3429,6 +3429,25 @@ def _run_spot_backtest_exec_loop(
         equity=equity_curve,
         summary=summary,
         lifecycle_trace=lifecycle_rows if lifecycle_rows is not None else None,
+        latest_signal_snapshot=(
+            {
+                "schema": "spot.signal-snapshot.v1",
+                "close": float(last_sig_snap.close),
+                "signal_snapshot_age_bars": (
+                    int(len(exec_bars) - 1 - last_sig_exec_idx)
+                    if last_sig_exec_idx >= 0
+                    else None
+                ),
+                **last_sig_snap.entry_context(),
+                **{
+                    key: value
+                    for key, value in last_sig_snap.lifecycle_inputs().items()
+                    if key != "signal_entry_dir"
+                },
+            }
+            if last_sig_snap is not None
+            else None
+        ),
     )
 
 

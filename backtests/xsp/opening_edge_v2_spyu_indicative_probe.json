@@ -1,0 +1,169 @@
+{
+  "schema": "xsp.spyu-indicative-value-probe-receipt.v1",
+  "observed_at_utc": "2026-07-28T04:24:25.314569+00:00",
+  "authority": {
+    "read_only": true,
+    "submitted_orders": 0,
+    "accepted_subscription_or_agreement": false,
+    "changed_account_or_pricing_state": false,
+    "order_authority": "none"
+  },
+  "spyu_contract": {
+    "con_id": 669475151,
+    "symbol": "SPYU",
+    "local_symbol": "SPYU",
+    "sec_type": "STK",
+    "exchange": "SMART",
+    "primary_exchange": "ARCA",
+    "currency": "USD"
+  },
+  "issuer_closing_indicative_probe": {
+    "observed_at_utc": "2026-07-28T05:20:53Z",
+    "http_response_date_utc": "2026-07-28T05:20:54Z",
+    "closing_indicative_value_usd": 31.17,
+    "market_capitalization_usd": 498720000,
+    "notes_outstanding": 16000000,
+    "explicit_value_as_of_timestamp": null,
+    "intraday_value_publication": {
+      "symbol": "SPYUIV",
+      "frequency_seconds": 15,
+      "provider": "ICE Data / Bloomberg"
+    },
+    "content_sha256": "e8a0b31803a8adfe7f2b4bafdc28a0439ab95bf8d29fed069be89a22874264de",
+    "selection_eligible": false,
+    "reason": "The issuer authenticates a closing value and active note count, but publishes no timestamped entry-time indicative value on this page."
+  },
+  "official_distribution_probe": {
+    "observed_at_utc": "2026-07-28T05:49:10Z",
+    "ice_service": "ICE iNAV calculation services",
+    "documented_delivery": [
+      "ICE Data Global Index Feed (GIF) Consolidated Tape B",
+      "market data vendors",
+      "order and execution management systems",
+      "global exchanges"
+    ],
+    "issuer_page_transport": "server-rendered closing value with no client-side market-data request",
+    "unauthenticated_timestamped_spyuiv_endpoint_found": false,
+    "selection_eligible": false,
+    "reason": "Official ICE and issuer surfaces document commercial feed/vendor dissemination, not a public timestamped SPYUIV endpoint."
+  },
+  "issuer_state_probe": {
+    "observed_at_utc": "2026-07-28T05:58:26Z",
+    "issuer_products_page_lists_spyu_as_available": true,
+    "issuer_product_page": {
+      "cusip": "063679567",
+      "notes_outstanding": 16000000,
+      "closing_indicative_value_usd": 32.77,
+      "explicit_value_as_of_timestamp": null
+    },
+    "nyse_arca_pending_delisting": {
+      "total_count": 1,
+      "symbols": [
+        "LGHT"
+      ],
+      "spyu_present": false
+    },
+    "sec_2026_spyu_full_text_search": {
+      "total_count": 2,
+      "filings": [
+        {
+          "file_date": "2026-02-12",
+          "form": "FWP",
+          "purpose": "2-for-1 split announcement"
+        },
+        {
+          "file_date": "2026-02-24",
+          "form": "424B2",
+          "purpose": "split-adjusted pricing supplement amendment"
+        }
+      ],
+      "current_call_fee_sales_suspension_notice_found": false
+    },
+    "guard_clear_as_of_observation": true,
+    "selection_eligible": false,
+    "reason": "The current issuer and NYSE/SEC surfaces expose no unresolved SPYU call, fee-change, sales-suspension, or delisting notice. This negative guard must be rerun immediately before any future selection and does not replace fresh indicative-value proof."
+  },
+  "issuer_intraday_indicative_symbol": "SPYUIV",
+  "spyuiv_contract_probe": {
+    "requested_sec_types": [
+      "IND",
+      "STK"
+    ],
+    "requested_exchanges": [
+      "SMART",
+      "ARCA",
+      "NYSE"
+    ],
+    "matches": 0,
+    "broker_error": 200
+  },
+  "spyu_contract_nav_probe": {
+    "generic_ticks": [
+      577,
+      614,
+      623
+    ],
+    "generic_tick_meanings": [
+      "ETF_NAV_LAST",
+      "ETF_NAV_HIGH_LOW",
+      "ETF_FROZEN_NAV_LAST"
+    ],
+    "requested_market_data_type": 4,
+    "observed_market_data_type": 3,
+    "nav_ticks_returned": 0,
+    "broker_error": 10167,
+    "broker_message": "Requested market data is not subscribed. Displaying delayed market data."
+  },
+  "broker_rth_nav_probe": {
+    "observed_at_utc": "2026-07-28T13:45:51.920442+00:00",
+    "quote_time_utc": "2026-07-28T13:45:51.798058+00:00",
+    "requested_market_data_type": 1,
+    "observed_market_data_type": 1,
+    "generic_ticks": [
+      577,
+      614,
+      623
+    ],
+    "spyu_quote": {
+      "bid": 30.78,
+      "bid_size": 100.0,
+      "ask": 30.8,
+      "ask_size": 400.0,
+      "mid": 30.79
+    },
+    "latest_nav": {
+      "tick_type": 96,
+      "meaning": "ETF_NAV_LAST",
+      "value": 30.77899933,
+      "observed_at_utc": "2026-07-28T13:45:45.531787+00:00"
+    },
+    "absolute_mid_to_nav_divergence": 0.01100067,
+    "fractional_mid_to_nav_divergence": 0.000357281,
+    "nbbo_spread_fraction": 0.000649562,
+    "frozen_gate_limit": 0.005,
+    "freshness_seconds_at_receipt": 6.388655,
+    "passes_frozen_divergence_and_freshness_gate": true,
+    "submitted_orders": 0,
+    "raw_receipt_sha256": "db716500cc0930d20ce69a6d7b8412bf76d03c84899bcbfe2a5f5d7ff7901410",
+    "probe_script_sha256": "bca5db8233e6b23982a5234325a14164d11ed8b28bcfc66498b0fe444b44aa2f",
+    "correction": "The scheduled probe requested two generic ticks IBKR does not allow for STK. The recovery changed only the request from 576,577,578,614,623 to broker-legal 577,614,623 and captured the previously hidden live NAV channel."
+  },
+  "sources": {
+    "probe_script_sha256": "b22b1054a2c9643ef4c12ae6300b8bb8b7e8a2ee355de81bc139236ea4a8cf63",
+    "ibkr_tick_types": "https://interactivebrokers.github.io/tws-api/tick_types.html",
+    "ice_inav_service": "https://status.ice.com/fixed-income-data-services/index-solutions/ice-inav-calculation-services",
+    "issuer_pricing_supplement": "https://www.sec.gov/Archives/edgar/data/927971/000121465926002335/d220262424b2.htm",
+    "issuer_product_page": "https://www.maxetns.com/product/SPYU.P/",
+    "issuer_products_page": "https://www.maxetns.com/products",
+    "nyse_arca_delistings": "https://www.nyse.com/api/regulatory/delisting?market=NYSE+Arca&initiation=&filterToken=&max=500&offset=0&pageNumber=1&sortOrder=up&sortType=",
+    "sec_2026_spyu_search": "https://efts.sec.gov/LATEST/search-index?q=SPYU&dateRange=custom&startdt=2026-01-01&enddt=2026-07-28&from=0&size=100"
+  },
+  "verdict": {
+    "historical_replay_eligibility_changed": false,
+    "live_selection_eligibility": false,
+    "indicative_value_gate": true,
+    "reason": "Network B now returns a timestamped live SPYU ETF_NAV_LAST whose 0.0357% midpoint divergence is below the frozen 0.5% limit. Selection remains closed until the sealed replay, latency, ranking, full-quantity dwell, cash, and exact nominee what-if gates pass.",
+    "required_next_proof": "Complete the sealed economic/execution chain and rerun the issuer-state guard immediately before any selection.",
+    "fallback": "HOLD"
+  }
+}

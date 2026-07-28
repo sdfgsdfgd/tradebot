@@ -125,6 +125,7 @@ class BacktestResult:
     equity: list[EquityPoint]
     summary: SummaryStats
     lifecycle_trace: list[dict[str, object]] | None = None
+    latest_signal_snapshot: dict[str, object] | None = None
 
 
 def summarize_with_max_drawdown(

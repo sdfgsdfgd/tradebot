@@ -376,3 +376,100 @@ def xsp_fundamental_context_at(
             else None
         ),
     }
+
+
+def xsp_trade_attribution(trade: object) -> dict[str, object]:
+    """Project the engine's causal signal/excursion trace without policy copies."""
+
+    trace_raw = getattr(trade, "decision_trace", None)
+    trace = dict(trace_raw) if isinstance(trace_raw, Mapping) else {}
+    entry_raw = trace.get("entry_guard_inputs")
+    entry = dict(entry_raw) if isinstance(entry_raw, Mapping) else {}
+    control_raw = entry.get("entry_control")
+    control = (
+        {
+            key: control_raw.get(key)
+            for key in (
+                "source",
+                "proposed_direction",
+                "controls",
+                "blocked_by",
+                "direction",
+                "branch",
+            )
+        }
+        if isinstance(control_raw, Mapping)
+        else None
+    )
+    impulse_raw = entry.get("directional_impulse")
+    exits_raw = trace.get("exits")
+    exit_raw = (
+        exits_raw[-1]
+        if isinstance(exits_raw, list)
+        and exits_raw
+        and isinstance(exits_raw[-1], Mapping)
+        else {}
+    )
+    exit_signal_raw = exit_raw.get("signal_snapshot")
+    return {
+        "schema": "xsp.trade-attribution.v1",
+        "decision_trace_fingerprint": (
+            calibration_fingerprint(trace) if trace else None
+        ),
+        "bars_held": int(getattr(trade, "bars_held", 0) or 0),
+        "execution_mfe_points": float(
+            getattr(trade, "max_favorable_excursion", 0.0) or 0.0
+        ),
+        "execution_mae_points": float(
+            getattr(trade, "max_adverse_excursion", 0.0) or 0.0
+        ),
+        "entry": {
+            "signal_bar_ts": entry.get("signal_bar_ts"),
+            "source_direction": entry.get("signal_source_dir"),
+            "control": control,
+            "directional_impulse": (
+                dict(impulse_raw)
+                if isinstance(impulse_raw, Mapping)
+                else None
+            ),
+            "market_state": {
+                key: entry.get(key)
+                for key in (
+                    "shock_atr_pct",
+                    "shock_atr_vel_pct",
+                    "shock_atr_accel_pct",
+                    "tr_ratio",
+                    "tr_median_pct",
+                    "slope_med_pct",
+                    "slope_vel_pct",
+                    "slope_med_slow_pct",
+                    "slope_vel_slow_pct",
+                )
+            },
+            "local_extrema": (
+                dict(value)
+                if isinstance(
+                    value := trace.get("entry_local_extrema_probe"),
+                    Mapping,
+                )
+                else None
+            ),
+        },
+        "exit": {
+            "stage": exit_raw.get("stage"),
+            "bar_ts": exit_raw.get("bar_ts"),
+            "signal_snapshot": (
+                dict(exit_signal_raw)
+                if isinstance(exit_signal_raw, Mapping)
+                else None
+            ),
+            "local_extrema": (
+                dict(value)
+                if isinstance(
+                    value := exit_raw.get("local_extrema_probe"),
+                    Mapping,
+                )
+                else None
+            ),
+        },
+    }

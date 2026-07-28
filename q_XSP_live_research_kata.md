@@ -1,18 +1,20 @@
 # XSP Mastery — Live Research Kata
 
-- **Status:** `[ACTIVE] v2 recurring observer proven; state-change execution
-  evidence published; transport HOLD`
+- **Status:** `[ACTIVE] v2 observation continues; sealed SPYU RTH transport
+  challenge and exact terminal tape are in flight; transport HOLD`
 - **Authority:** canonical resume state, active task tree, critical evidence
   index, and promotion contract
 - **Cold history:** [`q_XSP_live_research_kata-archive.md`](q_XSP_live_research_kata-archive.md)
 - **Leaderboard:** [`backtests/xsp/leaderboard.md`](backtests/xsp/leaderboard.md)
 - **Scope:** XSP signal mastery; current-Fixed SPY/UPRO-SPXU/SPXL-SPXS
-  execution is rejected, while the paired v2 observer remains non-submitting
+  execution is rejected, while one inception-bounded SPYU/SPXU RTH challenge
+  remains sealed and every observer remains non-submitting
 - **Capital premise:** broker-read `INDIVIDUAL/STKCASH` state is about
   AUD `2,025` NLV and AUD `1,935` BuyingPower/TotalCash; USD `1,228.61` plus
-  AUD `176.94` converts to about USD `1,352`, so preserve a fixed USD `1,350`
-  executable sleeve after one bounded FX normalization and re-read it before
-  any selection
+  AUD `176.94` supports the frozen USD `1,350` total risk identity. Selection
+  re-reads authentic USD cash and requires only the ranked partition plus
+  worst per-slot commissions: one-slot notionals already fit without FX,
+  while any underfunded multi-slot nominee remains `HOLD`
 
 **Operating rule:** update this file only when the frontier, authority, strategy,
 evidence conclusion, risk boundary, or next action changes. Routine test/lint
@@ -28,12 +30,14 @@ output belongs in commit/final verification, not in this management brain.
 | Selected shadow | Opening Edge v1 predecessor `9fac460e…`; cannot confer v2 authority |
 | Research crown | **Opening Edge v2 — Balanced 24/5**; `xsp.opening-edge-v2-balanced-24x5.v1` |
 | Runtime parity | Exact prior-XSP-close GTH projection plus XSP RTH signal reproduces all `725` ordered SPY fills; the shared 24/5 exit clock now honors the session trading date |
-| Runtime source anchor | local/GitHub publish state-change execution evidence at `90ea30c…`; q intentionally remains clean at `bb5bcd8…` until its active quote recorder exits |
+| Runtime source anchor | published code/GitHub remain `f35d857…`; this current-brain update is local WIP, while q intentionally remains clean at `bb5bcd8…` until its July 28 quote recorder and provenance handoff exit |
+| Observer cadence | current q/f35 GTH calendar has three `25m` hour-boundary gaps; the local successor splits the opening hour from `21..23 ET` and restores exact `5m` cadence. Existing observation remains useful but cannot count as gap-free profitability coverage |
+| RTH signal freshness | **cleared:** after the user activated `CBOE Streaming Market Indexes`, zero-order receipt `acce7ed3…` returned live type-1 XSP, current five-minute history, and real-time `TRADES` bars without a Gateway restart; the natural `10:07 ET` centralized v2 checkpoint then evaluated with both XSP and SPY through `10:05` and `120s` age |
 | Order/capital authority | `none` |
 | Profitability clock | v2 `NOT_STARTED`; predecessor evidence does not transfer |
-| Execution verdict | `HOLD`; every current-Fixed SPY/3×-ETF transport fails. Tiered plus ≤25% spread is a positive feasibility bound only, not a fill or pricing-plan fact |
-| Next irreversible evidence | none; no executable transport passed, so no v2 selection or clock may exist |
-| First active work | accumulate causal paired observations under `NO_TRADE`; qualify executable transport independently |
+| Execution verdict | `HOLD`; every completed current-Fixed transport fails. The sealed SPYU/SPXU RTH challenge has no result yet |
+| Next irreversible evidence | exact `248 = 158 GTH + 81 RTH + 9 Curb` terminal tape, then the hash-locked SPYU replay and any nominee's preregistered extra-bar entry-latency challenge; none may select or start a clock by itself |
+| First active work | preserve the active recorder and complete the sealed replay/ranking; only an exact ranked preview may freeze a selection and deploy the unified observer/cash owner |
 
 ### Immediate sequence
 
@@ -54,9 +58,90 @@ output belongs in commit/final verification, not in this management brain.
 7. `[DONE]` Publish one state-change-only UPRO/SPXU quote/ladder/what-if owner:
    flat or unchanged state makes no broker request, every observation carries
    the frozen `HOLD`, and no order or clock authority exists.
-8. `[WIP]` Preserve q's active recorder source through terminal audit, then
-   fast-forward and prove the new owner's restart/idempotence before
-   accumulating compact TA/news/execution outcomes.
+8. `[WIP]` Preserve q's active July 28 recorder source through an exact
+   `248`-row terminal audit; missing, extra, mistimed, or wrong-session rows
+   forbid publication and every dependent replay. All five post-close
+   one-shots first restore their exact frozen inputs from the persistent,
+   content-addressed `/var/tmp` handoff bundle, so a q reboot cannot erase the
+   `/tmp` dependency closure or the pre-deployment ledger.
+9. `[TODO]` Resolve transport eligibility first: run the already frozen
+   SPYU/SPXU RTH challenge over authentic
+   inception-bounded bars, current Fixed and conservative Tiered fees, split
+   continuity, positive-volume fills, T+1 cash, annual/full economics, and
+   scheduled-next-open stress. Any current-Fixed nominee must then survive the
+   separately frozen one-additional-bar entry-latency stress under its unchanged
+   family gate.
+10. `[WIP]` Resolve executable pricing independently: `Network B (L1)` is now
+    active without a Gateway restart, and a zero-order `02:27 ET` q probe
+    returned fresh type-1 SMART SPYU/SPXU bid/ask and sizes without entitlement
+    error. Exact `725`-trade SPY parity shows one-bar delay retains
+    `177.36/178.48` points, but two bars turn GTH `+10.14` into `-5.31`;
+    patience therefore needs lane/urgency expiry, not one global timeout. One
+    bounded state-change/`250ms` microtape is armed for
+    `09:25..16:05 ET` to prove RTH freshness and calibrate the existing ladder;
+    its r2 recorder derives age from the broker timestamp and resumes an
+    append-only, partial-tail-repaired tape after failure or reboot. Prove
+    SMART/ARCA plus what-if before closing the gate. A frozen `151`-book
+    development cohort filled a deliberately conservative `100` shares on
+    every BUY by `18s`; canonical waiting saved `+0.11/share` on SPXU but lost
+    `-0.44/share` on SPYU. Older SPYU chronology is sealed to validate
+    immediate-cross SPYU; SPXU book proof is scoped to its current
+    post-`2025-11-20` split CUSIP because IBKR cannot resolve the retired
+    contract, while split-normalized profitability replay remains unchanged.
+    Full-quantity SELL exits remain independently required; entry-only evidence
+    cannot authorize execution. The sealed cash replay/ranking is the sole
+    quantity authority: do not reopen arbitrary sizing or a generic what-if
+    matrix. Network B now satisfies the separate live SPYU valuation gate:
+    broker-legal generic ticks `577/614/623` returned a fresh type-1
+    `ETF_NAV_LAST` of `$30.77899933` beside a `$30.79` NBBO midpoint. The
+    `0.0357%` divergence passes the frozen `0.5%` limit. This removes only the
+    NAV blocker; replay, latency, ranking, full-quantity dwell, exact nominee
+    what-if, cash, and safety gates still retain `HOLD`.
+11. `[TODO]` If no current-Fixed profile passes, fast-forward q once and prove
+    the non-submitting execution observer's restart/idempotence. If one passes,
+    pause automatic activation; only a latency-stress survivor with fresh NBBO,
+    what-if, and indicative value may proceed to a new RTH-only transport-bound
+    USD selection with a strictly post-selection start. One hash-locked
+    `19:15 ET` pure owner now verifies all three base-result identities plus the
+    complete latency cohort, applies the pre-outcome lexicographic law, and
+    emits exactly one fixed-notional nominee or `HOLD`; it also binds the
+    profile's historical quantity range and validates its maximum quantity
+    against the frozen SPYU-immediate/SPXU-canonical BUY dwell plus unchanged
+    SELL law. `19:30` activation requires that receipt. Run the fresh broker
+    what-if only for the ranked profile's quote-derived whole-share quantity.
+    Bind it to a
+    limit-only
+    `OPTIMISTIC → MID → AGGRESSIVE → CROSS → bounded RELENTLESS` chase policy
+    before any clock. Freeze maximum edge, timeout, cancel/reconcile, and
+    partial-fill behavior. The local selected-run boundary now validates the
+    full frozen account/notional/risk/ladder semantics, gives every transition
+    one broker-visible content-addressed `orderRef`, preserves the original
+    chase timeout across restart, and reconstructs sleeve risk only from
+    deduplicated broker fills, actual USD commissions, and executable
+    liquidation bids. Its USD reserve now exactly reproduces the frozen strict
+    `T+1` partition: BUY debits immediately, SELL proceeds mature only on the
+    next U.S. trading day, and broker aggregate cash can never lend unsettled
+    proceeds. Existing unrelated holdings remain isolated and untouched;
+    unrelated orders can pause a new BUY but never block a sleeve SELL. The
+    existing five-minute recurrence owns the canonical observer-to-transport
+    handoff and remains broker-read-only without both a future exact selection
+    and a separately installed writable drop-in. A broker order stays pending
+    across restart until terminal state and complete USD commission-bearing
+    fills are durable. The selected owner begins the frozen canonical SELL
+    ladder at `15:57 ET` (`12:57` on half-days), matching the already-hydrated
+    `15:55 → 16:00` close-EOD book; every later recurrence forbids BUY and can
+    only reconcile or liquidate an incumbent. Preregister
+    signal-age plus multihorizon
+    slope/velocity/ATR urgency to alter only ladder dwell/expiry, never
+    direction or admission. No generic UI chase or market-style order may
+    inherit authority. GTH stays observation-only.
+12. `[WIP]` The GTH timer repair and compact engine-native trade attribution
+    are locally proven. After activation, keep q on f35 through its required
+    `20:22 ET` recurrence and `20:35 ET` handoff cleanup; publish the successor
+    once activation has consumed the pinned origin, then fast-forward/install
+    it after cleanup and before `21:02 ET` that same night. Do not alter r4,
+    backfill the twelve missed hourly observations, or count the predecessor
+    run as continuous profitability coverage.
 
 ### Never infer
 
@@ -106,7 +191,10 @@ credit spreads, condors, or other option packages.
 Selected-shadow limits are frozen at `25` points maximum drawdown, `5`
 points maximum session loss, at least two weekly closed trades, top-five win
 share `<=0.50`, and `90s` evidence tolerance. These are synthetic research
-limits and grant no broker authority.
+limits and grant no broker authority. A USD ETF transport cannot inherit them:
+before any clock it must freeze its own selected USD equity identity, a strictly
+post-selection RTH start, `$135` maximum drawdown, and `$67.50` maximum session
+loss over the fixed `$1,350` cash sleeve.
 
 Research remains bounded and observable: every backtest publishes an ETA and no
 single run exceeds 20 minutes without an explicit new preregistration. Historical
@@ -208,6 +296,37 @@ short-window tuning is never validation.
   trades; Year 3/recent stayed unopened, manifest `095c4326…`. All four
   UPRO-or-SPXL × SPXU-or-SPXS pairings then failed strict Fixed/T+1 cash
   mechanics with every annual slice negative; manifest `aa40087c…`.
+- **Corrected cash-fill verdict:** entries now require an authenticated trade
+  bar within five minutes and otherwise fail closed. One SPXU GTH proposal had
+  no print for `525` minutes; it is unavailable, not a synthetic fill. Under
+  current Fixed fees, `$450×3` settled-cash execution loses `$917.15` over
+  three years and the `$650` RTH core loses `$627.80`; fixed share counts cannot
+  claim stability while their historical notional changes through prices and
+  splits. Fill-audit receipt `fececd6b…`; source `058262fd…`.
+- **Last independent spot challenge:** SPYU supplies a 4× bullish RTH instrument
+  only from `2023-12-04`; SPXU remains the 3× inverse leg. Three immutable
+  revision-2 gates (`fd0ab8ba…`, `1d870f24…`, `f285c523…`) were frozen at
+  `03:04:54Z`, before any fetch or outcome, and test fixed
+  `$1,050/$1,150/$1,200`, five `$260` cash slots, and two `$650` slots. The
+  challenge is RTH-only, requires worst-session P&L no lower than `-$67.50`,
+  and cannot rehabilitate the rejected GTH sleeve.
+- **Live quote boundary:** direct `OVERNIGHT` streaming is broker-live for the
+  candidate ETFs. The user subsequently activated IBKR Network B; without a
+  Gateway restart, a zero-order API probe returned fresh type-1 SMART
+  SPYU/SPXU bid/ask and sizes. Direct ARCA still requires the armed RTH proof,
+  and no pricing-plan change, fractional order, or live order occurred. Gateway rejected every
+  fractional API preview with error `10243`. SPYU is an unsecured BMO ETN:
+  its contract exposes NAV generic ticks `577/614/623`. A corrected RTH
+  type-1 request returned two timestamped `ETF_NAV_LAST` updates and passed
+  the frozen midpoint-divergence limit; the separate `SPYUIV` symbol still
+  does not resolve as an IBKR contract and is no longer needed for this gate.
+  The issuer page fetched at
+  `2026-07-28T05:20:53Z` authenticated a closing value of `$31.17` and
+  `16,000,000` notes, but supplied no value timestamp and identifies live
+  `SPYUIV` as an ICE/Bloomberg feed; it cannot prove entry-time premium. Any
+  later selection therefore requires an independent fresh indicative value plus
+  issuer call/fee/sales-suspension/delisting checks; authentic bars alone
+  cannot prove those current conditions.
 - **Authority:** historical crown and visible SPY shadow selector only.
   Operational v2 is `HOLD`; no selected identity or profitability clock exists.
 
@@ -239,10 +358,12 @@ stale, underwarmed, failed, or horizon-expired evidence means no extra gate.
 News and option evidence begins only at append time. Historical headlines may
 explain plausibility but cannot label old trades or support value claims.
 
-The latest natural news transition is XSP `-1/70/.97/24h`: signed pressure
-`-0.679`, delta `-0.0838` over `14,919s`, or `-0.020221/hour`. Two causal GTH
-checkpoints now carry it, but neither has a position, closed trade, or outcome;
-it remains compact context—not a pivot claim or permission gate.
+The latest natural news transition is XSP `-1/67/.97/24h`, classified
+`weakening`: signed pressure moved from `-0.679` to `-0.6499`, delta `+0.0291`
+over `15,096s`, or `+0.00694/hour`. The first two causal post-publication GTH
+checkpoints carry fingerprint `5126996f…`; neither has a position, closed trade,
+or outcome. This is the intended pressure-level/delta observation—not a pivot
+claim, percentage attribution, or permission gate.
 
 ### Active task tree
 
@@ -276,10 +397,18 @@ it remains compact context—not a pivot claim or permission gate.
    that acts only on a changed paired-v2 position state, reuses shared quote
    health/tick/ladder and broker what-if owners, rejects profile drift and
    artifact tampering, and preserves `HOLD/none`.
-10. `[WIP]` Keep q pinned while its current quote recorder runs; after terminal
-   audit, fast-forward once and prove first state-change plus restart
-   idempotence without selecting the transport.
-11. `[BLOCKED]` Option structures and any live-capital canary belong to a later
+10. `[WIP]` Keep q pinned through the July 28 recorder. At `17:08 ET`, require
+    the exact `248`-row immutable tape; at `17:12 ET`, run the sealed SPYU
+    challenge; at `18:35 ET`, challenge every base nominee with one additional
+    entry bar; at `19:15 ET`, deterministically rank the complete surviving
+    cohort or issue `HOLD`; at `19:30 ET`, deploy only if no passing profile
+    requires a new selection owner.
+11. `[DONE]` Network B proved fresh SMART/direct-ARCA SPYU/SPXU books, legal
+    `577/614/623` ticks proved fresh SPYU NAV, and the separately activated
+    Cboe index feed proved live XSP through the centralized observer. These
+    clear data access only; the ranked exact-quantity what-if and transport
+    selection remain downstream gates.
+12. `[BLOCKED]` Option structures and any live-capital canary belong to a later
    quest after directional causality is proven.
 
 ---
@@ -401,6 +530,48 @@ and
 | E-193 | q's first live GTH observer checkpoint passed exact source/start/config/freshness/news/safety/selection audit with zero order authority |
 | E-194 | the first recurring checkpoint preserved the same run identities and zero-position state; cadence is proven and enabled while execution remains HOLD |
 | E-195 | state-change-only UPRO/SPXU quote/ladder/what-if evidence is published at `90ea30c…`; flat/unchanged state is silent and the rejected transport remains HOLD |
+| E-196 | a corrected authenticated-fill replay rejects fixed-notional UPRO/SPXU more strongly: one `525`-minute SPXU void is unavailable, not fillable; every annual aggregate remains negative under current Fixed cash mechanics |
+| E-197 | direct `OVERNIGHT` ETF books are live, while SMART/IEX RTH API top-of-book remains unentitled and fractional API orders are rejected; no subscription, agreement, pricing, or account state changed |
+| E-198 | the July 28 handoff is preregistered and armed: exact `248`-row tape or fail, three content-addressed SPYU RTH gates including a pre-outcome `-$67.50` worst-session floor, immutable archive, and automatic pause rather than selection if any current-Fixed profile passes |
+| E-199 | the natural four-hour news cycle stayed bearish but weakened from signed pressure `-0.679` to `-0.6499`; two first-seen v2 checkpoints captured the new fingerprint/delta causally with no position, outcome, clock, or authority |
+| E-200 | q's producer is reboot-durable through its enabled persistent timer and lingering user manager; all five post-close one-shots share one verified restore from the final `115.6 MB` `/var/tmp` bundle (`eadd0678…`, `49` exact inputs). Live restore, all `41` pins, fail-closed `75` guards, unchanged schedules, and recorder PID/cadence passed |
+| E-201 | the recurring observer's GTH calendar reset at `:22` each hour, creating three `25m` gaps and twelve absent five-minute decision snapshots per night despite the service description. A late read-only same-source replay found the empty ledger fingerprint, no position, zero closed trades, and zero net at all twelve omitted slots under both research and broker-cost profiles; it proves no trade was hidden tonight but does not backfill evidence or repair continuous coverage. The local successor splits `20:22..57` from `21..23:02..57`; the real systemd calendar engine produces exactly `1,195 = 5 × (158 GTH + 81 RTH)` weekly observations with zero missing/extra/duplicate/Curb events in normal, US fall-DST, and US spring-DST weeks. q/r4 remain untouched and f35 stays pinned until its handoff completes |
+| E-202 | the local successor projects the engine's existing trade evidence instead of inventing analytics: bars held, execution MFE/MAE, exact active controls, full multihorizon directional impulse/ATR/slope state, local-extrema geometry, and exit-state evidence. Attribution completeness now derives from every trade's trace fingerprint and fails on an absent trace. A source-crossed recent replay preserved the exact q/f35 `16`-trade economic ledger `2e012af5…` and net while attributing `16/16`; no signal, fill, lifecycle, policy, selection, or authority changed |
+| E-203 | before the SPYU service ever started and while all four result paths were absent, immutable ranking r2 (`9752563c…`, superseding `14b53428…`) bound r4 plus all three gate hashes. Multiple current-Fixed passes, if any, must be ordered by weakest-cohort net relative to drawdown, then full net/drawdown, sizing-normalized robustness, cadence, and conservative stable ties. The official ETN contract also requires current call/fee/listing review and bounded fresh NBBO-to-`SPYUIV` divergence; the read-only q receipts select nothing and default ambiguity to HOLD |
+| E-204 | read-only q probe `b22b1054…` resolved SPYU `669475151` and the broker-declared NAV seam, but `SPYUIV` had no IBKR contract and SPYU NAV returned delayed mode/error `10167` with no value. ICE documents iNAV delivery through commercial feeds/vendors/exchanges; no public timestamped endpoint exists. Receipt `2ed7dd3f…` also proves the current issuer page still lists `16m` notes, MAX lists SPYU as available, NYSE Arca's complete pending-delisting census contains only `LGHT`, and the two 2026 SEC SPYU hits are February split filings—not a call, fee, suspension, or delisting notice. That issuer guard is clear only as of `05:58Z` and must rerun immediately before selection. No subscription/order authority exists: a historical pass may nominate a candidate, but live selection remains HOLD without a fresh independent indicative value and qualified RTH quote |
+| E-205 | while the base SPYU service was inactive and every sealed result path was absent, companion bundle `9eaf9a95…` froze gate `e63c5f92…` and one exact replay transformation: only the two pending-entry schedules move from `index+1` to `index+2`; pending exits, signals, sizing, pricing, cash, and all family gates remain unchanged. The persistent `18:35 ET` service challenges only current-Fixed base nominees, rejects non-RTH/cross-date entries, and archives a content-addressed pass/HOLD receipt. Derived source `3f74fb…` is proven from frozen base `a25bd1…`; no result, strategy, order, subscription, selection, or clock was opened |
+| E-206 | pre-validation bundle `9f358971…` supersedes only the scheduled rank owner: each nominee now binds the sealed replay's SPYU/SPXU `[min,max]` quantities, then pure validator `066cd2c9…` replays the historical maximum quantity over every terminal-complete BUY/SELL book and discloses unavailable retention gaps. SPYU immediate-cross must improve total cost and be nonnegative in a strict majority of at least two UTC quarters; SPXU and SELL remain identical. Corrected hydrator `55909bb5…` terminally counted `247/291` current BUY books complete across nine SPYU and three SPXU quarters, `44` unavailable, zero missing, and `51` retired/extraneous files ignored rather than credited. Distinct SELL ledger `729d71fd…` automatically began after all `291` rows proved exact trade-identity preservation plus only `BUY→SELL` action and `decision_time:=exit_time` projection. q also proved the rank bundle imports the shared execution owner through explicit repo `PYTHONPATH`; original runner `0da4026c…` remains preserved. No outcome, runtime ladder, order, selection, or clock opened |
+| E-207 | before either RTH proof output existed, the sequential NAV/entitlement service's explicit conservative waits were found to exceed its `90s` ceiling. Immutable r3 bundle `562340eb…` preserves both probe scripts and the `09:35 ET` timer byte-for-byte, moves only their output/path identity to r3, and raises `TimeoutStartSec` to `4m`; installed service parity, manifest validation, absent outputs, and retained timer edge passed. No request, result, Gateway restart, order, selection, or clock occurred |
+| E-208 | pre-outcome orchestration bundle `667b8397…` supersedes rank bundle r4 without changing ranking, dwell, candidate, timer, strategy, or ladder semantics: rank now requires the current-contract hydration wrapper to have actually started and terminated with `Result=success`/status `0`; a terminal failure exits non-restarting `78` and preserves HOLD. q installed exact r5 service/script `8dbb0afb…`/`b7db722d…` while hydration remained uninterrupted and both rank/dwell result paths were absent; order authority and clock remain closed |
+| E-209 | replay audit found the scheduled-next-open stress computed but did not enforce its own fill-bar completeness/positive-volume receipt. Before any base result existed, immutable handoff r5 `9908c2ad…` corrected only that eligibility omission in the shared notional/five-slot/two-slot owners, updated their hash-locked pipeline/archive and cleanup restore closure, and atomically moved all five reboot consumers from preserved r4 to r5. Signal inputs, cash/fee math, thresholds, candidates, timers, q source, recorder/hydrator PIDs, order authority, and clock remained unchanged |
+| E-210 | pre-outcome timer audit found rank r5 executed its own pipeline but still conditioned startup on preserved r4. Final immutable r7 `6b95b8d4…` binds `ConditionPathExists`, `ExecStart`, pipeline self-path, and supersession receipt to one identity; preserved r6 is superseded because its copied receipt still described r5. The live r7 preflight defers `75` while hydration is active, with rank/dwell outputs absent. Ranking, dwell, timer edge, candidate law, order authority, and clock remain unchanged |
+| E-211 | the next natural news publication reversed the prior easing impulse: signed XSP pressure strengthened from `-0.6499` to `-0.7566`, with delta `-0.1067` and velocity `-0.025775/hour`. q retains the raw publication and `42` causal checkpoints through `10:12Z`; the crash-safe 15-minute Mac mirror independently preserves the same compact state. This is prospective attribution only, with no permission, selection, sizing, or order authority |
+| E-212 | pre-outcome latency audit found bundle r1 validated preserved handoff r4 while importing the r5-corrected replay owners without binding their content. Immutable r2 `ea219afa…` now validates handoff r5, clean pinned q source, and all four exact runtime-source hashes before import; its unchanged pipeline preflight defers `75` until base evidence exists. The one-bar transformation, all-nominees-must-survive law, candidates, timer, order authority, and clock remain unchanged; latency outputs are absent |
+| E-213 | the `10:43:37Z` natural news publication kept XSP pressure bearish but reversed its derivative again: signed pressure eased from `-0.7566` to `-0.6912`, delta `+0.0654`, velocity `+0.015715/hour`. q checkpoints adopted the new fingerprint from `10:57Z`, and the crash-safe Mac mirror preserves all `21` causal pressure states. This remains prospective attribution only, with no permission, selection, sizing, or order authority |
+| E-214 | current-contract SELL hydration terminally exited success with zero restarts: the six-page retry left `247/291` proved books, `44` explicit broker-retention gaps, zero missing, and zero submitted orders. An independent canonical multiset audit matched all `291/291` book `source_trade` objects to frozen SELL ledger `729d71fd…` (`3ad40437…` both sides), proved exact exit-time rebound plus SPYU/up and SPXU/down mapping, and required every complete book to contain an after-decision tick. No row, contract epoch, strategy, quantity, ladder, or authority changed |
+| E-215 | the first direct post-hydration orchestration audit proved both downstream owners advanced to the correct next boundary: latency r2 deferred `75` because base SPYU evidence is not archived, and rank r7 deferred `75` because the SPYU/SPXU archive is not finalized. All latency, ranking, and dwell outputs remained absent; no service start, result, nominee, selection, order, or clock was created |
+| E-216 | exact immutable Network B microtape source `183c7560…` passed an isolated crash drill without broker access: a truncated tail was fsync-trimmed to the last complete row, start identity and both symbol counts recovered exactly, a second recovery was idempotent, and injected authority drift failed closed. The armed output path, timer, Gateway, recorder, and order state were untouched |
+| E-217 | the live tape is an exact `147/147` causal schedule prefix: zero missing, duplicate, or unexpected timestamps and `32.45s` maximum skew inside the frozen `90s` tolerance. A final pre-open check then caught all three RTH probe outputs targeting their immutable `0555` source bundles; installed unit-only hashes `7eed68eb…`/`6af3fdf4…` now target distinct writable `0700` evidence directories while immutable scripts, criteria, timers, client IDs, Gateway, and zero-order authority remain unchanged. No probe or result existed before repair |
+| E-218 | the `09:25 ET` microtape timer exposed one final service-only defect before broker connection: absolute script execution lacked the clean pinned repo on `PYTHONPATH`. Three attempts failed without output or broker/order activity; installed unit `17666716…` added only `/home/x/Desktop/py/tradebot`, passed the real import preflight, and began capture at `09:25:40.686866 ET`. The `40.7s` loss remains disclosed but preserves `4m19s` pre-open warm-up and full RTH coverage. First-minute evidence contained both SPYU/SPXU, uniformly live type `1`, maximum broker age `0.252s`, actionable books after one warm-up row per symbol, and zero order authority |
+| E-219 | a read-only replay through the exact centralized v2 evaluator found `17` raw turns in the trailing `24h` (`9` down / `8` up) and `30` in `48h` (`16` down / `14` up), but zero admitted signals, order-capable intents, positions, or trades. Since the prospective `20:15 ET` start, all `14` raw GTH turns were rejected by the frozen transition cascade; the three prior RTH turns were rejected twice on ATR velocity and once on bearish retrace. At `09:37` and `09:42 ET`, the observer correctly failed closed as `STALE_DATA`: SPY was current through `09:40`, but IBKR XSP history still ended at the prior `16:00 ET` close, so no claim is made about today's RTH turns yet |
+| E-220 | the scheduled `09:35 ET` NAV probe did not test entitlement: its obsolete `576/578` generic ticks made IBKR reject the complete STK request with error `321`. One-line recovery source `bca5db82…` requested only broker-legal `577/614/623` and returned two live type-1 `ETF_NAV_LAST` updates. At `09:45:51 ET`, SPYU bid/ask was `$30.78/$30.80`, latest NAV was `$30.77899933` at `09:45:45`, and midpoint divergence was `0.0357%` against the frozen `0.5%` limit. Raw receipt `db716500…` passes the independent NAV/freshness gate with zero orders; transport selection and the profitability clock remain closed pending every economic, latency, dwell, exact-quantity what-if, cash, and safety gate |
+| E-221 | zero-order XSP data-path receipt `bbe3fbd6…` proves the RTH stale state is entitlement-driven, not a clock defect. Type `1` streaming returned error `354` naming `XSP Mini-SPX Index/TOP/ALL`; real-time TRADES returned `420` (`No market data permissions for CBOE IND`); delayed type `3` returned values; and at `09:49 ET` HMDS exposed only the `09:30 ET` bar. MIDPOINT/BID_ASK history is unavailable for the index. IBKR's official current catalog identifies `CBOE Streaming Market Indexes` at `$3.50/month` as the L1 Cboe-index entitlement. Network B remains correct for SPYU/SPXU but cannot make XSP live; freshness stays fail-closed rather than accepting a roughly `15m` opening delay |
+| E-222 | the user activated `CBOE Streaming Market Indexes`; no Gateway restart was needed. Zero-order successor receipt `acce7ed3…` immediately returned XSP type `1` streaming updates, current five-minute `TRADES` history through `10:05 ET`, and two five-second real-time `TRADES` bars. The normal `10:07 ET` Opening Edge v2 recurrence then changed from `STALE_DATA` to `EVALUATED`: XSP and SPY both closed through `10:05`, both were `120s` old, RTH provenance was fresh, and the system remained flat with zero orders. XSP MIDPOINT/BID_ASK remains unavailable but is not an input to the crowned signal path |
+| E-223 | immutable next-RTH preview bundle `c62129f5…` is enabled for `09:35 ET` only after tonight's ranking archive exists. It derives each whole-share quantity from the ranked fixed notional and fresh SMART ask, requires the historical quantity range, live SMART/direct-ARCA books, fresh SPYU NAV within the frozen divergence limit, and Fixed commission within `$0.01` of the modeled ticket, then issues only non-transmitting BUY what-ifs. Preflight stopped at absent ranking with `75`; no output, selection, open order, trade, or clock was created |
+| E-224 | the first live raw RTH turn exposed one compact telemetry omission: checkpoints retained economics but not blocked proposals. The local shared engine now exposes its already-computed final signal snapshot, and paired v2 evidence retains identical RTH/GTH observations across both cost profiles: proposed/admitted direction, exact gate controls and owner, active plan, ATR/slope state, and every directional horizon. A stopless zero-trade regression preserves the ATR-velocity veto. No evaluator replay, policy copy, q deployment, selection, order, or clock changed; deployment waits for the pinned recorder transaction to finish |
+| E-225 | the local, still-unselected cash owner now binds the ranked family to its exact `$1,350` reserve and reconstructs strict `T+1` settled cash solely from deduplicated broker fills: BUY cost and commission debit immediately; net SELL proceeds mature on the next U.S. trading day, including Friday-to-Monday; same-day reuse fails closed. It isolates the pre-existing unrelated `1 TQQQ` holding, requires cash-pair holdings to equal its fill ledger, lets unrelated orders pause only new BUYs, never a cash-pair SELL, and resumes only one known broker-visible `orderRef`. No selection file, q deployment, order, or clock exists |
+| E-226 | the local successor closes the last live handoff without a second reader or chase owner: the existing five-minute v2 CLI passes its just-computed causal receipt directly to the selected cash runtime only when a content-addressed selection exists and a separately staged systemd drop-in explicitly replaces broker read-only mode. Terminal receipts require completed broker state and exact USD commission-bearing fill totals; cancellation or commission lag remains `SUBMITTED/PENDING` and is adopted by the same `orderRef` after restart. The shipped/q service remains read-only, no selection exists, and no order or clock opened |
+| E-227 | the selected-owner audit found and closed a prospective overnight-risk seam before deployment: waiting for the `16:17 ET` Curb checkpoint could not express the crown's unconditional RTH close. The existing SELL-depth corpus already validates each close-EOD exit from its `15:55` decision book, so the unified owner now starts the unchanged canonical SELL ladder at `15:57` (`12:57` on half-days), blocks all later BUYs, and permits later RTH/Curb/GTH checkpoints only to reconcile or reduce an unflattened sleeve. The shared U.S.-equity broker clock now uses that same `13:00` half-day close, ensuring a fallback SELL carries the required outside-RTH flag. Extended-hours authority is SELL-only; the shipped/q service remains read-only with no selection, order, or clock |
+| E-228 | the first prospective v2 admission arrived at `11:15 ET` after four weaker RTH turns were rejected on ATR velocity or bearish retrace. The core up turn had positive ATR velocity `+0.001298`, coherence `1.0`, and retrace `1.3227 ATR`; its `11:20` counterfactual entry remained open with no qualified inverse and marked `+2.14` research-cost points at `12:15`. Simultaneous causal news pressure was strongly bearish and worsening (`-0.7954`, delta `-0.1042`, velocity `-0.02506/hour`), making this the first TA/news-conflict observation—not evidence for a news veto. Realized P&L remains zero; no order, selection, or clock exists |
+| E-229 | the same first admission was operationally fillable on the independently running live Network B tape: at the actual `11:17:00 ET` observer time SPYU was `$31.25/$31.27`, quote age `0.013s`, with `600` shares offered. Frozen `$1,050/$1,150/$1,200` notionals required only `33/36/38` shares; at the `12:25` executable bid of `$31.56`, their conservative post-ticket open marks were `+$7.54/+$8.41/+$8.99`. This is prospective transport attribution, not a realized trade or ranking input; order authority, selection, and the clock remain absent |
+| E-230 | the `248`-row artifact is intentionally the already-running `--md-type 3` XSP option-observation tape: its terminal audit proves exact schedule/session/integrity provenance, not live XSP price quality or strategy profitability. Its embedded delayed underlying is not consumed by either the crown (fresh independent XSP RTH bars plus prior-close-anchored SPY GTH) or the sealed SPYU/SPXU replay (immutable signal ledger plus authentic ETF bars). The frozen finalizer therefore remains unchanged, while this tape may never be cited as live signal/fill evidence |
+| E-231 | prospective anatomy confirms the first admitted up turn landed exactly `30m` after the `10:45 ET` local low and achieved `3.07` points MFE against `0.19` MAE in its first hour. At `12:35 ET`, fast through `60m` momentum had turned negative, but `120m` slope remained positive, smoothed score was `+0.348`, and fast/slow ATR had contracted to `0.652`; the centralized engine correctly emitted no inverse turn and retained the established up state without a stop. This is one causal hysteresis observation, not a new gate, outcome proof, or authority |
+| E-232 | on that first admitted turn, the authentic Network B SPYU book independently favored the already-frozen immediate-cross challenger without fabricating price improvement: at the exact `11:17:00.493556 ET` causal receipt, the latest eligible quote offered `33/36/38` shares at `$31.27` and the first subsequent snapshot confirmed it `0.053s` later; the canonical ladder eventually completed the same `$31.27` price `8.870s` later. Immediate crossing therefore removed uncertainty without surrendering price on this observation; it neither changes the preregistered historical comparison nor grants ranking, selection, order, or clock authority |
+| E-233 | the same first admitted up turn is the first causal TA/news-conflict observation: before admission, usable XSP news pressure was strongly bearish and worsening (`signed=-0.7954`, `delta=-0.1042`, `velocity=-0.02506/hour`), yet by `12:40 ET` the unchanged stopless state marked `+2.30` XSP points under research friction and `+0.339` through the rejected one-share SPY cost model, with no qualified inverse turn. One observation argues against a naïve negative-news long veto; news remains attribution-only pending paired 24h/48h/five-session evidence |
+| E-234 | the live mark audit closed one evidence-semantic ambiguity in the local successor before selection: synthetic `exit_reason=end` rows remain solely under `latest_position`, while `latest_trade` means a genuinely closed trade and stays null when `closed_trades=0`. Realized/open economics, fingerprints, strategy behavior, and order authority are unchanged. q remains intentionally pinned until the recorder handoff; after deployment, prospective receipts cannot present a mark-to-market row as an exit |
+| E-235 | read-only account proof still reports USD `$1,228.61`, AUD `176.94`, and `1.4320738 AUD/USD`. The local selector now separates the frozen `$1,350` total risk identity from authentic USD settlement: it initializes cash from the broker snapshot and requires each nominee's complete historical partition plus worst per-slot BUY commissions (`$1,305.050645` five-slot, `$1,302.020258` two-slot, or notional plus `$1.010129` one-slot). Thus a `$1,200` one-slot nominee needs `$1,201.010129` and already fits without FX; multi-slot nominees fail closed pending sufficient USD. Strict T+1, sizing, drawdown/session limits, and ranking remain unchanged; no FX conversion, selection, order, or clock occurred |
+| E-236 | one local broker-snapshot owner now serves both selection and every live recurrence: it requires a fresh `STKCASH` USD cash update, captures exact cash-pair and unrelated holdings plus open orders, and content-addresses both observation times into the selected run. Selection and reload reject stale/future state at `90s`; live recurrence independently refuses stale cash. Quote/source freshness, strategy, ranking, sizing, risk, execution policy, and q's non-submitting authority remain unchanged |
+| E-237 | the selected owner no longer infers post-selection authority solely from the crown's modeled fill clock. Crown positions use canonical UTC-naive bar times and may carry a next-bar entry later than selection even when their admission was already known; the owner now reads that representation explicitly and compares each target with the exact baseline state frozen at selection. An unchanged preselection signal cannot be adopted or crash timestamp parsing; only a genuinely changed post-selection state can request a BUY |
 
 ### Decision anchors
 
@@ -431,6 +602,14 @@ and
 | D-163 | recurring observation may start only after one immutable first-bar audit proves exact run/config/freshness/selection continuity; checkpoint success never grants execution authority |
 | D-164 | keep streaming entitlement and historical freshness separate; explicit OVERNIGHT data may support future execution evidence but cannot silently relabel delayed history |
 | D-165 | observe candidate ETF execution only on paired-v2 state transitions through shared quote/pricing/preview owners; an observation cannot overturn the frozen historical HOLD, select a run, start a clock, or submit an order |
+| D-166 | treat SPYU as one final RTH transport challenge, never a 24/5 replacement: a pass requires a new evidence-bound USD selection owner, strictly post-selection RTH start, frozen `$135/$67.50` drawdown/session limits, and RTH entitlement before the clock; neither v1's point policy nor July 27's observer start may transfer. A fail preserves HOLD and deploys observation only |
+| D-167 | preserve the entire scheduled tape→replay→deployment→recurrence closure across reboot with one immutable `/var/tmp` mirror and one shared restore owner; never duplicate strategy math, alter a frozen handoff timer, or use restored inputs to manufacture missing outcome evidence |
+| D-168 | five-minute decisions require five-minute observation coverage: preserve the current r4 transaction byte-for-byte, then correct the recurring successor before a new run. Reconstructed bars may recover strategy state, but cannot recreate timestamp-correct news, quote, or execution evidence for missed slots |
+| D-169 | news/TA calibration must project the exact engine trace, not reimplement gates: persist only active control identity, multihorizon impulse/ATR/slope state, extrema geometry, exit evidence, MFE/MAE, and a trace fingerprint beside the already-causal pressure vector |
+| D-170 | if several SPYU current-Fixed profiles pass, use the pre-outcome robustness ranking rather than choosing the largest historical dollar result; ranking is not selection, and the winner still needs a distinct USD identity, fresh qualified RTH NBBO/what-if/indicative value, no unresolved issuer notice, and a strictly later start |
+| D-171 | delayed/no-value SPYU NAV cannot satisfy the ETN divergence guard. Do not accept a data subscription or substitute market price for indicative value implicitly; require a fresh timestamped issuer/broker source or retain HOLD |
+| D-172 | treat exact next-interval-open fills as the causal historical benchmark, not guaranteed live execution. Before selection, every SPYU nominee must also survive one additional complete five-minute entry bar under the unchanged family gate; failure is HOLD, while success still lacks authority until fresh NAV/NBBO/what-if and a new USD selection identity pass |
+| D-173 | the sealed cash replay/ranker is the sole sizing owner: freeze its historical maximum SPYU/SPXU quantities for depth validation, but derive the actual next-RTH whole-share order only from the ranked notional and fresh limit price. Never reopen arbitrary sizes or let stale retired-contract files satisfy a current-ledger manifest |
 
 ---
 
@@ -483,28 +662,38 @@ five-session receipts exist and the final calibration/risk verdict is explicit.
 - [Cboe XSP specifications](https://www.cboe.com/tradable_products/sp_500/mini_spx_options/specifications)
 - [Cboe U.S. options hours](https://www.cboe.com/about/hours/us-options)
 - [IBKR TWS/Gateway API and historical limits](https://ibkrcampus.com/campus/ibkr-api-page/twsapi-doc/)
+- [IBKR API tick types, including ETF NAV](https://interactivebrokers.github.io/tws-api/tick_types.html)
 - [IBKR Australia U.S. stock/ETF commissions](https://www.interactivebrokers.com.au/en/pricing/commissions-stocks.php)
 - [IBKR ARCA add/remove-liquidity fees](https://portal.interactivebrokers.com/en/accounts/fees/ARCAstkfee.php?nhf=T)
 - [IBKR order types and combinations](https://ibkrcampus.com/campus/ibkr-api-page/order-types/)
+- [BMO SPYU pricing supplement](https://www.sec.gov/Archives/edgar/data/927971/000121465926002335/d220262424b2.htm)
 
 ---
 
 ## Conclusion
 
-Opening Edge v2 remains the historical research crown, but current-Fixed SPY
-and every tested 3× ETF pairing are `HOLD`. q's v2 observer is
-running on proven recurring cadence with zero order authority. Its first and
-recurring GTH checkpoints are exact, fresh, positionless, and immutably
-archived. A sparse state-change execution owner is published but deliberately
-not installed beneath q's active recorder. Broker/order strategy remains
-`NO_TRADE`, v2 has no selected
-identity, and the profitability clock is `NOT_STARTED`. Tiered pricing with
-≤25% spread capture passes as a feasibility bound across every annual slice,
-but a causal five-minute patient→cross replay still loses Years 1/2. Only
-prospective seconds-scale ladder receipts may reopen that path; they cannot
-authorize an account-pricing change or a trade.
+Opening Edge v2 remains the historical research crown, but every completed
+current-Fixed transport is `HOLD`. q remains pinned beneath its active July 28
+recorder; the exact terminal tape and sealed SPYU/SPXU RTH replay are the next
+authoritative evidence, followed by the preregistered extra-bar entry stress
+for any nominee. The published state-change observer remains
+non-submitting; its locally proven successor also closes twelve nightly GTH
+cadence holes and retains the engine-native signal/excursion attribution needed
+for paired news evaluation, but must wait until the frozen f35 handoff is
+consumed.
+Broker/order strategy is `NO_TRADE`, v2 has no selected
+identity, and the profitability clock is `NOT_STARTED`. A passing SPYU profile
+  would pause deployment pending a new RTH-only transport-bound selection and
+fresh exact-nominee what-if. Fresh Network B RTH NBBO and broker SPYU NAV now
+pass independently; failure in any remaining economic, latency, dwell, cash,
+or safety gate still deploys observation only.
+Neither path authorizes a pricing-plan change, subscription, backfill, forced
+trade, or GTH execution.
 
 **Predictive observation:** the current bottleneck is transport cost, not
-directional signal quality. The next valid breakthrough must reduce executable
-friction or increase per-trade captured movement without reopening historical
-decimal mining, breadth work, or options/upsizing authority.
+directional signal quality. SPYU's 4× RTH movement is the last preregistered
+fixed-cash attempt to lift movement per ticket; its unseen result must either
+survive both the family gate and realistic entry latency before it can even be
+nominated for a new execution-bound selection. Otherwise this transport family
+closes without reopening historical decimal mining, breadth work, or
+options/upsizing.

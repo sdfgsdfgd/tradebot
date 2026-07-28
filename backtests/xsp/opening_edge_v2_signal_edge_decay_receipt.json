@@ -1,0 +1,1517 @@
+{
+  "authority": "historical_execution_research_only",
+  "cohorts": {
+    "all": {
+      "delays": {
+        "0": {
+          "close_only_max_drawdown_points": 21.99,
+          "delay_minutes": 0,
+          "eligible_trades": 725,
+          "expired_before_fill": 0,
+          "filled_trades": 725,
+          "mean_adverse_entry_points": 0.0,
+          "mean_points": 0.2461793103,
+          "median_adverse_entry_points": -0.0,
+          "net_points": 178.48,
+          "profit_factor": 1.4571955531,
+          "win_rate": 0.4731034483,
+          "worse_entry_share": 0.0
+        },
+        "10": {
+          "close_only_max_drawdown_points": 37.58,
+          "delay_minutes": 10,
+          "eligible_trades": 725,
+          "expired_before_fill": 1,
+          "filled_trades": 724,
+          "mean_adverse_entry_points": 0.0604834254,
+          "mean_points": 0.1860082873,
+          "median_adverse_entry_points": 0.03,
+          "net_points": 134.67,
+          "profit_factor": 1.3494291645,
+          "win_rate": 0.4613259669,
+          "worse_entry_share": 0.523480663
+        },
+        "15": {
+          "close_only_max_drawdown_points": 31.44,
+          "delay_minutes": 15,
+          "eligible_trades": 725,
+          "expired_before_fill": 2,
+          "filled_trades": 723,
+          "mean_adverse_entry_points": 0.0435408022,
+          "mean_points": 0.2007053942,
+          "median_adverse_entry_points": 0.01,
+          "net_points": 145.11,
+          "profit_factor": 1.4001930502,
+          "win_rate": 0.4619640387,
+          "worse_entry_share": 0.5020746888
+        },
+        "30": {
+          "close_only_max_drawdown_points": 29.21,
+          "delay_minutes": 30,
+          "eligible_trades": 725,
+          "expired_before_fill": 3,
+          "filled_trades": 722,
+          "mean_adverse_entry_points": 0.0723822715,
+          "mean_points": 0.1724930748,
+          "median_adverse_entry_points": 0.005,
+          "net_points": 124.54,
+          "profit_factor": 1.4068206318,
+          "win_rate": 0.4473684211,
+          "worse_entry_share": 0.5
+        },
+        "5": {
+          "close_only_max_drawdown_points": 23.48,
+          "delay_minutes": 5,
+          "eligible_trades": 725,
+          "expired_before_fill": 0,
+          "filled_trades": 725,
+          "mean_adverse_entry_points": 0.0015448276,
+          "mean_points": 0.2446344828,
+          "median_adverse_entry_points": -0.0,
+          "net_points": 177.36,
+          "profit_factor": 1.4771461623,
+          "win_rate": 0.4689655172,
+          "worse_entry_share": 0.4731034483
+        }
+      },
+      "trades": 725
+    },
+    "direction:down": {
+      "delays": {
+        "0": {
+          "close_only_max_drawdown_points": 20.22,
+          "delay_minutes": 0,
+          "eligible_trades": 457,
+          "expired_before_fill": 0,
+          "filled_trades": 457,
+          "mean_adverse_entry_points": 0.0,
+          "mean_points": 0.2326477024,
+          "median_adverse_entry_points": -0.0,
+          "net_points": 106.32,
+          "profit_factor": 1.4644620156,
+          "win_rate": 0.4485776805,
+          "worse_entry_share": 0.0
+        },
+        "10": {
+          "close_only_max_drawdown_points": 35.26,
+          "delay_minutes": 10,
+          "eligible_trades": 457,
+          "expired_before_fill": 1,
+          "filled_trades": 456,
+          "mean_adverse_entry_points": 0.0856359649,
+          "mean_points": 0.1474780702,
+          "median_adverse_entry_points": -0.0,
+          "net_points": 67.25,
+          "profit_factor": 1.2982129396,
+          "win_rate": 0.4429824561,
+          "worse_entry_share": 0.4956140351
+        },
+        "15": {
+          "close_only_max_drawdown_points": 27.06,
+          "delay_minutes": 15,
+          "eligible_trades": 457,
+          "expired_before_fill": 2,
+          "filled_trades": 455,
+          "mean_adverse_entry_points": 0.0834725275,
+          "mean_points": 0.146043956,
+          "median_adverse_entry_points": -0.0,
+          "net_points": 66.45,
+          "profit_factor": 1.311971831,
+          "win_rate": 0.432967033,
+          "worse_entry_share": 0.4835164835
+        },
+        "30": {
+          "close_only_max_drawdown_points": 26.95,
+          "delay_minutes": 30,
+          "eligible_trades": 457,
+          "expired_before_fill": 3,
+          "filled_trades": 454,
+          "mean_adverse_entry_points": 0.1179955947,
+          "mean_points": 0.1124889868,
+          "median_adverse_entry_points": -0.0,
+          "net_points": 51.07,
+          "profit_factor": 1.2810831636,
+          "win_rate": 0.4185022026,
+          "worse_entry_share": 0.4933920705
+        },
+        "5": {
+          "close_only_max_drawdown_points": 21.7,
+          "delay_minutes": 5,
+          "eligible_trades": 457,
+          "expired_before_fill": 0,
+          "filled_trades": 457,
+          "mean_adverse_entry_points": 0.0066520788,
+          "mean_points": 0.2259956236,
+          "median_adverse_entry_points": -0.01,
+          "net_points": 103.28,
+          "profit_factor": 1.479947953,
+          "win_rate": 0.4551422319,
+          "worse_entry_share": 0.4463894967
+        }
+      },
+      "trades": 457
+    },
+    "direction:up": {
+      "delays": {
+        "0": {
+          "close_only_max_drawdown_points": 22.89,
+          "delay_minutes": 0,
+          "eligible_trades": 268,
+          "expired_before_fill": 0,
+          "filled_trades": 268,
+          "mean_adverse_entry_points": 0.0,
+          "mean_points": 0.2692537313,
+          "median_adverse_entry_points": 0.0,
+          "net_points": 72.16,
+          "profit_factor": 1.4468941599,
+          "win_rate": 0.5149253731,
+          "worse_entry_share": 0.0
+        },
+        "10": {
+          "close_only_max_drawdown_points": 19.17,
+          "delay_minutes": 10,
+          "eligible_trades": 268,
+          "expired_before_fill": 0,
+          "filled_trades": 268,
+          "mean_adverse_entry_points": 0.0176865672,
+          "mean_points": 0.2515671642,
+          "median_adverse_entry_points": 0.075,
+          "net_points": 67.42,
+          "profit_factor": 1.4216648946,
+          "win_rate": 0.4925373134,
+          "worse_entry_share": 0.5708955224
+        },
+        "15": {
+          "close_only_max_drawdown_points": 14.67,
+          "delay_minutes": 15,
+          "eligible_trades": 268,
+          "expired_before_fill": 0,
+          "filled_trades": 268,
+          "mean_adverse_entry_points": -0.0242537313,
+          "mean_points": 0.2935074627,
+          "median_adverse_entry_points": 0.04,
+          "net_points": 78.66,
+          "profit_factor": 1.525802139,
+          "win_rate": 0.5111940299,
+          "worse_entry_share": 0.5335820896
+        },
+        "30": {
+          "close_only_max_drawdown_points": 10.82,
+          "delay_minutes": 30,
+          "eligible_trades": 268,
+          "expired_before_fill": 0,
+          "filled_trades": 268,
+          "mean_adverse_entry_points": -0.0048880597,
+          "mean_points": 0.274141791,
+          "median_adverse_entry_points": 0.015,
+          "net_points": 73.47,
+          "profit_factor": 1.5904050145,
+          "win_rate": 0.4962686567,
+          "worse_entry_share": 0.5111940299
+        },
+        "5": {
+          "close_only_max_drawdown_points": 17.37,
+          "delay_minutes": 5,
+          "eligible_trades": 268,
+          "expired_before_fill": 0,
+          "filled_trades": 268,
+          "mean_adverse_entry_points": -0.0071641791,
+          "mean_points": 0.2764179104,
+          "median_adverse_entry_points": 0.015,
+          "net_points": 74.08,
+          "profit_factor": 1.4732941477,
+          "win_rate": 0.4925373134,
+          "worse_entry_share": 0.5186567164
+        }
+      },
+      "trades": 268
+    },
+    "lane:gth": {
+      "delays": {
+        "0": {
+          "close_only_max_drawdown_points": 5.42,
+          "delay_minutes": 0,
+          "eligible_trades": 179,
+          "expired_before_fill": 0,
+          "filled_trades": 179,
+          "mean_adverse_entry_points": 0.0,
+          "mean_points": 0.0566480447,
+          "median_adverse_entry_points": -0.0,
+          "net_points": 10.14,
+          "profit_factor": 1.2088998764,
+          "win_rate": 0.4357541899,
+          "worse_entry_share": 0.0
+        },
+        "10": {
+          "close_only_max_drawdown_points": 14.28,
+          "delay_minutes": 10,
+          "eligible_trades": 179,
+          "expired_before_fill": 1,
+          "filled_trades": 178,
+          "mean_adverse_entry_points": 0.0866853933,
+          "mean_points": -0.0298314607,
+          "median_adverse_entry_points": -0.0,
+          "net_points": -5.31,
+          "profit_factor": 0.8997734994,
+          "win_rate": 0.3876404494,
+          "worse_entry_share": 0.4775280899
+        },
+        "15": {
+          "close_only_max_drawdown_points": 9.02,
+          "delay_minutes": 15,
+          "eligible_trades": 179,
+          "expired_before_fill": 2,
+          "filled_trades": 177,
+          "mean_adverse_entry_points": 0.0446327684,
+          "mean_points": 0.0019774011,
+          "median_adverse_entry_points": -0.0,
+          "net_points": 0.35,
+          "profit_factor": 1.0075577629,
+          "win_rate": 0.3728813559,
+          "worse_entry_share": 0.4689265537
+        },
+        "30": {
+          "close_only_max_drawdown_points": 11.51,
+          "delay_minutes": 30,
+          "eligible_trades": 179,
+          "expired_before_fill": 3,
+          "filled_trades": 176,
+          "mean_adverse_entry_points": 0.104375,
+          "mean_points": -0.0563068182,
+          "median_adverse_entry_points": -0.0,
+          "net_points": -9.91,
+          "profit_factor": 0.7372049854,
+          "win_rate": 0.3465909091,
+          "worse_entry_share": 0.4943181818
+        },
+        "5": {
+          "close_only_max_drawdown_points": 4.82,
+          "delay_minutes": 5,
+          "eligible_trades": 179,
+          "expired_before_fill": 0,
+          "filled_trades": 179,
+          "mean_adverse_entry_points": -0.0088826816,
+          "mean_points": 0.0655307263,
+          "median_adverse_entry_points": -0.01,
+          "net_points": 11.73,
+          "profit_factor": 1.2729811496,
+          "win_rate": 0.4078212291,
+          "worse_entry_share": 0.3910614525
+        }
+      },
+      "trades": 179
+    },
+    "lane:gth:direction:down": {
+      "delays": {
+        "0": {
+          "close_only_max_drawdown_points": 5.42,
+          "delay_minutes": 0,
+          "eligible_trades": 179,
+          "expired_before_fill": 0,
+          "filled_trades": 179,
+          "mean_adverse_entry_points": 0.0,
+          "mean_points": 0.0566480447,
+          "median_adverse_entry_points": -0.0,
+          "net_points": 10.14,
+          "profit_factor": 1.2088998764,
+          "win_rate": 0.4357541899,
+          "worse_entry_share": 0.0
+        },
+        "10": {
+          "close_only_max_drawdown_points": 14.28,
+          "delay_minutes": 10,
+          "eligible_trades": 179,
+          "expired_before_fill": 1,
+          "filled_trades": 178,
+          "mean_adverse_entry_points": 0.0866853933,
+          "mean_points": -0.0298314607,
+          "median_adverse_entry_points": -0.0,
+          "net_points": -5.31,
+          "profit_factor": 0.8997734994,
+          "win_rate": 0.3876404494,
+          "worse_entry_share": 0.4775280899
+        },
+        "15": {
+          "close_only_max_drawdown_points": 9.02,
+          "delay_minutes": 15,
+          "eligible_trades": 179,
+          "expired_before_fill": 2,
+          "filled_trades": 177,
+          "mean_adverse_entry_points": 0.0446327684,
+          "mean_points": 0.0019774011,
+          "median_adverse_entry_points": -0.0,
+          "net_points": 0.35,
+          "profit_factor": 1.0075577629,
+          "win_rate": 0.3728813559,
+          "worse_entry_share": 0.4689265537
+        },
+        "30": {
+          "close_only_max_drawdown_points": 11.51,
+          "delay_minutes": 30,
+          "eligible_trades": 179,
+          "expired_before_fill": 3,
+          "filled_trades": 176,
+          "mean_adverse_entry_points": 0.104375,
+          "mean_points": -0.0563068182,
+          "median_adverse_entry_points": -0.0,
+          "net_points": -9.91,
+          "profit_factor": 0.7372049854,
+          "win_rate": 0.3465909091,
+          "worse_entry_share": 0.4943181818
+        },
+        "5": {
+          "close_only_max_drawdown_points": 4.82,
+          "delay_minutes": 5,
+          "eligible_trades": 179,
+          "expired_before_fill": 0,
+          "filled_trades": 179,
+          "mean_adverse_entry_points": -0.0088826816,
+          "mean_points": 0.0655307263,
+          "median_adverse_entry_points": -0.01,
+          "net_points": 11.73,
+          "profit_factor": 1.2729811496,
+          "win_rate": 0.4078212291,
+          "worse_entry_share": 0.3910614525
+        }
+      },
+      "trades": 179
+    },
+    "lane:rth": {
+      "delays": {
+        "0": {
+          "close_only_max_drawdown_points": 23.48,
+          "delay_minutes": 0,
+          "eligible_trades": 546,
+          "expired_before_fill": 0,
+          "filled_trades": 546,
+          "mean_adverse_entry_points": 0.0,
+          "mean_points": 0.3083150183,
+          "median_adverse_entry_points": 0.0,
+          "net_points": 168.34,
+          "profit_factor": 1.4924526094,
+          "win_rate": 0.4853479853,
+          "worse_entry_share": 0.0
+        },
+        "10": {
+          "close_only_max_drawdown_points": 29.13,
+          "delay_minutes": 10,
+          "eligible_trades": 546,
+          "expired_before_fill": 0,
+          "filled_trades": 546,
+          "mean_adverse_entry_points": 0.0519413919,
+          "mean_points": 0.2563736264,
+          "median_adverse_entry_points": 0.05,
+          "net_points": 139.98,
+          "profit_factor": 1.421093797,
+          "win_rate": 0.4853479853,
+          "worse_entry_share": 0.5384615385
+        },
+        "15": {
+          "close_only_max_drawdown_points": 29.39,
+          "delay_minutes": 15,
+          "eligible_trades": 546,
+          "expired_before_fill": 0,
+          "filled_trades": 546,
+          "mean_adverse_entry_points": 0.0431868132,
+          "mean_points": 0.2651282051,
+          "median_adverse_entry_points": 0.015,
+          "net_points": 144.76,
+          "profit_factor": 1.4576812419,
+          "win_rate": 0.4908424908,
+          "worse_entry_share": 0.5128205128
+        },
+        "30": {
+          "close_only_max_drawdown_points": 26.29,
+          "delay_minutes": 30,
+          "eligible_trades": 546,
+          "expired_before_fill": 0,
+          "filled_trades": 546,
+          "mean_adverse_entry_points": 0.0620695971,
+          "mean_points": 0.2462454212,
+          "median_adverse_entry_points": 0.01,
+          "net_points": 134.45,
+          "profit_factor": 1.5008941212,
+          "win_rate": 0.4798534799,
+          "worse_entry_share": 0.5018315018
+        },
+        "5": {
+          "close_only_max_drawdown_points": 23.49,
+          "delay_minutes": 5,
+          "eligible_trades": 546,
+          "expired_before_fill": 0,
+          "filled_trades": 546,
+          "mean_adverse_entry_points": 0.00496337,
+          "mean_points": 0.3033516484,
+          "median_adverse_entry_points": 0.005,
+          "net_points": 165.63,
+          "profit_factor": 1.5038328162,
+          "win_rate": 0.489010989,
+          "worse_entry_share": 0.5
+        }
+      },
+      "trades": 546
+    },
+    "lane:rth:direction:down": {
+      "delays": {
+        "0": {
+          "close_only_max_drawdown_points": 21.33,
+          "delay_minutes": 0,
+          "eligible_trades": 278,
+          "expired_before_fill": 0,
+          "filled_trades": 278,
+          "mean_adverse_entry_points": 0.0,
+          "mean_points": 0.345971223,
+          "median_adverse_entry_points": -0.0,
+          "net_points": 96.18,
+          "profit_factor": 1.5332372346,
+          "win_rate": 0.4568345324,
+          "worse_entry_share": 0.0
+        },
+        "10": {
+          "close_only_max_drawdown_points": 24.26,
+          "delay_minutes": 10,
+          "eligible_trades": 278,
+          "expired_before_fill": 0,
+          "filled_trades": 278,
+          "mean_adverse_entry_points": 0.0849640288,
+          "mean_points": 0.2610071942,
+          "median_adverse_entry_points": 0.015,
+          "net_points": 72.56,
+          "profit_factor": 1.4205645395,
+          "win_rate": 0.4784172662,
+          "worse_entry_share": 0.5071942446
+        },
+        "15": {
+          "close_only_max_drawdown_points": 21.99,
+          "delay_minutes": 15,
+          "eligible_trades": 278,
+          "expired_before_fill": 0,
+          "filled_trades": 278,
+          "mean_adverse_entry_points": 0.1082014388,
+          "mean_points": 0.2377697842,
+          "median_adverse_entry_points": -0.01,
+          "net_points": 66.1,
+          "profit_factor": 1.3965444838,
+          "win_rate": 0.4712230216,
+          "worse_entry_share": 0.4928057554
+        },
+        "30": {
+          "close_only_max_drawdown_points": 21.99,
+          "delay_minutes": 30,
+          "eligible_trades": 278,
+          "expired_before_fill": 0,
+          "filled_trades": 278,
+          "mean_adverse_entry_points": 0.126618705,
+          "mean_points": 0.219352518,
+          "median_adverse_entry_points": -0.01,
+          "net_points": 60.98,
+          "profit_factor": 1.423531046,
+          "win_rate": 0.464028777,
+          "worse_entry_share": 0.4928057554
+        },
+        "5": {
+          "close_only_max_drawdown_points": 22.76,
+          "delay_minutes": 5,
+          "eligible_trades": 278,
+          "expired_before_fill": 0,
+          "filled_trades": 278,
+          "mean_adverse_entry_points": 0.0166546763,
+          "mean_points": 0.3293165468,
+          "median_adverse_entry_points": -0.01,
+          "net_points": 91.55,
+          "profit_factor": 1.5315875044,
+          "win_rate": 0.4856115108,
+          "worse_entry_share": 0.4820143885
+        }
+      },
+      "trades": 278
+    },
+    "lane:rth:direction:up": {
+      "delays": {
+        "0": {
+          "close_only_max_drawdown_points": 22.89,
+          "delay_minutes": 0,
+          "eligible_trades": 268,
+          "expired_before_fill": 0,
+          "filled_trades": 268,
+          "mean_adverse_entry_points": 0.0,
+          "mean_points": 0.2692537313,
+          "median_adverse_entry_points": 0.0,
+          "net_points": 72.16,
+          "profit_factor": 1.4468941599,
+          "win_rate": 0.5149253731,
+          "worse_entry_share": 0.0
+        },
+        "10": {
+          "close_only_max_drawdown_points": 19.17,
+          "delay_minutes": 10,
+          "eligible_trades": 268,
+          "expired_before_fill": 0,
+          "filled_trades": 268,
+          "mean_adverse_entry_points": 0.0176865672,
+          "mean_points": 0.2515671642,
+          "median_adverse_entry_points": 0.075,
+          "net_points": 67.42,
+          "profit_factor": 1.4216648946,
+          "win_rate": 0.4925373134,
+          "worse_entry_share": 0.5708955224
+        },
+        "15": {
+          "close_only_max_drawdown_points": 14.67,
+          "delay_minutes": 15,
+          "eligible_trades": 268,
+          "expired_before_fill": 0,
+          "filled_trades": 268,
+          "mean_adverse_entry_points": -0.0242537313,
+          "mean_points": 0.2935074627,
+          "median_adverse_entry_points": 0.04,
+          "net_points": 78.66,
+          "profit_factor": 1.525802139,
+          "win_rate": 0.5111940299,
+          "worse_entry_share": 0.5335820896
+        },
+        "30": {
+          "close_only_max_drawdown_points": 10.82,
+          "delay_minutes": 30,
+          "eligible_trades": 268,
+          "expired_before_fill": 0,
+          "filled_trades": 268,
+          "mean_adverse_entry_points": -0.0048880597,
+          "mean_points": 0.274141791,
+          "median_adverse_entry_points": 0.015,
+          "net_points": 73.47,
+          "profit_factor": 1.5904050145,
+          "win_rate": 0.4962686567,
+          "worse_entry_share": 0.5111940299
+        },
+        "5": {
+          "close_only_max_drawdown_points": 17.37,
+          "delay_minutes": 5,
+          "eligible_trades": 268,
+          "expired_before_fill": 0,
+          "filled_trades": 268,
+          "mean_adverse_entry_points": -0.0071641791,
+          "mean_points": 0.2764179104,
+          "median_adverse_entry_points": 0.015,
+          "net_points": 74.08,
+          "profit_factor": 1.4732941477,
+          "win_rate": 0.4925373134,
+          "worse_entry_share": 0.5186567164
+        }
+      },
+      "trades": 268
+    },
+    "period:recent": {
+      "delays": {
+        "0": {
+          "close_only_max_drawdown_points": 5.01,
+          "delay_minutes": 0,
+          "eligible_trades": 16,
+          "expired_before_fill": 0,
+          "filled_trades": 16,
+          "mean_adverse_entry_points": 0.0,
+          "mean_points": 0.770625,
+          "median_adverse_entry_points": 0.0,
+          "net_points": 12.33,
+          "profit_factor": 2.5374064838,
+          "win_rate": 0.5,
+          "worse_entry_share": 0.0
+        },
+        "10": {
+          "close_only_max_drawdown_points": 7.07,
+          "delay_minutes": 10,
+          "eligible_trades": 16,
+          "expired_before_fill": 0,
+          "filled_trades": 16,
+          "mean_adverse_entry_points": 0.444375,
+          "mean_points": 0.32625,
+          "median_adverse_entry_points": 0.275,
+          "net_points": 5.22,
+          "profit_factor": 1.6420664207,
+          "win_rate": 0.5625,
+          "worse_entry_share": 0.625
+        },
+        "15": {
+          "close_only_max_drawdown_points": 2.93,
+          "delay_minutes": 15,
+          "eligible_trades": 16,
+          "expired_before_fill": 0,
+          "filled_trades": 16,
+          "mean_adverse_entry_points": 0.26625,
+          "mean_points": 0.504375,
+          "median_adverse_entry_points": 0.075,
+          "net_points": 8.07,
+          "profit_factor": 2.1270949721,
+          "win_rate": 0.5625,
+          "worse_entry_share": 0.5625
+        },
+        "30": {
+          "close_only_max_drawdown_points": 4.26,
+          "delay_minutes": 30,
+          "eligible_trades": 16,
+          "expired_before_fill": 0,
+          "filled_trades": 16,
+          "mean_adverse_entry_points": 0.351875,
+          "mean_points": 0.41875,
+          "median_adverse_entry_points": 0.035,
+          "net_points": 6.7,
+          "profit_factor": 2.1531841652,
+          "win_rate": 0.5625,
+          "worse_entry_share": 0.5
+        },
+        "5": {
+          "close_only_max_drawdown_points": 4.62,
+          "delay_minutes": 5,
+          "eligible_trades": 16,
+          "expired_before_fill": 0,
+          "filled_trades": 16,
+          "mean_adverse_entry_points": -0.035,
+          "mean_points": 0.805625,
+          "median_adverse_entry_points": -0.02,
+          "net_points": 12.89,
+          "profit_factor": 2.674025974,
+          "win_rate": 0.625,
+          "worse_entry_share": 0.5
+        }
+      },
+      "trades": 16
+    },
+    "period:year_1": {
+      "delays": {
+        "0": {
+          "close_only_max_drawdown_points": 18.28,
+          "delay_minutes": 0,
+          "eligible_trades": 244,
+          "expired_before_fill": 0,
+          "filled_trades": 244,
+          "mean_adverse_entry_points": 0.0,
+          "mean_points": 0.0677868852,
+          "median_adverse_entry_points": 0.0,
+          "net_points": 16.54,
+          "profit_factor": 1.1468916519,
+          "win_rate": 0.4467213115,
+          "worse_entry_share": 0.0
+        },
+        "10": {
+          "close_only_max_drawdown_points": 16.49,
+          "delay_minutes": 10,
+          "eligible_trades": 244,
+          "expired_before_fill": 0,
+          "filled_trades": 244,
+          "mean_adverse_entry_points": 0.025,
+          "mean_points": 0.0427868852,
+          "median_adverse_entry_points": 0.0,
+          "net_points": 10.44,
+          "profit_factor": 1.0997706422,
+          "win_rate": 0.4385245902,
+          "worse_entry_share": 0.4836065574
+        },
+        "15": {
+          "close_only_max_drawdown_points": 14.48,
+          "delay_minutes": 15,
+          "eligible_trades": 244,
+          "expired_before_fill": 1,
+          "filled_trades": 243,
+          "mean_adverse_entry_points": 0.01781893,
+          "mean_points": 0.0425514403,
+          "median_adverse_entry_points": -0.03,
+          "net_points": 10.34,
+          "profit_factor": 1.0981769844,
+          "win_rate": 0.4238683128,
+          "worse_entry_share": 0.4691358025
+        },
+        "30": {
+          "close_only_max_drawdown_points": 11.95,
+          "delay_minutes": 30,
+          "eligible_trades": 244,
+          "expired_before_fill": 2,
+          "filled_trades": 242,
+          "mean_adverse_entry_points": -0.0039256198,
+          "mean_points": 0.0654132231,
+          "median_adverse_entry_points": -0.0,
+          "net_points": 15.83,
+          "profit_factor": 1.1805428832,
+          "win_rate": 0.4338842975,
+          "worse_entry_share": 0.4876033058
+        },
+        "5": {
+          "close_only_max_drawdown_points": 15.91,
+          "delay_minutes": 5,
+          "eligible_trades": 244,
+          "expired_before_fill": 0,
+          "filled_trades": 244,
+          "mean_adverse_entry_points": -0.003442623,
+          "mean_points": 0.0712295082,
+          "median_adverse_entry_points": 0.0,
+          "net_points": 17.38,
+          "profit_factor": 1.161149745,
+          "win_rate": 0.4467213115,
+          "worse_entry_share": 0.4549180328
+        }
+      },
+      "trades": 244
+    },
+    "period:year_2": {
+      "delays": {
+        "0": {
+          "close_only_max_drawdown_points": 19.54,
+          "delay_minutes": 0,
+          "eligible_trades": 230,
+          "expired_before_fill": 0,
+          "filled_trades": 230,
+          "mean_adverse_entry_points": 0.0,
+          "mean_points": 0.1246956522,
+          "median_adverse_entry_points": 0.0,
+          "net_points": 28.68,
+          "profit_factor": 1.1944934219,
+          "win_rate": 0.4608695652,
+          "worse_entry_share": 0.0
+        },
+        "10": {
+          "close_only_max_drawdown_points": 37.58,
+          "delay_minutes": 10,
+          "eligible_trades": 230,
+          "expired_before_fill": 0,
+          "filled_trades": 230,
+          "mean_adverse_entry_points": 0.0849565217,
+          "mean_points": 0.0397391304,
+          "median_adverse_entry_points": 0.035,
+          "net_points": 9.14,
+          "profit_factor": 1.059906928,
+          "win_rate": 0.4260869565,
+          "worse_entry_share": 0.5347826087
+        },
+        "15": {
+          "close_only_max_drawdown_points": 31.44,
+          "delay_minutes": 15,
+          "eligible_trades": 230,
+          "expired_before_fill": 0,
+          "filled_trades": 230,
+          "mean_adverse_entry_points": 0.0376956522,
+          "mean_points": 0.087,
+          "median_adverse_entry_points": -0.0,
+          "net_points": 20.01,
+          "profit_factor": 1.1467546755,
+          "win_rate": 0.4565217391,
+          "worse_entry_share": 0.4869565217
+        },
+        "30": {
+          "close_only_max_drawdown_points": 24.44,
+          "delay_minutes": 30,
+          "eligible_trades": 230,
+          "expired_before_fill": 0,
+          "filled_trades": 230,
+          "mean_adverse_entry_points": 0.0530434783,
+          "mean_points": 0.0716521739,
+          "median_adverse_entry_points": -0.005,
+          "net_points": 16.48,
+          "profit_factor": 1.139200946,
+          "win_rate": 0.4434782609,
+          "worse_entry_share": 0.4913043478
+        },
+        "5": {
+          "close_only_max_drawdown_points": 21.5,
+          "delay_minutes": 5,
+          "eligible_trades": 230,
+          "expired_before_fill": 0,
+          "filled_trades": 230,
+          "mean_adverse_entry_points": -0.0046521739,
+          "mean_points": 0.1293478261,
+          "median_adverse_entry_points": -0.03,
+          "net_points": 29.75,
+          "profit_factor": 1.214801444,
+          "win_rate": 0.4608695652,
+          "worse_entry_share": 0.4391304348
+        }
+      },
+      "trades": 230
+    },
+    "period:year_3": {
+      "delays": {
+        "0": {
+          "close_only_max_drawdown_points": 21.99,
+          "delay_minutes": 0,
+          "eligible_trades": 235,
+          "expired_before_fill": 0,
+          "filled_trades": 235,
+          "mean_adverse_entry_points": 0.0,
+          "mean_points": 0.5145957447,
+          "median_adverse_entry_points": -0.0,
+          "net_points": 120.93,
+          "profit_factor": 1.9887980376,
+          "win_rate": 0.5106382979,
+          "worse_entry_share": 0.0
+        },
+        "10": {
+          "close_only_max_drawdown_points": 19.54,
+          "delay_minutes": 10,
+          "eligible_trades": 235,
+          "expired_before_fill": 1,
+          "filled_trades": 234,
+          "mean_adverse_entry_points": 0.0471794872,
+          "mean_points": 0.4695299145,
+          "median_adverse_entry_points": 0.05,
+          "net_points": 109.87,
+          "profit_factor": 1.9151257704,
+          "win_rate": 0.5128205128,
+          "worse_entry_share": 0.547008547
+        },
+        "15": {
+          "close_only_max_drawdown_points": 14.37,
+          "delay_minutes": 15,
+          "eligible_trades": 235,
+          "expired_before_fill": 1,
+          "filled_trades": 234,
+          "mean_adverse_entry_points": 0.0607692308,
+          "mean_points": 0.4559401709,
+          "median_adverse_entry_points": 0.065,
+          "net_points": 106.69,
+          "profit_factor": 1.9377691834,
+          "win_rate": 0.5,
+          "worse_entry_share": 0.547008547
+        },
+        "30": {
+          "close_only_max_drawdown_points": 11.43,
+          "delay_minutes": 30,
+          "eligible_trades": 235,
+          "expired_before_fill": 1,
+          "filled_trades": 234,
+          "mean_adverse_entry_points": 0.1511965812,
+          "mean_points": 0.3655128205,
+          "median_adverse_entry_points": 0.075,
+          "net_points": 85.53,
+          "profit_factor": 1.9074801061,
+          "win_rate": 0.4572649573,
+          "worse_entry_share": 0.5213675214
+        },
+        "5": {
+          "close_only_max_drawdown_points": 23.48,
+          "delay_minutes": 5,
+          "eligible_trades": 235,
+          "expired_before_fill": 0,
+          "filled_trades": 235,
+          "mean_adverse_entry_points": 0.0152765957,
+          "mean_points": 0.4993191489,
+          "median_adverse_entry_points": 0.02,
+          "net_points": 117.34,
+          "profit_factor": 1.9972802992,
+          "win_rate": 0.4893617021,
+          "worse_entry_share": 0.5234042553
+        }
+      },
+      "trades": 235
+    }
+  },
+  "feature_quartiles_against_5m_delay": {
+    "aligned_direction_score": {
+      "bins": [
+        {
+          "baseline_net_points": 32.05,
+          "bin": 1,
+          "count": 182,
+          "delay_5m_delta_points": 6.37,
+          "delay_5m_expired": 0,
+          "delay_5m_net_points": 38.42,
+          "feature_max": 0.11699014946970691,
+          "feature_min": -0.03630515469900781
+        },
+        {
+          "baseline_net_points": 24.1,
+          "bin": 2,
+          "count": 181,
+          "delay_5m_delta_points": -7.88,
+          "delay_5m_expired": 0,
+          "delay_5m_net_points": 16.22,
+          "feature_max": 0.18894416999584918,
+          "feature_min": 0.11717230941219411
+        },
+        {
+          "baseline_net_points": 47.79,
+          "bin": 3,
+          "count": 181,
+          "delay_5m_delta_points": 1.8,
+          "delay_5m_expired": 0,
+          "delay_5m_net_points": 49.59,
+          "feature_max": 0.2677727852230093,
+          "feature_min": 0.1892766859669548
+        },
+        {
+          "baseline_net_points": 74.54,
+          "bin": 4,
+          "count": 181,
+          "delay_5m_delta_points": -1.41,
+          "delay_5m_expired": 0,
+          "delay_5m_net_points": 73.13,
+          "feature_max": 0.6239433429659617,
+          "feature_min": 0.267817170278289
+        }
+      ],
+      "edges": [
+        0.11699014946970691,
+        0.18894416999584918,
+        0.2677727852230093
+      ],
+      "observations": 725
+    },
+    "atr_acceleration_pct": {
+      "bins": [
+        {
+          "baseline_net_points": 18.78,
+          "bin": 1,
+          "count": 182,
+          "delay_5m_delta_points": 1.15,
+          "delay_5m_expired": 0,
+          "delay_5m_net_points": 19.93,
+          "feature_max": -0.0005216081555926774,
+          "feature_min": -0.3422574143523174
+        },
+        {
+          "baseline_net_points": 21.26,
+          "bin": 2,
+          "count": 181,
+          "delay_5m_delta_points": -1.72,
+          "delay_5m_expired": 0,
+          "delay_5m_net_points": 19.54,
+          "feature_max": 0.01222439471382443,
+          "feature_min": -0.000474424641458103
+        },
+        {
+          "baseline_net_points": 52.06,
+          "bin": 3,
+          "count": 181,
+          "delay_5m_delta_points": -8.51,
+          "delay_5m_expired": 0,
+          "delay_5m_net_points": 43.55,
+          "feature_max": 0.027415371342903866,
+          "feature_min": 0.012247120076299287
+        },
+        {
+          "baseline_net_points": 86.38,
+          "bin": 4,
+          "count": 181,
+          "delay_5m_delta_points": 7.96,
+          "delay_5m_expired": 0,
+          "delay_5m_net_points": 94.34,
+          "feature_max": 0.2107912785264745,
+          "feature_min": 0.027447159187268227
+        }
+      ],
+      "edges": [
+        -0.0005216081555926774,
+        0.01222439471382443,
+        0.027415371342903866
+      ],
+      "observations": 725
+    },
+    "atr_ratio": {
+      "bins": [
+        {
+          "baseline_net_points": 5.98,
+          "bin": 1,
+          "count": 45,
+          "delay_5m_delta_points": -1.42,
+          "delay_5m_expired": 0,
+          "delay_5m_net_points": 4.56,
+          "feature_max": 1.1212213552732553,
+          "feature_min": 0.8941195196955091
+        },
+        {
+          "baseline_net_points": -3.72,
+          "bin": 2,
+          "count": 45,
+          "delay_5m_delta_points": -1.38,
+          "delay_5m_expired": 0,
+          "delay_5m_net_points": -5.1,
+          "feature_max": 1.2491684537123549,
+          "feature_min": 1.122811193880563
+        },
+        {
+          "baseline_net_points": 13.9,
+          "bin": 3,
+          "count": 45,
+          "delay_5m_delta_points": 1.99,
+          "delay_5m_expired": 0,
+          "delay_5m_net_points": 15.89,
+          "feature_max": 1.6490528029003333,
+          "feature_min": 1.257592664563173
+        },
+        {
+          "baseline_net_points": -6.02,
+          "bin": 4,
+          "count": 44,
+          "delay_5m_delta_points": 2.4,
+          "delay_5m_expired": 0,
+          "delay_5m_net_points": -3.62,
+          "feature_max": 13.667704970946485,
+          "feature_min": 1.6672663417023883
+        }
+      ],
+      "edges": [
+        1.1212213552732553,
+        1.2491684537123549,
+        1.6490528029003333
+      ],
+      "observations": 179
+    },
+    "atr_velocity_pct": {
+      "bins": [
+        {
+          "baseline_net_points": 32.08,
+          "bin": 1,
+          "count": 182,
+          "delay_5m_delta_points": -0.73,
+          "delay_5m_expired": 0,
+          "delay_5m_net_points": 31.35,
+          "feature_max": 0.00361122545733146,
+          "feature_min": -0.19546946982478874
+        },
+        {
+          "baseline_net_points": 3.37,
+          "bin": 2,
+          "count": 181,
+          "delay_5m_delta_points": -0.01,
+          "delay_5m_expired": 0,
+          "delay_5m_net_points": 3.36,
+          "feature_max": 0.010236956682013871,
+          "feature_min": 0.003662096031467582
+        },
+        {
+          "baseline_net_points": 45.26,
+          "bin": 3,
+          "count": 181,
+          "delay_5m_delta_points": -2.25,
+          "delay_5m_expired": 0,
+          "delay_5m_net_points": 43.01,
+          "feature_max": 0.021065527651109694,
+          "feature_min": 0.010290019277965225
+        },
+        {
+          "baseline_net_points": 97.77,
+          "bin": 4,
+          "count": 181,
+          "delay_5m_delta_points": 1.87,
+          "delay_5m_expired": 0,
+          "delay_5m_net_points": 99.64,
+          "feature_max": 0.09379079954993816,
+          "feature_min": 0.021160087791088758
+        }
+      ],
+      "edges": [
+        0.00361122545733146,
+        0.010236956682013871,
+        0.021065527651109694
+      ],
+      "observations": 725
+    },
+    "coherence": {
+      "bins": [
+        {
+          "baseline_net_points": 80.08,
+          "bin": 1,
+          "count": 240,
+          "delay_5m_delta_points": -6.96,
+          "delay_5m_expired": 0,
+          "delay_5m_net_points": 73.12,
+          "feature_max": 0.6,
+          "feature_min": 0.2
+        },
+        {
+          "baseline_net_points": 1.08,
+          "bin": 2,
+          "count": 210,
+          "delay_5m_delta_points": 8.44,
+          "delay_5m_expired": 0,
+          "delay_5m_net_points": 9.52,
+          "feature_max": 0.75,
+          "feature_min": 0.6666666666666666
+        },
+        {
+          "baseline_net_points": 97.32,
+          "bin": 3,
+          "count": 275,
+          "delay_5m_delta_points": -2.6,
+          "delay_5m_expired": 0,
+          "delay_5m_net_points": 94.72,
+          "feature_max": 1.0,
+          "feature_min": 0.8
+        }
+      ],
+      "edges": [
+        0.6,
+        0.75,
+        1.0
+      ],
+      "observations": 725
+    },
+    "conviction": {
+      "bins": [
+        {
+          "baseline_net_points": 33.59,
+          "bin": 1,
+          "count": 182,
+          "delay_5m_delta_points": -1.04,
+          "delay_5m_expired": 0,
+          "delay_5m_net_points": 32.55,
+          "feature_max": 0.06088788946181945,
+          "feature_min": 0.0019538315329041935
+        },
+        {
+          "baseline_net_points": 18.19,
+          "bin": 2,
+          "count": 181,
+          "delay_5m_delta_points": 4.68,
+          "delay_5m_expired": 0,
+          "delay_5m_net_points": 22.87,
+          "feature_max": 0.13973472530814451,
+          "feature_min": 0.061233629906354475
+        },
+        {
+          "baseline_net_points": 61.74,
+          "bin": 3,
+          "count": 181,
+          "delay_5m_delta_points": -5.71,
+          "delay_5m_expired": 0,
+          "delay_5m_net_points": 56.03,
+          "feature_max": 0.2426782096814625,
+          "feature_min": 0.14094652841323685
+        },
+        {
+          "baseline_net_points": 64.96,
+          "bin": 4,
+          "count": 181,
+          "delay_5m_delta_points": 0.95,
+          "delay_5m_expired": 0,
+          "delay_5m_net_points": 65.91,
+          "feature_max": 0.7019362608367069,
+          "feature_min": 0.2433045798110312
+        }
+      ],
+      "edges": [
+        0.06088788946181945,
+        0.13973472530814451,
+        0.2426782096814625
+      ],
+      "observations": 725
+    },
+    "fast_velocity_votes": {
+      "bins": [
+        {
+          "baseline_net_points": 39.22,
+          "bin": 1,
+          "count": 298,
+          "delay_5m_delta_points": 7.17,
+          "delay_5m_expired": 0,
+          "delay_5m_net_points": 46.39,
+          "feature_max": 2.0,
+          "feature_min": 0.0
+        },
+        {
+          "baseline_net_points": 139.26,
+          "bin": 2,
+          "count": 427,
+          "delay_5m_delta_points": -8.29,
+          "delay_5m_expired": 0,
+          "delay_5m_net_points": 130.97,
+          "feature_max": 3.0,
+          "feature_min": 3.0
+        }
+      ],
+      "edges": [
+        2.0,
+        3.0,
+        3.0
+      ],
+      "observations": 725
+    },
+    "mean_directional_slope_noise": {
+      "bins": [
+        {
+          "baseline_net_points": 38.16,
+          "bin": 1,
+          "count": 182,
+          "delay_5m_delta_points": 4.4,
+          "delay_5m_expired": 0,
+          "delay_5m_net_points": 42.56,
+          "feature_max": 0.13556400925413506,
+          "feature_min": -0.0037984829670056155
+        },
+        {
+          "baseline_net_points": 15.71,
+          "bin": 2,
+          "count": 181,
+          "delay_5m_delta_points": -3.56,
+          "delay_5m_expired": 0,
+          "delay_5m_net_points": 12.15,
+          "feature_max": 0.23477592574252498,
+          "feature_min": 0.1356602193830634
+        },
+        {
+          "baseline_net_points": 50.77,
+          "bin": 3,
+          "count": 181,
+          "delay_5m_delta_points": -1.24,
+          "delay_5m_expired": 0,
+          "delay_5m_net_points": 49.53,
+          "feature_max": 0.34343341820112167,
+          "feature_min": 0.235720594832443
+        },
+        {
+          "baseline_net_points": 73.84,
+          "bin": 4,
+          "count": 181,
+          "delay_5m_delta_points": -0.72,
+          "delay_5m_expired": 0,
+          "delay_5m_net_points": 73.12,
+          "feature_max": 0.8770788715966932,
+          "feature_min": 0.34408100308862916
+        }
+      ],
+      "edges": [
+        0.13556400925413506,
+        0.23477592574252498,
+        0.34343341820112167
+      ],
+      "observations": 725
+    },
+    "mean_directional_velocity_noise": {
+      "bins": [
+        {
+          "baseline_net_points": 16.55,
+          "bin": 1,
+          "count": 182,
+          "delay_5m_delta_points": 2.34,
+          "delay_5m_expired": 0,
+          "delay_5m_net_points": 18.89,
+          "feature_max": 0.16818540421678205,
+          "feature_min": -4.114178729468194
+        },
+        {
+          "baseline_net_points": 31.5,
+          "bin": 2,
+          "count": 181,
+          "delay_5m_delta_points": 1.93,
+          "delay_5m_expired": 0,
+          "delay_5m_net_points": 33.43,
+          "feature_max": 0.3399098083838989,
+          "feature_min": 0.1685242876100007
+        },
+        {
+          "baseline_net_points": 105.36,
+          "bin": 3,
+          "count": 181,
+          "delay_5m_delta_points": -2.34,
+          "delay_5m_expired": 0,
+          "delay_5m_net_points": 103.02,
+          "feature_max": 0.4895160679231525,
+          "feature_min": 0.34037138825993907
+        },
+        {
+          "baseline_net_points": 25.07,
+          "bin": 4,
+          "count": 181,
+          "delay_5m_delta_points": -3.05,
+          "delay_5m_expired": 0,
+          "delay_5m_net_points": 22.02,
+          "feature_max": 1.4855191013451363,
+          "feature_min": 0.49023166274019025
+        }
+      ],
+      "edges": [
+        0.16818540421678205,
+        0.3399098083838989,
+        0.4895160679231525
+      ],
+      "observations": 725
+    },
+    "one_hour_directional_room": {
+      "bins": [
+        {
+          "baseline_net_points": 35.78,
+          "bin": 1,
+          "count": 182,
+          "delay_5m_delta_points": 10.18,
+          "delay_5m_expired": 0,
+          "delay_5m_net_points": 45.96,
+          "feature_max": 0.2760595647193673,
+          "feature_min": 0.0
+        },
+        {
+          "baseline_net_points": 0.67,
+          "bin": 2,
+          "count": 181,
+          "delay_5m_delta_points": -3.85,
+          "delay_5m_expired": 0,
+          "delay_5m_net_points": -3.18,
+          "feature_max": 0.46363636363636174,
+          "feature_min": 0.2764705882353028
+        },
+        {
+          "baseline_net_points": 81.22,
+          "bin": 3,
+          "count": 181,
+          "delay_5m_delta_points": -4.12,
+          "delay_5m_expired": 0,
+          "delay_5m_net_points": 77.1,
+          "feature_max": 0.6349206349206936,
+          "feature_min": 0.4638783269962089
+        },
+        {
+          "baseline_net_points": 60.81,
+          "bin": 4,
+          "count": 181,
+          "delay_5m_delta_points": -3.33,
+          "delay_5m_expired": 0,
+          "delay_5m_net_points": 57.48,
+          "feature_max": 1.0,
+          "feature_min": 0.6354515050167129
+        }
+      ],
+      "edges": [
+        0.2760595647193673,
+        0.46363636363636174,
+        0.6349206349206936
+      ],
+      "observations": 725
+    },
+    "retrace_atr": {
+      "bins": [
+        {
+          "baseline_net_points": 31.4,
+          "bin": 1,
+          "count": 182,
+          "delay_5m_delta_points": -1.39,
+          "delay_5m_expired": 0,
+          "delay_5m_net_points": 30.01,
+          "feature_max": 1.3132779223360194,
+          "feature_min": 0.0
+        },
+        {
+          "baseline_net_points": 60.14,
+          "bin": 2,
+          "count": 181,
+          "delay_5m_delta_points": -2.42,
+          "delay_5m_expired": 0,
+          "delay_5m_net_points": 57.72,
+          "feature_max": 1.6023306621300295,
+          "feature_min": 1.3140899865252154
+        },
+        {
+          "baseline_net_points": 41.01,
+          "bin": 3,
+          "count": 181,
+          "delay_5m_delta_points": 0.23,
+          "delay_5m_expired": 0,
+          "delay_5m_net_points": 41.24,
+          "feature_max": 2.0402656991474717,
+          "feature_min": 1.6041491118598719
+        },
+        {
+          "baseline_net_points": 45.93,
+          "bin": 4,
+          "count": 181,
+          "delay_5m_delta_points": 2.46,
+          "delay_5m_expired": 0,
+          "delay_5m_net_points": 48.39,
+          "feature_max": 12.667628997462872,
+          "feature_min": 2.0462159431553872
+        }
+      ],
+      "edges": [
+        1.3132779223360194,
+        1.6023306621300295,
+        2.0402656991474717
+      ],
+      "observations": 725
+    },
+    "slow_velocity_votes": {
+      "bins": [
+        {
+          "baseline_net_points": 68.14,
+          "bin": 1,
+          "count": 387,
+          "delay_5m_delta_points": 6.2,
+          "delay_5m_expired": 0,
+          "delay_5m_net_points": 74.34,
+          "feature_max": 0.0,
+          "feature_min": 0.0
+        },
+        {
+          "baseline_net_points": 108.07,
+          "bin": 3,
+          "count": 316,
+          "delay_5m_delta_points": -9.38,
+          "delay_5m_expired": 0,
+          "delay_5m_net_points": 98.69,
+          "feature_max": 1.0,
+          "feature_min": 1.0
+        },
+        {
+          "baseline_net_points": 2.27,
+          "bin": 4,
+          "count": 22,
+          "delay_5m_delta_points": 2.06,
+          "delay_5m_expired": 0,
+          "delay_5m_net_points": 4.33,
+          "feature_max": 2.0,
+          "feature_min": 2.0
+        }
+      ],
+      "edges": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "observations": 725
+    },
+    "state_age_bars": {
+      "bins": [
+        {
+          "baseline_net_points": 174.18,
+          "bin": 1,
+          "count": 696,
+          "delay_5m_delta_points": -3.24,
+          "delay_5m_expired": 0,
+          "delay_5m_net_points": 170.94,
+          "feature_max": 0.0,
+          "feature_min": 0.0
+        },
+        {
+          "baseline_net_points": 4.3,
+          "bin": 4,
+          "count": 29,
+          "delay_5m_delta_points": 2.12,
+          "delay_5m_expired": 0,
+          "delay_5m_net_points": 6.42,
+          "feature_max": 1.0,
+          "feature_min": 1.0
+        }
+      ],
+      "edges": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "observations": 725
+    }
+  },
+  "inputs": {
+    "canonical_execution_receipt": "backtests/xsp/opening_edge_v2_spy_execution_receipt.json",
+    "canonical_execution_receipt_sha256": "ca7d1ec7baa8be2742a06af7cafe66eedb1317af96522041751c068533f7cb18",
+    "config_fingerprint": "fb43270151be836c0048c1e622b3543eab0cbccc0b65afd192a74a36e74c904b",
+    "delay_bars": [
+      0,
+      1,
+      2,
+      3,
+      6
+    ],
+    "frozen_ledger_fingerprint": "04987ff5f93e206bb7f3d8b5de98cd3cc2e02ffaa25f2da0ff4376046d70ada6",
+    "frozen_ledger_sha256": "cb95dd07d630032db3c0c96202cf8e7c8964b365ac3b5c027130cf89e2b64f9a",
+    "research_script_sha256": "939773d911397d71fea7caed99c7891e1adf5737e738f71f0ff63551e41e3c95",
+    "runtime_ledger_fingerprint": "04987ff5f93e206bb7f3d8b5de98cd3cc2e02ffaa25f2da0ff4376046d70ada6",
+    "trades": 725
+  },
+  "interpretation_limit": "Five-minute OHLC can estimate signal half-life, not optimize the existing 6-second execution phases or reconstruct NBBO.",
+  "order_authority": "none",
+  "schema": "xsp.opening-edge-v2-signal-edge-decay.v1"
+}

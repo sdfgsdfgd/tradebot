@@ -1,0 +1,64 @@
+{
+  "schema": "xsp.network-b-symbol-dwell-validation-preregistration.v2",
+  "frozen_at_utc": "2026-07-28T09:05:42Z",
+  "supersedes_sha256": "6872585b258b3be7982e3e28a08029b5401f4a50a9500c95c2bef5c2c1ad87bd",
+  "authority": "causal_historical_execution_validation_only",
+  "order_authority": "none",
+  "submitted_orders": 0,
+  "seal_proof": {
+    "validation_result_path": "/tmp/xsp-v2-network-b-symbol-dwell-validation-result-20260728.json",
+    "validation_result_absent": true,
+    "validation_book_prices_or_savings_inspected_for_this_clarification": false,
+    "clarification": "calendar periods are fixed as UTC calendar quarters, ranked-profile maximum quantities are carried by the pre-outcome rank receipt, and every terminal complete current-ledger book is used while unavailable books are disclosed and cannot count as fills"
+  },
+  "development_cohort": {
+    "complete_books": 151,
+    "manifest_sha256": "9149c75eadf8dfeee4050813a09b27612bfd3578b3a8febfc7d34bf95ddff373",
+    "earliest_clock_utc": "20250730T142000Z",
+    "outcomes_inspected": true
+  },
+  "validation": {
+    "outcomes_inspected_at_freeze": false,
+    "books_must_be_strictly_earlier_than_utc": "20250730T142000Z",
+    "exclude_later_retries_not_in_frozen_cohort": true,
+    "book_coverage": "every complete current-ledger decision book before the cutoff after hydration is terminal; unavailable or incomplete books are disclosed but excluded from fill economics",
+    "calendar_partition": "UTC calendar quarter of decision_and_next_open_time_utc",
+    "minimum_nonempty_calendar_quarters": 2
+  },
+  "source_identity": {
+    "entry_ledger_sha256": "7281db002b63263be6be41b60716dfbd28542aba994258bc2d15488a48a468e9",
+    "exit_ledger_sha256": "729d71fded1967890102a66070624591cb1db43ef8008335afa24560c7ecb624",
+    "development_preregistration_sha256": "c65eab0795afa0d5c843a94a5273edf7f3b93cd4ef463421d37bc829155d5f9c",
+    "validator_sha256": "066cd2c9891100cfd6b894bc073389bb54284f6b5ccc6e10bd65baad0cb7597c"
+  },
+  "control": {
+    "BUY": "shared canonical 6-second OPTIMISTIC -> MID -> AGGRESSIVE -> CROSS ladder for SPYU and SPXU",
+    "SELL": "shared canonical ladder for SPYU and SPXU"
+  },
+  "challenger": {
+    "BUY": {
+      "SPYU": "immediate CROSS at decision book",
+      "SPXU": "shared canonical ladder"
+    },
+    "SELL": {
+      "SPYU": "shared canonical ladder",
+      "SPXU": "shared canonical ladder"
+    }
+  },
+  "acceptance": {
+    "fixed_ranked_profile_maximum_quantity_required": true,
+    "no_reduction_in_full_quantity_fill_coverage": true,
+    "SPYU_BUY_total_savings_vs_control_must_be_positive": true,
+    "SPYU_BUY_strict_majority_utc_calendar_quarters_nonnegative": true,
+    "all_SPXU_and_SELL_paths_unchanged": true,
+    "no_runtime_change_on_failure": true,
+    "does_not_select_transport": true,
+    "does_not_start_clock": true
+  },
+  "selection_boundary": {
+    "passing_result_remains_hold": true,
+    "fresh_rth_nbbo_nav_and_exact_quote_derived_quantity_what_if_still_required": true,
+    "transport_bound_selected_run_still_required": true,
+    "strictly_post_selection_start_required": true
+  }
+}

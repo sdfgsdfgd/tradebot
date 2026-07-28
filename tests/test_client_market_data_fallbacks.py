@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 from pathlib import Path
 import time
@@ -150,6 +150,180 @@ def test_ticker_has_data_requires_actionable_quote() -> None:
 
     with_nbbo = SimpleNamespace(bid=600.4, ask=600.6, last=None, close=None, prevLast=None)
     assert IBKRClient._ticker_has_data(with_nbbo) is True
+
+
+def test_ensure_ticker_preserves_and_accumulates_generic_ticks(
+    monkeypatch,
+) -> None:
+    client = _new_client()
+
+    class _GenericProxy(_FakeProxyIB):
+        def __init__(self) -> None:
+            super().__init__()
+            self.generic_requests: list[str] = []
+
+        def reqMktData(self, contract, generic_ticks: str = ""):
+            self.generic_requests.append(str(generic_ticks))
+            return super().reqMktData(contract)
+
+    fake_ib = _GenericProxy()
+    client._ib_proxy = fake_ib
+
+    async def _connect_proxy() -> None:
+        return None
+
+    client.connect_proxy = _connect_proxy  # type: ignore[method-assign]
+    client._start_proxy_contract_quote_probe = lambda _contract: None  # type: ignore[method-assign]
+    monkeypatch.setattr(
+        "tradebot.client._session_flags",
+        lambda _now: (False, False),
+    )
+    contract = Stock("SPYU", "SMART", "USD")
+    contract.conId = 669475151
+
+    ticker = asyncio.run(
+        client.ensure_ticker(
+            contract,
+            owner="xsp-live",
+            generic_ticks="614,577,623",
+        )
+    )
+    same = asyncio.run(
+        client.ensure_ticker(
+            contract,
+            owner="xsp-live-2",
+            generic_ticks="577,614",
+        )
+    )
+
+    assert ticker is same
+    assert fake_ib.generic_requests == ["577,614,623"]
+    tick_time = datetime(2026, 7, 29, 13, 40, tzinfo=timezone.utc)
+    ticker.ticks = [
+        SimpleNamespace(tickType=96, price=30.77899933, time=tick_time)
+    ]
+    client._sync_generic_ticks_for_ticker(ticker)
+    assert client.generic_tick_value(ticker, 96) == (
+        30.77899933,
+        tick_time,
+    )
+
+
+def test_limit_order_binds_a_restart_safe_order_ref(monkeypatch) -> None:
+    client = _new_client()
+    monkeypatch.setattr(
+        "tradebot.client._session_flags",
+        lambda _now: (False, False),
+    )
+    contract = Stock("SPYU", "SMART", "USD")
+
+    prepared_contract, order = asyncio.run(
+        client._prepare_limit_order(
+            contract,
+            "BUY",
+            43,
+            30.79,
+            False,
+            "XSPV2-0123456789abcdef",
+        )
+    )
+
+    assert prepared_contract.symbol == "SPYU"
+    assert order.orderRef == "XSPV2-0123456789abcdef"
+
+
+def test_us_equity_session_clock_honors_early_close() -> None:
+    before_close = datetime(2026, 11, 27, 12, 59)
+    after_close = datetime(2026, 11, 27, 13, 1)
+
+    assert client_module._session_flags(before_close) == (False, False)
+    assert client_module._session_bucket(before_close) == "RTH"
+    assert client_module._session_flags(after_close) == (True, False)
+    assert client_module._session_bucket(after_close) == "POST"
+    assert client_module._session_bucket(datetime(2026, 11, 30, 13, 1)) == "RTH"
+
+
+def test_early_close_fallback_sell_is_marked_outside_rth(monkeypatch) -> None:
+    client = _new_client()
+    monkeypatch.setattr(
+        client_module,
+        "_now_et",
+        lambda: datetime(2026, 11, 27, 13, 1),
+    )
+
+    prepared_contract, order = asyncio.run(
+        client._prepare_limit_order(
+            Stock("SPYU", "SMART", "USD"),
+            "SELL",
+            43,
+            30.79,
+            True,
+            "XSPV2-early-close",
+        )
+    )
+
+    assert prepared_contract.exchange == "SMART"
+    assert order.outsideRth is True
+    assert order.tif == "GTC"
+
+
+def test_order_ref_reconciliation_refreshes_completed_broker_state() -> None:
+    client = _new_client()
+    expected = SimpleNamespace(
+        order=SimpleNamespace(orderRef="XSPV2-0123456789abcdef")
+    )
+
+    class _TradesIB:
+        @staticmethod
+        def isConnected() -> bool:
+            return True
+
+        @staticmethod
+        def trades():
+            return [
+                expected,
+                SimpleNamespace(order=SimpleNamespace(orderRef="other")),
+            ]
+
+    refreshed: list[bool] = []
+
+    async def _sync(*, include_completed: bool) -> bool:
+        refreshed.append(include_completed)
+        return True
+
+    client._ib = _TradesIB()
+    client._sync_order_snapshots = _sync  # type: ignore[method-assign]
+
+    assert asyncio.run(
+        client.reconcile_trades_for_order_ref(
+            "XSPV2-0123456789abcdef"
+        )
+    ) == [expected]
+    assert refreshed == [True]
+
+
+def test_account_identity_and_type_are_available_without_numeric_coercion() -> None:
+    client = _new_client()
+
+    class _AccountIB:
+        @staticmethod
+        def managedAccounts() -> list[str]:
+            return ["DU123456"]
+
+        @staticmethod
+        def accountValues(_account: str):
+            return [
+                SimpleNamespace(
+                    tag="AccountType",
+                    value="CASH",
+                    currency="",
+                )
+            ]
+
+    client._ib = _AccountIB()
+
+    assert client.account_id() == "DU123456"
+    assert client.account_text_value("AccountType") == "CASH"
 
 
 def test_futures_md_ladder_prefers_live_then_delayed() -> None:

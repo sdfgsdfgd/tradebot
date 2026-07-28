@@ -1,0 +1,94 @@
+{
+  "schema": "xsp.opening-edge-v2-spyu-selection-ranking.v2",
+  "frozen_at_utc": "2026-07-28T04:12:27Z",
+  "supersedes_sha256": "14b534280c2fcc5beb06e4d619d29d8b9de3bbc676d341147d73fef4bc3ff0d1",
+  "authority": "preregistered_research_ranking_only",
+  "order_authority": "none",
+  "profitability_clock_started": false,
+  "seal_proof": {
+    "q_observed_at_utc": "2026-07-28T04:12:28Z",
+    "spyu_service_state": "inactive/dead",
+    "spyu_service_main_pid": 0,
+    "spyu_service_restarts": 0,
+    "result_paths_absent": [
+      "/tmp/xsp-v2-spyu-full-fetch-20260728.json",
+      "/tmp/xsp-v2-spyu-spxu-replay-20260728.json",
+      "/tmp/xsp-v2-spyu-spxu-cash-partition-20260728.json",
+      "/tmp/xsp-v2-spyu-spxu-two-slot-20260728.json"
+    ],
+    "handoff_manifest_sha256": "eadd0678a438a5d1105b60eacbc6224b36e75b61a2c1d6483765d975806f56ba"
+  },
+  "gate_sha256": {
+    "notional": "fd0ab8ba9a6522a3ded6f0d07872181e87b5f108753507e736b61feb54ac4f57",
+    "five_slot": "1d870f24e54eade0539708a4625a0d4500fb879f90b2debe21f633f4acfb2b6f",
+    "two_slot": "f285c5238ed1ecb84d699017bddade99e1079e04fbd8b6526f56a995bff70d6f"
+  },
+  "candidate_filter": {
+    "result_manifest_verified": true,
+    "profile_list": "operationally_eligible",
+    "pricing": "fixed_measured",
+    "research_pass": true,
+    "operationally_eligible": true,
+    "tiered_research_only_forbidden": true,
+    "missing_or_ambiguous_evidence": "HOLD"
+  },
+  "cohort_floor_members": [
+    "recent.net_usd",
+    "prior_complete_year.net_usd",
+    "latest_complete_year.net_usd",
+    "current_partial.net_usd",
+    "full_available_history.up_net_usd",
+    "full_available_history.down_net_usd",
+    "scheduled_exit_next_open.full_available_history.net_usd"
+  ],
+  "ranking": {
+    "order": "lexicographic",
+    "descending": [
+      "minimum_cohort_net_usd / max(intrabar_max_drawdown_usd, 1e-12)",
+      "full_available_history.net_usd / max(intrabar_max_drawdown_usd, 1e-12)",
+      "minimum_cohort_net_usd / fixed_entry_notional_usd",
+      "full_available_history.net_usd / fixed_entry_notional_usd",
+      "trades_per_year"
+    ],
+    "ascending": [
+      "intrabar_max_drawdown_usd / starting_settled_cash_usd",
+      "fixed_entry_notional_usd"
+    ],
+    "stable_family_tiebreak": [
+      "two_slot",
+      "five_slot",
+      "notional"
+    ],
+    "final_tiebreak": "profile_id lexical ascending"
+  },
+  "spyu_issuer_contract": {
+    "official_pricing_supplement": "https://www.sec.gov/Archives/edgar/data/927971/000121465926002335/d220262424b2.htm",
+    "issuer": "Bank of Montreal",
+    "security": "unsecured_unsubordinated_etn",
+    "maturity_date": "2043-11-30",
+    "target_daily_leverage": 4.0,
+    "intraday_effective_leverage_can_differ": true,
+    "daily_investor_fee_annual_rate": 0.0095,
+    "financing_charge_applies": true,
+    "issuer_call_notice_minimum_calendar_days": 14,
+    "intraday_indicative_symbol": "SPYUIV",
+    "permanent_zero_if_indicative_value_nonpositive": true
+  },
+  "selection_boundary": {
+    "ranking_does_not_select": true,
+    "ranking_does_not_start_clock": true,
+    "chosen_profile_must_be_bound_to_archived_result_and_gate_hashes": true,
+    "strictly_post_selection_rth_start_required": true,
+    "fresh_broker_qualified_rth_nbbo_required": true,
+    "fresh_non_transmitting_what_if_required": true,
+    "fresh_spyu_intraday_indicative_value_required": true,
+    "maximum_absolute_nbbo_mid_to_indicative_divergence": "max(0.005, nbbo_spread / nbbo_mid)",
+    "unresolved_call_fee_sales_suspension_or_delisting_notice": "HOLD",
+    "position_must_close_by_rth_end": true,
+    "usd_1350_cash_identity_required": true,
+    "max_drawdown_usd": 135.0,
+    "max_session_loss_usd": 67.5,
+    "gth_execution_allowed": false,
+    "fallback": "HOLD"
+  }
+}

@@ -13,10 +13,7 @@ from pathlib import Path
 from ..backtest.data import ContractMeta
 from ..backtest.engine import _run_spot_backtest
 from ..backtest.models import BacktestResult, Bar, SpotTrade
-from ..backtest.spot_codec import (
-    filters_from_payload,
-    strategy_from_payload,
-)
+from ..backtest.spot_codec import filters_from_payload, strategy_from_payload
 from ..engines.market import (
     is_early_close_day,
     xsp_bar_session_label_et,
@@ -24,29 +21,20 @@ from ..engines.market import (
     xsp_session_label_et,
     xsp_trading_date,
 )
-from ..spot.champions import (
-    discover_current_champions,
-    load_champion_group,
-    repo_root,
-)
+from ..spot.champions import discover_current_champions, load_champion_group, repo_root
 from ..time_utils import ET_ZONE, NaiveTsModeInput, to_et, to_utc_naive
 from .live_calibration import LiveCalibrationLedger, calibration_fingerprint
 from .xsp_candidate import xsp_opening_edge_bundle
-from .xsp_context import xsp_fundamental_context_at
+from .xsp_context import xsp_fundamental_context_at, xsp_trade_attribution
 
 
 XSP_OPENING_EDGE_V2_VERSION = "xsp.opening-edge-v2-balanced-24x5.v1"
-XSP_OPENING_EDGE_V2_TRANSPORT_VERSION = (
-    "xsp.opening-edge-v2-spy-transport.v1"
-)
+XSP_OPENING_EDGE_V2_TRANSPORT_VERSION = "xsp.opening-edge-v2-spy-transport.v1"
 XSP_OPENING_EDGE_V2_UNIT = "$1_per_XSP_point"
 XSP_OPENING_EDGE_V2_CAPITAL = 1_000.0
 XSP_OPENING_EDGE_V2_HISTORY_DURATION = "2 W"
 XSP_OPENING_EDGE_V2_FRESHNESS_SECONDS = 600.0
-XSP_OPENING_EDGE_V2_RISK = {
-    "max_drawdown_points": 25.0,
-    "max_session_loss_points": 5.0,
-}
+XSP_OPENING_EDGE_V2_RISK = {"max_drawdown_points": 25.0, "max_session_loss_points": 5.0}
 XSP_OPENING_EDGE_V2_COSTS = {
     "research": {
         "spread": 0.0,
@@ -65,12 +53,8 @@ XSP_OPENING_EDGE_V2_EXECUTION_GATE = {
     "verdict": "HOLD",
     "eligible": False,
     "reason": "measured_spy_cost_exceeds_historical_edge",
-    "audit_fingerprint": (
-        "e4a88d284824317ceee66d11f903efcbfa9eb186d50044e872a427f95a759010"
-    ),
-    "audit_sha256": (
-        "7a19334c1d2288a5d85bb7e454ebef9f440a54409de0e96d40a9affab263858b"
-    ),
+    "audit_fingerprint": "e4a88d284824317ceee66d11f903efcbfa9eb186d50044e872a427f95a759010",
+    "audit_sha256": "7a19334c1d2288a5d85bb7e454ebef9f440a54409de0e96d40a9affab263858b",
     "historical_transport": {
         "net_points": 178.48,
         "trades": 725,
@@ -78,12 +62,7 @@ XSP_OPENING_EDGE_V2_EXECUTION_GATE = {
         "max_drawdown_points": 26.64,
     },
 }
-_SPY_META = ContractMeta(
-    symbol="SPY",
-    exchange="SMART",
-    multiplier=1.0,
-    min_tick=0.01,
-)
+_SPY_META = ContractMeta(symbol="SPY", exchange="SMART", multiplier=1.0, min_tick=0.01)
 
 
 @dataclass(frozen=True)
@@ -355,6 +334,7 @@ def _trade_row(
         "gross_points": net + cost,
         "cost_points": cost,
         "net_points": net,
+        "attribution": xsp_trade_attribution(trade),
     }
 
 
@@ -463,11 +443,13 @@ def _equity(
         "top_five_gross_wins_points": sum(gross_wins[:5]),
         "maximum_drawdown_points": maximum_drawdown,
         "latest_position": marked[-1] if marked else None,
-        "latest_trade": rows[-1] if rows else None,
+        "latest_trade": closed[-1] if closed else None,
         "trade_ledger_fingerprint": calibration_fingerprint(rows),
         "reconciled": abs(cumulative_net - cumulative_gross + cumulative_cost)
         <= 1e-7,
-        "attribution_complete": True,
+        "attribution_complete": all(
+            row["attribution"]["decision_trace_fingerprint"] for row in rows
+        ),
         "safety_breaches": breaches,
         "observed_at_utc": observed_at.astimezone(timezone.utc).isoformat(),
         "order_authority": "none",
@@ -512,6 +494,7 @@ def xsp_opening_edge_v2_equities(
     if run_trading_date is None:
         raise ValueError("Opening Edge v2 run start must be inside an XSP session")
     profiles: dict[str, object] = {}
+    signal_observations: dict[str, object] | None = None
     for cost_profile in ("research", "broker"):
         gth = _lane_result(
             spec,
@@ -533,6 +516,13 @@ def xsp_opening_edge_v2_equities(
             observed_at=observed_at,
             rth_signal_symbol=rth_signal_symbol,
         )
+        observations = {
+            "gth": gth.latest_signal_snapshot,
+            "rth": rth.latest_signal_snapshot,
+        }
+        if signal_observations is not None and observations != signal_observations:
+            raise ValueError("Opening Edge v2 signal observations drifted by cost profile")
+        signal_observations = observations
         profiles[cost_profile] = _equity(
             spec,
             cost_profile=cost_profile,
@@ -557,6 +547,7 @@ def xsp_opening_edge_v2_equities(
         ),
         "execution_symbol": "SPY",
         "signal_clock": "XSP",
+        "signal_observations": signal_observations,
         "spy_tape_fingerprint": calibration_fingerprint(
             [
                 (
@@ -570,9 +561,7 @@ def xsp_opening_edge_v2_equities(
             ]
         ),
         "profiles": profiles,
-        "execution_eligibility": dict(
-            XSP_OPENING_EDGE_V2_EXECUTION_GATE
-        ),
+        "execution_eligibility": dict(XSP_OPENING_EDGE_V2_EXECUTION_GATE),
         "order_authority": "none",
     }
 

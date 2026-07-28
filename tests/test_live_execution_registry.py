@@ -4,6 +4,7 @@ import asyncio
 from types import SimpleNamespace
 
 from tradebot.engines.execution import EXECUTION_POLICY
+from tradebot.engines.execution import _EXEC_AUTO_TIMEOUT_SEC
 from tradebot.live.execution import LiveOrderExecution, order_ids
 
 
@@ -64,3 +65,44 @@ def test_terminal_trade_without_broker_status_reports_done_once() -> None:
     asyncio.run(execution.chase(trade, "BUY", mode="AUTO", policy=EXECUTION_POLICY))
 
     assert notices == ["#7 Done"]
+
+
+def test_resumed_chase_preserves_original_timeout_budget() -> None:
+    cancelled: list[int] = []
+
+    class _Client:
+        @staticmethod
+        async def ensure_ticker(_contract, *, owner: str) -> None:
+            return None
+
+        @staticmethod
+        async def cancel_trade(trade) -> None:
+            cancelled.append(int(trade.order.orderId))
+
+        @staticmethod
+        def release_ticker(_con_id: int, *, owner: str) -> None:
+            return None
+
+    trade = SimpleNamespace(
+        contract=SimpleNamespace(conId=11),
+        order=SimpleNamespace(orderId=7, permId=0),
+        orderStatus=SimpleNamespace(status="Submitted", filled=0),
+        isDone=lambda: False,
+    )
+    execution = LiveOrderExecution(
+        client=_Client(),
+        price_for_mode=lambda *_args, **_kwargs: None,
+        state_by_order={},
+    )
+
+    asyncio.run(
+        execution.chase(
+            trade,
+            "BUY",
+            mode="AUTO",
+            policy=EXECUTION_POLICY,
+            elapsed_offset_sec=_EXEC_AUTO_TIMEOUT_SEC + 1,
+        )
+    )
+
+    assert cancelled == [7]

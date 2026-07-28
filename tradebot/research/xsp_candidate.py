@@ -324,7 +324,7 @@ def xsp_opening_edge_candidate_equity(
         "attribution_complete": True,
         "safety_breaches": breaches,
         "latest_position": marked[-1] if marked else None,
-        "latest_trade": rows[-1] if rows else None,
+        "latest_trade": closed[-1] if closed else None,
         "trade_ledger_fingerprint": calibration_fingerprint(rows),
         "order_authority": "none",
     }

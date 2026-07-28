@@ -113,7 +113,11 @@
     "tests/test_live_signal_exit_continuum.py": "live-execution-orders",
     "tests/test_live_execution_registry.py": "live-execution-orders",
     "tests/test_live_calibration.py": "market-realism-parity",
+    "tests/test_xsp_execution_dwell_validation.py": "market-realism-parity",
     "tests/test_xsp_execution_observer.py": "market-realism-parity",
+    "tests/test_xsp_live_transport.py": "market-realism-parity",
+    "tests/test_xsp_live_transport_runtime.py": "market-realism-parity",
+    "tests/test_xsp_transport_ranking.py": "market-realism-parity",
     "tests/test_news_signal.py": "signal-regime-intelligence",
     "tests/test_offline_cache_preflight.py": "backtest-data-cache",
     "tests/test_option_calibration_provenance.py": "research-optimization-calibration",
@@ -290,14 +294,18 @@
         "tests/test_option_quote_parity.py",
         "tests/test_spot_summary_parity.py",
         "tests/test_ui_bot_live_unreal_consistency.py",
-        "tests/test_ui_signal_gap_calendar.py"
+        "tests/test_ui_signal_gap_calendar.py",
+        "tests/test_xsp_execution_dwell_validation.py",
+        "tests/test_xsp_transport_ranking.py"
       ],
       "owner_surface": [
         "tradebot/backtest/engine.py",
         "tradebot/backtest/quotes.py",
         "tradebot/engines/execution.py",
         "tradebot/live/options.py",
-        "tradebot/option_package.py"
+        "tradebot/option_package.py",
+        "tradebot/research/xsp_execution_dwell_validation.py",
+        "tradebot/research/xsp_transport_ranking.py"
       ],
       "oracle": [
         "all evidence assigned to market-realism-parity passes",
@@ -622,13 +630,16 @@
       "evidence": [
         "q_XSP_live_research_kata.md",
         "tests/test_live_calibration.py",
-        "tests/test_xsp_execution_observer.py"
+        "tests/test_xsp_execution_observer.py",
+        "tests/test_xsp_live_transport.py",
+        "tests/test_xsp_live_transport_runtime.py"
       ],
       "owner_surface": [
         "tradebot/backtest/engine.py",
         "tradebot/option_package.py",
         "deploy/systemd/tradebot-ib-gateway-tunnel.service",
         "deploy/systemd/tradebot-xsp-shadow.service",
+        "deploy/systemd/tradebot-xsp-shadow-selected-live.conf",
         "deploy/systemd/tradebot-xsp-shadow.timer",
         "tradebot/research/live_calibration.py",
         "tradebot/research/xsp_benchmarks.py",
@@ -636,6 +647,8 @@
         "tradebot/research/xsp_context.py",
         "tradebot/research/xsp_execution_observer.py",
         "tradebot/research/xsp_opening_edge_v2.py",
+        "tradebot/research/xsp_live_transport.py",
+        "tradebot/research/xsp_live_transport_runtime.py",
         "tradebot/research/xsp_shadow.py",
         "tradebot/research/xsp_shadow_cli.py",
         "tradebot/ui/bot_journal.py"
@@ -646,7 +659,7 @@
         "actual PnL is never the sole score and hard evidence or safety failures veto promotion",
         "hourly context explains drift while strategy promotion remains sample-gated, hysteretic, and forbidden from re-owning an open position",
         "every forward invocation records evaluated, stale, empty, unsupported-session, or closed coverage independently of whether a signal fired",
-        "a non-persistent New York-time timer invokes the one-shot observer after each completed five-minute XSP cash-RTH bar with a two-minute hard bound"
+        "a non-persistent New York-time timer invokes the unified observer and any explicitly selected cash transport after each completed five-minute bar with an eight-minute hard bound"
       ],
       "status": "wip",
       "next": "Accumulate independent forward 60-minute TA-only versus defensive-news paired outcomes through the 24-hour, 48-hour, and five-session gates."

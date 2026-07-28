@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.tradebot.xsp-pressure-mirror</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/x/Desktop/py/tradebot/venv/bin/python</string>
+    <string>-m</string>
+    <string>tradebot.research.xsp_pressure_mirror</string>
+    <string>--remote</string>
+    <string>q</string>
+    <string>--output-dir</string>
+    <string>/Users/x/.local/state/tradebot/xsp-evidence/q-mirror</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/x/Desktop/py/tradebot</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StartInterval</key>
+  <integer>900</integer>
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>LowPriorityIO</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/Users/x/.local/state/tradebot/xsp-evidence/q-mirror/sync.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/x/.local/state/tradebot/xsp-evidence/q-mirror/sync.err</string>
+</dict>
+</plist>

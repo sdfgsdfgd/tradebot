@@ -4,6 +4,7 @@ import asyncio
 from datetime import date, datetime, time, timedelta, timezone
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 from ib_insync import Contract
 import pytest
@@ -51,6 +52,8 @@ from tradebot.research.xsp_opening_edge_v2 import (
     XSP_OPENING_EDGE_V2_HISTORY_DURATION,
     XSP_OPENING_EDGE_V2_EXECUTION_GATE,
     XSP_OPENING_EDGE_V2_VERSION,
+    _equity,
+    _trade_row,
     advance_xsp_opening_edge_v2_from_ibkr,
     load_xsp_opening_edge_v2_spec,
     next_xsp_v2_run_start,
@@ -60,7 +63,8 @@ from tradebot.research.xsp_opening_edge_v2 import (
     xsp_opening_edge_v2_gth_signal_bars,
     xsp_opening_edge_v2_run_start,
 )
-from tradebot.backtest.models import Bar
+from tradebot.research.xsp_pressure_mirror import compact_pressure_rows
+from tradebot.backtest.models import Bar, SpotTrade
 from tradebot.time_utils import ET_ZONE
 
 
@@ -71,8 +75,7 @@ def test_opening_edge_v2_current_crown_is_content_addressed_and_fail_closed() ->
     spec = load_xsp_opening_edge_v2_spec()
     execution_receipt = json.loads(
         (
-            spec.artifact_path.parent
-            / "opening_edge_v2_spy_execution_receipt.json"
+            spec.artifact_path.parent / "opening_edge_v2_spy_execution_receipt.json"
         ).read_text()
     )
     assert execution_receipt["schema"] == (
@@ -93,9 +96,7 @@ def test_opening_edge_v2_current_crown_is_content_addressed_and_fail_closed() ->
         cost_profile="broker",
     )
 
-    assert XSP_OPENING_EDGE_V2_VERSION == (
-        "xsp.opening-edge-v2-balanced-24x5.v1"
-    )
+    assert XSP_OPENING_EDGE_V2_VERSION == ("xsp.opening-edge-v2-balanced-24x5.v1")
     assert spec.artifact_sha256 == (
         "f879cc20c4434e33626c143ccd85db4d608370a6fb7c321b1ee0f1f2c08afff2"
     )
@@ -108,22 +109,24 @@ def test_opening_edge_v2_current_crown_is_content_addressed_and_fail_closed() ->
     assert gth.strategy.spot_commission_per_share == 1.01540245
     assert XSP_OPENING_EDGE_V2_EXECUTION_GATE["eligible"] is False
     assert execution_receipt["crown"]["sha256"] == spec.artifact_sha256
-    assert execution_receipt["source_audit"]["sha256"] == (
-        XSP_OPENING_EDGE_V2_EXECUTION_GATE["audit_sha256"]
+    assert (
+        execution_receipt["source_audit"]["sha256"]
+        == (XSP_OPENING_EDGE_V2_EXECUTION_GATE["audit_sha256"])
     )
-    assert execution_receipt["verdict"]["status"] == (
-        XSP_OPENING_EDGE_V2_EXECUTION_GATE["verdict"]
+    assert (
+        execution_receipt["verdict"]["status"]
+        == (XSP_OPENING_EDGE_V2_EXECUTION_GATE["verdict"])
     )
-    assert execution_receipt["observer_parity"][
-        "ordered_economic_ledger_equal"
-    ] is True
+    assert execution_receipt["observer_parity"]["ordered_economic_ledger_equal"] is True
     ceiling = execution_receipt["fixed_transport_ceiling"]
-    assert ceiling["cadence_floor_oracle"][
-        "maximum_affordable_round_trip_points"
-    ] == 1.221649
-    assert ceiling["measured_round_trip_points"] > ceiling[
-        "cadence_floor_oracle"
-    ]["maximum_affordable_round_trip_points"]
+    assert (
+        ceiling["cadence_floor_oracle"]["maximum_affordable_round_trip_points"]
+        == 1.221649
+    )
+    assert (
+        ceiling["measured_round_trip_points"]
+        > ceiling["cadence_floor_oracle"]["maximum_affordable_round_trip_points"]
+    )
 
 
 def test_opening_edge_v2_uses_xsp_clock_and_never_backfills_a_live_start() -> None:
@@ -184,22 +187,157 @@ def test_opening_edge_v2_paired_equity_keeps_cost_attribution_separate() -> None
     broker = paired["profiles"]["broker"]
 
     assert paired["rth_signal_source"] == "XSP"
-    assert paired["gth_signal_source"] == (
-        "prior_xsp_close_anchored_spy_returns"
-    )
+    assert paired["gth_signal_source"] == ("prior_xsp_close_anchored_spy_returns")
     assert research["gth_signal_symbol"] == broker["gth_signal_symbol"] == "XSP"
     assert paired["gth_signal_bars"] == len(gth)
     assert paired["signal_clock"] == "XSP"
     assert paired["execution_symbol"] == "SPY"
+    assert set(paired["signal_observations"]) == {"gth", "rth"}
+    for observation in paired["signal_observations"].values():
+        assert observation["schema"] == "spot.signal-snapshot.v1"
+        assert observation["signal_snapshot_age_bars"] == 0
+        assert observation["signal_bar_ts"]
+        assert observation["entry_control"]["plan"]
+        assert observation["entry_control"]["source"] == "directional_impulse"
+        assert observation["directional_impulse"]["horizons"]
     assert paired["execution_eligibility"]["eligible"] is False
     assert research["order_authority"] == broker["order_authority"] == "none"
     assert research["config_fingerprint"] != broker["config_fingerprint"]
     assert research["cost_profile"]["round_trip_points"] == 0.10
     assert broker["cost_profile"]["round_trip_points"] == 2.0608049
-    assert research["cumulative_cost_points"] <= broker[
-        "cumulative_cost_points"
-    ]
+    assert research["cumulative_cost_points"] <= broker["cumulative_cost_points"]
     assert research["reconciled"] is broker["reconciled"] is True
+
+
+def test_opening_edge_v2_trade_keeps_compact_causal_attribution() -> None:
+    trade = SpotTrade(
+        symbol="SPY",
+        qty=1,
+        entry_time=datetime(2026, 7, 28, 13, 40),
+        entry_price=636.0,
+        bars_held=7,
+        max_favorable_excursion=1.25,
+        max_adverse_excursion=0.35,
+        decision_trace={
+            "entry_guard_inputs": {
+                "signal_bar_ts": "2026-07-28T13:35:00",
+                "signal_source_dir": "up",
+                "shock_atr_vel_pct": 0.04,
+                "slope_vel_pct": 0.03,
+                "entry_control": {
+                    "source": "directional_impulse",
+                    "proposed_direction": "up",
+                    "controls": ["directional_impulse_admission:pass:core"],
+                    "blocked_by": None,
+                    "direction": "up",
+                    "branch": None,
+                    "plan": {"must_not_duplicate_policy": True},
+                },
+                "directional_impulse": {
+                    "turn_event": "up",
+                    "atr_velocity_pct": 0.04,
+                    "horizons": [
+                        {
+                            "elapsed_minutes": 5.0,
+                            "slope_angle_deg": 22.0,
+                            "slope_velocity_pct_per_bar": 0.08,
+                        }
+                    ],
+                },
+            },
+            "entry_local_extrema_probe": {"15m": {"range_pos": 0.1}},
+            "exits": [
+                {
+                    "stage": "pending_exit",
+                    "bar_ts": "2026-07-28T14:15:00",
+                    "signal_snapshot": {
+                        "signal_bar_ts": "2026-07-28T14:10:00",
+                        "slope_vel_pct": -0.02,
+                    },
+                    "local_extrema_probe": {"15m": {"range_pos": 0.9}},
+                }
+            ],
+        },
+        exit_time=datetime(2026, 7, 28, 14, 15),
+        exit_price=636.8,
+        exit_reason="flip",
+    )
+
+    attribution = _trade_row(
+        trade,
+        lane="rth",
+        cost_profile="research",
+    )["attribution"]
+
+    assert attribution["bars_held"] == 7
+    assert attribution["execution_mfe_points"] == pytest.approx(1.25)
+    assert attribution["execution_mae_points"] == pytest.approx(0.35)
+    assert attribution["entry"]["control"] == {
+        "source": "directional_impulse",
+        "proposed_direction": "up",
+        "controls": ["directional_impulse_admission:pass:core"],
+        "blocked_by": None,
+        "direction": "up",
+        "branch": None,
+    }
+    assert "plan" not in attribution["entry"]["control"]
+    assert (
+        attribution["entry"]["directional_impulse"]["horizons"][0]["slope_angle_deg"]
+        == 22.0
+    )
+    assert attribution["entry"]["local_extrema"]["15m"]["range_pos"] == 0.1
+    assert attribution["exit"]["signal_snapshot"]["slope_vel_pct"] == -0.02
+    assert attribution["exit"]["local_extrema"]["15m"]["range_pos"] == 0.9
+
+
+def test_opening_edge_v2_refuses_false_attribution_completeness() -> None:
+    trade = SpotTrade(
+        symbol="SPY",
+        qty=1,
+        entry_time=datetime(2026, 7, 28, 13, 40),
+        entry_price=636.0,
+        exit_time=datetime(2026, 7, 28, 14, 15),
+        exit_price=636.8,
+        exit_reason="flip",
+    )
+    result = _equity(
+        load_xsp_opening_edge_v2_spec(),
+        cost_profile="research",
+        rth=SimpleNamespace(trades=[trade], equity=[]),
+        gth=SimpleNamespace(trades=[], equity=[]),
+        run_started_at=datetime(2026, 7, 28, 0, 15, tzinfo=timezone.utc),
+        observed_at=datetime(2026, 7, 28, 14, 15, tzinfo=timezone.utc),
+        rth_signal_symbol="XSP",
+    )
+
+    assert result["closed_trades"] == 1
+    assert result["attribution_complete"] is False
+
+
+def test_opening_edge_v2_open_mark_is_not_reported_as_closed_trade() -> None:
+    mark = SpotTrade(
+        symbol="SPY",
+        qty=1,
+        entry_time=datetime(2026, 7, 28, 13, 40),
+        entry_price=636.0,
+        exit_time=datetime(2026, 7, 28, 14, 15),
+        exit_price=636.8,
+        exit_reason="end",
+    )
+    result = _equity(
+        load_xsp_opening_edge_v2_spec(),
+        cost_profile="research",
+        rth=SimpleNamespace(trades=[mark], equity=[]),
+        gth=SimpleNamespace(trades=[], equity=[]),
+        run_started_at=datetime(2026, 7, 28, 0, 15, tzinfo=timezone.utc),
+        observed_at=datetime(2026, 7, 28, 14, 15, tzinfo=timezone.utc),
+        rth_signal_symbol="XSP",
+    )
+
+    assert result["closed_trades"] == 0
+    assert result["cumulative_realized_net_points"] == 0
+    assert result["latest_position"]["exit_reason"] == "end"
+    assert result["latest_trade"] is None
 
 
 def test_opening_edge_v2_gth_projection_uses_prior_completed_xsp_close() -> None:
@@ -217,9 +355,7 @@ def test_opening_edge_v2_gth_projection_uses_prior_completed_xsp_close() -> None
         ),
     )
 
-    assert projected == (
-        Bar(datetime(2026, 7, 27, 0, 20), 101, 102, 100, 101.5, 0),
-    )
+    assert projected == (Bar(datetime(2026, 7, 27, 0, 20), 101, 102, 100, 101.5, 0),)
 
 
 def test_opening_edge_v2_observer_freezes_start_before_broker_work(
@@ -336,8 +472,7 @@ def test_opening_edge_v2_observer_uses_spy_full_session_and_xsp_rth(
             self.requests[contract.symbol] = kwargs
             rth = [
                 Bar(
-                    datetime(2026, 7, 27, 9, 30)
-                    + timedelta(minutes=5 * index),
+                    datetime(2026, 7, 27, 9, 30) + timedelta(minutes=5 * index),
                     100.0 + index * 0.1,
                     100.2 + index * 0.1,
                     99.8 + index * 0.1,
@@ -346,17 +481,14 @@ def test_opening_edge_v2_observer_uses_spy_full_session_and_xsp_rth(
                 )
                 for index in range(12)
             ]
-            rth.append(
-                Bar(datetime(2026, 7, 27, 15, 55), 102, 102.2, 101.8, 102.1, 1)
-            )
+            rth.append(Bar(datetime(2026, 7, 27, 15, 55), 102, 102.2, 101.8, 102.1, 1))
             if contract.symbol == "XSP":
                 return rth
             return [
                 *rth,
                 *[
                     Bar(
-                        datetime(2026, 7, 27, 20, 15)
-                        + timedelta(minutes=5 * index),
+                        datetime(2026, 7, 27, 20, 15) + timedelta(minutes=5 * index),
                         102.0 + index * 0.1,
                         102.2 + index * 0.1,
                         101.8 + index * 0.1,
@@ -414,23 +546,17 @@ def test_opening_edge_v2_observer_uses_spy_full_session_and_xsp_rth(
     }
     paired = receipt["paired_equity"]
     assert paired["rth_signal_source"] == "XSP"
-    assert paired["gth_signal_source"] == (
-        "prior_xsp_close_anchored_spy_returns"
-    )
+    assert paired["gth_signal_source"] == ("prior_xsp_close_anchored_spy_returns")
     assert paired["gth_signal_bars"] == 3
     assert paired["execution_symbol"] == "SPY"
     assert paired["execution_eligibility"]["eligible"] is False
-    assert {
-        profile["order_authority"]
-        for profile in paired["profiles"].values()
-    } == {"none"}
-    checkpoints = [
-        row for row in ledger.records() if row["kind"] == "checkpoint"
-    ]
+    assert {profile["order_authority"] for profile in paired["profiles"].values()} == {
+        "none"
+    }
+    checkpoints = [row for row in ledger.records() if row["kind"] == "checkpoint"]
     assert [row["status"] for row in checkpoints] == ["CLOSED", "EVALUATED"]
     assert all(
-        row["evidence"]["run_started_at_utc"]
-        == "2026-07-28T00:15:00+00:00"
+        row["evidence"]["run_started_at_utc"] == "2026-07-28T00:15:00+00:00"
         for row in checkpoints
     )
 
@@ -471,8 +597,7 @@ def test_opening_edge_v2_observer_fails_closed_without_exact_xsp_anchor(
         async def historical_bars_ohlcv(self, _contract, **_kwargs):
             gth = [
                 Bar(
-                    datetime(2026, 7, 27, 20, 15)
-                    + timedelta(minutes=5 * index),
+                    datetime(2026, 7, 27, 20, 15) + timedelta(minutes=5 * index),
                     100.0,
                     100.2,
                     99.8,
@@ -483,8 +608,7 @@ def test_opening_edge_v2_observer_fails_closed_without_exact_xsp_anchor(
             ]
             rth = [
                 Bar(
-                    datetime(2026, 7, 28, 9, 30)
-                    + timedelta(minutes=5 * index),
+                    datetime(2026, 7, 28, 9, 30) + timedelta(minutes=5 * index),
                     101.0,
                     101.2,
                     100.8,
@@ -523,9 +647,7 @@ def test_opening_edge_v2_observer_fails_closed_without_exact_xsp_anchor(
     )
 
     assert receipt["paired_equity"] is None
-    assert receipt["rth_signal_source"] == (
-        "XSP" if xsp_qualified else None
-    )
+    assert receipt["rth_signal_source"] == ("XSP" if xsp_qualified else None)
     assert receipt["evaluation_status"] == "NO_DATA"
     assert receipt["freshness_ok"] is False
     checkpoint = list(ledger.records())[-1]
@@ -567,9 +689,7 @@ def _profitability_policy(
         strategy_version="xsp.directional.alpha.v1",
         config_fingerprint="config-frozen",
         capital_sleeve="xsp-directional-unit",
-        max_drawdown_points=XSP_DIRECTIONAL_SHADOW_POLICY[
-            "max_drawdown_points"
-        ],
+        max_drawdown_points=XSP_DIRECTIONAL_SHADOW_POLICY["max_drawdown_points"],
         max_session_loss_points=XSP_DIRECTIONAL_SHADOW_POLICY[
             "max_session_loss_points"
         ],
@@ -579,9 +699,7 @@ def _profitability_policy(
         maximum_top_five_win_share=XSP_DIRECTIONAL_SHADOW_POLICY[
             "maximum_top_five_win_share"
         ],
-        slot_tolerance_seconds=XSP_DIRECTIONAL_SHADOW_POLICY[
-            "slot_tolerance_seconds"
-        ],
+        slot_tolerance_seconds=XSP_DIRECTIONAL_SHADOW_POLICY["slot_tolerance_seconds"],
     )
 
 
@@ -910,9 +1028,7 @@ def test_directional_pair_join_requires_exact_frozen_outcome_and_direction(
         with pytest.raises(ValueError, match="invalid calibration content address"):
             consume()
 
-    tampered_forecast = settled(
-        "tampered-forecast", outcome_minutes=60, direction="up"
-    )
+    tampered_forecast = settled("tampered-forecast", outcome_minutes=60, direction="up")
     records = [
         json.loads(line) for line in tampered_forecast.path.read_text().splitlines()
     ]
@@ -1138,10 +1254,7 @@ def test_profitability_clock_proves_only_reconciled_net_week(tmp_path) -> None:
     assert receipt["milestones"]["48h"]["complete_sessions"] == 2
     assert receipt["milestones"]["48h"]["economics"]["net_points"] == 5.0
     assert receipt["milestones"]["five_session_week"]["complete_sessions"] == 5
-    assert (
-        receipt["milestones"]["five_session_week"]["economics"]["net_points"]
-        == 12.5
-    )
+    assert receipt["milestones"]["five_session_week"]["economics"]["net_points"] == 12.5
     assert receipt["milestones"]["five_session_week"]["reasons"] == []
 
     rows = [json.loads(line) for line in ledger.path.read_text().splitlines()]
@@ -1201,10 +1314,7 @@ def test_profitability_milestones_cannot_rewrite_earlier_losses(tmp_path) -> Non
     assert receipt["milestones"]["48h"]["economics"]["net_points"] == -2.0
     assert receipt["milestones"]["48h"]["reasons"] == ["net_not_positive"]
     assert receipt["milestones"]["five_session_week"]["passed"] is True
-    assert (
-        receipt["milestones"]["five_session_week"]["economics"]["net_points"]
-        == 5.5
-    )
+    assert receipt["milestones"]["five_session_week"]["economics"]["net_points"] == 5.5
 
 
 def test_profitability_clock_starts_at_first_owned_mid_session_slot(tmp_path) -> None:
@@ -1284,12 +1394,18 @@ def test_profitability_prefix_allows_real_checkpoint_jitter(tmp_path) -> None:
     assert receipt["clock"]["complete_sessions"] == 1
     milestone = receipt["milestones"]["24h"]
     assert milestone["passed"] is True
-    assert milestone["economic_window_end_utc"] == datetime(
-        2026, 7, 28, 9, 37, tzinfo=ET_ZONE
-    ).astimezone(timezone.utc).isoformat()
-    assert milestone["evidence_as_of_utc"] == datetime(
-        2026, 7, 28, 9, 38, 30, tzinfo=ET_ZONE
-    ).astimezone(timezone.utc).isoformat()
+    assert (
+        milestone["economic_window_end_utc"]
+        == datetime(2026, 7, 28, 9, 37, tzinfo=ET_ZONE)
+        .astimezone(timezone.utc)
+        .isoformat()
+    )
+    assert (
+        milestone["evidence_as_of_utc"]
+        == datetime(2026, 7, 28, 9, 38, 30, tzinfo=ET_ZONE)
+        .astimezone(timezone.utc)
+        .isoformat()
+    )
 
 
 def test_profitability_rejects_checkpoint_recorded_after_slot_tolerance(
@@ -1306,9 +1422,7 @@ def test_profitability_rejects_checkpoint_recorded_after_slot_tolerance(
         closed_trades=0,
         gross_wins=0.0,
         top_five_wins=0.0,
-        recording_delay=timedelta(
-            seconds=policy.slot_tolerance_seconds + 1
-        ),
+        recording_delay=timedelta(seconds=policy.slot_tolerance_seconds + 1),
     )
 
     receipt = ledger.xsp_profitability_receipt(
@@ -1319,11 +1433,14 @@ def test_profitability_rejects_checkpoint_recorded_after_slot_tolerance(
     assert receipt["status"] == "INVALID_EVIDENCE"
     assert receipt["clock"]["coverage_broken"] is True
     assert receipt["clock"]["complete_sessions"] == 0
-    assert ledger.complete_xsp_checkpoint_sessions(
-        strategy_id=policy.strategy_id,
-        strategy_version=policy.strategy_version,
-        slot_tolerance_seconds=policy.slot_tolerance_seconds,
-    ) == ()
+    assert (
+        ledger.complete_xsp_checkpoint_sessions(
+            strategy_id=policy.strategy_id,
+            strategy_version=policy.strategy_version,
+            slot_tolerance_seconds=policy.slot_tolerance_seconds,
+        )
+        == ()
+    )
 
 
 def test_profitability_later_gap_does_not_erase_anchored_milestones(tmp_path) -> None:
@@ -1445,31 +1562,36 @@ def test_profitability_rejects_wrong_session_and_false_rollup(
 
 def test_shadow_systemd_cadence_is_bounded_and_runtime_gated() -> None:
     root = Path(__file__).resolve().parents[1]
-    service = (
-        root / "deploy/systemd/tradebot-xsp-shadow.service"
-    ).read_text()
+    service = (root / "deploy/systemd/tradebot-xsp-shadow.service").read_text()
     timer = (root / "deploy/systemd/tradebot-xsp-shadow.timer").read_text()
+    selected_live = (
+        root / "deploy/systemd/tradebot-xsp-shadow-selected-live.conf"
+    ).read_text()
 
     assert (
-        "ExecCondition=/usr/bin/test -x "
-        "%h/.local/share/tradebot/venv/bin/python"
+        "ExecCondition=/usr/bin/test -x %h/.local/share/tradebot/venv/bin/python"
     ) in service
     assert (
         "ExecStart=/usr/bin/env python3 -m tradebot.research.xsp_shadow "
-        "--mode opening-edge-v2"
+        "--mode opening-edge-v2 --selected-transport "
+        "db/calibration/xsp_selected_live_transport.json"
     ) in service
-    assert "TimeoutStartSec=2min" in service
+    assert "TimeoutStartSec=8min" in service
+    assert "Environment=IBKR_READONLY=1" in service
+    assert "Environment=IBKR_READONLY=0" in selected_live
     assert "NoNewPrivileges=true" in service
-    assert "Sun *-*-* 20..23:22/5:00 America/New_York" in timer
-    assert "Mon..Thu *-*-* 20..23:22/5:00 America/New_York" in timer
+    assert "Sun *-*-* 20:22/5:00 America/New_York" in timer
+    assert "Sun *-*-* 21..23:02/5:00 America/New_York" in timer
+    assert "Mon..Thu *-*-* 20:22/5:00 America/New_York" in timer
+    assert "Mon..Thu *-*-* 21..23:02/5:00 America/New_York" in timer
+    assert "20..23:22/5:00" not in timer
     assert "Mon..Fri *-*-* 00..08:02/5:00 America/New_York" in timer
     assert (
-        "Mon..Fri *-*-* 09:02,07,12,17,22,27,37,42,47,52,57:00 "
-        "America/New_York"
+        "Mon..Fri *-*-* 09:02,07,12,17,22,27,37,42,47,52,57:00 America/New_York"
     ) in timer
     assert "Mon..Fri *-*-* 10..15:02/5:00 America/New_York" in timer
     assert "Mon..Fri *-*-* 16:02,07,12,17:00 America/New_York" in timer
-    assert timer.count("OnCalendar=") == 6
+    assert timer.count("OnCalendar=") == 8
     assert "Persistent=false" in timer
     assert "RandomizedDelaySec=0" in timer
 
@@ -1687,9 +1809,7 @@ def test_option_context_freezes_only_prior_causal_parity_movement() -> None:
         "prior_chain_fingerprint": "a" * 64,
         "prior_pairs": prior_observation["pairs"],
         "prior_dispersion_points": prior_observation["dispersion_points"],
-        "prior_median_relative_spread": prior_observation[
-            "median_relative_spread"
-        ],
+        "prior_median_relative_spread": prior_observation["median_relative_spread"],
         "prior_strikes": prior_observation["strikes"],
         "prior_max_age_seconds": prior_observation["max_age_seconds"],
         "prior_reference_value": prior_observation["anchor"],
@@ -1743,13 +1863,8 @@ def test_option_context_freezes_exact_causal_gth_preopen_path() -> None:
     assert path["end_max_age_seconds"] == pytest.approx(5.0)
     assert path["end_median_relative_spread"] > 0
     assert path["horizons"]["120"]["anchor_market_data_types"] == {"3": 6}
-    assert (
-        path["horizons"]["120"]["anchor_source"]
-        == "option_model_consensus"
-    )
-    assert path["horizons"]["120"]["anchor_reference_value"] == pytest.approx(
-        100.40
-    )
+    assert path["horizons"]["120"]["anchor_source"] == "option_model_consensus"
+    assert path["horizons"]["120"]["anchor_reference_value"] == pytest.approx(100.40)
     assert path["horizons"]["120"]["anchor_strikes"] == (100.0, 101.0, 99.0)
     assert path["horizons"]["120"]["anchor_max_age_seconds"] == pytest.approx(5.0)
     assert path["horizons"]["120"]["anchor_median_relative_spread"] > 0
@@ -1925,16 +2040,19 @@ def test_shadow_cli_fails_when_the_checkpoint_is_not_evaluated(
         _advance,
     )
 
-    assert asyncio.run(
-        _main_async(
-            (
-                "--ledger",
-                str(tmp_path / "calibration.jsonl"),
-                "--selected-run",
-                str(tmp_path / "missing-selection.json"),
+    assert (
+        asyncio.run(
+            _main_async(
+                (
+                    "--ledger",
+                    str(tmp_path / "calibration.jsonl"),
+                    "--selected-run",
+                    str(tmp_path / "missing-selection.json"),
+                )
             )
         )
-    ) == 2
+        == 2
+    )
     capsys.readouterr()
 
 
@@ -1987,20 +2105,25 @@ def test_shadow_cli_v2_prefreezes_without_loading_v1_selection(
         _advance_v1,
     )
 
-    assert asyncio.run(
-        _main_async(
-            (
-                "--mode",
-                "opening-edge-v2",
-                "--ledger",
-                str(tmp_path / "v2-cli.jsonl"),
-                "--news-signal",
-                str(tmp_path / "missing-news.json"),
-                "--selected-run",
-                str(selected_path),
+    assert (
+        asyncio.run(
+            _main_async(
+                (
+                    "--mode",
+                    "opening-edge-v2",
+                    "--ledger",
+                    str(tmp_path / "v2-cli.jsonl"),
+                    "--news-signal",
+                    str(tmp_path / "missing-news.json"),
+                    "--selected-run",
+                    str(selected_path),
+                    "--selected-transport",
+                    str(tmp_path / "missing-live-transport.json"),
+                )
             )
         )
-    ) == 0
+        == 0
+    )
     output = json.loads(capsys.readouterr().out)
 
     assert captured["run_started_at"] == run_start
@@ -2012,6 +2135,210 @@ def test_shadow_cli_v2_prefreezes_without_loading_v1_selection(
     assert output["selected_run_id"] is None
     assert output["v2_run_started_at_utc"] == run_start.isoformat()
     assert output["order_authority"] == "none"
+
+
+def test_shadow_cli_freezes_transport_from_fresh_read_only_state(
+    tmp_path,
+    monkeypatch,
+    capsys,
+) -> None:
+    from tradebot.research.xsp_shadow_cli import _main_async
+
+    captured = {}
+    ranking = tmp_path / "ranking.json"
+    dwell = tmp_path / "dwell.json"
+    preview = tmp_path / "preview.json"
+    selected = tmp_path / "selected.json"
+    for path in (ranking, dwell, preview):
+        path.write_text("{}", encoding="utf-8")
+
+    class _Client:
+        def __init__(self, config):
+            captured["readonly"] = config.readonly
+
+        async def disconnect(self):
+            captured["disconnected"] = True
+
+    source = {"checkpoint_id": "fresh-source"}
+    broker = {"observed_at_utc": NOW.isoformat()}
+    selection = {
+        "selection_id": "selected-transport",
+        "order_authority": "rth_cash_pair_limit_only",
+    }
+
+    monkeypatch.setenv("IBKR_READONLY", "1")
+    monkeypatch.setattr("tradebot.client.IBKRClient", _Client)
+    monkeypatch.setattr(
+        "tradebot.research.xsp_shadow_cli.latest_xsp_v2_source_receipt",
+        lambda _records: source,
+    )
+    monkeypatch.setattr(
+        "tradebot.research.xsp_shadow_cli.xsp_v2_broker_snapshot",
+        lambda _client: asyncio.sleep(0, result=broker),
+    )
+
+    def _select(**kwargs):
+        captured.update(kwargs)
+        return selection
+
+    def _write(path, value):
+        captured["written"] = (path, value)
+
+    monkeypatch.setattr(
+        "tradebot.research.xsp_shadow_cli.select_xsp_v2_transport",
+        _select,
+    )
+    monkeypatch.setattr(
+        "tradebot.research.xsp_shadow_cli.write_xsp_v2_transport_selection",
+        _write,
+    )
+
+    assert (
+        asyncio.run(
+            _main_async(
+                (
+                    "--mode",
+                    "opening-edge-v2",
+                    "--ledger",
+                    str(tmp_path / "ledger.jsonl"),
+                    "--selected-transport",
+                    str(selected),
+                    "--freeze-selected-transport",
+                    "--transport-ranking",
+                    str(ranking),
+                    "--transport-dwell",
+                    str(dwell),
+                    "--transport-preview",
+                    str(preview),
+                )
+            )
+        )
+        == 0
+    )
+    output = json.loads(capsys.readouterr().out)
+
+    assert captured["readonly"] is True
+    assert captured["source_receipt"] == source
+    assert captured["broker_snapshot"] == broker
+    assert captured["written"] == (selected, selection)
+    assert captured["disconnected"] is True
+    assert output == selection
+
+
+def test_shadow_cli_v2_advances_one_explicit_selected_transport(
+    tmp_path,
+    monkeypatch,
+    capsys,
+) -> None:
+    from tradebot.research.xsp_shadow_cli import _main_async
+
+    captured = {}
+    selection_path = tmp_path / "selected-live-transport.json"
+    selection_path.write_text("{}", encoding="utf-8")
+    selection = {
+        "selection_id": "selected-transport",
+        "order_authority": "selected_spyu_spxu_cash",
+    }
+
+    class _Client:
+        def __init__(self, config):
+            captured["readonly"] = config.readonly
+
+        async def disconnect(self):
+            captured["disconnected"] = True
+
+    async def _advance_v2(_ledger, **_kwargs):
+        return {
+            "evaluation_status": "EVALUATED",
+            "freshness_ok": True,
+            "session": "RTH",
+            "order_authority": "none",
+            "checkpoint_id": "source",
+            "recorded_at_utc": NOW.isoformat(),
+        }
+
+    async def _observe(*_args, **_kwargs):
+        return {"status": "UNCHANGED"}
+
+    async def _execute(_ledger, **kwargs):
+        captured["selection"] = kwargs["selection"]
+        captured["source"] = kwargs["source_receipt"]
+        return {"status": "UNCHANGED", "submitted_orders": 0}
+
+    monkeypatch.delenv("IBKR_READONLY", raising=False)
+    monkeypatch.setattr("tradebot.client.IBKRClient", _Client)
+    monkeypatch.setattr(
+        "tradebot.research.xsp_shadow_cli.load_xsp_v2_transport_selection",
+        lambda path: selection if path == selection_path else None,
+    )
+    monkeypatch.setattr(
+        "tradebot.research.xsp_shadow_cli.advance_xsp_opening_edge_v2_from_ibkr",
+        _advance_v2,
+    )
+    monkeypatch.setattr(
+        "tradebot.research.xsp_shadow_cli.advance_xsp_v2_etf_execution_observer",
+        _observe,
+    )
+    monkeypatch.setattr(
+        "tradebot.research.xsp_shadow_cli.advance_xsp_v2_live_transport",
+        _execute,
+    )
+
+    assert (
+        asyncio.run(
+            _main_async(
+                (
+                    "--mode",
+                    "opening-edge-v2",
+                    "--ledger",
+                    str(tmp_path / "v2-live.jsonl"),
+                    "--news-signal",
+                    str(tmp_path / "missing-news.json"),
+                    "--selected-transport",
+                    str(selection_path),
+                )
+            )
+        )
+        == 0
+    )
+    output = json.loads(capsys.readouterr().out)
+    assert captured["readonly"] is False
+    assert captured["selection"] == selection
+    assert captured["source"]["checkpoint_id"] == "source"
+    assert captured["disconnected"] is True
+    assert output["selected_transport_id"] == "selected-transport"
+    assert output["transport_execution"]["submitted_orders"] == 0
+    assert output["order_authority"] == "selected_spyu_spxu_cash"
+
+
+def test_shadow_cli_selected_transport_requires_explicit_writable_broker(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    from tradebot.research.xsp_shadow_cli import _main_async
+
+    selection_path = tmp_path / "selected-live-transport.json"
+    selection_path.write_text("{}", encoding="utf-8")
+    monkeypatch.setenv("IBKR_READONLY", "1")
+    monkeypatch.setattr(
+        "tradebot.research.xsp_shadow_cli.load_xsp_v2_transport_selection",
+        lambda _path: {
+            "selection_id": "selected-transport",
+            "order_authority": "selected_spyu_spxu_cash",
+        },
+    )
+
+    with pytest.raises(ValueError, match="explicitly writable broker connection"):
+        asyncio.run(
+            _main_async(
+                (
+                    "--mode",
+                    "opening-edge-v2",
+                    "--selected-transport",
+                    str(selection_path),
+                )
+            )
+        )
 
 
 @pytest.mark.parametrize(
@@ -2081,10 +2408,7 @@ def test_option_parity_benchmark_only_stratifies_forward_pairs(
     assert benchmark["prospective_cohorts"][expected_cohort]["pairs"] == 1
     expected_liquidity = "unavailable" if parity_change is None else "stable"
     assert benchmark["liquidity_cohorts"][expected_liquidity]["pairs"] == 1
-    assert (
-        benchmark["prospective_liquidity_cohorts"][expected_liquidity]["pairs"]
-        == 1
-    )
+    assert benchmark["prospective_liquidity_cohorts"][expected_liquidity]["pairs"] == 1
     assert benchmark["preopen_cohorts"]["unavailable"]["pairs"] == 1
     assert benchmark["prospective_pairs"] == 1
     assert benchmark["ta_observer_points"] == -1.25
@@ -2170,8 +2494,7 @@ def test_option_parity_benchmark_classifies_pareto_liquidity_without_thresholds(
     assert benchmark["prospective_liquidity_cohorts"][expected_cohort]["pairs"] == 1
     assert benchmark["aligned_liquidity_candidate"]["authority"] == "observation_only"
     assert (
-        benchmark["aligned_liquidity_candidate"]["shadow_candidate_eligible"]
-        is False
+        benchmark["aligned_liquidity_candidate"]["shadow_candidate_eligible"] is False
     )
 
 
@@ -2390,9 +2713,7 @@ def test_option_parity_candidate_uses_independent_non_overlapping_sequences(
                     "parity_change": {
                         "usable": True,
                         "direction": parity_direction,
-                        "prior_ts": (
-                            decision_at - timedelta(minutes=6)
-                        ).isoformat(),
+                        "prior_ts": (decision_at - timedelta(minutes=6)).isoformat(),
                         "prior_chain_fingerprint": "b" * 64,
                     },
                 },
@@ -2466,13 +2787,8 @@ def test_option_parity_candidate_uses_independent_non_overlapping_sequences(
     assert benchmark["promotion_eligible"] is False
     recommendation = benchmark["shadow_recommendation"]
     assert recommendation["verdict"] == "PROMOTE"
-    assert (
-        recommendation["recommended_candidate_schema"]
-        == aligned["schema"]
-    )
-    assert recommendation["selection_authority"] == (
-        "none_until_explicit_run_freeze"
-    )
+    assert recommendation["recommended_candidate_schema"] == aligned["schema"]
+    assert recommendation["selection_authority"] == ("none_until_explicit_run_freeze")
     assert recommendation["profitability_clock_started"] is False
     assert (
         recommendation["preregistered_selected_run_policy"]
@@ -2485,17 +2801,13 @@ def test_option_parity_candidate_uses_independent_non_overlapping_sequences(
         "capital_sleeve": "xsp-directional-unit",
         "selected_at": datetime(2026, 7, 27, 13, 35, tzinfo=timezone.utc),
     }
-    selection = xsp_selected_shadow_run(
-        ledger, recommendation, **selection_args
-    )
+    selection = xsp_selected_shadow_run(ledger, recommendation, **selection_args)
     assert selection == xsp_selected_shadow_run(
         ledger, recommendation, **selection_args
     )
     assert selection["schema"] == XSP_SELECTED_SHADOW_RUN_VERSION
     assert selection["strategy_id"] == aligned["schema"]
-    assert selection["recommendation_fingerprint"] == recommendation[
-        "fingerprint"
-    ]
+    assert selection["recommendation_fingerprint"] == recommendation["fingerprint"]
     assert selection["risk_policy"] == XSP_DIRECTIONAL_SHADOW_POLICY
     assert selection["order_authority"] == "none"
     assert selection["profitability_clock_started"] is False
@@ -2531,9 +2843,7 @@ def test_option_parity_candidate_uses_independent_non_overlapping_sequences(
     with pytest.raises(ValueError, match="risk_policy_drift"):
         xsp_profitability_policy_from_selected_run(tampered_selection)
     _append_observer_session(ledger, date(2026, 8, 3))
-    with pytest.raises(
-        ValueError, match="recommendation_not_current_for_ledger"
-    ):
+    with pytest.raises(ValueError, match="recommendation_not_current_for_ledger"):
         xsp_selected_shadow_run(ledger, recommendation, **selection_args)
 
 
@@ -2555,9 +2865,7 @@ def test_option_liquidity_candidate_requires_incremental_prospective_economics(
             minutes=minute_offset
         )
         strengthening = liquidity == "strengthening"
-        current_spread, prior_spread = (
-            (0.04, 0.08) if strengthening else (0.08, 0.04)
-        )
+        current_spread, prior_spread = (0.04, 0.08) if strengthening else (0.08, 0.04)
         current_age, prior_age = (2.0, 5.0) if strengthening else (5.0, 2.0)
         forecast = _forecast(
             ledger,
@@ -2573,22 +2881,16 @@ def test_option_liquidity_candidate_requires_incremental_prospective_economics(
                     "ts": (decision_at - timedelta(minutes=1)).isoformat(),
                     "chain_fingerprint": "a" * 64,
                     "pairs": 3,
-                    "dispersion_points": (
-                        0.01 if strengthening else 0.02
-                    ),
+                    "dispersion_points": (0.01 if strengthening else 0.02),
                     "median_relative_spread": current_spread,
                     "max_age_seconds": current_age,
                     "parity_change": {
                         "usable": True,
                         "direction": parity_direction,
-                        "prior_ts": (
-                            decision_at - timedelta(minutes=6)
-                        ).isoformat(),
+                        "prior_ts": (decision_at - timedelta(minutes=6)).isoformat(),
                         "prior_chain_fingerprint": "b" * 64,
                         "prior_pairs": 3,
-                        "prior_dispersion_points": (
-                            0.02 if strengthening else 0.01
-                        ),
+                        "prior_dispersion_points": (0.02 if strengthening else 0.01),
                         "prior_median_relative_spread": prior_spread,
                         "prior_max_age_seconds": prior_age,
                     },
@@ -2660,10 +2962,7 @@ def test_option_liquidity_candidate_requires_incremental_prospective_economics(
     assert benchmark["promotion_eligible"] is False
     recommendation = benchmark["shadow_recommendation"]
     assert recommendation["verdict"] == "PROMOTE"
-    assert (
-        recommendation["recommended_candidate_schema"]
-        == candidate["schema"]
-    )
+    assert recommendation["recommended_candidate_schema"] == candidate["schema"]
     assert recommendation["open_position_strategy_switch_allowed"] is False
     assert (
         recommendation["preregistered_selected_run_policy"]
@@ -2675,9 +2974,9 @@ def test_selected_shadow_run_rejects_hold_and_tampered_recommendations(
     tmp_path,
 ) -> None:
     ledger = LiveCalibrationLedger(tmp_path / "hold.jsonl")
-    recommendation = xsp_option_parity_participation_benchmark(
-        ledger
-    )["shadow_recommendation"]
+    recommendation = xsp_option_parity_participation_benchmark(ledger)[
+        "shadow_recommendation"
+    ]
     kwargs = {
         "run_id": "xsp-shadow-20260727",
         "strategy_version": "xsp.parity-aligned.v1",
@@ -2777,7 +3076,9 @@ def test_fundamental_context_is_timestamp_correct_and_observation_only() -> None
     assert stale["signed_pressure"] is None
 
 
-def test_fundamental_context_uses_the_latest_publication_available_at_decision() -> None:
+def test_fundamental_context_uses_the_latest_publication_available_at_decision() -> (
+    None
+):
     prior = _news_snapshot(NOW - timedelta(minutes=5))
     earlier = _news_snapshot(NOW - timedelta(hours=3))
     earlier["analysis"]["assets"]["XSP"].update(
@@ -2852,9 +3153,7 @@ def test_fundamental_defensive_benchmark_is_preregistered_and_observation_only(
     ledger.settle(
         forecast_id=str(forecast["forecast_id"]),
         observed={
-            "outcome_as_of_utc": (
-                NOW + timedelta(minutes=horizon_minutes)
-            ).isoformat(),
+            "outcome_as_of_utc": (NOW + timedelta(minutes=horizon_minutes)).isoformat(),
             "counterfactuals": [
                 {
                     "strategy_id": "directional_impulse.observer",
@@ -3095,9 +3394,7 @@ def test_forward_shadow_freezes_only_before_the_first_outcome_window(
         if row.get("kind") == "forecast"
     )
     original_ids = {
-        row["forecast_id"]
-        for row in ledger.records()
-        if row.get("kind") == "forecast"
+        row["forecast_id"] for row in ledger.records() if row.get("kind") == "forecast"
     }
     changed_prefix = [
         Bar(
@@ -3118,9 +3415,7 @@ def test_forward_shadow_freezes_only_before_the_first_outcome_window(
     )
     assert third["new_forecasts"] == 0
     assert {
-        row["forecast_id"]
-        for row in ledger.records()
-        if row.get("kind") == "forecast"
+        row["forecast_id"] for row in ledger.records() if row.get("kind") == "forecast"
     } == original_ids
 
 
@@ -3251,9 +3546,7 @@ def test_shadow_skips_broker_outside_supported_cash_window(tmp_path) -> None:
         assert receipt["checkpoint_statuses"] == {status: 1}
         assert receipt["broker_request_skipped"] == reason
         assert receipt["contract"] is None
-        [checkpoint] = [
-            row for row in ledger.records() if row["kind"] == "checkpoint"
-        ]
+        [checkpoint] = [row for row in ledger.records() if row["kind"] == "checkpoint"]
         assert checkpoint["evidence"]["broker_request_skipped"] == reason
         assert checkpoint["evidence"]["order_authority"] == "none"
 
@@ -3364,11 +3657,9 @@ def test_ibkr_shadow_boundary_qualifies_and_close_aligns_xsp(tmp_path) -> None:
     )
     candidate_equity = candidate["evidence"]["candidate_equity"]
     assert candidate_equity["run_started_at_utc"] == "2026-07-27T13:30:00+00:00"
-    assert (
-        candidate_equity["config_fingerprint"]
-        == XSP_OPENING_EDGE_CONFIG_FINGERPRINT
-    )
+    assert candidate_equity["config_fingerprint"] == XSP_OPENING_EDGE_CONFIG_FINGERPRINT
     assert candidate_equity["closed_trades"] == 0
+    assert candidate_equity["latest_trade"] is None
     assert candidate_equity["order_authority"] == "none"
     assert all(
         checkpoint["evidence"]["cash_history_fresh"] is True
@@ -3490,11 +3781,50 @@ def test_first_opening_edge_checkpoint_starts_selected_profitability(
     assert pressure["pressure_interval_seconds"] is None
     assert pressure["pressure_velocity_per_hour"] is None
     assert profitability["status"] == "ACTIVE"
-    assert profitability["clock"]["run_started_at_utc"] == (
-        "2026-07-27T13:30:00+00:00"
-    )
+    assert profitability["clock"]["run_started_at_utc"] == ("2026-07-27T13:30:00+00:00")
     assert profitability["clock"]["coverage_started_at_utc"] == (
         "2026-07-27T13:37:00+00:00"
     )
     assert profitability["clock"]["coverage_broken"] is False
     assert profitability["milestones"]["24h"]["passed"] is False
+
+
+def test_pressure_mirror_compacts_repeated_hourly_checkpoints() -> None:
+    pressure = {
+        "usable": True,
+        "signal_as_of_utc": "2026-07-28T06:33:55Z",
+        "snapshot_fingerprint": "news-1",
+        "direction": -1,
+        "impact": 78,
+        "confidence": 0.97,
+        "horizon_hours": 24,
+        "reason": "fresh",
+        "signed_pressure": -0.7566,
+        "pressure_delta": -0.1067,
+        "pressure_interval_seconds": 14903.0,
+        "pressure_velocity_per_hour": -0.025775,
+    }
+    rows = compact_pressure_rows(
+        (
+            {
+                "evaluation_as_of_utc": "2026-07-28T07:00:00+00:00",
+                "evidence": {"fundamental_pressure": pressure},
+            },
+            {
+                "evaluation_as_of_utc": "2026-07-28T08:00:00+00:00",
+                "evidence": {"fundamental_pressure": dict(pressure)},
+            },
+        )
+    )
+
+    assert rows == (
+        {
+            "schema": "xsp.fundamental-pressure.v1",
+            "authority": "observation_only",
+            "order_authority": "none",
+            **pressure,
+            "first_checkpoint_utc": "2026-07-28T07:00:00+00:00",
+            "last_checkpoint_utc": "2026-07-28T08:00:00+00:00",
+            "checkpoint_count": 2,
+        },
+    )

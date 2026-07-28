@@ -272,6 +272,10 @@ def is_early_close_day(d: date) -> bool:
     return d in cached
 
 
+def equity_rth_close_time_et(d: date) -> time:
+    return time(13, 0) if is_early_close_day(d) else time(16, 0)
+
+
 def xsp_rth_evaluation_slots(day: date) -> tuple[datetime, ...]:
     """Canonical two-minute-after-close cadence for five-minute XSP RTH bars."""
 
@@ -279,10 +283,8 @@ def xsp_rth_evaluation_slots(day: date) -> tuple[datetime, ...]:
         return ()
     first = datetime.combine(day, time(9, 37), tzinfo=ET_ZONE)
     last = datetime.combine(
-        day,
-        time(13, 2) if is_early_close_day(day) else time(16, 2),
-        tzinfo=ET_ZONE,
-    )
+        day, equity_rth_close_time_et(day), tzinfo=ET_ZONE
+    ) + timedelta(minutes=2)
     slots = []
     while first <= last:
         slots.append(first)

@@ -279,6 +279,7 @@ class LiveOrderExecution:
         *,
         mode: str,
         policy: ExecutionPolicy,
+        elapsed_offset_sec: float = 0.0,
         pending_ack_sec: float = 0.9,
         reconcile_interval_sec: float = 0.9,
         force_reconcile_interval_sec: float = 5.0,
@@ -295,7 +296,10 @@ class LiveOrderExecution:
             await self.client.ensure_ticker(trade.contract, owner=chase_owner)
         except Exception:
             pass
-        started = asyncio.get_running_loop().time()
+        started = asyncio.get_running_loop().time() - max(
+            0.0,
+            float(elapsed_offset_sec),
+        )
         selected_label = execution_mode_label(mode)
         selected_is_delay = str(mode or "").strip().upper() == "RELENTLESS_DELAY"
         last_reprice_ts: float | None = None
