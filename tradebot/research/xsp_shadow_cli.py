@@ -29,6 +29,9 @@ from .xsp_opening_edge_v2 import (
     load_xsp_opening_edge_v2_spec,
     xsp_opening_edge_v2_run_start,
 )
+from .xsp_execution_observer import (
+    advance_xsp_v2_etf_execution_observer,
+)
 
 
 async def _main_async(argv: Sequence[str] | None = None) -> int:
@@ -106,6 +109,7 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
         news.append({"load_error": str(exc)})
     ledger = LiveCalibrationLedger(args.ledger)
     v2_run_start = None
+    execution_observation = None
     try:
         if args.mode == "opening-edge-v2":
             v2_spec = load_xsp_opening_edge_v2_spec()
@@ -123,6 +127,14 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
                 ),
                 news_snapshot=tuple(news),
                 spec=v2_spec,
+            )
+            execution_observation = (
+                await advance_xsp_v2_etf_execution_observer(
+                    ledger,
+                    client=client,
+                    source_receipt=receipt,
+                    observed_at=observed_at,
+                )
             )
         else:
             receipt = await advance_xsp_shadow_from_ibkr(
@@ -184,6 +196,7 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
                     if v2_run_start is not None
                     else None
                 ),
+                "execution_observation": execution_observation,
                 "completed_at_utc": completed_at.isoformat(),
             },
             allow_nan=False,

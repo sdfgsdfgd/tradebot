@@ -113,6 +113,7 @@
     "tests/test_live_signal_exit_continuum.py": "live-execution-orders",
     "tests/test_live_execution_registry.py": "live-execution-orders",
     "tests/test_live_calibration.py": "market-realism-parity",
+    "tests/test_xsp_execution_observer.py": "market-realism-parity",
     "tests/test_news_signal.py": "signal-regime-intelligence",
     "tests/test_offline_cache_preflight.py": "backtest-data-cache",
     "tests/test_option_calibration_provenance.py": "research-optimization-calibration",
@@ -620,7 +621,8 @@
       ],
       "evidence": [
         "q_XSP_live_research_kata.md",
-        "tests/test_live_calibration.py"
+        "tests/test_live_calibration.py",
+        "tests/test_xsp_execution_observer.py"
       ],
       "owner_surface": [
         "tradebot/backtest/engine.py",
@@ -632,6 +634,7 @@
         "tradebot/research/xsp_benchmarks.py",
         "tradebot/research/xsp_candidate.py",
         "tradebot/research/xsp_context.py",
+        "tradebot/research/xsp_execution_observer.py",
         "tradebot/research/xsp_opening_edge_v2.py",
         "tradebot/research/xsp_shadow.py",
         "tradebot/research/xsp_shadow_cli.py",
