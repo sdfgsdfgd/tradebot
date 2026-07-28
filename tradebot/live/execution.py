@@ -22,6 +22,7 @@ from ..engines.execution import (
     _round_to_tick,
     _tick_size,
     execution_mode_label,
+    quote_health,
 )
 from ..time_utils import now_et
 
@@ -280,6 +281,7 @@ class LiveOrderExecution:
         mode: str,
         policy: ExecutionPolicy,
         elapsed_offset_sec: float = 0.0,
+        require_fresh_top: bool = False,
         pending_ack_sec: float = 0.9,
         reconcile_interval_sec: float = 0.9,
         force_reconcile_interval_sec: float = 5.0,
@@ -636,11 +638,41 @@ class LiveOrderExecution:
                 cleaned_mode = str(mode_now or "").strip().upper()
                 relentless = cleaned_mode in ("RELENTLESS", "RELENTLESS_DELAY")
                 delay_mode = cleaned_mode == "RELENTLESS_DELAY"
-                quote_stale = (
-                    policy.quote_is_stale(ticker=ticker, bid=bid, ask=ask, last=last)
-                    if relentless
-                    else False
-                )
+                if require_fresh_top:
+                    updated = getattr(ticker, "tbTopQuoteUpdatedMono", None)
+                    try:
+                        quote_age = (
+                            max(0.0, monotonic() - float(updated))
+                            if updated is not None
+                            else None
+                        )
+                    except (TypeError, ValueError):
+                        quote_age = None
+                    quote_stale = (
+                        quote_health(
+                            bid=bid,
+                            ask=ask,
+                            last=last,
+                            market_data_type=getattr(ticker, "marketDataType", None),
+                            age_sec=quote_age,
+                            max_age_sec=policy.stale_top_age_sec,
+                            require_live=True,
+                            require_nbbo=True,
+                            require_age=True,
+                        )["eligible"]
+                        is not True
+                    )
+                else:
+                    quote_stale = (
+                        policy.quote_is_stale(
+                            ticker=ticker,
+                            bid=bid,
+                            ask=ask,
+                            last=last,
+                        )
+                        if relentless
+                        else False
+                    )
                 open_shock = policy.in_open_shock(now_et().time()) if relentless else False
                 spread = (
                     float(ask) - float(bid)
@@ -693,6 +725,8 @@ class LiveOrderExecution:
                     and last_modify_error_ts is not None
                     and loop_now - last_modify_error_ts < float(modify_error_backoff_sec)
                 ):
+                    should_reprice = False
+                if require_fresh_top and quote_stale:
                     should_reprice = False
                 previous_mode = str(mode_now)
                 previous_quote = quote_signature

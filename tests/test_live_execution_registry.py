@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 from tradebot.engines.execution import EXECUTION_POLICY
 from tradebot.engines.execution import _EXEC_AUTO_TIMEOUT_SEC
+from tradebot.engines.execution import _EXEC_RELENTLESS_TIMEOUT_SEC
 from tradebot.live.execution import LiveOrderExecution, order_ids
 
 
@@ -105,4 +106,70 @@ def test_resumed_chase_preserves_original_timeout_budget() -> None:
         )
     )
 
+    assert cancelled == [7]
+
+
+def test_fresh_top_contract_pauses_stale_repricing_until_timeout() -> None:
+    cancelled: list[int] = []
+    modified: list[float] = []
+    refreshed: list[int] = []
+    ticker = SimpleNamespace(
+        bid=30.48,
+        ask=30.50,
+        last=30.49,
+        marketDataType=3,
+        tbTopQuoteUpdatedMono=None,
+    )
+
+    class _Client:
+        @staticmethod
+        async def ensure_ticker(_contract, *, owner: str) -> None:
+            return None
+
+        @staticmethod
+        def ticker_for_con_id(_con_id: int):
+            return ticker
+
+        @staticmethod
+        async def refresh_live_snapshot_once(_contract) -> None:
+            refreshed.append(1)
+
+        @staticmethod
+        async def modify_limit_order(trade, price: float):
+            modified.append(price)
+            return trade
+
+        @staticmethod
+        async def cancel_trade(trade) -> None:
+            cancelled.append(int(trade.order.orderId))
+
+        @staticmethod
+        def release_ticker(_con_id: int, *, owner: str) -> None:
+            return None
+
+    trade = SimpleNamespace(
+        contract=SimpleNamespace(conId=11, secType="STK", minTick=0.01),
+        order=SimpleNamespace(orderId=7, permId=0, lmtPrice=30.50),
+        orderStatus=SimpleNamespace(status="Submitted", filled=0),
+        isDone=lambda: False,
+    )
+    execution = LiveOrderExecution(
+        client=_Client(),
+        price_for_mode=lambda *_args, **_kwargs: 30.60,
+        state_by_order={},
+    )
+
+    asyncio.run(
+        execution.chase(
+            trade,
+            "BUY",
+            mode="RELENTLESS",
+            policy=EXECUTION_POLICY,
+            elapsed_offset_sec=_EXEC_RELENTLESS_TIMEOUT_SEC - 0.1,
+            require_fresh_top=True,
+        )
+    )
+
+    assert refreshed
+    assert modified == []
     assert cancelled == [7]

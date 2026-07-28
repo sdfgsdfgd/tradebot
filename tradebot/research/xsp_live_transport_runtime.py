@@ -586,7 +586,25 @@ async def execute_xsp_v2_transport_plan(
 
     order_id, perm_id = order_ids(trade)
     submitted_at = observed_at
-    if prior is not None:
+    first_submitted_at = next(
+        (
+            datetime.fromisoformat(
+                str(record["recorded_at_utc"]).replace("Z", "+00:00")
+            )
+            for record in records
+            if record.get("kind") == "checkpoint"
+            and record.get("strategy_version")
+            == XSP_V2_TRANSPORT_EXECUTION_VERSION
+            and isinstance(record.get("evidence"), Mapping)
+            and record["evidence"].get("selection_id") == selected["selection_id"]
+            and record["evidence"].get("order_ref") == order_ref
+            and record["evidence"].get("phase") == "SUBMITTED"
+        ),
+        None,
+    )
+    if first_submitted_at is not None:
+        submitted_at = first_submitted_at
+    elif prior is not None:
         submitted_at = datetime.fromisoformat(
             str(prior["recorded_at_utc"]).replace("Z", "+00:00")
         )
@@ -608,6 +626,7 @@ async def execute_xsp_v2_transport_plan(
             mode=str(leg.get("chase_mode") or ""),
             policy=EXECUTION_POLICY,
             elapsed_offset_sec=elapsed,
+            require_fresh_top=True,
         )
     reconciled = await client.reconcile_order_state(
         order_id=order_id,

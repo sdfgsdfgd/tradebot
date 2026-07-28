@@ -11,6 +11,7 @@ from types import SimpleNamespace
 import pytest
 from ib_insync import Stock
 
+from tradebot.engines.execution import execution_policy_contract
 from tradebot.research.live_calibration import (
     LiveCalibrationLedger,
     calibration_fingerprint,
@@ -19,6 +20,7 @@ from tradebot.research.xsp_live_transport import (
     XSP_V2_TRANSPORT_ORDER_AUTHORITY,
     XSP_V2_TRANSPORT_PLAN_SCHEMA,
     XSP_V2_TRANSPORT_SELECTION_SCHEMA,
+    project_xsp_v2_transport_plan,
 )
 from tradebot.research.xsp_live_transport_runtime import (
     XSP_V2_TRANSPORT_EXECUTION_SCHEMA,
@@ -270,6 +272,9 @@ def _actionable(tmp_path: Path):
             "partial_buy": "hold_filled_quantity_without_top_up",
             "partial_sell": "no_new_buy_until_flat",
             "stale_or_ambiguous_state": "HOLD",
+            "fresh_streaming_nbbo_required": True,
+            "stale_top_action": "pause_repricing_until_fresh_or_timeout",
+            "policy_contract": execution_policy_contract(),
         },
         "evidence": {
             "ranking": {},
@@ -510,6 +515,93 @@ def test_prepared_restart_adopts_exact_broker_order_without_resubmission(
     ]
 
 
+def test_resumed_pending_order_ages_from_first_submission(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    selection, plan, contract, ticker = _actionable(tmp_path)
+    ledger = LiveCalibrationLedger(tmp_path / "execution.jsonl")
+    client = _Client(contract)
+    order_ref = xsp_v2_transport_order_ref(plan)
+    pending = _trade(contract, order_ref)
+    pending.orderStatus = SimpleNamespace(
+        status="Submitted",
+        filled=0,
+        remaining=8,
+        avgFillPrice=0,
+    )
+    pending.fills = []
+    pending.isDone = lambda: False
+    client.matches = [pending]
+    client.trade = pending
+    first_submitted = OBSERVED_AT - timedelta(minutes=4)
+    for recorded_at in (first_submitted, OBSERVED_AT - timedelta(minutes=2)):
+        ledger.checkpoint(
+            evaluation_as_of=recorded_at,
+            strategy_id=XSP_OPENING_EDGE_V2_VERSION,
+            strategy_version=XSP_V2_TRANSPORT_EXECUTION_VERSION,
+            trading_date="2026-07-29",
+            session="RTH",
+            status="EVALUATED",
+            evidence={
+                "schema": XSP_V2_TRANSPORT_EXECUTION_SCHEMA,
+                "selection_id": selection["selection_id"],
+                "transition_id": plan["transition_id"],
+                "phase": "SUBMITTED",
+                "order_ref": order_ref,
+                "plan": plan,
+                "what_if_preview": {"commission": 1.0},
+            },
+            recorded_at=recorded_at,
+        )
+
+    captured: dict[str, object] = {}
+
+    class _Execution:
+        def __init__(self, **_kwargs) -> None:
+            pass
+
+        async def chase(
+            self,
+            trade,
+            _action,
+            *,
+            elapsed_offset_sec: float,
+            require_fresh_top: bool,
+            **_kwargs,
+        ) -> None:
+            captured["elapsed_offset_sec"] = elapsed_offset_sec
+            captured["require_fresh_top"] = require_fresh_top
+            filled = _trade(contract, order_ref)
+            trade.order = filled.order
+            trade.orderStatus = filled.orderStatus
+            trade.fills = filled.fills
+            trade.isDone = filled.isDone
+
+    monkeypatch.setattr(
+        "tradebot.research.xsp_live_transport_runtime.LiveOrderExecution",
+        _Execution,
+    )
+
+    result = asyncio.run(
+        execute_xsp_v2_transport_plan(
+            ledger,
+            client=client,
+            selection=selection,
+            plan=plan,
+            contract=contract,
+            ticker=ticker,
+            observed_at=OBSERVED_AT,
+        )
+    )
+
+    assert result["status"] == "TERMINAL"
+    assert captured == {
+        "elapsed_offset_sec": 240.0,
+        "require_fresh_top": True,
+    }
+
+
 def test_done_order_waits_for_commission_before_terminal_receipt(
     tmp_path: Path,
 ) -> None:
@@ -647,6 +739,113 @@ def test_risk_state_uses_actual_fills_commissions_and_liquidation_bid(
     assert closed_risk["run_realized_net_usd"] == 10.0
     assert closed_risk["open_mark_net_usd"] == 0.0
     assert closed_risk["fill_count"] == 2
+
+
+def test_partial_buy_is_held_without_top_up(tmp_path: Path) -> None:
+    selection, _plan, _contract, _ticker = _actionable(tmp_path)
+    partial = _fill_record(
+        selection,
+        exec_id="partial-buy",
+        when=OBSERVED_AT - timedelta(minutes=1),
+        symbol="SPYU",
+        side="BOT",
+        shares=3,
+        price=30.0,
+    )
+    risk = xsp_v2_transport_risk_state(
+        selection=selection,
+        records=(partial,),
+        observed_at=OBSERVED_AT,
+        liquidation_bids={"SPYU": 30.48},
+    )
+
+    plan = project_xsp_v2_transport_plan(
+        selection=selection,
+        source_receipt=_live_source(
+            {
+                "lane": "rth",
+                "direction": "up",
+                "entry_time": (SELECTED_AT + timedelta(minutes=2)).isoformat(),
+                "trading_date": "2026-07-29",
+                "entry_price": 750.0,
+                "exit_reason": "end",
+            },
+            recorded_at=OBSERVED_AT - timedelta(seconds=30),
+        ),
+        observed_at=OBSERVED_AT,
+        positions={"SPYU": 3, "SPXU": 0},
+        open_orders=[],
+        settled_cash_usd=float(risk["settled_cash_usd"]),
+        quotes={},
+    )
+
+    assert risk["holdings_from_fills"] == {"SPYU": 3.0, "SPXU": 0.0}
+    assert plan["status"] == "UNCHANGED"
+    assert plan["reason"] == "target_already_owned"
+    assert plan["leg"] is None
+
+
+def test_partial_sell_retries_only_the_remainder_before_any_buy(
+    tmp_path: Path,
+) -> None:
+    selection, _plan, _contract, _ticker = _actionable(tmp_path)
+    buy = _fill_record(
+        selection,
+        exec_id="full-buy",
+        when=OBSERVED_AT - timedelta(minutes=2),
+        symbol="SPYU",
+        side="BOT",
+        shares=8,
+        price=30.0,
+    )
+    partial_sell = _fill_record(
+        selection,
+        exec_id="partial-sell",
+        when=OBSERVED_AT - timedelta(minutes=1),
+        symbol="SPYU",
+        side="SLD",
+        shares=3,
+        price=30.48,
+    )
+    risk = xsp_v2_transport_risk_state(
+        selection=selection,
+        records=(buy, partial_sell),
+        observed_at=OBSERVED_AT,
+        liquidation_bids={"SPYU": 30.48},
+    )
+
+    plan = project_xsp_v2_transport_plan(
+        selection=selection,
+        source_receipt=_live_source(
+            {
+                "lane": "rth",
+                "direction": "down",
+                "entry_time": (SELECTED_AT + timedelta(minutes=2)).isoformat(),
+                "trading_date": "2026-07-29",
+                "entry_price": 749.0,
+                "exit_reason": "end",
+            },
+            recorded_at=OBSERVED_AT - timedelta(seconds=30),
+        ),
+        observed_at=OBSERVED_AT,
+        positions={"SPYU": 5, "SPXU": 0},
+        open_orders=[],
+        settled_cash_usd=float(risk["settled_cash_usd"]),
+        quotes={
+            "SPYU": {
+                "bid": 30.48,
+                "ask": 30.50,
+                "age_seconds": 0.5,
+                "market_data_type": 1,
+            }
+        },
+    )
+
+    assert risk["holdings_from_fills"] == {"SPYU": 5.0, "SPXU": 0.0}
+    assert plan["reason"] == "sell_incumbent_before_target"
+    assert plan["leg"]["action"] == "SELL"
+    assert plan["leg"]["symbol"] == "SPYU"
+    assert plan["leg"]["quantity"] == 5
 
 
 def test_five_slot_cash_never_reuses_same_day_sale_proceeds(

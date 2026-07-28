@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 import re
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import time
 from time import monotonic
 
@@ -755,6 +755,22 @@ class ExecutionPolicy:
 
 
 EXECUTION_POLICY = ExecutionPolicy()
+
+
+def execution_policy_contract() -> dict[str, object]:
+    """Return the complete, serializable shared chase-policy identity."""
+
+    return {
+        "ladder_phase_seconds": {
+            "OPTIMISTIC": _EXEC_LADDER_OPTIMISTIC_SEC,
+            "MID": _EXEC_LADDER_MID_SEC,
+            "AGGRESSIVE": _EXEC_LADDER_AGGRESSIVE_SEC,
+            "CROSS": _EXEC_LADDER_CROSS_SEC,
+        },
+        "relentless_timeout_seconds": _EXEC_RELENTLESS_TIMEOUT_SEC,
+        "auto_timeout_seconds": _EXEC_AUTO_TIMEOUT_SEC,
+        "policy": asdict(EXECUTION_POLICY),
+    }
 
 
 def execution_mode_label(mode: str) -> str:

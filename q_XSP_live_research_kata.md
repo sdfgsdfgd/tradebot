@@ -114,9 +114,13 @@ output belongs in commit/final verification, not in this management brain.
     `OPTIMISTIC → MID → AGGRESSIVE → CROSS → bounded RELENTLESS` chase policy
     before any clock. Freeze maximum edge, timeout, cancel/reconcile, and
     partial-fill behavior. The local selected-run boundary now validates the
-    full frozen account/notional/risk/ladder semantics, gives every transition
-    one broker-visible content-addressed `orderRef`, preserves the original
-    chase timeout across restart, and reconstructs sleeve risk only from
+    full frozen account/notional/risk/ladder semantics, including every phase,
+    timeout, reprice parameter, and `40`-tick maximum edge. Fresh type-1 NBBO is
+    required throughout a chase; stale, delayed, one-sided, or age-unknown top
+    pauses repricing until freshness returns or the original timeout cancels.
+    Every transition receives one broker-visible content-addressed `orderRef`;
+    restart ages from its first `SUBMITTED` receipt, never the latest retry.
+    Sleeve risk reconstructs only from
     deduplicated broker fills, actual USD commissions, and executable
     liquidation bids. Its USD reserve now exactly reproduces the frozen strict
     `T+1` partition: BUY debits immediately, SELL proceeds mature only on the
@@ -574,6 +578,7 @@ and
 | E-237 | the selected owner no longer infers post-selection authority solely from the crown's modeled fill clock. Crown positions use canonical UTC-naive bar times and may carry a next-bar entry later than selection even when their admission was already known; the owner now reads that representation explicitly and compares each target with the exact baseline state frozen at selection. An unchanged preselection signal cannot be adopted or crash timestamp parsing; only a genuinely changed post-selection state can request a BUY |
 | E-238 | one local, nonrecurring activation transaction now closes the ranked-preview handoff: it requires clean deployed source plus active read-only cadence, pauses the timer, produces one fresh RTH checkpoint, freezes broker cash/account/baseline state through the read-only selector, installs the explicit writable drop-in, and immediately advances the selected owner before restoring cadence. Failure before selection restores observation; failure after selection preserves authority, leaves cadence disabled, and retries only the same durable reconciliation path. Success, preselection failure, and postselection failure are independently proven; q remains unchanged with no selection or order |
 | E-239 | the immutable next-RTH preview and local selector now have an explicit cross-boundary compatibility receipt `fec446b0…`: q's frozen preview source `47679cd…` consumed representative output from the exact tracked/q rank `42fcf6f…` and dwell `066cd2c…` owners, preserved the nominee exactly, produced the same canonical identity, and passed selected-run validation/reload. This proves schema/hash/quantity compatibility only; it does not predict the sealed outcome, preview the broker, select a run, submit an order, or start a clock |
+| E-240 | final local execution audit found that numeric ladder limits were implicit and repeated `SUBMITTED` checkpoints could reset a resumed order's timeout. The selected identity now binds the complete shared phase/policy contract; fresh streaming NBBO is mandatory for every reprice, stale top can only pause until the unchanged timeout cancels, and restart ages from the first broker submission. Partial BUY proof retains only the filled shares without top-up; partial SELL proof liquidates only the remainder before any opposite BUY; cancellation is not economic-terminal until exact fills and USD commissions reconcile. Direction, admission, sizing, frozen q inputs, selection, orders, and clock remain unchanged |
 
 ### Decision anchors
 

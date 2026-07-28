@@ -15,6 +15,7 @@ from tradebot.research.xsp_live_transport import (
     select_xsp_v2_transport,
     write_xsp_v2_transport_selection,
 )
+from tradebot.engines.execution import execution_policy_contract
 
 
 SELECTED_AT = datetime(2026, 7, 29, 13, 38, tzinfo=timezone.utc)
@@ -284,6 +285,7 @@ def test_selection_binds_every_gate_and_starts_strictly_flat_run(
         "initial_mode": "CROSS",
         "chase_mode": "RELENTLESS",
     }
+    assert selection["execution"]["policy_contract"] == execution_policy_contract()
     assert selection["broker_at_selection"]["account_id"] == "DU123456"
     assert selection["broker_at_selection"]["observed_at_utc"] == (
         SELECTED_AT - timedelta(seconds=5)

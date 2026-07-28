@@ -10,6 +10,7 @@ from collections.abc import Mapping, Sequence
 from datetime import datetime, time, timedelta, timezone
 from pathlib import Path
 
+from ..engines.execution import execution_policy_contract
 from ..engines.market import equity_rth_close_time_et, xsp_session_label_et
 from ..time_utils import ET_ZONE
 from .live_calibration import calibration_fingerprint
@@ -36,6 +37,21 @@ _NAV_MAX_AGE_SECONDS = 30.0
 _STARTING_CASH_IDENTITY_USD = 1_350.0
 _FIXED_NOTIONALS_USD = frozenset({1_050.0, 1_150.0, 1_200.0})
 _POSITION_STATE_FIELDS = ("lane", "direction", "entry_time", "trading_date", "entry_price")
+
+
+def _execution_contract() -> dict[str, object]:
+    return {
+        "SPYU_BUY": {"initial_mode": "CROSS", "chase_mode": "RELENTLESS"},
+        "SPXU_BUY": {"initial_mode": "OPTIMISTIC", "chase_mode": "AUTO"},
+        "SELL": {"initial_mode": "OPTIMISTIC", "chase_mode": "AUTO"},
+        "sell_before_buy": True,
+        "partial_buy": "hold_filled_quantity_without_top_up",
+        "partial_sell": "no_new_buy_until_flat",
+        "stale_or_ambiguous_state": "HOLD",
+        "fresh_streaming_nbbo_required": True,
+        "stale_top_action": "pause_repricing_until_fresh_or_timeout",
+        "policy_contract": execution_policy_contract(),
+    }
 
 
 def xsp_v2_source_receipt_from_checkpoint(
@@ -497,24 +513,7 @@ def select_xsp_v2_transport(
             "max_session_loss_usd": 67.5,
             "gth_execution_allowed": False,
         },
-        "execution": {
-            "SPYU_BUY": {
-                "initial_mode": "CROSS",
-                "chase_mode": "RELENTLESS",
-            },
-            "SPXU_BUY": {
-                "initial_mode": "OPTIMISTIC",
-                "chase_mode": "AUTO",
-            },
-            "SELL": {
-                "initial_mode": "OPTIMISTIC",
-                "chase_mode": "AUTO",
-            },
-            "sell_before_buy": True,
-            "partial_buy": "hold_filled_quantity_without_top_up",
-            "partial_sell": "no_new_buy_until_flat",
-            "stale_or_ambiguous_state": "HOLD",
-        },
+        "execution": _execution_contract(),
         "evidence": evidence,
     }
     return {
@@ -685,25 +684,7 @@ def load_xsp_v2_transport_selection_from_mapping(
             "max_session_loss_usd": 67.5,
             "gth_execution_allowed": False,
         }
-        or execution
-        != {
-            "SPYU_BUY": {
-                "initial_mode": "CROSS",
-                "chase_mode": "RELENTLESS",
-            },
-            "SPXU_BUY": {
-                "initial_mode": "OPTIMISTIC",
-                "chase_mode": "AUTO",
-            },
-            "SELL": {
-                "initial_mode": "OPTIMISTIC",
-                "chase_mode": "AUTO",
-            },
-            "sell_before_buy": True,
-            "partial_buy": "hold_filled_quantity_without_top_up",
-            "partial_sell": "no_new_buy_until_flat",
-            "stale_or_ambiguous_state": "HOLD",
-        }
+        or execution != _execution_contract()
         or not isinstance(broker, Mapping)
         or not str(broker.get("account_id") or "").strip()
         or broker.get("account_type") != "CASH"
