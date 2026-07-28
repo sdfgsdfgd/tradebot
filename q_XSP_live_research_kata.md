@@ -1,6 +1,7 @@
 # XSP Mastery — Live Research Kata
 
-- **Status:** `[ACTIVE] v2 recurring observer proven; execution transport HOLD`
+- **Status:** `[ACTIVE] v2 recurring observer proven; state-change execution
+  evidence published; transport HOLD`
 - **Authority:** canonical resume state, active task tree, critical evidence
   index, and promotion contract
 - **Cold history:** [`q_XSP_live_research_kata-archive.md`](q_XSP_live_research_kata-archive.md)
@@ -27,7 +28,7 @@ output belongs in commit/final verification, not in this management brain.
 | Selected shadow | Opening Edge v1 predecessor `9fac460e…`; cannot confer v2 authority |
 | Research crown | **Opening Edge v2 — Balanced 24/5**; `xsp.opening-edge-v2-balanced-24x5.v1` |
 | Runtime parity | Exact prior-XSP-close GTH projection plus XSP RTH signal reproduces all `725` ordered SPY fills; the shared 24/5 exit clock now honors the session trading date |
-| Runtime source anchor | local, `origin/main`, and q are exact at `bb5bcd8…`; installed v2 observer units byte-match that source |
+| Runtime source anchor | local/GitHub publish state-change execution evidence at `90ea30c…`; q intentionally remains clean at `bb5bcd8…` until its active quote recorder exits |
 | Order/capital authority | `none` |
 | Profitability clock | v2 `NOT_STARTED`; predecessor evidence does not transfer |
 | Execution verdict | `HOLD`; every current-Fixed SPY/3×-ETF transport fails. Tiered plus ≤25% spread is a positive feasibility bound only, not a fill or pricing-plan fact |
@@ -50,8 +51,12 @@ output belongs in commit/final verification, not in this management brain.
    anchoring, session-aware `09:25 ET` lifecycle, pre-outcome `20:15 ET` start,
    and missing-anchor refusal. Its first `20:22 ET` evaluation and `20:27 ET`
    recurrence passed exact restart, freshness, identity, and safety audits.
-7. `[WIP]` Accumulate compact TA/news/execution observations while preserving
-   `NO_TRADE`; restart milestone clocks only after executable economics pass.
+7. `[DONE]` Publish one state-change-only UPRO/SPXU quote/ladder/what-if owner:
+   flat or unchanged state makes no broker request, every observation carries
+   the frozen `HOLD`, and no order or clock authority exists.
+8. `[WIP]` Preserve q's active recorder source through terminal audit, then
+   fast-forward and prove the new owner's restart/idempotence before
+   accumulating compact TA/news/execution outcomes.
 
 ### Never infer
 
@@ -229,6 +234,7 @@ stale, underwarmed, failed, or horizon-expired evidence means no extra gate.
 | Pre-open bridge | Under a frozen `360s`, model-consensus-only GTH/Curb anchor, do exact `2h/4h/6h` velocities distinguish strengthening, exhaustion, or reversal into the first RTH turn? | separately versioned replay; descriptive cohorts only |
 | Crash/rebound | Can displacement + multiscale reversal + fresh GTH/news distinguish crash/rebound episodes? | peer state; never a regime router |
 | Microstructure | Can top-of-book/package liquidity, spread state, and quote evolution distinguish valuable turns? | primary new admission frontier |
+| ETF execution state | At each actual v2 position transition only, do broker-qualified UPRO/SPXU NBBO, shared `OPT→MID→AGG→CROSS` prices, and non-transmitting previews support a cheaper causal transport than the rejected historical model? | discovery only; frozen `HOLD`, zero unchanged-state polling, zero orders |
 
 News and option evidence begins only at append time. Historical headlines may
 explain plausibility but cannot label old trades or support value claims.
@@ -266,7 +272,14 @@ it remains compact context—not a pivot claim or permission gate.
    final one-field sensor screen, and causal prior-close/passive→next-bar-cross
    replay fails. Preserve paired observations and treat seconds-scale ladder
    receipts as discovery only; do not infer fills or change account pricing.
-9. `[BLOCKED]` Option structures and any live-capital canary belong to a later
+9. `[DONE]` `90ea30c…` publishes one content-addressed ETF execution observer
+   that acts only on a changed paired-v2 position state, reuses shared quote
+   health/tick/ladder and broker what-if owners, rejects profile drift and
+   artifact tampering, and preserves `HOLD/none`.
+10. `[WIP]` Keep q pinned while its current quote recorder runs; after terminal
+   audit, fast-forward once and prove first state-change plus restart
+   idempotence without selecting the transport.
+11. `[BLOCKED]` Option structures and any live-capital canary belong to a later
    quest after directional causality is proven.
 
 ---
@@ -282,7 +295,7 @@ it remains compact context—not a pivot claim or permission gate.
 | Lifecycle | `tradebot/spot/lifecycle.py` + shared position-intent path | persistent source owner; optional stop/trail semantics are honest |
 | Historical/cache truth | canonical chart-data/history owners | sparse, provenance-bound, gap-aware, close-aligned, no fabricated absence |
 | Forward option tape | `tradebot/backtest/tools/record_quotes.py` | restart-safe GTH/RTH/Curb tape with actual MD provenance |
-| Broker shadow/transport | `tradebot/research/xsp_opening_edge_v2.py` + `xsp_shadow.py` + Bot UI contracts | explicit XSP clock, XSP/SPY signal provenance, SPY fills, paired costs, bounded and non-submitting |
+| Broker shadow/transport | `tradebot/research/xsp_opening_edge_v2.py` + `xsp_execution_observer.py` + `xsp_shadow.py` + Bot UI contracts | explicit XSP clock/provenance/fills; sparse state-change quote/preview evidence; bounded and non-submitting |
 | Evidence/economics | `tradebot/research/live_calibration.py` | append-only forecasts/results/checkpoints and immutable milestones |
 | External decision context | `tradebot/research/xsp_context.py` | timestamp-causal option/news projection; no breadth runtime |
 | Candidate reducers | `tradebot/research/xsp_benchmarks.py` | pure comparison; no broker/order imports |
@@ -324,7 +337,8 @@ must be advanced, traced, and consumed identically; otherwise remove the lie.
 - Quote timer is persistent; the bounded v2 observer timer is not. Its six
   calendar lanes cover completed GTH/RTH bars plus one `16:17 ET`
   RTH-finalization read; Curb never owns a trade.
-- q is clean and exact at `bb5bcd8…`. Installed
+- q is clean and intentionally pinned at `bb5bcd8…` while the July 28 quote
+  recorder is active; local/GitHub are `90ea30c…`. Installed
   service/timer hashes are `921e5a65…` / `814f3726…`. Preflight checkpoint
   `708905de…` froze `2026-07-27 20:15 ET`, recorded no paired equity, skipped
   broker requests, and retained `order_authority=none`; manifest `8363da96…`.
@@ -332,6 +346,10 @@ must be advanced, traced, and consumed identically; otherwise remove the lie.
   `aad9021b…` at `20:27 ET` were both `EVALUATED`, fresh, identity-stable,
   selection-stable, positionless, and breach-free. Their immutable manifests
   are `76651618…` / `d8509c3f…`; recurring cadence is enabled.
+- The published ETF execution observer is not yet installed on q. It requests
+  nothing for flat/unchanged state; an entry, exit, or flip alone can snapshot
+  live NBBO, the shared tick-normalized price ladder, and broker what-if
+  economics. Its linked acceptance receipt remains immutable `HOLD`.
 - SMART/ARCA SPY API top-of-book is unentitled (`10089`), while explicit
   `OVERNIGHT` SPY returned a live type-1 `738.98/739.13` book without a fee or
   order. Pre-open historical bars lagged roughly ten minutes, then the first
@@ -382,6 +400,7 @@ and
 | E-192 | authentic UPRO/SPXU history rejects both balanced 24/5 and unchanged RTH execution under the frozen gate; no v2 selection or clock exists |
 | E-193 | q's first live GTH observer checkpoint passed exact source/start/config/freshness/news/safety/selection audit with zero order authority |
 | E-194 | the first recurring checkpoint preserved the same run identities and zero-position state; cadence is proven and enabled while execution remains HOLD |
+| E-195 | state-change-only UPRO/SPXU quote/ladder/what-if evidence is published at `90ea30c…`; flat/unchanged state is silent and the rejected transport remains HOLD |
 
 ### Decision anchors
 
@@ -411,6 +430,7 @@ and
 | D-162 | fixed UPRO/SPXU is closed as executable transport; zero-volume/missing GTH fills cannot be fabricated, and an exact RTH signal ledger cannot override cash, cadence, attribution, PF, or drawdown failure |
 | D-163 | recurring observation may start only after one immutable first-bar audit proves exact run/config/freshness/selection continuity; checkpoint success never grants execution authority |
 | D-164 | keep streaming entitlement and historical freshness separate; explicit OVERNIGHT data may support future execution evidence but cannot silently relabel delayed history |
+| D-165 | observe candidate ETF execution only on paired-v2 state transitions through shared quote/pricing/preview owners; an observation cannot overturn the frozen historical HOLD, select a run, start a clock, or submit an order |
 
 ---
 
@@ -475,7 +495,9 @@ Opening Edge v2 remains the historical research crown, but current-Fixed SPY
 and every tested 3× ETF pairing are `HOLD`. q's v2 observer is
 running on proven recurring cadence with zero order authority. Its first and
 recurring GTH checkpoints are exact, fresh, positionless, and immutably
-archived. Broker/order strategy remains `NO_TRADE`, v2 has no selected
+archived. A sparse state-change execution owner is published but deliberately
+not installed beneath q's active recorder. Broker/order strategy remains
+`NO_TRADE`, v2 has no selected
 identity, and the profitability clock is `NOT_STARTED`. Tiered pricing with
 ≤25% spread capture passes as a feasibility bound across every annual slice,
 but a causal five-minute patient→cross replay still loses Years 1/2. Only
