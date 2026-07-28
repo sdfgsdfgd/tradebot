@@ -56,6 +56,7 @@ class LiveOrderExecution:
         price_for_mode: Callable[..., float | None] | None = None,
         recent_spreads: Callable[[], Iterable[float]] | None = None,
         on_update: Callable[[str | None, str | None, str], None] | None = None,
+        on_transition: Callable[[dict[str, object]], None] | None = None,
     ) -> None:
         self.client = client
         self.state_by_order = CHASE_STATE_BY_ORDER if state_by_order is None else state_by_order
@@ -64,6 +65,7 @@ class LiveOrderExecution:
         self.price_for_mode = price_for_mode
         self.recent_spreads = recent_spreads or (lambda: ())
         self.on_update = on_update
+        self.on_transition = on_transition
         self.task_by_order: dict[int, asyncio.Task] = {}
         self.cancel_requested_at_by_order: dict[int, float] = {}
 
@@ -167,6 +169,17 @@ class LiveOrderExecution:
     ) -> None:
         if self.on_update is not None:
             self.on_update(status, notice, level)
+
+    def _emit_transition(self, payload: dict[str, object]) -> None:
+        if self.on_transition is None:
+            return
+        try:
+            self.on_transition(payload)
+        except Exception as exc:
+            self._emit(
+                notice=f"Execution transition telemetry failed: {exc}",
+                level="warn",
+            )
 
     def latest_trade(self, *, order_id: int, perm_id: int, fallback: object) -> object:
         lookup = getattr(self.client, "trade_for_order_ids", None)
@@ -638,6 +651,7 @@ class LiveOrderExecution:
                 cleaned_mode = str(mode_now or "").strip().upper()
                 relentless = cleaned_mode in ("RELENTLESS", "RELENTLESS_DELAY")
                 delay_mode = cleaned_mode == "RELENTLESS_DELAY"
+                quote_age: float | None = None
                 if require_fresh_top:
                     updated = getattr(ticker, "tbTopQuoteUpdatedMono", None)
                     try:
@@ -728,6 +742,39 @@ class LiveOrderExecution:
                     should_reprice = False
                 if require_fresh_top and quote_stale:
                     should_reprice = False
+                if previous_mode != str(mode_now):
+                    order_status = getattr(trade, "orderStatus", None)
+                    self._emit_transition(
+                        {
+                            "event": "ladder_mode_transition",
+                            "elapsed_seconds": float(elapsed),
+                            "selected_mode": selected_label,
+                            "previous_mode": (
+                                execution_mode_label(previous_mode)
+                                if previous_mode is not None
+                                else None
+                            ),
+                            "active_mode": execution_mode_label(str(mode_now)),
+                            "action": str(action).upper(),
+                            "order_id": int(order_id or 0),
+                            "perm_id": int(perm_id or 0),
+                            "status": status_effective or status_raw,
+                            "filled_quantity": float(filled_now),
+                            "remaining_quantity": _finite_float(
+                                getattr(order_status, "remaining", None)
+                            ),
+                            "limit_price": _finite_float(
+                                getattr(getattr(trade, "order", None), "lmtPrice", None)
+                            ),
+                            "bid": bid,
+                            "ask": ask,
+                            "last": last,
+                            "quote_age_seconds": quote_age,
+                            "quote_eligible": not bool(quote_stale),
+                            "no_progress_reprices": int(no_progress_reprices),
+                            "resumed": float(elapsed_offset_sec) > 0.0,
+                        }
+                    )
                 previous_mode = str(mode_now)
                 previous_quote = quote_signature
                 if order_id or perm_id:

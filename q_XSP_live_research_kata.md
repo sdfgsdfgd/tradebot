@@ -134,11 +134,13 @@ output belongs in commit/final verification, not in this management brain.
     fills are durable. The selected owner begins the frozen canonical SELL
     ladder at `15:57 ET` (`12:57` on half-days), matching the already-hydrated
     `15:55 → 16:00` close-EOD book; every later recurrence forbids BUY and can
-    only reconcile or liquidate an incumbent. Preregister
-    signal-age plus multihorizon
-    slope/velocity/ATR urgency to alter only ladder dwell/expiry, never
-    direction or admission. No generic UI chase or market-style order may
-    inherit authority. GTH stays observation-only.
+    only reconcile or liquidate an incumbent. The local successor now binds
+    the engine-native, research/broker-parity signal context into each
+    immutable transport plan and appends signal age, active mode, quote health,
+    price, and fill progress at every shared-ladder transition. This remains
+    attribution-only: it cannot alter dwell, expiry, direction, admission, or
+    sizing without later prospective evidence. No generic UI chase or
+    market-style order may inherit authority. GTH stays observation-only.
 12. `[WIP]` The GTH timer repair and compact engine-native trade attribution
     are locally proven. After activation, keep q on f35 through its required
     `20:22 ET` recurrence and `20:35 ET` handoff cleanup; publish the successor
@@ -579,6 +581,7 @@ and
 | E-238 | one local, nonrecurring activation transaction now closes the ranked-preview handoff: it requires clean deployed source plus active read-only cadence, pauses the timer, produces one fresh RTH checkpoint, freezes broker cash/account/baseline state through the read-only selector, installs the explicit writable drop-in, and immediately advances the selected owner before restoring cadence. Failure before selection restores observation; failure after selection preserves authority, leaves cadence disabled, and retries only the same durable reconciliation path. Success, preselection failure, and postselection failure are independently proven; q remains unchanged with no selection or order |
 | E-239 | the immutable next-RTH preview and local selector now have an explicit cross-boundary compatibility receipt `fec446b0…`: q's frozen preview source `47679cd…` consumed representative output from the exact tracked/q rank `42fcf6f…` and dwell `066cd2c…` owners, preserved the nominee exactly, produced the same canonical identity, and passed selected-run validation/reload. This proves schema/hash/quantity compatibility only; it does not predict the sealed outcome, preview the broker, select a run, submit an order, or start a clock |
 | E-240 | final local execution audit found that numeric ladder limits were implicit and repeated `SUBMITTED` checkpoints could reset a resumed order's timeout. The selected identity now binds the complete shared phase/policy contract; fresh streaming NBBO is mandatory for every reprice, stale top can only pause until the unchanged timeout cancels, and restart ages from the first broker submission. Partial BUY proof retains only the filled shares without top-up; partial SELL proof liquidates only the remainder before any opposite BUY; cancellation is not economic-terminal until exact fills and USD commissions reconcile. Direction, admission, sizing, frozen q inputs, selection, orders, and clock remain unchanged |
+| E-241 | the execution-calibration sidequest now reuses the engine's causal trace instead of adding signal math: each actionable plan freezes the profile-parity control owner, complete multihorizon impulse (slope, velocity, angle, efficiency, TR), ATR state, and extrema fingerprint; each actual shared-ladder mode change appends only its signal age, mode, fresh-book state, limit, and fill progress to the same restart-safe ledger. Telemetry failure cannot change the chase, and observations have zero direction, admission, dwell, expiry, sizing, or order authority. The local owner remains below the architecture ceiling; q/origin and the frozen post-close chain remain untouched |
 
 ### Decision anchors
 

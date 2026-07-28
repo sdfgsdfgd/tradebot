@@ -473,3 +473,82 @@ def xsp_trade_attribution(trade: object) -> dict[str, object]:
             ),
         },
     }
+
+
+def xsp_execution_signal_context(
+    paired_equity: Mapping[str, object],
+) -> dict[str, object] | None:
+    """Freeze one profile-parity-checked engine signal for later execution."""
+
+    profiles = paired_equity.get("profiles")
+    if not isinstance(profiles, Mapping):
+        raise ValueError("XSP execution attribution requires paired profiles")
+    contexts: list[dict[str, object] | None] = []
+    for name in ("research", "broker"):
+        profile = profiles.get(name)
+        if not isinstance(profile, Mapping):
+            raise ValueError("XSP execution attribution requires both profiles")
+        position = profile.get("latest_position")
+        if position is None:
+            contexts.append(None)
+            continue
+        attribution = (
+            position.get("attribution")
+            if isinstance(position, Mapping)
+            else None
+        )
+        entry = (
+            attribution.get("entry")
+            if isinstance(attribution, Mapping)
+            else None
+        )
+        impulse = (
+            entry.get("directional_impulse")
+            if isinstance(entry, Mapping)
+            else None
+        )
+        market_state = (
+            entry.get("market_state")
+            if isinstance(entry, Mapping)
+            else None
+        )
+        signal_bar_ts = (
+            str(entry.get("signal_bar_ts") or "")
+            if isinstance(entry, Mapping)
+            else ""
+        )
+        if (
+            not isinstance(position, Mapping)
+            or position.get("lane") not in {"rth", "gth"}
+            or position.get("direction") not in {"up", "down"}
+            or not position.get("entry_time")
+            or not signal_bar_ts
+            or not isinstance(attribution, Mapping)
+            or not attribution.get("decision_trace_fingerprint")
+            or not isinstance(impulse, Mapping)
+            or not isinstance(market_state, Mapping)
+        ):
+            raise ValueError("XSP open position has no causal engine attribution")
+        control = entry.get("control")
+        extrema = entry.get("local_extrema")
+        contexts.append(
+            {
+                "schema": "xsp.execution-signal-context.v1",
+                "lane": position["lane"],
+                "direction": position["direction"],
+                "entry_time_utc": position["entry_time"],
+                "signal_bar_ts": signal_bar_ts,
+                "decision_trace_fingerprint": attribution[
+                    "decision_trace_fingerprint"
+                ],
+                "control": dict(control) if isinstance(control, Mapping) else None,
+                "directional_impulse": dict(impulse),
+                "market_state": dict(market_state),
+                "local_extrema": (
+                    dict(extrema) if isinstance(extrema, Mapping) else None
+                ),
+            }
+        )
+    if contexts[0] != contexts[1]:
+        raise ValueError("XSP research/broker execution attribution drift")
+    return contexts[0]

@@ -355,6 +355,7 @@ def _checkpoint(
     submitted_orders: int,
     risk_state: Mapping[str, object] | None = None,
     broker_state: Mapping[str, object] | None = None,
+    ladder_transition: Mapping[str, object] | None = None,
 ) -> dict[str, object]:
     trading_day = xsp_trading_date(observed_at)
     return ledger.checkpoint(
@@ -376,6 +377,9 @@ def _checkpoint(
             "broker_order": _trade_snapshot(trade) if trade is not None else None,
             "risk_state": dict(risk_state) if risk_state is not None else None,
             "broker_state": (dict(broker_state) if broker_state is not None else None),
+            "ladder_transition": (
+                dict(ladder_transition) if ladder_transition is not None else None
+            ),
             "submitted_orders": int(submitted_orders),
             "order_authority": XSP_V2_TRANSPORT_ORDER_AUTHORITY,
         },
@@ -454,6 +458,24 @@ async def execute_xsp_v2_transport_plan(
         raise ValueError("only one selected actionable transport plan may execute")
     leg = plan["leg"]
     assert isinstance(leg, Mapping)
+    signal_context = plan.get("signal_context")
+    if (
+        not isinstance(signal_context, Mapping)
+        or signal_context.get("schema") != "xsp.execution-signal-context.v1"
+        or not signal_context.get("decision_trace_fingerprint")
+        or not isinstance(signal_context.get("directional_impulse"), Mapping)
+        or not isinstance(signal_context.get("market_state"), Mapping)
+    ):
+        raise ValueError("actionable transport has no causal signal context")
+    try:
+        signal_at = datetime.fromisoformat(
+            str(signal_context["signal_bar_ts"]).replace("Z", "+00:00")
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError("transport signal timestamp is invalid") from exc
+    if signal_at.tzinfo is None:
+        raise ValueError("transport signal timestamp must be aware")
+    signal_at_utc = signal_at.astimezone(timezone.utc)
     symbol = str(leg.get("symbol") or "")
     action = str(leg.get("action") or "").upper()
     quantity = leg.get("quantity")
@@ -614,10 +636,34 @@ async def execute_xsp_v2_transport_plan(
             observed_at.astimezone(timezone.utc) - submitted_at.astimezone(timezone.utc)
         ).total_seconds(),
     )
+    def record_ladder_transition(payload: dict[str, object]) -> None:
+        transition_at = datetime.now(timezone.utc)
+        _checkpoint(
+            ledger,
+            selection_id=str(selected["selection_id"]),
+            plan=plan,
+            phase="SUBMITTED",
+            order_ref=order_ref,
+            observed_at=transition_at,
+            preview=preview_payload,
+            trade=None,
+            submitted_orders=0,
+            ladder_transition={
+                "schema": "xsp.execution-ladder-transition.v1",
+                "observed_at_utc": transition_at.isoformat(),
+                "signal_age_seconds": max(
+                    0.0, (transition_at - signal_at_utc).total_seconds()
+                ),
+                "signal_context_fingerprint": calibration_fingerprint(signal_context),
+                **payload,
+            },
+        )
+
     execution = LiveOrderExecution(
         client=client,
         state_by_order={},
         price_for_mode=price_for_mode,
+        on_transition=record_ladder_transition,
     )
     if not bool(getattr(trade, "isDone", lambda: False)()):
         await execution.chase(

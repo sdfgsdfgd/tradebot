@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -153,6 +154,7 @@ def _position(
     *,
     entry_time: datetime,
 ) -> dict[str, object]:
+    signal_at = entry_time - timedelta(minutes=5)
     return {
         "lane": "rth",
         "direction": direction,
@@ -160,6 +162,34 @@ def _position(
         "trading_date": "2026-07-29",
         "entry_price": 750.0,
         "exit_reason": "end",
+        "attribution": {
+            "schema": "xsp.trade-attribution.v1",
+            "decision_trace_fingerprint": "d" * 64,
+            "entry": {
+                "signal_bar_ts": signal_at.isoformat(),
+                "source_direction": direction,
+                "control": {
+                    "source": "directional_impulse",
+                    "direction": direction,
+                },
+                "directional_impulse": {
+                    "ready": True,
+                    "direction": direction,
+                    "atr_velocity_pct": 0.01,
+                    "horizons": [
+                        {
+                            "bars": 1,
+                            "slope_velocity_pct_per_bar": 0.02,
+                        }
+                    ],
+                },
+                "market_state": {
+                    "shock_atr_vel_pct": 0.01,
+                    "slope_vel_pct": 0.02,
+                },
+                "local_extrema": None,
+            },
+        },
     }
 
 
@@ -591,6 +621,13 @@ def test_new_up_target_crosses_spyu_then_uses_relentless_owner(
     assert plan["leg"]["chase_mode"] == "RELENTLESS"
     assert plan["leg"]["outside_rth"] is False
     assert plan["submitted_orders"] == 0
+    assert plan["signal_context"]["direction"] == "up"
+    assert plan["signal_context"]["directional_impulse"]["horizons"] == [
+        {
+            "bars": 1,
+            "slope_velocity_pct_per_bar": 0.02,
+        }
+    ]
 
 
 def test_new_down_target_uses_canonical_shared_ladder(tmp_path: Path) -> None:
@@ -614,6 +651,42 @@ def test_new_down_target_uses_canonical_shared_ladder(tmp_path: Path) -> None:
     assert plan["leg"]["quantity"] == 25
     assert plan["leg"]["initial_mode"] == "OPTIMISTIC"
     assert plan["leg"]["chase_mode"] == "AUTO"
+
+
+def test_actionable_plan_rejects_profile_signal_attribution_drift(
+    tmp_path: Path,
+) -> None:
+    source = _source(
+        _position(
+            "up",
+            entry_time=SELECTED_AT + timedelta(minutes=2),
+        ),
+        recorded_at=OBSERVED_AT - timedelta(seconds=30),
+    )
+    broker_position = deepcopy(
+        source["paired_equity"]["profiles"]["broker"]["latest_position"]
+    )
+    broker_position["attribution"]["entry"]["directional_impulse"][
+        "atr_velocity_pct"
+    ] = -0.01
+    source["paired_equity"]["profiles"]["broker"][
+        "latest_position"
+    ] = broker_position
+
+    with pytest.raises(
+        ValueError,
+        match="research/broker execution attribution drift",
+    ):
+        project_xsp_v2_transport_plan(
+            selection=_selection(tmp_path),
+            source_receipt=source,
+            observed_at=OBSERVED_AT,
+            positions={"SPYU": 0, "SPXU": 0},
+            open_orders=[],
+            settled_cash_usd=1_350.0,
+            quotes=_quotes(),
+            spyu_nav={"value": 30.49, "age_seconds": 1.0},
+        )
 
 
 def test_flip_sells_incumbent_before_buying_target(tmp_path: Path) -> None:

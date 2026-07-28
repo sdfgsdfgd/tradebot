@@ -113,6 +113,7 @@ def test_fresh_top_contract_pauses_stale_repricing_until_timeout() -> None:
     cancelled: list[int] = []
     modified: list[float] = []
     refreshed: list[int] = []
+    transitions: list[dict[str, object]] = []
     ticker = SimpleNamespace(
         bid=30.48,
         ask=30.50,
@@ -156,6 +157,7 @@ def test_fresh_top_contract_pauses_stale_repricing_until_timeout() -> None:
     execution = LiveOrderExecution(
         client=_Client(),
         price_for_mode=lambda *_args, **_kwargs: 30.60,
+        on_transition=transitions.append,
         state_by_order={},
     )
 
@@ -173,3 +175,9 @@ def test_fresh_top_contract_pauses_stale_repricing_until_timeout() -> None:
     assert refreshed
     assert modified == []
     assert cancelled == [7]
+    assert len(transitions) == 1
+    assert transitions[0]["event"] == "ladder_mode_transition"
+    assert transitions[0]["active_mode"] == "RLT"
+    assert transitions[0]["previous_mode"] is None
+    assert transitions[0]["quote_eligible"] is False
+    assert transitions[0]["resumed"] is True

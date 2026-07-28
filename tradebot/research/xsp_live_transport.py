@@ -15,6 +15,7 @@ from ..engines.market import equity_rth_close_time_et, xsp_session_label_et
 from ..time_utils import ET_ZONE
 from .live_calibration import calibration_fingerprint
 from .xsp_execution_observer import xsp_v2_position_state
+from .xsp_context import xsp_execution_signal_context
 from .xsp_opening_edge_v2 import (
     XSP_OPENING_EDGE_V2_TRANSPORT_VERSION,
     XSP_OPENING_EDGE_V2_VERSION,
@@ -806,6 +807,7 @@ def project_xsp_v2_transport_plan(
         observed_at=observed_utc,
     )
     source_session = str(source_receipt["session"])
+    signal_context = xsp_execution_signal_context(source_receipt["paired_equity"])
     observed_et = observed_utc.astimezone(ET_ZONE)
     rth_close = equity_rth_close_time_et(observed_et.date())
     rth_liquidation_at = datetime.combine(
@@ -829,6 +831,7 @@ def project_xsp_v2_transport_plan(
         "target_symbol": target_symbol,
         "entry_window_open": entry_window_open,
         "holdings": holdings,
+        "signal_context": signal_context,
     }
     base = {
         "schema": XSP_V2_TRANSPORT_PLAN_SCHEMA,
@@ -847,6 +850,8 @@ def project_xsp_v2_transport_plan(
             "open_orders": cash_pair_orders,
         }
     if held and (held[0] != target_symbol or not entry_window_open):
+        if signal_context is None:
+            raise ValueError("actionable transport has no causal signal context")
         symbol = held[0]
         bid, ask = _fresh_quote(quotes.get(symbol), symbol=symbol)
         return {
@@ -915,6 +920,8 @@ def project_xsp_v2_transport_plan(
         }
 
     bid, ask = _fresh_quote(quotes.get(target_symbol), symbol=target_symbol)
+    if signal_context is None:
+        raise ValueError("actionable transport has no causal signal context")
     nominee = selected["nominee"]
     assert isinstance(nominee, Mapping)
     notional = _number(

@@ -294,6 +294,34 @@ def _actionable(tmp_path: Path):
         "transition_id": "a" * 64,
         "source_checkpoint_id": "source-next",
         "source_session": "RTH",
+        "signal_context": {
+            "schema": "xsp.execution-signal-context.v1",
+            "lane": "rth",
+            "direction": "up",
+            "entry_time_utc": (SELECTED_AT + timedelta(minutes=2)).isoformat(),
+            "signal_bar_ts": (SELECTED_AT + timedelta(minutes=1)).isoformat(),
+            "decision_trace_fingerprint": "d" * 64,
+            "control": {
+                "source": "directional_impulse",
+                "direction": "up",
+            },
+            "directional_impulse": {
+                "ready": True,
+                "direction": "up",
+                "atr_velocity_pct": 0.01,
+                "horizons": [
+                    {
+                        "bars": 1,
+                        "slope_velocity_pct_per_bar": 0.02,
+                    }
+                ],
+            },
+            "market_state": {
+                "shock_atr_vel_pct": 0.01,
+                "slope_vel_pct": 0.02,
+            },
+            "local_extrema": None,
+        },
         "order_authority": XSP_V2_TRANSPORT_ORDER_AUTHORITY,
         "status": "ACTIONABLE",
         "leg": {
@@ -359,6 +387,42 @@ def _live_source(
     *,
     recorded_at: datetime,
 ) -> dict[str, object]:
+    if position is not None and "attribution" not in position:
+        direction = str(position["direction"])
+        entry_time = datetime.fromisoformat(str(position["entry_time"]))
+        position = {
+            **position,
+            "attribution": {
+                "schema": "xsp.trade-attribution.v1",
+                "decision_trace_fingerprint": "d" * 64,
+                "entry": {
+                    "signal_bar_ts": (
+                        entry_time - timedelta(minutes=5)
+                    ).isoformat(),
+                    "source_direction": direction,
+                    "control": {
+                        "source": "directional_impulse",
+                        "direction": direction,
+                    },
+                    "directional_impulse": {
+                        "ready": True,
+                        "direction": direction,
+                        "atr_velocity_pct": 0.01,
+                        "horizons": [
+                            {
+                                "bars": 1,
+                                "slope_velocity_pct_per_bar": 0.02,
+                            }
+                        ],
+                    },
+                    "market_state": {
+                        "shock_atr_vel_pct": 0.01,
+                        "slope_vel_pct": 0.02,
+                    },
+                    "local_extrema": None,
+                },
+            },
+        }
     profile = {
         "run_started_at_utc": SELECTED_AT.isoformat(),
         "latest_position": position,
@@ -558,8 +622,8 @@ def test_resumed_pending_order_ages_from_first_submission(
     captured: dict[str, object] = {}
 
     class _Execution:
-        def __init__(self, **_kwargs) -> None:
-            pass
+        def __init__(self, **kwargs) -> None:
+            self.on_transition = kwargs["on_transition"]
 
         async def chase(
             self,
@@ -572,6 +636,15 @@ def test_resumed_pending_order_ages_from_first_submission(
         ) -> None:
             captured["elapsed_offset_sec"] = elapsed_offset_sec
             captured["require_fresh_top"] = require_fresh_top
+            self.on_transition(
+                {
+                    "event": "ladder_mode_transition",
+                    "elapsed_seconds": elapsed_offset_sec,
+                    "selected_mode": "AUTO",
+                    "previous_mode": None,
+                    "active_mode": "CROSS",
+                }
+            )
             filled = _trade(contract, order_ref)
             trade.order = filled.order
             trade.orderStatus = filled.orderStatus
@@ -600,6 +673,17 @@ def test_resumed_pending_order_ages_from_first_submission(
         "elapsed_offset_sec": 240.0,
         "require_fresh_top": True,
     }
+    transition = [
+        row["evidence"]["ladder_transition"]
+        for row in ledger.records()
+        if row["evidence"].get("ladder_transition") is not None
+    ]
+    assert len(transition) == 1
+    assert transition[0]["schema"] == "xsp.execution-ladder-transition.v1"
+    assert transition[0]["event"] == "ladder_mode_transition"
+    assert transition[0]["signal_context_fingerprint"] == calibration_fingerprint(
+        plan["signal_context"]
+    )
 
 
 def test_done_order_waits_for_commission_before_terminal_receipt(
