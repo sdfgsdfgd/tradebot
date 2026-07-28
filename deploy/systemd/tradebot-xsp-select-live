@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if (( $# != 3 )); then
+  echo "usage: $0 RANKING_JSON DWELL_JSON PREVIEW_JSON" >&2
+  exit 64
+fi
+
+repo_root=${TRADEBOT_ROOT:-"${HOME}/Desktop/py/tradebot"}
+user_unit_dir=${XSP_SYSTEMD_USER_DIR:-"${HOME}/.config/systemd/user"}
+python_bin=${XSP_PYTHON:-"${HOME}/.local/share/tradebot/venv/bin/python"}
+service=tradebot-xsp-shadow.service
+timer=tradebot-xsp-shadow.timer
+selected_path="${repo_root}/db/calibration/xsp_selected_live_transport.json"
+dropin_dir="${user_unit_dir}/${service}.d"
+dropin_path="${dropin_dir}/selected-live.conf"
+runtime_dir=${XDG_RUNTIME_DIR:-"/run/user/$(id -u)"}
+ranking_path=$(realpath "$1")
+dwell_path=$(realpath "$2")
+preview_path=$(realpath "$3")
+
+cd "${repo_root}"
+test -x "${python_bin}"
+test -s "${ranking_path}"
+test -s "${dwell_path}"
+test -s "${preview_path}"
+test ! -e "${selected_path}"
+test ! -e "${dropin_path}"
+cmp -s "deploy/systemd/${service}" "${user_unit_dir}/${service}"
+cmp -s "deploy/systemd/${timer}" "${user_unit_dir}/${timer}"
+test -z "$(git status --porcelain=v1)"
+test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
+systemctl --user is-enabled --quiet "${timer}"
+systemctl --user is-active --quiet "${timer}"
+
+exec 9>"${runtime_dir}/tradebot-xsp-select-live.lock"
+flock -n 9
+
+timer_paused=0
+selection_frozen=0
+restore_on_exit() {
+  exit_status=$?
+  trap - EXIT
+  if (( exit_status != 0 )); then
+    if (( selection_frozen == 0 )); then
+      if (( timer_paused == 1 )); then
+        systemctl --user enable --now "${timer}" || true
+      fi
+      echo "XSP selection failed before authority; read-only cadence restored." >&2
+    else
+      systemctl --user disable --now "${timer}" || true
+      echo \
+        "XSP selection is frozen; cadence remains disabled pending reconciliation." \
+        >&2
+    fi
+  fi
+  exit "${exit_status}"
+}
+trap restore_on_exit EXIT
+
+systemctl --user disable --now "${timer}"
+timer_paused=1
+
+wait_deadline=$((SECONDS + 120))
+while true; do
+  service_state=$(
+    systemctl --user show "${service}" -p ActiveState --value
+  )
+  if [[ "${service_state}" == "inactive" || "${service_state}" == "failed" ]]; then
+    break
+  fi
+  if (( SECONDS >= wait_deadline )); then
+    echo "XSP observer did not become idle before selection." >&2
+    exit 75
+  fi
+  sleep 1
+done
+
+# Produce one fresh RTH source checkpoint while the installed service is still
+# broker-read-only. Selection then captures its own fresh read-only cash state.
+systemctl --user reset-failed "${service}"
+systemctl --user start "${service}"
+env IBKR_READONLY=1 "${python_bin}" -m tradebot.research.xsp_shadow \
+  --mode opening-edge-v2 \
+  --ledger db/calibration/xsp_live_calibration.jsonl \
+  --selected-transport "${selected_path}" \
+  --freeze-selected-transport \
+  --transport-ranking "${ranking_path}" \
+  --transport-dwell "${dwell_path}" \
+  --transport-preview "${preview_path}"
+test -s "${selected_path}"
+selection_frozen=1
+
+install -d -m 0700 "${dropin_dir}"
+install -m 0644 \
+  deploy/systemd/tradebot-xsp-shadow-selected-live.conf \
+  "${dropin_path}"
+systemctl --user daemon-reload
+systemctl --user show "${service}" -p Environment --value |
+  tr ' ' '\n' |
+  grep -Fxq 'IBKR_READONLY=0'
+
+# The first selected recurrence must be immediate. One retry exercises the
+# durable PREPARED/SUBMITTED orderRef reconciliation path after a service fault.
+systemctl --user reset-failed "${service}"
+if ! systemctl --user start "${service}"; then
+  systemctl --user reset-failed "${service}"
+  systemctl --user start "${service}"
+fi
+test "$(systemctl --user show "${service}" -p Result --value)" = "success"
+test "$(systemctl --user show "${service}" -p ExecMainStatus --value)" = "0"
+
+systemctl --user enable --now "${timer}"
+timer_paused=0
+trap - EXIT
+
+echo "XSP selected transport is active; recurring cadence restored."

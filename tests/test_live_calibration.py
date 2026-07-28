@@ -4,6 +4,7 @@ import asyncio
 from datetime import date, datetime, time, timedelta, timezone
 import json
 from pathlib import Path
+import subprocess
 from types import SimpleNamespace
 
 from ib_insync import Contract
@@ -1567,6 +1568,7 @@ def test_shadow_systemd_cadence_is_bounded_and_runtime_gated() -> None:
     selected_live = (
         root / "deploy/systemd/tradebot-xsp-shadow-selected-live.conf"
     ).read_text()
+    selector = (root / "deploy/systemd/tradebot-xsp-select-live").read_text()
 
     assert (
         "ExecCondition=/usr/bin/test -x %h/.local/share/tradebot/venv/bin/python"
@@ -1594,6 +1596,154 @@ def test_shadow_systemd_cadence_is_bounded_and_runtime_gated() -> None:
     assert timer.count("OnCalendar=") == 8
     assert "Persistent=false" in timer
     assert "RandomizedDelaySec=0" in timer
+    first_start = selector.index('start "${service}"')
+    selected_start = selector.index('start "${service}"', first_start + 1)
+    assert selector.index('disable --now "${timer}"') < first_start
+    assert first_start < selector.index("--freeze-selected-transport")
+    assert selector.index("--freeze-selected-transport") < selector.index(
+        "tradebot-xsp-shadow-selected-live.conf"
+    )
+    assert (
+        selector.index("tradebot-xsp-shadow-selected-live.conf")
+        < selected_start
+        < selector.rindex('enable --now "${timer}"')
+    )
+    assert "selection_frozen == 0" in selector
+    assert "cadence remains disabled pending reconciliation" in selector
+    assert "rm " not in selector
+
+
+@pytest.mark.parametrize("failure_phase", ("none", "before_selection", "after_selection"))
+def test_xsp_live_selection_transaction_is_atomic(
+    tmp_path,
+    monkeypatch,
+    failure_phase,
+) -> None:
+    root = Path(__file__).resolve().parents[1]
+    repo = tmp_path / "repo"
+    deployed = tmp_path / "systemd"
+    fake_bin = tmp_path / "bin"
+    runtime = tmp_path / "runtime"
+    evidence = tuple(tmp_path / f"{name}.json" for name in ("ranking", "dwell", "preview"))
+    for directory in (
+        repo / "deploy/systemd",
+        repo / "db/calibration",
+        deployed,
+        fake_bin,
+        runtime,
+    ):
+        directory.mkdir(parents=True, exist_ok=True)
+    for name in ("tradebot-xsp-shadow.service", "tradebot-xsp-shadow.timer"):
+        payload = f"{name}\n"
+        (repo / "deploy/systemd" / name).write_text(payload)
+        (deployed / name).write_text(payload)
+    (repo / "deploy/systemd/tradebot-xsp-shadow-selected-live.conf").write_text(
+        "[Service]\nEnvironment=IBKR_READONLY=0\n"
+    )
+    for path in evidence:
+        path.write_text("{}\n")
+
+    log = tmp_path / "systemctl.log"
+    starts = tmp_path / "service-starts"
+    fake_systemctl = fake_bin / "systemctl"
+    fake_systemctl.write_text(
+        """#!/bin/sh
+echo "$*" >> "$XSP_TEST_SYSTEMCTL_LOG"
+case "$*" in
+  "--user is-enabled --quiet tradebot-xsp-shadow.timer" | \\
+  "--user is-active --quiet tradebot-xsp-shadow.timer")
+    exit 0 ;;
+  "--user show tradebot-xsp-shadow.service -p ActiveState --value")
+    echo inactive; exit 0 ;;
+  "--user show tradebot-xsp-shadow.service -p Environment --value")
+    echo IBKR_READONLY=0; exit 0 ;;
+  "--user show tradebot-xsp-shadow.service -p Result --value")
+    echo success; exit 0 ;;
+  "--user show tradebot-xsp-shadow.service -p ExecMainStatus --value")
+    echo 0; exit 0 ;;
+  "--user start tradebot-xsp-shadow.service")
+    count=0
+    test ! -f "$XSP_TEST_STARTS" || count=$(cat "$XSP_TEST_STARTS")
+    count=$((count + 1))
+    echo "$count" > "$XSP_TEST_STARTS"
+    if test "${XSP_TEST_FAIL_SELECTED:-0}" = 1 && test "$count" -ge 2; then
+      exit 7
+    fi
+    exit 0 ;;
+esac
+exit 0
+"""
+    )
+    fake_git = fake_bin / "git"
+    fake_git.write_text(
+        """#!/bin/sh
+case "$1" in
+  status) exit 0 ;;
+  rev-parse) echo deployed-revision; exit 0 ;;
+esac
+exit 2
+"""
+    )
+    fake_python = fake_bin / "python"
+    fake_python.write_text(
+        """#!/bin/sh
+test "${XSP_TEST_FAIL_SELECTION:-0}" != 1 || exit 8
+previous=
+for value in "$@"; do
+  if test "$previous" = --selected-transport; then
+    mkdir -p "$(dirname "$value")"
+    printf '{"selection_id":"test"}\\n' > "$value"
+  fi
+  previous=$value
+done
+"""
+    )
+    fake_flock = fake_bin / "flock"
+    fake_flock.write_text("#!/bin/sh\nexit 0\n")
+    for path in (fake_systemctl, fake_git, fake_python, fake_flock):
+        path.chmod(0o755)
+
+    monkeypatch.setenv("TRADEBOT_ROOT", str(repo))
+    monkeypatch.setenv("XSP_SYSTEMD_USER_DIR", str(deployed))
+    monkeypatch.setenv("XSP_PYTHON", str(fake_python))
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(runtime))
+    monkeypatch.setenv("XSP_TEST_SYSTEMCTL_LOG", str(log))
+    monkeypatch.setenv("XSP_TEST_STARTS", str(starts))
+    monkeypatch.setenv("PATH", f"{fake_bin}:/usr/bin:/bin")
+    if failure_phase == "before_selection":
+        monkeypatch.setenv("XSP_TEST_FAIL_SELECTION", "1")
+    if failure_phase == "after_selection":
+        monkeypatch.setenv("XSP_TEST_FAIL_SELECTED", "1")
+
+    result = subprocess.run(
+        [
+            str(root / "deploy/systemd/tradebot-xsp-select-live"),
+            *(str(path) for path in evidence),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    selected = repo / "db/calibration/xsp_selected_live_transport.json"
+    dropin = deployed / "tradebot-xsp-shadow.service.d/selected-live.conf"
+    calls = log.read_text().splitlines()
+
+    if failure_phase == "none":
+        assert result.returncode == 0
+        assert selected.exists()
+        assert dropin.exists()
+        assert calls[-1] == "--user enable --now tradebot-xsp-shadow.timer"
+    elif failure_phase == "before_selection":
+        assert result.returncode != 0
+        assert not selected.exists()
+        assert not dropin.exists()
+        assert calls[-1] == "--user enable --now tradebot-xsp-shadow.timer"
+    else:
+        assert result.returncode != 0
+        assert selected.exists()
+        assert dropin.exists()
+        assert calls[-1] == "--user disable --now tradebot-xsp-shadow.timer"
+        assert starts.read_text().strip() == "3"
 
 
 def test_result_settles_one_frozen_forecast_once(tmp_path) -> None:
