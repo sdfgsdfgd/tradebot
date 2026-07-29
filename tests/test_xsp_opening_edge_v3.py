@@ -17,6 +17,7 @@ from tradebot.research.xsp_opening_edge_v3 import (
     XSP_OPENING_EDGE_V3_TRANSPORT_VERSION,
     XSP_OPENING_EDGE_V3_VERSION,
     _daily_context,
+    _persisted_daily_context,
     advance_xsp_opening_edge_v3_from_ibkr,
     is_xsp_v3_run_start,
     load_xsp_opening_edge_v3_spec,
@@ -163,6 +164,26 @@ def test_opening_edge_v3_context_appends_only_complete_exact_rth() -> None:
             spec.daily_context_seed,
             fresh=(replace(fresh, day=date(2026, 7, 31)),),
         )
+
+
+def test_opening_edge_v3_persisted_context_ignores_predecessor_records() -> None:
+    predecessor = {
+        "strategy_version": "xsp.opening-edge-v2-spy-transport.v1",
+        "evidence": {"paired_equity": {}},
+    }
+    prefreeze = {
+        "strategy_version": XSP_OPENING_EDGE_V3_TRANSPORT_VERSION,
+        "evidence": {"paired_equity": {}},
+    }
+
+    assert _persisted_daily_context((predecessor, prefreeze)) == ()
+
+    malformed = {
+        "strategy_version": XSP_OPENING_EDGE_V3_TRANSPORT_VERSION,
+        "evidence": {"paired_equity": {"daily_context_appends": None}},
+    }
+    with pytest.raises(ValueError, match="persisted context is malformed"):
+        _persisted_daily_context((malformed,))
 
 
 def test_opening_edge_v3_prefreezes_without_broker_or_backfill(tmp_path) -> None:

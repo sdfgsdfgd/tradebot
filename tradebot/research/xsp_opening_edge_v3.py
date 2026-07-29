@@ -280,12 +280,16 @@ def _persisted_daily_context(
 ) -> tuple[XspDailyBar, ...]:
     by_day: dict[date, XspDailyBar] = {}
     for record in records:
+        if record.get("strategy_version") != XSP_OPENING_EDGE_V3_TRANSPORT_VERSION:
+            continue
         evidence = record.get("evidence")
         paired = (
             evidence.get("paired_equity") if isinstance(evidence, Mapping) else None
         )
         appends = (
-            paired.get("daily_context_appends") if isinstance(paired, Mapping) else ()
+            paired.get("daily_context_appends", ())
+            if isinstance(paired, Mapping)
+            else ()
         )
         if not isinstance(appends, Sequence):
             raise ValueError("Opening Edge v3 persisted context is malformed")
