@@ -1602,7 +1602,12 @@ def test_shadow_systemd_cadence_is_bounded_and_runtime_gated() -> None:
     assert selector.index("--freeze-selected-transport") < selector.index(
         "tradebot-xsp-shadow-selected-live.conf"
     )
-    assert "legacy v2 selector is disabled under the v3 observer" in selector
+    assert "--mode opening-edge-v3" in selector
+    assert "--transport-preview" in selector
+    assert "--transport-cash-receipt" in selector
+    assert "--accept-rth-only-cash-scope" in selector
+    assert "--transport-ranking" not in selector
+    assert "--transport-dwell" not in selector
     assert (
         selector.index("tradebot-xsp-shadow-selected-live.conf")
         < selected_start
@@ -1626,11 +1631,10 @@ def test_xsp_live_selection_transaction_is_atomic(
     deployed = tmp_path / "systemd"
     fake_bin = tmp_path / "bin"
     runtime = tmp_path / "runtime"
-    evidence = tuple(
-        tmp_path / f"{name}.json" for name in ("ranking", "dwell", "preview")
-    )
+    preview = tmp_path / "preview.json"
     for directory in (
         repo / "deploy/systemd",
+        repo / "backtests/xsp",
         repo / "db/calibration",
         deployed,
         fake_bin,
@@ -1639,7 +1643,7 @@ def test_xsp_live_selection_transaction_is_atomic(
         directory.mkdir(parents=True, exist_ok=True)
     for name in ("tradebot-xsp-shadow.service", "tradebot-xsp-shadow.timer"):
         payload = (
-            "ExecStart=python -m tradebot.research.xsp_shadow --mode opening-edge-v2\n"
+            "ExecStart=python -m tradebot.research.xsp_shadow --mode opening-edge-v3\n"
             if name == "tradebot-xsp-shadow.service"
             else f"{name}\n"
         )
@@ -1648,8 +1652,11 @@ def test_xsp_live_selection_transaction_is_atomic(
     (repo / "deploy/systemd/tradebot-xsp-shadow-selected-live.conf").write_text(
         "[Service]\nEnvironment=IBKR_READONLY=0\n"
     )
-    for path in evidence:
-        path.write_text("{}\n")
+    (
+        repo
+        / "backtests/xsp/opening_edge_v3_regime_harmony_cash_receipt.json"
+    ).write_text("{}\n")
+    preview.write_text("{}\n")
 
     log = tmp_path / "systemctl.log"
     starts = tmp_path / "service-starts"
@@ -1726,7 +1733,8 @@ done
     result = subprocess.run(
         [
             str(root / "deploy/systemd/tradebot-xsp-select-live"),
-            *(str(path) for path in evidence),
+            "--accept-rth-only-cash-scope",
+            str(preview),
         ],
         check=False,
         capture_output=True,
@@ -1752,6 +1760,24 @@ done
         assert dropin.exists()
         assert calls[-1] == "--user disable --now tradebot-xsp-shadow.timer"
         assert starts.read_text().strip() == "3"
+
+
+def test_xsp_live_selection_requires_explicit_rth_scope(tmp_path) -> None:
+    result = subprocess.run(
+        [
+            str(
+                Path(__file__).resolve().parents[1]
+                / "deploy/systemd/tradebot-xsp-select-live"
+            ),
+            str(tmp_path / "preview.json"),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 64
+    assert "--accept-rth-only-cash-scope" in result.stderr
 
 
 def test_result_settles_one_frozen_forecast_once(tmp_path) -> None:

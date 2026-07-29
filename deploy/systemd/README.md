@@ -127,20 +127,23 @@ separately install `tradebot-xsp-shadow-selected-live.conf` as a systemd
 drop-in; a selected file without that explicit writable boundary fails closed.
 Neither timer starts a profitability clock while `NO_TRADE` remains selected.
 
-After one ranked transport has passed its immutable dwell validation and fresh
-broker preview, activate it only through the one-shot transaction below:
+After the v3 UPRO/SPXU transport has passed its fresh broker preview and the
+operator explicitly accepts the RTH-first cash scope, activate it only through
+the one-shot transaction below:
 
 ```bash
 deploy/systemd/tradebot-xsp-select-live \
-  /path/to/ranking.json \
-  /path/to/dwell.json \
+  --accept-rth-only-cash-scope \
   /path/to/preview.json
 ```
 
 It requires clean deployed source and an active read-only cadence, pauses the
 timer, writes one fresh RTH checkpoint, freezes the selection from a separate
-read-only cash snapshot, installs the writable drop-in, and immediately runs
-the selected owner. Failure before selection restores read-only cadence.
+read-only cash snapshot against the frozen v3 cash receipt, installs the
+writable drop-in, and immediately runs the selected owner. The explicit scope
+flag acknowledges that this first canary is RTH-only; it does not authorize
+the still-unqualified GTH cash lane. Failure before selection restores
+read-only cadence.
 Failure after selection preserves the immutable selection, leaves cadence
 disabled, and requires reconciliation; it never deletes or silently replaces
 selected authority. The command is deliberately not a recurring selector.

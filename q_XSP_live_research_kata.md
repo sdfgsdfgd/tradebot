@@ -37,7 +37,7 @@ output belongs in commit/final verification, not in this management brain.
 | Selected shadow | Opening Edge v1 predecessor `9fac460e…`; cannot confer v3 authority |
 | Research crown | **Opening Edge v3 — Regime Harmony 24/5**; `xsp.opening-edge-v3-regime-harmony-24x5.v1` |
 | Runtime parity | Central v3 owner reproduces RTH `40708a28…` exactly over `425/425` trades; unchanged GTH Down Sleeve reproduces `9e04807f…` over `179/179`; combined `604`, `+291.1756`, PF `2.0919`, DD `17.63` |
-| Runtime source anchor | published/deployed `ffe382c9…` plus content-addressed v3 crown/cash/runtime receipts and one opt-in `XspOpeningEdgeV3StateOwner`; predecessors remain independently reproducible and disabled defaults are unchanged |
+| Runtime source anchor | published/deployed `ca574817…` plus content-addressed v3 crown/cash/runtime receipts and one opt-in `XspOpeningEdgeV3StateOwner`; predecessors remain independently reproducible and disabled defaults are unchanged |
 | Observer cadence | **cleared prospectively for v3:** deployed q froze `08:30 ET` before the boundary, then its natural `08:32 ET` recurrence advanced `CLOSED→EVALUATED` with exact identity and zero pre-start trades. The central engine still warms all context but enforces `entry_not_before`; predecessor/invalid prefixes remain excluded from profitability coverage |
 | RTH signal freshness | **cleared:** after the user activated `CBOE Streaming Market Indexes`, zero-order receipt `acce7ed3…` returned live type-1 XSP, current five-minute history, and real-time `TRADES` bars without a Gateway restart; the natural `10:07 ET` centralized v2 checkpoint then evaluated with both XSP and SPY through `10:05` and `120s` age |
 | Order/capital authority | `none` |
@@ -535,9 +535,9 @@ directional consistency is proven.
     strictly next session may append, and invalid warmup or sequence fails
     closed.
     Do not add a second executor or edit runtime before the prospective gates.
-16. `[WIP]` Finish v3 runtime publication and non-submitting q activation,
-    then qualify the already-positive v3 UPRO/SPXU RTH path under the complete
-    selection law. Never transfer E-269 timestamps or predecessor evidence.
+16. `[WIP]` Qualify the already-positive v3 UPRO/SPXU RTH path under the
+    complete selection law. Never transfer E-269 timestamps or predecessor
+    evidence.
     Fresh books, exact quote-derived sizing, non-transmitting what-if,
     cash/restart identity, and explicit Fixed-versus-Tiered status are
     mandatory; GTH remains a separate unqualified cash lane. While July 30
@@ -547,6 +547,11 @@ directional consistency is proven.
     sell-before-buy, one leg/checkpoint, strict T+1 cash, separate
     Fixed-realistic versus conditional-Tiered fees, and never selects, orders,
     backfills, or starts the profitability clock.
+    The atomic activation owner is now v3-only: one exact preview plus the
+    frozen cash receipt and explicit `--accept-rth-only-cash-scope` replace the
+    obsolete v2 ranking/dwell inputs. It still freezes selection before the
+    writable drop-in, restores read-only cadence on pre-selection failure, and
+    disables cadence for reconciliation after any post-selection failure.
 17. `[BLOCKED]` Alpha/theta structures and any live-capital canary belong to a
     later quest after directional causality and spot consistency are proven.
 
@@ -760,6 +765,7 @@ and
 | E-285 | the approved E-276 seam is now centralized locally without a second executor: one selection-bound transport contract projects v2 SPYU/SPXU or v3 UPRO/SPXU through the same plan, shared `OPTIMISTIC→MID→AGGRESSIVE→CROSS→RELENTLESS` execution owner, terminal-fill reconciliation, strict T+1 cash reconstruction, and restart ledger. The v3 selector binds crown/cash/RTH-ledger hashes, `$900`, exact SMART/ARCA contract IDs, fresh internal book timestamps, Tiered commissions, quote-derived quantities inside `UPRO 6..24 / SPXU 3..24`, flat cash-account state, `$135/$67.50` risk, and an explicit RTH-only scope acceptance; GTH remains false. Legacy v2 wrappers and behavior remain green. Source hashes are transport `41348556…`, runtime `a377e387…`, selector `823f3200…`, state `ea76bc7a…`, risk `10865397…`; full verification is `954 passed, 4 deselected`. No q deployment, selection, order, or clock follows from this pre-preview proof |
 | E-286 | published/deployed `ca574817…` closes the v3 cash-owner implementation boundary; q-native compile/import and the natural `09:22 ET` recurrence are green. The `09:35 ET` exact preview `d9b1725b…` proved fresh type-1 SMART/direct-ARCA books, quote-derived `6 UPRO / 23 SPXU`, `$973.8697` settled cash, exact contract IDs, flat positions/orders, and zero submissions, but broker what-if returned Fixed `$1.000018/$1.000069` commissions versus Tiered ceilings `$0.369475/$0.423926`; verdict is `HOLD`. The exact selector then rejected the receipt and left selection absent. The `09:37 ET` RTH observer returned fresh `EVALUATED`, flat, zero trades/authority. Tomorrow's byte-identical zero-order retry is armed for `09:35 ET` in bundle `1d289b93…`. The separate 09:25 microtape unit had a direct-Exec missing-shebang defect; repair `993725d5…` started it at `09:26`, so its continuing tape is useful prospective anatomy but cannot claim the preregistered exact 09:25 full-session prefix. Raw preview, negative selector proof, repair pair, and tomorrow owner are immutable under q archive manifest `e5b44efa…` |
 | E-287 | before v3 could warm into its first post-gate RTH position, counterfactual gate `5860d168…` froze source prefix `b6238bd3…/16`, crown/owner/cash identities, and the already-running live book tape. Pure runner `a8a98170…` maps only changed v3 RTH state through the actual checkpoint clock, `$900` quote-derived quantities, full displayed depth, sell-before-buy, one leg/checkpoint, and strict T+1 cash, then reports the same fills under Fixed-realistic and explicitly conditional Tiered fees plus MFE/MAE. Synthetic proof closes a profitable round trip and correctly blocks a same-day replacement buy under both profiles; the first real prefix reports one checkpoint, zero transitions/trades, and zero invented P&L. Immutable q bundle manifest is `077585f8…`; this changes no observer, signal, selection, order, pricing, or clock |
+| E-288 | the final activation audit found the deployed transaction still required v2 ranking/dwell evidence and rejected the v3 observer. Minimal selector `7b71c408…` is now v3-only: it requires one exact fresh preview, the immutable v3 cash receipt, and an explicit `--accept-rth-only-cash-scope`; the shared signal, sizing, execution ladder, risk, and runtime owners are unchanged. Atomic success, missing-scope refusal, pre-selection rollback, and post-selection reconciliation lock passed `5/5` focused transaction tests; all XSP boundaries passed `170/170` and the complete suite passed `955` with `4` deselected. No q installation, writable drop-in, selection, order, or clock was created; publication precedes tomorrow's broker proof |
 
 ### Decision anchors
 

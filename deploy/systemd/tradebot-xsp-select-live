@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if (( $# != 3 )); then
-  echo "usage: $0 RANKING_JSON DWELL_JSON PREVIEW_JSON" >&2
+if (( $# != 2 )) || [[ "$1" != "--accept-rth-only-cash-scope" ]]; then
+  echo "usage: $0 --accept-rth-only-cash-scope PREVIEW_JSON" >&2
   exit 64
 fi
 
@@ -15,21 +15,22 @@ selected_path="${repo_root}/db/calibration/xsp_selected_live_transport.json"
 dropin_dir="${user_unit_dir}/${service}.d"
 dropin_path="${dropin_dir}/selected-live.conf"
 runtime_dir=${XDG_RUNTIME_DIR:-"/run/user/$(id -u)"}
-ranking_path=$(realpath "$1")
-dwell_path=$(realpath "$2")
-preview_path=$(realpath "$3")
+cash_receipt_path=$(
+  realpath \
+    "${repo_root}/backtests/xsp/opening_edge_v3_regime_harmony_cash_receipt.json"
+)
+preview_path=$(realpath "$2")
 
 cd "${repo_root}"
 test -x "${python_bin}"
-test -s "${ranking_path}"
-test -s "${dwell_path}"
+test -s "${cash_receipt_path}"
 test -s "${preview_path}"
 test ! -e "${selected_path}"
 test ! -e "${dropin_path}"
 cmp -s "deploy/systemd/${service}" "${user_unit_dir}/${service}"
 cmp -s "deploy/systemd/${timer}" "${user_unit_dir}/${timer}"
-if ! grep -Fq -- "--mode opening-edge-v2" "deploy/systemd/${service}"; then
-  echo "legacy v2 selector is disabled under the v3 observer" >&2
+if ! grep -Fq -- "--mode opening-edge-v3" "deploy/systemd/${service}"; then
+  echo "v3 cash selection requires the Opening Edge v3 observer" >&2
   exit 78
 fi
 test -z "$(git status --porcelain=v1)"
@@ -85,13 +86,13 @@ done
 systemctl --user reset-failed "${service}"
 systemctl --user start "${service}"
 env IBKR_READONLY=1 "${python_bin}" -m tradebot.research.xsp_shadow \
-  --mode opening-edge-v2 \
+  --mode opening-edge-v3 \
   --ledger db/calibration/xsp_live_calibration.jsonl \
   --selected-transport "${selected_path}" \
   --freeze-selected-transport \
-  --transport-ranking "${ranking_path}" \
-  --transport-dwell "${dwell_path}" \
-  --transport-preview "${preview_path}"
+  --transport-preview "${preview_path}" \
+  --transport-cash-receipt "${cash_receipt_path}" \
+  --accept-rth-only-cash-scope
 test -s "${selected_path}"
 selection_frozen=1
 
