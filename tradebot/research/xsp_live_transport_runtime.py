@@ -1,4 +1,4 @@
-"""Restart-safe broker execution for one selected XSP v2 cash transport."""
+"""Restart-safe broker execution for one selected XSP cash transport."""
 
 from __future__ import annotations
 
@@ -7,38 +7,54 @@ import math
 import time
 from collections.abc import Mapping
 from dataclasses import asdict
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from ib_insync import Stock
 
 from ..backtest.quotes import contract_from_ticker
 from ..engines.execution import EXECUTION_POLICY, execution_price, quote_health
-from ..engines.market import is_trading_day, xsp_trading_date
+from ..engines.market import xsp_trading_date
 from ..live.execution import LiveOrderExecution, order_ids
 from .live_calibration import LiveCalibrationLedger, calibration_fingerprint
 from .xsp_live_transport import (
+    XSP_V2_TRANSPORT_EXECUTION_SCHEMA,
+    XSP_V2_TRANSPORT_EXECUTION_VERSION,
     XSP_V2_TRANSPORT_ORDER_AUTHORITY,
     XSP_V2_TRANSPORT_PLAN_SCHEMA,
-    load_xsp_v2_transport_selection_from_mapping,
-    project_xsp_v2_transport_plan,
-    xsp_v2_broker_snapshot,
+    XSP_V2_TRANSPORT_SELECTION_SCHEMA,
+    XSP_V3_TRANSPORT_EXECUTION_SCHEMA,
+    XSP_V3_TRANSPORT_EXECUTION_VERSION,
+    XSP_V3_TRANSPORT_PLAN_SCHEMA,
+    load_xsp_transport_selection_from_mapping,
+    project_xsp_transport_plan,
+    xsp_transport_contract,
+)
+from .xsp_live_transport_state import xsp_v2_broker_snapshot
+from .xsp_live_transport_risk import (
+    xsp_transport_risk_state,
+    xsp_v2_transport_risk_state as xsp_v2_transport_risk_state,
 )
 from .xsp_opening_edge_v2 import XSP_OPENING_EDGE_V2_VERSION
+from .xsp_opening_edge_v3 import XSP_OPENING_EDGE_V3_VERSION
 
 
-XSP_V2_TRANSPORT_EXECUTION_VERSION = "xsp.opening-edge-v2-spyu-spxu-live-execution.v1"
-XSP_V2_TRANSPORT_EXECUTION_SCHEMA = (
-    "xsp.opening-edge-v2-spyu-spxu-execution-checkpoint.v1"
-)
-
-
-def xsp_v2_transport_order_ref(plan: Mapping[str, object]) -> str:
+def xsp_transport_order_ref(plan: Mapping[str, object]) -> str:
     """Return the broker-visible identity for one content-addressed transition."""
 
     transition_id = str(plan.get("transition_id") or "")
-    if plan.get("schema") != XSP_V2_TRANSPORT_PLAN_SCHEMA or len(transition_id) != 64:
+    prefix = {
+        XSP_V2_TRANSPORT_PLAN_SCHEMA: "XSPV2",
+        XSP_V3_TRANSPORT_PLAN_SCHEMA: "XSPV3",
+    }.get(plan.get("schema"))
+    if prefix is None or len(transition_id) != 64:
         raise ValueError("transport plan has no valid transition identity")
-    return f"XSPV2-{transition_id[:24]}"
+    return f"{prefix}-{transition_id[:24]}"
+
+
+def xsp_v2_transport_order_ref(plan: Mapping[str, object]) -> str:
+    if plan.get("schema") != XSP_V2_TRANSPORT_PLAN_SCHEMA:
+        raise ValueError("v2 order reference requires a v2 transport plan")
+    return xsp_transport_order_ref(plan)
 
 
 def _prior_execution(
@@ -46,12 +62,13 @@ def _prior_execution(
     *,
     selection_id: str,
     order_ref: str,
+    execution_version: str = XSP_V2_TRANSPORT_EXECUTION_VERSION,
 ) -> Mapping[str, object] | None:
     for record in reversed(records):
         evidence = record.get("evidence")
         if (
             record.get("kind") == "checkpoint"
-            and record.get("strategy_version") == XSP_V2_TRANSPORT_EXECUTION_VERSION
+            and record.get("strategy_version") == execution_version
             and isinstance(evidence, Mapping)
             and evidence.get("selection_id") == selection_id
             and evidence.get("order_ref") == order_ref
@@ -127,221 +144,6 @@ def _terminal_snapshot_complete(snapshot: Mapping[str, object]) -> bool:
     return filled >= 0 and abs(fill_total - filled) <= 1e-9 and fills_complete
 
 
-def xsp_v2_transport_risk_state(
-    *,
-    selection: Mapping[str, object],
-    records: tuple[Mapping[str, object], ...],
-    observed_at: datetime,
-    liquidation_bids: Mapping[str, float],
-) -> dict[str, object]:
-    """Reconstruct selected-sleeve equity from immutable broker fills."""
-
-    selected = load_xsp_v2_transport_selection_from_mapping(selection)
-    if observed_at.tzinfo is None:
-        raise ValueError("risk observation timestamp must be aware")
-    fills_by_id: dict[str, dict[str, object]] = {}
-    prior_risks = []
-    for record in records:
-        evidence = record.get("evidence")
-        if (
-            record.get("kind") != "checkpoint"
-            or record.get("strategy_version") != XSP_V2_TRANSPORT_EXECUTION_VERSION
-            or not isinstance(evidence, Mapping)
-            or evidence.get("selection_id") != selected["selection_id"]
-        ):
-            continue
-        prior_risk = evidence.get("risk_state")
-        if isinstance(prior_risk, Mapping):
-            prior_risks.append((record, prior_risk))
-        order = evidence.get("broker_order")
-        if evidence.get("phase") != "TERMINAL" or not isinstance(order, Mapping):
-            continue
-        order_fills = order.get("fills")
-        if not isinstance(order_fills, list):
-            raise ValueError("terminal broker order has no fill ledger")
-        try:
-            filled_quantity = float(order.get("filled") or 0.0)
-        except (TypeError, ValueError) as exc:
-            raise ValueError("terminal filled quantity is invalid") from exc
-        if filled_quantity > 0 and not order_fills:
-            raise ValueError("filled broker order has no execution details")
-        for raw_fill in order_fills:
-            if not isinstance(raw_fill, Mapping):
-                raise ValueError("broker fill must be an object")
-            fill = dict(raw_fill)
-            exec_id = str(fill.get("exec_id") or "").strip()
-            if not exec_id:
-                raise ValueError("broker fill has no execution identity")
-            prior = fills_by_id.get(exec_id)
-            if prior is not None and prior != fill:
-                raise ValueError("broker execution identity changed")
-            fills_by_id[exec_id] = fill
-
-    ordered = sorted(
-        fills_by_id.values(),
-        key=lambda fill: (
-            str(fill.get("time_utc") or ""),
-            str(fill.get("exec_id") or ""),
-        ),
-    )
-    holdings = {"SPYU": 0.0, "SPXU": 0.0}
-    open_cost = {"SPYU": 0.0, "SPXU": 0.0}
-    realized = 0.0
-    risk_identity = selected["risk"]
-    assert isinstance(risk_identity, Mapping)
-    selected_broker = selected["broker_at_selection"]
-    assert isinstance(selected_broker, Mapping)
-    settled_cash = float(selected_broker["settled_cash_usd"])
-    pending_settlements: list[tuple[object, float]] = []
-    canonical_fills = []
-
-    def mature(trading_day) -> None:
-        nonlocal settled_cash, pending_settlements
-        settled_cash += sum(
-            proceeds
-            for settlement_day, proceeds in pending_settlements
-            if settlement_day <= trading_day
-        )
-        pending_settlements = [
-            (settlement_day, proceeds)
-            for settlement_day, proceeds in pending_settlements
-            if settlement_day > trading_day
-        ]
-
-    for fill in ordered:
-        symbol = str(fill.get("symbol") or "")
-        side = str(fill.get("side") or "").upper()
-        try:
-            shares = float(fill.get("shares"))
-            price = float(fill.get("price"))
-            commission = float(fill.get("commission"))
-            fill_time = datetime.fromisoformat(
-                str(fill.get("time_utc") or "").replace("Z", "+00:00")
-            )
-        except (TypeError, ValueError) as exc:
-            raise ValueError("broker fill economics are incomplete") from exc
-        if (
-            symbol not in {"SPYU", "SPXU"}
-            or side not in {"BOT", "BUY", "SLD", "SELL"}
-            or not all(math.isfinite(value) for value in (shares, price, commission))
-            or shares <= 0
-            or price <= 0
-            or commission < 0
-            or str(fill.get("commission_currency") or "").upper() != "USD"
-            or fill_time.tzinfo is None
-            or fill_time.astimezone(timezone.utc) > observed_at.astimezone(timezone.utc)
-        ):
-            raise ValueError("broker fill is not valid selected-sleeve evidence")
-        action = "BUY" if side in {"BOT", "BUY"} else "SELL"
-        fill_trading_day = xsp_trading_date(fill_time)
-        if fill_trading_day is None or not is_trading_day(fill_trading_day):
-            raise ValueError("selected-sleeve fill is outside its RTH trading day")
-        mature(fill_trading_day)
-        cash_amount = shares * price + commission
-        settlement_day = None
-        if action == "BUY":
-            if any(
-                quantity > 1e-9
-                for other, quantity in holdings.items()
-                if other != symbol
-            ):
-                raise ValueError("cash-pair fills overlap both symbols")
-            if cash_amount > settled_cash + 1e-9:
-                raise ValueError("selected-sleeve buy exceeds settled USD reserve")
-            settled_cash -= cash_amount
-            holdings[symbol] += shares
-            open_cost[symbol] += cash_amount
-        else:
-            quantity = holdings[symbol]
-            if shares > quantity + 1e-9:
-                raise ValueError("cash-pair sell exceeds selected-run holdings")
-            removed_cost = open_cost[symbol] * shares / quantity
-            proceeds = shares * price - commission
-            realized += proceeds - removed_cost
-            holdings[symbol] -= shares
-            open_cost[symbol] -= removed_cost
-            settlement_day = fill_trading_day + timedelta(days=1)
-            while not is_trading_day(settlement_day):
-                settlement_day += timedelta(days=1)
-            pending_settlements.append((settlement_day, proceeds))
-        canonical_fills.append(
-            {
-                "exec_id": fill["exec_id"],
-                "time_utc": fill_time.astimezone(timezone.utc).isoformat(),
-                "symbol": symbol,
-                "action": action,
-                "shares": shares,
-                "price": price,
-                "commission_usd": commission,
-                "settled_cash_after_usd": settled_cash,
-                "settlement_date": (
-                    settlement_day.isoformat() if settlement_day is not None else None
-                ),
-            }
-        )
-
-    trading_day = xsp_trading_date(observed_at)
-    if trading_day is None or not is_trading_day(trading_day):
-        raise ValueError("risk observation is outside an XSP trading day")
-    mature(trading_day)
-    pending_by_day: dict[str, float] = {}
-    for settlement_day, proceeds in pending_settlements:
-        key = settlement_day.isoformat()
-        pending_by_day[key] = pending_by_day.get(key, 0.0) + proceeds
-    pending_receipt = [
-        {"settlement_date": settlement_day, "proceeds_usd": proceeds}
-        for settlement_day, proceeds in sorted(pending_by_day.items())
-    ]
-    open_mark = 0.0
-    for symbol, quantity in holdings.items():
-        if quantity <= 1e-9:
-            continue
-        try:
-            bid = float(liquidation_bids[symbol])
-        except (KeyError, TypeError, ValueError) as exc:
-            raise ValueError("open selected sleeve has no liquidation bid") from exc
-        if not math.isfinite(bid) or bid <= 0:
-            raise ValueError("selected-sleeve liquidation bid is invalid")
-        open_mark += quantity * bid - open_cost[symbol]
-    run_net = realized + open_mark
-    prior_peak = max(
-        (float(risk.get("peak_run_net_usd") or 0.0) for _record, risk in prior_risks),
-        default=0.0,
-    )
-    peak = max(0.0, prior_peak, run_net)
-    trading_date = trading_day.isoformat() if trading_day else None
-    same_day = [
-        risk
-        for record, risk in prior_risks
-        if record.get("trading_date") == trading_date
-    ]
-    session_baseline = (
-        float(same_day[0].get("session_baseline_run_net_usd") or 0.0)
-        if same_day
-        else run_net
-    )
-    return {
-        "valid": True,
-        "as_of_utc": observed_at.astimezone(timezone.utc).isoformat(),
-        "trading_date": trading_date,
-        "run_realized_net_usd": realized,
-        "open_mark_net_usd": open_mark,
-        "run_net_usd": run_net,
-        "peak_run_net_usd": peak,
-        "drawdown_usd": peak - run_net,
-        "session_baseline_run_net_usd": session_baseline,
-        "session_net_usd": run_net - session_baseline,
-        "holdings_from_fills": holdings,
-        "open_cost_usd": open_cost,
-        "starting_settled_cash_usd": float(selected_broker["settled_cash_usd"]),
-        "settled_cash_usd": settled_cash,
-        "pending_settlement_usd": sum(row["proceeds_usd"] for row in pending_receipt),
-        "pending_settlements": pending_receipt,
-        "fill_count": len(canonical_fills),
-        "fill_ledger_fingerprint": calibration_fingerprint(canonical_fills),
-    }
-
-
 def _checkpoint(
     ledger: LiveCalibrationLedger,
     *,
@@ -357,16 +159,31 @@ def _checkpoint(
     broker_state: Mapping[str, object] | None = None,
     ladder_transition: Mapping[str, object] | None = None,
 ) -> dict[str, object]:
+    runtime = {
+        XSP_V2_TRANSPORT_PLAN_SCHEMA: (
+            XSP_OPENING_EDGE_V2_VERSION,
+            XSP_V2_TRANSPORT_EXECUTION_VERSION,
+            XSP_V2_TRANSPORT_EXECUTION_SCHEMA,
+        ),
+        XSP_V3_TRANSPORT_PLAN_SCHEMA: (
+            XSP_OPENING_EDGE_V3_VERSION,
+            XSP_V3_TRANSPORT_EXECUTION_VERSION,
+            XSP_V3_TRANSPORT_EXECUTION_SCHEMA,
+        ),
+    }.get(plan.get("schema"))
+    if runtime is None:
+        raise ValueError("unsupported selected transport plan")
+    strategy_id, execution_version, execution_schema = runtime
     trading_day = xsp_trading_date(observed_at)
     return ledger.checkpoint(
         evaluation_as_of=observed_at,
-        strategy_id=XSP_OPENING_EDGE_V2_VERSION,
-        strategy_version=XSP_V2_TRANSPORT_EXECUTION_VERSION,
+        strategy_id=strategy_id,
+        strategy_version=execution_version,
         trading_date=trading_day.isoformat() if trading_day else None,
         session=str(plan.get("source_session") or "RTH"),
         status="EVALUATED",
         evidence={
-            "schema": XSP_V2_TRANSPORT_EXECUTION_SCHEMA,
+            "schema": execution_schema,
             "selection_id": selection_id,
             "transition_id": plan["transition_id"],
             "source_checkpoint_id": plan.get("source_checkpoint_id"),
@@ -433,7 +250,7 @@ def _price_for_mode(contract: object, ticker: object):
     return price
 
 
-async def execute_xsp_v2_transport_plan(
+async def execute_xsp_transport_plan(
     ledger: LiveCalibrationLedger,
     *,
     client,
@@ -445,11 +262,14 @@ async def execute_xsp_v2_transport_plan(
 ) -> dict[str, object]:
     """Preview, submit, chase, and reconcile at most one selected transport leg."""
 
-    selected = load_xsp_v2_transport_selection_from_mapping(selection)
+    selected = load_xsp_transport_selection_from_mapping(selection)
+    transport = xsp_transport_contract(selected)
+    symbols = tuple(transport["symbols"])
+    execution_version = str(transport["execution_version"])
     if observed_at.tzinfo is None:
         raise ValueError("transport execution timestamp must be aware")
     if (
-        plan.get("schema") != XSP_V2_TRANSPORT_PLAN_SCHEMA
+        plan.get("schema") != transport["plan_schema"]
         or plan.get("selection_id") != selected["selection_id"]
         or plan.get("order_authority") != XSP_V2_TRANSPORT_ORDER_AUTHORITY
         or plan.get("status") != "ACTIONABLE"
@@ -481,7 +301,7 @@ async def execute_xsp_v2_transport_plan(
     quantity = leg.get("quantity")
     outside_rth = leg.get("outside_rth")
     if (
-        symbol not in {"SPYU", "SPXU"}
+        symbol not in symbols
         or action not in {"BUY", "SELL"}
         or not isinstance(quantity, int)
         or isinstance(quantity, bool)
@@ -493,12 +313,13 @@ async def execute_xsp_v2_transport_plan(
     ):
         raise ValueError("transport leg and qualified contract do not agree")
 
-    order_ref = xsp_v2_transport_order_ref(plan)
+    order_ref = xsp_transport_order_ref(plan)
     records = tuple(ledger.records())
     prior = _prior_execution(
         records,
         selection_id=str(selected["selection_id"]),
         order_ref=order_ref,
+        execution_version=execution_version,
     )
     matches = await client.reconcile_trades_for_order_ref(order_ref)
     if len(matches) > 1:
@@ -616,7 +437,7 @@ async def execute_xsp_v2_transport_plan(
             for record in records
             if record.get("kind") == "checkpoint"
             and record.get("strategy_version")
-            == XSP_V2_TRANSPORT_EXECUTION_VERSION
+            == execution_version
             and isinstance(record.get("evidence"), Mapping)
             and record["evidence"].get("selection_id") == selected["selection_id"]
             and record["evidence"].get("order_ref") == order_ref
@@ -721,7 +542,20 @@ async def execute_xsp_v2_transport_plan(
     }
 
 
-async def advance_xsp_v2_live_transport(
+async def execute_xsp_v2_transport_plan(
+    ledger: LiveCalibrationLedger,
+    **kwargs,
+) -> dict[str, object]:
+    selection = kwargs.get("selection")
+    if (
+        not isinstance(selection, Mapping)
+        or selection.get("schema") != XSP_V2_TRANSPORT_SELECTION_SCHEMA
+    ):
+        raise ValueError("v2 execution requires a v2 selected transport")
+    return await execute_xsp_transport_plan(ledger, **kwargs)
+
+
+async def advance_xsp_live_transport(
     ledger: LiveCalibrationLedger,
     *,
     client,
@@ -732,10 +566,14 @@ async def advance_xsp_v2_live_transport(
 ) -> dict[str, object]:
     """Reconcile one selected sleeve, then execute at most one exact RTH leg."""
 
-    selected = load_xsp_v2_transport_selection_from_mapping(selection)
+    selected = load_xsp_transport_selection_from_mapping(selection)
+    transport = xsp_transport_contract(selected)
+    symbols = tuple(transport["symbols"])
+    execution_version = str(transport["execution_version"])
+    order_ref_prefix = f"{transport['order_ref_prefix']}-"
     if observed_at.tzinfo is None or quote_wait_seconds < 0:
         raise ValueError("live transport observation inputs are invalid")
-    broker_snapshot = await xsp_v2_broker_snapshot(client)
+    broker_snapshot = await xsp_v2_broker_snapshot(client, symbols=symbols)
     account_id = str(broker_snapshot["account_id"])
     selected_broker = selected["broker_at_selection"]
     assert isinstance(selected_broker, Mapping)
@@ -752,7 +590,7 @@ async def advance_xsp_v2_live_transport(
         evidence = record.get("evidence")
         if (
             record.get("kind") == "checkpoint"
-            and record.get("strategy_version") == XSP_V2_TRANSPORT_EXECUTION_VERSION
+            and record.get("strategy_version") == execution_version
             and isinstance(evidence, Mapping)
             and evidence.get("selection_id") == selected["selection_id"]
             and evidence.get("phase") in {"PREPARED", "SUBMITTED", "TERMINAL"}
@@ -773,29 +611,27 @@ async def advance_xsp_v2_live_transport(
     if not isinstance(contract_ids, Mapping):
         raise ValueError("selected transport contract identity is missing")
     qualified = await client.qualify_proxy_contracts(
-        Stock("SPYU", "SMART", "USD"),
-        Stock("SPXU", "SMART", "USD"),
+        *(Stock(symbol, "SMART", "USD") for symbol in symbols)
     )
     contracts = {
         str(getattr(contract, "symbol", "") or "").upper(): contract
         for contract in qualified
-        if str(getattr(contract, "symbol", "") or "").upper() in {"SPYU", "SPXU"}
+        if str(getattr(contract, "symbol", "") or "").upper() in symbols
     }
-    if set(contracts) != {"SPYU", "SPXU"} or any(
+    if set(contracts) != set(symbols) or any(
         int(getattr(contracts[symbol], "conId", 0) or 0) != int(contract_ids[symbol])
-        for symbol in ("SPYU", "SPXU")
+        for symbol in symbols
     ):
         raise ValueError("selected transport contract identity changed")
+    generic_ticks = transport["generic_ticks"]
+    assert isinstance(generic_ticks, Mapping)
     tickers = {
-        "SPYU": await client.ensure_ticker(
-            contracts["SPYU"],
-            owner="xsp-v2-live-transport",
-            generic_ticks="577,614,623",
-        ),
-        "SPXU": await client.ensure_ticker(
-            contracts["SPXU"],
-            owner="xsp-v2-live-transport",
-        ),
+        symbol: await client.ensure_ticker(
+            contracts[symbol],
+            owner=str(transport["ticker_owner"]),
+            generic_ticks=str(generic_ticks[symbol]) if symbol in generic_ticks else "",
+        )
+        for symbol in symbols
     }
 
     deadline = time.monotonic() + quote_wait_seconds
@@ -845,7 +681,10 @@ async def advance_xsp_v2_live_transport(
             break
         await asyncio.sleep(0.1)
 
-    nav_value, nav_at = client.generic_tick_value(tickers["SPYU"], 96)
+    nav_symbol = transport["nav_symbol"]
+    nav_value = nav_at = None
+    if isinstance(nav_symbol, str):
+        nav_value, nav_at = client.generic_tick_value(tickers[nav_symbol], 96)
     nav_age = (
         max(
             0.0,
@@ -868,8 +707,8 @@ async def advance_xsp_v2_live_transport(
         if any(
             row["order_ref"] != pending_ref
             and (
-                row["symbol"] in {"SPYU", "SPXU"}
-                or str(row["order_ref"]).startswith("XSPV2-")
+                row["symbol"] in symbols
+                or str(row["order_ref"]).startswith(order_ref_prefix)
             )
             for row in open_rows
         ):
@@ -884,7 +723,7 @@ async def advance_xsp_v2_live_transport(
             or quote_health_by_symbol[symbol].get("eligible") is not True
         ):
             raise ValueError("pending selected transition contract is invalid")
-        execution = await execute_xsp_v2_transport_plan(
+        execution = await execute_xsp_transport_plan(
             ledger,
             client=client,
             selection=selected,
@@ -906,7 +745,7 @@ async def advance_xsp_v2_live_transport(
         for symbol in held_symbols
     ):
         raise ValueError("held selected sleeve has no fresh liquidation NBBO")
-    risk_state = xsp_v2_transport_risk_state(
+    risk_state = xsp_transport_risk_state(
         selection=selected,
         records=records,
         observed_at=observed_at,
@@ -920,10 +759,10 @@ async def advance_xsp_v2_live_transport(
     assert isinstance(fill_holdings, Mapping)
     if any(
         abs(float(fill_holdings[symbol]) - positions[symbol]) > 1e-9
-        for symbol in ("SPYU", "SPXU")
+        for symbol in symbols
     ):
         raise ValueError("broker holdings disagree with selected-run fill ledger")
-    plan = project_xsp_v2_transport_plan(
+    plan = project_xsp_transport_plan(
         selection=selected,
         source_receipt=source_receipt,
         observed_at=observed_at,
@@ -974,7 +813,7 @@ async def advance_xsp_v2_live_transport(
     leg = plan["leg"]
     assert isinstance(leg, Mapping)
     symbol = str(leg["symbol"])
-    execution = await execute_xsp_v2_transport_plan(
+    execution = await execute_xsp_transport_plan(
         ledger,
         client=client,
         selection=selected,
@@ -992,3 +831,16 @@ async def advance_xsp_v2_live_transport(
         "execution": execution,
         "submitted_orders": execution["submitted_orders"],
     }
+
+
+async def advance_xsp_v2_live_transport(
+    ledger: LiveCalibrationLedger,
+    **kwargs,
+) -> dict[str, object]:
+    selection = kwargs.get("selection")
+    if (
+        not isinstance(selection, Mapping)
+        or selection.get("schema") != XSP_V2_TRANSPORT_SELECTION_SCHEMA
+    ):
+        raise ValueError("v2 runtime requires a v2 selected transport")
+    return await advance_xsp_live_transport(ledger, **kwargs)

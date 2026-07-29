@@ -31,6 +31,7 @@ from .xsp_opening_edge_v2 import (
 )
 from .xsp_opening_edge_v3 import (
     XSP_OPENING_EDGE_V3_HISTORY_DURATION,
+    XSP_OPENING_EDGE_V3_VERSION,
     advance_xsp_opening_edge_v3_from_ibkr,
     load_xsp_opening_edge_v3_spec,
     xsp_opening_edge_v3_run_start,
@@ -39,13 +40,24 @@ from .xsp_execution_observer import (
     advance_xsp_v2_etf_execution_observer,
 )
 from .xsp_live_transport import (
-    latest_xsp_v2_source_receipt,
     load_xsp_v2_transport_selection,
     select_xsp_v2_transport,
     write_xsp_v2_transport_selection,
+)
+from .xsp_live_transport_state import (
+    latest_xsp_v2_source_receipt,
+    latest_xsp_v3_source_receipt,
     xsp_v2_broker_snapshot,
 )
-from .xsp_live_transport_runtime import advance_xsp_v2_live_transport
+from .xsp_live_transport_v3 import (
+    load_xsp_v3_transport_selection,
+    select_xsp_v3_transport,
+    write_xsp_v3_transport_selection as write_xsp_transport_selection,
+)
+from .xsp_live_transport_runtime import (
+    advance_xsp_live_transport,
+    advance_xsp_v2_live_transport,
+)
 
 
 async def _main_async(argv: Sequence[str] | None = None) -> int:
@@ -79,6 +91,11 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--transport-ranking")
     parser.add_argument("--transport-dwell")
     parser.add_argument("--transport-preview")
+    parser.add_argument(
+        "--transport-cash-receipt",
+        default="backtests/xsp/opening_edge_v3_regime_harmony_cash_receipt.json",
+    )
+    parser.add_argument("--accept-rth-only-cash-scope", action="store_true")
     args = parser.parse_args(argv)
 
     selected_path = Path(args.selected_run).expanduser()
@@ -93,12 +110,24 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
             )
             if value
         )
-        if args.mode != "opening-edge-v2" or len(evidence_paths) != 3:
+        if args.mode == "opening-edge-v2" and len(evidence_paths) != 3:
             raise ValueError(
                 "transport selection requires v2 ranking, dwell, and preview"
             )
+        if args.mode == "opening-edge-v3" and (
+            not args.transport_preview
+            or args.transport_ranking
+            or args.transport_dwell
+        ):
+            raise ValueError("v3 transport selection requires only its exact preview")
+        if args.mode not in {"opening-edge-v2", "opening-edge-v3"}:
+            raise ValueError("transport selection requires Opening Edge v2 or v3")
         if selected_transport_path.exists():
-            existing = load_xsp_v2_transport_selection(selected_transport_path)
+            existing = (
+                load_xsp_v2_transport_selection(selected_transport_path)
+                if args.mode == "opening-edge-v2"
+                else load_xsp_v3_transport_selection(selected_transport_path)
+            )
             print(json.dumps(existing, allow_nan=False, indent=2, sort_keys=True))
             return 0
         from ..client import IBKRClient
@@ -109,20 +138,35 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
         client = IBKRClient(config)
         ledger = LiveCalibrationLedger(args.ledger)
         try:
-            source = latest_xsp_v2_source_receipt(tuple(ledger.records()))
-            broker = await xsp_v2_broker_snapshot(client)
-            selection = select_xsp_v2_transport(
-                ranking_path=evidence_paths[0],
-                dwell_path=evidence_paths[1],
-                preview_path=evidence_paths[2],
-                source_receipt=source,
-                broker_snapshot=broker,
-                selected_at=datetime.now(timezone.utc),
-            )
-            write_xsp_v2_transport_selection(
-                selected_transport_path,
-                selection,
-            )
+            if args.mode == "opening-edge-v2":
+                source = latest_xsp_v2_source_receipt(tuple(ledger.records()))
+                broker = await xsp_v2_broker_snapshot(client)
+                selection = select_xsp_v2_transport(
+                    ranking_path=evidence_paths[0],
+                    dwell_path=evidence_paths[1],
+                    preview_path=evidence_paths[2],
+                    source_receipt=source,
+                    broker_snapshot=broker,
+                    selected_at=datetime.now(timezone.utc),
+                )
+            else:
+                source = latest_xsp_v3_source_receipt(tuple(ledger.records()))
+                broker = await xsp_v2_broker_snapshot(
+                    client,
+                    symbols=("UPRO", "SPXU"),
+                )
+                selection = select_xsp_v3_transport(
+                    cash_receipt_path=Path(args.transport_cash_receipt).expanduser(),
+                    preview_path=Path(args.transport_preview).expanduser(),
+                    source_receipt=source,
+                    broker_snapshot=broker,
+                    selected_at=datetime.now(timezone.utc),
+                    rth_scope_accepted=args.accept_rth_only_cash_scope,
+                )
+            if args.mode == "opening-edge-v2":
+                write_xsp_v2_transport_selection(selected_transport_path, selection)
+            else:
+                write_xsp_transport_selection(selected_transport_path, selection)
         finally:
             await client.disconnect()
         print(json.dumps(selection, allow_nan=False, indent=2, sort_keys=True))
@@ -135,11 +179,22 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
             raise ValueError("selected XSP shadow run must be an object")
         selected_policy = xsp_profitability_policy_from_selected_run(loaded_selection)
         selected_run = loaded_selection
-    selected_transport = (
-        load_xsp_v2_transport_selection(selected_transport_path)
-        if args.mode == "opening-edge-v2" and selected_transport_path.exists()
-        else None
-    )
+    selected_transport = None
+    if selected_transport_path.exists():
+        if args.mode == "opening-edge-v2":
+            selected_transport = load_xsp_v2_transport_selection(
+                selected_transport_path
+            )
+        elif args.mode == "opening-edge-v3":
+            selected_transport = load_xsp_v3_transport_selection(
+                selected_transport_path
+            )
+    if (
+        args.mode == "opening-edge-v3"
+        and selected_transport is not None
+        and selected_transport.get("strategy_version") != XSP_OPENING_EDGE_V3_VERSION
+    ):
+        raise ValueError("selected XSP transport does not match observer mode")
 
     from ..client import IBKRClient
 
@@ -200,6 +255,14 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
                 news_snapshot=tuple(news),
                 spec=v3_spec,
             )
+            if selected_transport is not None:
+                transport_execution = await advance_xsp_live_transport(
+                    ledger,
+                    client=client,
+                    selection=selected_transport,
+                    source_receipt=receipt,
+                    observed_at=observed_at,
+                )
         elif args.mode == "opening-edge-v2":
             v2_spec = load_xsp_opening_edge_v2_spec()
             v2_run_start = xsp_opening_edge_v2_run_start(

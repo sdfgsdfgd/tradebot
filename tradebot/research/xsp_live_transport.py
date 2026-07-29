@@ -1,4 +1,4 @@
-"""Selected-run boundary and pure execution plan for XSP Opening Edge v2."""
+"""Selected-run boundary and pure execution plan for XSP Opening Edge."""
 
 from __future__ import annotations
 
@@ -17,19 +17,34 @@ from .live_calibration import calibration_fingerprint
 from .xsp_execution_observer import xsp_v2_position_state
 from .xsp_context import xsp_execution_signal_context
 from .xsp_opening_edge_v2 import (
-    XSP_OPENING_EDGE_V2_TRANSPORT_VERSION,
     XSP_OPENING_EDGE_V2_VERSION,
 )
 
 
 XSP_V2_TRANSPORT_SELECTION_SCHEMA = "xsp.opening-edge-v2-spyu-spxu-selected-run.v1"
 XSP_V2_TRANSPORT_PLAN_SCHEMA = "xsp.opening-edge-v2-spyu-spxu-transport-plan.v1"
+XSP_V3_TRANSPORT_SELECTION_SCHEMA = "xsp.opening-edge-v3-upro-spxu-selected-run.v1"
+XSP_V3_TRANSPORT_PLAN_SCHEMA = "xsp.opening-edge-v3-upro-spxu-transport-plan.v1"
 XSP_V2_TRANSPORT_ORDER_AUTHORITY = "rth_cash_pair_limit_only"
+XSP_V2_TRANSPORT_EXECUTION_VERSION = (
+    "xsp.opening-edge-v2-spyu-spxu-live-execution.v1"
+)
+XSP_V2_TRANSPORT_EXECUTION_SCHEMA = (
+    "xsp.opening-edge-v2-spyu-spxu-execution-checkpoint.v1"
+)
+XSP_V3_TRANSPORT_EXECUTION_VERSION = (
+    "xsp.opening-edge-v3-upro-spxu-live-execution.v1"
+)
+XSP_V3_TRANSPORT_EXECUTION_SCHEMA = (
+    "xsp.opening-edge-v3-upro-spxu-execution-checkpoint.v1"
+)
 _RANKING_SCHEMA = "xsp.opening-edge-v2-spyu-selection-ranking-result.v1"
 _DWELL_SCHEMA = "xsp.network-b-symbol-dwell-validation-result.v1"
 _PREVIEW_SCHEMA = "xsp.opening-edge-v2-ranked-nominee-preview.v1"
 _SYMBOLS = ("SPYU", "SPXU")
 _DIRECTION_SYMBOL = {"up": "SPYU", "down": "SPXU"}
+_V3_SYMBOLS = ("UPRO", "SPXU")
+_V3_DIRECTION_SYMBOL = {"up": "UPRO", "down": "SPXU"}
 _SELECTION_MAX_AGE_SECONDS = 10 * 60.0
 _SOURCE_MAX_AGE_SECONDS = 90.0
 _BROKER_SNAPSHOT_MAX_AGE_SECONDS = 90.0
@@ -55,46 +70,20 @@ def _execution_contract() -> dict[str, object]:
     }
 
 
-def xsp_v2_source_receipt_from_checkpoint(
-    checkpoint: Mapping[str, object],
-) -> dict[str, object]:
-    """Project one immutable observer checkpoint into the live source contract."""
-
-    evidence = checkpoint.get("evidence")
-    if (
-        checkpoint.get("kind") != "checkpoint"
-        or checkpoint.get("strategy_version") != XSP_OPENING_EDGE_V2_TRANSPORT_VERSION
-        or not isinstance(checkpoint.get("checkpoint_id"), str)
-        or not isinstance(evidence, Mapping)
-        or not isinstance(evidence.get("paired_equity"), Mapping)
-    ):
-        raise ValueError("invalid Opening Edge v2 source checkpoint")
-    status = str(checkpoint.get("status") or "")
+def _v3_execution_contract() -> dict[str, object]:
     return {
-        "evaluation_status": status,
-        "freshness_ok": (
-            status == "EVALUATED" and evidence.get("rth_provenance_fresh") is True
-        ),
-        "session": str(checkpoint.get("session") or ""),
-        "order_authority": evidence.get("order_authority"),
-        "checkpoint_id": checkpoint["checkpoint_id"],
-        "recorded_at_utc": checkpoint.get("recorded_at_utc"),
-        "paired_equity": evidence["paired_equity"],
+        "UPRO_BUY": {"initial_mode": "OPTIMISTIC", "chase_mode": "AUTO"},
+        "SPXU_BUY": {"initial_mode": "OPTIMISTIC", "chase_mode": "AUTO"},
+        "SELL": {"initial_mode": "OPTIMISTIC", "chase_mode": "AUTO"},
+        "sell_before_buy": True,
+        "partial_buy": "hold_filled_quantity_without_top_up",
+        "partial_sell": "no_new_buy_until_flat",
+        "stale_or_ambiguous_state": "HOLD",
+        "fresh_streaming_nbbo_required": True,
+        "stale_top_action": "pause_repricing_until_fresh_or_timeout",
+        "policy_contract": execution_policy_contract(),
     }
 
-
-def latest_xsp_v2_source_receipt(
-    records: Sequence[Mapping[str, object]],
-) -> dict[str, object]:
-    """Return the latest canonical Opening Edge v2 checkpoint projection."""
-
-    for record in reversed(records):
-        if (
-            record.get("kind") == "checkpoint"
-            and record.get("strategy_version") == XSP_OPENING_EDGE_V2_TRANSPORT_VERSION
-        ):
-            return xsp_v2_source_receipt_from_checkpoint(record)
-    raise ValueError("Opening Edge v2 has no source checkpoint")
 
 
 def _load(path: Path) -> dict[str, object]:
@@ -141,76 +130,6 @@ def _number(value: object, *, name: str) -> float:
         raise ValueError(f"{name} must be finite")
     return parsed
 
-
-async def xsp_v2_broker_snapshot(client) -> dict[str, object]:
-    """Capture the one broker account state used by selection and execution."""
-
-    portfolio = await client.fetch_portfolio()
-    account_id = str(client.account_id() or "").strip()
-    account_type = str(client.account_text_value("TradingType-S") or "").upper()
-    cash_value, cash_currency, cash_at_raw = client.account_value("CashBalance", currency="USD")
-    cash = _number(cash_value, name="broker USD cash balance")
-    observed_at = datetime.now(timezone.utc)
-    cash_at = _utc(cash_at_raw)
-    if (
-        not account_id
-        or account_type != "STKCASH"
-        or str(cash_currency or "").upper() != "USD"
-        or cash < 0
-        or observed_at < cash_at
-        or (observed_at - cash_at).total_seconds()
-        > _BROKER_SNAPSHOT_MAX_AGE_SECONDS
-    ):
-        raise ValueError("fresh broker cash-account state is unavailable")
-
-    positions = {"SPYU": 0.0, "SPXU": 0.0}
-    unrelated_positions = []
-    for item in portfolio:
-        contract = getattr(item, "contract", None)
-        symbol = str(getattr(contract, "symbol", "") or "").upper()
-        quantity = _number(
-            getattr(item, "position", 0.0) or 0.0,
-            name="broker portfolio quantity",
-        )
-        row = {
-            "symbol": symbol,
-            "con_id": int(getattr(contract, "conId", 0) or 0),
-            "sec_type": str(getattr(contract, "secType", "") or ""),
-            "quantity": quantity,
-        }
-        if symbol in positions:
-            positions[symbol] += quantity
-        elif abs(quantity) > 1e-9:
-            unrelated_positions.append(row)
-
-    open_orders = []
-    for trade in client.open_trades():
-        contract = getattr(trade, "contract", None)
-        order = getattr(trade, "order", None)
-        status = getattr(trade, "orderStatus", None)
-        open_orders.append(
-            {
-                "symbol": str(getattr(contract, "symbol", "") or "").upper(),
-                "con_id": int(getattr(contract, "conId", 0) or 0),
-                "action": str(getattr(order, "action", "") or "").upper(),
-                "quantity": _number(
-                    getattr(order, "totalQuantity", 0.0) or 0.0,
-                    name="broker open-order quantity",
-                ),
-                "order_ref": str(getattr(order, "orderRef", "") or ""),
-                "status": str(getattr(status, "status", "") or ""),
-            }
-        )
-    return {
-        "observed_at_utc": observed_at.isoformat(),
-        "cash_observed_at_utc": cash_at.isoformat(),
-        "account_id": account_id,
-        "account_type": "CASH",
-        "settled_cash_usd": cash,
-        "positions": positions,
-        "unrelated_positions": unrelated_positions,
-        "open_orders": open_orders,
-    }
 
 
 def _identity_valid(payload: Mapping[str, object]) -> bool:
@@ -712,6 +631,57 @@ def load_xsp_v2_transport_selection_from_mapping(
     return dict(selection)
 
 
+def load_xsp_transport_selection_from_mapping(
+    selection: Mapping[str, object],
+) -> dict[str, object]:
+    """Validate either supported selected cash transport."""
+
+    if selection.get("schema") == XSP_V2_TRANSPORT_SELECTION_SCHEMA:
+        return load_xsp_v2_transport_selection_from_mapping(selection)
+    if selection.get("schema") == XSP_V3_TRANSPORT_SELECTION_SCHEMA:
+        from .xsp_live_transport_v3 import (
+            load_xsp_v3_transport_selection_from_mapping,
+        )
+
+        return load_xsp_v3_transport_selection_from_mapping(selection)
+    raise ValueError("unsupported selected XSP cash transport")
+
+
+def load_xsp_transport_selection(path: Path) -> dict[str, object]:
+    return load_xsp_transport_selection_from_mapping(_load(path))
+
+
+def xsp_transport_contract(
+    selection: Mapping[str, object],
+) -> dict[str, object]:
+    """Return the exact runtime identity carried by a validated selection."""
+
+    selected = load_xsp_transport_selection_from_mapping(selection)
+    if selected["schema"] == XSP_V2_TRANSPORT_SELECTION_SCHEMA:
+        return {
+            "symbols": _SYMBOLS,
+            "direction_symbols": dict(_DIRECTION_SYMBOL),
+            "plan_schema": XSP_V2_TRANSPORT_PLAN_SCHEMA,
+            "execution_version": XSP_V2_TRANSPORT_EXECUTION_VERSION,
+            "execution_schema": XSP_V2_TRANSPORT_EXECUTION_SCHEMA,
+            "order_ref_prefix": "XSPV2",
+            "ticker_owner": "xsp-v2-live-transport",
+            "generic_ticks": {"SPYU": "577,614,623"},
+            "nav_symbol": "SPYU",
+        }
+    return {
+        "symbols": _V3_SYMBOLS,
+        "direction_symbols": dict(_V3_DIRECTION_SYMBOL),
+        "plan_schema": XSP_V3_TRANSPORT_PLAN_SCHEMA,
+        "execution_version": XSP_V3_TRANSPORT_EXECUTION_VERSION,
+        "execution_schema": XSP_V3_TRANSPORT_EXECUTION_SCHEMA,
+        "order_ref_prefix": "XSPV3",
+        "ticker_owner": "xsp-v3-live-transport",
+        "generic_ticks": {},
+        "nav_symbol": None,
+    }
+
+
 def _fresh_quote(
     quote: Mapping[str, object] | None,
     *,
@@ -739,6 +709,9 @@ def _post_selection_target(
     *,
     observed_at: datetime,
 ) -> tuple[str | None, str | None]:
+    contract = xsp_transport_contract(selection)
+    direction_symbols = contract["direction_symbols"]
+    assert isinstance(direction_symbols, Mapping)
     selected_at = _utc(selection["selected_at_utc"])
     source_at = _utc(source_receipt.get("recorded_at_utc"))
     source_session = str(source_receipt.get("session") or "")
@@ -769,12 +742,16 @@ def _post_selection_target(
         if _signal_utc(raw_target.get("entry_time")) > selected_at
         else None
     )
-    return direction, _DIRECTION_SYMBOL.get(direction)
+    return direction, direction_symbols.get(direction)
 
 
-def _cash_pair_holdings(positions: Mapping[str, object]) -> dict[str, int]:
+def _cash_pair_holdings(
+    positions: Mapping[str, object],
+    *,
+    symbols: Sequence[str],
+) -> dict[str, int]:
     holdings: dict[str, int] = {}
-    for symbol in _SYMBOLS:
+    for symbol in symbols:
         quantity = _number(positions.get(symbol, 0), name=f"{symbol} position")
         if quantity < 0 or abs(quantity - round(quantity)) > 1e-9:
             raise ValueError("cash-pair positions must be nonnegative whole shares")
@@ -784,7 +761,7 @@ def _cash_pair_holdings(positions: Mapping[str, object]) -> dict[str, int]:
     return holdings
 
 
-def project_xsp_v2_transport_plan(
+def project_xsp_transport_plan(
     *,
     selection: Mapping[str, object],
     source_receipt: Mapping[str, object],
@@ -799,7 +776,11 @@ def project_xsp_v2_transport_plan(
 ) -> dict[str, object]:
     """Project at most one sell-or-buy leg; never submit an order."""
 
-    selected = load_xsp_v2_transport_selection_from_mapping(selection)
+    selected = load_xsp_transport_selection_from_mapping(selection)
+    contract = xsp_transport_contract(selected)
+    symbols = contract["symbols"]
+    assert isinstance(symbols, Sequence)
+    plan_schema = str(contract["plan_schema"])
     observed_utc = _utc(observed_at)
     target_direction, target_symbol = _post_selection_target(
         selected,
@@ -815,13 +796,13 @@ def project_xsp_v2_transport_plan(
     ) - timedelta(minutes=3)
     equity_rth_open = time(9, 30) <= observed_et.time().replace(tzinfo=None) < rth_close
     entry_window_open = equity_rth_open and observed_et < rth_liquidation_at
-    holdings = _cash_pair_holdings(positions)
+    holdings = _cash_pair_holdings(positions, symbols=symbols)
     held = [symbol for symbol, quantity in holdings.items() if quantity > 0]
     relevant_orders = [dict(row) for row in open_orders if isinstance(row, Mapping)]
     if len(relevant_orders) != len(open_orders):
         raise ValueError("open-order snapshot is invalid")
     cash_pair_orders = [
-        row for row in relevant_orders if str(row.get("symbol") or "") in _SYMBOLS
+        row for row in relevant_orders if str(row.get("symbol") or "") in symbols
     ]
     transition = {
         "selection_id": selected["selection_id"],
@@ -834,7 +815,7 @@ def project_xsp_v2_transport_plan(
         "signal_context": signal_context,
     }
     base = {
-        "schema": XSP_V2_TRANSPORT_PLAN_SCHEMA,
+        "schema": plan_schema,
         "observed_at_utc": observed_utc.isoformat(),
         "transition_id": calibration_fingerprint(transition),
         **transition,
@@ -947,9 +928,10 @@ def project_xsp_v2_transport_plan(
     required_cash = quantity * ask + commission
     if _number(settled_cash_usd, name="settled cash") < required_cash:
         raise ValueError("insufficient settled USD cash")
-    if target_symbol == "SPYU":
+    nav_symbol = contract["nav_symbol"]
+    if target_symbol == nav_symbol:
         if not isinstance(spyu_nav, Mapping):
-            raise ValueError("SPYU entry requires fresh indicative value")
+            raise ValueError(f"{nav_symbol} entry requires fresh indicative value")
         nav = _number(spyu_nav.get("value"), name="SPYU NAV")
         nav_age = _number(spyu_nav.get("age_seconds"), name="SPYU NAV age")
         midpoint = (bid + ask) / 2.0
@@ -961,9 +943,14 @@ def project_xsp_v2_transport_plan(
             or nav_age > _NAV_MAX_AGE_SECONDS
             or divergence > max(0.005, spread_fraction)
         ):
-            raise ValueError("SPYU indicative value is stale or divergent")
+            raise ValueError(f"{nav_symbol} indicative value is stale or divergent")
     else:
         divergence = None
+    execution = selected["execution"]
+    assert isinstance(execution, Mapping)
+    buy_policy = execution.get(f"{target_symbol}_BUY")
+    if not isinstance(buy_policy, Mapping):
+        raise ValueError("selected transport has no BUY execution policy")
     return {
         **base,
         "status": "ACTIONABLE",
@@ -972,8 +959,8 @@ def project_xsp_v2_transport_plan(
             "action": "BUY",
             "symbol": target_symbol,
             "quantity": quantity,
-            "initial_mode": "CROSS" if target_symbol == "SPYU" else "OPTIMISTIC",
-            "chase_mode": "RELENTLESS" if target_symbol == "SPYU" else "AUTO",
+            "initial_mode": buy_policy["initial_mode"],
+            "chase_mode": buy_policy["chase_mode"],
             "outside_rth": False,
             "bid": bid,
             "ask": ask,
@@ -982,3 +969,17 @@ def project_xsp_v2_transport_plan(
             "spyu_nav_divergence": divergence,
         },
     }
+
+
+def project_xsp_v2_transport_plan(
+    **kwargs,
+) -> dict[str, object]:
+    """Backward-compatible v2 projection wrapper."""
+
+    selection = kwargs.get("selection")
+    if (
+        not isinstance(selection, Mapping)
+        or selection.get("schema") != XSP_V2_TRANSPORT_SELECTION_SCHEMA
+    ):
+        raise ValueError("v2 projection requires a v2 selected transport")
+    return project_xsp_transport_plan(**kwargs)

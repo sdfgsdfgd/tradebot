@@ -10,11 +10,21 @@ import pytest
 from tradebot.research.live_calibration import calibration_fingerprint
 from tradebot.research.xsp_live_transport import (
     XSP_V2_TRANSPORT_ORDER_AUTHORITY,
-    latest_xsp_v2_source_receipt,
+    XSP_V3_TRANSPORT_SELECTION_SCHEMA,
+    project_xsp_transport_plan,
     load_xsp_v2_transport_selection,
     project_xsp_v2_transport_plan,
     select_xsp_v2_transport,
     write_xsp_v2_transport_selection,
+)
+from tradebot.research.xsp_live_transport_state import latest_xsp_v2_source_receipt
+from tradebot.research.xsp_live_transport_v3 import (
+    load_xsp_v3_transport_selection_from_mapping,
+    select_xsp_v3_transport,
+)
+from tradebot.research.xsp_live_transport_runtime import (
+    xsp_transport_order_ref,
+    xsp_transport_risk_state,
 )
 from tradebot.engines.execution import execution_policy_contract
 
@@ -297,6 +307,272 @@ def _quotes() -> dict[str, dict[str, object]]:
             "market_data_type": 1,
         },
     }
+
+
+def _v3_preview() -> dict[str, object]:
+    rows = []
+    for symbol, con_id, quantity, bid, ask in (
+        ("UPRO", 61_228_752, 9, 99.98, 100.0),
+        ("SPXU", 53_362_064, 18, 49.98, 50.0),
+    ):
+        book = {
+            "observed_at_utc": (SELECTED_AT - timedelta(minutes=1)).isoformat(),
+            "market_data_type": 1,
+            "bid": bid,
+            "ask": ask,
+            "bid_size": 100,
+            "ask_size": 100,
+        }
+        rows.append(
+            {
+                "symbol": symbol,
+                "contract": {
+                    "con_id": con_id,
+                    "exchange": "SMART",
+                    "primary_exchange": "ARCA",
+                    "currency": "USD",
+                },
+                "books": {"smart": dict(book), "direct_arca": dict(book)},
+                "order": {
+                    "action": "BUY",
+                    "quantity": quantity,
+                    "limit_price": ask,
+                    "notional_usd": quantity * ask,
+                    "tif": "DAY",
+                    "what_if": True,
+                    "transmit": False,
+                },
+                "preview": {
+                    "status": "PreSubmitted",
+                    "commission": 0.35,
+                    "min_commission": 0.35,
+                    "max_commission": 0.35,
+                    "commission_currency": "USD",
+                    "warning_text": "",
+                },
+                "tiered_conservative_buy_fee_usd": 0.43,
+                "effective_tiered_commission": True,
+                "cash_fit": True,
+            }
+        )
+    return {
+        "schema": "xsp.opening-edge-v3-upro-spxu-preview.v1",
+        "authority": "broker_preview_only",
+        "observed_at_utc": (SELECTED_AT - timedelta(minutes=1)).isoformat(),
+        "source": {
+            "checkpoint_id": "source-preview",
+            "crown_artifact_sha256": (
+                "d47eb39cef3d2ca575d779d6b5b87e3b88e08606fd09a8801b8cb55c350208db"
+            ),
+            "state_owner_sha256": "s" * 64,
+            "daily_context_fingerprint": "d" * 64,
+        },
+        "cash_receipt_sha256": (
+            "e41e44db270ea872679746cb2b83b2aa73987e523863236472f6e8ec0434c8dc"
+        ),
+        "notional_usd": 900.0,
+        "settled_cash_usd": 1_200.0,
+        "rows": rows,
+        "errors": [],
+        "relevant_positions": [],
+        "relevant_open_orders": [],
+        "open_trades_before": 0,
+        "open_trades_after": 0,
+        "portfolio_rows_before": 0,
+        "portfolio_rows_after": 0,
+        "books_pass": True,
+        "quantity_and_cash_pass": True,
+        "effective_tiered_commission_pass": True,
+        "selection_created": False,
+        "profitability_clock_started": False,
+        "order_authority": "none",
+        "submitted_orders": 0,
+        "verdict": "PREVIEW_PASS_STILL_HOLD",
+    }
+
+
+def _v3_selection(tmp_path: Path) -> dict[str, object]:
+    preview_path = _write(tmp_path / "v3-preview.json", _v3_preview())
+    source = _source(
+        _position("down", entry_time=SELECTED_AT - timedelta(minutes=5)),
+        recorded_at=SELECTED_AT - timedelta(seconds=30),
+    )
+    broker = {
+        "observed_at_utc": (SELECTED_AT - timedelta(seconds=5)).isoformat(),
+        "cash_observed_at_utc": (SELECTED_AT - timedelta(seconds=10)).isoformat(),
+        "account_id": "DU123456",
+        "account_type": "CASH",
+        "settled_cash_usd": 1_200.0,
+        "positions": {"UPRO": 0, "SPXU": 0},
+        "unrelated_positions": [],
+        "open_orders": [],
+    }
+    return select_xsp_v3_transport(
+        cash_receipt_path=Path(
+            "backtests/xsp/opening_edge_v3_regime_harmony_cash_receipt.json"
+        ),
+        preview_path=preview_path,
+        source_receipt=source,
+        broker_snapshot=broker,
+        selected_at=SELECTED_AT,
+        rth_scope_accepted=True,
+    )
+
+
+def test_v3_selection_requires_explicit_rth_scope_and_binds_tiered_identity(
+    tmp_path: Path,
+) -> None:
+    preview_path = _write(tmp_path / "v3-preview.json", _v3_preview())
+    source = _source(
+        _position("down", entry_time=SELECTED_AT - timedelta(minutes=5)),
+        recorded_at=SELECTED_AT - timedelta(seconds=30),
+    )
+    broker = {
+        "observed_at_utc": (SELECTED_AT - timedelta(seconds=5)).isoformat(),
+        "cash_observed_at_utc": (SELECTED_AT - timedelta(seconds=10)).isoformat(),
+        "account_id": "DU123456",
+        "account_type": "CASH",
+        "settled_cash_usd": 1_200.0,
+        "positions": {"UPRO": 0, "SPXU": 0},
+        "unrelated_positions": [],
+        "open_orders": [],
+    }
+    with pytest.raises(ValueError, match="RTH-only scope"):
+        select_xsp_v3_transport(
+            cash_receipt_path=Path(
+                "backtests/xsp/opening_edge_v3_regime_harmony_cash_receipt.json"
+            ),
+            preview_path=preview_path,
+            source_receipt=source,
+            broker_snapshot=broker,
+            selected_at=SELECTED_AT,
+            rth_scope_accepted=False,
+        )
+
+    selection = _v3_selection(tmp_path)
+    assert selection["schema"] == XSP_V3_TRANSPORT_SELECTION_SCHEMA
+    assert selection["direction_symbols"] == {"up": "UPRO", "down": "SPXU"}
+    assert selection["nominee"]["fixed_entry_notional_usd"] == 900.0
+    assert selection["nominee"]["pricing_plan"] == "Tiered"
+    assert selection["execution"]["UPRO_BUY"] == {
+        "initial_mode": "OPTIMISTIC",
+        "chase_mode": "AUTO",
+    }
+    assert load_xsp_v3_transport_selection_from_mapping(selection) == selection
+
+
+def test_v3_selection_rejects_a_stale_internal_book(tmp_path: Path) -> None:
+    preview = _v3_preview()
+    preview["rows"][0]["books"]["smart"]["observed_at_utc"] = (
+        SELECTED_AT - timedelta(minutes=2)
+    ).isoformat()
+    preview_path = _write(tmp_path / "v3-stale-preview.json", preview)
+    with pytest.raises(ValueError, match="fresh smart book"):
+        select_xsp_v3_transport(
+            cash_receipt_path=Path(
+                "backtests/xsp/opening_edge_v3_regime_harmony_cash_receipt.json"
+            ),
+            preview_path=preview_path,
+            source_receipt=_source(
+                None,
+                recorded_at=SELECTED_AT - timedelta(seconds=30),
+            ),
+            broker_snapshot={
+                "observed_at_utc": (SELECTED_AT - timedelta(seconds=5)).isoformat(),
+                "cash_observed_at_utc": (
+                    SELECTED_AT - timedelta(seconds=10)
+                ).isoformat(),
+                "account_id": "DU123456",
+                "account_type": "CASH",
+                "settled_cash_usd": 1_200.0,
+                "positions": {"UPRO": 0, "SPXU": 0},
+                "unrelated_positions": [],
+                "open_orders": [],
+            },
+            selected_at=SELECTED_AT,
+            rth_scope_accepted=True,
+        )
+
+
+def test_v3_projection_reuses_shared_ladder_without_spyu_nav(
+    tmp_path: Path,
+) -> None:
+    selection = _v3_selection(tmp_path)
+    source = _source(
+        _position("up", entry_time=OBSERVED_AT - timedelta(minutes=1)),
+        recorded_at=OBSERVED_AT - timedelta(seconds=30),
+        checkpoint="v3-up",
+    )
+    plan = project_xsp_transport_plan(
+        selection=selection,
+        source_receipt=source,
+        observed_at=OBSERVED_AT,
+        positions={"UPRO": 0, "SPXU": 0},
+        open_orders=[],
+        settled_cash_usd=1_200.0,
+        quotes={
+            "UPRO": {
+                "bid": 99.98,
+                "ask": 100.0,
+                "age_seconds": 0.5,
+                "market_data_type": 1,
+            },
+            "SPXU": {
+                "bid": 49.98,
+                "ask": 50.0,
+                "age_seconds": 0.5,
+                "market_data_type": 1,
+            },
+        },
+    )
+
+    assert plan["status"] == "ACTIONABLE"
+    assert plan["leg"]["symbol"] == "UPRO"
+    assert plan["leg"]["quantity"] == 9
+    assert plan["leg"]["initial_mode"] == "OPTIMISTIC"
+    assert plan["leg"]["chase_mode"] == "AUTO"
+    assert plan["leg"]["spyu_nav_divergence"] is None
+
+
+def test_v3_restart_risk_and_order_identity_use_selected_symbols(
+    tmp_path: Path,
+) -> None:
+    selection = _v3_selection(tmp_path)
+    risk = xsp_transport_risk_state(
+        selection=selection,
+        records=(),
+        observed_at=OBSERVED_AT,
+        liquidation_bids={},
+    )
+    assert risk["holdings_from_fills"] == {"UPRO": 0.0, "SPXU": 0.0}
+
+    plan = project_xsp_transport_plan(
+        selection=selection,
+        source_receipt=_source(
+            _position("down", entry_time=OBSERVED_AT - timedelta(minutes=1)),
+            recorded_at=OBSERVED_AT - timedelta(seconds=30),
+            checkpoint="v3-down",
+        ),
+        observed_at=OBSERVED_AT,
+        positions={"UPRO": 0, "SPXU": 0},
+        open_orders=[],
+        settled_cash_usd=1_200.0,
+        quotes={
+            "UPRO": {
+                "bid": 99.98,
+                "ask": 100.0,
+                "age_seconds": 0.5,
+                "market_data_type": 1,
+            },
+            "SPXU": {
+                "bid": 49.98,
+                "ask": 50.0,
+                "age_seconds": 0.5,
+                "market_data_type": 1,
+            },
+        },
+    )
+    assert xsp_transport_order_ref(plan).startswith("XSPV3-")
 
 
 def test_selection_binds_every_gate_and_starts_strictly_flat_run(

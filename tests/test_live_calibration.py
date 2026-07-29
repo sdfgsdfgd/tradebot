@@ -2469,6 +2469,94 @@ def test_shadow_cli_v2_advances_one_explicit_selected_transport(
     assert output["order_authority"] == "selected_spyu_spxu_cash"
 
 
+def test_shadow_cli_freezes_v3_transport_from_one_exact_preview(
+    tmp_path,
+    monkeypatch,
+    capsys,
+) -> None:
+    from tradebot.research.xsp_shadow_cli import _main_async
+
+    captured = {}
+    preview = tmp_path / "preview.json"
+    cash = tmp_path / "cash.json"
+    selected = tmp_path / "selected.json"
+    preview.write_text("{}", encoding="utf-8")
+    cash.write_text("{}", encoding="utf-8")
+
+    class _Client:
+        def __init__(self, config):
+            captured["readonly"] = config.readonly
+
+        async def disconnect(self):
+            captured["disconnected"] = True
+
+    selection = {
+        "selection_id": "selected-v3-transport",
+        "strategy_version": "xsp.opening-edge-v3-regime-harmony-24x5.v1",
+        "order_authority": "rth_cash_pair_limit_only",
+    }
+    monkeypatch.setenv("IBKR_READONLY", "1")
+    monkeypatch.setattr("tradebot.client.IBKRClient", _Client)
+    monkeypatch.setattr(
+        "tradebot.research.xsp_shadow_cli.latest_xsp_v3_source_receipt",
+        lambda _records: {"checkpoint_id": "v3-source"},
+    )
+
+    async def _broker(_client, **kwargs):
+        captured["broker_symbols"] = kwargs["symbols"]
+        return {"account_id": "DU123"}
+
+    def _select(**kwargs):
+        captured.update(kwargs)
+        return selection
+
+    def _write(path, value):
+        captured["written"] = (path, value)
+
+    monkeypatch.setattr(
+        "tradebot.research.xsp_shadow_cli.xsp_v2_broker_snapshot",
+        _broker,
+    )
+    monkeypatch.setattr(
+        "tradebot.research.xsp_shadow_cli.select_xsp_v3_transport",
+        _select,
+    )
+    monkeypatch.setattr(
+        "tradebot.research.xsp_shadow_cli.write_xsp_transport_selection",
+        _write,
+    )
+
+    assert (
+        asyncio.run(
+            _main_async(
+                (
+                    "--mode",
+                    "opening-edge-v3",
+                    "--ledger",
+                    str(tmp_path / "ledger.jsonl"),
+                    "--selected-transport",
+                    str(selected),
+                    "--freeze-selected-transport",
+                    "--transport-preview",
+                    str(preview),
+                    "--transport-cash-receipt",
+                    str(cash),
+                    "--accept-rth-only-cash-scope",
+                )
+            )
+        )
+        == 0
+    )
+    assert captured["readonly"] is True
+    assert captured["broker_symbols"] == ("UPRO", "SPXU")
+    assert captured["cash_receipt_path"] == cash
+    assert captured["preview_path"] == preview
+    assert captured["rth_scope_accepted"] is True
+    assert captured["written"] == (selected, selection)
+    assert captured["disconnected"] is True
+    assert json.loads(capsys.readouterr().out) == selection
+
+
 def test_shadow_cli_selected_transport_requires_explicit_writable_broker(
     tmp_path,
     monkeypatch,
