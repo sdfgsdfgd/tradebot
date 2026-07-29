@@ -1,0 +1,122 @@
+{
+  "schema": "xsp.opening-edge-v2-sso-sds-transport-receipt.v1",
+  "observed_at_utc": "2026-07-29T01:21:00Z",
+  "authority": "historical_transport_rejection",
+  "order_authority": "none",
+  "submitted_orders": 0,
+  "strategy": {
+    "id": "xsp.opening-edge-v2-balanced-24x5.v1",
+    "signal_ledger_sha256": "cb95dd07d630032db3c0c96202cf8e7c8964b365ac3b5c027130cf89e2b64f9a",
+    "direction_or_lifecycle_changed": false
+  },
+  "transport": {
+    "up": "SSO",
+    "down": "SDS",
+    "starting_cash_usd": 1350.0,
+    "fixed_notional_profiles_usd": [
+      1200.0,
+      1150.0
+    ],
+    "commission_plan": "IBKR Fixed",
+    "operational_spread_per_share_usd": {
+      "SSO": 0.15,
+      "SDS": 0.15
+    },
+    "patient_research_spread_per_share_usd": {
+      "SSO": 0.0375,
+      "SDS": 0.0375
+    }
+  },
+  "timestamp_parity_correction": {
+    "frozen_recent_replay_sha256": "6630318c63611fb66c98e4c6bffe59af485bfbc1151993facd0576b7dce58e5a",
+    "verdict": "invalid_development_economics",
+    "cause": "The temporary recent replay subtracted five minutes from IBKR bars that load_or_fetch_bar_series had already normalized to causal close timestamps, moving every fill one bar early.",
+    "correct_notional_1200_operational_recent_all_16_net_usd": -32.58336289300246,
+    "correct_notional_1200_operational_recent_positive_volume_15_net_usd": -27.61453079000239,
+    "zero_volume_trade": {
+      "entry_time": "2026-07-09T10:55:00",
+      "exit_time": "2026-07-09T11:35:00",
+      "lane": "gth",
+      "direction": "down",
+      "symbol": "SDS",
+      "entry_volume": 0.0,
+      "net_usd": -4.968832103000068
+    }
+  },
+  "authenticated_history": {
+    "window": "2023-07-20..2026-07-25",
+    "SSO": {
+      "bars": 194443,
+      "zero_volume_bars": 76562,
+      "sha256": "324d00994148576366ae86783acc1cc643199df94e3bdf768e854fb842f02582"
+    },
+    "SDS": {
+      "bars": 187922,
+      "zero_volume_bars": 73168,
+      "sha256": "0c5f8577d83a9c4b0227251a703c5a7abb65eeb6dc0fd0939d27c7aa1edb16c6"
+    }
+  },
+  "full_challenge": {
+    "operational_pass": false,
+    "largest_passing_notional_usd": null,
+    "common_fill_coverage": {
+      "eligible_positive_volume_trades": 613,
+      "unavailable_trades": 12,
+      "zero_volume_fill_trades": 100,
+      "source_signals": 725
+    },
+    "notional_1200_operational_base": {
+      "gross_usd": 885.9400000000022,
+      "cost_usd": 2979.497942165082,
+      "net_usd": -2093.55794216508,
+      "profit_factor": 0.3649564323066341,
+      "max_drawdown_usd": 2103.2270467540793,
+      "intrabar_max_drawdown_usd": 2110.589568115079,
+      "settled_cash_executed_trades": 57,
+      "settled_cash_blocked_trades": 556,
+      "settled_cash_net_usd": -241.59358112199948
+    },
+    "notional_1150_operational_base": {
+      "gross_usd": 858.0100000000022,
+      "cost_usd": 2906.1800510470825,
+      "net_usd": -2048.17005104708,
+      "profit_factor": 0.3592478874514284,
+      "max_drawdown_usd": 2057.1021150740803,
+      "intrabar_max_drawdown_usd": 2064.19324632608,
+      "settled_cash_executed_trades": 71,
+      "settled_cash_blocked_trades": 542,
+      "settled_cash_net_usd": -298.4555448549968
+    },
+    "notional_1200_patient_base": {
+      "gross_usd": 885.7800000000022,
+      "cost_usd": 1677.4456924275169,
+      "net_usd": -791.6656924275146,
+      "profit_factor": 0.6613315292762793
+    },
+    "notional_1150_patient_base": {
+      "gross_usd": 859.9300000000021,
+      "cost_usd": 1658.5007250450162,
+      "net_usd": -798.5707250450141,
+      "profit_factor": 0.6488940554702622
+    },
+    "entry_latency_stress_pass": false,
+    "scheduled_exit_latency_stress_pass": false,
+    "strict_t_plus_one_and_historical_t_plus_two_cash_pass": false,
+    "positive_volume_fill_gate_pass": false
+  },
+  "verdict": {
+    "state": "REJECT",
+    "reason": "Correctly aligned movement does not cover measured Fixed commissions and spread; even the research-only patient spread is deeply negative, while strict settled cash exhausts before the full tape and authentic fill coverage is incomplete.",
+    "opening_edge_v2_research_crown_changed": false,
+    "selected_transport_created": false,
+    "profitability_clock_started": false
+  },
+  "integrity": {
+    "preregistered_gate_sha256": "53b2216a9c31a26b7768c47b9e796e8bf57511b54e000e6e9e21f58d82866b5b",
+    "full_fetch_sha256": "c8554053e0d52f93e9131720c117393f342511e4c5fb9f2d508368827fbdc8d2",
+    "challenge_script_sha256": "afce1b519226dd2babbce936a277b300def7d8d6a4c8ccf71780b7c952d57b00",
+    "full_challenge_sha256": "388d49903c8f741d733c3f70d8de9ed485119ceecf087e80e00216e65d06e40e",
+    "q_archive": "/home/x/Desktop/tradebot-evidence/XSP/2026-07-29/sso-sds-transport",
+    "q_archive_manifest_sha256": "ba7d1b53b944da840d4efdeaf1a5df5376d70c8d3ae334aac319c92f52558e88"
+  }
+}
