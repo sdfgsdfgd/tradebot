@@ -38,7 +38,7 @@ output belongs in commit/final verification, not in this management brain.
 | RTH signal freshness | **cleared:** after the user activated `CBOE Streaming Market Indexes`, zero-order receipt `acce7ed3…` returned live type-1 XSP, current five-minute history, and real-time `TRADES` bars without a Gateway restart; the natural `10:07 ET` centralized v2 checkpoint then evaluated with both XSP and SPY through `10:05` and `120s` age |
 | Order/capital authority | `none` |
 | Profitability clock | v2 `NOT_STARTED`; predecessor evidence does not transfer |
-| Execution verdict | `HOLD`; E-262 passes historical Tiered/T+1 cash geometry across all eight inherited cells, but passive UPRO/SPXU fill quality and independent signal validation remain unproved |
+| Execution verdict | `HOLD`; E-262 passes historical Tiered/T+1 cash geometry, but live selection still requires the armed full-depth tape to remain at or below its exact `0.322509765625` mean stage-cost boundary plus independent signal validation |
 | Next irreversible evidence | the next admitted or blocked technical turn plus the armed instrument-matched UPRO/SPXU microtape; neither historical transport P&L nor passive observation may start the clock |
 | First active work | monitor technical proposals, exact gate pass/block, positions, flips/exits, and P&L; news joins only after its natural four-hour publication and never drives work cadence |
 
@@ -100,9 +100,11 @@ output belongs in commit/final verification, not in this management brain.
 15. `[WIP]` Validate E-262 independently. Its strictly-prior damage/recovery
     state plus short-only financing owner improves every annual slice and
     produces positive historical cash geometry across all eight inherited
-    UPRO/SPXU cells, but cannot earn pricing, runtime, selection, order, or
-    clock authority until the armed instrument-matched passive-fill tape and
-    a genuinely later signal boundary pass.
+    UPRO/SPXU cells. Immutable r2 observes live L1 plus tick-by-tick
+    trade-through at `24` shares over every canonical RTH decision and the
+    selected owner's `15:57 ET` liquidation. It cannot earn pricing, runtime,
+    selection, order, or clock authority until that prospective tape and a
+    genuinely later signal boundary pass.
 
 ### Never infer
 
@@ -639,6 +641,7 @@ and
 | E-261 | a static `aligned-up + bullish + zero slow-velocity-vote` cohort looked weak in entry attribution but failed exact lifecycle replay. Requiring one higher close plus either `2/3` or `3/3` fast persistence reduced recent and all three annual slices; the stricter cell fell from E-259's `+$192.58/710` to `+$170.19/648`, with Year 1 `+$17.62→+$3.24`. The family is closed before cash replay. This rejects climate-as-direction routing and narrows WIP to causal climate-conditioned ownership of already-financed moves; crown, runtime, selection, orders, and clock remain unchanged |
 | E-262 | Year-1 cash anatomy separates ownership from admission: `83/176` nonnegative trades earned `+$548.14`, only `12/176` immediately wrong trades lost `-$128.85`, while `81/176` first financed then gave back `-$381.33`. Broad climate fizzle improved Years 1/2 but bullish effects rotated and harmed Year 3; blanket surrender delay also failed. The stable categorical neighbors exit only an unfinanced RTH short after `12` completed bars below `0.25` entry ATR MFE while strictly-prior `84`-session drawdown is deteriorating, or deteriorating/flat. Favorite signal result is `+$18.63/+$41.38/+$137.62`, full `+$197.64/709`, PF `1.534`, DD `23.86`, with exact recent parity. Unchanged cash replay passes all `8/8` inherited cells; `$900` ARCA-add is `+$42.96/+$62.45/+$459.26`, full `+$564.67/506`, PF `1.396`, intrabar DD `$108.03`, both sides positive, scheduled stress `+$574.68`. Compact receipt `opening_edge_v2_damage_short_financing_receipt.json` binds full cash result `4e7d68ef…`. Outcome exposure and unproved passive Tiered fills keep this below crown/runtime/pricing/selection/order/clock authority |
 | E-263 | outcome-exposed path anatomy `b1f67609…` tests six categorical financed-position retention signatures using only the existing `0.25` entry-ATR financing boundary plus fast/slow/long vote structure. Every early-exit signature loses delta in Years 1/2/3; the broadest sacrifices `-15.83/-13.99/-35.95` points. The separate reversal-boundary audit finds only six financed-loss flips reopening within `5–10m`, and their incoming trades earn `+4.30/+12.51/+11.33` across the three years. Therefore neither generic profit lock nor delayed reversal is a valid repair. Bullish climate-conditioned fizzle is also too sparse and nonportable. The short-only E-262 owner remains the stable component; no further signal/runtime/selection/order/clock change follows |
+| E-264 | pre-outcome r2 bundle `ee588b34…` and tracked gate `opening_edge_v2_upro_spxu_microtape_gate.json` supersede only the still-unfired E-257 capture. Exact cash bisection proves `$900` E-262 tolerates mean stage cost through `0.322509765625`; `0.3232421875` makes Year 1 negative, equivalent to `90.332%` optimistic fills if every remainder fully crosses. The immutable `09:25..16:05 ET` owner records live L1 plus AllLast/BidAsk, stresses `24` shares over `304` canonical symbol/action cases and both `15:57` terminal sells, rejects touch-only queue inference, and auto-evaluates each cohort against the frozen boundary. Downstream live transport already liquidates at `15:57` and forbids re-entry; the observer's later `end` mark is accounting, not execution authority. Passing remains `HOLD` pending independent signal and exact selection proof; no strategy, pricing, order, or clock changed |
 
 ### Decision anchors
 
@@ -754,8 +757,10 @@ passes all `8/8` inherited UPRO/SPXU cells; the `$900` ARCA-add favorite is
 `+$564.67/506`, PF `1.396`, and `$108.03` intrabar DD. It is not a crown or an
 executable transport: discovery inspected opened outcomes, passive
 Tiered-quality fills remain unproved, and no fresh quote-derived broker
-selection exists. The live observer remains non-submitting and preserves every
-intervening decision trace. Nothing authorizes a pricing-plan change,
+selection exists. The armed r2 tape now asks the exact remaining execution
+question at full historical quantity and includes the real `15:57 ET`
+liquidation lifecycle. The live observer remains non-submitting and preserves
+every intervening decision trace. Nothing authorizes a pricing-plan change,
 subscription, backfill, forced trade, or GTH execution.
 
 **Predictive observation:** the next binary evidence is the instrument-matched

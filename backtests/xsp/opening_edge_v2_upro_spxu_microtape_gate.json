@@ -1,0 +1,88 @@
+{
+  "schema": "xsp.opening-edge-v2-upro-spxu-microtape-gate.v1",
+  "frozen_at_utc": "2026-07-29T05:25:00Z",
+  "authority": "prospective_execution_validation_only",
+  "candidate": "opening-edge-v2-damage-short-financing",
+  "session_date_et": "2026-07-29",
+  "capture_window_et": [
+    "09:25:00",
+    "16:05:00"
+  ],
+  "vehicle_pair": {
+    "up": "UPRO",
+    "down": "SPXU"
+  },
+  "cash_identity": {
+    "fixed_entry_notional_usd": 900.0,
+    "maximum_historical_quantity": 24,
+    "pricing_research": "Tiered",
+    "settlement": "T_plus_1"
+  },
+  "cost_boundary": {
+    "maximum_passing_mean_stage_spread_fraction": 0.322509765625,
+    "first_failing_mean_stage_spread_fraction": 0.3232421875,
+    "reference_minimum_optimistic_fill_share_if_remainder_crosses": 0.9033203125
+  },
+  "prospective_method": {
+    "market_data": [
+      "streaming live L1",
+      "AllLast tick by tick",
+      "BidAsk tick by tick"
+    ],
+    "runtime_arrival_offset_seconds": 2.0,
+    "normal_decisions_per_symbol_action": 76,
+    "normal_cases": 304,
+    "terminal_sell_cases": 2,
+    "phase_seconds": {
+      "OPTIMISTIC": 6.0,
+      "MID": 6.0,
+      "AGGRESSIVE": 6.0,
+      "CROSS": 6.0
+    },
+    "pass_law": [
+      "every full-size case fills by CROSS",
+      "every normal symbol/action cohort independently remains at or below the cost boundary",
+      "the combined normal tape remains at or below the cost boundary",
+      "both 15:57 ET terminal sells fill by CROSS",
+      "both symbols retain live quotes and reported tick-by-tick trade and bid-ask evidence",
+      "no noninformational broker error occurs"
+    ],
+    "queue_safety": "Before CROSS, touch alone receives no fill credit; only full displayed marketability or reported strict trade-through qualifies."
+  },
+  "lifecycle_boundary": {
+    "selected_owner_liquidation_et": "15:57:00",
+    "reentry_after_liquidation": false,
+    "capture_covers_bounded_ladder_through_et": "16:05:00",
+    "observer_end_mark": "counterfactual accounting only"
+  },
+  "provenance": {
+    "q_bundle_manifest_sha256": "ee588b34c653ae7e5812fdab041519c3086e93414f0319031361f1b8f9273d00",
+    "capture_source_sha256": "32f28977dff28f45785987c2e50027723402b0e6b02eb0ce5f75a8ac4183a2ed",
+    "evaluator_sha256": "9ae3cd599dad29e0cc35560271e0c825d9f5ccd490a678593c64988dca4c6a40",
+    "full_preregistration_sha256": "f09c264b78b3d923921ff6ccc6230b53bcc13edf0f8dd58e6280f589d0d18c81",
+    "spread_tolerance_result_sha256": "b64a7d5c335c7d7ef1d74edfb8ec4e923bc5f70196f7ac43c9b0ffd428718284",
+    "candidate_receipt_sha256": "a33c0eb017f50f6add6d8f65b82a49ec0f7c4eb1824237f0df948d9a19e8fdd7",
+    "execution_owner_sha256": "96d8a394d2be5aa245ef958e7d9e9da6ddae21ee493040a0656b85f867036603"
+  },
+  "state_at_freeze": {
+    "capture_result_exists": false,
+    "gate_result_exists": false,
+    "selected_transport_exists": false,
+    "relevant_open_orders": 0,
+    "relevant_positions": 0,
+    "observer_order_authority": "none",
+    "profitability_clock_started": false
+  },
+  "interpretation": [
+    "A pass proves only that the frozen E-262 cash cost assumption was physically attainable on one prospective instrument-matched session.",
+    "Independent validation of the outcome-exposed signal repair, fresh quote-derived sizing, broker what-if, restart and selected identity proof remain mandatory.",
+    "Failure remains HOLD and cannot move the threshold, reduce quantity, alter the ladder, change pricing, or reopen a rejected ETF family."
+  ],
+  "crown_changed": false,
+  "runtime_changed": false,
+  "pricing_changed": false,
+  "selection_changed": false,
+  "profitability_clock_started": false,
+  "order_authority": "none",
+  "submitted_orders": 0
+}
