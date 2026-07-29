@@ -330,8 +330,14 @@ unchanged against the moving market; attribute every raw/admitted/blocked turn,
 position, MFE/MAE, exit, and execution-ladder transition; prove continuous
 data, transport economics, cash/safety, and restart parity; then graduate the
 same content-addressed identity into bounded live authority and immutable
-`24h → 48h → five-session` profitability verdicts. This event-driven lane
-preempts every research sidequest without requiring active poll loops.
+`24h → 48h → five-session` profitability verdicts. In parallel, use only
+bounded causal evidence to improve top/bottom timing, long-horizon P&L/DD, and
+shock-day behavior: a successor must remain positive and superior over the
+latest four weeks, every complete July-to-July year since July 2023, and the
+full three-year challenge—not hide one weak regime inside aggregate profit.
+This event-driven spot lane preempts every research sidequest without requiring
+active poll loops; alpha/theta structures remain a later-week expansion after
+directional consistency is proven.
 
 1. `[DONE]` Opening Edge v2 earned the historical crown with positive recent,
    all three annual slices, full-three-year economics, both directions, both
@@ -383,11 +389,20 @@ preempts every research sidequest without requiring active poll loops.
     latency, drawdown, and concentration gates. No Nasdaq subscription,
     what-if, selection, order, or clock is justified.
 14. `[WIP]` Continue event-driven live technical commissioning while capital
-    remains `HOLD`: preserve every proposal/gate/position/exit trace and do not
-    reopen rejected ETF families. Any new spot execution path must be
-    materially different, preregistered, and economically complete.
-15. `[BLOCKED]` Option structures and any live-capital canary belong to a later
-    quest after directional causality is proven.
+    remains `HOLD`: preserve every proposal/gate/position/exit trace and use
+    exact extrema, multihorizon slope/velocity/ATR, MFE/MAE, and shock-state
+    attribution to sharpen only stable cross-regime signal timing.
+15. `[OBSERVE]` Preserve the preregistered UPRO/SPXU RTH Tiered feasibility
+    bound without treating it as a candidate. The completed Network B tape is
+    SPYU/SPXU and cannot prove UPRO fills; causal one-cent tradethrough loses
+    Years 1/2, and the optimistic `$180.22` intrabar DD exceeds the frozen
+    `$135` live cap. Only instrument-matched prospective evidence may close
+    this hypothesis; no pricing-plan change, retuning, selection, or order.
+16. `[WIP]` Any new spot execution path must be materially different,
+    preregistered, and economically complete; do not reopen rejected ETF
+    families through sizing, spread, timing, or hindsight assumptions.
+17. `[BLOCKED]` Alpha/theta structures and any live-capital canary belong to a
+    later quest after directional causality and spot consistency are proven.
 
 ---
 
@@ -444,24 +459,19 @@ must be advanced, traced, and consumed identically; otherwise remove the lie.
 - Quote timer is persistent; the bounded v2 observer timer is not. Its six
   calendar lanes cover completed GTH/RTH bars plus one `16:17 ET`
   RTH-finalization read; Curb never owns a trade.
-- q is clean and intentionally pinned at `bb5bcd8…` while the July 28 quote
-  recorder is active; local/GitHub are `90ea30c…`. Installed
-  service/timer hashes are `921e5a65…` / `814f3726…`. Preflight checkpoint
-  `708905de…` froze `2026-07-27 20:15 ET`, recorded no paired equity, skipped
-  broker requests, and retained `order_authority=none`; manifest `8363da96…`.
-  First checkpoint `4dc8695a…` at `20:22 ET` and recurring checkpoint
-  `aad9021b…` at `20:27 ET` were both `EVALUATED`, fresh, identity-stable,
-  selection-stable, positionless, and breach-free. Their immutable manifests
-  are `76651618…` / `d8509c3f…`; recurring cadence is enabled.
-- The published ETF execution observer is not yet installed on q. It requests
-  nothing for flat/unchanged state; an entry, exit, or flip alone can snapshot
-  live NBBO, the shared tick-normalized price ladder, and broker what-if
-  economics. Its linked acceptance receipt remains immutable `HOLD`.
-- SMART/ARCA SPY API top-of-book is unentitled (`10089`), while explicit
-  `OVERNIGHT` SPY returned a live type-1 `738.98/739.13` book without a fee or
-  order. Pre-open historical bars lagged roughly ten minutes, then the first
-  live GTH checkpoint supplied a completed SPY close only `120.49s` old. Keep
-  streaming and history provenance distinct; neither may excuse stale data.
+- q remains clean at the published `f9f8d3f4…` execution milestone; the
+  deployed content-addressed v2 observer is the unchanged `ba6d49b…` strategy
+  owner, and later brain-only revisions do not alter its bytes. Its five-minute
+  timer is enabled and naturally recurring without backfill, selection, broker
+  orders, or profitability-clock authority.
+- Network B and Cboe index subscriptions now provide the live inputs required
+  by the observer: broker-qualified ETF books plus fresh XSP RTH signal bars.
+  Entitlement is no longer the blocker; executable transport economics are.
+- The state-change execution observer remains non-submitting and silent while
+  flat. Every tested whole-share cash-ETF transport is rejected, so its
+  historical quote/preview evidence cannot confer selection. Continue
+  event-driven signal/gate/P&L attribution under `HOLD`; any next spot path must
+  be materially different and preregistered.
 - Exact activation transaction: [`deploy/systemd/README.md`](deploy/systemd/README.md).
 
 ---
