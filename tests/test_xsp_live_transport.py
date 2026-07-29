@@ -532,6 +532,40 @@ def test_v3_cash_equity_starts_one_usd_profitability_clock(
     ]
 
 
+def test_v3_selection_rejects_a_higher_broker_commission_bound(
+    tmp_path: Path,
+) -> None:
+    preview = _v3_preview()
+    preview["rows"][0]["preview"]["max_commission"] = 1.0
+    preview_path = _write(tmp_path / "v3-high-max-commission.json", preview)
+
+    with pytest.raises(ValueError, match="exact v3 preview"):
+        select_xsp_v3_transport(
+            cash_receipt_path=Path(
+                "backtests/xsp/opening_edge_v3_regime_harmony_cash_receipt.json"
+            ),
+            preview_path=preview_path,
+            source_receipt=_source(
+                None,
+                recorded_at=SELECTED_AT - timedelta(seconds=30),
+            ),
+            broker_snapshot={
+                "observed_at_utc": (SELECTED_AT - timedelta(seconds=5)).isoformat(),
+                "cash_observed_at_utc": (
+                    SELECTED_AT - timedelta(seconds=10)
+                ).isoformat(),
+                "account_id": "DU123456",
+                "account_type": "CASH",
+                "settled_cash_usd": 1_200.0,
+                "positions": {"UPRO": 0, "SPXU": 0},
+                "unrelated_positions": [],
+                "open_orders": [],
+            },
+            selected_at=SELECTED_AT,
+            rth_scope_accepted=True,
+        )
+
+
 def test_v3_selection_rejects_a_stale_internal_book(tmp_path: Path) -> None:
     preview = _v3_preview()
     preview["rows"][0]["books"]["smart"]["observed_at_utc"] = (

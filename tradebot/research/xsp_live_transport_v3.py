@@ -126,9 +126,14 @@ def _validated_nominee(
             row.get("tiered_conservative_buy_fee_usd"),
             name=f"{symbol} modeled Tiered commission",
         )
-        observed = _number(
-            what_if.get("commission") if isinstance(what_if, Mapping) else None,
-            name=f"{symbol} preview commission",
+        commission_values = (
+            [
+                _number(value, name=f"{symbol} preview {key}")
+                for key in ("commission", "min_commission", "max_commission")
+                if (value := what_if.get(key)) is not None
+            ]
+            if isinstance(what_if, Mapping)
+            else []
         )
         bounds = ranges[symbol]
         if (
@@ -147,8 +152,9 @@ def _validated_nominee(
             or order.get("tif") != "DAY"
             or not isinstance(what_if, Mapping)
             or what_if.get("commission_currency") != "USD"
-            or observed <= 0
-            or observed > modeled + 0.01
+            or not commission_values
+            or min(commission_values) <= 0
+            or max(commission_values) > modeled + 0.01
             or row.get("effective_tiered_commission") is not True
             or row.get("cash_fit") is not True
             or not isinstance(books, Mapping)
