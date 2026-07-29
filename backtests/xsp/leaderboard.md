@@ -316,8 +316,16 @@ result `f5e920af…`, cash result `6a668c16…`, the full E-265→E-270 lineage,
 the rejected deterioration neighbor.
 
 E-269/E-270 is the strongest cross-regime development lineage, not a crown or
-live authority. It was discovered on opened history; independent signal
-behavior and instrument-matched passive-fill evidence remain mandatory.
+live authority. It was discovered on opened history, so independent signal
+behavior remains mandatory. Pre-tape, candidate-specific cost replay then
+removed the passive-fill dependency: conservative Tiered removal fees plus a
+complete quoted-spread cross retain `+$30.10/+$51.05/+$401.63`, recent
+`+$47.32`, and full `+$482.78/488`, PF `1.325`, intrabar DD `$116.37`.
+The same frozen ledger under measured current-Fixed commissions fails
+`-$184.31/-$124.62/+$158.84`, full `-$150.09`, PF `0.918`, DD `$325.95`.
+Accordingly the prospective execution requirement is full-size completion by
+`CROSS`, not passive queue capture; a Fixed→Tiered plan change remains a later
+explicit external decision after the live tape and signal proof pass.
 
 Its development tape ends on July 24. A preregistered July 27–28 broker-bar
 bridge reproduces both frozen signal prefixes and all `492/+$692.93` cash

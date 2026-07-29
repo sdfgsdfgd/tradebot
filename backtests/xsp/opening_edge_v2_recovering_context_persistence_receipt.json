@@ -1,6 +1,6 @@
 {
-  "schema": "xsp.opening-edge-v2-recovering-context-persistence-receipt.v3",
-  "generated_at_utc": "2026-07-29T07:24:00Z",
+  "schema": "xsp.opening-edge-v2-recovering-context-persistence-receipt.v4",
+  "generated_at_utc": "2026-07-29T07:39:00Z",
   "authority": "historical_development_challenger_and_cash_feasibility_only",
   "order_authority": "none",
   "submitted_orders": 0,
@@ -385,6 +385,46 @@
       ]
     }
   },
+  "execution_tolerance": {
+    "tiered_full_cross": {
+      "result_sha256": "006902da23f8678ef9ae1338e7de8d4d1c28a528836f1893e4e25abcaf633d85",
+      "boundary_kind": "full_cross_passes",
+      "maximum_mean_stage_spread_fraction": 1.0,
+      "required_optimistic_fill_share": 0.0,
+      "executed_trades": 488,
+      "recent_net_usd": 47.3168,
+      "year_1_net_usd": 30.1001,
+      "year_2_net_usd": 51.051,
+      "year_3_net_usd": 401.6252,
+      "full_net_usd": 482.7762,
+      "full_profit_factor": 1.3249,
+      "intrabar_max_drawdown_usd": 116.3741,
+      "scheduled_exit_net_usd": 490.8461,
+      "interpretation": "E-269 remains viable through a complete quoted-spread cross under conservative Tiered removal fees; passive fills improve economics but are not required."
+    },
+    "current_fixed_full_cross": {
+      "result_sha256": "cf838591b3e137095004963a6e583e31eecdba456a906092cd00b40175a10cfb",
+      "passes": false,
+      "executed_trades": 486,
+      "recent_net_usd": 32.753,
+      "year_1_net_usd": -184.3091,
+      "year_2_net_usd": -124.6217,
+      "year_3_net_usd": 158.8385,
+      "full_net_usd": -150.0923,
+      "full_profit_factor": 0.9183,
+      "intrabar_max_drawdown_usd": 325.9528,
+      "scheduled_exit_net_usd": -141.7925,
+      "interpretation": "The account's current Fixed ticket minimum remains economically ineligible; only a prospective Fixed-to-Tiered plan decision can open this transport after every other gate passes."
+    },
+    "prospective_microtape": {
+      "bundle_manifest_sha256": "4f18b795fcbe8c862a829fdf02b6cc47415241b3a3eb1d11ccdfd648f8e6870b",
+      "session_date_et": "2026-07-29",
+      "quantity": 24,
+      "capture_unchanged": true,
+      "required_result": "every normal BUY/SELL and terminal SELL case completes by CROSS with healthy live L1, AllLast, and BidAsk evidence",
+      "pass_remains_hold": true
+    }
+  },
   "post_development_holdout": {
     "development_last_bar_utc": "2026-07-24T20:00:00+00:00",
     "sessions": [
@@ -434,6 +474,9 @@
     "cash_positive_both_directions": true,
     "cash_passes_drawdown_cap": true,
     "cash_survives_scheduled_exit_stress": true,
+    "tiered_full_cross_passes": true,
+    "passive_fill_required": false,
+    "current_fixed_full_cross_passes": false,
     "crown_eligible": false,
     "crown_changed": false,
     "runtime_changed": false,
@@ -441,7 +484,8 @@
     "profitability_clock_started": false,
     "blockers": [
       "The recovery-phase maturation cohort was discovered on opened historical outcomes and requires independent frozen or prospective validation.",
-      "Passive Tiered-quality UPRO/SPXU fills remain a mathematical bound until the armed instrument-matched microtape proves attainability.",
+      "The armed instrument-matched microtape must prove every full-size case completes by CROSS; E-269 no longer requires passive fills.",
+      "Current Fixed commissions fail; a prospective Fixed-to-Tiered pricing-plan decision remains external and unauthorized.",
       "No selected-run identity, broker preview, restart proof, or bounded capital authority exists."
     ]
   }

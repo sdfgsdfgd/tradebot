@@ -1,8 +1,8 @@
 # XSP Mastery — Live Research Kata
 
 - **Status:** `[ACTIVE] v2 technical observation continues; the strongest
-  cross-regime cash challenger awaits independent signal/passive-fill proof,
-  and capital authority remains HOLD`
+  cross-regime cash challenger awaits independent signal/full-size execution
+  proof, and capital authority remains HOLD`
 - **Authority:** canonical resume state, active task tree, critical evidence
   index, and promotion contract
 - **Cold history:** [`q_XSP_live_research_kata-archive.md`](q_XSP_live_research_kata-archive.md)
@@ -39,7 +39,7 @@ output belongs in commit/final verification, not in this management brain.
 | RTH signal freshness | **cleared:** after the user activated `CBOE Streaming Market Indexes`, zero-order receipt `acce7ed3…` returned live type-1 XSP, current five-minute history, and real-time `TRADES` bars without a Gateway restart; the natural `10:07 ET` centralized v2 checkpoint then evaluated with both XSP and SPY through `10:05` and `120s` age |
 | Order/capital authority | `none` |
 | Profitability clock | v2 `NOT_STARTED`; predecessor evidence does not transfer |
-| Execution verdict | `HOLD`; E-262 passes historical Tiered/T+1 cash geometry, but live selection still requires the armed full-depth tape to remain at or below its exact `0.322509765625` mean stage-cost boundary plus independent signal validation |
+| Execution verdict | `HOLD`; E-269 survives Tiered full-cross (`+$482.78`, PF `1.325`, DD `$116.37`) but current Fixed loses `-$150.09`; live selection still requires every armed `24`-share tape case to complete by `CROSS`, independent signal validation, and an explicit later Fixed→Tiered decision |
 | Next irreversible evidence | the next admitted or blocked technical turn plus the armed instrument-matched UPRO/SPXU microtape; neither historical transport P&L nor passive observation may start the clock |
 | First active work | monitor technical proposals, exact gate pass/block, positions, flips/exits, and P&L; news joins only after its natural four-hour publication and never drives work cadence |
 
@@ -98,21 +98,23 @@ output belongs in commit/final verification, not in this management brain.
     Receipt `opening_edge_v2_tqqq_sqqq_transport_receipt.json` and q archive
     manifest `ddd42ac0…` close the whole-share cash-ETF frontier with no
     selection, order, or clock.
-15. `[WIP]` Validate E-262 independently. Its strictly-prior damage/recovery
-    state plus short-only financing owner improves every annual slice and
-    produces positive historical cash geometry across all eight inherited
-    UPRO/SPXU cells. Immutable r2 observes live L1 plus tick-by-tick
-    trade-through at `24` shares over every canonical RTH decision and the
-    selected owner's `15:57 ET` liquidation. It cannot earn pricing, runtime,
-    selection, order, or clock authority until that prospective tape and a
-    genuinely later signal boundary pass.
+15. `[WIP]` Validate E-269 independently. It improves every annual signal slice
+    and preserves positive cash geometry through a complete quoted-spread cross
+    under conservative Tiered removal fees. Immutable r2 captures live L1 plus
+    tick-by-tick trade-through at `24` shares over every canonical RTH decision
+    and the `15:57 ET` liquidation; immutable r3 judges only whether every case
+    completes by `CROSS`. Current Fixed fails and no pricing change is
+    authorized. Runtime, selection, orders, and the clock stay closed until the
+    prospective tape, genuinely later signal boundary, and explicit pricing
+    decision all pass.
 
 ### Never infer
 
 - XSP is the RTH index signal/reference. One-share SPY and base-ledger
-  fixed-quantity UPRO/SPXU execution are economically rejected. E-262 is a
-  distinct bounded validation challenge; historical cash geometry is not a
-  substitute for authentic passive fills and independent signal evidence.
+  fixed-quantity UPRO/SPXU execution are economically rejected. E-269 is a
+  distinct bounded validation challenge; Tiered full-cross feasibility is not
+  a substitute for authentic full-size completion, independent signal
+  evidence, or an explicit pricing-plan decision.
 - Shadow selection freezes attribution before outcomes; it grants no broker,
   order, option, or capital authority.
 - Historical positive P&L, safe abstention, infrastructure uptime, delayed
@@ -461,11 +463,16 @@ directional consistency is proven.
     `+$4.70` modeled UPRO net after `$0.70` cost. E-269 equals E-267 there
     because the special maturation branch did not fire; this is independent
     non-regression, not yet branch validation.
+    Candidate-specific pre-tape replay now proves passive fills are unnecessary:
+    full quoted-spread crossing under conservative Tiered removal fees remains
+    `+$30.10/+$51.05/+$401.63`, recent `+$47.32`, full `+$482.78/488`,
+    PF `1.325`, DD `$116.37`. Measured current-Fixed instead loses
+    `-$184.31/-$124.62/+$158.84`, full `-$150.09`, PF `0.918`, DD `$325.95`.
     Receipt `opening_edge_v2_recovering_context_persistence_receipt.json` is the
-    compact authority. This remains mathematical only: one bounded UPRO/SPXU
-    Network B tape at the next `09:25..16:05 ET` session must prove passive
-    Tiered-quality fills before any pricing-plan decision, runtime promotion,
-    selection, or order.
+    compact authority. One bounded UPRO/SPXU Network B tape at
+    `09:25..16:05 ET` must now prove every `24`-share case completes by `CROSS`.
+    A pass remains `HOLD` before independent signal behavior, an explicit
+    Fixed→Tiered decision, runtime promotion, selection, or order.
 16. `[WIP]` Any new spot execution path must be materially different,
     preregistered, and economically complete; do not reopen rejected ETF
     families through sizing, spread, timing, or hindsight assumptions.
@@ -660,8 +667,9 @@ and
 | E-267 | the categorical phase neighbor strengthens E-265 without a threshold: extend one-bar `21/84` agreement proof from recovery to flat state, but preserve immediate reversal authority during deterioration. Signal becomes `+$29.52/+$49.46/+$136.01`, recent `+$11.95/16`, full `+$215.00/696` (`232.6/year`), PF `1.586`, DD `24.05`; every annual slice and full net improve versus recovery-only. The recovery+deterioration neighbor falls to `+$192.16`, proving that persistent decline is not a patience regime. Result `e7a5b58c…`, RTH ledger `96f53000…`; outcome exposure keeps it below crown/runtime/selection/order/clock authority |
 | E-268 | unchanged Tiered/T+1 cash replay makes all `8/8` E-267 cells positive in recent, every annual slice, and full period. The `$900` ARCA-add primary is `+$112.56/+$87.35/+$450.55`, full `+$650.46/509`, PF `1.447`, intrabar DD `$105.67`, with up/down `+$230.71/+$419.76`; scheduled-exit stress improves to `+$660.05`. Tracked receipt binds full result `cf4596a…`. Year 1 now clears `+$100`; Year 2 remains the sole material balance gap. Passive-fill and independent-signal proof remain mandatory; no live authority changed |
 | E-269 | exact lifecycle replay isolates the remaining cross-year weak bullish signature without a decimal threshold: during strictly-prior recovery only, an up proposal with exactly three observed impulse horizons and non-unanimous coherence must close higher one bar later, preserve its up source, and retain fast slope-velocity agreement. Both preregistered `2/3` and `3/3` neighbors improve Years 1/2. Preferred `3/3` admits only `6/43` suspect proposals and reaches `+$30.90/+$52.76/+$141.89`, recent `+$15.18/15`, full `+$225.56/678` (`226.6/year`), PF `1.639`, DD `23.11`; both sides/lanes remain positive. Result `f5e920af…`, RTH ledger `94374cab…`. It is the strongest development leader, not a crown or runtime change: discovery is outcome-exposed and independent proof remains absent |
-| E-270 | unchanged UPRO/SPXU Tiered/T+1 replay validates both adjacent E-269 cells across all `8/8` inherited `$850..925` midpoint/ARCA-add settings, with every period positive. Preferred `$900` `3/3` is `+$119.69/+$103.41/+$469.82`, recent `+$52.22`, full `+$692.93/492`, PF `1.498`, intrabar DD `$95.63`, up/down `+$288.89/+$404.04`, scheduled stress `+$701.00`; versus E-267 it improves every period, full net by `6.53%`, and DD by `9.50%`. Adjacent `2/3` is `+$139.47/+$104.05/+$402.13`, proving stability while exposing the balance/full-return tradeoff. Tracked receipt v3 binds result `6a668c16…`. Passive-fill and independent-signal proof remain mandatory; no pricing, selection, order, or clock authority changed |
+| E-270 | unchanged UPRO/SPXU Tiered/T+1 replay validates both adjacent E-269 cells across all `8/8` inherited `$850..925` midpoint/ARCA-add settings, with every period positive. Preferred `$900` `3/3` is `+$119.69/+$103.41/+$469.82`, recent `+$52.22`, full `+$692.93/492`, PF `1.498`, intrabar DD `$95.63`, up/down `+$288.89/+$404.04`, scheduled stress `+$701.00`; versus E-267 it improves every period, full net by `6.53%`, and DD by `9.50%`. Adjacent `2/3` is `+$139.47/+$104.05/+$402.13`, proving stability while exposing the balance/full-return tradeoff. Tracked receipt v4 binds result `6a668c16…` plus the later cost boundary. Independent signal and authentic full-size execution proof remain mandatory; no pricing, selection, order, or clock authority changed |
 | E-271 | E-269 development ends at July 24; a preregistered broker-bar bridge therefore opens only July 27–28. Combined replay reproduces frozen E-267/E-269 ledgers and all `492/+$692.93` cash-prefix trades exactly. The sole held-out RTH trade is up from `11:20→16:00 ET` on July 28: `+0.96` XSP points, MFE/MAE `3.49/0.21`; unchanged `$900` UPRO uses `6` shares and models `+$5.40` gross, `$0.70` cost, `+$4.70` net with no block/unavailable fill. E-269 equals E-267 because the special maturation branch did not occur. Receipt `1404caf4…` is independent non-regression/transport evidence, not branch validation, a crown, selection, order, or clock start |
+| E-272 | before the July 29 tape started, candidate-specific preregistration proved E-269 survives a complete quoted-spread cross under conservative Tiered removal fees: `+$30.10/+$51.05/+$401.63`, recent `+$47.32`, full `+$482.78/488`, PF `1.325`, intrabar DD `$116.37`; required optimistic-fill share is therefore `0%`. Measured current-Fixed full-cross fails `-$184.31/-$124.62/+$158.84`, full `-$150.09`, PF `0.918`, DD `$325.95`. Immutable q bundle `4f18b795…` supersedes only the still-unfired post-capture evaluator: byte-identical r2 capture/timing/`24`-share quantity remains, while r3 requires all `304` normal and two terminal cases to complete by `CROSS`. Pass remains `HOLD` pending independent signal, explicit Fixed→Tiered choice, exact preview/identity/restart, and selection; no pricing, runtime, order, or clock changed |
 
 ### Decision anchors
 
@@ -779,20 +787,25 @@ all `8/8` inherited UPRO/SPXU cells positive, while preferred `$900` ARCA-add
 reaches `+$119.69/+$103.41/+$469.82`, full `+$692.93/492`, PF `1.498`, and
 `$95.63` intrabar DD. Adjacent `2/3` reaches
 `+$139.47/+$104.05/+$402.13`, confirming a stable balance frontier. This is not
-a crown or executable transport: discovery inspected opened outcomes, passive
-Tiered-quality fills remain unproved, and no fresh quote-derived broker
-selection exists. The untouched July 27–28 bridge is positive
+a crown or executable transport: discovery inspected opened outcomes and no
+fresh quote-derived broker selection exists. Candidate-specific replay proves
+E-269 remains viable even at Tiered full cross (`+$482.78`, PF `1.325`,
+DD `$116.37`), so passive fills are not required; current Fixed fails
+`-$150.09`, PF `0.918`, DD `$325.95`, leaving a later explicit Fixed→Tiered
+decision. The untouched July 27–28 bridge is positive
 (`+0.96` XSP points; `+$4.70` modeled UPRO net) with exact prefix parity, but
-the new maturation branch did not fire. The armed r2 tape asks the
-exact execution question at full historical quantity and includes the real
-`15:57 ET` liquidation lifecycle. The live observer remains non-submitting.
+the new maturation branch did not fire. The armed r2 tape plus r3 evaluator asks
+the exact execution question at full historical quantity: every case must
+complete by `CROSS`, including the real `15:57 ET` liquidation lifecycle. The
+live observer remains non-submitting.
 Nothing authorizes a pricing-plan change, subscription, backfill, forced trade,
 or GTH execution.
 
 **Predictive observation:** the next binary evidence is the instrument-matched
-UPRO/SPXU microtape plus a genuinely later signal boundary. If passive fill
-quality and independent behavior validate the frozen lineage, proceed to exact
-quote-derived sizing, non-transmitting broker preview, restart/identity proof,
-and only then bounded live selection. If either fails, retain `HOLD` and close
-the branch—do not reopen profit locks, reversal delays, breadth/news authority,
-another ETF pairing, or threshold mining.
+UPRO/SPXU microtape plus a genuinely later signal boundary. If full-size
+completion by `CROSS` and independent behavior validate the frozen lineage,
+present the explicit Fixed→Tiered decision, then proceed to exact quote-derived
+sizing, non-transmitting broker preview, restart/identity proof, and only then
+bounded live selection. If either fails, retain `HOLD` and close the branch—do
+not reopen profit locks, reversal delays, breadth/news authority, another ETF
+pairing, or threshold mining.
