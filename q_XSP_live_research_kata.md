@@ -481,7 +481,9 @@ directional consistency is proven.
     `09:25..16:05 ET` must now prove every `24`-share case completes by `CROSS`.
     July 29's strictly-prior state is already `deteriorating`, so its sealed
     replay can prove prefix/ordinary non-regression but cannot exercise or
-    independently validate E-269's recovery-only maturation branch.
+    independently validate E-269's recovery-only maturation branch. From the
+    frozen seed, only a July 29 close above `749.94` makes July 30
+    recovery-eligible; this is scheduling evidence, never a price trigger.
     A pass remains `HOLD` before independent signal behavior, an explicit
     Fixed→Tiered decision, runtime promotion, selection, or order.
 16. `[WIP]` Any new spot execution path must be materially different,
