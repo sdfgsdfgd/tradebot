@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import cast
@@ -270,7 +270,9 @@ def xsp_opening_edge_v3_equities(
         daily
     ).context_fingerprint
     paired["daily_context_appends"] = [
-        row.as_payload() for row in daily if row.day > spec.daily_context_seed[-1].day
+        {**asdict(row), "day": row.day.isoformat()}
+        for row in daily
+        if row.day > spec.daily_context_seed[-1].day
     ]
     return paired
 

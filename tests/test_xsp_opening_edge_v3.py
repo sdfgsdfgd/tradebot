@@ -23,6 +23,7 @@ from tradebot.research.xsp_opening_edge_v3 import (
     load_xsp_opening_edge_v3_spec,
     next_xsp_v3_run_start,
     xsp_opening_edge_v3_bundle,
+    xsp_opening_edge_v3_equities,
     xsp_opening_edge_v3_run_start,
 )
 from tradebot.research.xsp_opening_edge_state import (
@@ -146,9 +147,46 @@ def test_opening_edge_v3_context_appends_only_complete_exact_rth() -> None:
     complete = _complete_rth(date(2026, 7, 29))
     [fresh] = xsp_daily_bars_from_intraday(complete)
     merged = merge_xsp_daily_context(spec.daily_context_seed, fresh=(fresh,))
+    prior_close = datetime(2026, 7, 28, 16, 0, tzinfo=ET_ZONE).astimezone(
+        timezone.utc
+    ).replace(tzinfo=None)
+    gth_close = datetime(2026, 7, 29, 8, 35, tzinfo=ET_ZONE).astimezone(
+        timezone.utc
+    ).replace(tzinfo=None)
+    paired = xsp_opening_edge_v3_equities(
+        spec=spec,
+        spy_bars=(
+            Bar(prior_close, 632.0, 632.0, 632.0, 632.0, 1.0),
+            Bar(gth_close, 631.0, 631.2, 630.8, 631.1, 1.0),
+            *(
+                Bar(row.ts, 632.0, 632.1, 631.9, 632.0, 1.0)
+                for row in complete
+            ),
+        ),
+        xsp_rth_bars=(
+            Bar(prior_close, 742.73, 742.73, 742.73, 742.73, 1.0),
+            *complete,
+        ),
+        observed_at=datetime(2026, 7, 29, 16, 17, tzinfo=ET_ZONE),
+        run_started_at=datetime(2026, 7, 29, 8, 30, tzinfo=ET_ZONE),
+    )
+    persisted = {
+        "strategy_version": XSP_OPENING_EDGE_V3_TRANSPORT_VERSION,
+        "evidence": {"paired_equity": paired},
+    }
 
     assert len(merged) == 1258
     assert merged[-1].day == date(2026, 7, 29)
+    assert paired["daily_context_appends"] == [
+        {
+            "day": fresh.day.isoformat(),
+            "open": fresh.open,
+            "high": fresh.high,
+            "low": fresh.low,
+            "close": fresh.close,
+        }
+    ]
+    assert _persisted_daily_context((persisted,)) == (fresh,)
     assert xsp_daily_bars_from_intraday(complete[:20]) == ()
     assert xsp_daily_bars_from_intraday(complete[20:]) == ()
 
