@@ -1,0 +1,148 @@
+{
+  "authority": "historical_attribution_only",
+  "bar_minutes": 5,
+  "candidate_created": false,
+  "causal_limit": "The cohort is known only after the opposite source persists through the hold boundary. It cannot be used as an entry-time or first-turn label.",
+  "cohorts": {
+    "other_rth_trades": {
+      "directions": {
+        "down": 139,
+        "up": 128
+      },
+      "mean_mae_points": 1.2666,
+      "mean_mfe_points": 2.5363,
+      "mean_points": 1.1469,
+      "median_points": 0.48,
+      "net_points": 306.22,
+      "periods": {
+        "year_1": {
+          "net_points": 63.79,
+          "trades": 94
+        },
+        "year_2": {
+          "net_points": 88.13,
+          "trades": 82
+        },
+        "year_3": {
+          "net_points": 154.3,
+          "trades": 91
+        }
+      },
+      "trades": 267,
+      "win_rate": 0.6142
+    },
+    "persistent_inverse_before_hold": {
+      "directions": {
+        "down": {
+          "net_points": -6.27,
+          "trades": 86
+        },
+        "up": {
+          "net_points": -18.98,
+          "trades": 72
+        }
+      },
+      "mean_mae_points": 1.1005,
+      "mean_mfe_points": 1.2488,
+      "mean_points": -0.1598,
+      "median_points": -0.245,
+      "net_points": -25.25,
+      "periods": {
+        "year_1": {
+          "net_points": 0.19,
+          "trades": 57
+        },
+        "year_2": {
+          "net_points": -22.36,
+          "trades": 45
+        },
+        "year_3": {
+          "net_points": -3.08,
+          "trades": 56
+        }
+      },
+      "trades": 158,
+      "win_rate": 0.3987
+    },
+    "persistent_inverse_leading_by_at_least_45_minutes": {
+      "all_exit_reasons": "flip",
+      "directions": {
+        "down": 15,
+        "up": 15
+      },
+      "mean_mae_points": 1.4737,
+      "mean_mfe_points": 0.429,
+      "mean_points": -1.1653,
+      "median_points": -1.1,
+      "net_points": -34.96,
+      "period_direction": {
+        "year_1_down": {
+          "net_points": -2.93,
+          "trades": 4,
+          "wins": 1
+        },
+        "year_1_up": {
+          "net_points": -5.65,
+          "trades": 8,
+          "wins": 1
+        },
+        "year_2_down": {
+          "net_points": -4.8,
+          "trades": 4,
+          "wins": 1
+        },
+        "year_2_up": {
+          "net_points": -6.82,
+          "trades": 5,
+          "wins": 0
+        },
+        "year_3_down": {
+          "net_points": -9.68,
+          "trades": 7,
+          "wins": 0
+        },
+        "year_3_up": {
+          "net_points": -5.08,
+          "trades": 2,
+          "wins": 0
+        }
+      },
+      "periods": {
+        "year_1": {
+          "net_points": -8.58,
+          "trades": 12
+        },
+        "year_2": {
+          "net_points": -11.62,
+          "trades": 9
+        },
+        "year_3": {
+          "net_points": -14.76,
+          "trades": 9
+        }
+      },
+      "trades": 30,
+      "win_rate": 0.1
+    }
+  },
+  "definition": "The raw directional source turns opposite before the frozen 12-bar ownership boundary and remains opposite through the first otherwise-eligible flip.",
+  "frozen_hold_bars": 12,
+  "full_anatomy_sha256": "9bad2f764e8f3b90689f080afefeb20d0348e31868d0761d9c7cfb115a44df80",
+  "generated_at_utc": "2026-07-29T17:45:49Z",
+  "historical_rth_ledger_sha256": "40708a28476fad504d29b1222e52b88481b1c0da8313ed4667076e2b6ed3f157",
+  "next_preregisterable_question": "Can one fixed causal early-surrender proof, using only already-observed consecutive inverse source bars before the current hold boundary, improve every annual slice and both directions without reducing the recent/full/cadence/DD crown gates?",
+  "order_authority": "none",
+  "prospective_match": {
+    "date": "2026-07-29",
+    "direction": "up",
+    "inverse_lead_minutes": 45,
+    "matched_cohort": "persistent_inverse_leading_by_at_least_45_minutes",
+    "net_points": -2.42
+  },
+  "rule_change": false,
+  "schema": "xsp.opening-edge-v3-minimum-ownership-inverse-anatomy-receipt.v1",
+  "selection_created": false,
+  "submitted_orders": 0,
+  "verdict": "high_power_deferred_hypothesis_not_live_authority",
+  "verifier_sha256": "4ca85e039f14251be65252b8ed1570a9c048f48bbd6ab9a0c922c03a00330eb1"
+}
