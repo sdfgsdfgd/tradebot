@@ -486,6 +486,14 @@ directional consistency is proven.
     recovery-eligible; this is scheduling evidence, never a price trigger.
     A pass remains `HOLD` before independent signal behavior, an explicit
     Fixed→Tiered decision, runtime promotion, selection, or order.
+    Read-only activation preflight also proved the current selected-cash owner
+    is SPYU/SPXU-specific across its schema, evidence adapters, allowed
+    notionals, broker snapshot, contract/holding recovery, NAV rule, and
+    execution contract. If E-269 earns promotion, generalize that one owner in
+    place around a frozen direction-symbol pair and per-instrument requirements;
+    bind UPRO/SPXU contract IDs, `$900` cash/risk/commission identity,
+    SMART/Tiered evidence, execution policy, and daily-state/owner fingerprints.
+    Do not add a second executor or edit runtime before the prospective gates.
 16. `[WIP]` Any new spot execution path must be materially different,
     preregistered, and economically complete; do not reopen rejected ETF
     families through sizing, spread, timing, or hindsight assumptions.
@@ -686,6 +694,7 @@ and
 | E-273 | immutable pre-outcome bundle `bd2e76bd…` schedules one read-only `16:12 ET` broker-bar freeze for July 29. It requires authenticated XSP/SPY/UPRO/SPXU five-minute RTH bars through `16:00 ET`, writes atomically, validates any restart output, and carries `order_authority=none`. The later local replay must first reproduce every E-269 development prefix, then disclose whether today's untouched session changed a decision or exercised the special maturation branch. No parallel live signal owner, outcome inspection, pricing, selection, order, or clock was introduced |
 | E-274 | before any July 29 bar receipt existed, replay gate `4be8f5ed…` froze runner `0ea59f12…`, the E-269 receipt, every named research dependency, E-267/E-269 RTH prefix hashes, and the exact `492/+$692.9281` cash prefix. Its clean no-data preflight requires the future authenticated receipt through `16:00 ET`, then reports July 29 signal/cash and special-branch events separately. A positive unchanged trade is non-regression only; a failure cannot be retuned. No runtime, pricing, selection, order, or clock authority changed |
 | E-275 | broker-enforced read-only XSP daily history supplied `251` complete sessions through July 28; its 21/63/84 direction, transition, damage, and volatility categories exactly match the frozen intraday-aggregated state. Official daily closes differ from last-five-minute closes by up to `1.62`, so broker daily is drift/fallback evidence—not silent signal authority. Canonical seed `689892bf…` retains the exact minimum `94` five-minute-aggregated sessions (`2026-03-13..07-28`) and reproduces current `transition_down / deteriorating / contracting` state; immutable q bundle `a1bb6791…` preserves inputs and runners. No service consumes it and no runtime, selection, order, or clock changed |
+| E-276 | read-only activation audit found the sole live cash-pair owner is not yet E-269-compatible: `xsp_live_transport.py`, its runtime, restart risk reconstruction, broker snapshot, and selector bind SPYU/SPXU, old SPYU ranking/dwell/preview schemas, fixed `$1,050/$1,150/$1,200` notionals, SPYU NAV, and symbol-specific chase rules. A passing E-269 branch must generalize this existing owner once around selection-bound `direction_symbols` plus per-instrument requirements, then content-address UPRO/SPXU contract IDs, `$900` cash/risk/commission identity, SMART/Tiered proof, execution policy, and canonical daily-state/owner fingerprints. No second executor, runtime edit, selection, order, or clock was created |
 
 ### Decision anchors
 
@@ -729,6 +738,7 @@ and
 | D-176 | the leaderboard's global coronation law is mandatory: a free-window result may become a frozen development leader, never an automatic crown. Coronation requires cadence; positive superiority over the complete three-year tape and a strict majority of July-to-July years since July 2023; `>=5%` material three-year improvement; stability/cost proof; and an explicit milestone decision. The frozen latest four weeks remain a mandatory diagnostic, not a strict superiority gate; material unexplained recent failure may still veto |
 | D-177 | the tested whole-share cash-ETF transport frontier is closed: do not reopen SPY, UPRO/SPXU, SPXL/SPXS, SPYU/SPXU, SSO/SDS, or TQQQ/SQQQ through sizing, spread, timing, or pricing-plan hindsight. Continue live technical commissioning under HOLD; any new spot path must be materially different, preregistered, and pass complete authentic economics before broker preview or subscription |
 | D-178 | E-259 is the materially different causal signal ledger allowed by D-177; it reopens only bounded UPRO/SPXU passive-fill validation because `16/16` preregistered cash cells now pass. It does not revive the rejected base ledger, assume fills, authorize Tiered pricing, or confer crown/runtime/selection/order/clock authority |
+| D-179 | if E-269 passes prospectively, extend the one existing selected cash-pair owner rather than cloning it: the immutable selection must own direction-symbol mapping, contract IDs, per-instrument data rules, execution policy, cash/risk/commission identity, pricing/routing evidence, and E-269 state-owner/seed fingerprints. Legacy SPYU-specific defaults may not silently govern UPRO/SPXU, and implementation remains downstream of the evidence and pricing decision gates |
 
 ---
 
