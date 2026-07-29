@@ -471,6 +471,11 @@ directional consistency is proven.
     `+$30.10/+$51.05/+$401.63`, recent `+$47.32`, full `+$482.78/488`,
     PF `1.325`, DD `$116.37`. Measured current-Fixed instead loses
     `-$184.31/-$124.62/+$158.84`, full `-$150.09`, PF `0.918`, DD `$325.95`.
+    Live eligibility therefore binds SMART-routed Tiered full-cross—not direct
+    ARCA or a maker rebate; IBKR
+    [excludes directed API orders](https://www.interactivebrokers.com/en/pricing/commissions-stocks.php)
+    from Tiered and [processes plan requests](https://www.ibkrguides.com/clientportal/pricingstructure.htm)
+    no later than the following Friday, subject to its stated holding period.
     Receipt `opening_edge_v2_recovering_context_persistence_receipt.json` is the
     compact authority. One bounded UPRO/SPXU Network B tape at
     `09:25..16:05 ET` must now prove every `24`-share case completes by `CROSS`.
