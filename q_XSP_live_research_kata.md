@@ -30,7 +30,7 @@ output belongs in commit/final verification, not in this management brain.
 | Selected shadow | Opening Edge v1 predecessor `9fac460e…`; cannot confer v2 authority |
 | Research crown | **Opening Edge v2 — Balanced 24/5**; `xsp.opening-edge-v2-balanced-24x5.v1` |
 | Runtime parity | Exact prior-XSP-close GTH projection plus XSP RTH signal reproduces all `725` ordered SPY fills; the shared 24/5 exit clock now honors the session trading date |
-| Runtime source anchor | published code/GitHub and clean q are exactly `ba6d49b…`; successor archive `02dc773b…` proves source, selected-shadow, and ledger continuity |
+| Runtime source anchor | executable successor implementation `ba6d49b…`; archive `02dc773b…` proves source, selected-shadow, and ledger continuity. Later brain-only commits do not alter deployed runtime bytes |
 | Observer cadence | **cleared prospectively:** the successor splits the opening hour from `21..23 ET`, uses `Persistent=false`, and its first natural recurrence advanced `20:42→20:47 ET` at exact five-minute cadence without backfill. Predecessor gaps remain excluded from profitability coverage |
 | RTH signal freshness | **cleared:** after the user activated `CBOE Streaming Market Indexes`, zero-order receipt `acce7ed3…` returned live type-1 XSP, current five-minute history, and real-time `TRADES` bars without a Gateway restart; the natural `10:07 ET` centralized v2 checkpoint then evaluated with both XSP and SPY through `10:05` and `120s` age |
 | Order/capital authority | `none` |
