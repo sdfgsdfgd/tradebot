@@ -786,7 +786,10 @@ def test_risk_state_uses_actual_fills_commissions_and_liquidation_bid(
         liquidation_bids={"SPYU": 31.0},
     )
     assert open_risk["open_mark_net_usd"] == 7.0
+    assert open_risk["run_gross_usd"] == 8.0
+    assert open_risk["run_cost_usd"] == 1.0
     assert open_risk["run_net_usd"] == 7.0
+    assert open_risk["closed_trades"] == 0
 
     closed_records = records + (
         {
@@ -821,7 +824,12 @@ def test_risk_state_uses_actual_fills_commissions_and_liquidation_bid(
         liquidation_bids={},
     )
     assert closed_risk["run_realized_net_usd"] == 10.0
+    assert closed_risk["run_gross_usd"] == 12.0
+    assert closed_risk["run_cost_usd"] == 2.0
     assert closed_risk["open_mark_net_usd"] == 0.0
+    assert closed_risk["closed_trades"] == 1
+    assert closed_risk["gross_wins_usd"] == 12.0
+    assert closed_risk["top_five_gross_wins_usd"] == 12.0
     assert closed_risk["fill_count"] == 2
 
 

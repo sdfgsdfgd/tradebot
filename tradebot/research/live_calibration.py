@@ -7,17 +7,23 @@ import hashlib
 import json
 import math
 import os
-from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Iterator, Mapping, Sequence
 
 from ..engines.market import xsp_rth_evaluation_slots
 from ..time_utils import ET_ZONE
+from .xsp_profitability import (
+    LIVE_PROFITABILITY_SCHEMA,
+    SELECTED_CASH_EQUITY_SCHEMA as SELECTED_CASH_EQUITY_SCHEMA,
+    SELECTED_EQUITY_SCHEMA as SELECTED_EQUITY_SCHEMA,
+    XspProfitabilityPolicy,
+    empty_xsp_profitability_receipt,
+    xsp_profitability_amount_fields,
+    xsp_profitability_contract,
+)
 
 LIVE_CALIBRATION_SCHEMA = "live_calibration.v1"
-LIVE_PROFITABILITY_SCHEMA = "xsp.live-profitability.v1"
-SELECTED_EQUITY_SCHEMA = "xsp.selected-equity.v1"
 XSP_DIRECTIONAL_OBSERVER_VERSION = "xsp.directional-observer.v1"
 LIVE_CALIBRATION_VERDICTS = {"PROMOTE", "HOLD", "REVISE", "QUARANTINE", "STOP"}
 LIVE_CALIBRATION_CHECKPOINT_STATUSES = {
@@ -31,15 +37,6 @@ _FORECAST_FIELDS = {
     "decision", "outcome_not_before_utc", "pnl_distribution",
     "risk", "costs", "fill_assumptions",
 }
-_SELECTED_EQUITY_FIELDS = {
-    "schema", "run_id", "run_started_at_utc", "config_fingerprint",
-    "capital_sleeve", "unit", "cumulative_gross_points",
-    "cumulative_cost_points", "cumulative_net_points",
-    "cumulative_realized_net_points", "open_mark_points",
-    "session_gross_points", "session_cost_points", "session_net_points",
-    "closed_trades", "gross_wins_points", "top_five_gross_wins_points",
-    "reconciled", "attribution_complete", "safety_breaches",
-}
 _RECORD_FIELDS = {
     "forecast": ("forecast_id", (
         "identity", "forecast", "context", "counterfactuals", "gates",
@@ -50,22 +47,6 @@ _RECORD_FIELDS = {
         "trading_date", "session", "status", "evidence",
     )),
 }
-
-
-@dataclass(frozen=True)
-class XspProfitabilityPolicy:
-    """Frozen identity and risk limits for one selected directional run."""
-
-    run_id: str
-    strategy_id: str
-    strategy_version: str
-    config_fingerprint: str
-    capital_sleeve: str
-    max_drawdown_points: float
-    max_session_loss_points: float
-    minimum_week_closed_trades: int
-    maximum_top_five_win_share: float
-    slot_tolerance_seconds: float = 90.0
 
 
 def _utc_iso(value: datetime | str) -> str:
@@ -513,36 +494,21 @@ class LiveCalibrationLedger:
         as_of: datetime | str,
         _prefix: bool = False,
     ) -> dict[str, object]:
-        """Fail closed over one selected, reconciled XSP directional equity run."""
+        """Fail closed over one selected, reconciled XSP equity run."""
         observed_at = datetime.fromisoformat(_utc_iso(as_of))
-        policy_errors = []
-        if not policy.run_id.strip():
-            policy_errors.append("missing_run_id")
-        if not policy.strategy_id.strip() or policy.strategy_id.strip().upper() == "NO_TRADE":
-            policy_errors.append("no_selected_strategy")
-        if not policy.strategy_version.strip():
-            policy_errors.append("missing_strategy_version")
-        if not policy.config_fingerprint.strip():
-            policy_errors.append("missing_config_fingerprint")
-        if not policy.capital_sleeve.strip():
-            policy_errors.append("missing_capital_sleeve")
-        if not math.isfinite(policy.max_drawdown_points) or policy.max_drawdown_points < 0:
-            policy_errors.append("invalid_max_drawdown")
-        if not math.isfinite(policy.max_session_loss_points) or policy.max_session_loss_points < 0:
-            policy_errors.append("invalid_max_session_loss")
-        if policy.minimum_week_closed_trades < 2:
-            policy_errors.append("weekly_trade_floor_below_two")
-        if not 0 < policy.maximum_top_five_win_share <= 1:
-            policy_errors.append("invalid_win_concentration_limit")
-        if not math.isfinite(policy.slot_tolerance_seconds) or not 0 <= policy.slot_tolerance_seconds < 150:
-            policy_errors.append("invalid_slot_tolerance")
+        equity_contract, policy_errors = xsp_profitability_contract(policy)
         if policy_errors:
-            return self._xsp_profitability_empty(
+            return empty_xsp_profitability_receipt(
                 policy=policy,
                 observed_at=observed_at,
                 status="NOT_STARTED",
                 reasons=policy_errors,
             )
+        assert isinstance(equity_contract, Mapping)
+        evidence_key = str(equity_contract["evidence_key"])
+        required_equity_fields = equity_contract["fields"]
+        assert isinstance(required_equity_fields, set)
+        amount_fields = xsp_profitability_amount_fields(equity_contract)
 
         matching = [
             row
@@ -550,9 +516,11 @@ class LiveCalibrationLedger:
             if row.get("kind") == "checkpoint"
             and row.get("strategy_id") == policy.strategy_id
             and row.get("strategy_version") == policy.strategy_version
+            and isinstance(row.get("evidence"), Mapping)
+            and evidence_key in row["evidence"]
         ]
         if not matching:
-            return self._xsp_profitability_empty(
+            return empty_xsp_profitability_receipt(
                 policy=policy,
                 observed_at=observed_at,
                 status="NOT_STARTED",
@@ -573,13 +541,17 @@ class LiveCalibrationLedger:
             if recorded_at > observed_at:
                 continue
             evidence = row.get("evidence")
-            equity = evidence.get("selected_equity") if isinstance(evidence, Mapping) else None
+            equity = (
+                evidence.get(evidence_key)
+                if isinstance(evidence, Mapping)
+                else None
+            )
             if not isinstance(equity, Mapping):
-                errors.add("missing_selected_equity")
+                errors.add(f"missing_{evidence_key}")
                 continue
             frozen = dict(equity)
-            if _SELECTED_EQUITY_FIELDS - set(frozen):
-                errors.add("incomplete_selected_equity")
+            if required_equity_fields - set(frozen):
+                errors.add(f"incomplete_{evidence_key}")
                 continue
             if frozen.get("run_id") != policy.run_id:
                 continue
@@ -590,32 +562,21 @@ class LiveCalibrationLedger:
             try:
                 started_at = datetime.fromisoformat(_utc_iso(str(frozen["run_started_at_utc"])))
                 numeric = {
-                    key: float(frozen[key])
-                    for key in (
-                        "cumulative_gross_points",
-                        "cumulative_cost_points",
-                        "cumulative_net_points",
-                        "cumulative_realized_net_points",
-                        "open_mark_points",
-                        "session_gross_points",
-                        "session_cost_points",
-                        "session_net_points",
-                        "gross_wins_points",
-                        "top_five_gross_wins_points",
-                    )
+                    key: float(frozen[source])
+                    for key, source in amount_fields.items()
                 }
                 closed_trades = int(frozen["closed_trades"])
             except (TypeError, ValueError):
-                errors.add("invalid_selected_equity")
+                errors.add(f"invalid_{evidence_key}")
                 continue
             if not all(map(math.isfinite, numeric.values())):
                 errors.add("nonfinite_selected_equity")
                 continue
             if (
-                frozen.get("schema") != SELECTED_EQUITY_SCHEMA
+                frozen.get("schema") != policy.equity_schema
                 or frozen.get("config_fingerprint") != policy.config_fingerprint
                 or frozen.get("capital_sleeve") != policy.capital_sleeve
-                or frozen.get("unit") != "$1_per_XSP_point"
+                or frozen.get("unit") != policy.unit
             ):
                 errors.add("selected_identity_drift")
                 continue
@@ -628,29 +589,29 @@ class LiveCalibrationLedger:
                 errors.add("checkpoint_predates_run")
                 continue
             if (
-                numeric["cumulative_cost_points"] < 0
-                or numeric["session_cost_points"] < 0
-                or numeric["gross_wins_points"] < 0
-                or numeric["top_five_gross_wins_points"] < 0
-                or numeric["top_five_gross_wins_points"]
-                > numeric["gross_wins_points"] + 1e-9
+                numeric["cumulative_cost"] < 0
+                or numeric["session_cost"] < 0
+                or numeric["gross_wins"] < 0
+                or numeric["top_five_gross_wins"] < 0
+                or numeric["top_five_gross_wins"]
+                > numeric["gross_wins"] + 1e-9
                 or closed_trades < 0
                 or abs(
-                    numeric["cumulative_net_points"]
-                    - numeric["cumulative_gross_points"]
-                    + numeric["cumulative_cost_points"]
+                    numeric["cumulative_net"]
+                    - numeric["cumulative_gross"]
+                    + numeric["cumulative_cost"]
                 )
                 > 1e-7
                 or abs(
-                    numeric["session_net_points"]
-                    - numeric["session_gross_points"]
-                    + numeric["session_cost_points"]
+                    numeric["session_net"]
+                    - numeric["session_gross"]
+                    + numeric["session_cost"]
                 )
                 > 1e-7
                 or abs(
-                    numeric["cumulative_net_points"]
-                    - numeric["cumulative_realized_net_points"]
-                    - numeric["open_mark_points"]
+                    numeric["cumulative_net"]
+                    - numeric["cumulative_realized_net"]
+                    - numeric["open_mark"]
                 )
                 > 1e-7
             ):
@@ -667,7 +628,7 @@ class LiveCalibrationLedger:
             parsed.append((row, evaluation_at, recorded_at, trading_day, frozen))
 
         if run_started is None:
-            return self._xsp_profitability_empty(
+            return empty_xsp_profitability_receipt(
                 policy=policy,
                 observed_at=observed_at,
                 status="INVALID_EVIDENCE" if errors else "NOT_STARTED",
@@ -724,16 +685,25 @@ class LiveCalibrationLedger:
             coverage_broken = coverage_broken or not covered
             if covered:
                 bases = [
-                    tuple(item[4][f"cumulative_{key}_points"] - item[4][f"session_{key}_points"] for key in ("gross", "cost", "net"))
+                    tuple(
+                        item[4][f"cumulative_{key}"]
+                        - item[4][f"session_{key}"]
+                        for key in ("gross", "cost", "net")
+                    )
                     for item in slot_rows
                 ]
                 if any(abs(left - right) > 1e-7 for base in bases for left, right in zip(base, bases[0])) or (
                     prior_close and any(abs(left - right) > 1e-7 for left, right in zip(bases[0], prior_close))
                 ):
                     errors.add("inconsistent_session_rollup")
-                prior_close = tuple(slot_rows[-1][4][f"cumulative_{key}_points"] for key in ("gross", "cost", "net"))
+                prior_close = tuple(
+                    slot_rows[-1][4][f"cumulative_{key}"]
+                    for key in ("gross", "cost", "net")
+                )
                 ordered_equity.extend(item[4] for item in slot_rows)
-                equity_path.extend(float(item[4]["cumulative_net_points"]) for item in slot_rows)
+                equity_path.extend(
+                    float(item[4]["cumulative_net"]) for item in slot_rows
+                )
             sessions.append(
                 {
                     "trading_date": trading_day.isoformat(),
@@ -745,7 +715,15 @@ class LiveCalibrationLedger:
                     "covered_to_as_of": covered,
                     "complete": complete,
                     "completed_at_utc": slots[-1].astimezone(timezone.utc).isoformat() if complete else None,
-                    "net_points": float(slot_rows[-1][4]["session_net_points"]) if covered else None,
+                    (
+                        "net_usd"
+                        if policy.unit == "USD"
+                        else "net_points"
+                    ): (
+                        float(slot_rows[-1][4]["session_net"])
+                        if covered
+                        else None
+                    ),
                 }
             )
 
@@ -758,24 +736,24 @@ class LiveCalibrationLedger:
             if any(
                 abs(float(first[key])) > 1e-9
                 for key in (
-                    "cumulative_gross_points",
-                    "cumulative_cost_points",
-                    "cumulative_net_points",
-                    "cumulative_realized_net_points",
-                    "open_mark_points",
+                    "cumulative_gross",
+                    "cumulative_cost",
+                    "cumulative_net",
+                    "cumulative_realized_net",
+                    "open_mark",
                 )
             ) or int(first["closed_trades"]) != 0:
                 errors.add("nonzero_run_baseline")
             previous = first
             for current in ordered_equity[1:]:
                 if (
-                    float(current["cumulative_cost_points"])
-                    < float(previous["cumulative_cost_points"]) - 1e-9
+                    float(current["cumulative_cost"])
+                    < float(previous["cumulative_cost"]) - 1e-9
                     or int(current["closed_trades"]) < int(previous["closed_trades"])
-                    or float(current["gross_wins_points"])
-                    < float(previous["gross_wins_points"]) - 1e-9
-                    or float(current["top_five_gross_wins_points"])
-                    < float(previous["top_five_gross_wins_points"]) - 1e-9
+                    or float(current["gross_wins"])
+                    < float(previous["gross_wins"]) - 1e-9
+                    or float(current["top_five_gross_wins"])
+                    < float(previous["top_five_gross_wins"]) - 1e-9
                 ):
                     errors.add("nonmonotonic_selected_economics")
                     break
@@ -793,17 +771,18 @@ class LiveCalibrationLedger:
             high = max(high, value)
             drawdown = max(drawdown, high - value)
         final = ordered_equity[-1] if ordered_equity else None
-        net = float(final["cumulative_net_points"]) if final else 0.0
-        costs = float(final["cumulative_cost_points"]) if final else 0.0
+        net = float(final["cumulative_net"]) if final else 0.0
+        costs = float(final["cumulative_cost"]) if final else 0.0
         closed_trades = int(final["closed_trades"]) if final else 0
-        gross_wins = float(final["gross_wins_points"]) if final else 0.0
-        top_five = float(final["top_five_gross_wins_points"]) if final else 0.0
+        gross_wins = float(final["gross_wins"]) if final else 0.0
+        top_five = float(final["top_five_gross_wins"]) if final else 0.0
         top_five_share = top_five / gross_wins if gross_wins > 0 else None
+        session_net_key = "net_usd" if policy.unit == "USD" else "net_points"
         worst_session = min(
             (
-                float(row["net_points"])
+                float(row[session_net_key])
                 for row in sessions
-                if row["net_points"] is not None
+                if row[session_net_key] is not None
             ),
             default=0.0,
         )
@@ -847,7 +826,8 @@ class LiveCalibrationLedger:
                     reasons.append("elapsed_time_incomplete")
                 if len(complete_rows) < required_sessions:
                     reasons.append("eligible_sessions_incomplete")
-                if not prefix_economics or prefix_economics["net_points"] <= 0:
+                net_key = "net_usd" if policy.unit == "USD" else "net_points"
+                if not prefix_economics or prefix_economics[net_key] <= 0:
                     reasons.append("net_not_positive")
                 if name == "five_session_week" and prefix_economics:
                     if prefix_economics["closed_trades"] < policy.minimum_week_closed_trades:
@@ -884,8 +864,18 @@ class LiveCalibrationLedger:
                 "strategy_version": policy.strategy_version,
                 "config_fingerprint": policy.config_fingerprint,
                 "capital_sleeve": policy.capital_sleeve,
-                "max_drawdown_points": policy.max_drawdown_points,
-                "max_session_loss_points": policy.max_session_loss_points,
+                "unit": policy.unit,
+                "equity_schema": policy.equity_schema,
+                (
+                    "max_drawdown_usd"
+                    if policy.unit == "USD"
+                    else "max_drawdown_points"
+                ): policy.max_drawdown_points,
+                (
+                    "max_session_loss_usd"
+                    if policy.unit == "USD"
+                    else "max_session_loss_points"
+                ): policy.max_session_loss_points,
                 "minimum_week_closed_trades": policy.minimum_week_closed_trades,
                 "maximum_top_five_win_share": policy.maximum_top_five_win_share,
                 "slot_tolerance_seconds": policy.slot_tolerance_seconds,
@@ -898,64 +888,62 @@ class LiveCalibrationLedger:
                 "coverage_broken": coverage_broken,
             },
             "economics": {
-                "unit": "$1_per_XSP_point",
-                "gross_points": (
-                    float(final["cumulative_gross_points"]) if final else 0.0
+                "unit": policy.unit,
+                (
+                    "gross_usd"
+                    if policy.unit == "USD"
+                    else "gross_points"
+                ): float(final["cumulative_gross"]) if final else 0.0,
+                (
+                    "cost_usd"
+                    if policy.unit == "USD"
+                    else "cost_points"
+                ): costs,
+                (
+                    "net_usd"
+                    if policy.unit == "USD"
+                    else "net_points"
+                ): net,
+                (
+                    "realized_net_usd"
+                    if policy.unit == "USD"
+                    else "realized_net_points"
+                ): (
+                    float(final["cumulative_realized_net"])
+                    if final
+                    else 0.0
                 ),
-                "cost_points": costs,
-                "net_points": net,
-                "realized_net_points": (
-                    float(final["cumulative_realized_net_points"]) if final else 0.0
-                ),
-                "open_mark_points": (
-                    float(final["open_mark_points"]) if final else 0.0
-                ),
-                "maximum_drawdown_points": drawdown,
-                "worst_session_points": worst_session,
+                (
+                    "open_mark_usd"
+                    if policy.unit == "USD"
+                    else "open_mark_points"
+                ): float(final["open_mark"]) if final else 0.0,
+                (
+                    "maximum_drawdown_usd"
+                    if policy.unit == "USD"
+                    else "maximum_drawdown_points"
+                ): drawdown,
+                (
+                    "worst_session_usd"
+                    if policy.unit == "USD"
+                    else "worst_session_points"
+                ): worst_session,
                 "closed_trades": closed_trades,
-                "gross_wins_points": gross_wins,
-                "top_five_gross_wins_points": top_five,
+                (
+                    "gross_wins_usd"
+                    if policy.unit == "USD"
+                    else "gross_wins_points"
+                ): gross_wins,
+                (
+                    "top_five_gross_wins_usd"
+                    if policy.unit == "USD"
+                    else "top_five_gross_wins_points"
+                ): top_five,
                 "top_five_win_share": top_five_share,
             },
             "sessions": sessions,
             "milestones": milestones,
             "reasons": sorted(errors),
-        }
-
-    def _xsp_profitability_empty(
-        self,
-        *,
-        policy: XspProfitabilityPolicy,
-        observed_at: datetime,
-        status: str,
-        reasons: Sequence[str],
-    ) -> dict[str, object]:
-        return {
-            "schema": LIVE_PROFITABILITY_SCHEMA,
-            "authority": "selected_reconciled_economics_only",
-            "as_of_utc": observed_at.isoformat(),
-            "status": status,
-            "policy": {
-                "run_id": policy.run_id,
-                "strategy_id": policy.strategy_id,
-                "strategy_version": policy.strategy_version,
-                "config_fingerprint": policy.config_fingerprint,
-                "capital_sleeve": policy.capital_sleeve,
-            },
-            "clock": {
-                "run_started_at_utc": None,
-                "coverage_started_at_utc": None,
-                "elapsed_seconds": 0.0,
-                "complete_sessions": 0,
-                "coverage_broken": False,
-            },
-            "economics": None,
-            "sessions": [],
-            "milestones": {
-                name: {"passed": False, "reasons": list(reasons)}
-                for name in ("24h", "48h", "five_session_week")
-            },
-            "reasons": list(reasons),
         }
 
     def _append_unique(

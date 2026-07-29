@@ -41,7 +41,7 @@ output belongs in commit/final verification, not in this management brain.
 | Observer cadence | **cleared prospectively for v3:** deployed q froze `08:30 ET` before the boundary, then its natural `08:32 ET` recurrence advanced `CLOSED→EVALUATED` with exact identity and zero pre-start trades. The central engine still warms all context but enforces `entry_not_before`; predecessor/invalid prefixes remain excluded from profitability coverage |
 | RTH signal freshness | **cleared:** after the user activated `CBOE Streaming Market Indexes`, zero-order receipt `acce7ed3…` returned live type-1 XSP, current five-minute history, and real-time `TRADES` bars without a Gateway restart; the natural `10:07 ET` centralized v2 checkpoint then evaluated with both XSP and SPY through `10:05` and `120s` age |
 | Order/capital authority | `none` |
-| Profitability clock | v3 `NOT_STARTED`; predecessor evidence does not transfer |
+| Profitability clock | v3 `NOT_STARTED`; predecessor evidence does not transfer. The selected v3 runtime is now prepared to anchor the shared `24h→48h→five-session` verifier from reconciled USD fills at its first post-selection RTH slot |
 | Execution verdict | `HOLD`; v3 RTH UPRO/SPXU full-cross is positive in recent/every year/full under Fixed (`+$337.06`, PF `1.245`, DD `$135.31`) and Tiered (`+$911.87`, PF `1.833`, DD `$102.68`). The July 29 preview proved books/cash but returned Fixed `$1.000018/$1.000069` commissions rather than Tiered `$0.36948/$0.42393` limits |
 | Next irreversible evidence | repeat the identical zero-order UPRO/SPXU preview at `2026-07-30 09:35 ET` after IBKR's stated next-business-day processing. Immutable one-shot `0680a00d…` attempts the already-proven atomic selector at `09:39 ET` only when the preview explicitly passes Tiered with zero submissions; any failed condition remains `HOLD` |
 | First active work | preserve continuous v3 proposal/gate/position/MFE/MAE/flip/exit observation; causally join each changed RTH position to the July 29 UPRO/SPXU book tape under separate Fixed-realistic and explicitly conditional Tiered economics; then repeat the exact commission proof July 30. News joins only after its natural publication and never drives work cadence |
@@ -559,6 +559,10 @@ directional consistency is proven.
     Separate evidence-only finalizer `dda18ce8…` runs at July 29 `16:20 ET`,
     after the `16:05` book-tape close and `16:17` lifecycle checkpoint, to
     produce one terminal Fixed/Tiered counterfactual without partial polling.
+    The same selected runtime now projects only reconciled broker fills into
+    one USD cash-equity schema; the existing milestone verifier owns coverage,
+    fees, net, drawdown, closed trades, and concentration without transferring
+    any preselection counterfactual.
 17. `[BLOCKED]` Alpha/theta structures and any live-capital canary belong to a
     later quest after directional causality and spot consistency are proven.
 
@@ -576,7 +580,7 @@ directional consistency is proven.
 | Historical/cache truth | canonical chart-data/history owners | sparse, provenance-bound, gap-aware, close-aligned, no fabricated absence |
 | Forward option tape | `tradebot/backtest/tools/record_quotes.py` | restart-safe GTH/RTH/Curb tape with actual MD provenance |
 | Broker shadow/transport | `tradebot/research/xsp_opening_edge_v3.py` over the immutable v2 transport + `xsp_execution_observer.py` + `xsp_shadow.py` + Bot UI contracts | explicit XSP clock/provenance/fills; sparse state-change quote/preview evidence; bounded and non-submitting |
-| Evidence/economics | `tradebot/research/live_calibration.py` | append-only forecasts/results/checkpoints and immutable milestones |
+| Evidence/economics | `tradebot/research/live_calibration.py` + `xsp_profitability.py` | append-only forecasts/results/checkpoints and one schema-parameterized immutable milestone owner |
 | External decision context | `tradebot/research/xsp_context.py` | timestamp-causal option/news projection; no breadth runtime |
 | Candidate reducers | `tradebot/research/xsp_benchmarks.py` | pure comparison; no broker/order imports |
 | Causal fundamentals | `tradebot/news/` | timestamp-valid `off/observe`; no selector/order authority |
@@ -775,6 +779,7 @@ and
 | E-288 | the final activation audit found the deployed transaction still required v2 ranking/dwell evidence and rejected the v3 observer. Minimal selector `7b71c408…` is now v3-only: it requires one exact fresh preview, the immutable v3 cash receipt, and an explicit `--accept-rth-only-cash-scope`; the shared signal, sizing, execution ladder, risk, and runtime owners are unchanged. Atomic success, missing-scope refusal, pre-selection rollback, and post-selection reconciliation lock passed `5/5` focused transaction tests; all XSP boundaries passed `170/170` and the complete suite passed `955` with `4` deselected. No q installation, writable drop-in, selection, order, or clock was created; publication precedes tomorrow's broker proof |
 | E-289 | immutable q bundle `0680a00d…` closes the last manual activation gap without adding an owner. At July 30 `09:39 ET`, systemd invokes selector `7b71c408…` only if the exact `09:35 ET` receipt says Tiered passed, `PREVIEW_PASS_STILL_HOLD`, zero submissions, and no selection; the selector then independently revalidates fresh source/broker/cash/contracts/quantities/commission and explicit RTH scope. Calendar, unit syntax, manifest, and synthetic pass/fail condition are green. A frozen baseline plus strictly post-selection signal timestamp prevents backfill. Timer is waiting; selection/drop-in remain absent, observer stays read-only, and no order or clock exists |
 | E-290 | July 29 terminal-economics bundle `dda18ce8…` schedules the already-frozen pure runner for `16:20 ET`, after the live UPRO/SPXU book tape ends at `16:05` and the observer's final lifecycle checkpoint at `16:17`. The runner requires the terminal tape summary, frozen gate/source prefix, every changed RTH state, actual checkpoint clock, full depth, strict T+1 cash, and separate Fixed-realistic/Tiered-conditional costs; it has no broker imports or selection/order authority. Timer is waiting and the result path is absent by design |
+| E-291 | final preselection audit closed a receipt gap without changing signal, sizing, ladder, or broker authority. The shared selected-equity verifier is now schema-parameterized: v3 STATE checkpoints project only deduplicated terminal broker fills into USD gross/cost/net, open mark, session rollup, drawdown, closed-trade, concentration, reconciliation, attribution, and safety evidence; PREPARED/SUBMITTED/TERMINAL checkpoints cannot masquerade as coverage. One complete six-session test proves independent positive USD `24h`, `48h`, and five-session prefixes, while all predecessor point receipts remain exact. `live_calibration.py` remains below the `1,000`-line ceiling through cohesive owner `xsp_profitability.py` (`2c74f968…`); complete verification is `957 passed, 4 deselected`. Selection/orders/clock remain absent/zero/`NOT_STARTED` until the July 30 Tiered gate |
 
 ### Decision anchors
 

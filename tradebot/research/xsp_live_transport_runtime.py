@@ -25,12 +25,14 @@ from .xsp_live_transport import (
     XSP_V3_TRANSPORT_EXECUTION_SCHEMA,
     XSP_V3_TRANSPORT_EXECUTION_VERSION,
     XSP_V3_TRANSPORT_PLAN_SCHEMA,
+    XSP_V3_TRANSPORT_SELECTION_SCHEMA,
     load_xsp_transport_selection_from_mapping,
     project_xsp_transport_plan,
     xsp_transport_contract,
 )
 from .xsp_live_transport_state import xsp_v2_broker_snapshot
 from .xsp_live_transport_risk import (
+    xsp_transport_cash_equity,
     xsp_transport_risk_state,
     xsp_v2_transport_risk_state as xsp_v2_transport_risk_state,
 )
@@ -158,6 +160,7 @@ def _checkpoint(
     risk_state: Mapping[str, object] | None = None,
     broker_state: Mapping[str, object] | None = None,
     ladder_transition: Mapping[str, object] | None = None,
+    selected_cash_equity: Mapping[str, object] | None = None,
 ) -> dict[str, object]:
     runtime = {
         XSP_V2_TRANSPORT_PLAN_SCHEMA: (
@@ -199,6 +202,11 @@ def _checkpoint(
             ),
             "submitted_orders": int(submitted_orders),
             "order_authority": XSP_V2_TRANSPORT_ORDER_AUTHORITY,
+            **(
+                {"selected_cash_equity": dict(selected_cash_equity)}
+                if selected_cash_equity is not None
+                else {}
+            ),
         },
         recorded_at=observed_at,
     )
@@ -762,6 +770,15 @@ async def advance_xsp_live_transport(
         for symbol in symbols
     ):
         raise ValueError("broker holdings disagree with selected-run fill ledger")
+    selected_cash_equity = (
+        xsp_transport_cash_equity(
+            selection=selected,
+            risk_state=risk_state,
+            reconciled=True,
+        )
+        if selected["schema"] == XSP_V3_TRANSPORT_SELECTION_SCHEMA
+        else None
+    )
     plan = project_xsp_transport_plan(
         selection=selected,
         source_receipt=source_receipt,
@@ -800,6 +817,7 @@ async def advance_xsp_live_transport(
         submitted_orders=0,
         risk_state=risk_state,
         broker_state=broker_state,
+        selected_cash_equity=selected_cash_equity,
     )
     if plan["status"] != "ACTIONABLE":
         return {

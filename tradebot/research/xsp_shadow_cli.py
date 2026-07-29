@@ -53,6 +53,7 @@ from .xsp_live_transport_v3 import (
     load_xsp_v3_transport_selection,
     select_xsp_v3_transport,
     write_xsp_v3_transport_selection as write_xsp_transport_selection,
+    xsp_v3_transport_profitability_policy,
 )
 from .xsp_live_transport_runtime import (
     advance_xsp_live_transport,
@@ -195,6 +196,10 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
         and selected_transport.get("strategy_version") != XSP_OPENING_EDGE_V3_VERSION
     ):
         raise ValueError("selected XSP transport does not match observer mode")
+    if args.mode == "opening-edge-v3" and selected_transport is not None:
+        selected_policy = xsp_v3_transport_profitability_policy(
+            selected_transport
+        )
 
     from ..client import IBKRClient
 

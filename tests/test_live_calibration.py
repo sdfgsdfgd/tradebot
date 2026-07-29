@@ -19,6 +19,7 @@ from tradebot.chart_data.history import duration_window_et
 from tradebot.news.contract import SCHEMA as NEWS_SCHEMA
 from tradebot.news.contract import SCORE_VERSION as NEWS_SCORE_VERSION
 from tradebot.research.live_calibration import (
+    SELECTED_CASH_EQUITY_SCHEMA,
     SELECTED_EQUITY_SCHEMA,
     XSP_DIRECTIONAL_OBSERVER_VERSION,
     LiveCalibrationLedger,
@@ -726,6 +727,9 @@ def _append_selected_session(
 ) -> tuple[float, float, int, float, float]:
     from tradebot.engines.market import xsp_rth_evaluation_slots
 
+    cash = policy.equity_schema == SELECTED_CASH_EQUITY_SCHEMA
+    evidence_key = "selected_cash_equity" if cash else "selected_equity"
+    suffix = "usd" if cash else "points"
     slots = xsp_rth_evaluation_slots(day)
     run_started = run_started or datetime(2026, 7, 27, 9, 37, tzinfo=ET_ZONE)
     for index, slot in enumerate(slots):
@@ -751,26 +755,26 @@ def _append_selected_session(
             session=session,
             status="EVALUATED",
             evidence={
-                "selected_equity": {
-                    "schema": SELECTED_EQUITY_SCHEMA,
+                evidence_key: {
+                    "schema": policy.equity_schema,
                     "run_id": policy.run_id,
                     "run_started_at_utc": run_started.isoformat(),
                     "config_fingerprint": policy.config_fingerprint,
                     "capital_sleeve": policy.capital_sleeve,
-                    "unit": "$1_per_XSP_point",
-                    "cumulative_gross_points": gross,
-                    "cumulative_cost_points": costs,
-                    "cumulative_net_points": net,
-                    "cumulative_realized_net_points": net,
-                    "open_mark_points": 0.0,
-                    "session_gross_points": reported_gross if last else 0.0,
-                    "session_cost_points": session_cost if last else 0.0,
-                    "session_net_points": (
+                    "unit": policy.unit,
+                    f"cumulative_gross_{suffix}": gross,
+                    f"cumulative_cost_{suffix}": costs,
+                    f"cumulative_net_{suffix}": net,
+                    f"cumulative_realized_net_{suffix}": net,
+                    f"open_mark_{suffix}": 0.0,
+                    f"session_gross_{suffix}": reported_gross if last else 0.0,
+                    f"session_cost_{suffix}": session_cost if last else 0.0,
+                    f"session_net_{suffix}": (
                         reported_gross - session_cost if last else 0.0
                     ),
                     "closed_trades": trades,
-                    "gross_wins_points": wins,
-                    "top_five_gross_wins_points": top_five,
+                    f"gross_wins_{suffix}": wins,
+                    f"top_five_gross_wins_{suffix}": top_five,
                     "reconciled": True,
                     "attribution_complete": True,
                     "safety_breaches": [],
@@ -1275,6 +1279,75 @@ def test_profitability_clock_proves_only_reconciled_net_week(tmp_path) -> None:
     )
     with pytest.raises(ValueError, match="invalid calibration content address"):
         ledger.xsp_profitability_receipt(policy=policy, as_of=as_of)
+
+
+def test_cash_profitability_clock_proves_usd_24h_48h_and_week(tmp_path) -> None:
+    ledger = LiveCalibrationLedger(tmp_path / "calibration.jsonl")
+    policy = XspProfitabilityPolicy(
+        run_id="v3-selection",
+        strategy_id="xsp.opening-edge-v3-regime-harmony-24x5.v1",
+        strategy_version="xsp.opening-edge-v3-upro-spxu-execution.v1",
+        config_fingerprint="v3-selection",
+        capital_sleeve="xsp-upro-spxu-rth-cash",
+        max_drawdown_points=135.0,
+        max_session_loss_points=67.5,
+        minimum_week_closed_trades=2,
+        maximum_top_five_win_share=0.5,
+        unit="USD",
+        equity_schema=SELECTED_CASH_EQUITY_SCHEMA,
+    )
+    values = (0.0, 0.0, 0, 0.0, 0.0)
+    for day in (
+        date(2026, 7, 27),
+        date(2026, 7, 28),
+        date(2026, 7, 29),
+        date(2026, 7, 30),
+        date(2026, 7, 31),
+        date(2026, 8, 3),
+    ):
+        values = _append_selected_session(
+            ledger,
+            policy=policy,
+            day=day,
+            cumulative_gross=values[0],
+            cumulative_costs=values[1],
+            closed_trades=values[2],
+            gross_wins=values[3],
+            top_five_wins=values[4],
+            session_gross=12.0,
+            session_cost=2.0,
+        )
+    as_of = datetime(2026, 8, 3, 16, 2, tzinfo=ET_ZONE)
+
+    receipt = ledger.xsp_profitability_receipt(policy=policy, as_of=as_of)
+
+    assert receipt["status"] == "PASSED"
+    assert receipt["policy"]["unit"] == "USD"
+    assert receipt["policy"]["equity_schema"] == SELECTED_CASH_EQUITY_SCHEMA
+    assert receipt["clock"]["coverage_broken"] is False
+    assert receipt["clock"]["complete_sessions"] == 6
+    assert receipt["economics"] == {
+        "unit": "USD",
+        "gross_usd": 72.0,
+        "cost_usd": 12.0,
+        "net_usd": 60.0,
+        "realized_net_usd": 60.0,
+        "open_mark_usd": 0.0,
+        "maximum_drawdown_usd": 0.0,
+        "worst_session_usd": 10.0,
+        "closed_trades": 12,
+        "gross_wins_usd": 72.0,
+        "top_five_gross_wins_usd": 28.8,
+        "top_five_win_share": pytest.approx(0.4),
+    }
+    assert all(row["passed"] for row in receipt["milestones"].values())
+    assert receipt["milestones"]["24h"]["economics"]["net_usd"] == 10.0
+    assert receipt["milestones"]["48h"]["economics"]["net_usd"] == 20.0
+    weekly = receipt["milestones"]["five_session_week"]
+    assert weekly["economics"]["net_usd"] == 50.0
+    assert weekly["economics"]["closed_trades"] == 10
+    assert weekly["economics"]["top_five_win_share"] == pytest.approx(0.4)
+    assert weekly["reasons"] == []
 
 
 def test_profitability_milestones_cannot_rewrite_earlier_losses(tmp_path) -> None:

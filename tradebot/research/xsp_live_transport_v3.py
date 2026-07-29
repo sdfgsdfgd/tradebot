@@ -9,11 +9,17 @@ from collections.abc import Mapping, Sequence
 from datetime import datetime
 from pathlib import Path
 
-from .live_calibration import calibration_fingerprint
+from .live_calibration import (
+    SELECTED_CASH_EQUITY_SCHEMA,
+    XspProfitabilityPolicy,
+    calibration_fingerprint,
+)
 from .xsp_execution_observer import xsp_v2_position_state
 from .xsp_live_transport import (
     XSP_V2_TRANSPORT_ORDER_AUTHORITY,
     XSP_V3_TRANSPORT_SELECTION_SCHEMA,
+    XSP_V3_TRANSPORT_CAPITAL_SLEEVE,
+    XSP_V3_TRANSPORT_EXECUTION_VERSION,
     _BROKER_SNAPSHOT_MAX_AGE_SECONDS,
     _POSITION_STATE_FIELDS,
     _SELECTION_MAX_AGE_SECONDS,
@@ -320,6 +326,30 @@ def select_xsp_v3_transport(
         "evidence": evidence,
     }
     return {**body, "selection_id": calibration_fingerprint(body)}
+
+
+def xsp_v3_transport_profitability_policy(
+    selection: Mapping[str, object],
+) -> XspProfitabilityPolicy:
+    """Bind the shared milestone verifier to one immutable v3 cash selection."""
+
+    selected = load_xsp_v3_transport_selection_from_mapping(selection)
+    risk = selected["risk"]
+    assert isinstance(risk, Mapping)
+    return XspProfitabilityPolicy(
+        run_id=str(selected["selection_id"]),
+        strategy_id=XSP_OPENING_EDGE_V3_VERSION,
+        strategy_version=XSP_V3_TRANSPORT_EXECUTION_VERSION,
+        config_fingerprint=str(selected["selection_id"]),
+        capital_sleeve=XSP_V3_TRANSPORT_CAPITAL_SLEEVE,
+        max_drawdown_points=float(risk["max_drawdown_usd"]),
+        max_session_loss_points=float(risk["max_session_loss_usd"]),
+        minimum_week_closed_trades=2,
+        maximum_top_five_win_share=0.5,
+        slot_tolerance_seconds=90.0,
+        unit="USD",
+        equity_schema=SELECTED_CASH_EQUITY_SCHEMA,
+    )
 
 
 def load_xsp_v3_transport_selection(path: Path) -> dict[str, object]:

@@ -7,9 +7,14 @@ from collections.abc import Mapping
 from datetime import datetime, timedelta, timezone
 
 from ..engines.market import is_trading_day, xsp_trading_date
-from .live_calibration import calibration_fingerprint
+from .live_calibration import (
+    SELECTED_CASH_EQUITY_SCHEMA,
+    calibration_fingerprint,
+)
 from .xsp_live_transport import (
     XSP_V2_TRANSPORT_SELECTION_SCHEMA,
+    XSP_V3_TRANSPORT_CAPITAL_SLEEVE,
+    XSP_V3_TRANSPORT_SELECTION_SCHEMA,
     load_xsp_transport_selection_from_mapping,
     xsp_transport_contract,
 )
@@ -32,6 +37,7 @@ def xsp_transport_risk_state(
         raise ValueError("risk observation timestamp must be aware")
     fills_by_id: dict[str, dict[str, object]] = {}
     prior_risks = []
+    attribution_complete = True
     for record in records:
         evidence = record.get("evidence")
         if (
@@ -54,6 +60,17 @@ def xsp_transport_risk_state(
             filled_quantity = float(order.get("filled") or 0.0)
         except (TypeError, ValueError) as exc:
             raise ValueError("terminal filled quantity is invalid") from exc
+        plan = evidence.get("plan")
+        signal_context = (
+            plan.get("signal_context")
+            if isinstance(plan, Mapping)
+            else None
+        )
+        if filled_quantity > 0 and (
+            not isinstance(signal_context, Mapping)
+            or not signal_context.get("decision_trace_fingerprint")
+        ):
+            attribution_complete = False
         if filled_quantity > 0 and not order_fills:
             raise ValueError("filled broker order has no execution details")
         for raw_fill in order_fills:
@@ -77,7 +94,13 @@ def xsp_transport_risk_state(
     )
     holdings = {symbol: 0.0 for symbol in symbols}
     open_cost = {symbol: 0.0 for symbol in symbols}
+    open_gross_cost = {symbol: 0.0 for symbol in symbols}
+    open_commission = {symbol: 0.0 for symbol in symbols}
+    position_realized_gross = {symbol: 0.0 for symbol in symbols}
     realized = 0.0
+    realized_gross = 0.0
+    realized_cost = 0.0
+    closed_trade_gross: list[float] = []
     risk_identity = selected["risk"]
     assert isinstance(risk_identity, Mapping)
     selected_broker = selected["broker_at_selection"]
@@ -142,15 +165,31 @@ def xsp_transport_risk_state(
             settled_cash -= cash_amount
             holdings[symbol] += shares
             open_cost[symbol] += cash_amount
+            open_gross_cost[symbol] += shares * price
+            open_commission[symbol] += commission
         else:
             quantity = holdings[symbol]
             if shares > quantity + 1e-9:
                 raise ValueError("cash-pair sell exceeds selected-run holdings")
             removed_cost = open_cost[symbol] * shares / quantity
+            removed_gross_cost = open_gross_cost[symbol] * shares / quantity
+            removed_commission = open_commission[symbol] * shares / quantity
             proceeds = shares * price - commission
-            realized += proceeds - removed_cost
+            gross = shares * price - removed_gross_cost
+            cost = removed_commission + commission
+            net = gross - cost
+            realized += net
+            realized_gross += gross
+            realized_cost += cost
+            position_realized_gross[symbol] += gross
             holdings[symbol] -= shares
             open_cost[symbol] -= removed_cost
+            open_gross_cost[symbol] -= removed_gross_cost
+            open_commission[symbol] -= removed_commission
+            if holdings[symbol] <= 1e-9:
+                trade_gross = position_realized_gross[symbol]
+                closed_trade_gross.append(trade_gross)
+                position_realized_gross[symbol] = 0.0
             settlement_day = fill_trading_day + timedelta(days=1)
             while not is_trading_day(settlement_day):
                 settlement_day += timedelta(days=1)
@@ -184,6 +223,8 @@ def xsp_transport_risk_state(
         for settlement_day, proceeds in sorted(pending_by_day.items())
     ]
     open_mark = 0.0
+    open_gross = 0.0
+    open_cost_total = 0.0
     for symbol, quantity in holdings.items():
         if quantity <= 1e-9:
             continue
@@ -193,7 +234,13 @@ def xsp_transport_risk_state(
             raise ValueError("open selected sleeve has no liquidation bid") from exc
         if not math.isfinite(bid) or bid <= 0:
             raise ValueError("selected-sleeve liquidation bid is invalid")
-        open_mark += quantity * bid - open_cost[symbol]
+        symbol_gross = quantity * bid - open_gross_cost[symbol]
+        symbol_cost = open_commission[symbol]
+        open_gross += symbol_gross
+        open_cost_total += symbol_cost
+        open_mark += symbol_gross - symbol_cost
+    run_gross = realized_gross + open_gross
+    run_cost = realized_cost + open_cost_total
     run_net = realized + open_mark
     prior_peak = max(
         (float(risk.get("peak_run_net_usd") or 0.0) for _record, risk in prior_risks),
@@ -211,17 +258,51 @@ def xsp_transport_risk_state(
         if same_day
         else run_net
     )
+    session_gross_baseline = (
+        float(same_day[0].get("session_baseline_run_gross_usd") or 0.0)
+        if same_day
+        else run_gross
+    )
+    session_cost_baseline = (
+        float(same_day[0].get("session_baseline_run_cost_usd") or 0.0)
+        if same_day
+        else run_cost
+    )
+    gross_wins = sorted(
+        (value for value in closed_trade_gross if value > 0.0),
+        reverse=True,
+    )
+    risk_limits = selected["risk"]
+    assert isinstance(risk_limits, Mapping)
+    drawdown = peak - run_net
+    session_net = run_net - session_baseline
+    breaches = []
+    if drawdown > float(risk_limits["max_drawdown_usd"]):
+        breaches.append("drawdown_limit_breached")
+    if session_net < -float(risk_limits["max_session_loss_usd"]):
+        breaches.append("session_loss_limit_breached")
     return {
         "valid": True,
         "as_of_utc": observed_at.astimezone(timezone.utc).isoformat(),
         "trading_date": trading_date,
         "run_realized_net_usd": realized,
+        "run_gross_usd": run_gross,
+        "run_cost_usd": run_cost,
         "open_mark_net_usd": open_mark,
         "run_net_usd": run_net,
         "peak_run_net_usd": peak,
-        "drawdown_usd": peak - run_net,
+        "drawdown_usd": drawdown,
         "session_baseline_run_net_usd": session_baseline,
-        "session_net_usd": run_net - session_baseline,
+        "session_baseline_run_gross_usd": session_gross_baseline,
+        "session_baseline_run_cost_usd": session_cost_baseline,
+        "session_gross_usd": run_gross - session_gross_baseline,
+        "session_cost_usd": run_cost - session_cost_baseline,
+        "session_net_usd": session_net,
+        "closed_trades": len(closed_trade_gross),
+        "gross_wins_usd": sum(gross_wins),
+        "top_five_gross_wins_usd": sum(gross_wins[:5]),
+        "attribution_complete": attribution_complete,
+        "safety_breaches": breaches,
         "holdings_from_fills": holdings,
         "open_cost_usd": open_cost,
         "starting_settled_cash_usd": float(selected_broker["settled_cash_usd"]),
@@ -241,3 +322,88 @@ def xsp_v2_transport_risk_state(**kwargs) -> dict[str, object]:
     ):
         raise ValueError("v2 risk state requires a v2 selected transport")
     return xsp_transport_risk_state(**kwargs)
+
+
+def xsp_transport_cash_equity(
+    *,
+    selection: Mapping[str, object],
+    risk_state: Mapping[str, object],
+    reconciled: bool,
+) -> dict[str, object]:
+    """Project reconciled fill economics into the shared profitability schema."""
+
+    selected = load_xsp_transport_selection_from_mapping(selection)
+    if selected["schema"] != XSP_V3_TRANSPORT_SELECTION_SCHEMA:
+        raise ValueError("selected cash equity requires a v3 selected transport")
+    if risk_state.get("valid") is not True:
+        raise ValueError("selected cash equity requires valid transport risk state")
+    numeric_fields = (
+        "run_gross_usd",
+        "run_cost_usd",
+        "run_net_usd",
+        "run_realized_net_usd",
+        "open_mark_net_usd",
+        "session_gross_usd",
+        "session_cost_usd",
+        "session_net_usd",
+        "gross_wins_usd",
+        "top_five_gross_wins_usd",
+    )
+    try:
+        numeric = {field: float(risk_state[field]) for field in numeric_fields}
+        closed_trades = int(risk_state["closed_trades"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ValueError("selected cash equity economics are incomplete") from exc
+    if (
+        not all(math.isfinite(value) for value in numeric.values())
+        or closed_trades < 0
+        or abs(
+            numeric["run_net_usd"]
+            - numeric["run_gross_usd"]
+            + numeric["run_cost_usd"]
+        )
+        > 1e-7
+        or abs(
+            numeric["run_net_usd"]
+            - numeric["run_realized_net_usd"]
+            - numeric["open_mark_net_usd"]
+        )
+        > 1e-7
+        or abs(
+            numeric["session_net_usd"]
+            - numeric["session_gross_usd"]
+            + numeric["session_cost_usd"]
+        )
+        > 1e-7
+    ):
+        raise ValueError("selected cash equity economics do not reconcile")
+    breaches = risk_state.get("safety_breaches")
+    if not isinstance(breaches, list) or any(
+        not isinstance(value, str) for value in breaches
+    ):
+        raise ValueError("selected cash equity safety evidence is invalid")
+    return {
+        "schema": SELECTED_CASH_EQUITY_SCHEMA,
+        "authority": "selected_live_cash_evidence",
+        "run_id": selected["selection_id"],
+        "run_started_at_utc": selected["run_started_at_utc"],
+        "config_fingerprint": selected["selection_id"],
+        "capital_sleeve": XSP_V3_TRANSPORT_CAPITAL_SLEEVE,
+        "unit": "USD",
+        "cumulative_gross_usd": numeric["run_gross_usd"],
+        "cumulative_cost_usd": numeric["run_cost_usd"],
+        "cumulative_net_usd": numeric["run_net_usd"],
+        "cumulative_realized_net_usd": numeric["run_realized_net_usd"],
+        "open_mark_usd": numeric["open_mark_net_usd"],
+        "session_gross_usd": numeric["session_gross_usd"],
+        "session_cost_usd": numeric["session_cost_usd"],
+        "session_net_usd": numeric["session_net_usd"],
+        "closed_trades": closed_trades,
+        "gross_wins_usd": numeric["gross_wins_usd"],
+        "top_five_gross_wins_usd": numeric["top_five_gross_wins_usd"],
+        "reconciled": bool(reconciled),
+        "attribution_complete": risk_state.get("attribution_complete") is True,
+        "safety_breaches": list(breaches),
+        "fill_ledger_fingerprint": risk_state["fill_ledger_fingerprint"],
+        "order_authority": selected["order_authority"],
+    }

@@ -7,9 +7,14 @@ from pathlib import Path
 
 import pytest
 
-from tradebot.research.live_calibration import calibration_fingerprint
+from tradebot.research.live_calibration import (
+    SELECTED_CASH_EQUITY_SCHEMA,
+    LiveCalibrationLedger,
+    calibration_fingerprint,
+)
 from tradebot.research.xsp_live_transport import (
     XSP_V2_TRANSPORT_ORDER_AUTHORITY,
+    XSP_V3_TRANSPORT_EXECUTION_VERSION,
     XSP_V3_TRANSPORT_SELECTION_SCHEMA,
     project_xsp_transport_plan,
     load_xsp_v2_transport_selection,
@@ -21,12 +26,17 @@ from tradebot.research.xsp_live_transport_state import latest_xsp_v2_source_rece
 from tradebot.research.xsp_live_transport_v3 import (
     load_xsp_v3_transport_selection_from_mapping,
     select_xsp_v3_transport,
+    xsp_v3_transport_profitability_policy,
+)
+from tradebot.research.xsp_live_transport_risk import (
+    xsp_transport_cash_equity,
 )
 from tradebot.research.xsp_live_transport_runtime import (
     xsp_transport_order_ref,
     xsp_transport_risk_state,
 )
 from tradebot.engines.execution import execution_policy_contract
+from tradebot.research.xsp_opening_edge_v3 import XSP_OPENING_EDGE_V3_VERSION
 
 
 SELECTED_AT = datetime(2026, 7, 29, 13, 38, tzinfo=timezone.utc)
@@ -459,6 +469,67 @@ def test_v3_selection_requires_explicit_rth_scope_and_binds_tiered_identity(
         "chase_mode": "AUTO",
     }
     assert load_xsp_v3_transport_selection_from_mapping(selection) == selection
+
+
+def test_v3_cash_equity_starts_one_usd_profitability_clock(
+    tmp_path: Path,
+) -> None:
+    selection = _v3_selection(tmp_path)
+    risk = xsp_transport_risk_state(
+        selection=selection,
+        records=(),
+        observed_at=OBSERVED_AT,
+        liquidation_bids={},
+    )
+    equity = xsp_transport_cash_equity(
+        selection=selection,
+        risk_state=risk,
+        reconciled=True,
+    )
+    policy = xsp_v3_transport_profitability_policy(selection)
+    ledger = LiveCalibrationLedger(tmp_path / "v3-cash-profitability.jsonl")
+    ledger.checkpoint(
+        evaluation_as_of=OBSERVED_AT,
+        strategy_id=XSP_OPENING_EDGE_V3_VERSION,
+        strategy_version=XSP_V3_TRANSPORT_EXECUTION_VERSION,
+        trading_date="2026-07-29",
+        session="RTH",
+        status="EVALUATED",
+        evidence={"selected_cash_equity": equity},
+        recorded_at=OBSERVED_AT,
+    )
+
+    receipt = ledger.xsp_profitability_receipt(
+        policy=policy,
+        as_of=OBSERVED_AT,
+    )
+
+    assert equity["schema"] == SELECTED_CASH_EQUITY_SCHEMA
+    assert equity["unit"] == "USD"
+    assert policy.unit == "USD"
+    assert policy.equity_schema == SELECTED_CASH_EQUITY_SCHEMA
+    assert receipt["status"] == "ACTIVE"
+    assert receipt["clock"]["coverage_broken"] is False
+    assert receipt["economics"] == {
+        "unit": "USD",
+        "gross_usd": 0.0,
+        "cost_usd": 0.0,
+        "net_usd": 0.0,
+        "realized_net_usd": 0.0,
+        "open_mark_usd": 0.0,
+        "maximum_drawdown_usd": 0.0,
+        "worst_session_usd": 0.0,
+        "closed_trades": 0,
+        "gross_wins_usd": 0.0,
+        "top_five_gross_wins_usd": 0.0,
+        "top_five_win_share": None,
+    }
+    assert receipt["sessions"][0]["net_usd"] == 0.0
+    assert receipt["milestones"]["24h"]["reasons"] == [
+        "elapsed_time_incomplete",
+        "eligible_sessions_incomplete",
+        "net_not_positive",
+    ]
 
 
 def test_v3_selection_rejects_a_stale_internal_book(tmp_path: Path) -> None:

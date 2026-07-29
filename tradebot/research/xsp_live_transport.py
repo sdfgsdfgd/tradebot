@@ -38,6 +38,7 @@ XSP_V3_TRANSPORT_EXECUTION_VERSION = (
 XSP_V3_TRANSPORT_EXECUTION_SCHEMA = (
     "xsp.opening-edge-v3-upro-spxu-execution-checkpoint.v1"
 )
+XSP_V3_TRANSPORT_CAPITAL_SLEEVE = "xsp-upro-spxu-rth-cash"
 _RANKING_SCHEMA = "xsp.opening-edge-v2-spyu-selection-ranking-result.v1"
 _DWELL_SCHEMA = "xsp.network-b-symbol-dwell-validation-result.v1"
 _PREVIEW_SCHEMA = "xsp.opening-edge-v2-ranked-nominee-preview.v1"
