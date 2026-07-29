@@ -29,6 +29,12 @@ from .xsp_opening_edge_v2 import (
     load_xsp_opening_edge_v2_spec,
     xsp_opening_edge_v2_run_start,
 )
+from .xsp_opening_edge_v3 import (
+    XSP_OPENING_EDGE_V3_HISTORY_DURATION,
+    advance_xsp_opening_edge_v3_from_ibkr,
+    load_xsp_opening_edge_v3_spec,
+    xsp_opening_edge_v3_run_start,
+)
 from .xsp_execution_observer import (
     advance_xsp_v2_etf_execution_observer,
 )
@@ -48,7 +54,7 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
     )
     parser.add_argument(
         "--mode",
-        choices=("directional-v1", "opening-edge-v2"),
+        choices=("directional-v1", "opening-edge-v2", "opening-edge-v3"),
         default="directional-v1",
     )
     parser.add_argument(
@@ -175,10 +181,26 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
         news.append({"load_error": str(exc)})
     ledger = LiveCalibrationLedger(args.ledger)
     v2_run_start = None
+    v3_run_start = None
     execution_observation = None
     transport_execution = None
     try:
-        if args.mode == "opening-edge-v2":
+        if args.mode == "opening-edge-v3":
+            v3_spec = load_xsp_opening_edge_v3_spec()
+            v3_run_start = xsp_opening_edge_v3_run_start(
+                tuple(ledger.records()),
+                observed_at=observed_at,
+            )
+            receipt = await advance_xsp_opening_edge_v3_from_ibkr(
+                ledger,
+                client=client,
+                observed_at=observed_at,
+                run_started_at=v3_run_start,
+                duration_str=str(args.duration or XSP_OPENING_EDGE_V3_HISTORY_DURATION),
+                news_snapshot=tuple(news),
+                spec=v3_spec,
+            )
+        elif args.mode == "opening-edge-v2":
             v2_spec = load_xsp_opening_edge_v2_spec()
             v2_run_start = xsp_opening_edge_v2_run_start(
                 tuple(ledger.records()),
@@ -267,6 +289,11 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
                     if v2_run_start is not None
                     else None
                 ),
+                "v3_run_started_at_utc": (
+                    v3_run_start.astimezone(timezone.utc).isoformat()
+                    if v3_run_start is not None
+                    else None
+                ),
                 "execution_observation": execution_observation,
                 "selected_transport": str(selected_transport_path),
                 "selected_transport_id": (
@@ -283,7 +310,7 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
         )
     )
     successful_preflight = (
-        args.mode == "opening-edge-v2"
+        args.mode in {"opening-edge-v2", "opening-edge-v3"}
         and receipt.get("broker_request_skipped") == "run_not_started"
     )
     return (

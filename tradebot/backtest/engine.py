@@ -11,7 +11,11 @@ from datetime import date, datetime, time, timedelta
 from pathlib import Path
 from typing import NamedTuple, Union
 
-from ..contract_identity import future_exchange_for_symbol, future_multiplier_for_symbol, is_future_symbol
+from ..contract_identity import (
+    future_exchange_for_symbol,
+    future_multiplier_for_symbol,
+    is_future_symbol,
+)
 from .config import ConfigBundle, SpotLegConfig
 from .data import IBKRHistoricalData, ContractMeta, load_backtest_series
 from .models import (
@@ -278,6 +282,7 @@ def _spot_apply_pending_mutation(
         pending_exit_due_ts,
     )
 
+
 @dataclass(frozen=True)
 class _SpotEntryEvidence:
     snapshot: object | None
@@ -384,8 +389,7 @@ def _spot_series_pack_key(
 
 def _spot_series_session_key(cfg: ConfigBundle) -> tuple[object, ...]:
     exec_bar_size = str(
-        getattr(cfg.strategy, "spot_exec_bar_size", "")
-        or cfg.backtest.bar_size
+        getattr(cfg.strategy, "spot_exec_bar_size", "") or cfg.backtest.bar_size
     )
     parsed = parse_bar_size(exec_bar_size)
     return (
@@ -464,8 +468,7 @@ def _spot_build_series_pack(
         return loaded
 
     exec_bar_size = str(
-        getattr(cfg.strategy, "spot_exec_bar_size", "")
-        or cfg.backtest.bar_size
+        getattr(cfg.strategy, "spot_exec_bar_size", "") or cfg.backtest.bar_size
     )
     parsed_exec_bar = parse_bar_size(exec_bar_size)
     exec_duration = (
@@ -503,8 +506,7 @@ def _spot_direction_allowed(
 ) -> str | None:
     return (
         str(entry_dir)
-        if entry_dir in ("up", "down")
-        and str(entry_dir) in set(allowed_directions)
+        if entry_dir in ("up", "down") and str(entry_dir) in set(allowed_directions)
         else None
     )
 
@@ -649,11 +651,7 @@ def _resolve_backtest_contract_meta(
 ) -> ContractMeta:
     symbol = str(cfg.strategy.symbol or "").strip().upper()
     is_spot = cfg.strategy.instrument == "spot"
-    option_product = (
-        option_product_facts(symbol)
-        if not is_spot
-        else None
-    )
+    option_product = option_product_facts(symbol) if not is_spot else None
     is_future = (
         _spot_strategy_sec_type(strategy=cfg.strategy) == "FUT"
         if is_spot
@@ -663,11 +661,15 @@ def _resolve_backtest_contract_meta(
         if is_spot:
             exchange = "SMART"
             if is_future:
-                exchange = str(
-                    getattr(cfg.strategy, "spot_exchange", None)
-                    or future_exchange_for_symbol(symbol)
-                    or "CME"
-                ).strip().upper()
+                exchange = (
+                    str(
+                        getattr(cfg.strategy, "spot_exchange", None)
+                        or future_exchange_for_symbol(symbol)
+                        or "CME"
+                    )
+                    .strip()
+                    .upper()
+                )
             multiplier = _spot_multiplier(symbol, is_future)
         else:
             assert option_product is not None
@@ -682,7 +684,9 @@ def _resolve_backtest_contract_meta(
 
     requested_exchange = cfg.strategy.exchange
     if is_spot:
-        requested_exchange = getattr(cfg.strategy, "spot_exchange", None) or requested_exchange
+        requested_exchange = (
+            getattr(cfg.strategy, "spot_exchange", None) or requested_exchange
+        )
     _, resolved = data.resolve_contract(symbol, requested_exchange)
     if is_spot:
         return ContractMeta(
@@ -1290,7 +1294,8 @@ def _spot_try_open_entry(
                 stop_price = (
                     float(entry_price_est) - excursion_policy.initial_stop_atr * atr
                     if entry_dir == "up"
-                    else float(entry_price_est) + excursion_policy.initial_stop_atr * atr
+                    else float(entry_price_est)
+                    + excursion_policy.initial_stop_atr * atr
                 )
             profit_target_pct = None
             stop_loss_pct = None
@@ -1447,9 +1452,7 @@ def _spot_try_open_entry(
                 current_qty=0,
                 target_qty=int(signed_qty),
                 spot_decision=(
-                    decision_trace.as_payload()
-                    if decision_trace is not None
-                    else None
+                    decision_trace.as_payload() if decision_trace is not None else None
                 ),
                 shock_atr_pct=evidence.shock_atr_pct,
                 tr_ratio=float(getattr(evidence.risk_snapshot, "tr_ratio", 0.0))
@@ -1740,9 +1743,7 @@ def _spot_resolve_run_bars(
     """Normalize tapes once and enforce the single/multi-resolution boundary."""
     signal = _bars_input_list(bars)
     execution = _bars_input_optional_list(exec_bars)
-    exec_bar_size = str(
-        getattr(cfg.strategy, "spot_exec_bar_size", "") or ""
-    ).strip()
+    exec_bar_size = str(getattr(cfg.strategy, "spot_exec_bar_size", "") or "").strip()
     if execution is None:
         if exec_bar_size and not bar_sizes_equal(
             exec_bar_size,
@@ -1777,6 +1778,7 @@ def _run_spot_backtest(
     regime2_bars: BarSeriesInput | None = None,
     regime2_bear_hard_bars: BarSeriesInput | None = None,
     exec_bars: BarSeriesInput | None = None,
+    spot_state_owner: object | None = None,
 ) -> BacktestResult:
     run_bars = _spot_resolve_run_bars(
         cfg,
@@ -1795,6 +1797,7 @@ def _run_spot_backtest(
         regime_bars=run_bars.regime,
         regime2_bars=run_bars.regime2,
         regime2_bear_hard_bars=run_bars.regime2_bear_hard,
+        spot_state_owner=spot_state_owner,
     )
 
 
@@ -1858,6 +1861,7 @@ def _run_spot_backtest_exec_loop(
     final_session_complete: bool = True,
     prepared_series_pack: object | None = None,
     progress_callback=None,
+    spot_state_owner: object | None = None,
 ) -> BacktestResult:
     """Spot backtest using an execution-bar loop.
 
@@ -1962,6 +1966,18 @@ def _run_spot_backtest_exec_loop(
         regime2_bars=regime2_bars if use_mtf_regime2 else None,
         regime2_bear_hard_bars=regime2_bear_hard_bars,
     )
+    if spot_state_owner is not None:
+        project = getattr(spot_state_owner, "project_evaluator_tape", None)
+        if not callable(project):
+            raise TypeError(
+                "spot_state_owner requires project_evaluator_tape("
+                "prepared, bars, sig_idx_by_exec_idx=...)"
+            )
+        evaluator_tape = project(
+            evaluator_tape,
+            signal_bars,
+            sig_idx_by_exec_idx=align.sig_idx_by_exec_idx,
+        )
 
     exec_profile = _spot_exec_profile(cfg.strategy)
     exit_mode = str(exec_profile.exit_mode)
@@ -1982,6 +1998,7 @@ def _run_spot_backtest_exec_loop(
     spot_drawdown_mode = str(exec_profile.drawdown_mode)
     excursion_policy = SpotExcursionPolicy.from_strategy(cfg.strategy)
     excursion_states: dict[int, SpotExcursionState] = {}
+    excursion_policies: dict[int, SpotExcursionPolicy] = {}
     spot_resize_relevant = (
         lifecycle_rows is not None
         or str(policy.lifecycle_config.spot_resize_mode) == "target"
@@ -2110,16 +2127,48 @@ def _run_spot_backtest_exec_loop(
             multiplier=meta.multiplier,
         )
 
-    def _track_excursion(trade: SpotTrade) -> None:
-        if not excursion_policy.enabled or not trade.entry_atr:
+    def _track_excursion(
+        trade: SpotTrade,
+        *,
+        entry_atr: float | None = None,
+    ) -> None:
+        effective_policy = excursion_policy
+        owner_selected_policy = False
+        if spot_state_owner is not None:
+            policy_for_trade = getattr(
+                spot_state_owner,
+                "excursion_policy_for_trade",
+                None,
+            )
+            if not callable(policy_for_trade):
+                raise TypeError(
+                    "spot_state_owner requires excursion_policy_for_trade(trade)"
+                )
+            selected = policy_for_trade(trade)
+            if selected is not None:
+                owner_selected_policy = True
+                if not isinstance(selected, SpotExcursionPolicy):
+                    raise TypeError(
+                        "spot_state_owner excursion policy must be SpotExcursionPolicy"
+                    )
+                effective_policy = selected
+        if (
+            (effective_policy.enabled or owner_selected_policy)
+            and trade.entry_atr is None
+            and entry_atr is not None
+            and float(entry_atr) > 0.0
+        ):
+            trade.entry_atr = float(entry_atr)
+        if not effective_policy.enabled or not trade.entry_atr:
             return
         state = SpotExcursionState.open(
-            policy=excursion_policy,
+            policy=effective_policy,
             direction="up" if int(trade.qty) > 0 else "down",
             entry_price=float(trade.entry_price),
             entry_atr=float(trade.entry_atr),
         )
         excursion_states[id(trade)] = state
+        excursion_policies[id(trade)] = effective_policy
         trade.stop_loss_price = state.stop_price
         trade.stop_loss_reason = state.stop_reason
 
@@ -2134,6 +2183,7 @@ def _run_spot_backtest_exec_loop(
         exit_exec_idx: int | None = None,
     ) -> tuple[float, float, float]:
         excursion = excursion_states.pop(id(trade), None)
+        excursion_policies.pop(id(trade), None)
         if excursion is not None:
             trade.bars_held = max(trade.bars_held, excursion.bars_held)
             trade.max_favorable_excursion = max(
@@ -2175,7 +2225,9 @@ def _run_spot_backtest_exec_loop(
             0.0,
         )
         if capture_decision_trace:
-            trace = trade.decision_trace if isinstance(trade.decision_trace, dict) else {}
+            trace = (
+                trade.decision_trace if isinstance(trade.decision_trace, dict) else {}
+            )
             rows_raw = trace.get("exits")
             rows = list(rows_raw) if isinstance(rows_raw, list) else []
             payload = (
@@ -2246,9 +2298,7 @@ def _run_spot_backtest_exec_loop(
         evaluator_risk = evaluator_tape.risks[int(idx)]
         next_bar = exec_bars[idx + 1] if idx + 1 < len(exec_bars) else None
         bar_day = exec_dates[int(idx)]
-        is_last_bar = (
-            next_bar is None and bool(final_session_complete)
-        ) or (
+        is_last_bar = (next_bar is None and bool(final_session_complete)) or (
             next_bar is not None and exec_dates[int(idx) + 1] != bar_day
         )
         sig_map_idx = (
@@ -2474,7 +2524,15 @@ def _run_spot_backtest_exec_loop(
                     if opened is not None:
                         candidate, cash, margin_used = opened
                         open_trades.append(candidate)
-                        _track_excursion(candidate)
+                        _track_excursion(
+                            candidate,
+                            entry_atr=(
+                                float(last_sig_snap.atr)
+                                if last_sig_snap is not None
+                                and last_sig_snap.atr is not None
+                                else None
+                            ),
+                        )
                         entries_today += 1
         # Dynamic shock SL/PT: apply the shock multipliers to *open* trades using the shock
         # state from the prior execution bar (no lookahead within this bar).
@@ -2651,8 +2709,9 @@ def _run_spot_backtest_exec_loop(
 
                 excursion = excursion_states.get(id(trade))
                 if excursion is not None and not any(exit_candidates.values()):
+                    effective_policy = excursion_policies[id(trade)]
                     excursion, excursion_exit = excursion.advance(
-                        policy=excursion_policy,
+                        policy=effective_policy,
                         high=float(bar.high),
                         low=float(bar.low),
                     )
@@ -2674,34 +2733,28 @@ def _run_spot_backtest_exec_loop(
                         apply_slippage_by_reason[excursion_exit] = True
 
                 is_signal_close = sig_idx is not None
-                if (
-                    is_signal_close
-                    and _spot_ratsv_probe_cancel_hit(
-                        cfg,
-                        trade=trade,
-                        bar=bar,
-                        tr_ratio=signal_inputs.get("tr_ratio"),
-                        slope_med=signal_inputs.get("slope_med_pct"),
-                    )
+                if is_signal_close and _spot_ratsv_probe_cancel_hit(
+                    cfg,
+                    trade=trade,
+                    bar=bar,
+                    tr_ratio=signal_inputs.get("tr_ratio"),
+                    slope_med=signal_inputs.get("slope_med_pct"),
                 ):
                     exit_candidates["ratsv_probe_cancel"] = True
                     exit_ref_by_reason["ratsv_probe_cancel"] = float(bar.close)
                     apply_slippage_by_reason["ratsv_probe_cancel"] = True
-                if (
-                    is_signal_close
-                    and _spot_ratsv_adverse_release_hit(
-                        cfg,
-                        trade=trade,
-                        bar=bar,
-                        tr_ratio=signal_inputs.get("tr_ratio"),
-                        slope_med=signal_inputs.get("slope_med_pct"),
-                        slope_vel=signal_inputs.get("slope_vel_pct"),
-                    )
+                if is_signal_close and _spot_ratsv_adverse_release_hit(
+                    cfg,
+                    trade=trade,
+                    bar=bar,
+                    tr_ratio=signal_inputs.get("tr_ratio"),
+                    slope_med=signal_inputs.get("slope_med_pct"),
+                    slope_vel=signal_inputs.get("slope_vel_pct"),
                 ):
                     exit_candidates["ratsv_adverse_release"] = True
                     exit_ref_by_reason["ratsv_adverse_release"] = float(bar.close)
                     apply_slippage_by_reason["ratsv_adverse_release"] = True
-                if (
+                flip_hit = bool(
                     is_signal_close
                     and _spot_hit_flip_exit(
                         cfg,
@@ -2714,7 +2767,24 @@ def _run_spot_backtest_exec_loop(
                         shock_atr_vel_pct=signal_inputs.get("shock_atr_vel_pct"),
                         tr_median_pct=signal_inputs.get("tr_median_pct"),
                     )
-                ):
+                )
+                if is_signal_close and spot_state_owner is not None:
+                    resolve_flip = getattr(
+                        spot_state_owner,
+                        "resolve_flip",
+                        None,
+                    )
+                    if not callable(resolve_flip):
+                        raise TypeError("spot_state_owner requires resolve_flip(...)")
+                    flip_hit = bool(
+                        resolve_flip(
+                            trade=trade,
+                            bar=bar,
+                            snapshot=sig_snap,
+                            hit=flip_hit,
+                        )
+                    )
+                if flip_hit:
                     exit_candidates["flip"] = True
                     exit_ref_by_reason["flip"] = float(bar.close)
                     apply_slippage_by_reason["flip"] = True
@@ -2876,10 +2946,7 @@ def _run_spot_backtest_exec_loop(
         entry_control = dict(entry_context.get("entry_control") or {})
         entry_control["resolution"] = direction_resolution
         entry_context = {**entry_context, "entry_control": entry_control}
-        entry_ok = bool(
-            direction is not None
-            and not (spot_close_eod and is_last_bar)
-        )
+        entry_ok = bool(direction is not None and not (spot_close_eod and is_last_bar))
 
         cooldown_ok = cooldown_ok_by_index(
             current_idx=int(sig_idx),
@@ -2954,8 +3021,10 @@ def _run_spot_backtest_exec_loop(
                 context=signal_trace,
             )
         entry_guard_probe_now = None
-        if entry_decision is not None and capture_decision_trace and isinstance(
-            getattr(entry_decision, "trace", None), dict
+        if (
+            entry_decision is not None
+            and capture_decision_trace
+            and isinstance(getattr(entry_decision, "trace", None), dict)
         ):
             raw_graph_entry = entry_decision.trace.get("graph_entry")
             if isinstance(raw_graph_entry, dict):
@@ -3080,7 +3149,14 @@ def _run_spot_backtest_exec_loop(
                     if opened is not None:
                         candidate, cash, margin_used = opened
                         open_trades.append(candidate)
-                        _track_excursion(candidate)
+                        _track_excursion(
+                            candidate,
+                            entry_atr=(
+                                float(sig_snap.atr)
+                                if sig_snap is not None and sig_snap.atr is not None
+                                else None
+                            ),
+                        )
                         entries_today += 1
                         last_entry_sig_idx = int(sig_idx)
 
@@ -3283,14 +3359,20 @@ def _run_spot_backtest_exec_loop(
                             ),
                             decision_payload=(
                                 resize_trace.as_payload()
-                                if capture_decision_trace
-                                and resize_trace is not None
+                                if capture_decision_trace and resize_trace is not None
                                 else None
                             ),
                             capture_trace=bool(capture_decision_trace),
                         )
                         if applied:
-                            _track_excursion(trade)
+                            _track_excursion(
+                                trade,
+                                entry_atr=(
+                                    float(sig_snap.atr)
+                                    if sig_snap is not None and sig_snap.atr is not None
+                                    else None
+                                ),
+                            )
                             last_resize_bar_ts = bar.ts
                     elif lifecycle.intent == "exit":
                         if (

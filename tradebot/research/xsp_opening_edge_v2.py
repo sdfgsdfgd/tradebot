@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from bisect import bisect_left
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass, replace
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
@@ -15,17 +14,20 @@ from ..backtest.engine import _run_spot_backtest
 from ..backtest.models import BacktestResult, Bar, SpotTrade
 from ..backtest.spot_codec import filters_from_payload, strategy_from_payload
 from ..engines.market import (
-    is_early_close_day,
-    xsp_bar_session_label_et,
     xsp_bar_trading_date,
     xsp_session_label_et,
     xsp_trading_date,
 )
 from ..spot.champions import discover_current_champions, load_champion_group, repo_root
-from ..time_utils import ET_ZONE, NaiveTsModeInput, to_et, to_utc_naive
+from ..time_utils import ET_ZONE, NaiveTsModeInput, to_et
 from .live_calibration import LiveCalibrationLedger, calibration_fingerprint
 from .xsp_candidate import xsp_opening_edge_bundle
 from .xsp_context import xsp_fundamental_context_at, xsp_trade_attribution
+from .xsp_opening_edge_tapes import (
+    normalize_xsp_v2_bars,
+    split_xsp_v2_sessions,
+    xsp_opening_edge_v2_gth_signal_bars,
+)
 
 
 XSP_OPENING_EDGE_V2_VERSION = "xsp.opening-edge-v2-balanced-24x5.v1"
@@ -88,27 +90,46 @@ def load_xsp_opening_edge_v2_spec(
         symbols=("XSP",),
         tracks=("LF",),
     )
-    if len(refs) != 1:
-        raise ValueError("exactly one current XSP LF crown is required")
-    ref = refs[0]
-    payload = json.loads(ref.artifact_path.read_text(encoding="utf-8"))
-    group = load_champion_group(ref)
-    artifact_sha256 = hashlib.sha256(ref.artifact_path.read_bytes()).hexdigest()
+    ref = refs[0] if len(refs) == 1 and str(refs[0].version) == "2" else None
+    artifact_path = (
+        ref.artifact_path
+        if ref is not None
+        else resolved_root / "backtests/xsp/opening_edge_v2_balanced_24x5.json"
+    )
+    payload = json.loads(artifact_path.read_text(encoding="utf-8"))
+    strategy_key = (
+        str(ref.strategy_key or "")
+        if ref is not None
+        else "xsp-opening-edge-v2-balanced-24x5"
+    )
+    group = (
+        load_champion_group(ref)
+        if ref is not None
+        else next(
+            (
+                row
+                for row in payload.get("groups", ())
+                if isinstance(row, Mapping)
+                and str(row.get("_key") or "") == strategy_key
+            ),
+            None,
+        )
+    )
+    artifact_sha256 = hashlib.sha256(artifact_path.read_bytes()).hexdigest()
     if (
         not isinstance(payload, Mapping)
         or payload.get("schema") != XSP_OPENING_EDGE_V2_VERSION
-        or str(ref.version or "") != "2"
-        or not str(ref.strategy_key or "").strip()
+        or not strategy_key
         or not isinstance(group, Mapping)
-        or str(group.get("_key") or "") != str(ref.strategy_key)
+        or str(group.get("_key") or "") != strategy_key
         or payload.get("order_authority") != "none"
     ):
-        raise ValueError("current XSP LF declaration is not Opening Edge v2")
+        raise ValueError("frozen XSP LF predecessor is not Opening Edge v2")
     identity = {
         "schema": XSP_OPENING_EDGE_V2_TRANSPORT_VERSION,
         "artifact_sha256": artifact_sha256,
-        "declaration_version": str(ref.version),
-        "strategy_key": str(ref.strategy_key),
+        "declaration_version": "2",
+        "strategy_key": strategy_key,
         "signal_clock": "XSP",
         "execution_symbol": "SPY",
         "cost_profiles": XSP_OPENING_EDGE_V2_COSTS,
@@ -116,11 +137,11 @@ def load_xsp_opening_edge_v2_spec(
         "order_authority": "none",
     }
     return XspOpeningEdgeV2Spec(
-        artifact_path=ref.artifact_path,
+        artifact_path=artifact_path,
         artifact_sha256=artifact_sha256,
-        declaration_path=ref.declaration_path,
-        declaration_version=str(ref.version),
-        strategy_key=str(ref.strategy_key),
+        declaration_path=(ref.declaration_path if ref is not None else artifact_path),
+        declaration_version="2",
+        strategy_key=strategy_key,
         group=dict(group),
         config_fingerprint=calibration_fingerprint(identity),
     )
@@ -131,9 +152,7 @@ def _entry(spec: XspOpeningEdgeV2Spec, name: str) -> Mapping[str, object]:
     if not isinstance(entries, Sequence):
         raise ValueError("Opening Edge v2 crown has no entries")
     matches = [
-        row
-        for row in entries
-        if isinstance(row, Mapping) and row.get("name") == name
+        row for row in entries if isinstance(row, Mapping) and row.get("name") == name
     ]
     if len(matches) != 1 or not isinstance(matches[0].get("strategy"), Mapping):
         raise ValueError(f"Opening Edge v2 requires one {name!r} entry")
@@ -148,6 +167,7 @@ def xsp_opening_edge_v2_bundle(
     end: date,
     cost_profile: str,
     rth_signal_symbol: str = "SPY",
+    rth_entry_name: str = "RTH Core",
 ):
     """Hydrate the frozen leaf while keeping execution and clock ownership explicit."""
 
@@ -155,16 +175,17 @@ def xsp_opening_edge_v2_bundle(
     profile = XSP_OPENING_EDGE_V2_COSTS.get(str(cost_profile).strip().lower())
     if lane_clean not in {"rth", "gth"} or not isinstance(profile, Mapping):
         raise ValueError("invalid Opening Edge v2 lane or cost profile")
-    entry = _entry(spec, "RTH Core" if lane_clean == "rth" else "GTH Down Sleeve")
+    entry = _entry(
+        spec,
+        rth_entry_name if lane_clean == "rth" else "GTH Down Sleeve",
+    )
     filters = filters_from_payload(spec.group.get("filters"))
     base = xsp_opening_edge_bundle(start=start, end=end)
     strategy_payload = asdict(base.strategy)
     strategy_payload.update(dict(entry["strategy"]))
     strategy = strategy_from_payload(strategy_payload, filters=filters)
     signal_symbol = (
-        str(rth_signal_symbol).strip().upper()
-        if lane_clean == "rth"
-        else "XSP"
+        str(rth_signal_symbol).strip().upper() if lane_clean == "rth" else "XSP"
     )
     strategy = replace(
         strategy,
@@ -189,87 +210,6 @@ def xsp_opening_edge_v2_bundle(
     )
 
 
-def normalize_xsp_v2_bars(
-    bars: Sequence[Bar],
-    *,
-    observed_at: datetime,
-    naive_ts_mode: NaiveTsModeInput,
-) -> tuple[Bar, ...]:
-    """Return only close-stamped, causally available UTC-naive bars."""
-
-    observed_utc = observed_at.astimezone(timezone.utc)
-    return tuple(
-        replace(
-            bar,
-            ts=to_utc_naive(bar.ts, naive_ts_mode=naive_ts_mode),
-        )
-        for bar in bars
-        if to_utc_naive(
-            bar.ts,
-            naive_ts_mode=naive_ts_mode,
-        ).replace(tzinfo=timezone.utc)
-        <= observed_utc
-    )
-
-
-def split_xsp_v2_sessions(
-    bars: Sequence[Bar],
-) -> tuple[tuple[Bar, ...], tuple[Bar, ...]]:
-    """Split a UTC close tape by the crown's XSP session clock."""
-
-    gth: list[Bar] = []
-    rth: list[Bar] = []
-    for bar in bars:
-        session = xsp_bar_session_label_et(
-            bar.ts,
-            naive_ts_mode="utc",
-        )
-        if session == "GTH":
-            gth.append(bar)
-        elif session == "RTH":
-            rth.append(bar)
-    return tuple(gth), tuple(rth)
-
-
-def xsp_opening_edge_v2_gth_signal_bars(
-    spy_bars: Sequence[Bar],
-    xsp_rth_bars: Sequence[Bar],
-) -> tuple[Bar, ...]:
-    """Project GTH SPY returns from the last exact completed XSP RTH close."""
-    spy_by_ts = {row.ts: row for row in spy_bars}
-    anchors: dict[date, float] = {}
-    for row in xsp_rth_bars:
-        day = xsp_bar_trading_date(row.ts)
-        expected = time(13, 0) if day and is_early_close_day(day) else time(16, 0)
-        spy = spy_by_ts.get(row.ts)
-        if (
-            day is not None
-            and to_et(row.ts, naive_ts_mode="utc").time() == expected
-            and spy is not None
-            and float(spy.close) > 0.0
-        ):
-            anchors[day] = float(row.close) / float(spy.close)
-    anchor_days = sorted(anchors)
-    projected = []
-    for row in spy_bars:
-        day = xsp_bar_trading_date(row.ts)
-        index = bisect_left(anchor_days, day) - 1 if day is not None else -1
-        if xsp_bar_session_label_et(row.ts) != "GTH" or index < 0:
-            continue
-        scale = anchors[anchor_days[index]]
-        projected.append(
-            Bar(
-                row.ts,
-                float(row.open) * scale,
-                float(row.high) * scale,
-                float(row.low) * scale,
-                float(row.close) * scale,
-                0.0,
-            )
-        )
-    return tuple(projected)
-
-
 def _lane_result(
     spec: XspOpeningEdgeV2Spec,
     *,
@@ -280,6 +220,8 @@ def _lane_result(
     run_trading_date: date,
     observed_at: datetime,
     rth_signal_symbol: str,
+    rth_entry_name: str = "RTH Core",
+    spot_state_owner: object | None = None,
 ) -> BacktestResult:
     if not signal_bars or not execution_bars:
         raise ValueError(f"Opening Edge v2 {lane} requires signal and execution bars")
@@ -294,6 +236,7 @@ def _lane_result(
         end=xsp_trading_date(observed_at) or to_et(observed_at).date(),
         cost_profile=cost_profile,
         rth_signal_symbol=rth_signal_symbol,
+        rth_entry_name=rth_entry_name,
     )
     return _run_spot_backtest(
         cfg,
@@ -301,6 +244,7 @@ def _lane_result(
         _SPY_META,
         exec_bars=execution_bars,
         final_session_complete=lane_complete,
+        spot_state_owner=spot_state_owner,
     )
 
 
@@ -322,9 +266,7 @@ def _trade_row(
         "exit_time": (
             trade.exit_time.isoformat() if trade.exit_time is not None else None
         ),
-        "trading_date": (
-            trading_day.isoformat() if trading_day is not None else None
-        ),
+        "trading_date": (trading_day.isoformat() if trading_day is not None else None),
         "direction": "up" if int(trade.qty) > 0 else "down",
         "entry_price": float(trade.entry_price),
         "exit_price": (
@@ -366,11 +308,19 @@ def _equity(
     run_started_at: datetime,
     observed_at: datetime,
     rth_signal_symbol: str,
+    strategy_version: str = XSP_OPENING_EDGE_V2_TRANSPORT_VERSION,
+    schema: str = "xsp.opening-edge-v2-candidate-equity.v1",
 ) -> dict[str, object]:
     rows = sorted(
         (
-            *(_trade_row(row, lane="gth", cost_profile=cost_profile) for row in gth.trades),
-            *(_trade_row(row, lane="rth", cost_profile=cost_profile) for row in rth.trades),
+            *(
+                _trade_row(row, lane="gth", cost_profile=cost_profile)
+                for row in gth.trades
+            ),
+            *(
+                _trade_row(row, lane="rth", cost_profile=cost_profile)
+                for row in rth.trades
+            ),
         ),
         key=lambda row: str(row["entry_time"]),
     )
@@ -399,16 +349,12 @@ def _equity(
     session_cost = sum(float(row["cost_points"]) for row in session_rows)
     session_net = sum(float(row["net_points"]) for row in session_rows)
     breaches = []
-    if maximum_drawdown > float(
-        XSP_OPENING_EDGE_V2_RISK["max_drawdown_points"]
-    ):
+    if maximum_drawdown > float(XSP_OPENING_EDGE_V2_RISK["max_drawdown_points"]):
         breaches.append("drawdown_limit_breached")
-    if session_net < -float(
-        XSP_OPENING_EDGE_V2_RISK["max_session_loss_points"]
-    ):
+    if session_net < -float(XSP_OPENING_EDGE_V2_RISK["max_session_loss_points"]):
         breaches.append("session_loss_limit_breached")
     identity = {
-        "strategy_version": XSP_OPENING_EDGE_V2_TRANSPORT_VERSION,
+        "strategy_version": strategy_version,
         "crown_config_fingerprint": spec.config_fingerprint,
         "cost_profile": cost_profile,
         "rth_signal_symbol": str(rth_signal_symbol).upper(),
@@ -416,7 +362,7 @@ def _equity(
         "run_started_at_utc": run_started_at.astimezone(timezone.utc).isoformat(),
     }
     return {
-        "schema": "xsp.opening-edge-v2-candidate-equity.v1",
+        "schema": schema,
         "authority": "prospective_counterfactual_only",
         "run_id": calibration_fingerprint(identity),
         "run_started_at_utc": identity["run_started_at_utc"],
@@ -445,8 +391,7 @@ def _equity(
         "latest_position": marked[-1] if marked else None,
         "latest_trade": closed[-1] if closed else None,
         "trade_ledger_fingerprint": calibration_fingerprint(rows),
-        "reconciled": abs(cumulative_net - cumulative_gross + cumulative_cost)
-        <= 1e-7,
+        "reconciled": abs(cumulative_net - cumulative_gross + cumulative_cost) <= 1e-7,
         "attribution_complete": all(
             row["attribution"]["decision_trace_fingerprint"] for row in rows
         ),
@@ -463,7 +408,14 @@ def xsp_opening_edge_v2_equities(
     observed_at: datetime,
     run_started_at: datetime,
     xsp_rth_bars: Sequence[Bar] | None = None,
+    xsp_daily_bars: Sequence[Bar] | None = None,
     naive_ts_mode: NaiveTsModeInput = "utc",
+    rth_state_owner_factory: Callable[[], object] | None = None,
+    rth_entry_name: str = "RTH Core",
+    strategy_version: str = XSP_OPENING_EDGE_V2_TRANSPORT_VERSION,
+    paired_schema: str = "xsp.opening-edge-v2-paired-equity.v1",
+    candidate_schema: str = "xsp.opening-edge-v2-candidate-equity.v1",
+    execution_gate: Mapping[str, object] = XSP_OPENING_EDGE_V2_EXECUTION_GATE,
 ) -> dict[str, object]:
     """Replay the same causal tape under research and measured broker costs."""
 
@@ -495,6 +447,7 @@ def xsp_opening_edge_v2_equities(
         raise ValueError("Opening Edge v2 run start must be inside an XSP session")
     profiles: dict[str, object] = {}
     signal_observations: dict[str, object] | None = None
+    rth_state: dict[str, object] | None = None
     for cost_profile in ("research", "broker"):
         gth = _lane_result(
             spec,
@@ -505,6 +458,10 @@ def xsp_opening_edge_v2_equities(
             run_trading_date=run_trading_date,
             observed_at=observed_at,
             rth_signal_symbol="XSP",
+            rth_entry_name=rth_entry_name,
+        )
+        owner = (
+            rth_state_owner_factory() if rth_state_owner_factory is not None else None
         )
         rth = _lane_result(
             spec,
@@ -515,14 +472,26 @@ def xsp_opening_edge_v2_equities(
             run_trading_date=run_trading_date,
             observed_at=observed_at,
             rth_signal_symbol=rth_signal_symbol,
+            rth_entry_name=rth_entry_name,
+            spot_state_owner=owner,
         )
         observations = {
             "gth": gth.latest_signal_snapshot,
             "rth": rth.latest_signal_snapshot,
         }
         if signal_observations is not None and observations != signal_observations:
-            raise ValueError("Opening Edge v2 signal observations drifted by cost profile")
+            raise ValueError(
+                "Opening Edge v2 signal observations drifted by cost profile"
+            )
         signal_observations = observations
+        state_payload = (
+            owner.state_payload()
+            if owner is not None and callable(getattr(owner, "state_payload", None))
+            else None
+        )
+        if rth_state is not None and state_payload != rth_state:
+            raise ValueError("Opening Edge state owner drifted by cost profile")
+        rth_state = state_payload
         profiles[cost_profile] = _equity(
             spec,
             cost_profile=cost_profile,
@@ -531,9 +500,11 @@ def xsp_opening_edge_v2_equities(
             run_started_at=run_started_at,
             observed_at=observed_at,
             rth_signal_symbol=rth_signal_symbol,
+            strategy_version=strategy_version,
+            schema=candidate_schema,
         )
     return {
-        "schema": "xsp.opening-edge-v2-paired-equity.v1",
+        "schema": paired_schema,
         "crown_artifact_sha256": spec.artifact_sha256,
         "crown_config_fingerprint": spec.config_fingerprint,
         "rth_signal_source": rth_signal_symbol,
@@ -548,6 +519,8 @@ def xsp_opening_edge_v2_equities(
         "execution_symbol": "SPY",
         "signal_clock": "XSP",
         "signal_observations": signal_observations,
+        "rth_state_owner": rth_state,
+        "daily_context_bars": len(xsp_daily_bars or ()),
         "spy_tape_fingerprint": calibration_fingerprint(
             [
                 (
@@ -561,7 +534,7 @@ def xsp_opening_edge_v2_equities(
             ]
         ),
         "profiles": profiles,
-        "execution_eligibility": dict(XSP_OPENING_EDGE_V2_EXECUTION_GATE),
+        "execution_eligibility": dict(execution_gate),
         "order_authority": "none",
     }
 
@@ -577,10 +550,7 @@ def next_xsp_v2_run_start(observed_at: datetime) -> datetime:
             time(20, 15),
             tzinfo=ET_ZONE,
         )
-        if (
-            candidate > observed_et
-            and xsp_trading_date(candidate) == trading_day
-        ):
+        if candidate > observed_et and xsp_trading_date(candidate) == trading_day:
             return candidate.astimezone(timezone.utc)
     raise ValueError("unable to resolve next XSP GTH run start")
 
@@ -589,6 +559,7 @@ def xsp_opening_edge_v2_run_start(
     records: Sequence[Mapping[str, object]],
     *,
     observed_at: datetime,
+    strategy_version: str = XSP_OPENING_EDGE_V2_TRANSPORT_VERSION,
 ) -> datetime:
     """Recover one frozen v2 start, or choose the next untouched GTH boundary."""
 
@@ -596,7 +567,7 @@ def xsp_opening_edge_v2_run_start(
         str(evidence["run_started_at_utc"])
         for row in records
         if row.get("kind") == "checkpoint"
-        and row.get("strategy_version") == XSP_OPENING_EDGE_V2_TRANSPORT_VERSION
+        and row.get("strategy_version") == strategy_version
         and isinstance((evidence := row.get("evidence")), Mapping)
         and evidence.get("run_started_at_utc")
     }
@@ -614,11 +585,18 @@ async def advance_xsp_opening_edge_v2_from_ibkr(
     observed_at: datetime,
     run_started_at: datetime,
     duration_str: str = XSP_OPENING_EDGE_V2_HISTORY_DURATION,
-    news_snapshot: Mapping[str, object]
-    | Sequence[Mapping[str, object]]
-    | None = None,
+    news_snapshot: Mapping[str, object] | Sequence[Mapping[str, object]] | None = None,
     recorded_at: datetime | None = None,
     spec: XspOpeningEdgeV2Spec | None = None,
+    strategy_id: str = XSP_OPENING_EDGE_V2_VERSION,
+    strategy_version: str = XSP_OPENING_EDGE_V2_TRANSPORT_VERSION,
+    spec_loader: Callable[[], XspOpeningEdgeV2Spec] = load_xsp_opening_edge_v2_spec,
+    paired_equity_builder: Callable[..., dict[str, object]] = (
+        xsp_opening_edge_v2_equities
+    ),
+    daily_context_duration_str: str | None = None,
+    execution_gate: Mapping[str, object] = XSP_OPENING_EDGE_V2_EXECUTION_GATE,
+    run_start_validator: Callable[[datetime], bool] | None = None,
 ) -> dict[str, object]:
     """Advance one pre-frozen, non-submitting v2 observer from IBKR history."""
 
@@ -640,17 +618,23 @@ async def advance_xsp_opening_edge_v2_from_ibkr(
     )
     if checkpoint_recorded_at is None:
         raise ValueError("Opening Edge v2 recorded_at must be timezone-aware")
-    resolved_spec = spec or load_xsp_opening_edge_v2_spec()
+    resolved_spec = spec or spec_loader()
 
     run_trading_day = xsp_trading_date(run_started_utc)
     if run_trading_day is None:
         raise ValueError("Opening Edge v2 run start must be inside an XSP session")
-    canonical_start = datetime.combine(
-        run_trading_day - timedelta(days=1),
-        time(20, 15),
-        tzinfo=ET_ZONE,
-    ).astimezone(timezone.utc)
-    if run_started_utc != canonical_start:
+    canonical_start = (
+        datetime.combine(
+            run_trading_day - timedelta(days=1),
+            time(20, 15),
+            tzinfo=ET_ZONE,
+        ).astimezone(timezone.utc)
+        if run_start_validator is None
+        else run_started_utc
+    )
+    if (
+        run_start_validator is not None and not run_start_validator(run_started_utc)
+    ) or (run_start_validator is None and run_started_utc != canonical_start):
         raise ValueError("Opening Edge v2 run start must be the exact GTH boundary")
 
     prior_starts: set[str] = set()
@@ -659,8 +643,7 @@ async def advance_xsp_opening_edge_v2_from_ibkr(
         evidence = row.get("evidence")
         if (
             row.get("kind") != "checkpoint"
-            or row.get("strategy_version")
-            != XSP_OPENING_EDGE_V2_TRANSPORT_VERSION
+            or row.get("strategy_version") != strategy_version
             or not isinstance(evidence, Mapping)
         ):
             continue
@@ -669,13 +652,10 @@ async def advance_xsp_opening_edge_v2_from_ibkr(
         if evidence.get("crown_config_fingerprint"):
             prior_configs.add(str(evidence["crown_config_fingerprint"]))
     expected_start = run_started_utc.isoformat()
-    if len(prior_starts) > 1 or (
-        prior_starts and prior_starts != {expected_start}
-    ):
+    if len(prior_starts) > 1 or (prior_starts and prior_starts != {expected_start}):
         raise ValueError("Opening Edge v2 observer run start drift")
     if len(prior_configs) > 1 or (
-        prior_configs
-        and prior_configs != {resolved_spec.config_fingerprint}
+        prior_configs and prior_configs != {resolved_spec.config_fingerprint}
     ):
         raise ValueError("Opening Edge v2 observer crown config drift")
     if not prior_starts and checkpoint_recorded_at > run_started_utc:
@@ -696,15 +676,13 @@ async def advance_xsp_opening_edge_v2_from_ibkr(
     )
     if skip_reason is not None:
         status = (
-            "UNSUPPORTED_SESSION"
-            if skip_reason == "unsupported_session"
-            else "CLOSED"
+            "UNSUPPORTED_SESSION" if skip_reason == "unsupported_session" else "CLOSED"
         )
         checkpoint_session = session if status == "UNSUPPORTED_SESSION" else "CLOSED"
         checkpoint = ledger.checkpoint(
             evaluation_as_of=observed_utc,
-            strategy_id=XSP_OPENING_EDGE_V2_VERSION,
-            strategy_version=XSP_OPENING_EDGE_V2_TRANSPORT_VERSION,
+            strategy_id=strategy_id,
+            strategy_version=strategy_version,
             trading_date=trading_day.isoformat() if trading_day else None,
             session=checkpoint_session,
             status=status,
@@ -729,9 +707,7 @@ async def advance_xsp_opening_edge_v2_from_ibkr(
             "order_authority": "none",
         }
 
-    qualified_spy = await client.qualify_proxy_contracts(
-        Stock("SPY", "SMART", "USD")
-    )
+    qualified_spy = await client.qualify_proxy_contracts(Stock("SPY", "SMART", "USD"))
     spy_contract = next(
         (
             row
@@ -773,9 +749,7 @@ async def advance_xsp_opening_edge_v2_from_ibkr(
     )
     spy_gth, spy_rth = split_xsp_v2_sessions(normalized_spy)
     latest_spy_close = (
-        normalized_spy[-1].ts.replace(tzinfo=timezone.utc)
-        if normalized_spy
-        else None
+        normalized_spy[-1].ts.replace(tzinfo=timezone.utc) if normalized_spy else None
     )
     latest_spy_age = (
         max(0.0, (observed_utc - latest_spy_close).total_seconds())
@@ -790,6 +764,8 @@ async def advance_xsp_opening_edge_v2_from_ibkr(
     xsp_contract = None
     raw_xsp: Sequence[Bar] = ()
     xsp_bars: Sequence[Bar] = ()
+    raw_xsp_daily: Sequence[Bar] = ()
+    xsp_daily_bars: Sequence[Bar] = ()
     xsp_error = None
     try:
         qualified_xsp = await client.qualify_proxy_contracts(
@@ -800,10 +776,8 @@ async def advance_xsp_opening_edge_v2_from_ibkr(
                 row
                 for row in qualified_xsp
                 if int(getattr(row, "conId", 0) or 0) > 0
-                and str(getattr(row, "secType", "") or "").strip().upper()
-                == "IND"
-                and str(getattr(row, "symbol", "") or "").strip().upper()
-                == "XSP"
+                and str(getattr(row, "secType", "") or "").strip().upper() == "IND"
+                and str(getattr(row, "symbol", "") or "").strip().upper() == "XSP"
             ),
             None,
         )
@@ -830,6 +804,22 @@ async def advance_xsp_opening_edge_v2_from_ibkr(
                 use_rth=True,
                 naive_ts_mode="et",
             )
+            if daily_context_duration_str:
+                raw_xsp_daily = await client.historical_bars_ohlcv(
+                    xsp_contract,
+                    duration_str=str(daily_context_duration_str),
+                    bar_size="1 day",
+                    use_rth=True,
+                    what_to_show="TRADES",
+                    cache_ttl_sec=0.0,
+                )
+                xsp_daily_bars = normalize_bars_to_close(
+                    raw_xsp_daily,
+                    symbol="XSP",
+                    bar_size="1 day",
+                    use_rth=True,
+                    naive_ts_mode="et",
+                )
     except Exception as exc:
         xsp_error = f"{type(exc).__name__}: {exc}"
 
@@ -844,9 +834,7 @@ async def advance_xsp_opening_edge_v2_from_ibkr(
     if normalized_xsp and not gth_anchor_ready and xsp_error is None:
         xsp_error = "missing_completed_anchor"
     latest_xsp_close = (
-        normalized_xsp[-1].ts.replace(tzinfo=timezone.utc)
-        if normalized_xsp
-        else None
+        normalized_xsp[-1].ts.replace(tzinfo=timezone.utc) if normalized_xsp else None
     )
     latest_xsp_age = (
         max(0.0, (observed_utc - latest_xsp_close).total_seconds())
@@ -859,16 +847,16 @@ async def advance_xsp_opening_edge_v2_from_ibkr(
             session not in {"RTH", "CURB"}
             or (
                 latest_xsp_age is not None
-                and latest_xsp_age
-                <= XSP_OPENING_EDGE_V2_FRESHNESS_SECONDS
+                and latest_xsp_age <= XSP_OPENING_EDGE_V2_FRESHNESS_SECONDS
             )
         )
     )
     paired_equity = (
-        xsp_opening_edge_v2_equities(
+        paired_equity_builder(
             spec=resolved_spec,
             spy_bars=spy_bars,
             xsp_rth_bars=xsp_bars or None,
+            xsp_daily_bars=xsp_daily_bars or None,
             observed_at=observed_utc,
             run_started_at=run_started_utc,
             naive_ts_mode="et",
@@ -882,6 +870,11 @@ async def advance_xsp_opening_edge_v2_from_ibkr(
         else "EVALUATED"
         if spy_fresh and rth_provenance_fresh
         else "STALE_DATA"
+    )
+    daily_context_count = (
+        int(paired_equity.get("daily_context_bars") or 0)
+        if isinstance(paired_equity, Mapping)
+        else len(xsp_daily_bars)
     )
 
     fundamental = xsp_fundamental_context_at(
@@ -915,8 +908,8 @@ async def advance_xsp_opening_edge_v2_from_ibkr(
     )
     checkpoint = ledger.checkpoint(
         evaluation_as_of=observed_utc,
-        strategy_id=XSP_OPENING_EDGE_V2_VERSION,
-        strategy_version=XSP_OPENING_EDGE_V2_TRANSPORT_VERSION,
+        strategy_id=strategy_id,
+        strategy_version=strategy_version,
         trading_date=trading_day.isoformat() if trading_day else None,
         session=session,
         status=evaluation_status,
@@ -937,9 +930,7 @@ async def advance_xsp_opening_edge_v2_from_ibkr(
             "spy_gth_bars": len(spy_gth),
             "spy_rth_bars": len(spy_rth),
             "latest_spy_close_utc": (
-                latest_spy_close.isoformat()
-                if latest_spy_close is not None
-                else None
+                latest_spy_close.isoformat() if latest_spy_close is not None else None
             ),
             "latest_spy_age_sec": latest_spy_age,
             "spy_history_fresh": spy_fresh,
@@ -951,19 +942,17 @@ async def advance_xsp_opening_edge_v2_from_ibkr(
             "xsp_historical_request": xsp_request,
             "xsp_raw_bars": len(raw_xsp),
             "xsp_complete_close_aligned_bars": len(normalized_xsp),
+            "xsp_daily_raw_bars": len(raw_xsp_daily),
+            "xsp_daily_context_bars": daily_context_count,
             "latest_xsp_close_utc": (
-                latest_xsp_close.isoformat()
-                if latest_xsp_close is not None
-                else None
+                latest_xsp_close.isoformat() if latest_xsp_close is not None else None
             ),
             "latest_xsp_age_sec": latest_xsp_age,
             "rth_signal_source": "XSP" if normalized_xsp else None,
             "rth_provenance_fresh": rth_provenance_fresh,
             "xsp_error": xsp_error,
             "fundamental_pressure": fundamental_log,
-            "execution_eligibility": dict(
-                XSP_OPENING_EDGE_V2_EXECUTION_GATE
-            ),
+            "execution_eligibility": dict(execution_gate),
             "order_authority": "none",
         },
         recorded_at=checkpoint_recorded_at,
@@ -980,6 +969,7 @@ async def advance_xsp_opening_edge_v2_from_ibkr(
         "spy_complete_close_aligned_bars": len(normalized_spy),
         "xsp_raw_bars": len(raw_xsp),
         "xsp_complete_close_aligned_bars": len(normalized_xsp),
+        "xsp_daily_context_bars": daily_context_count,
         "rth_signal_source": "XSP" if normalized_xsp else None,
         "checkpoint_id": checkpoint["checkpoint_id"],
         "paired_equity": paired_equity,

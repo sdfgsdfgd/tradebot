@@ -1575,8 +1575,7 @@ def test_shadow_systemd_cadence_is_bounded_and_runtime_gated() -> None:
     ) in service
     assert (
         "ExecStart=/usr/bin/env python3 -m tradebot.research.xsp_shadow "
-        "--mode opening-edge-v2 --selected-transport "
-        "db/calibration/xsp_selected_live_transport.json"
+        "--mode opening-edge-v3"
     ) in service
     assert "TimeoutStartSec=8min" in service
     assert "Environment=IBKR_READONLY=1" in service
@@ -1603,6 +1602,7 @@ def test_shadow_systemd_cadence_is_bounded_and_runtime_gated() -> None:
     assert selector.index("--freeze-selected-transport") < selector.index(
         "tradebot-xsp-shadow-selected-live.conf"
     )
+    assert "legacy v2 selector is disabled under the v3 observer" in selector
     assert (
         selector.index("tradebot-xsp-shadow-selected-live.conf")
         < selected_start
@@ -1613,7 +1613,9 @@ def test_shadow_systemd_cadence_is_bounded_and_runtime_gated() -> None:
     assert "rm " not in selector
 
 
-@pytest.mark.parametrize("failure_phase", ("none", "before_selection", "after_selection"))
+@pytest.mark.parametrize(
+    "failure_phase", ("none", "before_selection", "after_selection")
+)
 def test_xsp_live_selection_transaction_is_atomic(
     tmp_path,
     monkeypatch,
@@ -1624,7 +1626,9 @@ def test_xsp_live_selection_transaction_is_atomic(
     deployed = tmp_path / "systemd"
     fake_bin = tmp_path / "bin"
     runtime = tmp_path / "runtime"
-    evidence = tuple(tmp_path / f"{name}.json" for name in ("ranking", "dwell", "preview"))
+    evidence = tuple(
+        tmp_path / f"{name}.json" for name in ("ranking", "dwell", "preview")
+    )
     for directory in (
         repo / "deploy/systemd",
         repo / "db/calibration",
@@ -1634,7 +1638,11 @@ def test_xsp_live_selection_transaction_is_atomic(
     ):
         directory.mkdir(parents=True, exist_ok=True)
     for name in ("tradebot-xsp-shadow.service", "tradebot-xsp-shadow.timer"):
-        payload = f"{name}\n"
+        payload = (
+            "ExecStart=python -m tradebot.research.xsp_shadow --mode opening-edge-v2\n"
+            if name == "tradebot-xsp-shadow.service"
+            else f"{name}\n"
+        )
         (repo / "deploy/systemd" / name).write_text(payload)
         (deployed / name).write_text(payload)
     (repo / "deploy/systemd/tradebot-xsp-shadow-selected-live.conf").write_text(

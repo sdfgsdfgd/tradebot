@@ -1,0 +1,131 @@
+{
+  "schema": "xsp.opening-edge-v3-regime-harmony-runtime-parity.v1",
+  "authority": "historical_runtime_parity_only",
+  "candidate": "Opening Edge v3 — Regime Harmony 24/5",
+  "artifact_sha256": "d47eb39cef3d2ca575d779d6b5b87e3b88e08606fd09a8801b8cb55c350208db",
+  "sources": {
+    "frozen_research_result_sha256": "0860769b5d6877c4b0c8c7b1361a28b7037f5c42ad5ba24b11674038e14e142b",
+    "frozen_research_runner_sha256": "000f39e959d95f370a9fb92eac1e884ef8e6b0377e97f55257bf2c67dabde87f",
+    "runtime_owner_sha256": "643b6a04478e598fe7fbdc2d5aa6deabe6935761b3fa83cf487a9fdd16a265bc",
+    "backtest_engine_sha256": "09c7629c180725dc33d2966f6508dbc8c1d20fc997fab1609e7b8f67bda4fc49",
+    "opening_edge_tapes_sha256": "ad2532194ada0701d5b528acbe06c5e01fbbb8ad8e146c9e99cf7c0db9bad027",
+    "cash_qualification_sha256": "e41e44db270ea872679746cb2b83b2aa73987e523863236472f6e8ec0434c8dc",
+    "prospective_daily_context_seed_sha256": "177b4163fcdee409378e7b6384b15b3554d7e25438714ef2feb7633e04896b1f"
+  },
+  "parity": {
+    "rth_expected_ledger_sha256": "40708a28476fad504d29b1222e52b88481b1c0da8313ed4667076e2b6ed3f157",
+    "rth_runtime_ledger_sha256": "40708a28476fad504d29b1222e52b88481b1c0da8313ed4667076e2b6ed3f157",
+    "rth_ordered_ledger_equal": true,
+    "gth_expected_ledger_sha256": "9e04807fb77df431b7af27b8be6d5f5288c8512bfe80cb78b3c1fe70cabb8a98",
+    "gth_owner": "unchanged Opening Edge v2 GTH Down Sleeve",
+    "combined_trades": 604,
+    "combined_net_points": 291.1756,
+    "combined_profit_factor": 2.0919,
+    "combined_max_drawdown_points": 17.63,
+    "combined_trades_per_year": 201.8674
+  },
+  "runtime_state": {
+    "daily_context_sessions": 1255,
+    "daily_context_fingerprint": "e345b020b1e9ae6066b0a06cc6e1f238eb3ebc9325b3a4f13d6e250adbc1572a",
+    "prospective_seed_sessions": 1257,
+    "prospective_seed_through": "2026-07-28",
+    "prospective_seed_fingerprint": "f4fe049b8cdd0ae7cb8099a3e57351f78d15bc8e4f3f08528329669142b228c7",
+    "phase_scoped_atr_period": 14,
+    "phase_scoped_atr_streams": [
+      "drawdown_velocity_down",
+      "drawdown_velocity_flat"
+    ],
+    "counts": {
+      "transition_up_short": {
+        "armed": 24,
+        "matured": 1,
+        "expired": 23
+      },
+      "recovery_up": {
+        "armed": 43,
+        "matured": 6,
+        "expired": 37
+      },
+      "composite_context_confidence": {
+        "armed": 98,
+        "matured": 6,
+        "expired": 92
+      },
+      "established_fast_only_short": {
+        "armed": 17,
+        "matured": 1,
+        "expired": 16
+      },
+      "entrenched_hard_up_short": {
+        "armed": 13,
+        "matured": 0,
+        "expired": 13
+      },
+      "zero_corroboration": {
+        "armed": 15,
+        "matured": 1,
+        "expired": 14
+      },
+      "fading_range_bear_wakeup": {
+        "armed": 12,
+        "matured": 3,
+        "expired": 9
+      },
+      "short_financing_atr_underwarmed_blocked": 1,
+      "short_fizzle_enabled": 121,
+      "weak_two_bar_surrender": {
+        "armed": 15,
+        "cancelled": 5,
+        "held_confirmation": 12,
+        "released": 10
+      },
+      "recovering_flat_long_context_surrender": {
+        "armed": 123,
+        "cancelled": 7,
+        "released": 116
+      }
+    }
+  },
+  "prospective_seed_overlap": {
+    "observed_at_utc": "2026-07-29T11:34:51.662580+00:00",
+    "raw_q_probe_sha256": "e1340ea9383d162b221345bd1f5333f9d8846949b1132bf6c9c627b7b896b234",
+    "xsp_five_minute_bars": 780,
+    "complete_sessions": 10,
+    "first_session": "2026-07-15",
+    "last_session": "2026-07-28",
+    "overlap_exact": true,
+    "merged_sessions": 1257,
+    "order_authority": "none",
+    "submitted_orders": 0
+  },
+  "prospective_observer_prefix": {
+    "environment": "isolated q checkout with IBKR_READONLY=1",
+    "run_started_at_utc": "2026-07-29T12:00:00+00:00",
+    "ledger_sha256": "0a8e289baf2e50f08ef2eb36c70e89d50d7eb23a75bf0d795a2a61a098f0b583",
+    "records": 2,
+    "statuses": {
+      "CLOSED": 1,
+      "EVALUATED": 1
+    },
+    "prefreeze_checkpoint_id": "dff31dc52d05d650a67a003477f76cd896563c65833524f71b50a26fc8af1e9a",
+    "active_checkpoint_id": "73b7f0e06cfd043ec197e1cc8f0269a82f7389afaeefaf198a52b22bd2236d20",
+    "xsp_complete_close_aligned_bars": 780,
+    "spy_complete_close_aligned_bars": 2716,
+    "daily_context_sessions": 1257,
+    "daily_context_fingerprint": "f4fe049b8cdd0ae7cb8099a3e57351f78d15bc8e4f3f08528329669142b228c7",
+    "selected_run": false,
+    "selected_transport": false,
+    "counterfactual_open_positions": 1,
+    "counterfactual_closed_trades": 0,
+    "order_authority": "none",
+    "submitted_orders": 0
+  },
+  "safety": {
+    "disabled_default_behavior_preserved": true,
+    "context_underwarm": "fail_closed",
+    "order_authority": "none",
+    "submitted_orders": 0,
+    "selected_transport": false,
+    "profitability_clock": "not_started"
+  }
+}

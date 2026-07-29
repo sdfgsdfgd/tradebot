@@ -1,18 +1,21 @@
 # XSP Mastery — Live Research Kata
 
-- **Status:** `[ACTIVE] v2 technical observation continues; the strongest
-  cross-regime cash challenger awaits independent signal/full-size execution
-  proof, and capital authority remains HOLD`
+- **Status:** `[ACTIVE] Opening Edge v3 is the frozen historical crown and its
+  centralized non-submitting runtime has exact RTH/GTH ledger parity; durable
+  publication, q observer activation, and v3-specific cash selection remain
+  fail-closed before capital authority`
 - **Authority:** canonical resume state, active task tree, critical evidence
   index, and promotion contract
 - **Cold history:** [`q_XSP_live_research_kata-archive.md`](q_XSP_live_research_kata-archive.md)
 - **Leaderboard:** [`backtests/xsp/leaderboard.md`](backtests/xsp/leaderboard.md)
-- **Scope:** XSP signal mastery; base-ledger SPY, UPRO/SPXU, SPXL/SPXS,
-  inception-bounded SPYU/SPXU, SSO/SDS, and cross-index TQQQ/SQQQ execution
-  are rejected. The E-259→E-270 lineage reopens only bounded UPRO/SPXU
-  validation for a materially different signal ledger; E-269 is the strongest cross-regime
-  historical development leader, but the crown is unchanged and every observer
-  remains non-submitting
+- **Scope:** XSP signal mastery. Opening Edge v3 supersedes v2 as the historical
+  crown after the E-259→E-280 regime-harmony lineage improved every annual
+  slice, full net/PF/DD, both directions, and both lanes. Its authentic
+  UPRO/SPXU RTH cash mapping is positive under complete spread crossing, but no
+  v3 transport is selected: Fixed narrowly exceeds the frozen DD boundary,
+  Tiered is submitted but not yet proved effective, RTH cash cadence is below
+  the global floor, and GTH cash execution remains unqualified. Every observer
+  is non-submitting
 - **Capital premise:** broker-read `INDIVIDUAL/STKCASH` state is about
   AUD `2,025` NLV and AUD `1,935` BuyingPower/TotalCash; USD `1,228.61` plus
   AUD `176.94` supports the frozen USD `1,350` total risk identity. Selection
@@ -31,17 +34,17 @@ output belongs in commit/final verification, not in this management brain.
 | Authority | Current truth |
 |---|---|
 | Broker/order strategy | `NO_TRADE` |
-| Selected shadow | Opening Edge v1 predecessor `9fac460e…`; cannot confer v2 authority |
-| Research crown | **Opening Edge v2 — Balanced 24/5**; `xsp.opening-edge-v2-balanced-24x5.v1` |
-| Runtime parity | Exact prior-XSP-close GTH projection plus XSP RTH signal reproduces all `725` ordered SPY fills; the shared 24/5 exit clock now honors the session trading date |
-| Runtime source anchor | executable successor implementation `ba6d49b…`; archive `02dc773b…` proves source, selected-shadow, and ledger continuity. Later brain-only commits do not alter deployed runtime bytes |
+| Selected shadow | Opening Edge v1 predecessor `9fac460e…`; cannot confer v3 authority |
+| Research crown | **Opening Edge v3 — Regime Harmony 24/5**; `xsp.opening-edge-v3-regime-harmony-24x5.v1` |
+| Runtime parity | Central v3 owner reproduces RTH `40708a28…` exactly over `425/425` trades; unchanged GTH Down Sleeve reproduces `9e04807f…` over `179/179`; combined `604`, `+291.1756`, PF `2.0919`, DD `17.63` |
+| Runtime source anchor | local content-addressed v3 crown/cash/runtime receipts plus one opt-in `XspOpeningEdgeV3StateOwner`; predecessors remain independently reproducible and disabled defaults are unchanged. Publication and q fast-forward are the active transaction |
 | Observer cadence | **cleared prospectively:** the successor splits the opening hour from `21..23 ET`, uses `Persistent=false`, and its first natural recurrence advanced `20:42→20:47 ET` at exact five-minute cadence without backfill. Predecessor gaps remain excluded from profitability coverage |
 | RTH signal freshness | **cleared:** after the user activated `CBOE Streaming Market Indexes`, zero-order receipt `acce7ed3…` returned live type-1 XSP, current five-minute history, and real-time `TRADES` bars without a Gateway restart; the natural `10:07 ET` centralized v2 checkpoint then evaluated with both XSP and SPY through `10:05` and `120s` age |
 | Order/capital authority | `none` |
-| Profitability clock | v2 `NOT_STARTED`; predecessor evidence does not transfer |
-| Execution verdict | `HOLD`; E-269 survives Tiered full-cross (`+$482.78`, PF `1.325`, DD `$116.37`) but current Fixed loses `-$150.09`; live selection still requires every armed `24`-share tape case to complete by `CROSS`, independent signal validation, and an explicit later Fixed→Tiered decision |
-| Next irreversible evidence | the next admitted or blocked technical turn plus the armed instrument-matched UPRO/SPXU microtape; neither historical transport P&L nor passive observation may start the clock |
-| First active work | monitor technical proposals, exact gate pass/block, positions, flips/exits, and P&L; news joins only after its natural four-hour publication and never drives work cadence |
+| Profitability clock | v3 `NOT_STARTED`; predecessor evidence does not transfer |
+| Execution verdict | `HOLD`; v3 RTH UPRO/SPXU full-cross is positive in recent/every year/full under Fixed (`+$337.06`, PF `1.245`, DD `$135.31`) and Tiered (`+$911.87`, PF `1.833`, DD `$102.68`). The user submitted Stocks/ETFs Tiered before `16:00 ET`; IBKR reports next-business-day processing, so effective commission remains unproved |
+| Next irreversible evidence | publish and activate the exact non-submitting v3 owner on q, then capture v3-specific books and one exact quote-derived broker preview only after the Fixed/Tiered, cadence, GTH, cash, identity, and restart gates are resolved |
+| First active work | finish parity/full verification and q read-only activation; then monitor every v3 proposal, exact gate pass/block, position, MFE/MAE, flip/exit, and counterfactual P&L. News joins only after its natural publication and never drives work cadence |
 
 ### Immediate sequence
 
@@ -98,15 +101,22 @@ output belongs in commit/final verification, not in this management brain.
     Receipt `opening_edge_v2_tqqq_sqqq_transport_receipt.json` and q archive
     manifest `ddd42ac0…` close the whole-share cash-ETF frontier with no
     selection, order, or clock.
-15. `[WIP]` Validate E-269 independently. It improves every annual signal slice
-    and preserves positive cash geometry through a complete quoted-spread cross
-    under conservative Tiered removal fees. Immutable r2 captures live L1 plus
-    tick-by-tick trade-through at `24` shares over every canonical RTH decision
-    and the `15:57 ET` liquidation; immutable r3 judges only whether every case
-    completes by `CROSS`. Current Fixed fails and no pricing change is
-    authorized. Runtime, selection, orders, and the clock stay closed until the
-    prospective tape, genuinely later signal boundary, and explicit pricing
-    decision all pass.
+15. `[DONE]` Preserve the E-269 execution tape as predecessor evidence only.
+    It cannot validate v3's materially different RTH timestamps or confer
+    pricing, selection, order, or profitability-clock authority.
+16. `[DONE]` Freeze and crown Opening Edge v3 after exact outcome-exposed
+    development, adjacent-cell stability, authentic cash qualification, and
+    explicit user coronation. It improves every annual slice and remains above
+    `200/year`; the crown is historical, not operational.
+17. `[WIP]` Publish the centralized v3 state owner and content-addressed
+    crown/cash/runtime receipts; prove exact historical, prefix, restart,
+    underwarm, disabled-default, selector, and UI parity; then fast-forward q
+    and activate only the non-submitting v3 observer.
+18. `[TODO]` Bind any live candidate to v3-specific UPRO/SPXU books,
+    quote-derived whole-share quantity, broker what-if, cash/restart identity,
+    and an explicit Fixed-versus-Tiered decision. Separately qualify GTH cash
+    execution or accept an explicitly narrower RTH experiment. Only a complete
+    passing identity may start `24h → 48h → five-session` clocks.
 
 ### Never infer
 
@@ -180,7 +190,32 @@ remains a frozen development challenger.
 
 ---
 
-## 2. Opening Edge v2 — Balanced 24/5 research crown
+## 2. Opening Edge v3 crown and immutable v2 execution lineage
+
+- **Current crown:** Opening Edge v3 — Regime Harmony 24/5,
+  `xsp.opening-edge-v3-regime-harmony-24x5.v1`.
+- **Exact evidence:** recent `+11.2375/14`; annual
+  `+62.9648/+75.4283/+152.7824`; full `+291.1756/604`
+  (`201.87/year`), PF `2.0919`, DD `17.63`; up `+103.2600/200`, down
+  `+187.9156/404`, RTH `+280.9700/425`, GTH `+10.2056/179`.
+- **Central owner:** v2's causal intraday turn sensor and unchanged GTH Down
+  Sleeve plus one strictly-prior `94`-session owner over
+  `5/10/21/42/63/84` return, true-range, drawdown, velocity/acceleration,
+  transition/state age, phase-scoped short financing, ordered maturation, and
+  incumbent surrender. No date router, news authority, stop/trail, quota, or
+  sizing rule.
+- **Cash qualification:** v3 RTH UPRO/SPXU stays positive under full spread
+  crossing and strict T+1 cash in recent/every year/full. Fixed reaches
+  `+$337.06/420`, PF `1.245`, DD `$135.31`; Tiered reaches
+  `+$911.87/423`, PF `1.833`, DD `$102.68`. Neither is selected under the
+  complete cadence/pricing/GTH/identity law.
+- **Durable detail:** exact mechanisms, rejected shortcuts, neighborhood,
+  hashes, cash attribution, and coronation record live in
+  [`backtests/xsp/leaderboard.md`](backtests/xsp/leaderboard.md).
+
+Opening Edge v2 remains the independently reproducible predecessor and the
+source of the execution lineage below; none of its selected or prospective
+evidence transfers to v3.
 
 - **RTH owner:** XSP-native `directional_impulse` over causal
   `5/15/30/60/120m` slope/velocity/acceleration, ATR-normalized geometry,
@@ -330,7 +365,7 @@ stale, underwarmed, failed, or horizon-expired evidence means no extra gate.
 | Pre-open bridge | Under a frozen `360s`, model-consensus-only GTH/Curb anchor, do exact `2h/4h/6h` velocities distinguish strengthening, exhaustion, or reversal into the first RTH turn? | separately versioned replay; descriptive cohorts only |
 | Crash/rebound | Can displacement + multiscale reversal + fresh GTH/news distinguish crash/rebound episodes? | peer state; never a regime router |
 | Microstructure | Can top-of-book/package liquidity, spread state, and quote evolution distinguish valuable turns? | primary new admission frontier |
-| ETF execution state | At each actual v2 position transition only, what do broker-qualified NBBO, shared `OPT→MID→AGG→CROSS` prices, and non-transmitting previews reveal after authentic UPRO/SPXU and SPYU/SPXU cash replays both rejected live authority? | discovery only; frozen `HOLD`, zero unchanged-state polling, zero orders |
+| ETF execution state | At each actual v3 position transition only, what do broker-qualified NBBO, shared `OPT→MID→AGG→CROSS` prices, and non-transmitting previews reveal after the positive full-cross UPRO/SPXU qualification? | discovery only until a v3-specific selected identity passes; frozen `HOLD`, zero unchanged-state polling, zero orders |
 
 News and option evidence begins only at append time. Historical headlines may
 explain plausibility but cannot label old trades or support value claims.
@@ -341,8 +376,9 @@ commissioning lane for it, and grant it no authority.
 
 ### Active task tree
 
-**Priority 0 — Prospective Live Edge Commissioning:** observe Opening Edge v2
-unchanged against the moving market; attribute every raw/admitted/blocked turn,
+**Priority 0 — Prospective Live Edge Commissioning:** publish and observe
+Opening Edge v3 unchanged against the moving market; attribute every
+raw/admitted/blocked turn,
 position, MFE/MAE, exit, and execution-ladder transition; prove continuous
 data, transport economics, cash/safety, and restart parity; then graduate the
 same content-addressed identity into bounded live authority and immutable
@@ -407,13 +443,13 @@ directional consistency is proven.
     strict cash, fill completeness, annual consistency, both-side/lane,
     latency, drawdown, and concentration gates. No Nasdaq subscription,
     what-if, selection, order, or clock is justified.
-14. `[WIP]` Continue event-driven live technical commissioning while capital
-    remains `HOLD`: preserve every proposal/gate/position/exit trace and use
-    exact extrema, multihorizon slope/velocity/ATR, MFE/MAE, and shock-state
-    attribution in a recursive weak-period landing loop. Separate immediate
-    error, financed giveback, re-entry churn, and reversal lag; preregister only
-    the smallest causal repair, replay every acceptance window, retain stable
-    cross-regime improvements, and discard the rest.
+14. `[DONE]` Complete the recursive cross-regime landing and ownership study
+    while capital remains `HOLD`: preserve every proposal/gate/position/exit
+    trace and use exact extrema, multihorizon slope/velocity/ATR, MFE/MAE, and
+    shock-state attribution in a recursive weak-period landing loop. Separate
+    immediate error, financed giveback, re-entry churn, and reversal lag;
+    preregister only the smallest causal repair, replay every acceptance
+    window, retain stable cross-regime improvements, and discard the rest.
     The recursive Year-1 landed-trade census is complete: it bound
     strictly-prior damage/recovery and volatility phase to intraday
     slope-velocity plus lifecycle financing, then separated immediate error,
@@ -448,13 +484,14 @@ directional consistency is proven.
     adjacent `2/3` and `3/3` cells both improve Years 1/2; preferred `3/3`
     reaches `+$30.90/+$52.76/+$141.89`, recent `+$15.18/15`, and full
     `+$225.56/678` (`226.6/year`), PF `1.639`, DD `23.11`. Only `6/43`
-    suspect proposals matured; `37` expired. E-269 is the strongest historical
-    development leader, not a crown: discovery is outcome-exposed and
-    independent validation remains absent.
-    Any later promotion must implement pending maturation, incumbent surrender,
-    and phase-conditioned fizzle as one XSP-specific state owner shared by
-    replay and live; the stateless admission policy cannot own this lifecycle.
-15. `[WIP]` Validate the first stable UPRO/SPXU cash overlap without assuming
+    suspect proposals matured; `37` expired. E-269 was the first balanced
+    development leader; the later E-278→E-280 synthesis added causal
+    soft/hard context, shock velocity/acceleration, phase-scoped financing,
+    and fading-information wake-up, culminating in crowned v3. Its pending
+    maturation, incumbent surrender, and financing now live in one shared
+    XSP-specific owner; the stateless admission policy does not own this
+    lifecycle.
+15. `[DONE]` Preserve the first stable UPRO/SPXU cash overlap without assuming
     fills. E-269 plus unchanged Tiered/T+1 replay makes all `8/8` inherited
     `$850..925` cash cells positive in every period. Preferred `$900` ARCA-add
     reaches `+$119.69/+$103.41/+$469.82`, full `+$692.93/492`, PF `1.498`,
@@ -498,9 +535,12 @@ directional consistency is proven.
     strictly next session may append, and invalid warmup or sequence fails
     closed.
     Do not add a second executor or edit runtime before the prospective gates.
-16. `[WIP]` Any new spot execution path must be materially different,
-    preregistered, and economically complete; do not reopen rejected ETF
-    families through sizing, spread, timing, or hindsight assumptions.
+16. `[WIP]` Finish v3 runtime publication and non-submitting q activation,
+    then qualify the already-positive v3 UPRO/SPXU RTH path under the complete
+    selection law. Never transfer E-269 timestamps or predecessor evidence.
+    Fresh books, exact quote-derived sizing, non-transmitting what-if,
+    cash/restart identity, and explicit Fixed-versus-Tiered status are
+    mandatory; GTH remains a separate unqualified cash lane.
 17. `[BLOCKED]` Alpha/theta structures and any live-capital canary belong to a
     later quest after directional causality and spot consistency are proven.
 
@@ -517,7 +557,7 @@ directional consistency is proven.
 | Lifecycle | `tradebot/spot/lifecycle.py` + shared position-intent path | persistent source owner; optional stop/trail semantics are honest |
 | Historical/cache truth | canonical chart-data/history owners | sparse, provenance-bound, gap-aware, close-aligned, no fabricated absence |
 | Forward option tape | `tradebot/backtest/tools/record_quotes.py` | restart-safe GTH/RTH/Curb tape with actual MD provenance |
-| Broker shadow/transport | `tradebot/research/xsp_opening_edge_v2.py` + `xsp_execution_observer.py` + `xsp_shadow.py` + Bot UI contracts | explicit XSP clock/provenance/fills; sparse state-change quote/preview evidence; bounded and non-submitting |
+| Broker shadow/transport | `tradebot/research/xsp_opening_edge_v3.py` over the immutable v2 transport + `xsp_execution_observer.py` + `xsp_shadow.py` + Bot UI contracts | explicit XSP clock/provenance/fills; sparse state-change quote/preview evidence; bounded and non-submitting |
 | Evidence/economics | `tradebot/research/live_calibration.py` | append-only forecasts/results/checkpoints and immutable milestones |
 | External decision context | `tradebot/research/xsp_context.py` | timestamp-causal option/news projection; no breadth runtime |
 | Candidate reducers | `tradebot/research/xsp_benchmarks.py` | pure comparison; no broker/order imports |
@@ -552,18 +592,22 @@ must be advanced, traced, and consumed identically; otherwise remove the lie.
 - Python `3.13.7`, `ib-insync 0.9.86`, `textual 6.12.0`, `tzdata 2026.3`.
 - Live client pool `500..899`; shadow `979/980/981`; recorder `989`.
 - Shadow broker work is bounded to `75s` inside a `2min` service wall.
-- Shadow history is `2 W`: enough warm-up and complete run coverage through
-  the seven-day evidence deadline without a long-horizon broker request.
+- Intraday shadow history remains `2 W`. v3 loads content-addressed seed
+  `177b4163…` containing `1,257` complete five-minute-aggregated XSP RTH
+  sessions through July 28, then accepts only exact complete five-minute
+  session overlaps/appends. Broker daily candles remain drift evidence and
+  never replace the crown's context source.
 - Closed/holiday/unsupported sessions do no broker work and are not
   `EVALUATED`.
-- Quote timer is persistent; the bounded v2 observer timer is not. Its six
+- Quote timer is persistent; the bounded crown observer timer is not. Its six
   calendar lanes cover completed GTH/RTH bars plus one `16:17 ET`
   RTH-finalization read; Curb never owns a trade.
-- q remains clean at the published `f9f8d3f4…` execution milestone; the
-  deployed content-addressed v2 observer is the unchanged `ba6d49b…` strategy
-  owner, and later brain-only revisions do not alter its bytes. Its five-minute
-  timer is enabled and naturally recurring without backfill, selection, broker
-  orders, or profitability-clock authority.
+- Before the v3 publication transaction, q remains on the clean published v2
+  observer. Fast-forward and service replacement must occur only after local
+  full verification; the next q owner is the content-addressed non-submitting
+  v3 observer, never a selected cash runtime. Its five-minute timer may resume
+  only without backfill, selection, broker orders, or profitability-clock
+  authority.
 - Network B and Cboe index subscriptions now provide the live inputs required
   by the observer: broker-qualified ETF books plus fresh XSP RTH signal bars.
   Entitlement is no longer the blocker; executable transport economics are.
@@ -700,6 +744,12 @@ and
 | E-275 | broker-enforced read-only XSP daily history supplied `251` complete sessions through July 28; its 21/63/84 direction, transition, damage, and volatility categories exactly match the frozen intraday-aggregated state. Official daily closes differ from last-five-minute closes by up to `1.62`, so broker daily is drift/fallback evidence—not silent signal authority. Canonical seed `689892bf…` retains the exact minimum `94` five-minute-aggregated sessions (`2026-03-13..07-28`) and reproduces current `transition_down / deteriorating / contracting` state; immutable q bundle `a1bb6791…` preserves inputs and runners. No service consumes it and no runtime, selection, order, or clock changed |
 | E-276 | read-only activation audit found the sole live cash-pair owner is not yet E-269-compatible: `xsp_live_transport.py`, its runtime, restart risk reconstruction, broker snapshot, and selector bind SPYU/SPXU, old SPYU ranking/dwell/preview schemas, fixed `$1,050/$1,150/$1,200` notionals, SPYU NAV, and symbol-specific chase rules. A passing E-269 branch must generalize this existing owner once around selection-bound `direction_symbols` plus per-instrument requirements, then content-address UPRO/SPXU contract IDs, `$900` cash/risk/commission identity, SMART/Tiered proof, execution policy, and canonical daily-state/owner fingerprints. No second executor, runtime edit, selection, order, or clock was created |
 | E-277 | canonical seed→append→restart proof `8362f762…` compared the E-269 state exactly at `1,164` frozen boundaries across `1,257` sessions, including `1,163` serialized rolling appends, and ended at frozen seed `689892bf…`. Underwarm, incomplete, duplicate, known-gap, nonmonotonic, and malformed OHLC inputs all fail closed. This closes restart warmup semantics only; no runtime, outcome, threshold, selection, order, or clock changed |
+| E-278 | the causal TQQQ HF/LF lineage contributed motifs, never transferable outcomes: soft transition versus hard direction, shock direction plus volatility velocity/acceleration, state age, preservation of recovery longs, and separate treatment of late tail chasing versus same-state strobing. Global long-trend vetoes, generic stops/trails, first-adverse exits, and every lookahead-touched result were rejected. Those motifs were exposed only through strictly-prior XSP `5/10/21/42/63/84` context and the existing intraday sensor—no date/month label or opaque router |
+| E-279 | the final frozen regime-harmony synthesis reaches recent `+11.2375/14`; annual `+62.9648/+75.4283/+152.7824`; full `+291.1756/604` (`201.8674/year`), PF `2.0919`, DD `17.63`; up/down `+103.2600/+187.9156`; RTH/GTH `+280.9700/+10.2056`. Adjacent stricter wake-up remains positive everywhere at full `+284.1656/601`, PF `2.0804`, DD `17.63`. Frozen result `0860769b…`, runner `000f39e9…`, RTH ledger `40708a28…`, unchanged GTH ledger `9e04807f…` |
+| E-280 | explicit user coronation makes Opening Edge v3 — Regime Harmony 24/5 the historical research crown. One opt-in centralized owner reproduces the exact `425/425` RTH ledger while preserving disabled defaults and the independently reproducible v2 predecessor. Authentic UPRO/SPXU full-cross/T+1 replay is positive in recent, every annual slice, and full history under Fixed (`+$337.06/420`, PF `1.245`, DD `$135.31`) and conservative Tiered (`+$911.87/423`, PF `1.833`, DD `$102.68`). RTH cash cadence is about `141/year`, Fixed misses the `$135` DD boundary by `$0.31`, GTH cash is unqualified, and no v3 books/preview/selection exist; coronation creates no pricing, order, or clock authority |
+| E-281 | at `2026-07-29T11:21Z` the user explicitly submitted the Stocks/ETFs/Warrants Fixed→Tiered pricing request and left Futures/FOPs unchanged. Client Portal confirmed that a business-day request before `16:00 ET` processes for the next business day. The request resolves the user decision only: v3 remains `HOLD` and Fixed-priced until a fresh non-transmitting UPRO/SPXU preview returns a commission inside the frozen conservative Tiered envelope |
+| E-282 | final live-path audit rejected a silent context substitution before deployment: broker daily XSP closes can differ from the frozen five-minute aggregate and cannot own v3. Content-addressed seed `177b4163…` now carries `1,257` exact sessions through July 28 with fingerprint `f4fe049b…`; a fresh q type-1/HMDS probe returned `780` XSP five-minute bars across ten complete July 15–28 sessions and matched every overlap exactly. Only complete future RTH sessions may append; partial edge sessions are ignored, while interior incompleteness, drift, duplicate, gap, nonmonotonic, malformed, or underwarm state fails closed. Historical RTH ledger remains exactly `40708a28…` |
+| E-283 | final-source isolated q preflight, outside the deployed checkout and with `IBKR_READONLY=1`, froze future `08:00 ET` v3 start before broker work and emitted `CLOSED/run_not_started`; the same immutable identity then advanced after the boundary to `EVALUATED`. Two-record ledger `0a8e289b…` binds crown `d47eb39c…`, owner `643b6a04…`, `780` XSP and `2,716` SPY close-aligned bars, and exact `1,257`-session context fingerprint `f4fe049b…`. It prospectively observed one GTH-down counterfactual with zero closed trades; selected run/transport remain absent and order authority/submitted orders remain `none/0`. v3 may prefreeze the next exact five-minute GTH boundary rather than waiting until the next `20:15 ET` trading-day open; v2 semantics remain unchanged |
 
 ### Decision anchors
 
@@ -745,6 +795,10 @@ and
 | D-178 | E-259 is the materially different causal signal ledger allowed by D-177; it reopens only bounded UPRO/SPXU passive-fill validation because `16/16` preregistered cash cells now pass. It does not revive the rejected base ledger, assume fills, authorize Tiered pricing, or confer crown/runtime/selection/order/clock authority |
 | D-179 | if E-269 passes prospectively, extend the one existing selected cash-pair owner rather than cloning it: the immutable selection must own direction-symbol mapping, contract IDs, per-instrument data rules, execution policy, cash/risk/commission identity, pricing/routing evidence, and E-269 state-owner/seed fingerprints. Legacy SPYU-specific defaults may not silently govern UPRO/SPXU, and implementation remains downstream of the evidence and pricing decision gates |
 | D-180 | E-269 restart state has one canonical input contract: load exactly the latest `94` completed close-stamped five-minute-aggregated XSP RTH sessions, append only the known strictly next completed session, retain `94`, then recompute. Broker daily bars remain drift evidence; underwarm, duplicate, gap, nonmonotonic, incomplete, or malformed input cannot inherit direction authority |
+| D-181 | Opening Edge v3 is the historical crown, not an operational crown. One centralized causal owner may change only RTH maturation, financing, and incumbent surrender from strictly-prior context; v2 intraday evidence and GTH ownership remain canonical. Coronation cannot transfer a predecessor selection, pricing assumption, order authority, or clock |
+| D-182 | the submitted Tiered request is neither effective-pricing evidence nor live authority. Continue to model Fixed until a fresh broker what-if proves Tiered commission at the exact v3 quote-derived quantity; then freeze pricing, cash, books, restart state, and selected identity together before any order |
+| D-183 | v3 long context must load the content-addressed five-minute-aggregated seed, reconcile exact recent five-minute overlaps, and append only complete next RTH sessions. Broker one-day bars are independent drift evidence; they cannot silently alter context, state age, direction, financing, or surrender |
+| D-184 | a new v3 observer may freeze any strictly future exact five-minute GTH boundary, then recover only that immutable start. This permits same-day prospective observation without backfill; it does not transfer earlier outcomes or relax selection/order clocks. The v2 trading-day-open boundary remains unchanged |
 
 ---
 
@@ -807,49 +861,32 @@ five-session receipts exist and the final calibration/risk verdict is explicit.
 
 ## Conclusion
 
-Opening Edge v2 remains the historical research crown; broker strategy is
-`NO_TRADE`, v2 has no selected capital identity, and the profitability clock is
-`NOT_STARTED`. Base-ledger ETF substitutions remain rejected. E-269 is now the
-strongest cross-regime historical development leader:
-`+$30.90/+$52.76/+$141.89`, recent `+$15.18/15`, and full `+$225.56/678`
-(`226.6/year`), PF `1.639`, DD `23.11`. It combines recovery/flat inverse-flip
-ownership with one-bar maturation of the exact minimally observed,
-non-unanimous recovery-up cohort; deterioration stays responsive. E-270 keeps
-all `8/8` inherited UPRO/SPXU cells positive, while preferred `$900` ARCA-add
-reaches `+$119.69/+$103.41/+$469.82`, full `+$692.93/492`, PF `1.498`, and
-`$95.63` intrabar DD. Adjacent `2/3` reaches
-`+$139.47/+$104.05/+$402.13`, confirming a stable balance frontier. This is not
-a crown or executable transport: discovery inspected opened outcomes and no
-fresh quote-derived broker selection exists. Candidate-specific replay proves
-E-269 remains viable even at Tiered full cross (`+$482.78`, PF `1.325`,
-DD `$116.37`), so passive fills are not required; current Fixed fails
-`-$150.09`, PF `0.918`, DD `$325.95`, leaving a later explicit Fixed→Tiered
-decision. The untouched July 27–28 bridge is positive
-(`+0.96` XSP points; `+$4.70` modeled UPRO net) with exact prefix parity, but
-the new maturation branch did not fire. The armed r2 tape plus r3 evaluator asks
-the exact execution question at full historical quantity: every case must
-complete by `CROSS`, including the real `15:57 ET` liquidation lifecycle. The
-live observer remains non-submitting; a separate pre-outcome `16:12 ET`
-read-only freeze preserves today's four broker bar tapes for later E-269 prefix
-and ordinary non-regression validation without installing another live
-direction engine. July 29's frozen `deteriorating` state makes the
-recovery-only maturation branch ineligible, so this session cannot close its
-independent-mechanism blocker. Local
-gate `4be8f5ed…` has already frozen that replay and passed its no-data
-preflight, so today's result cannot alter its evaluator. Canonical state seed
-`689892bf…` also proves E-269 needs only `94` completed five-minute-aggregated
-RTH sessions for exact restart warmup; rolling proof `8362f762…` matches all
-`1,164` available five-year restart boundaries and fails closed on invalid
-append state. Broker daily history remains an independent drift check rather
-than a replacement signal.
-Nothing authorizes a pricing-plan change, subscription, backfill, forced trade,
-or GTH execution.
+Opening Edge v3 — Regime Harmony 24/5 is the historical research crown:
+recent `+11.2375/14`; annual `+62.9648/+75.4283/+152.7824`; full
+`+291.1756/604` (`201.87/year`), PF `2.0919`, DD `17.63`; both directions
+and both lanes are positive. One centralized owner over strictly-prior
+`5/10/21/42/63/84` context, multiscale velocity/acceleration, ordered
+maturation, phase-scoped short financing, and incumbent surrender reproduces
+the frozen `40708a28…` RTH ledger exactly; the `9e04807f…` GTH lane remains
+unchanged. There is no date router, news authority, generic stop/trail, quota,
+or sizing change.
 
-**Predictive observation:** the next binary evidence is the instrument-matched
-UPRO/SPXU microtape plus a genuinely later signal boundary. If full-size
-completion by `CROSS` and independent behavior validate the frozen lineage,
-present the explicit Fixed→Tiered decision, then proceed to exact quote-derived
-sizing, non-transmitting broker preview, restart/identity proof, and only then
-bounded live selection. If either fails, retain `HOLD` and close the branch—do
-not reopen profit locks, reversal delays, breadth/news authority, another ETF
-pairing, or threshold mining.
+Broker strategy remains `NO_TRADE`, order authority is `none`, no v3 capital
+identity exists, and the profitability clock is `NOT_STARTED`. Authentic
+UPRO/SPXU RTH full-cross/T+1 cash replay is positive in every period under both
+current Fixed and conservative Tiered pricing, but the complete selection law
+still fails: RTH-only cadence is about `141/year`, GTH cash transport is
+unqualified, Fixed DD is `$135.31` against the frozen `$135` boundary, and
+fresh v3-specific books, quote-derived sizing, broker preview, cash/restart
+identity, and selected-run receipt are absent. The user submitted the
+Stocks/ETFs/Warrants Tiered request at `2026-07-29T11:21Z`; treat it as Fixed
+until a broker what-if proves effective Tiered pricing. No predecessor tape,
+selection, clock, or counterfactual outcome transfers to v3.
+
+**Predictive observation:** after publication and a clean non-submitting q
+restart, the next legitimate binary boundary is a fresh v3 UPRO/SPXU
+commission/book/quantity proof. If it confirms Tiered and the remaining
+cadence, GTH, cash, restart, and identity gates are resolved, freeze one
+bounded selected run and begin the immutable `24h → 48h → five-session`
+clock. Otherwise retain `HOLD`; do not reopen rejected ETF substitutions,
+profit locks, broad threshold sweeps, news authority, or a parallel executor.

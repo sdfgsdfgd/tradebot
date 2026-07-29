@@ -20,12 +20,187 @@ An impressive backtest can earn the first. It cannot grant the second.
 
 | Rank | Track | Crown | Identity | State |
 |---:|---|---|---|---|
-| 1 | Balanced 24/5, one `$1/XSP-point` research unit | **Opening Edge v2 — Balanced 24/5** | `xsp.opening-edge-v2-balanced-24x5.v1` | Frozen historical crown; SPY selector is shadow-only |
-| 2 | RTH directional, one `$1/XSP-point` unit | **Opening Edge v1** | `xsp.opening-edge-directional.v1` | Immutable predecessor |
-| — | Previously selected synthetic shadow | **Opening Edge v1** | `9fac460e…` | Unchanged; v2 has not inherited its prospective evidence |
+| 1 | Regime-harmonized 24/5, one `$1/XSP-point` research unit | **Opening Edge v3 — Regime Harmony 24/5** | `xsp.opening-edge-v3-regime-harmony-24x5.v1` | Frozen historical crown; SPY selector is non-submitting |
+| 2 | Balanced 24/5, one `$1/XSP-point` research unit | **Opening Edge v2 — Balanced 24/5** | `xsp.opening-edge-v2-balanced-24x5.v1` | Immutable predecessor |
+| 3 | RTH directional, one `$1/XSP-point` unit | **Opening Edge v1** | `xsp.opening-edge-directional.v1` | Immutable predecessor |
+| — | Previously selected synthetic shadow | **Opening Edge v1** | `9fac460e…` | Unchanged; v3 has not inherited its prospective evidence |
 | — | Operational/live | **Vacant** | `NO_TRADE` | Profitability clock not started; order authority `none` |
 
-### #1 — Opening Edge v2 — Balanced 24/5
+### #1 — Opening Edge v3 — Regime Harmony 24/5
+
+**Crown thesis:** retain v2's causal five-minute XSP turn sensor and unchanged
+GTH Down Sleeve, then let one centralized state owner alter only the proof
+burden for RTH admission, financing, and incumbent surrender. The owner reads a
+strictly-prior `94`-session XSP climate; it does not label dates, whitelist
+hours, predict headlines, resize risk, or route to a second strategy.
+
+| Contract | Frozen value |
+|---|---|
+| Historical unit | One synthetic `$1 per XSP point`; `$0.10` round-trip friction |
+| RTH signal | Authenticated XSP IND five-minute bars |
+| GTH signal | Prior-XSP-close-anchored SPY five-minute returns; unchanged v2 down sleeve |
+| Daily context | Complete XSP RTH sessions strictly prior to each decision; minimum `94` |
+| Daily horizons | `5/10/21/42/63/84`-session return, realized-volatility-normalized return, path efficiency, drawdown, true range, and up fraction |
+| Context derivatives | Five-session return-sigma velocity/acceleration, `5/21/84` true-range phase/velocity/acceleration, `84`-session drawdown velocity/acceleration, gap bias, transition and state age |
+| Intraday evidence | Existing `5/15/30/60/120m` slope, slope velocity/acceleration, ATR velocity/acceleration, retrace, coherence, and source direction |
+| RTH lifecycle | Context-conditioned one-bar maturation, short financing, and incumbent surrender; ordinary evidence remains immediate |
+| Disabled | News authority, opaque regime routing, date/month labels, generic trend veto, initial stop, trail, target, quota, and sizing changes |
+| Crown artifact | `backtests/xsp/opening_edge_v3_regime_harmony_24x5.json` |
+| Runtime parity | `backtests/xsp/opening_edge_v3_regime_harmony_runtime_receipt.json` |
+| RTH ledger | `40708a28…`; exact `425/425` production-owner parity |
+| GTH ledger | `9e04807f…`; unchanged v2 lane |
+| Authority | Historical research crown only; `order_authority=none`; profitability clock not started |
+
+The crown is positive in every chronological July-to-July slice, recent,
+full history, both directions, and both non-overlapping lanes:
+
+| Window | Trades | Annualized | Net points | PF | Drawdown |
+|---|---:|---:|---:|---:|---:|
+| 2026-06-29..07-24 | 14 | 185.68 | **+11.2375** | 3.3497 | 6.1100 |
+| 2023-07-24..2024-07-23 | 202 | 202.00 | **+62.9648** | 1.8859 | 12.5401 |
+| 2024-07-24..2025-07-23 | 187 | 188.50 | **+75.4283** | 1.7544 | 17.0689 |
+| 2025-07-24..2026-07-24 | 215 | 215.00 | **+152.7824** | 2.5978 | 17.6300 |
+| 2023-07-24..2026-07-24 | **604** | **201.87** | **+291.1756** | **2.0919** | **17.6300** |
+
+- Direction attribution: `up +103.2600/200`; `down +187.9156/404`.
+- Lane attribution: `RTH +280.9700/425`; `GTH +10.2056/179`.
+- Full-three-year P&L/drawdown: `16.5160`.
+- Against E-269, v3 improves Year 1 `+30.90→+62.96`, Year 2
+  `+52.76→+75.43`, Year 3 `+141.89→+152.78`, full net
+  `+225.56→+291.18` (`+29.1%`), PF `1.639→2.092`, and DD
+  `23.11→17.63`, while retaining the preferred `>=200/year` cadence.
+- Against v2, v3 improves all three annual slices, full net by about `62%`,
+  PF by about `44%`, and DD by about `33%`. Recent net is `0.43` lower but
+  remains strongly positive with better PF and DD. Recency is a mandatory
+  diagnostic, not a veto against a material every-regime advance.
+
+#### The regime-harmony owner
+
+The owner uses two strengths of state rather than one regime label:
+
+1. **Soft/fast state** detects transition and fading information.
+2. **Hard/slow state** decides whether that transition deserves ownership.
+3. **Velocity and acceleration** distinguish a pre-shock ramp, persistent
+   deterioration, contraction drift, and recovery. Volatility level alone
+   cannot distinguish a crash from its rebound.
+4. **State age** separates fresh transition from established or entrenched
+   climate. Soft opposition never erases the base signal unless the exact hard
+   interaction also fires.
+
+The ordered RTH proof chain is compact and causal:
+
+1. A short during `21-session up / 84-session down` transition must mature
+   through a lower close and all three fast velocity votes.
+2. A recovery-phase up proposal with exactly three observed impulse horizons
+   and non-unanimous coherence must preserve source direction, close higher,
+   and retain three fast votes.
+3. Composite confidence applies only to two interactions: a hard-up,
+   drawdown-deteriorating up proposal whose `5/21/84` return velocities are all
+   falling; or a high-and-expanding true-range short with `3` fast votes,
+   exactly `1` slow vote, and positive ATR acceleration.
+4. Established fast-only shorts, entrenched-hard-up shorts, and
+   zero-corroboration turns each require one completed price/source/velocity
+   proof bar. A genuine bearish soft wake-up is explicitly preserved rather
+   than mistaken for late tail chasing.
+5. The final fading-range bearish wake-up activates only when hard direction
+   remains up, soft direction has turned down, `84`-session drawdown is
+   deteriorating, every `5/21/84` return velocity and acceleration is
+   negative, and true-range acceleration is negative. It needs a lower close,
+   persistent source, and at least two fast votes.
+
+This is not “stronger is always better.” Earlier anatomy proved that extreme
+ATR ratio, retrace, score, and expansion can be exhaustion; moderate geometry
+often wins. The owner therefore asks whether evidence is coherent with the
+current information phase, not whether one magnitude crosses an ever-larger
+decimal.
+
+#### Financing and incumbent surrender
+
+Weak years usually found favorable movement and then surrendered it. Year-1
+cash anatomy found only `12/176` immediately wrong trades, while `81/176`
+first financed and then gave back `-$381.33`. The portable response is
+state-conditioned ownership:
+
+- only RTH shorts in flat/deteriorating drawdown phases must finance at least
+  `0.25` entry ATR within `12` completed bars;
+- financing ATR is computed from separate causal flat and deteriorating
+  phase streams. A continuous ATR stream changed three outcomes and is not the
+  frozen mechanism;
+- when the incumbent still has long-horizon and slow-velocity support but a
+  low-information inverse event appears, surrender waits for two-bar proof;
+- during recovery/flat phases with `21/84` agreement, the inverse event waits
+  one bar; deterioration remains responsive;
+- ordinary flips remain immediate.
+
+Generic trails, first-adverse curvature exits, blanket cooldowns, global
+long-trend gates, and deterioration-wide patience all failed. They either
+preempted eventual highs, killed recovery longs, or sacrificed crash-year
+reversals. The surviving mechanism separates admission error, unfinanced
+shorts, financed giveback, and weak incumbent surrender instead of forcing one
+exit rule onto all four.
+
+#### Stability and exact runtime proof
+
+The adjacent stricter final wake-up cell remains positive everywhere:
+`+66.6248/+64.7583/+152.7824`, full `+284.1656/601`
+(`200.86/year`), PF `2.0804`, DD `17.63`. It improves Year 1 while trading
+some Year-2 return for stricter proof, establishing a categorical plateau
+rather than one isolated threshold.
+
+The consolidated production owner reproduces the frozen RTH ledger exactly:
+`40708a28476fad504d29b1222e52b88481b1c0da8313ed4667076e2b6ed3f157`.
+Prospective warmup is bound to
+`backtests/xsp/opening_edge_v3_daily_context_seed.json` (`177b4163…`):
+`1,257` complete five-minute-aggregated XSP RTH sessions through July 28.
+Broker daily candles remain drift evidence; exact recent five-minute overlaps
+must match and only complete next sessions may append.
+Its exact lifecycle census includes:
+
+- weak two-bar surrender `15` armed / `5` cancelled / `10` released;
+- recovery/flat one-bar surrender `123` armed / `7` cancelled / `116`
+  released;
+- final fading-range wake-up `12` armed / `3` matured / `9` expired;
+- `121` phase-conditioned short financing policies;
+- one underwarmed phase-ATR proposal blocked fail-closed.
+
+The engine hook is opt-in. Every predecessor and ordinary strategy remains
+behaviorally unchanged when no owner is supplied. The v2 artifact and loader
+remain content-addressed and independently reproducible after the current
+selector moved to v3.
+
+#### Authentic cash qualification
+
+The frozen v3 RTH ledger was replayed against authentic whole-share UPRO/SPXU
+bars, complete spread crossing, strict T+1 settled cash, cash-derived sizing,
+scheduled-exit stress, and both current Fixed and conservative Tiered fees:
+
+| Profile | Year 1 | Year 2 | Year 3 | Full | PF | Intrabar DD |
+|---|---:|---:|---:|---:|---:|---:|
+| Current Fixed full cross | +$45.75 | +$51.77 | +$239.55 | **+$337.06/420** | 1.245 | $135.31 |
+| Tiered conservative full cross | +$229.82 | +$212.56 | +$469.49 | **+$911.87/423** | 1.833 | $102.68 |
+
+This is the first crown whose RTH cash mapping remains positive in recent,
+every annual slice, and full history even when every entry and exit crosses the
+quoted spread. It does not rely on an optimistic passive fill.
+
+It is still **not selected**:
+
+- RTH-only cash cadence is about `141/year`; the other `179` crown trades
+  belong to an unqualified GTH cash transport;
+- current Fixed misses the frozen `$135` intrabar-DD cap by `$0.31` and blocks
+  six cash entries;
+- Tiered clears DD and materially improves economics. The user submitted the
+  Stocks/ETFs plan change before `16:00 ET`, but IBKR reports next-business-day
+  processing; effective Tiered commission remains unproved until an exact
+  non-transmitting preview returns it;
+- fresh v3-specific books, exact quote-derived quantity preview,
+  restart/identity proof, and a content-addressed selected run are absent.
+
+The Bot UI therefore exposes `RTH Regime Harmony Core` and `GTH Down Sleeve`
+as inspectable SPY shadow leaves with `order_authority=none`. Historical
+coronation grants no broker authority and starts no profitability clock.
+
+### #2 — Opening Edge v2 — Balanced 24/5
 
 **Crown thesis:** retain Opening Edge’s causal XSP RTH turn owner, remove two
 portable classes of already-mature bullish admission, and add a non-overlapping
@@ -535,12 +710,17 @@ manufacture this crown.
 
 ## Prospective authority and handoff
 
-Opening Edge v2 supersedes v1 as the historical leader, but historical
-coronation cannot silently transfer v1's already-frozen prospective identity.
+Opening Edge v3 supersedes v2 as the historical leader, but historical
+coronation cannot silently transfer any predecessor's frozen prospective
+identity. Its visible SPY selector and recurring observer remain
+non-submitting; the positive UPRO/SPXU cash qualification is a gate input, not
+a selected run. Opening Edge v2 previously superseded v1 under the same law.
 The Bot UI selector is therefore visible and inspectable while remaining
-non-submitting. Before a v2 selection can be frozen, the exact one-share SPY
-ledger must include measured commission, spread/slippage, RTH XSP-to-SPY
-tracking, GTH availability, and restart-safe signal/execution provenance.
+non-submitting. Before a v3 selection can be frozen, its positive RTH
+UPRO/SPXU qualification must be bound to fresh v3-specific books, exact
+quote-derived whole-share quantity, non-transmitting broker preview, cash and
+restart identity, effective Tiered pricing, and a separately
+qualified GTH transport if the full 24/5 cadence is to receive authority.
 
 The same typed `DirectionalImpulseAdmissionPolicy` now owns campaign,
 backtest, live diagnostics, and prospective replay configuration. A causal
@@ -742,6 +922,32 @@ its predecessor’s numbers.
 
 ## Crown history — newest first
 
+### CR-003 · 2026-07-29 · Opening Edge v3 — Regime Harmony 24/5
+
+- **Change:** first centralized long-horizon regime-harmony owner over the
+  v2 RTH sensor; unchanged GTH Down Sleeve.
+- **Predecessor:** Opening Edge v2 — Balanced 24/5.
+- **Explicit authority:** crowned by the user after the frozen signal and cash
+  qualification were presented; this is historical research authority only.
+- **Earned by:** `+62.9648/+75.4283/+152.7824`, recent `+11.2375`,
+  full `+291.1756/604` (`201.87/year`), PF `2.0919`, DD `17.63`,
+  positive up/down and RTH/GTH attribution, a positive categorical neighbor,
+  exact production-owner RTH ledger `40708a28…`, and positive Fixed/Tiered
+  full-cross UPRO/SPXU cash economics in every annual slice.
+- **Architecture:** strictly-prior `94`-session `5/10/21/42/63/84` climate,
+  return/TR/drawdown velocity and acceleration, ordered transition
+  maturation, phase-scoped short financing, and state-conditioned incumbent
+  surrender. No date router, news authority, generic stop/trail, quota, or
+  sizing rule.
+- **Execution mapping:** UI leaves remain non-submitting SPY shadows. RTH cash
+  qualification maps up to long UPRO and down to long SPXU; GTH cash remains
+  unqualified.
+- **Did not earn:** effective Tiered pricing, a v3 selected transport, order
+  authority, predecessor clock inheritance, or a profitability claim. The
+  user later submitted the account-plan request, but fresh v3 books/preview,
+  restart identity, observed Tiered commission, and bounded selection remain
+  mandatory.
+
 ### CR-002 · 2026-07-28 · Opening Edge v2 — Balanced 24/5
 
 - **Change:** first balanced all-hours XSP research crown; explicitly crowned
@@ -845,6 +1051,17 @@ its predecessor’s numbers.
   tape, then independent news/microstructure admission evidence.
 
 ### Reproduce
+
+Opening Edge v3 is reproduced by its content-addressed crown, cash, and runtime
+receipts:
+
+```text
+backtests/xsp/opening_edge_v3_regime_harmony_24x5.json
+backtests/xsp/opening_edge_v3_regime_harmony_cash_receipt.json
+backtests/xsp/opening_edge_v3_regime_harmony_runtime_receipt.json
+backtests/xsp/opening_edge_v3_daily_context_seed.json
+tradebot/research/xsp_opening_edge_state.py
+```
 
 Opening Edge v2 is reproduced by its content-addressed artifact and the two
 exact central-runtime parity receipts:

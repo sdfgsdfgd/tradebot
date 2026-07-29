@@ -117,6 +117,7 @@
     "tests/test_xsp_execution_observer.py": "market-realism-parity",
     "tests/test_xsp_live_transport.py": "market-realism-parity",
     "tests/test_xsp_live_transport_runtime.py": "market-realism-parity",
+    "tests/test_xsp_opening_edge_v3.py": "market-realism-parity",
     "tests/test_xsp_transport_ranking.py": "market-realism-parity",
     "tests/test_news_signal.py": "signal-regime-intelligence",
     "tests/test_offline_cache_preflight.py": "backtest-data-cache",
@@ -632,7 +633,8 @@
         "tests/test_live_calibration.py",
         "tests/test_xsp_execution_observer.py",
         "tests/test_xsp_live_transport.py",
-        "tests/test_xsp_live_transport_runtime.py"
+        "tests/test_xsp_live_transport_runtime.py",
+        "tests/test_xsp_opening_edge_v3.py"
       ],
       "owner_surface": [
         "tradebot/backtest/engine.py",
@@ -646,7 +648,10 @@
         "tradebot/research/xsp_candidate.py",
         "tradebot/research/xsp_context.py",
         "tradebot/research/xsp_execution_observer.py",
+        "tradebot/research/xsp_opening_edge_state.py",
+        "tradebot/research/xsp_opening_edge_tapes.py",
         "tradebot/research/xsp_opening_edge_v2.py",
+        "tradebot/research/xsp_opening_edge_v3.py",
         "tradebot/research/xsp_live_transport.py",
         "tradebot/research/xsp_live_transport_runtime.py",
         "tradebot/research/xsp_shadow.py",

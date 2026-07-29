@@ -1,0 +1,118 @@
+{
+  "schema": "xsp.opening-edge-v3-regime-harmony-cash-qualification.v1",
+  "authority": "historical_cash_qualification_only",
+  "candidate": "Opening Edge v3 — Regime Harmony 24/5",
+  "scope": "RTH UPRO/SPXU whole-share transport only",
+  "pricing_plan_request": {
+    "submitted_at_utc": "2026-07-29T11:21:00+00:00",
+    "asset_class": "Stocks/ETFs/Warrants",
+    "requested_plan": "Tiered",
+    "portal_status": "next_business_day_processing",
+    "effective_commission_proved": false
+  },
+  "signal_rth_ledger_sha256": "40708a28476fad504d29b1222e52b88481b1c0da8313ed4667076e2b6ed3f157",
+  "source": {
+    "preregistration": "/tmp/xsp-e279-cash-qualification-preregistration.json",
+    "preregistration_sha256": "92813b44b645aaae2d2c0fafa134732930e3bccf2e50a6d4644f768544eeae01",
+    "runner": "/tmp/xsp_e279_cash_qualification.py",
+    "runner_sha256": "27b508f5f1648011a13c1a68c8f3af53e4386662e460d8e5f8061e82433cafa2",
+    "result": "/tmp/xsp-e279-cash-qualification-20260729.json",
+    "result_sha256": "c93329cabb965dbff82cb772a5cf3825e4158d100609a71e1ec1744114785626"
+  },
+  "execution_contract": {
+    "starting_cash_usd": 900.0,
+    "signal": "XSP RTH Opening Edge v3",
+    "up_transport": "long whole-share UPRO",
+    "down_transport": "long whole-share SPXU",
+    "fill": "complete quoted spread cross",
+    "settlement": "strict T+1 cash",
+    "sizing": "fixed cash-compatible notional",
+    "scheduled_exit_stress": true,
+    "gth_included": false
+  },
+  "profiles": {
+    "current_fixed_full_cross": {
+      "executed_trades": 420,
+      "blocked_entries": 6,
+      "quantity_ranges": {
+        "UPRO": [6, 24],
+        "SPXU": [3, 24]
+      },
+      "recent": {
+        "net_usd": 21.9358,
+        "trades": 11,
+        "profit_factor": 2.077
+      },
+      "year_1": {
+        "net_usd": 45.7506,
+        "trades": 149,
+        "profit_factor": 1.0999
+      },
+      "year_2": {
+        "net_usd": 51.7653,
+        "trades": 126,
+        "profit_factor": 1.1044
+      },
+      "year_3": {
+        "net_usd": 239.5456,
+        "trades": 145,
+        "profit_factor": 1.5682
+      },
+      "full_three_year": {
+        "net_usd": 337.0615,
+        "trades": 420,
+        "profit_factor": 1.2451,
+        "intrabar_max_drawdown_usd": 135.3126
+      },
+      "verdict": "positive_all_periods_but_not_selected"
+    },
+    "tiered_conservative_full_cross": {
+      "executed_trades": 423,
+      "blocked_entries": 3,
+      "quantity_ranges": {
+        "UPRO": [6, 24],
+        "SPXU": [3, 24]
+      },
+      "recent": {
+        "net_usd": 35.3537,
+        "trades": 11,
+        "profit_factor": 3.44
+      },
+      "year_1": {
+        "net_usd": 229.8161,
+        "trades": 149,
+        "profit_factor": 1.6539
+      },
+      "year_2": {
+        "net_usd": 212.5597,
+        "trades": 127,
+        "profit_factor": 1.515
+      },
+      "year_3": {
+        "net_usd": 469.4895,
+        "trades": 147,
+        "profit_factor": 2.4209
+      },
+      "full_three_year": {
+        "net_usd": 911.8653,
+        "trades": 423,
+        "profit_factor": 1.833,
+        "intrabar_max_drawdown_usd": 102.6829
+      },
+      "verdict": "economically_preferred_but_effective_commission_unproved"
+    }
+  },
+  "selection_gate": {
+    "signal_crown": true,
+    "cash_economics_positive_every_year": true,
+    "fresh_v3_instrument_books": false,
+    "exact_quote_derived_quantity_preview": false,
+    "tiered_plan_request_submitted": true,
+    "effective_tiered_commission_preview": false,
+    "restart_and_identity_proof": false,
+    "selected": false,
+    "profitability_clock": "not_started",
+    "order_authority": "none"
+  },
+  "submitted_orders": 0
+}

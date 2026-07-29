@@ -28,6 +28,10 @@ test ! -e "${selected_path}"
 test ! -e "${dropin_path}"
 cmp -s "deploy/systemd/${service}" "${user_unit_dir}/${service}"
 cmp -s "deploy/systemd/${timer}" "${user_unit_dir}/${timer}"
+if ! grep -Fq -- "--mode opening-edge-v2" "deploy/systemd/${service}"; then
+  echo "legacy v2 selector is disabled under the v3 observer" >&2
+  exit 78
+fi
 test -z "$(git status --porcelain=v1)"
 test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
 systemctl --user is-enabled --quiet "${timer}"
