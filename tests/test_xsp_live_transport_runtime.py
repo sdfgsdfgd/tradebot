@@ -673,17 +673,31 @@ def test_resumed_pending_order_ages_from_first_submission(
         "elapsed_offset_sec": 240.0,
         "require_fresh_top": True,
     }
-    transition = [
-        row["evidence"]["ladder_transition"]
+    transition_rows = [
+        row["evidence"]
         for row in ledger.records()
         if row["evidence"].get("ladder_transition") is not None
     ]
-    assert len(transition) == 1
-    assert transition[0]["schema"] == "xsp.execution-ladder-transition.v1"
-    assert transition[0]["event"] == "ladder_mode_transition"
-    assert transition[0]["signal_context_fingerprint"] == calibration_fingerprint(
+    assert len(transition_rows) == 1
+    transition = transition_rows[0]["ladder_transition"]
+    assert transition["schema"] == "xsp.execution-ladder-transition.v1"
+    assert transition["event"] == "ladder_mode_transition"
+    assert transition["signal_age_seconds"] >= 240.0
+    assert transition["signal_context_fingerprint"] == calibration_fingerprint(
         plan["signal_context"]
     )
+    context = transition_rows[0]["plan"]["signal_context"]
+    assert context["directional_impulse"]["atr_velocity_pct"] == 0.01
+    assert (
+        context["directional_impulse"]["horizons"][0][
+            "slope_velocity_pct_per_bar"
+        ]
+        == 0.02
+    )
+    assert context["market_state"] == {
+        "shock_atr_vel_pct": 0.01,
+        "slope_vel_pct": 0.02,
+    }
 
 
 def test_done_order_waits_for_commission_before_terminal_receipt(
