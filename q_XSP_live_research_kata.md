@@ -332,9 +332,10 @@ data, transport economics, cash/safety, and restart parity; then graduate the
 same content-addressed identity into bounded live authority and immutable
 `24h → 48h → five-session` profitability verdicts. In parallel, use only
 bounded causal evidence to improve top/bottom timing, long-horizon P&L/DD, and
-shock-day behavior: a successor must remain positive and superior over the
-latest four weeks, every complete July-to-July year since July 2023, and the
-full three-year challenge—not hide one weak regime inside aggregate profit.
+ordinary/trend/contraction/expansion/shock behavior: a successor must remain
+positive and superior over the latest four weeks, every complete July-to-July
+year since July 2023, and the full three-year challenge across both directions
+and both active lanes—not hide one weak regime inside aggregate profit.
 This event-driven spot lane preempts every research sidequest without requiring
 active poll loops; alpha/theta structures remain a later-week expansion after
 directional consistency is proven.
@@ -396,8 +397,10 @@ directional consistency is proven.
     bound without treating it as a candidate. The completed Network B tape is
     SPYU/SPXU and cannot prove UPRO fills; causal one-cent tradethrough loses
     Years 1/2, and the optimistic `$180.22` intrabar DD exceeds the frozen
-    `$135` live cap. Only instrument-matched prospective evidence may close
-    this hypothesis; no pricing-plan change, retuning, selection, or order.
+    `$135` live cap. One bounded, read-only UPRO/SPXU tape is armed for the
+    next `09:25..16:05 ET` session to test actual spread capture at cash-safe
+    quantities. No pricing-plan change, retuning, selection, or order follows
+    from observation.
 16. `[WIP]` Any new spot execution path must be materially different,
     preregistered, and economically complete; do not reopen rejected ETF
     families through sizing, spread, timing, or hindsight assumptions.
@@ -578,6 +581,8 @@ and
 | E-253 | successor deployment first failed closed when the natural `20:37 ET` recurrence appended record `234` during ledger-parity proof; source had fast-forwarded but the timer was stopped before installation, with no selection or order. The same idempotent transaction then froze the quiescent ledger and installed exact pushed `ba6d49b…`; archive `02dc773b…` verifies. Its first natural `20:42 ET` recurrence appended record `235`, remained flat with `execution_observation=unchanged`, and scheduled `20:47`. Engine-native GTH trace showed only two warmed horizons, ATR velocity `-0.00493%`, coherence `0.50`, and `directional_impulse_cascade:block:no_proposal`; the abstention is fully attributable without news or a parallel evaluator |
 | E-254 | SSO/SDS transport receipt `opening_edge_v2_sso_sds_transport_receipt.json` closes the only active free-window challenge. Its temporary recent feasibility replay subtracted five minutes from already-close-normalized bars; exact parity corrected `$1,200` full-cross recent economics to `-$32.58/16`, including one zero-volume entry. Frozen authenticated history then mapped `613` positive-volume fills, with `12` unavailable and `100` zero-volume paths: unconstrained full-cross lost `-$2,093.56` at `$1,200` and `-$2,048.17` at `$1,150`; even patient-spread research lost about `-$792`, and strict cash exhausted after `57/71` trades. Entry/exit latency, PF, drawdown, all annual/side/lane, fill, and cash gates failed. q archive manifest `ba7d1b53…` preserves the full `388d4990…` result; crown, selection, orders, and profitability clock remain unchanged |
 | E-255 | preregistered TQQQ/SQQQ receipt `opening_edge_v2_tqqq_sqqq_transport_receipt.json` closes the cross-index cash-ETF challenge. Authenticated `215,855/215,601`-bar tapes mapped `721/725` base trades. At `$1,200`, current-Fixed/full-cross economics were `-$78.69`, PF `0.980`, and `$497.84` DD even without cash limits; Years 1/2 were `-$298.87/-$178.24`, GTH `-$182.08`, up/down both negative, and recent `+$74.37` was `80.9%` top-five concentrated. Strict cash executed `302`, blocked `419`, and lost `-$237.58`; one corporate-action interval and three zero-volume fills also failed completeness. Every notional, spread, and latency profile fails the frozen law. Full result `9be25efc…` is preserved under q archive manifest `ddd42ac0…`; no subscription, selection, order, or clock was created |
+| E-256 | preregistered stopless RTH fizzle challenge `opening_edge_v2_stopless_fizzle_receipt.json` isolated the lifecycle mechanism absent from the old stop/trail grid. Only `12` completed bars / `0.25 ATR` survived Years 1–2 development; its content-addressed sealed challenge improved recent and Years 1–2, but worsened Year 3 `+134.72→+128.14`, moved full net only `+179.67→+180.07` (`+0.22%`), worsened DD `26.47→26.78`, and lacked an adjacent survivor. Anatomy found `70` RTH fizzle exits: matched down paths improved `+11.58`, while up paths lost `-9.57`, including `-10.55` in Year 3. The family is rejected; direction-relative financing speed remains prospective attribution only, with no new engine knob, crown, selection, order, or clock |
+| E-257 | q bundle `8cadb189…` arms one instrument-matched UPRO/SPXU Network B microtape for `09:25..16:05 ET` on July 29. Read-only source `f020836d…` records subsecond book changes, sizes, quote health, and the existing shared ladder prices; before launch the evidence path is absent and the observer remains flat/non-submitting. Its sole question is whether the preregistered Tiered/passive feasibility bound was physically attainable on these instruments at cash-safe quantities. A pass remains observation only; no pricing-plan change, nominee, selection, order, or clock is implied |
 
 ### Decision anchors
 

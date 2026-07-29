@@ -1,0 +1,96 @@
+{
+  "schema": "xsp.opening-edge-v2-stopless-fizzle-receipt.v1",
+  "authority": "historical_research_only",
+  "order_authority": "none",
+  "crown_changed": false,
+  "preregistration_sha256": "728a4cf1f0779eb40c32f379af3c670e9d69e8e7e0d404fbd70bba5a564763e8",
+  "development_receipt_sha256": "ce6afc65a08814d2aa9d013f86e3799abe727e064cfc5cbabebdf05c0fa38b5f",
+  "development_freeze_sha256": "b181fe812391f501df9b32269fd2baa580c58f0e3d4de91114df4be2551f2652",
+  "sealed_challenge_sha256": "59f176fd7f9fb221e9e3b06ad00f9287cddeaf5162dd502aafb046f2703236f9",
+  "anatomy_sha256": "6c022f558dda39b2ba656d4d421c17df6ef123d3fb02f21b5cc33932a0f1bfcb",
+  "frozen_identity": {
+    "rth_only": true,
+    "fizzle_bars": 12,
+    "fizzle_mfe_atr": 0.25,
+    "initial_stop_atr": 0.0,
+    "trail_activate_atr": 0.0,
+    "trail_distance_atr": 0.0,
+    "breakeven_atr": 0.0,
+    "max_hold_bars": 0,
+    "gth_changed": false,
+    "entries_and_other_exits_changed": false
+  },
+  "metrics": {
+    "recent": {
+      "crown_net_pnl": 11.6675,
+      "challenger_net_pnl": 12.2575,
+      "crown_trades": 16,
+      "challenger_trades": 16,
+      "crown_profit_factor": 2.3674,
+      "challenger_profit_factor": 2.5279,
+      "crown_max_drawdown": 8.6825,
+      "challenger_max_drawdown": 8.6825
+    },
+    "year_1": {
+      "crown_net_pnl": 15.6348,
+      "challenger_net_pnl": 20.8948,
+      "crown_trades": 244,
+      "challenger_trades": 244,
+      "crown_profit_factor": 1.1364,
+      "challenger_profit_factor": 1.1999,
+      "crown_max_drawdown": 19.0612,
+      "challenger_max_drawdown": 15.7212
+    },
+    "year_2": {
+      "crown_net_pnl": 29.3083,
+      "challenger_net_pnl": 31.0283,
+      "crown_trades": 230,
+      "challenger_trades": 230,
+      "crown_profit_factor": 1.198,
+      "challenger_profit_factor": 1.2143,
+      "crown_max_drawdown": 26.4689,
+      "challenger_max_drawdown": 26.7789
+    },
+    "year_3": {
+      "crown_net_pnl": 134.7224,
+      "challenger_net_pnl": 128.1424,
+      "crown_trades": 251,
+      "challenger_trades": 251,
+      "crown_profit_factor": 2.0272,
+      "challenger_profit_factor": 1.9816,
+      "crown_max_drawdown": 23.86,
+      "challenger_max_drawdown": 24.3
+    },
+    "full_3y": {
+      "crown_net_pnl": 179.6656,
+      "challenger_net_pnl": 180.0656,
+      "crown_trades": 725,
+      "challenger_trades": 725,
+      "trades_per_year": 242.3077,
+      "crown_profit_factor": 1.4562,
+      "challenger_profit_factor": 1.474,
+      "crown_max_drawdown": 26.4689,
+      "challenger_max_drawdown": 26.7789
+    }
+  },
+  "anatomy": {
+    "rth_fizzle_exits": 70,
+    "changed_entry_paths": 3,
+    "matched_fizzle_delta_by_direction": {
+      "down": 11.58,
+      "up": -9.57
+    },
+    "year_3_up_fizzle_delta": -10.55,
+    "interpretation": "The financing signature is real but nonstationary: early fizzle helps underfinanced shorts across all three years, while Year 3 rewards recovery patience on initially underfinanced longs."
+  },
+  "verdict": {
+    "state": "REJECT",
+    "reasons": [
+      "year_3 net, PF, and drawdown are worse than the crown",
+      "full-three-year net improves only 0.22%, below the 5% materiality law",
+      "no adjacent grid cell passes the development freeze",
+      "direction-specific down-only fizzle was learned after opening the full tape and has no sealed validation"
+    ],
+    "future_boundary": "Retain direction-relative financing speed as prospective attribution only. Do not add a direction-specific lifecycle knob or change the crown without independent forward evidence."
+  }
+}
