@@ -377,13 +377,15 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
             sort_keys=True,
         )
     )
-    successful_preflight = (
+    successful_noop = (
         args.mode in {"opening-edge-v2", "opening-edge-v3"}
-        and receipt.get("broker_request_skipped") == "run_not_started"
+        and receipt.get("evaluation_status") == "CLOSED"
+        and receipt.get("broker_request_skipped")
+        in {"run_not_started", "closed_calendar"}
     )
     return (
         0
-        if receipt.get("evaluation_status") == "EVALUATED" or successful_preflight
+        if receipt.get("evaluation_status") == "EVALUATED" or successful_noop
         else 2
     )
 

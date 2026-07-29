@@ -284,10 +284,15 @@ def test_opening_edge_v3_prefreezes_without_broker_or_backfill(tmp_path) -> None
     assert intraday["run_started_at_utc"] == next_intraday.isoformat()
 
 
-def test_shadow_cli_v3_prefreezes_without_v2_execution_authority(
+@pytest.mark.parametrize(
+    "broker_request_skipped",
+    ("run_not_started", "closed_calendar"),
+)
+def test_shadow_cli_v3_accepts_safe_closed_noop_without_v2_execution_authority(
     tmp_path,
     monkeypatch,
     capsys,
+    broker_request_skipped,
 ) -> None:
     from tradebot.research.xsp_shadow_cli import _main_async
 
@@ -306,7 +311,7 @@ def test_shadow_cli_v3_prefreezes_without_v2_execution_authority(
         return {
             "status": "ok",
             "evaluation_status": "CLOSED",
-            "broker_request_skipped": "run_not_started",
+            "broker_request_skipped": broker_request_skipped,
             "order_authority": "none",
         }
 
