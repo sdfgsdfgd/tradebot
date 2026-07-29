@@ -1,0 +1,177 @@
+{
+  "schema": "xsp.opening-edge-v2-transition-up-short-proof-receipt.v1",
+  "generated_at_utc": "2026-07-29T03:39:54Z",
+  "authority": "historical_development_challenger_only",
+  "order_authority": "none",
+  "submitted_orders": 0,
+  "hypothesis": "When strictly-prior 21-session XSP return is positive while 84-session return remains negative, an RTH short must prove one completed bar of lower price and persistent fast slope velocity before taking ownership.",
+  "architecture": {
+    "crown_proposes_direction": "Opening Edge v2 Balanced 24/5",
+    "scope": "RTH down admission inside fast-up/hard-down transition only",
+    "state_source": "complete strictly-prior XSP RTH sessions",
+    "state_windows_sessions": [
+      21,
+      84
+    ],
+    "maturation_completed_bars": 1,
+    "price_confirmation": "next close below proposal close",
+    "fast_velocity_horizons_bars": [
+      1,
+      3,
+      6
+    ],
+    "unchanged": [
+      "all non-transition admissions",
+      "all bullish admissions",
+      "GTH lane",
+      "raw inverse-source exit timing",
+      "friction",
+      "sizing",
+      "stops, trails, targets, and fizzle behavior"
+    ],
+    "explicitly_not_used": [
+      "TQQQ thresholds",
+      "host switching",
+      "regime routing",
+      "date or hour whitelist"
+    ]
+  },
+  "provenance": {
+    "inspiration": [
+      "backtests/tqqq/readme-hf.md",
+      "tradebot/climate_router.py"
+    ],
+    "long_horizon_anatomy_sha256": "99aca157d22518e5b3f55b5621779dc3996d7af26e264216149c022b93afeb49",
+    "preregistration_sha256": "5bb8725ed52565e23d8d65a8cb328f7f0187ad090f337227de9a75afb4db88fd",
+    "runner_sha256": "2e1ee80d44ea6cc96b8e355e6f5a486d5e2ce4f373509a3db90b668d7394370f",
+    "full_result_sha256": "868ef119923ec94d4d1cd64eecb61ae9cb74a93f62bce610200346bbfb9f7139"
+  },
+  "base": {
+    "recent": {
+      "net_pnl": 11.6675,
+      "trades": 16
+    },
+    "year_1": {
+      "net_pnl": 15.6348,
+      "trades": 244
+    },
+    "year_2": {
+      "net_pnl": 29.3083,
+      "trades": 230
+    },
+    "year_3": {
+      "net_pnl": 134.7224,
+      "trades": 251
+    },
+    "full_three_year": {
+      "net_pnl": 179.6656,
+      "trades": 725,
+      "trades_per_year": 242.3077,
+      "profit_factor": 1.4562,
+      "max_drawdown": 26.4689
+    }
+  },
+  "cells": [
+    {
+      "id": "transition_up_short_price_fast2",
+      "required_aligned_fast_velocity_votes": 2,
+      "projection": {
+        "armed": 24,
+        "matured": 6,
+        "expired": 18
+      },
+      "recent": {
+        "net_pnl": 11.6675,
+        "trades": 16
+      },
+      "year_1": {
+        "net_pnl": 16.0948,
+        "trades": 243
+      },
+      "year_2": {
+        "net_pnl": 39.8783,
+        "trades": 222
+      },
+      "year_3": {
+        "net_pnl": 134.7924,
+        "trades": 250
+      },
+      "full_three_year": {
+        "net_pnl": 190.7656,
+        "trades": 715,
+        "trades_per_year": 238.9655,
+        "profit_factor": 1.5017,
+        "max_drawdown": 23.86
+      },
+      "full_period_change_pct": {
+        "net_pnl": 6.1781,
+        "profit_factor": 3.1246,
+        "drawdown_reduction": 9.8565
+      },
+      "rth_ledger_sha256": "c5bedb2e7e1aed8a48f4b187ec131d872093a40aa948553bed07a099d3f1a17f"
+    },
+    {
+      "id": "transition_up_short_price_fast3",
+      "required_aligned_fast_velocity_votes": 3,
+      "projection": {
+        "armed": 24,
+        "matured": 1,
+        "expired": 23
+      },
+      "recent": {
+        "net_pnl": 11.6675,
+        "trades": 16
+      },
+      "year_1": {
+        "net_pnl": 17.6248,
+        "trades": 240
+      },
+      "year_2": {
+        "net_pnl": 40.1583,
+        "trades": 220
+      },
+      "year_3": {
+        "net_pnl": 134.7924,
+        "trades": 250
+      },
+      "full_three_year": {
+        "net_pnl": 192.5756,
+        "trades": 710,
+        "trades_per_year": 237.2944,
+        "profit_factor": 1.5095,
+        "max_drawdown": 23.86
+      },
+      "full_period_change_pct": {
+        "net_pnl": 7.1856,
+        "profit_factor": 3.6602,
+        "drawdown_reduction": 9.8565
+      },
+      "concentration": {
+        "positive_changed_days": 13,
+        "negative_changed_days": 8,
+        "gross_positive_delta": 21.16,
+        "gross_negative_delta": -8.25,
+        "top_three_positive_share": 0.606805
+      },
+      "rth_ledger_sha256": "282697dddaf958e7c619c55e7ed15397be88c853da5d61dda57e5b70b1194266"
+    }
+  ],
+  "verdict": {
+    "status": "strongest_cross_regime_development_challenger",
+    "adjacent_support": true,
+    "positive_and_superior_year_1": true,
+    "positive_and_superior_year_2": true,
+    "positive_and_superior_year_3": true,
+    "positive_and_superior_full_three_year": true,
+    "cadence_pass": true,
+    "recent_result": "exact_parity_diagnostic_not_blocking",
+    "crown_eligible": false,
+    "crown_changed": false,
+    "selection_changed": false,
+    "profitability_clock_started": false,
+    "blockers": [
+      "The transition motif was discovered on already-opened historical outcomes and requires an independently frozen validation boundary before coronation.",
+      "Authentic cash execution economics have not yet been replayed for the revised ledger."
+    ]
+  }
+}

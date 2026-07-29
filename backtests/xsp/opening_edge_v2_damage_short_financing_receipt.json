@@ -1,0 +1,185 @@
+{
+  "schema": "xsp.opening-edge-v2-damage-short-financing-receipt.v1",
+  "generated_at_utc": "2026-07-29T04:34:53Z",
+  "authority": "historical_development_challenger_and_cash_feasibility_only",
+  "order_authority": "none",
+  "submitted_orders": 0,
+  "hypothesis": "A real crash short should finance itself quickly. After the fast3 transition admission, exit only an unfinanced RTH short after 12 completed bars when strictly-prior 84-session drawdown is flat or deteriorating; leave every bullish lifecycle and recovering-state short unchanged.",
+  "architecture": {
+    "base": "transition_up_short_price_fast3",
+    "scope": "RTH down lifecycle only",
+    "strictly_prior_state": "84-session drawdown change over the prior five complete sessions",
+    "active_state": [
+      "deteriorating",
+      "flat"
+    ],
+    "fizzle_completed_bars": 12,
+    "minimum_mfe_entry_atr": 0.25,
+    "unchanged": [
+      "Opening Edge v2 direction authority",
+      "fast3 transition-up short admission",
+      "all bullish entries and exits",
+      "all financed shorts",
+      "all recovering-state shorts",
+      "inverse-source exits",
+      "EOD exits",
+      "GTH lane",
+      "friction and sizing"
+    ],
+    "explicitly_not_used": [
+      "named event or date",
+      "clock whitelist",
+      "news",
+      "opaque regime router",
+      "new velocity or ATR decimal threshold"
+    ]
+  },
+  "provenance": {
+    "year_1_harmony_anatomy_sha256": "604b436893595f9d88ab85b56fcbb217082684ca018860829d33fb86238a4103",
+    "financing_anatomy_sha256": "644dd41e9690cf984c53aceaf02dfe6b44340e52fa118d5fd18c3f8d2cbf759e",
+    "signal_preregistration_sha256": "7995f42b79c4382a4b8aa1876027c34e02a02ef2037469cb4aa4c865af63fa49",
+    "signal_runner_sha256": "899c92a9067f669474a210a86c12226b48db3172dd87c84590064ef0ad14cf1b",
+    "full_signal_result_sha256": "e35048c843bbab52a858ed80141d073211730d7f80b6565fadeab1c1a98d9207",
+    "cash_preregistration_sha256": "4a84e2dc7eba9b10ec1b996731661212a6d6c727fb2dd4ba4a19cd9c203ccfc6",
+    "cash_runner_sha256": "1fd69f966d726d51ad5a5f9b2b8ea21acf34fac1aa315d58384068d21b3944e1",
+    "full_cash_result_sha256": "4e7d68ef0da9b9fefb9f31bece18bbe43076f95041025c9534c0412070c18d9e",
+    "candidate_rth_ledger_sha256": "4d6b62848627732f4eb6d59d282ab1ece7ff1448da2feeb5a5324143b8b39673"
+  },
+  "year_1_lifecycle_diagnosis": {
+    "cash_trades": 176,
+    "closed_nonnegative": 83,
+    "closed_nonnegative_net_usd": 548.14,
+    "immediately_wrong": 12,
+    "immediately_wrong_net_usd": -128.85,
+    "financed_then_gave_back": 81,
+    "financed_then_gave_back_net_usd": -381.33,
+    "late_adverse_flip_losses": 35,
+    "late_adverse_flip_net_usd": -211.96,
+    "conclusion": "The dominant defect is movement capture and ownership, not initial direction accuracy."
+  },
+  "signal_result": {
+    "recent": {
+      "trades": 16,
+      "net_pnl": 11.6675
+    },
+    "year_1": {
+      "trades": 239,
+      "net_pnl": 18.6348,
+      "profit_factor": 1.171
+    },
+    "year_2": {
+      "trades": 220,
+      "net_pnl": 41.3783,
+      "profit_factor": 1.311
+    },
+    "year_3": {
+      "trades": 250,
+      "net_pnl": 137.6224,
+      "profit_factor": 2.0725
+    },
+    "full_three_year": {
+      "trades": 709,
+      "trades_per_year": 236.9602,
+      "net_pnl": 197.6356,
+      "profit_factor": 1.5337,
+      "max_drawdown": 23.86,
+      "versus_opening_edge_v2_net_pct": 10.0019,
+      "versus_opening_edge_v2_pf_pct": 5.3221,
+      "versus_fast3_net_pct": 2.6275
+    },
+    "adjacent_support": {
+      "deteriorating_only_full_net_pnl": 197.1456,
+      "deteriorating_and_flat_full_net_pnl": 197.6356,
+      "both_improve_all_three_annual_slices": true,
+      "both_preserve_recent_exactly": true
+    }
+  },
+  "cash_result": {
+    "vehicle_pair": {
+      "up": "UPRO",
+      "down": "SPXU"
+    },
+    "execution_bound": "arca_add_bound",
+    "fixed_entry_notional_usd": 900.0,
+    "starting_cash_usd": 1350.0,
+    "strict_settlement": "T_plus_1",
+    "executed_trades": 506,
+    "trades_per_year": 168.7,
+    "blocked_entries": 25,
+    "fizzle_exits": 20,
+    "recent": {
+      "trades": 13,
+      "net_usd": 39.0996,
+      "profit_factor": 2.4543
+    },
+    "year_1": {
+      "trades": 176,
+      "net_usd": 42.9601,
+      "profit_factor": 1.0868
+    },
+    "year_2": {
+      "trades": 153,
+      "net_usd": 62.4543,
+      "profit_factor": 1.1203
+    },
+    "year_3": {
+      "trades": 177,
+      "net_usd": 459.2599,
+      "profit_factor": 2.1116
+    },
+    "full_three_year": {
+      "trades": 506,
+      "net_usd": 564.6744,
+      "profit_factor": 1.3957,
+      "intrabar_max_drawdown_usd": 108.0258,
+      "daily_pnl_lcb95": 0.1683,
+      "up_net_usd": 202.9058,
+      "down_net_usd": 361.7686,
+      "versus_fast3_net_usd": 24.0261,
+      "versus_fast3_net_pct": 4.4439,
+      "versus_fast3_intrabar_drawdown_usd": 3.1999
+    },
+    "scheduled_exit_stress": {
+      "trades": 506,
+      "net_usd": 574.6842,
+      "profit_factor": 1.4037,
+      "intrabar_max_drawdown_usd": 108.4558
+    },
+    "stable_neighborhood": {
+      "frozen_cells_tested": 8,
+      "frozen_cells_passing_prior_geometry": 8,
+      "fixed_entry_notional_usd": [
+        850.0,
+        875.0,
+        900.0,
+        925.0
+      ],
+      "execution_bounds": [
+        "midpoint_neutral_venue",
+        "arca_add_bound"
+      ]
+    }
+  },
+  "verdict": {
+    "status": "strongest_cross_regime_development_challenger_with_stable_cash_geometry",
+    "improves_every_annual_slice": true,
+    "preserves_recent_exactly": true,
+    "improves_full_net_and_pf": true,
+    "passes_cadence": true,
+    "cash_positive_every_annual_slice": true,
+    "cash_positive_both_directions": true,
+    "cash_passes_drawdown_cap": true,
+    "cash_survives_scheduled_exit_stress": true,
+    "crown_eligible": false,
+    "crown_changed": false,
+    "runtime_changed": false,
+    "pricing_plan_change_authorized": false,
+    "selection_changed": false,
+    "profitability_clock_started": false,
+    "blockers": [
+      "The transition admission and direction split were developed after inspecting historical outcomes; independent frozen or prospective validation remains mandatory.",
+      "Passive Tiered-quality UPRO/SPXU fills remain a mathematical bound until the armed instrument-matched microtape proves attainability.",
+      "A surviving transport still requires fresh quote-derived sizing, an exact broker what-if, selected-run identity, restart proof, and explicit bounded capital authority."
+    ]
+  }
+}

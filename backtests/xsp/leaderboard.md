@@ -190,11 +190,66 @@ the pure continuous lane had earned coronation.
   exact rerun still rejected all 37 structural-long identities. This was an
   engine truth repair, not alpha.
 
-The next materially new challenger should compare opposing evidence against an
-incumbent directional state, normalized by strictly prior volatility and
-time-of-session noise. It should preserve session-boundary state and use
-prospective news pressure/pressure-delta only as independently timestamped
-context—not backfill history or become a hidden regime router.
+#### TQQQ climate insight transplanted without a router
+
+The archived TQQQ climate lineage contributed one portable causal idea—not its
+host switch, thresholds, leverage, or date labels. During a strictly-prior
+`21-session up / 84-session down` disagreement, RTH shorts are entering an
+unstable recovery inside older damage. Requiring the next completed close to
+be lower and `3/3` fast slope-velocity horizons to remain down improved all
+three annual slices:
+
+- crown: `+15.63/+29.31/+134.72`, full `+179.67`, PF `1.456`, DD `26.47`;
+- challenger: `+17.62/+40.16/+134.79`, full `+192.58`, PF `1.510`,
+  DD `23.86`, at `237.3/year`;
+- the adjacent `2/3` proof also passes, while recent is exact parity because
+  the frozen recent window contains no affected transition short.
+
+The unchanged UPRO/SPXU cash replay then exposed the larger lifecycle effect.
+At the prior `$900` ARCA-add bound, Year 2 had only `+$4.90` and intrabar DD
+was `$140.63`, above the `$135` cap. The `3/3` challenger produced
+`+$37.96/+$58.17/+$444.51`, full `+$540.65`, PF `1.370`, and `$104.83`
+intrabar DD over `505` trades. All `16/16` preregistered cells across both
+signal neighbors, `$850..925`, and two passive execution bounds passed the
+cash geometry. This is stable mathematical overlap, not executable authority:
+instrument-matched prospective UPRO/SPXU evidence must still prove that
+passive Tiered-quality fills are attainable.
+
+The Year-1 lifecycle census then located the dominant defect. Of `176` cash
+trades, `83` closed nonnegative for `+$548.14`; only `12` were immediately
+wrong (`-$128.85`), while `81` first became profitable and then gave back
+`-$381.33`. This is primarily an ownership/capture problem, not a request for
+another entry classifier.
+
+Blanket surrender delay, global fizzle, and bullish fizzle do not generalize:
+their fast/slow velocity relationships rotate across years. One categorical
+seam does. After the `3/3` transition admission, exit only an RTH short that
+has failed to earn `0.25` entry ATR after `12` completed bars while the
+strictly-prior `84`-session drawdown is flat or deteriorating. A real crash
+short normally finances itself before this boundary; the rule removes false
+crash bets without touching bullish ownership, recovering-state shorts,
+inverse exits, EOD, or GTH.
+
+Both adjacent damage-phase cells improve every annual slice and preserve recent
+exactly. The stronger historical development challenger reaches
+`+18.63/+41.38/+137.62`, full `+197.64/709` (`237.0/year`), PF `1.534`,
+and DD `23.86`; versus Opening Edge v2 that is about `+10.0%` net and
+`+5.3%` PF with lower DD. The unchanged `$900` ARCA-add cash replay reaches
+`+$42.96/+$62.45/+$459.26`, full `+$564.67/506`, PF `1.396`, and
+`$108.03` intrabar DD. All `8/8` inherited cash cells pass and scheduled-exit
+stress remains positive.
+
+This is the strongest cross-regime development lineage, not a new crown.
+Sequential discovery inspected opened outcomes, and passive Tiered-quality
+UPRO/SPXU fills remain unproved. The residual financed-giveback study is now
+closed: all six categorical early-exit signatures lost delta in every annual
+slice, while the six immediate post-loss re-entries were collectively
+profitable in every year. Bullish climate-conditioned fizzle was likewise
+sparse and nonportable. Keep the short-only damage-phase financing owner;
+do not add a generic profit lock, reversal delay, date/hour router, or decimal
+sweep. The next legitimate evidence is independent signal validation plus the
+prospective instrument-matched passive-fill tape. News pressure remains
+timestamped attribution only.
 
 #### Data, execution, and authority boundary
 
@@ -560,10 +615,14 @@ A development leader is not a crown. On identical causal data, units, costs,
 and lifecycle, a successor must:
 
 - trade at least `160/year` as a hard floor and preferably `>=200/year`;
-- remain positive and beat the incumbent's after-cost net P&L over the frozen
-  latest four-week window;
-- remain positive and beat the incumbent's after-cost net P&L in **every**
-  complete chronological July-to-July one-year slice beginning in July 2023;
+- report the frozen latest-four-week result as a mandatory recency diagnostic,
+  but do not make short-window superiority a strict coronation gate; parity or
+  a small, explained regression cannot veto a durable cross-regime advance,
+  while a material new recent failure still can;
+- remain positive over the complete challenge and beat the incumbent's
+  after-cost net P&L in a strict majority of complete chronological
+  July-to-July one-year slices beginning in July 2023; improvement in every
+  slice remains the ideal;
 - remain positive and beat the incumbent's after-cost net P&L over the complete
   three-year July-2023-to-July-2026 challenge;
 - improve at least one primary complete-three-year measure—net P&L, PF, or

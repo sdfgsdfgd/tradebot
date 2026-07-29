@@ -1,15 +1,17 @@
 # XSP Mastery — Live Research Kata
 
-- **Status:** `[ACTIVE] v2 technical observation continues; the cash-ETF
-  transport frontier is closed, and capital authority remains HOLD`
+- **Status:** `[ACTIVE] v2 technical observation continues; the strongest
+  cross-regime cash challenger awaits independent signal/passive-fill proof,
+  and capital authority remains HOLD`
 - **Authority:** canonical resume state, active task tree, critical evidence
   index, and promotion contract
 - **Cold history:** [`q_XSP_live_research_kata-archive.md`](q_XSP_live_research_kata-archive.md)
 - **Leaderboard:** [`backtests/xsp/leaderboard.md`](backtests/xsp/leaderboard.md)
-- **Scope:** XSP signal mastery; SPY, UPRO/SPXU, SPXL/SPXS,
+- **Scope:** XSP signal mastery; base-ledger SPY, UPRO/SPXU, SPXL/SPXS,
   inception-bounded SPYU/SPXU, SSO/SDS, and cross-index TQQQ/SQQQ execution
-  are rejected; the crown is unchanged and every observer remains
-  non-submitting
+  are rejected. E-262 reopens only bounded UPRO/SPXU validation for its
+  materially different signal ledger; the crown is unchanged and every
+  observer remains non-submitting
 - **Capital premise:** broker-read `INDIVIDUAL/STKCASH` state is about
   AUD `2,025` NLV and AUD `1,935` BuyingPower/TotalCash; USD `1,228.61` plus
   AUD `176.94` supports the frozen USD `1,350` total risk identity. Selection
@@ -36,8 +38,8 @@ output belongs in commit/final verification, not in this management brain.
 | RTH signal freshness | **cleared:** after the user activated `CBOE Streaming Market Indexes`, zero-order receipt `acce7ed3…` returned live type-1 XSP, current five-minute history, and real-time `TRADES` bars without a Gateway restart; the natural `10:07 ET` centralized v2 checkpoint then evaluated with both XSP and SPY through `10:05` and `120s` age |
 | Order/capital authority | `none` |
 | Profitability clock | v2 `NOT_STARTED`; predecessor evidence does not transfer |
-| Execution verdict | `HOLD`; every completed whole-share cash-ETF transport fails authentic cost, cash, fill, annual-consistency, or cross-index attribution gates |
-| Next irreversible evidence | the next admitted or blocked technical turn plus a materially different executable spot architecture; neither historical transport P&L nor passive observation may start the clock |
+| Execution verdict | `HOLD`; E-262 passes historical Tiered/T+1 cash geometry across all eight inherited cells, but passive UPRO/SPXU fill quality and independent signal validation remain unproved |
+| Next irreversible evidence | the next admitted or blocked technical turn plus the armed instrument-matched UPRO/SPXU microtape; neither historical transport P&L nor passive observation may start the clock |
 | First active work | monitor technical proposals, exact gate pass/block, positions, flips/exits, and P&L; news joins only after its natural four-hour publication and never drives work cadence |
 
 ### Immediate sequence
@@ -95,12 +97,19 @@ output belongs in commit/final verification, not in this management brain.
     Receipt `opening_edge_v2_tqqq_sqqq_transport_receipt.json` and q archive
     manifest `ddd42ac0…` close the whole-share cash-ETF frontier with no
     selection, order, or clock.
+15. `[WIP]` Validate E-262 independently. Its strictly-prior damage/recovery
+    state plus short-only financing owner improves every annual slice and
+    produces positive historical cash geometry across all eight inherited
+    UPRO/SPXU cells, but cannot earn pricing, runtime, selection, order, or
+    clock authority until the armed instrument-matched passive-fill tape and
+    a genuinely later signal boundary pass.
 
 ### Never infer
 
-- XSP is the RTH index signal/reference. One-share SPY and fixed-quantity
-  UPRO/SPXU execution are economically rejected. Historical synthetic
-  economics are not a substitute for authentic fills and settled-cash replay.
+- XSP is the RTH index signal/reference. One-share SPY and base-ledger
+  fixed-quantity UPRO/SPXU execution are economically rejected. E-262 is a
+  distinct bounded validation challenge; historical cash geometry is not a
+  substitute for authentic passive fills and independent signal evidence.
 - Shadow selection freezes attribution before outcomes; it grants no broker,
   order, option, or capital authority.
 - Historical positive P&L, safe abstention, infrastructure uptime, delayed
@@ -155,12 +164,14 @@ discovery must progress recent → chronological one-year slices → five years;
 short-window tuning is never validation. The global coronation law lives in
 `backtests/xsp/leaderboard.md`: `>=160/year` is mandatory (`>=200/year`
 preferred), the challenger must remain positive and beat the incumbent over
-the frozen last four weeks, every complete July-to-July year beginning July
-2023, and the complete July-2023-to-July-2026 three-year tape. It must improve
-at least one primary three-year metric by `>=5%` without hidden material
-regression and survive stability/cost checks. A passing result is
-crown-eligible only; while the user is away it remains a frozen development
-challenger.
+the complete July-2023-to-July-2026 three-year tape and a strict majority of
+complete July-to-July years beginning July 2023; every-year improvement
+remains ideal. The frozen last four weeks are a mandatory diagnostic, not a
+strict superiority gate: only a material unexplained recent failure may veto a
+durable cross-regime advance. It must improve at least one primary three-year
+metric by `>=5%` without hidden material regression and survive stability/cost
+checks. A passing result is crown-eligible only; while the user is away it
+remains a frozen development challenger.
 
 ---
 
@@ -333,9 +344,11 @@ same content-addressed identity into bounded live authority and immutable
 `24h → 48h → five-session` profitability verdicts. In parallel, use only
 bounded causal evidence to improve top/bottom timing, long-horizon P&L/DD, and
 ordinary/trend/contraction/expansion/shock behavior: a successor must remain
-positive and superior over the latest four weeks, every complete July-to-July
-year since July 2023, and the full three-year challenge across both directions
-and both active lanes—not hide one weak regime inside aggregate profit.
+positive over the full three-year challenge and beat a strict majority of
+complete July-to-July years across both directions and active lanes. The
+latest four weeks remain a mandatory diagnostic rather than a strict
+superiority gate; material recent failure still vetoes. Never hide one weak
+regime inside aggregate profit.
 This event-driven spot lane preempts every research sidequest without requiring
 active poll loops; alpha/theta structures remain a later-week expansion after
 directional consistency is proven.
@@ -392,16 +405,52 @@ directional consistency is proven.
 14. `[WIP]` Continue event-driven live technical commissioning while capital
     remains `HOLD`: preserve every proposal/gate/position/exit trace and use
     exact extrema, multihorizon slope/velocity/ATR, MFE/MAE, and shock-state
-    attribution to sharpen only stable cross-regime signal timing.
-15. `[OBSERVE]` Preserve the preregistered UPRO/SPXU RTH Tiered feasibility
-    bound without treating it as a candidate. The completed Network B tape is
-    SPYU/SPXU and cannot prove UPRO fills; causal one-cent tradethrough loses
-    Years 1/2, and the optimistic `$180.22` intrabar DD exceeds the frozen
-    `$135` live cap. A frozen `$850..925` cash-safe interval found no stable
-    risk/economic overlap even under midpoint/ARCA-add bounds. One bounded,
-    read-only UPRO/SPXU tape remains armed for the next `09:25..16:05 ET`
-    session to learn prospective microstructure—not revive the rejected
-    candidate. No pricing-plan change, retuning, selection, or order follows.
+    attribution in a recursive weak-period landing loop. Separate immediate
+    error, financed giveback, re-entry churn, and reversal lag; preregister only
+    the smallest causal repair, replay every acceptance window, retain stable
+    cross-regime improvements, and discard the rest.
+    Current strongest development challenger delays only RTH shorts while the
+    strictly-prior `21`-session return is up and `84`-session return is down:
+    one lower close plus `2/3` or `3/3` fast velocity persistence improves every
+    annual slice and full P&L/PF/DD at `>237/year`. Latest-four-week parity is
+    no longer a coronation blocker; outcome-exposed discovery, unproved
+    passive fill quality, and missing prospective validation keep it
+    observation-only below the crown.
+    The recursive Year-1 landed-trade census is complete: it bound
+    strictly-prior damage/recovery and volatility phase to intraday
+    slope-velocity plus lifecycle financing, then separated immediate error,
+    financed giveback, re-flip churn, and reversal lag.
+    Static climate admission is closed: delaying `aligned-up` bullish turns
+    with zero slow-velocity votes reduced every annual slice. Active WIP is
+    therefore state-conditioned ownership at the financing boundary. Year-1
+    cash anatomy found only `12/176` immediately wrong trades but `81/176`
+    trades that first financed themselves and then gave back `-$381.33`.
+    Global or bullish fizzle is not portable; slow/fast velocity signs rotate
+    across years. The stable seam is narrower: after fast3 admission, only an
+    unfinanced RTH short exits after `12` completed bars below `0.25` entry ATR
+    MFE while strictly-prior `84`-session drawdown is flat or deteriorating.
+    Adjacent phase cells improve every annual slice and preserve recent; the
+    stronger reaches `+$18.63/+$41.38/+$137.62`, full `+$197.64/709`,
+    PF `1.534`, DD `23.86`. It is the strongest historical development
+    challenger, not a crown: discovery is outcome-exposed and independent
+    validation is absent. Exact path attribution rejects the next tempting
+    overlays: all six financed-position early-exit signatures lose in every
+    year, and the six immediate post-loss re-entries are collectively
+    profitable in all three years. Do not add a profit lock or reversal delay.
+    Further sharpening requires independent evidence or a materially different
+    causal state—not another stop, router, or threshold sweep.
+15. `[WIP]` Validate the first stable UPRO/SPXU cash overlap without assuming
+    fills. Frozen transition-up short proof plus the short-only financing owner
+    and unchanged Tiered/T+1 replay make all `8/8` inherited `$850..925`
+    cash cells pass. Favorite `$900` ARCA-add cell improves every annual cash
+    result to `+$42.96/+$62.45/+$459.26`, full `+$564.67/506`,
+    PF `1.396`, intrabar DD `$108.03`; recent is exact `+$39.10`, both
+    directions are positive, and scheduled-exit stress is `+$574.68`.
+    Receipt `opening_edge_v2_damage_short_financing_receipt.json` is the
+    compact authority. This remains mathematical only: one bounded UPRO/SPXU
+    Network B tape at the next `09:25..16:05 ET` session must prove passive
+    Tiered-quality fills before any pricing-plan decision, runtime promotion,
+    selection, or order.
 16. `[WIP]` Any new spot execution path must be materially different,
     preregistered, and economically complete; do not reopen rejected ETF
     families through sizing, spread, timing, or hindsight assumptions.
@@ -585,6 +634,11 @@ and
 | E-256 | preregistered stopless RTH fizzle challenge `opening_edge_v2_stopless_fizzle_receipt.json` isolated the lifecycle mechanism absent from the old stop/trail grid. Only `12` completed bars / `0.25 ATR` survived Years 1–2 development; its content-addressed sealed challenge improved recent and Years 1–2, but worsened Year 3 `+134.72→+128.14`, moved full net only `+179.67→+180.07` (`+0.22%`), worsened DD `26.47→26.78`, and lacked an adjacent survivor. Anatomy found `70` RTH fizzle exits: matched down paths improved `+11.58`, while up paths lost `-9.57`, including `-10.55` in Year 3. The family is rejected; direction-relative financing speed remains prospective attribution only, with no new engine knob, crown, selection, order, or clock |
 | E-257 | q bundle `8cadb189…` arms one instrument-matched UPRO/SPXU Network B microtape for `09:25..16:05 ET` on July 29. Read-only source `f020836d…` records subsecond book changes, sizes, quote health, and the existing shared ladder prices; before launch the evidence path is absent and the observer remains flat/non-submitting. Its sole question is whether the preregistered Tiered/passive feasibility bound was physically attainable on these instruments at cash-safe quantities. A pass remains observation only; no pricing-plan change, nominee, selection, order, or clock is implied |
 | E-258 | compact receipt `opening_edge_v2_cash_threading_receipt.json` closes two apparent near-live shortcuts. The preregistered `$850/875/900/925` Tiered interval had zero survivors: optimistic ARCA-add `$900` kept `520` trades and all periods positive (`+$26.58/+$4.90/+$444.22`, full `+$475.69`, PF `1.309`) but DD was `$140.63>$135`; its adjacent `$850` point still had `$139.86` DD and lost Year 2. Blanket and exact coherence-scoped RTH down maturation both preserved cadence but worsened recent, every year, PF, and full net (`+$108.40/+$126.16` versus `+$179.67`). Drawdown anatomy locates cumulative Apr–Jul-2025 whipsaw rather than one tail event. Both families are rejected; the forward UPRO/SPXU tape remains microstructure attribution only, with no pricing, risk, crown, selection, order, or clock change |
+| E-259 | TQQQ archaeology recovered a portable causal idea, not a router: completed `21/84`-session fast/hard disagreement plus one-bar persistence. Preregistered XSP receipt `opening_edge_v2_transition_up_short_proof_receipt.json` delays only RTH shorts during `fast-up/hard-down`; adjacent `2/3` and `3/3` fast-velocity cells both improve Years 1/2/3 and full P&L/PF/DD while retaining `>237/year`. Stronger cell is `+$17.62/+$40.16/+$134.79`, full `+$192.58`, PF `1.510`, DD `23.86`, versus crown `+$15.63/+$29.31/+$134.72`, full `+$179.67`, PF `1.456`, DD `26.47`. Recent remains exact `+$11.67/16` parity, not superiority, and discovery used opened outcomes; it is the strongest cross-regime development challenger, not a crown/runtime/selection/order/clock change |
+| E-260 | unchanged UPRO/SPXU Tiered/T+1 cash replay converts E-259 into the first stable risk/economic overlap. Prior `$900` ARCA-add geometry had Year 2 `+$4.90` and DD `$140.63>$135`; the frozen `3/3` proof yields `+$37.96/+$58.17/+$444.51`, full `+$540.65/505`, PF `1.370`, intrabar DD `$104.83`, positive both sides, and positive scheduled-exit stress. All `16/16` preregistered cells across adjacent `2/3`/`3/3` signals, `$850..925`, and midpoint/ARCA-add bounds pass. Receipt `opening_edge_v2_transition_up_short_cash_receipt.json` binds full result `b8700fb1…`. This is mathematical overlap only: passive Tiered-quality UPRO/SPXU fills and independent signal validation remain unproved; no pricing, crown, runtime, selection, order, or clock changed |
+| E-261 | a static `aligned-up + bullish + zero slow-velocity-vote` cohort looked weak in entry attribution but failed exact lifecycle replay. Requiring one higher close plus either `2/3` or `3/3` fast persistence reduced recent and all three annual slices; the stricter cell fell from E-259's `+$192.58/710` to `+$170.19/648`, with Year 1 `+$17.62→+$3.24`. The family is closed before cash replay. This rejects climate-as-direction routing and narrows WIP to causal climate-conditioned ownership of already-financed moves; crown, runtime, selection, orders, and clock remain unchanged |
+| E-262 | Year-1 cash anatomy separates ownership from admission: `83/176` nonnegative trades earned `+$548.14`, only `12/176` immediately wrong trades lost `-$128.85`, while `81/176` first financed then gave back `-$381.33`. Broad climate fizzle improved Years 1/2 but bullish effects rotated and harmed Year 3; blanket surrender delay also failed. The stable categorical neighbors exit only an unfinanced RTH short after `12` completed bars below `0.25` entry ATR MFE while strictly-prior `84`-session drawdown is deteriorating, or deteriorating/flat. Favorite signal result is `+$18.63/+$41.38/+$137.62`, full `+$197.64/709`, PF `1.534`, DD `23.86`, with exact recent parity. Unchanged cash replay passes all `8/8` inherited cells; `$900` ARCA-add is `+$42.96/+$62.45/+$459.26`, full `+$564.67/506`, PF `1.396`, intrabar DD `$108.03`, both sides positive, scheduled stress `+$574.68`. Compact receipt `opening_edge_v2_damage_short_financing_receipt.json` binds full cash result `4e7d68ef…`. Outcome exposure and unproved passive Tiered fills keep this below crown/runtime/pricing/selection/order/clock authority |
+| E-263 | outcome-exposed path anatomy `b1f67609…` tests six categorical financed-position retention signatures using only the existing `0.25` entry-ATR financing boundary plus fast/slow/long vote structure. Every early-exit signature loses delta in Years 1/2/3; the broadest sacrifices `-15.83/-13.99/-35.95` points. The separate reversal-boundary audit finds only six financed-loss flips reopening within `5–10m`, and their incoming trades earn `+4.30/+12.51/+11.33` across the three years. Therefore neither generic profit lock nor delayed reversal is a valid repair. Bullish climate-conditioned fizzle is also too sparse and nonportable. The short-only E-262 owner remains the stable component; no further signal/runtime/selection/order/clock change follows |
 
 ### Decision anchors
 
@@ -625,8 +679,9 @@ and
 | D-173 | the sealed cash replay/ranker is the sole sizing owner: freeze its historical maximum SPYU/SPXU quantities for depth validation, but derive the actual next-RTH whole-share order only from the ranked notional and fresh limit price. Never reopen arbitrary sizes or let stale retired-contract files satisfy a current-ledger manifest |
 | D-174 | operational proof always outranks research, but a verified gap exceeding one hour may host one bounded local challenger. It must be causally distinct, preregister development versus sealed challenge windows, run at low priority without q or crown mutation, and stop after one neighborhood verdict; rejected families, broad sweeps, news backfill, and outcome-driven live changes remain closed |
 | D-175 | Prospective Live Edge Commissioning is Priority 0: live signal/gate/position/execution evidence, transport graduation, and immutable profitability milestones preempt all research. Scheduled event boundaries replace polling; news is joined once only after a new four-hour publication already exists and never drives monitoring cadence. Free-window work may only enrich the same causal ledger and must stop immediately when commissioning evidence arrives |
-| D-176 | the leaderboard's global coronation law is mandatory: a free-window result may become a frozen development leader, never an automatic crown. Coronation requires cadence; positive superiority over the frozen last four weeks, every July-to-July year since July 2023, and the complete three-year tape; `>=5%` material three-year improvement; stability/cost proof; and an explicit milestone decision |
+| D-176 | the leaderboard's global coronation law is mandatory: a free-window result may become a frozen development leader, never an automatic crown. Coronation requires cadence; positive superiority over the complete three-year tape and a strict majority of July-to-July years since July 2023; `>=5%` material three-year improvement; stability/cost proof; and an explicit milestone decision. The frozen latest four weeks remain a mandatory diagnostic, not a strict superiority gate; material unexplained recent failure may still veto |
 | D-177 | the tested whole-share cash-ETF transport frontier is closed: do not reopen SPY, UPRO/SPXU, SPXL/SPXS, SPYU/SPXU, SSO/SDS, or TQQQ/SQQQ through sizing, spread, timing, or pricing-plan hindsight. Continue live technical commissioning under HOLD; any new spot path must be materially different, preregistered, and pass complete authentic economics before broker preview or subscription |
+| D-178 | E-259 is the materially different causal signal ledger allowed by D-177; it reopens only bounded UPRO/SPXU passive-fill validation because `16/16` preregistered cash cells now pass. It does not revive the rejected base ledger, assume fills, authorize Tiered pricing, or confer crown/runtime/selection/order/clock authority |
 
 ---
 
@@ -689,32 +744,24 @@ five-session receipts exist and the final calibration/risk verdict is explicit.
 
 ## Conclusion
 
-Opening Edge v2 remains the historical research crown and every tested
-whole-share cash-ETF transport is `HOLD`. SSO/SDS is rejected after its
-close-time parity correction; TQQQ/SQQQ is rejected because higher cross-index
-beta still fails current-Fixed economics, strict cash, annual consistency,
-both-side/lane, fill, drawdown, latency, and concentration gates. The tested
-cash-ETF frontier is closed. The terminal tape is complete. The published
-state-change observer remains non-submitting; its proven successor closes twelve nightly
-GTH cadence holes and retains the engine-native signal/excursion attribution
-needed for technical gate and trade evaluation. The frozen f35 handoff is
-fully consumed and the successor's first exact five-minute recurrence is
-terminal; live technical commissioning and transport qualification resume.
-Broker/order strategy is `NO_TRADE`, v2 has no selected
-identity, and the profitability clock is `NOT_STARTED`. Any future spot
-execution path must be materially different and pass exact timestamp,
-economics, latency, cash, volume, attribution, and safety gates before a fresh
-exact-nominee broker what-if and transport-bound selection. Nothing here
-authorizes a pricing-plan change, subscription, backfill, forced trade, or GTH
-execution.
+Opening Edge v2 remains the historical research crown; broker strategy is
+`NO_TRADE`, v2 has no selected capital identity, and the profitability clock is
+`NOT_STARTED`. Base-ledger ETF substitutions remain rejected. The materially
+different E-262 lineage is now the strongest development challenger:
+`+$197.64/709`, PF `1.534`, DD `23.86`, positive and improved in all three
+annual slices, with exact recent parity. Its unchanged Tiered/T+1 cash replay
+passes all `8/8` inherited UPRO/SPXU cells; the `$900` ARCA-add favorite is
+`+$564.67/506`, PF `1.396`, and `$108.03` intrabar DD. It is not a crown or an
+executable transport: discovery inspected opened outcomes, passive
+Tiered-quality fills remain unproved, and no fresh quote-derived broker
+selection exists. The live observer remains non-submitting and preserves every
+intervening decision trace. Nothing authorizes a pricing-plan change,
+subscription, backfill, forced trade, or GTH execution.
 
-**Predictive observation:** the current bottleneck is an executable cash
-transport, not directional signal quality: the first complete prospective
-trade earned `+1.47` research points, while SPYU/SPXU failed annual consistency,
-side attribution, cash drawdown, and fill-quality gates; SSO/SDS now fails for
-the same economic reason after correcting its one-bar-early development replay.
-TQQQ/SQQQ confirms that merely adding higher beta does not solve the ticket:
-its recent strength reverses in Years 1/2 and GTH, even before strict cash
-exhaustion. The successor trace keeps every intervening turn auditable while
-the next path must be architecturally different—not historical decimal mining,
-breadth, news polling, another ETF pairing, or options/upsizing.
+**Predictive observation:** the next binary evidence is the instrument-matched
+UPRO/SPXU microtape plus a genuinely later signal boundary. If passive fill
+quality and independent behavior validate the frozen lineage, proceed to exact
+quote-derived sizing, non-transmitting broker preview, restart/identity proof,
+and only then bounded live selection. If either fails, retain `HOLD` and close
+the branch—do not reopen profit locks, reversal delays, breadth/news authority,
+another ETF pairing, or threshold mining.

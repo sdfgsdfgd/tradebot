@@ -1,0 +1,175 @@
+{
+  "schema": "xsp.opening-edge-v2-transition-up-short-cash-receipt.v1",
+  "generated_at_utc": "2026-07-29T04:23:00Z",
+  "authority": "historical_cash_feasibility_only",
+  "order_authority": "none",
+  "submitted_orders": 0,
+  "candidate": {
+    "signal_identity": "transition_up_short_price_fast3",
+    "predecessor": "Opening Edge v2 Balanced 24/5",
+    "scope": "RTH down admission only while strictly-prior 21-session XSP return is positive and 84-session return is negative",
+    "confirmation": "one completed lower close plus 3/3 aligned fast slope-velocity votes",
+    "unchanged": [
+      "all other RTH admissions",
+      "all bullish admissions",
+      "GTH lane",
+      "inverse-source exits",
+      "UPRO/SPXU bars and mapping",
+      "Tiered fee model",
+      "strict T+1 cash",
+      "entry and exit latency",
+      "scheduled-exit stress",
+      "notional family",
+      "live drawdown cap"
+    ]
+  },
+  "provenance": {
+    "signal_result_sha256": "868ef119923ec94d4d1cd64eecb61ae9cb74a93f62bce610200346bbfb9f7139",
+    "signal_rth_ledger_sha256": "282697dddaf958e7c619c55e7ed15397be88c853da5d61dda57e5b70b1194266",
+    "cash_preregistration_sha256": "7efbf7544bdf6f4857d18b6584f2348a916b3c1b4da757b031e1432778491853",
+    "cash_runner_sha256": "24faf234c47bbf92b92beeb108ca79c3ca07d6fec1008a5313725d98d40d947a",
+    "full_cash_result_sha256": "b8700fb18c3f664d5efb29b8e4156e47d191e660ff78bf33f802407ee3cc6473",
+    "prior_cash_gate_sha256": "c3b0d60d66f413ae22f2e76882087262e7393b139cbba18fc2621ff555812f38"
+  },
+  "baseline_parity": {
+    "identity": "Opening Edge v2 RTH Core / 900 USD / ARCA-add bound",
+    "executed_trades": 520,
+    "blocked_entries": 26,
+    "recent_net_usd": 39.0996,
+    "year_1_net_usd": 26.5794,
+    "year_2_net_usd": 4.8978,
+    "year_3_net_usd": 444.2159,
+    "full_net_usd": 475.6931,
+    "profit_factor": 1.3095,
+    "intrabar_max_drawdown_usd": 140.6261,
+    "live_drawdown_cap_usd": 135.0,
+    "verdict": "failed_drawdown_cap_with_negligible_year_2_margin"
+  },
+  "favorite_cell": {
+    "identity": "transition_up_short_price_fast3",
+    "execution_bound": "arca_add_bound",
+    "fixed_entry_notional_usd": 900.0,
+    "executed_trades": 505,
+    "trades_per_year": 168.3,
+    "blocked_entries": 26,
+    "quantity_ranges": {
+      "UPRO": [
+        6,
+        24
+      ],
+      "SPXU": [
+        3,
+        24
+      ]
+    },
+    "recent": {
+      "trades": 13,
+      "net_usd": 39.0996,
+      "profit_factor": 2.4543
+    },
+    "year_1": {
+      "trades": 176,
+      "net_usd": 37.9602,
+      "profit_factor": 1.0744
+    },
+    "year_2": {
+      "trades": 153,
+      "net_usd": 58.1744,
+      "profit_factor": 1.1112
+    },
+    "year_3": {
+      "trades": 176,
+      "net_usd": 444.5136,
+      "profit_factor": 2.0415
+    },
+    "full_three_year": {
+      "trades": 505,
+      "net_usd": 540.6483,
+      "profit_factor": 1.3702,
+      "intrabar_max_drawdown_usd": 104.8258,
+      "daily_pnl_lcb95": 0.1121,
+      "up_net_usd": 202.0592,
+      "down_net_usd": 338.5891
+    },
+    "scheduled_exit_stress": {
+      "trades": 506,
+      "net_usd": 550.5047,
+      "profit_factor": 1.3776,
+      "intrabar_max_drawdown_usd": 105.2558
+    }
+  },
+  "stable_neighborhood": {
+    "cells_tested": 16,
+    "cells_passing_preregistered_geometry": 16,
+    "identities": [
+      "transition_up_short_price_fast2",
+      "transition_up_short_price_fast3"
+    ],
+    "fixed_entry_notional_usd": [
+      850.0,
+      875.0,
+      900.0,
+      925.0
+    ],
+    "execution_bounds": [
+      "midpoint_neutral_venue",
+      "arca_add_bound"
+    ],
+    "ranges": {
+      "executed_trades": [
+        505,
+        512
+      ],
+      "recent_net_usd": [
+        34.5119,
+        39.6375
+      ],
+      "year_1_net_usd": [
+        4.0747,
+        43.1053
+      ],
+      "year_2_net_usd": [
+        32.2423,
+        58.1744
+      ],
+      "year_3_net_usd": [
+        415.0135,
+        450.624
+      ],
+      "full_net_usd": [
+        451.3304,
+        549.1128
+      ],
+      "profit_factor": [
+        1.3191,
+        1.3702
+      ],
+      "intrabar_max_drawdown_usd": [
+        99.2117,
+        109.6358
+      ],
+      "scheduled_exit_full_net_usd": [
+        459.4702,
+        558.3027
+      ]
+    }
+  },
+  "verdict": {
+    "status": "stable_mathematical_cash_overlap",
+    "signal_candidate_improves_every_annual_slice": true,
+    "cash_candidate_positive_every_annual_slice": true,
+    "cash_candidate_positive_both_directions": true,
+    "cash_candidate_passes_cadence": true,
+    "cash_candidate_passes_drawdown_cap": true,
+    "cash_candidate_survives_scheduled_exit_stress": true,
+    "pricing_plan_change_authorized": false,
+    "runtime_changed": false,
+    "selection_changed": false,
+    "profitability_clock_started": false,
+    "remaining_blockers": [
+      "Both execution bounds assume passive Tiered-quality fills; instrument-matched prospective UPRO/SPXU microtape must prove that fill quality is attainable.",
+      "The signal motif was discovered on opened historical outcomes and still requires frozen or prospective validation before coronation.",
+      "A surviving transport still needs a fresh quote-derived quantity, broker what-if, selected-run identity, restart proof, and explicit bounded capital authority."
+    ]
+  }
+}
