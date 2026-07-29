@@ -554,6 +554,29 @@ out-of-sample value.
 
 ## Crown record protocol
 
+### Global coronation law
+
+A development leader is not a crown. On identical causal data, units, costs,
+and lifecycle, a successor must:
+
+- trade at least `160/year` as a hard floor and preferably `>=200/year`;
+- remain positive and beat the incumbent's after-cost net P&L over the frozen
+  latest four-week window;
+- remain positive and beat the incumbent's after-cost net P&L in **every**
+  complete chronological July-to-July one-year slice beginning in July 2023;
+- remain positive and beat the incumbent's after-cost net P&L over the complete
+  three-year July-2023-to-July-2026 challenge;
+- improve at least one primary complete-three-year measure—net P&L, PF, or
+  drawdown—by `>=5%`, without a material hidden deterioration in the others;
+- survive adjacent settings, realistic cost sensitivity, concentration,
+  both-side/lane attribution, and a frozen challenge not used for discovery.
+
+Passing these gates makes a candidate **crown-eligible**, not automatically
+crowned. While the user is away it may be frozen and recorded only as a
+development challenger; coronation remains an explicit milestone decision.
+Bug fixes, clock/parity repairs, selector changes, or one spectacular period do
+not create a new crown.
+
 Prepend every future crown or challenger using this exact evidence order:
 
 1. identity, status, timestamp, and predecessor;
