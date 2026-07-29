@@ -1,0 +1,117 @@
+{
+  "schema": "xsp.opening-edge-v3-live-transport-counterfactual-gate.v1",
+  "frozen_at_utc": "2026-07-29T13:49:46Z",
+  "authority": "prospective_counterfactual_only",
+  "candidate": "Opening Edge v3 — Regime Harmony 24/5",
+  "scope": "July 29 RTH UPRO/SPXU observation only",
+  "source_identity": {
+    "git_commit": "0c2dd9e58551ffc4d68b0d6de4bf478e7d42b689",
+    "crown_artifact_sha256": "d47eb39cef3d2ca575d779d6b5b87e3b88e08606fd09a8801b8cb55c350208db",
+    "state_owner_sha256": "643b6a04478e598fe7fbdc2d5aa6deabe6935761b3fa83cf487a9fdd16a265bc",
+    "cash_receipt_sha256": "e41e44db270ea872679746cb2b83b2aa73987e523863236472f6e8ec0434c8dc",
+    "run_started_at_utc": "2026-07-29T12:30:00+00:00",
+    "calibration_prefix": {
+      "path_on_q": "/home/x/Desktop/py/tradebot/db/calibration/xsp_live_calibration.jsonl",
+      "records": 16,
+      "bytes": 229527,
+      "sha256": "b6238bd3f2bb6eb624b8049dadb0dc11c86fa40de18b9ebbf025b6a530300fc7"
+    }
+  },
+  "book_tape": {
+    "path_on_q": "/var/tmp/tradebot-xsp-v2-upro-spxu-microtape-evidence-20260729-r2/capture.jsonl",
+    "capture_script_sha256": "32f28977dff28f45785987c2e50027723402b0e6b02eb0ce5f75a8ac4183a2ed",
+    "service_unit_sha256": "8b401a52e2f6c2c6b72d63eb2db8859375b242535428db878838ff2ce99f94e9",
+    "started_at_utc": "2026-07-29T13:26:06.527708+00:00",
+    "stop_time_et": "16:05:00",
+    "symbols": [
+      "UPRO",
+      "SPXU"
+    ],
+    "market_data_type": 1,
+    "maximum_quote_age_seconds": 2.0,
+    "late_start_boundary": "The 09:26 ET start cannot prove the preregistered 09:25 full-session prefix, but it precedes every possible warmed v3 RTH admission in this run."
+  },
+  "transport": {
+    "direction_symbols": {
+      "up": "UPRO",
+      "down": "SPXU"
+    },
+    "fixed_entry_notional_usd": 900.0,
+    "starting_settled_cash_usd": 973.8697,
+    "historical_quantity_ranges": {
+      "UPRO": [
+        6,
+        24
+      ],
+      "SPXU": [
+        3,
+        24
+      ]
+    },
+    "entry_quantity": "floor(900 / fresh executable ask)",
+    "settlement": "strict_T_plus_1_settled_cash_only",
+    "unsettled_sale_proceeds_reused": false,
+    "sell_before_buy": true,
+    "maximum_one_leg_per_five_minute_checkpoint": true,
+    "gth_execution_allowed": false
+  },
+  "causal_projection": {
+    "decision_clock": "source checkpoint evaluation_as_of_utc",
+    "source_state": "paired_equity research latest_position, requiring exact research/broker state agreement",
+    "entry_rule": "At a fresh post-start RTH target transition, buy its mapped ETF at the first full-depth executable ask available at the decision clock; derive quantity from that ask.",
+    "exit_rule": "Sell the held ETF at the first full-depth executable bid when the target changes, becomes flat, or the normal selected runtime reaches its 15:57 ET liquidation boundary.",
+    "flip_rule": "Sell on the first checkpoint and permit the new buy no earlier than the next ordinary checkpoint; strict settled cash may block it.",
+    "missing_book_rule": "HOLD_UNAVAILABLE; never impute a fill.",
+    "no_backfill": true
+  },
+  "economics": {
+    "fixed_realistic": {
+      "label": "actual-current Fixed counterfactual",
+      "buy_commission_and_cat_usd": {
+        "UPRO": 1.000027,
+        "SPXU": 1.000093
+      },
+      "sell_additions": {
+        "sec_sale_value_rate": 0.0000206,
+        "finra_taf_per_share_sold": 0.000195
+      },
+      "authority": "frozen measured schedule corroborated by July 29 broker what-if"
+    },
+    "tiered_conditional": {
+      "label": "conditional Tiered counterfactual; never realized unless the broker proves Tiered effective",
+      "commission_per_share": 0.0035,
+      "commission_min_per_order": 0.35,
+      "rth_remove_liquidity_per_share": 0.003,
+      "clearing_per_share": 0.0002,
+      "cat_per_share": 0.000003,
+      "sec_sale_value_rate": 0.0000206,
+      "finra_taf_per_share_sold": 0.000195,
+      "nyse_pass_through_rate": 0.000175,
+      "finra_pass_through_rate": 0.00056
+    }
+  },
+  "required_output": {
+    "every_source_transition": true,
+    "quote_and_depth_at_each_leg": true,
+    "quantity_and_cash_state": true,
+    "fixed_and_tiered_gross_cost_net": true,
+    "open_mark_mfe_mae": true,
+    "blocked_or_unavailable_legs": true,
+    "source_and_transport_ledger_sha256": true,
+    "selection_created": false,
+    "profitability_clock_started": false,
+    "order_authority": "none",
+    "submitted_orders": 0
+  },
+  "boundaries": [
+    "This projection measures transport economics only and cannot change v3 direction, admission, state ownership, sizing policy, or execution authority.",
+    "The same executable prices are used for Fixed and Tiered; only the fee schedule differs.",
+    "An open mark is not realized profit.",
+    "A profitable counterfactual does not select the transport or start the live profitability clock.",
+    "Tomorrow's fresh Tiered broker preview and an explicit RTH-first scope acceptance remain independently required."
+  ],
+  "selection_created": false,
+  "profitability_clock_started": false,
+  "order_authority": "none",
+  "submitted_orders": 0
+}

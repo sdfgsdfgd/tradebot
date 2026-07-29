@@ -44,7 +44,7 @@ output belongs in commit/final verification, not in this management brain.
 | Profitability clock | v3 `NOT_STARTED`; predecessor evidence does not transfer |
 | Execution verdict | `HOLD`; v3 RTH UPRO/SPXU full-cross is positive in recent/every year/full under Fixed (`+$337.06`, PF `1.245`, DD `$135.31`) and Tiered (`+$911.87`, PF `1.833`, DD `$102.68`). The July 29 preview proved books/cash but returned Fixed `$1.000018/$1.000069` commissions rather than Tiered `$0.36948/$0.42393` limits |
 | Next irreversible evidence | repeat the identical zero-order UPRO/SPXU preview at `2026-07-30 09:35 ET` after IBKR's stated next-business-day processing; capital remains `HOLD` until Tiered is proved effective and cash, identity, restart, and explicit RTH-scope gates all pass |
-| First active work | preserve continuous v3 proposal/gate/position/MFE/MAE/flip/exit observation while completing the exact RTH cash nominee and commission proof. News joins only after its natural publication and never drives work cadence |
+| First active work | preserve continuous v3 proposal/gate/position/MFE/MAE/flip/exit observation; causally join each changed RTH position to the July 29 UPRO/SPXU book tape under separate Fixed-realistic and explicitly conditional Tiered economics; then repeat the exact commission proof July 30. News joins only after its natural publication and never drives work cadence |
 
 ### Immediate sequence
 
@@ -540,7 +540,13 @@ directional consistency is proven.
     selection law. Never transfer E-269 timestamps or predecessor evidence.
     Fresh books, exact quote-derived sizing, non-transmitting what-if,
     cash/restart identity, and explicit Fixed-versus-Tiered status are
-    mandatory; GTH remains a separate unqualified cash lane.
+    mandatory; GTH remains a separate unqualified cash lane. While July 30
+    commission processing remains external, frozen gate `5860d168…` joins only
+    post-gate v3 RTH state changes to full-depth July 29 UPRO/SPXU books at the
+    actual checkpoint clock. It applies `$900` quote-derived whole shares,
+    sell-before-buy, one leg/checkpoint, strict T+1 cash, separate
+    Fixed-realistic versus conditional-Tiered fees, and never selects, orders,
+    backfills, or starts the profitability clock.
 17. `[BLOCKED]` Alpha/theta structures and any live-capital canary belong to a
     later quest after directional causality and spot consistency are proven.
 
@@ -753,6 +759,7 @@ and
 | E-284 | deployed activation exposed two fail-closed migration defects before capital authority: legacy v2 rows initially failed v3 context parsing, then the first intraday v3 prefix could schedule a pre-start signal because the shared replay filtered only by trading date. Published `0844365…` accepts legacy rows without weakening malformed-v3 refusal; published `ffe382c…` adds one central `entry_not_before` gate while retaining all warmup. The exact historical RTH ledger remains `40708a28…/425`. Isolated q proof `1f6c9ac…` froze `08:25 ET` then advanced with zero position/trades; the mixed 373-row ledger is recoverably archived at hash `8875d682…`, and the clean deployed ledger froze `08:30` then naturally advanced at `08:32` to `EVALUATED`, hash `1b4a3b49…`, exact crown/owner/context identity, zero safety breaches, authority/orders `none/0`. The corrected timer is active; selection and profitability clocks remain unopened |
 | E-285 | the approved E-276 seam is now centralized locally without a second executor: one selection-bound transport contract projects v2 SPYU/SPXU or v3 UPRO/SPXU through the same plan, shared `OPTIMISTIC→MID→AGGRESSIVE→CROSS→RELENTLESS` execution owner, terminal-fill reconciliation, strict T+1 cash reconstruction, and restart ledger. The v3 selector binds crown/cash/RTH-ledger hashes, `$900`, exact SMART/ARCA contract IDs, fresh internal book timestamps, Tiered commissions, quote-derived quantities inside `UPRO 6..24 / SPXU 3..24`, flat cash-account state, `$135/$67.50` risk, and an explicit RTH-only scope acceptance; GTH remains false. Legacy v2 wrappers and behavior remain green. Source hashes are transport `41348556…`, runtime `a377e387…`, selector `823f3200…`, state `ea76bc7a…`, risk `10865397…`; full verification is `954 passed, 4 deselected`. No q deployment, selection, order, or clock follows from this pre-preview proof |
 | E-286 | published/deployed `ca574817…` closes the v3 cash-owner implementation boundary; q-native compile/import and the natural `09:22 ET` recurrence are green. The `09:35 ET` exact preview `d9b1725b…` proved fresh type-1 SMART/direct-ARCA books, quote-derived `6 UPRO / 23 SPXU`, `$973.8697` settled cash, exact contract IDs, flat positions/orders, and zero submissions, but broker what-if returned Fixed `$1.000018/$1.000069` commissions versus Tiered ceilings `$0.369475/$0.423926`; verdict is `HOLD`. The exact selector then rejected the receipt and left selection absent. The `09:37 ET` RTH observer returned fresh `EVALUATED`, flat, zero trades/authority. Tomorrow's byte-identical zero-order retry is armed for `09:35 ET` in bundle `1d289b93…`. The separate 09:25 microtape unit had a direct-Exec missing-shebang defect; repair `993725d5…` started it at `09:26`, so its continuing tape is useful prospective anatomy but cannot claim the preregistered exact 09:25 full-session prefix. Raw preview, negative selector proof, repair pair, and tomorrow owner are immutable under q archive manifest `e5b44efa…` |
+| E-287 | before v3 could warm into its first post-gate RTH position, counterfactual gate `5860d168…` froze source prefix `b6238bd3…/16`, crown/owner/cash identities, and the already-running live book tape. Pure runner `a8a98170…` maps only changed v3 RTH state through the actual checkpoint clock, `$900` quote-derived quantities, full displayed depth, sell-before-buy, one leg/checkpoint, and strict T+1 cash, then reports the same fills under Fixed-realistic and explicitly conditional Tiered fees plus MFE/MAE. Synthetic proof closes a profitable round trip and correctly blocks a same-day replacement buy under both profiles; the first real prefix reports one checkpoint, zero transitions/trades, and zero invented P&L. Immutable q bundle manifest is `077585f8…`; this changes no observer, signal, selection, order, pricing, or clock |
 
 ### Decision anchors
 
