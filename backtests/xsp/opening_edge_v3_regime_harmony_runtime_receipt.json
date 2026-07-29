@@ -7,7 +7,10 @@
     "frozen_research_result_sha256": "0860769b5d6877c4b0c8c7b1361a28b7037f5c42ad5ba24b11674038e14e142b",
     "frozen_research_runner_sha256": "000f39e959d95f370a9fb92eac1e884ef8e6b0377e97f55257bf2c67dabde87f",
     "runtime_owner_sha256": "643b6a04478e598fe7fbdc2d5aa6deabe6935761b3fa83cf487a9fdd16a265bc",
-    "backtest_engine_sha256": "09c7629c180725dc33d2966f6508dbc8c1d20fc997fab1609e7b8f67bda4fc49",
+    "prospective_transport_owner_sha256": "d02907392cdbd3417d330d360367787ea3381c00d239281c570d78b99236b79d",
+    "prospective_observer_owner_sha256": "dd9198e04a8fb543a8c26ec395f4877a0dbafa4d4284a54e09fa6fea6d93dcf2",
+    "observer_timer_sha256": "542a78303d6e245f2477cc1ea16765252b40bd9a077639409fa6d7c77a33ab50",
+    "backtest_engine_sha256": "2f3d4ec0174209b5582cdff1407fc1b88038953c598f5a2c3cf5f28fd059851b",
     "opening_edge_tapes_sha256": "ad2532194ada0701d5b528acbe06c5e01fbbb8ad8e146c9e99cf7c0db9bad027",
     "cash_qualification_sha256": "e41e44db270ea872679746cb2b83b2aa73987e523863236472f6e8ec0434c8dc",
     "prospective_daily_context_seed_sha256": "177b4163fcdee409378e7b6384b15b3554d7e25438714ef2feb7633e04896b1f"
@@ -99,26 +102,47 @@
     "submitted_orders": 0
   },
   "prospective_observer_prefix": {
-    "environment": "isolated q checkout with IBKR_READONLY=1",
-    "run_started_at_utc": "2026-07-29T12:00:00+00:00",
-    "ledger_sha256": "0a8e289baf2e50f08ef2eb36c70e89d50d7eb23a75bf0d795a2a61a098f0b583",
+    "environment": "deployed q checkout with IBKR_READONLY=1",
+    "source_revision": "ffe382c9d636908dff53a8f3d4902921b91a2aaf",
+    "run_started_at_utc": "2026-07-29T12:30:00+00:00",
+    "ledger_sha256": "1b4a3b49870c4161d153ce0fba4fcd65bfffc46c73de4c375a762a61ec9761a5",
     "records": 2,
     "statuses": {
       "CLOSED": 1,
       "EVALUATED": 1
     },
-    "prefreeze_checkpoint_id": "dff31dc52d05d650a67a003477f76cd896563c65833524f71b50a26fc8af1e9a",
-    "active_checkpoint_id": "73b7f0e06cfd043ec197e1cc8f0269a82f7389afaeefaf198a52b22bd2236d20",
-    "xsp_complete_close_aligned_bars": 780,
-    "spy_complete_close_aligned_bars": 2716,
+    "prefreeze_checkpoint_id": "ce0e72cc7ed591c38a3cf625c3dabef8638d0cceace1b3a7411391f9e5569928",
+    "active_checkpoint_id": "a8b61eb64dde53fc92c0befbdffe56a33308d61765dc9e98ecd0f9bfff50543b",
     "daily_context_sessions": 1257,
     "daily_context_fingerprint": "f4fe049b8cdd0ae7cb8099a3e57351f78d15bc8e4f3f08528329669142b228c7",
+    "gth_signal_bars": 1549,
+    "entry_not_before_enforced": true,
     "selected_run": false,
     "selected_transport": false,
-    "counterfactual_open_positions": 1,
+    "counterfactual_open_positions": 0,
     "counterfactual_closed_trades": 0,
+    "safety_breaches": [],
     "order_authority": "none",
-    "submitted_orders": 0
+    "submitted_orders": 0,
+    "isolated_boundary_proof": {
+      "run_started_at_utc": "2026-07-29T12:25:00+00:00",
+      "ledger_sha256": "1f6c9ac5f4edb9a67f3547fdface4d9454d3687047d247664e0b81bd6eba7f3a",
+      "records": 2,
+      "prefreeze_checkpoint_id": "95576c517200d8d6b59d757026012995904789df14c0ab9d2ccd7901723e9fc1",
+      "active_checkpoint_id": "d7fc68c4baf5927f36047e352a06e66b65b555b19e17bd55f97bb51d349b94a5",
+      "counterfactual_open_positions": 0,
+      "counterfactual_closed_trades": 0,
+      "order_authority": "none",
+      "submitted_orders": 0
+    },
+    "archived_mixed_prefix": {
+      "path": "db/calibration/archive/xsp_live_calibration.pre-v3-invalid-prefix.20260729T122800Z.8875d6823c383941.jsonl",
+      "ledger_sha256": "8875d6823c38394196558c5d66b6f965094c2d1cc8075a3ce6bbd987117c67d3",
+      "records": 373,
+      "reason": "legacy v2 rows plus two non-submitting v3 rows created before the arbitrary intraday entry boundary was enforced",
+      "recoverable": true,
+      "submitted_orders": 0
+    }
   },
   "safety": {
     "disabled_default_behavior_preserved": true,

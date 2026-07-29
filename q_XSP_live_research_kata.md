@@ -1,9 +1,9 @@
 # XSP Mastery — Live Research Kata
 
 - **Status:** `[ACTIVE] Opening Edge v3 is the frozen historical crown and its
-  centralized non-submitting runtime has exact RTH/GTH ledger parity; durable
-  publication, q observer activation, and v3-specific cash selection remain
-  fail-closed before capital authority`
+  centralized non-submitting runtime is published, deployed, and advancing a
+  clean prospective q ledger; v3-specific cash selection remains fail-closed
+  before capital authority`
 - **Authority:** canonical resume state, active task tree, critical evidence
   index, and promotion contract
 - **Cold history:** [`q_XSP_live_research_kata-archive.md`](q_XSP_live_research_kata-archive.md)
@@ -37,14 +37,14 @@ output belongs in commit/final verification, not in this management brain.
 | Selected shadow | Opening Edge v1 predecessor `9fac460e…`; cannot confer v3 authority |
 | Research crown | **Opening Edge v3 — Regime Harmony 24/5**; `xsp.opening-edge-v3-regime-harmony-24x5.v1` |
 | Runtime parity | Central v3 owner reproduces RTH `40708a28…` exactly over `425/425` trades; unchanged GTH Down Sleeve reproduces `9e04807f…` over `179/179`; combined `604`, `+291.1756`, PF `2.0919`, DD `17.63` |
-| Runtime source anchor | local content-addressed v3 crown/cash/runtime receipts plus one opt-in `XspOpeningEdgeV3StateOwner`; predecessors remain independently reproducible and disabled defaults are unchanged. Publication and q fast-forward are the active transaction |
-| Observer cadence | **cleared prospectively:** the successor splits the opening hour from `21..23 ET`, uses `Persistent=false`, and its first natural recurrence advanced `20:42→20:47 ET` at exact five-minute cadence without backfill. Predecessor gaps remain excluded from profitability coverage |
+| Runtime source anchor | published/deployed `ffe382c9…` plus content-addressed v3 crown/cash/runtime receipts and one opt-in `XspOpeningEdgeV3StateOwner`; predecessors remain independently reproducible and disabled defaults are unchanged |
+| Observer cadence | **cleared prospectively for v3:** deployed q froze `08:30 ET` before the boundary, then its natural `08:32 ET` recurrence advanced `CLOSED→EVALUATED` with exact identity and zero pre-start trades. The central engine still warms all context but enforces `entry_not_before`; predecessor/invalid prefixes remain excluded from profitability coverage |
 | RTH signal freshness | **cleared:** after the user activated `CBOE Streaming Market Indexes`, zero-order receipt `acce7ed3…` returned live type-1 XSP, current five-minute history, and real-time `TRADES` bars without a Gateway restart; the natural `10:07 ET` centralized v2 checkpoint then evaluated with both XSP and SPY through `10:05` and `120s` age |
 | Order/capital authority | `none` |
 | Profitability clock | v3 `NOT_STARTED`; predecessor evidence does not transfer |
 | Execution verdict | `HOLD`; v3 RTH UPRO/SPXU full-cross is positive in recent/every year/full under Fixed (`+$337.06`, PF `1.245`, DD `$135.31`) and Tiered (`+$911.87`, PF `1.833`, DD `$102.68`). The user submitted Stocks/ETFs Tiered before `16:00 ET`; IBKR reports next-business-day processing, so effective commission remains unproved |
-| Next irreversible evidence | publish and activate the exact non-submitting v3 owner on q, then capture v3-specific books and one exact quote-derived broker preview only after the Fixed/Tiered, cadence, GTH, cash, identity, and restart gates are resolved |
-| First active work | finish parity/full verification and q read-only activation; then monitor every v3 proposal, exact gate pass/block, position, MFE/MAE, flip/exit, and counterfactual P&L. News joins only after its natural publication and never drives work cadence |
+| Next irreversible evidence | capture v3-specific UPRO/SPXU books and one exact quote-derived non-transmitting broker preview; capital remains `HOLD` until Tiered is proved effective and the cash, identity, restart, and explicit RTH-scope gates all pass |
+| First active work | preserve continuous v3 proposal/gate/position/MFE/MAE/flip/exit observation while completing the exact RTH cash nominee and commission proof. News joins only after its natural publication and never drives work cadence |
 
 ### Immediate sequence
 
@@ -108,11 +108,11 @@ output belongs in commit/final verification, not in this management brain.
     development, adjacent-cell stability, authentic cash qualification, and
     explicit user coronation. It improves every annual slice and remains above
     `200/year`; the crown is historical, not operational.
-17. `[WIP]` Publish the centralized v3 state owner and content-addressed
+17. `[DONE]` Publish the centralized v3 state owner and content-addressed
     crown/cash/runtime receipts; prove exact historical, prefix, restart,
-    underwarm, disabled-default, selector, and UI parity; then fast-forward q
-    and activate only the non-submitting v3 observer.
-18. `[TODO]` Bind any live candidate to v3-specific UPRO/SPXU books,
+    underwarm, disabled-default, selector, and UI parity; fast-forward q and
+    activate only the non-submitting v3 observer.
+18. `[WIP]` Bind any live candidate to v3-specific UPRO/SPXU books,
     quote-derived whole-share quantity, broker what-if, cash/restart identity,
     and an explicit Fixed-versus-Tiered decision. Separately qualify GTH cash
     execution or accept an explicitly narrower RTH experiment. Only a complete
@@ -750,6 +750,7 @@ and
 | E-281 | at `2026-07-29T11:21Z` the user explicitly submitted the Stocks/ETFs/Warrants Fixed→Tiered pricing request and left Futures/FOPs unchanged. Client Portal confirmed that a business-day request before `16:00 ET` processes for the next business day. The request resolves the user decision only: v3 remains `HOLD` and Fixed-priced until a fresh non-transmitting UPRO/SPXU preview returns a commission inside the frozen conservative Tiered envelope |
 | E-282 | final live-path audit rejected a silent context substitution before deployment: broker daily XSP closes can differ from the frozen five-minute aggregate and cannot own v3. Content-addressed seed `177b4163…` now carries `1,257` exact sessions through July 28 with fingerprint `f4fe049b…`; a fresh q type-1/HMDS probe returned `780` XSP five-minute bars across ten complete July 15–28 sessions and matched every overlap exactly. Only complete future RTH sessions may append; partial edge sessions are ignored, while interior incompleteness, drift, duplicate, gap, nonmonotonic, malformed, or underwarm state fails closed. Historical RTH ledger remains exactly `40708a28…` |
 | E-283 | final-source isolated q preflight, outside the deployed checkout and with `IBKR_READONLY=1`, froze future `08:00 ET` v3 start before broker work and emitted `CLOSED/run_not_started`; the same immutable identity then advanced after the boundary to `EVALUATED`. Two-record ledger `0a8e289b…` binds crown `d47eb39c…`, owner `643b6a04…`, `780` XSP and `2,716` SPY close-aligned bars, and exact `1,257`-session context fingerprint `f4fe049b…`. It prospectively observed one GTH-down counterfactual with zero closed trades; selected run/transport remain absent and order authority/submitted orders remain `none/0`. v3 may prefreeze the next exact five-minute GTH boundary rather than waiting until the next `20:15 ET` trading-day open; v2 semantics remain unchanged |
+| E-284 | deployed activation exposed two fail-closed migration defects before capital authority: legacy v2 rows initially failed v3 context parsing, then the first intraday v3 prefix could schedule a pre-start signal because the shared replay filtered only by trading date. Published `0844365…` accepts legacy rows without weakening malformed-v3 refusal; published `ffe382c…` adds one central `entry_not_before` gate while retaining all warmup. The exact historical RTH ledger remains `40708a28…/425`. Isolated q proof `1f6c9ac…` froze `08:25 ET` then advanced with zero position/trades; the mixed 373-row ledger is recoverably archived at hash `8875d682…`, and the clean deployed ledger froze `08:30` then naturally advanced at `08:32` to `EVALUATED`, hash `1b4a3b49…`, exact crown/owner/context identity, zero safety breaches, authority/orders `none/0`. The corrected timer is active; selection and profitability clocks remain unopened |
 
 ### Decision anchors
 
