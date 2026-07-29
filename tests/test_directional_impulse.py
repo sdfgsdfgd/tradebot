@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import date, datetime, timedelta
 
 import pytest
@@ -854,6 +855,54 @@ def test_spot_result_preserves_latest_blocked_directional_turn() -> None:
     ]
     assert snapshot["directional_impulse"]["turn_event"] == "down"
     assert snapshot["directional_impulse"]["horizons"]
+
+
+def test_spot_entry_not_before_preserves_warmup_without_backfill() -> None:
+    bars = tuple(
+        _bar(index, close, spread=0.1)
+        for index, close in enumerate(
+            (100.0, 101.0, 102.0, 103.0, 104.0, 105.0, 106.0, 104.0, 103.0)
+        )
+    )
+    base = xsp_opening_edge_bundle(
+        start=date(2026, 7, 20),
+        end=date(2026, 7, 20),
+    )
+    config = replace(
+        base,
+        strategy=replace(
+            base.strategy,
+            directional_impulse_admission={
+                **base.strategy.directional_impulse_admission,
+                "atr_velocity_max": 1.0,
+                "down_retrace_min": 0.0,
+            },
+        ),
+    )
+    metadata = ContractMeta(
+        symbol="XSP",
+        exchange="CBOE",
+        multiplier=1.0,
+        min_tick=0.01,
+    )
+
+    baseline = _run_spot_backtest(
+        config,
+        bars,
+        metadata,
+        final_session_complete=False,
+    )
+    prospective = _run_spot_backtest(
+        config,
+        bars,
+        metadata,
+        final_session_complete=False,
+        entry_not_before=bars[-1].ts,
+    )
+
+    assert [trade.entry_time for trade in baseline.trades] == [bars[-1].ts]
+    assert prospective.trades == []
+    assert prospective.latest_signal_snapshot is not None
 
 
 def test_directional_turn_uses_same_timeframe_ema_confirmation() -> None:

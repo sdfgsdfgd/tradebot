@@ -1,5 +1,5 @@
 [Unit]
-Description=Advance the XSP v2 observer after each completed GTH/RTH bar
+Description=Advance the XSP Opening Edge v3 observer after each completed GTH/RTH bar
 
 [Timer]
 OnCalendar=Sun *-*-* 20:22/5:00 America/New_York

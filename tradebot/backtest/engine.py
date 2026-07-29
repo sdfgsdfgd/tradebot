@@ -1779,6 +1779,7 @@ def _run_spot_backtest(
     regime2_bear_hard_bars: BarSeriesInput | None = None,
     exec_bars: BarSeriesInput | None = None,
     spot_state_owner: object | None = None,
+    entry_not_before: datetime | None = None,
 ) -> BacktestResult:
     run_bars = _spot_resolve_run_bars(
         cfg,
@@ -1798,6 +1799,7 @@ def _run_spot_backtest(
         regime2_bars=run_bars.regime2,
         regime2_bear_hard_bars=run_bars.regime2_bear_hard,
         spot_state_owner=spot_state_owner,
+        entry_not_before=entry_not_before,
     )
 
 
@@ -1862,6 +1864,7 @@ def _run_spot_backtest_exec_loop(
     prepared_series_pack: object | None = None,
     progress_callback=None,
     spot_state_owner: object | None = None,
+    entry_not_before: datetime | None = None,
 ) -> BacktestResult:
     """Spot backtest using an execution-bar loop.
 
@@ -2946,7 +2949,11 @@ def _run_spot_backtest_exec_loop(
         entry_control = dict(entry_context.get("entry_control") or {})
         entry_control["resolution"] = direction_resolution
         entry_context = {**entry_context, "entry_control": entry_control}
-        entry_ok = bool(direction is not None and not (spot_close_eod and is_last_bar))
+        entry_ok = bool(
+            direction is not None
+            and not (spot_close_eod and is_last_bar)
+            and (entry_not_before is None or bar.ts >= entry_not_before)
+        )
 
         cooldown_ok = cooldown_ok_by_index(
             current_idx=int(sig_idx),

@@ -218,6 +218,7 @@ def _lane_result(
     signal_bars: Sequence[Bar],
     execution_bars: Sequence[Bar],
     run_trading_date: date,
+    run_started_at: datetime,
     observed_at: datetime,
     rth_signal_symbol: str,
     rth_entry_name: str = "RTH Core",
@@ -245,6 +246,7 @@ def _lane_result(
         exec_bars=execution_bars,
         final_session_complete=lane_complete,
         spot_state_owner=spot_state_owner,
+        entry_not_before=run_started_at.astimezone(timezone.utc).replace(tzinfo=None),
     )
 
 
@@ -456,6 +458,7 @@ def xsp_opening_edge_v2_equities(
             signal_bars=gth_signal,
             execution_bars=spy_gth,
             run_trading_date=run_trading_date,
+            run_started_at=run_started_at,
             observed_at=observed_at,
             rth_signal_symbol="XSP",
             rth_entry_name=rth_entry_name,
@@ -470,6 +473,7 @@ def xsp_opening_edge_v2_equities(
             signal_bars=rth_signal,
             execution_bars=spy_rth,
             run_trading_date=run_trading_date,
+            run_started_at=run_started_at,
             observed_at=observed_at,
             rth_signal_symbol=rth_signal_symbol,
             rth_entry_name=rth_entry_name,
