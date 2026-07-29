@@ -1,11 +1,10 @@
 # XSP Mastery — Live Research Kata
 
 - **Status:** `[ACTIVE] Opening Edge v3 is the frozen historical crown and its
-  centralized non-submitting runtime is published. Its first completed-session
-  append exposed one prospective-wrapper serialization defect; repair
-  `8c2b980…` is published and independently recovered the exact flat terminal
-  state, but q deployment waits for the active recorder to exit. V3-specific
-  cash selection remains fail-closed before capital authority`
+  centralized non-submitting runtime is deployed on q. Completed-session
+  persistence repair `8c2b980…` and safe closed-calendar service semantics
+  `b27bf72…` now pass exact terminal restart; v3-specific cash selection remains
+  fail-closed before capital authority`
 - **Authority:** canonical resume state, active task tree, critical evidence
   index, and promotion contract
 - **Cold history:** [`q_XSP_live_research_kata-archive.md`](q_XSP_live_research_kata-archive.md)
@@ -40,7 +39,7 @@ output belongs in commit/final verification, not in this management brain.
 | Research crown | **Opening Edge v3 — Regime Harmony 24/5**; `xsp.opening-edge-v3-regime-harmony-24x5.v1` |
 | Runtime parity | Central v3 owner reproduces RTH `40708a28…` exactly over `425/425` trades; unchanged GTH Down Sleeve reproduces `9e04807f…` over `179/179`; combined `604`, `+291.1756`, PF `2.0919`, DD `17.63` |
 | Runtime source anchor | published/deployed `ca574817…` central v3 owner plus `932c62c…` broker-fill USD milestone projection; content-addressed crown/cash/runtime receipts and one opt-in `XspOpeningEdgeV3StateOwner`; predecessors remain independently reproducible and disabled defaults are unchanged |
-| Observer cadence | **recovery in progress:** q was exact through `15:57 ET`, then the first completed-session append failed before writing `16:02..16:17`. Published repair `8c2b980…` leaves state owner `643b6a…` byte-identical; an isolated read-only `16:35 ET` CURB replay appended July 29 context and proved the final state remained flat with exactly one closed trade. Deployed q fast-forward/restart waits for its provenance recorder to exit |
+| Observer cadence | **recovered:** q is clean at `b27bf72…`, state owner `643b6a…` remains byte-identical, and a closed-calendar restart advanced the ledger `92→93` with service exit `0`, no broker request, no selection, and no order authority. July 29 remains exactly one closed trade and flat |
 | RTH signal freshness | **cleared:** after the user activated `CBOE Streaming Market Indexes`, zero-order receipt `acce7ed3…` returned live type-1 XSP, current five-minute history, and real-time `TRADES` bars without a Gateway restart; the natural `10:07 ET` centralized v2 checkpoint then evaluated with both XSP and SPY through `10:05` and `120s` age |
 | Order/capital authority | `none` |
 | Profitability clock | v3 `NOT_STARTED`; predecessor evidence does not transfer. The selected v3 runtime is now prepared to anchor the shared `24h→48h→five-session` verifier from reconciled USD fills at its first post-selection RTH slot |
@@ -794,6 +793,7 @@ and
 | E-299 | q is the sole operational owner of news/pressure persistence: its enabled four-hour news timer appends raw publications and the five-minute v3 observer durably records signed pressure, delta, velocity, freshness, and fingerprint beside each technical checkpoint. The redundant Mac pull mirror had run `139` times and failed on a legitimate fresh→stale lifecycle transition; it was unloaded, its installed plist and copied state were permanently removed at the user's direction, and the Mac installer plus mirror-only code/test surface were retired rather than repaired. q retained `28` publications and had advanced to `67` checkpoints after removal, including `16:17:49Z` pressure `-0.8428`, delta `-0.1132`, and velocity `-0.026922/hour`; no q service, observer, Gateway, strategy, selection, order, or clock changed |
 | E-300 | pre-open completed-ticket audit found v3's selected runtime reused its BUY commission ceiling for SELL previews even though Tiered SELLs also incur SEC and TAF. The centralized v3 selector now freezes one conservative `$0.45034925` ceiling at the existing maximum `24` shares and `$900` sleeve; a `$0.45` Tiered SELL passes while a `$1` Fixed SELL still fails closed. The 138-test v3 selection/runtime/observer/profitability boundary is green; signal, sizing, ladder, timer, q authority, orders, and clock are unchanged |
 | E-301 | the first complete July 29 RTH session exercised an untested wrapper branch and failed before checkpoint persistence because `XspDailyBar.as_payload()` never existed. Published repair `8c2b980…` reuses the state owner's existing canonical `asdict` representation without changing owner hash `643b6a…`; its full completed-session regression and all `960` tests pass. An isolated q replay then appended exact July 29 OHLC and retained one closed `-2.42` research trade, flat state, zero orders, and no second trade. The frozen finalizer independently remains invalid because it demands `RTH` at canonical `CURB` time `16:17`; it is preserved as failed evidence and cannot affect the independent July 30 preview/selector |
+| E-302 | terminal deployment exposed one service-status mismatch after the correct `CLOSED` row was already persisted: the CLI returned `2` for a normal `closed_calendar` no-op. Published/deployed `b27bf72…` treats only v2/v3 `CLOSED` skips `run_not_started/closed_calendar` as success while stale/unsupported data still fail; all `961` tests pass, q advanced `92→93` with exit `0`, owner `643b6a…`, no broker request, selection, or order. Quarantined outcome-aware UPRO replay maps the sole July 29 long to `6` shares, `-$8.88` gross and `-$10.90` Fixed / `-$9.64` conditional Tiered after cost; it is forensic attribution only and cannot qualify selection or start a clock |
 
 ### Decision anchors
 
