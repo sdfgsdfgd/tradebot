@@ -30,13 +30,13 @@ output belongs in commit/final verification, not in this management brain.
 | Selected shadow | Opening Edge v1 predecessor `9fac460e…`; cannot confer v2 authority |
 | Research crown | **Opening Edge v2 — Balanced 24/5**; `xsp.opening-edge-v2-balanced-24x5.v1` |
 | Runtime parity | Exact prior-XSP-close GTH projection plus XSP RTH signal reproduces all `725` ordered SPY fills; the shared 24/5 exit clock now honors the session trading date |
-| Runtime source anchor | published code/GitHub and clean q are exactly `f35d857…`; deployment archive `6595fd5b…` proves source, selected-shadow, and ledger continuity |
-| Observer cadence | current q/f35 GTH calendar has three `25m` hour-boundary gaps; the local successor splits the opening hour from `21..23 ET` and restores exact `5m` cadence. Existing observation remains useful but cannot count as gap-free profitability coverage |
+| Runtime source anchor | published code/GitHub and clean q are exactly `ba6d49b…`; successor archive `02dc773b…` proves source, selected-shadow, and ledger continuity |
+| Observer cadence | **cleared prospectively:** the successor splits the opening hour from `21..23 ET`, uses `Persistent=false`, and its first natural recurrence advanced `20:42→20:47 ET` at exact five-minute cadence without backfill. Predecessor gaps remain excluded from profitability coverage |
 | RTH signal freshness | **cleared:** after the user activated `CBOE Streaming Market Indexes`, zero-order receipt `acce7ed3…` returned live type-1 XSP, current five-minute history, and real-time `TRADES` bars without a Gateway restart; the natural `10:07 ET` centralized v2 checkpoint then evaluated with both XSP and SPY through `10:05` and `120s` age |
 | Order/capital authority | `none` |
 | Profitability clock | v2 `NOT_STARTED`; predecessor evidence does not transfer |
 | Execution verdict | `HOLD`; every completed fixed-cash transport fails and SPYU/SPXU produced no eligible profile |
-| Next irreversible evidence | publish and install the already-proven five-minute cadence plus engine-native technical decision trace; q must remain flat, non-submitting, and selection-free across the fast-forward |
+| Next irreversible evidence | the next admitted or blocked technical turn plus one genuinely executable cash-spot transport; neither passive observation nor research P&L may start the clock |
 | First active work | monitor technical proposals, exact gate pass/block, positions, flips/exits, and P&L; news joins only after its natural four-hour publication and never drives work cadence |
 
 ### Immediate sequence
@@ -72,10 +72,10 @@ output belongs in commit/final verification, not in this management brain.
     and an on-demand read-only broker probe proved zero relevant orders and
     positions. The live-transport selection remains absent and the
     profitability clock remains `NOT_STARTED`.
-12. `[WIP]` The GTH timer repair and compact engine-native trade attribution
-    are locally and q-detached proven. The frozen f35 activation, three natural
-    recurrences, first-recurrence audit, and cleanup are terminal; publish and
-    install the successor without backfill or inherited profitability coverage.
+12. `[DONE]` The GTH timer repair and compact engine-native trade attribution
+    are published and installed. The first successor recurrence is exact,
+    selection-free, read-only, and carries the active multihorizon gate state;
+    no predecessor gap or counterfactual P&L transfers into the live clock.
 
 ### Never infer
 
@@ -540,6 +540,7 @@ and
 | E-250 | q fast-forwarded cleanly to published `f35d857…`. Its frozen activation first stopped before observer enablement because the production environment intentionally lacked the test runner; isolated successor `606184f2…` preserved the full proof gate without altering runtime packages. Deployment archive `6595fd5b…` binds exact ledger/selection continuity and enables the non-submitting timer for `20:22 ET`; an owner-correct read-only tunnel probe found zero relevant orders or positions. Selection remains absent and the clock remains `NOT_STARTED` |
 | E-251 | natural f35 recurrences at `20:22/20:27/20:32 ET` appended exactly one fresh GTH evaluation each (`230→233` records), advanced the SPY tape without backfill, and remained flat with no execution request. First-recurrence archive `427bbf91…` binds audit `91c2f5c6…`, checkpoint `e08984c9…`, byte-identical selection `faf294f7…`, `execution_mode=flat_state_unchanged`, null execution checkpoint, `order_authority=none`, and a false profitability clock. A missing read-only audit alias was restored from the byte-identical deployment archive; it changed no strategy, ledger, broker, or selection state |
 | E-252 | pinned cleanup completed at `20:35:04 ET`. Archive `retired-handoff-units` verifies all `30` manifest entries under manifest SHA `003cb453…`; only the five completed tape-finalize, SPYU-fetch, activation, first-recurrence, and self-cleanup one-shot families were retired. The recurring observer stayed enabled, q stayed clean at `f35d857…`, the selection file remained absent, and the latest checkpoint stayed flat/non-submitting |
+| E-253 | successor deployment first failed closed when the natural `20:37 ET` recurrence appended record `234` during ledger-parity proof; source had fast-forwarded but the timer was stopped before installation, with no selection or order. The same idempotent transaction then froze the quiescent ledger and installed exact pushed `ba6d49b…`; archive `02dc773b…` verifies. Its first natural `20:42 ET` recurrence appended record `235`, remained flat with `execution_observation=unchanged`, and scheduled `20:47`. Engine-native GTH trace showed only two warmed horizons, ATR velocity `-0.00493%`, coherence `0.50`, and `directional_impulse_cascade:block:no_proposal`; the abstention is fully attributable without news or a parallel evaluator |
 
 ### Decision anchors
 
@@ -649,8 +650,8 @@ SPYU/SPXU economics produced no eligible profile. The published state-change
 observer remains non-submitting; its proven successor closes twelve nightly
 GTH cadence holes and retains the engine-native signal/excursion attribution
 needed for technical gate and trade evaluation. The frozen f35 handoff is
-fully consumed, so publication and an unchanged-authority fast-forward are now
-the only active deployment transaction.
+fully consumed and the successor's first exact five-minute recurrence is
+terminal; live technical commissioning and transport qualification resume.
 Broker/order strategy is `NO_TRADE`, v2 has no selected
 identity, and the profitability clock is `NOT_STARTED`. A passing SPYU profile
   would pause deployment pending a new RTH-only transport-bound selection and
