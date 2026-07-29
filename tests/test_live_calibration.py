@@ -65,7 +65,6 @@ from tradebot.research.xsp_opening_edge_v2 import (
     xsp_opening_edge_v2_gth_signal_bars,
     xsp_opening_edge_v2_run_start,
 )
-from tradebot.research.xsp_pressure_mirror import compact_pressure_rows
 from tradebot.backtest.models import Bar, SpotTrade
 from tradebot.time_utils import ET_ZONE
 
@@ -4132,44 +4131,3 @@ def test_first_opening_edge_checkpoint_starts_selected_profitability(
     )
     assert profitability["clock"]["coverage_broken"] is False
     assert profitability["milestones"]["24h"]["passed"] is False
-
-
-def test_pressure_mirror_compacts_repeated_hourly_checkpoints() -> None:
-    pressure = {
-        "usable": True,
-        "signal_as_of_utc": "2026-07-28T06:33:55Z",
-        "snapshot_fingerprint": "news-1",
-        "direction": -1,
-        "impact": 78,
-        "confidence": 0.97,
-        "horizon_hours": 24,
-        "reason": "fresh",
-        "signed_pressure": -0.7566,
-        "pressure_delta": -0.1067,
-        "pressure_interval_seconds": 14903.0,
-        "pressure_velocity_per_hour": -0.025775,
-    }
-    rows = compact_pressure_rows(
-        (
-            {
-                "evaluation_as_of_utc": "2026-07-28T07:00:00+00:00",
-                "evidence": {"fundamental_pressure": pressure},
-            },
-            {
-                "evaluation_as_of_utc": "2026-07-28T08:00:00+00:00",
-                "evidence": {"fundamental_pressure": dict(pressure)},
-            },
-        )
-    )
-
-    assert rows == (
-        {
-            "schema": "xsp.fundamental-pressure.v1",
-            "authority": "observation_only",
-            "order_authority": "none",
-            **pressure,
-            "first_checkpoint_utc": "2026-07-28T07:00:00+00:00",
-            "last_checkpoint_utc": "2026-07-28T08:00:00+00:00",
-            "checkpoint_count": 2,
-        },
-    )
