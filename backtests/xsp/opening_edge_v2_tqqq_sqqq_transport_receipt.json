@@ -1,0 +1,148 @@
+{
+  "schema": "xsp.opening-edge-v2-tqqq-sqqq-transport-receipt.v1",
+  "observed_at_utc": "2026-07-29T02:05:32Z",
+  "authority": "historical_transport_rejection",
+  "order_authority": "none",
+  "submitted_orders": 0,
+  "strategy": {
+    "id": "xsp.opening-edge-v2-balanced-24x5.v1",
+    "signal_ledger_sha256": "cb95dd07d630032db3c0c96202cf8e7c8964b365ac3b5c027130cf89e2b64f9a",
+    "signal_owner": "XSP_RTH_plus_SPY_GTH_unchanged",
+    "direction_or_lifecycle_changed": false
+  },
+  "transport": {
+    "up": "TQQQ",
+    "down": "SQQQ",
+    "vehicle_index": "NASDAQ_100",
+    "vehicle_leverage": "3x_daily",
+    "starting_cash_usd": 1350.0,
+    "fixed_notional_profiles_usd": [
+      1200.0,
+      1150.0
+    ],
+    "commission_plan": "IBKR Fixed",
+    "operational_spread_per_share_usd": {
+      "TQQQ": 0.03,
+      "SQQQ": 0.03
+    },
+    "patient_research_spread_per_share_usd": {
+      "TQQQ": 0.01,
+      "SQQQ": 0.01
+    }
+  },
+  "authenticated_history": {
+    "window": "2023-07-20..2026-07-25",
+    "TQQQ": {
+      "con_id": 72539702,
+      "bars": 215855,
+      "zero_volume_bars": 4742,
+      "sha256": "91525f7a4f11f903f040d24faf41631772764d0e9daece3e868fc5228469cbef"
+    },
+    "SQQQ": {
+      "con_id": 831082828,
+      "bars": 215601,
+      "zero_volume_bars": 4365,
+      "sha256": "dc2ece1965a6a072b60ec3de2576b5d54187ec76a54947a76c2944e0f19c6805"
+    }
+  },
+  "timestamp_parity": {
+    "verdict": "exact_crown_convention",
+    "detail": "Each canonical normalized close label resolves the corresponding raw interval open without subtracting another bar; the first SPY control reproduces 453.79 raw open plus 0.05 frozen friction as the 453.84 ledger entry."
+  },
+  "full_challenge": {
+    "operational_pass": false,
+    "largest_passing_notional_usd": null,
+    "common_fill_coverage": {
+      "mapped_trades": 721,
+      "unavailable_trades": 1,
+      "zero_volume_fill_trades": 3,
+      "source_signals": 725
+    },
+    "notional_1200_operational_base_unconstrained": {
+      "gross_usd": 1797.3399999999983,
+      "cost_usd": 1876.0303490349404,
+      "net_usd": -78.69034903494196,
+      "profit_factor": 0.9801231824361203,
+      "max_drawdown_usd": 497.83545809495354,
+      "intrabar_max_drawdown_usd": 516.6169601049737,
+      "trades": 721,
+      "recent_net_usd": 74.36883836000084,
+      "year_1_net_usd": -298.8691629449852,
+      "year_2_net_usd": -178.24195337696744,
+      "year_3_net_usd": 398.4207672870107,
+      "up_net_usd": -63.31304847999945,
+      "down_net_usd": -15.377300554942508,
+      "rth_net_usd": 103.38886432304082,
+      "gth_net_usd": -182.07921335798278,
+      "recent_top_five_positive_session_share": 0.8088628950791351
+    },
+    "notional_1200_operational_base_strict_cash": {
+      "executed_trades": 302,
+      "blocked_trades": 419,
+      "net_usd": -237.58037081196233,
+      "profit_factor": 0.8614162859505385,
+      "max_drawdown_usd": 342.1249327579783,
+      "intrabar_max_drawdown_usd": 358.9245866779777
+    },
+    "notional_1150_operational_base_unconstrained": {
+      "net_usd": -117.71462267295169,
+      "profit_factor": 0.9693257658144794,
+      "max_drawdown_usd": 498.8682810769626,
+      "intrabar_max_drawdown_usd": 504.8165356349616,
+      "trades": 721
+    },
+    "notional_1150_operational_base_strict_cash": {
+      "executed_trades": 267,
+      "blocked_trades": 454,
+      "net_usd": -297.0132870229693,
+      "profit_factor": 0.80648993850925,
+      "max_drawdown_usd": 383.22476775497034,
+      "intrabar_max_drawdown_usd": 394.37547771897016
+    },
+    "apparently_positive_stress_profiles": [
+      {
+        "identity": "notional=1150:spread=patient_25pct_current:stress=one_bar_entry_latency",
+        "strict_cash_net_usd": 54.00213423402886,
+        "executed_trades": 485,
+        "blocked_trades": 235,
+        "year_1_net_usd": -47.1016,
+        "year_2_net_usd": -187.7151,
+        "max_drawdown_usd": 369.9231788699906,
+        "authority": "failed_research_only_spread_and_latency_stress"
+      },
+      {
+        "identity": "notional=1200:spread=patient_25pct_current:stress=scheduled_exit_next_bar",
+        "strict_cash_net_usd": 108.74379070802729,
+        "executed_trades": 446,
+        "blocked_trades": 274,
+        "year_1_net_usd": -25.8485,
+        "year_2_net_usd": -169.0419,
+        "max_drawdown_usd": 382.83059311198645,
+        "authority": "failed_research_only_spread_and_exit_stress"
+      }
+    ],
+    "entry_latency_stress_pass": false,
+    "scheduled_exit_latency_stress_pass": false,
+    "strict_t_plus_one_and_historical_t_plus_two_cash_pass": false,
+    "positive_volume_fill_gate_pass": false,
+    "annual_consistency_pass": false,
+    "both_direction_and_lane_attribution_pass": false
+  },
+  "verdict": {
+    "state": "REJECT",
+    "reason": "Cross-index beta does not preserve the XSP edge across regimes. Even unconstrained current-Fixed execution is negative, Years 1 and 2 and GTH are materially negative, recent profit is concentrated, authentic fills are incomplete, and strict settled cash exhausts before the full tape.",
+    "opening_edge_v2_research_crown_changed": false,
+    "selected_transport_created": false,
+    "profitability_clock_started": false,
+    "cash_etf_transport_frontier": "closed"
+  },
+  "integrity": {
+    "preregistered_gate_sha256": "eedffbad1ea1cc06aa70483b966591bd1d429f0dca7d1df4b5abde9ef8b9796b",
+    "full_fetch_sha256": "4148505280249fc4497c5e6bae2acf7d426c8d240ffaf0c843bc85532b60ac67",
+    "shared_validator_sha256": "73421ac40b4043fdf6662ec12648447c684571bf11c59eb20cada10c99ee3a34",
+    "challenge_wrapper_sha256": "142fa56353e0b2256ba5daea2f7bb9875f81305b43a8b7ba08a528c1412a3c57",
+    "full_challenge_sha256": "9be25efc4d0ba833a5306cfe41714d1231cb03000e51b5271d5e1c92b1af1a86",
+    "q_archive": "/home/x/Desktop/tradebot-evidence/XSP/2026-07-29/tqqq-sqqq-transport",
+    "q_archive_manifest_sha256": "ddd42ac0cf4105f354bb491bb934499e3e49e64fee5dfe6d864167cad12f677b"
+  }
+}

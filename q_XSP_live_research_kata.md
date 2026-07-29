@@ -1,14 +1,15 @@
 # XSP Mastery — Live Research Kata
 
-- **Status:** `[ACTIVE] v2 technical observation continues; SSO/SDS is
-  rejected, no executable transport is selected, and capital authority is HOLD`
+- **Status:** `[ACTIVE] v2 technical observation continues; the cash-ETF
+  transport frontier is closed, and capital authority remains HOLD`
 - **Authority:** canonical resume state, active task tree, critical evidence
   index, and promotion contract
 - **Cold history:** [`q_XSP_live_research_kata-archive.md`](q_XSP_live_research_kata-archive.md)
 - **Leaderboard:** [`backtests/xsp/leaderboard.md`](backtests/xsp/leaderboard.md)
-- **Scope:** XSP signal mastery; SPY, UPRO/SPXU, SPXL/SPXS, and
-  inception-bounded SPYU/SPXU plus SSO/SDS execution are rejected; the crown
-  is unchanged and every observer remains non-submitting
+- **Scope:** XSP signal mastery; SPY, UPRO/SPXU, SPXL/SPXS,
+  inception-bounded SPYU/SPXU, SSO/SDS, and cross-index TQQQ/SQQQ execution
+  are rejected; the crown is unchanged and every observer remains
+  non-submitting
 - **Capital premise:** broker-read `INDIVIDUAL/STKCASH` state is about
   AUD `2,025` NLV and AUD `1,935` BuyingPower/TotalCash; USD `1,228.61` plus
   AUD `176.94` supports the frozen USD `1,350` total risk identity. Selection
@@ -35,8 +36,8 @@ output belongs in commit/final verification, not in this management brain.
 | RTH signal freshness | **cleared:** after the user activated `CBOE Streaming Market Indexes`, zero-order receipt `acce7ed3…` returned live type-1 XSP, current five-minute history, and real-time `TRADES` bars without a Gateway restart; the natural `10:07 ET` centralized v2 checkpoint then evaluated with both XSP and SPY through `10:05` and `120s` age |
 | Order/capital authority | `none` |
 | Profitability clock | v2 `NOT_STARTED`; predecessor evidence does not transfer |
-| Execution verdict | `HOLD`; every completed cash-spot transport fails authentic cost, fill, cash, or annual-consistency gates |
-| Next irreversible evidence | the next admitted or blocked technical turn plus one materially different executable cash-spot transport; neither historical transport P&L nor passive observation may start the clock |
+| Execution verdict | `HOLD`; every completed whole-share cash-ETF transport fails authentic cost, cash, fill, annual-consistency, or cross-index attribution gates |
+| Next irreversible evidence | the next admitted or blocked technical turn plus a materially different executable spot architecture; neither historical transport P&L nor passive observation may start the clock |
 | First active work | monitor technical proposals, exact gate pass/block, positions, flips/exits, and P&L; news joins only after its natural four-hour publication and never drives work cadence |
 
 ### Immediate sequence
@@ -85,6 +86,15 @@ output belongs in commit/final verification, not in this management brain.
     Strict cash, latency, volume, PF, drawdown, and every period/side/lane gate
     failed. Receipt `opening_edge_v2_sso_sds_transport_receipt.json` preserves
     the exact rejection; no selection, order, or clock was created.
+14. `[DONE]` Reject XSP-signal → TQQQ/SQQQ execution without changing the
+    crown. Frozen current-Fixed `$1,200` execution mapped `721/725` trades but
+    lost `-$78.69` unconstrained and `-$237.58` under strict cash; Years 1/2,
+    both directions, and GTH were negative, DD was `$497.84`, recent profit was
+    `80.9%` top-five concentrated, and four paths lacked an executable fill.
+    `$1,150`, patient-spread research, and both latency stresses also failed.
+    Receipt `opening_edge_v2_tqqq_sqqq_transport_receipt.json` and q archive
+    manifest `ddd42ac0…` close the whole-share cash-ETF frontier with no
+    selection, order, or clock.
 
 ### Never infer
 
@@ -368,7 +378,15 @@ preempts every research sidequest without requiring active poll loops.
     patient-spread research, T+1/T+2 cash, positive-volume fills, entry/exit
     latency, and intrabar drawdown all preserve `REJECT`; q/origin crown
     runtime, selection, broker state, and clocks remain untouched.
-13. `[BLOCKED]` Option structures and any live-capital canary belong to a later
+13. `[DONE]` Frozen XSP→TQQQ/SQQQ transport fails current Fixed economics,
+    strict cash, fill completeness, annual consistency, both-side/lane,
+    latency, drawdown, and concentration gates. No Nasdaq subscription,
+    what-if, selection, order, or clock is justified.
+14. `[WIP]` Continue event-driven live technical commissioning while capital
+    remains `HOLD`: preserve every proposal/gate/position/exit trace and do not
+    reopen rejected ETF families. Any new spot execution path must be
+    materially different, preregistered, and economically complete.
+15. `[BLOCKED]` Option structures and any live-capital canary belong to a later
     quest after directional causality is proven.
 
 ---
@@ -549,6 +567,7 @@ and
 | E-252 | pinned cleanup completed at `20:35:04 ET`. Archive `retired-handoff-units` verifies all `30` manifest entries under manifest SHA `003cb453…`; only the five completed tape-finalize, SPYU-fetch, activation, first-recurrence, and self-cleanup one-shot families were retired. The recurring observer stayed enabled, q stayed clean at `f35d857…`, the selection file remained absent, and the latest checkpoint stayed flat/non-submitting |
 | E-253 | successor deployment first failed closed when the natural `20:37 ET` recurrence appended record `234` during ledger-parity proof; source had fast-forwarded but the timer was stopped before installation, with no selection or order. The same idempotent transaction then froze the quiescent ledger and installed exact pushed `ba6d49b…`; archive `02dc773b…` verifies. Its first natural `20:42 ET` recurrence appended record `235`, remained flat with `execution_observation=unchanged`, and scheduled `20:47`. Engine-native GTH trace showed only two warmed horizons, ATR velocity `-0.00493%`, coherence `0.50`, and `directional_impulse_cascade:block:no_proposal`; the abstention is fully attributable without news or a parallel evaluator |
 | E-254 | SSO/SDS transport receipt `opening_edge_v2_sso_sds_transport_receipt.json` closes the only active free-window challenge. Its temporary recent feasibility replay subtracted five minutes from already-close-normalized bars; exact parity corrected `$1,200` full-cross recent economics to `-$32.58/16`, including one zero-volume entry. Frozen authenticated history then mapped `613` positive-volume fills, with `12` unavailable and `100` zero-volume paths: unconstrained full-cross lost `-$2,093.56` at `$1,200` and `-$2,048.17` at `$1,150`; even patient-spread research lost about `-$792`, and strict cash exhausted after `57/71` trades. Entry/exit latency, PF, drawdown, all annual/side/lane, fill, and cash gates failed. q archive manifest `ba7d1b53…` preserves the full `388d4990…` result; crown, selection, orders, and profitability clock remain unchanged |
+| E-255 | preregistered TQQQ/SQQQ receipt `opening_edge_v2_tqqq_sqqq_transport_receipt.json` closes the cross-index cash-ETF challenge. Authenticated `215,855/215,601`-bar tapes mapped `721/725` base trades. At `$1,200`, current-Fixed/full-cross economics were `-$78.69`, PF `0.980`, and `$497.84` DD even without cash limits; Years 1/2 were `-$298.87/-$178.24`, GTH `-$182.08`, up/down both negative, and recent `+$74.37` was `80.9%` top-five concentrated. Strict cash executed `302`, blocked `419`, and lost `-$237.58`; one corporate-action interval and three zero-volume fills also failed completeness. Every notional, spread, and latency profile fails the frozen law. Full result `9be25efc…` is preserved under q archive manifest `ddd42ac0…`; no subscription, selection, order, or clock was created |
 
 ### Decision anchors
 
@@ -590,6 +609,7 @@ and
 | D-174 | operational proof always outranks research, but a verified gap exceeding one hour may host one bounded local challenger. It must be causally distinct, preregister development versus sealed challenge windows, run at low priority without q or crown mutation, and stop after one neighborhood verdict; rejected families, broad sweeps, news backfill, and outcome-driven live changes remain closed |
 | D-175 | Prospective Live Edge Commissioning is Priority 0: live signal/gate/position/execution evidence, transport graduation, and immutable profitability milestones preempt all research. Scheduled event boundaries replace polling; news is joined once only after a new four-hour publication already exists and never drives monitoring cadence. Free-window work may only enrich the same causal ledger and must stop immediately when commissioning evidence arrives |
 | D-176 | the leaderboard's global coronation law is mandatory: a free-window result may become a frozen development leader, never an automatic crown. Coronation requires cadence; positive superiority over the frozen last four weeks, every July-to-July year since July 2023, and the complete three-year tape; `>=5%` material three-year improvement; stability/cost proof; and an explicit milestone decision |
+| D-177 | the tested whole-share cash-ETF transport frontier is closed: do not reopen SPY, UPRO/SPXU, SPXL/SPXS, SPYU/SPXU, SSO/SDS, or TQQQ/SQQQ through sizing, spread, timing, or pricing-plan hindsight. Continue live technical commissioning under HOLD; any new spot path must be materially different, preregistered, and pass complete authentic economics before broker preview or subscription |
 
 ---
 
@@ -652,29 +672,32 @@ five-session receipts exist and the final calibration/risk verdict is explicit.
 
 ## Conclusion
 
-Opening Edge v2 remains the historical research crown and every completed
-fixed-cash transport is `HOLD`; SSO/SDS is now rejected after a close-time
-parity correction and frozen three-year challenge. The terminal tape is
-complete and authentic SPYU/SPXU economics produced no eligible profile. The
-published state-change
-observer remains non-submitting; its proven successor closes twelve nightly
+Opening Edge v2 remains the historical research crown and every tested
+whole-share cash-ETF transport is `HOLD`. SSO/SDS is rejected after its
+close-time parity correction; TQQQ/SQQQ is rejected because higher cross-index
+beta still fails current-Fixed economics, strict cash, annual consistency,
+both-side/lane, fill, drawdown, latency, and concentration gates. The tested
+cash-ETF frontier is closed. The terminal tape is complete. The published
+state-change observer remains non-submitting; its proven successor closes twelve nightly
 GTH cadence holes and retains the engine-native signal/excursion attribution
 needed for technical gate and trade evaluation. The frozen f35 handoff is
 fully consumed and the successor's first exact five-minute recurrence is
 terminal; live technical commissioning and transport qualification resume.
 Broker/order strategy is `NO_TRADE`, v2 has no selected
-identity, and the profitability clock is `NOT_STARTED`. Any materially
-different future cash transport must first pass exact timestamp, economics,
-latency, cash, volume, and safety gates, then fresh exact-nominee NBBO and
-broker what-if before transport-bound selection.
-Neither path authorizes a pricing-plan change, subscription, backfill, forced
-trade, or GTH execution.
+identity, and the profitability clock is `NOT_STARTED`. Any future spot
+execution path must be materially different and pass exact timestamp,
+economics, latency, cash, volume, attribution, and safety gates before a fresh
+exact-nominee broker what-if and transport-bound selection. Nothing here
+authorizes a pricing-plan change, subscription, backfill, forced trade, or GTH
+execution.
 
 **Predictive observation:** the current bottleneck is an executable cash
 transport, not directional signal quality: the first complete prospective
 trade earned `+1.47` research points, while SPYU/SPXU failed annual consistency,
 side attribution, cash drawdown, and fill-quality gates; SSO/SDS now fails for
 the same economic reason after correcting its one-bar-early development replay.
-The successor trace keeps every intervening turn auditable while the next
-transport must be materially different—not historical decimal mining, breadth,
-news polling, or options/upsizing.
+TQQQ/SQQQ confirms that merely adding higher beta does not solve the ticket:
+its recent strength reverses in Years 1/2 and GTH, even before strict cash
+exhaustion. The successor trace keeps every intervening turn auditable while
+the next path must be architecturally different—not historical decimal mining,
+breadth, news polling, another ETF pairing, or options/upsizing.
