@@ -1,0 +1,125 @@
+{
+  "authority": "prospective_signal_attribution_only",
+  "cash_execution_receipt": "pending_2026-07-29_16:20_ET_terminal_finalizer",
+  "context": {
+    "age_signature": {
+      "fast_hard_age_class": "maturing",
+      "hard_age_class": "entrenched",
+      "pattern_age_class": "maturing",
+      "tr_phase_age_class": "fresh"
+    },
+    "fingerprint": "f4fe049b8cdd0ae7cb8099a3e57351f78d15bc8e4f3f08528329669142b228c7",
+    "signature": {
+      "damage_phase": "down",
+      "fast_direction": "up",
+      "hard_direction": "up",
+      "soft_direction": "down",
+      "tr_phase": "low_down",
+      "transition": "aligned_up"
+    }
+  },
+  "generated_at_utc": "2026-07-29T17:38:34Z",
+  "historical_comparison": {
+    "exact_context": {
+      "mean_mae_points": 0.505,
+      "mean_mfe_points": 1.7175,
+      "mean_net_points": 1.1475,
+      "median_net_points": 0.82,
+      "net_points": 4.59,
+      "trades": 4,
+      "win_rate": 0.5
+    },
+    "exact_context_and_age": {
+      "mean_net_points": -0.13,
+      "trades": 1
+    },
+    "historical_rth_ledger_sha256": "40708a28476fad504d29b1222e52b88481b1c0da8313ed4667076e2b6ed3f157",
+    "same_direction": {
+      "live_percentile_from_worst": 0.055,
+      "mean_net_points": 0.5163,
+      "net_points": 103.26,
+      "trades": 200,
+      "win_rate": 0.525
+    },
+    "verdict": "lower_tail_watch_not_rule_change"
+  },
+  "lifecycle_classification": {
+    "financed_giveback": true,
+    "giveback_from_mfe_to_final_net_points": 3.01,
+    "immediate_error": false,
+    "primary_watch": "persistent_raw_reversal_before_minimum_ownership_release",
+    "reentry_churn": false,
+    "reversal_lag": true,
+    "terminal_execution_delta_status": "pending"
+  },
+  "lifecycle_sequence": [
+    {
+      "checkpoint_id": "89828f893b1be10b0cdf4c8cd0258f4b17de4070136eb3e305c1d1b92bd02d97",
+      "decision_trace_fingerprint": "15415731aa7ad7231ff4dadc2ce5e2d0c4306440cafa677df5f836223544d8a2",
+      "event": "entry",
+      "net_points": -0.3,
+      "signal_bar_utc": "2026-07-29T14:55:00",
+      "time_utc": "2026-07-29T15:00:00"
+    },
+    {
+      "checkpoint_id": "b2b12882c0e9f654fd69fbd7bf47df7a3522d11df005a2246b8fb44e26ea87dc",
+      "event": "first_persistent_raw_down_turn",
+      "net_points": -0.48,
+      "signal_bar_utc": "2026-07-29T15:15:00",
+      "source_direction": "down",
+      "state_age_bars": 0
+    },
+    {
+      "checkpoint_id": "95e3fb2853939055c5f781ae5d9653e9c6cc0a23e03918d8607e6ecadf89ac45",
+      "event": "existing_weak_two_bar_armed",
+      "net_points": -1.39,
+      "pending_flip_count": 1,
+      "signal_bar_utc": "2026-07-29T16:00:00"
+    },
+    {
+      "checkpoint_id": "15859bb7fa1455c534041e77ad688ff8b1f2a15b0f4e28193accd8ce78b3460a",
+      "event": "existing_weak_two_bar_held_confirmation",
+      "net_points": -2.31,
+      "pending_flip_count": 1,
+      "signal_bar_utc": "2026-07-29T16:05:00"
+    },
+    {
+      "checkpoint_id": "16a332f36880cd8ffe35d54e76a896b669c81aa473635881e77a6461f25081ed",
+      "event": "existing_weak_two_bar_released",
+      "net_points": -2.41,
+      "pending_flip_count": 0,
+      "signal_bar_utc": "2026-07-29T16:10:00"
+    },
+    {
+      "checkpoint_id": "a5a2a0b8d6a10f994aa394a1f6d1b0c606b70bebc7daf49896054465202ed487",
+      "event": "next_bar_flip_reconciled",
+      "net_points": -2.42,
+      "pending_flip_count": 0,
+      "signal_bar_utc": "2026-07-29T16:15:00",
+      "trade_ledger_fingerprint": "096d6a2a81407d459ff6433c614cd941fd9d12ff8e1e4173e876b46771f43d5a"
+    }
+  ],
+  "live_trade": {
+    "cost_points": 0.1,
+    "direction": "up",
+    "entry_controls": [
+      "directional_impulse:turn",
+      "directional_impulse_admission:pass:core"
+    ],
+    "entry_price": 735.07,
+    "entry_time_utc": "2026-07-29T15:00:00",
+    "exit_price": 732.65,
+    "exit_reason": "flip",
+    "exit_time_utc": "2026-07-29T16:15:00",
+    "gross_points": -2.32,
+    "mae_points": 2.85,
+    "mfe_points": 0.59,
+    "net_points": -2.42
+  },
+  "order_authority": "none",
+  "schema": "xsp.opening-edge-v3-first-prospective-trade-signal-receipt.v1",
+  "selection_created": false,
+  "source_expectation_receipt_sha256": "7b66811d331509ef969a233236bb5f75daa568aa80c3bcabfffb787404a61ad0",
+  "strategy_id": "xsp.opening-edge-v3-regime-harmony-24x5.v1",
+  "submitted_orders": 0
+}
