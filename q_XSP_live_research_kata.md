@@ -493,6 +493,10 @@ directional consistency is proven.
     place around a frozen direction-symbol pair and per-instrument requirements;
     bind UPRO/SPXU contract IDs, `$900` cash/risk/commission identity,
     SMART/Tiered evidence, execution policy, and daily-state/owner fingerprints.
+    The canonical 94-session state contract now has exact rolling-restart
+    parity across all `1,164` available five-year boundaries; only a completed,
+    strictly next session may append, and invalid warmup or sequence fails
+    closed.
     Do not add a second executor or edit runtime before the prospective gates.
 16. `[WIP]` Any new spot execution path must be materially different,
     preregistered, and economically complete; do not reopen rejected ETF
@@ -695,6 +699,7 @@ and
 | E-274 | before any July 29 bar receipt existed, replay gate `4be8f5ed…` froze runner `0ea59f12…`, the E-269 receipt, every named research dependency, E-267/E-269 RTH prefix hashes, and the exact `492/+$692.9281` cash prefix. Its clean no-data preflight requires the future authenticated receipt through `16:00 ET`, then reports July 29 signal/cash and special-branch events separately. A positive unchanged trade is non-regression only; a failure cannot be retuned. No runtime, pricing, selection, order, or clock authority changed |
 | E-275 | broker-enforced read-only XSP daily history supplied `251` complete sessions through July 28; its 21/63/84 direction, transition, damage, and volatility categories exactly match the frozen intraday-aggregated state. Official daily closes differ from last-five-minute closes by up to `1.62`, so broker daily is drift/fallback evidence—not silent signal authority. Canonical seed `689892bf…` retains the exact minimum `94` five-minute-aggregated sessions (`2026-03-13..07-28`) and reproduces current `transition_down / deteriorating / contracting` state; immutable q bundle `a1bb6791…` preserves inputs and runners. No service consumes it and no runtime, selection, order, or clock changed |
 | E-276 | read-only activation audit found the sole live cash-pair owner is not yet E-269-compatible: `xsp_live_transport.py`, its runtime, restart risk reconstruction, broker snapshot, and selector bind SPYU/SPXU, old SPYU ranking/dwell/preview schemas, fixed `$1,050/$1,150/$1,200` notionals, SPYU NAV, and symbol-specific chase rules. A passing E-269 branch must generalize this existing owner once around selection-bound `direction_symbols` plus per-instrument requirements, then content-address UPRO/SPXU contract IDs, `$900` cash/risk/commission identity, SMART/Tiered proof, execution policy, and canonical daily-state/owner fingerprints. No second executor, runtime edit, selection, order, or clock was created |
+| E-277 | canonical seed→append→restart proof `8362f762…` compared the E-269 state exactly at `1,164` frozen boundaries across `1,257` sessions, including `1,163` serialized rolling appends, and ended at frozen seed `689892bf…`. Underwarm, incomplete, duplicate, known-gap, nonmonotonic, and malformed OHLC inputs all fail closed. This closes restart warmup semantics only; no runtime, outcome, threshold, selection, order, or clock changed |
 
 ### Decision anchors
 
@@ -739,6 +744,7 @@ and
 | D-177 | the tested whole-share cash-ETF transport frontier is closed: do not reopen SPY, UPRO/SPXU, SPXL/SPXS, SPYU/SPXU, SSO/SDS, or TQQQ/SQQQ through sizing, spread, timing, or pricing-plan hindsight. Continue live technical commissioning under HOLD; any new spot path must be materially different, preregistered, and pass complete authentic economics before broker preview or subscription |
 | D-178 | E-259 is the materially different causal signal ledger allowed by D-177; it reopens only bounded UPRO/SPXU passive-fill validation because `16/16` preregistered cash cells now pass. It does not revive the rejected base ledger, assume fills, authorize Tiered pricing, or confer crown/runtime/selection/order/clock authority |
 | D-179 | if E-269 passes prospectively, extend the one existing selected cash-pair owner rather than cloning it: the immutable selection must own direction-symbol mapping, contract IDs, per-instrument data rules, execution policy, cash/risk/commission identity, pricing/routing evidence, and E-269 state-owner/seed fingerprints. Legacy SPYU-specific defaults may not silently govern UPRO/SPXU, and implementation remains downstream of the evidence and pricing decision gates |
+| D-180 | E-269 restart state has one canonical input contract: load exactly the latest `94` completed close-stamped five-minute-aggregated XSP RTH sessions, append only the known strictly next completed session, retain `94`, then recompute. Broker daily bars remain drift evidence; underwarm, duplicate, gap, nonmonotonic, incomplete, or malformed input cannot inherit direction authority |
 
 ---
 
@@ -832,8 +838,10 @@ independent-mechanism blocker. Local
 gate `4be8f5ed…` has already frozen that replay and passed its no-data
 preflight, so today's result cannot alter its evaluator. Canonical state seed
 `689892bf…` also proves E-269 needs only `94` completed five-minute-aggregated
-RTH sessions for exact restart warmup; broker daily history remains an
-independent drift check rather than a replacement signal.
+RTH sessions for exact restart warmup; rolling proof `8362f762…` matches all
+`1,164` available five-year restart boundaries and fails closed on invalid
+append state. Broker daily history remains an independent drift check rather
+than a replacement signal.
 Nothing authorizes a pricing-plan change, subscription, backfill, forced trade,
 or GTH execution.
 
