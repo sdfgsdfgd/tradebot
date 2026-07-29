@@ -479,6 +479,9 @@ directional consistency is proven.
     Receipt `opening_edge_v2_recovering_context_persistence_receipt.json` is the
     compact authority. One bounded UPRO/SPXU Network B tape at
     `09:25..16:05 ET` must now prove every `24`-share case completes by `CROSS`.
+    July 29's strictly-prior state is already `deteriorating`, so its sealed
+    replay can prove prefix/ordinary non-regression but cannot exercise or
+    independently validate E-269's recovery-only maturation branch.
     A pass remains `HOLD` before independent signal behavior, an explicit
     Fixed→Tiered decision, runtime promotion, selection, or order.
 16. `[WIP]` Any new spot execution path must be materially different,
@@ -810,7 +813,10 @@ the exact execution question at full historical quantity: every case must
 complete by `CROSS`, including the real `15:57 ET` liquidation lifecycle. The
 live observer remains non-submitting; a separate pre-outcome `16:12 ET`
 read-only freeze preserves today's four broker bar tapes for later E-269 prefix
-and branch validation without installing another live direction engine. Local
+and ordinary non-regression validation without installing another live
+direction engine. July 29's frozen `deteriorating` state makes the
+recovery-only maturation branch ineligible, so this session cannot close its
+independent-mechanism blocker. Local
 gate `4be8f5ed…` has already frozen that replay and passed its no-data
 preflight, so today's result cannot alter its evaluator. Canonical state seed
 `689892bf…` also proves E-269 needs only `94` completed five-minute-aggregated
