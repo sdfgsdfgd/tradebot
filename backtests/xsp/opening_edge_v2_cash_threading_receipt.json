@@ -1,0 +1,126 @@
+{
+  "schema": "xsp.opening-edge-v2-cash-threading-receipt.v1",
+  "authority": "historical_research_and_forward_observation_only",
+  "order_authority": "none",
+  "crown_changed": false,
+  "selection_changed": false,
+  "submitted_orders": 0,
+  "profitability_clock_started": false,
+  "cash_safe_tiered_interval": {
+    "preregistration_sha256": "c3b0d60d66f413ae22f2e76882087262e7393b139cbba18fc2621ff555812f38",
+    "result_sha256": "3ff1cddbff5b8def11998fac9f524065e8bcb11aced34c46590c99c4f32888ab",
+    "tested_notionals_usd": [
+      850.0,
+      875.0,
+      900.0,
+      925.0
+    ],
+    "survivors": [],
+    "closest_cells": {
+      "midpoint_900": {
+        "trades": 520,
+        "recent_net_usd": 38.4316,
+        "annual_net_usd": [
+          18.9554,
+          -1.5662,
+          435.3039
+        ],
+        "full_net_usd": 452.6931,
+        "profit_factor": 1.2922,
+        "intrabar_max_drawdown_usd": 143.6489
+      },
+      "arca_add_850": {
+        "trades": 521,
+        "recent_net_usd": 35.1399,
+        "annual_net_usd": [
+          8.4626,
+          -8.9082,
+          424.8168
+        ],
+        "full_net_usd": 424.3712,
+        "profit_factor": 1.2905,
+        "intrabar_max_drawdown_usd": 139.8615
+      },
+      "arca_add_900": {
+        "trades": 520,
+        "trades_per_year": 173.3,
+        "recent_net_usd": 39.0996,
+        "annual_net_usd": [
+          26.5794,
+          4.8978,
+          444.2159
+        ],
+        "full_net_usd": 475.6931,
+        "profit_factor": 1.3095,
+        "up_net_usd": 205.4057,
+        "down_net_usd": 270.2874,
+        "intrabar_max_drawdown_usd": 140.6261,
+        "drawdown_limit_usd": 135.0
+      }
+    },
+    "verdict": "NO_STABLE_RISK_ECONOMIC_OVERLAP",
+    "interpretation": "The only every-period-positive point exceeds the frozen drawdown limit under an optimistic perfect-posting and rebate bound, while adjacent lower-notional points lose Year 2. It cannot justify Tiered pricing, selection, or relaxed risk."
+  },
+  "rth_down_maturation": {
+    "blanket_control": {
+      "preregistration_sha256": "a08473b3d6a426ab3b7dc4679450686f2887dd69152862ed67fa954dbe573609",
+      "result_sha256": "de8db76030c625b3910788076cd3afc7f69c61c451946a25e1923000f16970bf",
+      "trades": 593,
+      "trades_per_year": 198.191,
+      "recent_net_pnl": 11.0175,
+      "annual_net_pnl": [
+        -10.4452,
+        11.2083,
+        107.6324
+      ],
+      "full_net_pnl": 108.3956,
+      "profit_factor": 1.3335,
+      "max_drawdown": 20.4483,
+      "verdict": "REJECT"
+    },
+    "exact_gth_policy_transplant": {
+      "preregistration_sha256": "54a692080c01cbd0b3d730ef88ce75f59f4f76c5b133aac859bd0fc7726c997c",
+      "result_sha256": "a53ab84c367a94e603d1ac9c5ba99c4edf432d18776e9ab5ba6a06de71abfa67",
+      "policy": "coherence_le_0.75_immediate_else_one_bar_lower_price_and_two_fast_velocity_votes",
+      "trades": 655,
+      "trades_per_year": 218.9125,
+      "recent_net_pnl": 8.9975,
+      "annual_net_pnl": [
+        9.2848,
+        15.3683,
+        101.5024
+      ],
+      "full_net_pnl": 126.1556,
+      "profit_factor": 1.3402,
+      "max_drawdown": 24.1688,
+      "verdict": "REJECT"
+    },
+    "interpretation": "Temporal financing is valuable in the crowned GTH context but does not port to RTH. Both one-cell variants reduce every primary PnL window and cannot solve ticket economics."
+  },
+  "closest_cell_drawdown_anatomy": {
+    "source_sha256": "e26d2f19acb664c761df9278d7813b5cc042fa09a355e354a21c3ecb20a805d2",
+    "reported_intrabar_max_drawdown_usd": 140.6261,
+    "approximate_reconstructed_max_drawdown_usd": 136.9387,
+    "worst_path": {
+      "trading_date": "2025-06-27",
+      "direction": "up",
+      "mae_usd": -18.2363,
+      "prior_peak_usd": 1491.5828,
+      "equity_before_usd": 1372.8804
+    },
+    "interpretation": "The limit breach is cumulative Apr-Jul-2025 turbulent giveback and whipsaw, not one catastrophic excursion. A tail stop cannot honestly be credited with curing it."
+  },
+  "forward_boundary": {
+    "instrument_matched_upro_spxu_book_tape": "armed_for_2026-07-29_09:25_to_16:05_ET",
+    "purpose": "Measure real spread, depth, queue-compatible patience, and shared-ladder price evolution for prospective discrimination.",
+    "cannot_do": [
+      "rehabilitate the rejected historical Tiered candidate by itself",
+      "change account pricing",
+      "select a transport",
+      "authorize an order",
+      "start the profitability clock"
+    ]
+  },
+  "verdict": "HOLD",
+  "next_legitimate_seam": "Use forward instrument-matched quote evolution beside unchanged live signals to test whether microstructure identifies the historically unobservable weak-regime churn. Historical scalar, maturation, stop, trail, fizzle, and ETF-wrapper loops remain closed."
+}

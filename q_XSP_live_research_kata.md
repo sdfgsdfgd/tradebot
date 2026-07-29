@@ -397,10 +397,11 @@ directional consistency is proven.
     bound without treating it as a candidate. The completed Network B tape is
     SPYU/SPXU and cannot prove UPRO fills; causal one-cent tradethrough loses
     Years 1/2, and the optimistic `$180.22` intrabar DD exceeds the frozen
-    `$135` live cap. One bounded, read-only UPRO/SPXU tape is armed for the
-    next `09:25..16:05 ET` session to test actual spread capture at cash-safe
-    quantities. No pricing-plan change, retuning, selection, or order follows
-    from observation.
+    `$135` live cap. A frozen `$850..925` cash-safe interval found no stable
+    risk/economic overlap even under midpoint/ARCA-add bounds. One bounded,
+    read-only UPRO/SPXU tape remains armed for the next `09:25..16:05 ET`
+    session to learn prospective microstructure—not revive the rejected
+    candidate. No pricing-plan change, retuning, selection, or order follows.
 16. `[WIP]` Any new spot execution path must be materially different,
     preregistered, and economically complete; do not reopen rejected ETF
     families through sizing, spread, timing, or hindsight assumptions.
@@ -583,6 +584,7 @@ and
 | E-255 | preregistered TQQQ/SQQQ receipt `opening_edge_v2_tqqq_sqqq_transport_receipt.json` closes the cross-index cash-ETF challenge. Authenticated `215,855/215,601`-bar tapes mapped `721/725` base trades. At `$1,200`, current-Fixed/full-cross economics were `-$78.69`, PF `0.980`, and `$497.84` DD even without cash limits; Years 1/2 were `-$298.87/-$178.24`, GTH `-$182.08`, up/down both negative, and recent `+$74.37` was `80.9%` top-five concentrated. Strict cash executed `302`, blocked `419`, and lost `-$237.58`; one corporate-action interval and three zero-volume fills also failed completeness. Every notional, spread, and latency profile fails the frozen law. Full result `9be25efc…` is preserved under q archive manifest `ddd42ac0…`; no subscription, selection, order, or clock was created |
 | E-256 | preregistered stopless RTH fizzle challenge `opening_edge_v2_stopless_fizzle_receipt.json` isolated the lifecycle mechanism absent from the old stop/trail grid. Only `12` completed bars / `0.25 ATR` survived Years 1–2 development; its content-addressed sealed challenge improved recent and Years 1–2, but worsened Year 3 `+134.72→+128.14`, moved full net only `+179.67→+180.07` (`+0.22%`), worsened DD `26.47→26.78`, and lacked an adjacent survivor. Anatomy found `70` RTH fizzle exits: matched down paths improved `+11.58`, while up paths lost `-9.57`, including `-10.55` in Year 3. The family is rejected; direction-relative financing speed remains prospective attribution only, with no new engine knob, crown, selection, order, or clock |
 | E-257 | q bundle `8cadb189…` arms one instrument-matched UPRO/SPXU Network B microtape for `09:25..16:05 ET` on July 29. Read-only source `f020836d…` records subsecond book changes, sizes, quote health, and the existing shared ladder prices; before launch the evidence path is absent and the observer remains flat/non-submitting. Its sole question is whether the preregistered Tiered/passive feasibility bound was physically attainable on these instruments at cash-safe quantities. A pass remains observation only; no pricing-plan change, nominee, selection, order, or clock is implied |
+| E-258 | compact receipt `opening_edge_v2_cash_threading_receipt.json` closes two apparent near-live shortcuts. The preregistered `$850/875/900/925` Tiered interval had zero survivors: optimistic ARCA-add `$900` kept `520` trades and all periods positive (`+$26.58/+$4.90/+$444.22`, full `+$475.69`, PF `1.309`) but DD was `$140.63>$135`; its adjacent `$850` point still had `$139.86` DD and lost Year 2. Blanket and exact coherence-scoped RTH down maturation both preserved cadence but worsened recent, every year, PF, and full net (`+$108.40/+$126.16` versus `+$179.67`). Drawdown anatomy locates cumulative Apr–Jul-2025 whipsaw rather than one tail event. Both families are rejected; the forward UPRO/SPXU tape remains microstructure attribution only, with no pricing, risk, crown, selection, order, or clock change |
 
 ### Decision anchors
 
