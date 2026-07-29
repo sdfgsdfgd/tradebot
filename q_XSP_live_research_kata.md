@@ -451,6 +451,9 @@ directional consistency is proven.
     suspect proposals matured; `37` expired. E-269 is the strongest historical
     development leader, not a crown: discovery is outcome-exposed and
     independent validation remains absent.
+    Any later promotion must implement pending maturation, incumbent surrender,
+    and phase-conditioned fizzle as one XSP-specific state owner shared by
+    replay and live; the stateless admission policy cannot own this lifecycle.
 15. `[WIP]` Validate the first stable UPRO/SPXU cash overlap without assuming
     fills. E-269 plus unchanged Tiered/T+1 replay makes all `8/8` inherited
     `$850..925` cash cells positive in every period. Preferred `$900` ARCA-add
