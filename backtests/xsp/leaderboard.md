@@ -251,6 +251,84 @@ sweep. The next legitimate evidence is independent signal validation plus the
 prospective instrument-matched passive-fill tape. News pressure remains
 timestamped attribution only.
 
+A materially different owner then improved the balance again. Exact MFE replay
+showed `92/-83.98` Year-1 and `76/-99.85` Year-2 financed givebacks, with the
+peak typically arriving `10` bars before exit. Only during a strictly-prior
+`84`-session drawdown recovery, when the `21/84`-session paths agree, requiring
+an opposing RTH flip to persist for one completed bar reaches
+`+26.65/+49.39/+135.83`, recent `+11.95/16`, and full `+211.88/696`
+(`232.6/year`), PF `1.577`, DD `24.05`; both directions and lanes remain
+positive. The adjacent two-bar cell falls to `+199.47`, so the portable lesson
+is state-conditioned proof burden—not a cooldown. Receipt
+`opening_edge_v2_recovering_context_persistence_receipt.json` binds result
+`c186454e…`. This is the strongest balanced historical development leader, but
+opened-outcome discovery and missing independent/passive-fill validation keep it below
+crown, runtime, selection, order, and clock authority.
+
+The unchanged Tiered/T+1 cash replay then passes all `8/8` inherited
+`$850..925` midpoint/ARCA-add cells with every period positive. At `$900`
+ARCA-add, Year 1 crosses `+$100` at `+$101.70`, Year 2 reaches `+$87.17`, Year
+3 remains `+$460.35`, and full cash is `+$649.23/508`, PF `1.448`, with
+`$105.67` intrabar DD and both directions positive. Scheduled-exit stress is
+still `+$648.88`. This materially strengthens the executable hypothesis, but
+does not prove passive Tiered fills or provide independent signal validation.
+
+The adjacent categorical phase check strengthens that owner again: applying
+the same one-bar proof during **recovery or flat state** reaches
+`+29.52/+49.46/+136.01`, recent `+11.95/16`, and full `+215.00/696`
+(`232.6/year`), PF `1.586`, DD `24.05`. Every annual slice and full net improve
+versus recovery-only. Extending it into deterioration collapses full net to
+`+192.16`, so the portable relationship is precise: choppy/recovering phases
+need proof; persistent decline needs immediate reversal authority.
+
+The unchanged cash projection passes all `8/8` inherited cells. The `$900`
+ARCA-add result is `+$112.56/+$87.35/+$450.55`, full `+$650.46/509`, PF
+`1.447`, intrabar DD `$105.67`, and scheduled-exit stress `+$660.05`. Year 1
+now clears `+$100`; Year 2 is the sole remaining balance gap. Receipt
+`opening_edge_v2_recovering_context_persistence_receipt.json` v2 binds signal
+result `e7a5b58c…`, cash result `cf4596a…`, and the rejected deterioration
+neighbor. This was the strongest balanced development lineage and remains the
+immediate predecessor—not a crown or live authority.
+
+The next exact anatomy isolated one portable entry defect inside that owner:
+during strictly-prior recovery, bullish proposals with exactly three observed
+impulse horizons and non-unanimous coherence lose in every annual slice.
+Blocking them was forbidden. Requiring one completed higher close, persistent
+bullish source direction, and fast slope-velocity confirmation produced two
+passing adjacent cells. The preferred unanimous `3/3` cell matured only `6/43`
+suspect proposals and expired `37`; it reaches
+`+30.90/+52.76/+141.89`, recent `+15.18/15`, and full `+225.56/678`
+(`226.6/year`), PF `1.639`, DD `23.11`. Versus the recovery+flat predecessor,
+it improves every chronological period, full net by `4.91%`, PF, drawdown,
+both directions, and both lanes. The adjacent `2/3` cell reaches
+`+34.74/+53.02/+122.00`, proving the relationship is not one brittle point
+while exposing the balance-versus-full-return tradeoff.
+
+Unchanged UPRO/SPXU Tiered/T+1 replay then keeps all `8/8` inherited
+`$850..925` midpoint/ARCA-add cells positive for both adjacent signals in
+recent, every annual slice, and full history. Preferred `$900` `3/3` reaches
+`+$119.69/+$103.41/+$469.82`, recent `+$52.22`, and full
+`+$692.93/492`, PF `1.498`, intrabar DD `$95.63`; up/down are
+`+$288.89/+$404.04`, and scheduled-exit stress is `+$701.00`. The adjacent
+`2/3` cash result is `+$139.47/+$104.05/+$402.13`. Receipt
+`opening_edge_v2_recovering_context_persistence_receipt.json` v3 binds signal
+result `f5e920af…`, cash result `6a668c16…`, the full E-265→E-270 lineage, and
+the rejected deterioration neighbor.
+
+E-269/E-270 is the strongest cross-regime development lineage, not a crown or
+live authority. It was discovered on opened history; independent signal
+behavior and instrument-matched passive-fill evidence remain mandatory.
+
+Its development tape ends on July 24. A preregistered July 27–28 broker-bar
+bridge reproduces both frozen signal prefixes and all `492/+$692.93` cash
+prefix trades exactly. The only held-out RTH trade is bullish from
+`11:20→16:00 ET` on July 28: `+0.96` XSP points with `3.49/0.21` MFE/MAE;
+unchanged `$900` UPRO produces `+$5.40` gross, `$0.70` modeled cost, and
+`+$4.70` net. E-269 and E-267 make the same decision because the special
+maturation branch does not fire. Receipt `1404caf4…` is therefore useful
+independent non-regression and transport evidence, not independent proof of
+the new branch.
+
 #### Data, execution, and authority boundary
 
 The historical all-hours tape contains `184,957` five-minute bars over `754`

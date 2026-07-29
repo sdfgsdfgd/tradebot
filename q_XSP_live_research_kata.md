@@ -9,9 +9,10 @@
 - **Leaderboard:** [`backtests/xsp/leaderboard.md`](backtests/xsp/leaderboard.md)
 - **Scope:** XSP signal mastery; base-ledger SPY, UPRO/SPXU, SPXL/SPXS,
   inception-bounded SPYU/SPXU, SSO/SDS, and cross-index TQQQ/SQQQ execution
-  are rejected. E-262 reopens only bounded UPRO/SPXU validation for its
-  materially different signal ledger; the crown is unchanged and every
-  observer remains non-submitting
+  are rejected. The E-259→E-270 lineage reopens only bounded UPRO/SPXU
+  validation for a materially different signal ledger; E-269 is the strongest cross-regime
+  historical development leader, but the crown is unchanged and every observer
+  remains non-submitting
 - **Capital premise:** broker-read `INDIVIDUAL/STKCASH` state is about
   AUD `2,025` NLV and AUD `1,935` BuyingPower/TotalCash; USD `1,228.61` plus
   AUD `176.94` supports the frozen USD `1,350` total risk identity. Selection
@@ -411,13 +412,6 @@ directional consistency is proven.
     error, financed giveback, re-entry churn, and reversal lag; preregister only
     the smallest causal repair, replay every acceptance window, retain stable
     cross-regime improvements, and discard the rest.
-    Current strongest development challenger delays only RTH shorts while the
-    strictly-prior `21`-session return is up and `84`-session return is down:
-    one lower close plus `2/3` or `3/3` fast velocity persistence improves every
-    annual slice and full P&L/PF/DD at `>237/year`. Latest-four-week parity is
-    no longer a coronation blocker; outcome-exposed discovery, unproved
-    passive fill quality, and missing prospective validation keep it
-    observation-only below the crown.
     The recursive Year-1 landed-trade census is complete: it bound
     strictly-prior damage/recovery and volatility phase to intraday
     slope-velocity plus lifecycle financing, then separated immediate error,
@@ -433,22 +427,41 @@ directional consistency is proven.
     MFE while strictly-prior `84`-session drawdown is flat or deteriorating.
     Adjacent phase cells improve every annual slice and preserve recent; the
     stronger reaches `+$18.63/+$41.38/+$137.62`, full `+$197.64/709`,
-    PF `1.534`, DD `23.86`. It is the strongest historical development
-    challenger, not a crown: discovery is outcome-exposed and independent
-    validation is absent. Exact path attribution rejects the next tempting
+    PF `1.534`, DD `23.86`. Exact path attribution rejects the next tempting
     overlays: all six financed-position early-exit signatures lose in every
     year, and the six immediate post-loss re-entries are collectively
     profitable in all three years. Do not add a profit lock or reversal delay.
-    Further sharpening requires independent evidence or a materially different
-    causal state—not another stop, router, or threshold sweep.
+    A materially different long-state seam then passed: when strictly-prior
+    `21/84`-session paths agree, an opposing RTH flip must persist one completed
+    bar during recovery **or flat phase**, but not deterioration. It reaches
+    `+$29.52/+$49.46/+$136.01`, recent `+$11.95/16`, and full
+    `+$215.00/696` (`232.6/year`), PF `1.586`, DD `24.05`; both directions and
+    lanes remain positive. Recovery-only is weaker, recovery+deterioration
+    falls to `+$192.16`, and two bars falls to `+$199.47`: the portable rule is
+    categorical proof burden in choppy/recovering states, never a cooldown.
+    The next categorical maturation sharpens the remaining weak bullish cohort:
+    during recovery only, a bullish proposal with exactly three observed
+    horizons and non-unanimous coherence must close higher one bar later while
+    its source stays bullish and all three fast slope velocities agree. The
+    adjacent `2/3` and `3/3` cells both improve Years 1/2; preferred `3/3`
+    reaches `+$30.90/+$52.76/+$141.89`, recent `+$15.18/15`, and full
+    `+$225.56/678` (`226.6/year`), PF `1.639`, DD `23.11`. Only `6/43`
+    suspect proposals matured; `37` expired. E-269 is the strongest historical
+    development leader, not a crown: discovery is outcome-exposed and
+    independent validation remains absent.
 15. `[WIP]` Validate the first stable UPRO/SPXU cash overlap without assuming
-    fills. Frozen transition-up short proof plus the short-only financing owner
-    and unchanged Tiered/T+1 replay make all `8/8` inherited `$850..925`
-    cash cells pass. Favorite `$900` ARCA-add cell improves every annual cash
-    result to `+$42.96/+$62.45/+$459.26`, full `+$564.67/506`,
-    PF `1.396`, intrabar DD `$108.03`; recent is exact `+$39.10`, both
-    directions are positive, and scheduled-exit stress is `+$574.68`.
-    Receipt `opening_edge_v2_damage_short_financing_receipt.json` is the
+    fills. E-269 plus unchanged Tiered/T+1 replay makes all `8/8` inherited
+    `$850..925` cash cells positive in every period. Preferred `$900` ARCA-add
+    reaches `+$119.69/+$103.41/+$469.82`, full `+$692.93/492`, PF `1.498`,
+    intrabar DD `$95.63`; recent is `+$52.22`, both directions are positive,
+    and scheduled-exit stress is `+$701.00`. Its adjacent `2/3` cell reaches
+    `+$139.47/+$104.05/+$402.13`, proving the seam is not one brittle point.
+    The untouched July 27–28 bridge reproduces every development-prefix ledger
+    exactly and adds one profitable RTH up trade: `+0.96` XSP points and
+    `+$4.70` modeled UPRO net after `$0.70` cost. E-269 equals E-267 there
+    because the special maturation branch did not fire; this is independent
+    non-regression, not yet branch validation.
+    Receipt `opening_edge_v2_recovering_context_persistence_receipt.json` is the
     compact authority. This remains mathematical only: one bounded UPRO/SPXU
     Network B tape at the next `09:25..16:05 ET` session must prove passive
     Tiered-quality fills before any pricing-plan decision, runtime promotion,
@@ -642,6 +655,13 @@ and
 | E-262 | Year-1 cash anatomy separates ownership from admission: `83/176` nonnegative trades earned `+$548.14`, only `12/176` immediately wrong trades lost `-$128.85`, while `81/176` first financed then gave back `-$381.33`. Broad climate fizzle improved Years 1/2 but bullish effects rotated and harmed Year 3; blanket surrender delay also failed. The stable categorical neighbors exit only an unfinanced RTH short after `12` completed bars below `0.25` entry ATR MFE while strictly-prior `84`-session drawdown is deteriorating, or deteriorating/flat. Favorite signal result is `+$18.63/+$41.38/+$137.62`, full `+$197.64/709`, PF `1.534`, DD `23.86`, with exact recent parity. Unchanged cash replay passes all `8/8` inherited cells; `$900` ARCA-add is `+$42.96/+$62.45/+$459.26`, full `+$564.67/506`, PF `1.396`, intrabar DD `$108.03`, both sides positive, scheduled stress `+$574.68`. Compact receipt `opening_edge_v2_damage_short_financing_receipt.json` binds full cash result `4e7d68ef…`. Outcome exposure and unproved passive Tiered fills keep this below crown/runtime/pricing/selection/order/clock authority |
 | E-263 | outcome-exposed path anatomy `b1f67609…` tests six categorical financed-position retention signatures using only the existing `0.25` entry-ATR financing boundary plus fast/slow/long vote structure. Every early-exit signature loses delta in Years 1/2/3; the broadest sacrifices `-15.83/-13.99/-35.95` points. The separate reversal-boundary audit finds only six financed-loss flips reopening within `5–10m`, and their incoming trades earn `+4.30/+12.51/+11.33` across the three years. Therefore neither generic profit lock nor delayed reversal is a valid repair. Bullish climate-conditioned fizzle is also too sparse and nonportable. The short-only E-262 owner remains the stable component; no further signal/runtime/selection/order/clock change follows |
 | E-264 | pre-outcome r2 bundle `ee588b34…` and tracked gate `opening_edge_v2_upro_spxu_microtape_gate.json` supersede only the still-unfired E-257 capture. Exact cash bisection proves `$900` E-262 tolerates mean stage cost through `0.322509765625`; `0.3232421875` makes Year 1 negative, equivalent to `90.332%` optimistic fills if every remainder fully crosses. The immutable `09:25..16:05 ET` owner records live L1 plus AllLast/BidAsk, stresses `24` shares over `304` canonical symbol/action cases and both `15:57` terminal sells, rejects touch-only queue inference, and auto-evaluates each cohort against the frozen boundary. Downstream live transport already liquidates at `15:57` and forbids re-entry; the observer's later `end` mark is accounting, not execution authority. Passing remains `HOLD` pending independent signal and exact selection proof; no strategy, pricing, order, or clock changed |
+| E-265 | exact MFE reconstruction found weak-year RTH trades usually locate movement but surrender it late: Year 1/2 financed givebacks were `92/-83.98` and `76/-99.85`, with median peak-to-exit lag `10` bars. A preregistered long-state refinement changes only recovering-phase inverse-source ownership: when strictly-prior `21/84`-session paths agree, require one completed bar of persistence. It improves the E-262-derived base from `+$20.95/+$44.97/+$139.18` to `+$26.65/+$49.39/+$135.83`; recent rises `+$11.67→+$11.95`, full rises `+$205.11→+$211.88/696` (`232.6/year`), PF `1.577`, DD `24.05`, and both sides/lanes stay positive. The adjacent two-bar cell falls to `+$199.47`, rejecting prolonged hesitation. Receipt `opening_edge_v2_recovering_context_persistence_receipt.json` binds result `c186454e…`. It is the strongest balanced historical development leader, not a crown/runtime/cash/selection/order/clock change: discovery is outcome-exposed and independent plus cash validation remain absent |
+| E-266 | unchanged UPRO/SPXU Tiered/T+1 replay converts E-265 into the strongest balanced historical cash geometry. All `8/8` inherited `$850..925` midpoint/ARCA-add cells are positive in recent, every annual slice, and full period. The `$900` ARCA-add primary is `+$101.70/+$87.17/+$460.35`, full `+$649.23/508`, PF `1.448`, intrabar DD `$105.67`, with up/down `+$240.42/+$408.81`; scheduled-exit stress remains `+$648.88`. Exact adapter and result are bound by tracked receipt `opening_edge_v2_recovering_context_persistence_receipt.json` and full result `048b649a…`. This is mathematical overlap only: discovery is outcome-exposed and prospective passive-fill plus independent signal proof remain mandatory; no crown/runtime/pricing/selection/order/clock authority changed |
+| E-267 | the categorical phase neighbor strengthens E-265 without a threshold: extend one-bar `21/84` agreement proof from recovery to flat state, but preserve immediate reversal authority during deterioration. Signal becomes `+$29.52/+$49.46/+$136.01`, recent `+$11.95/16`, full `+$215.00/696` (`232.6/year`), PF `1.586`, DD `24.05`; every annual slice and full net improve versus recovery-only. The recovery+deterioration neighbor falls to `+$192.16`, proving that persistent decline is not a patience regime. Result `e7a5b58c…`, RTH ledger `96f53000…`; outcome exposure keeps it below crown/runtime/selection/order/clock authority |
+| E-268 | unchanged Tiered/T+1 cash replay makes all `8/8` E-267 cells positive in recent, every annual slice, and full period. The `$900` ARCA-add primary is `+$112.56/+$87.35/+$450.55`, full `+$650.46/509`, PF `1.447`, intrabar DD `$105.67`, with up/down `+$230.71/+$419.76`; scheduled-exit stress improves to `+$660.05`. Tracked receipt binds full result `cf4596a…`. Year 1 now clears `+$100`; Year 2 remains the sole material balance gap. Passive-fill and independent-signal proof remain mandatory; no live authority changed |
+| E-269 | exact lifecycle replay isolates the remaining cross-year weak bullish signature without a decimal threshold: during strictly-prior recovery only, an up proposal with exactly three observed impulse horizons and non-unanimous coherence must close higher one bar later, preserve its up source, and retain fast slope-velocity agreement. Both preregistered `2/3` and `3/3` neighbors improve Years 1/2. Preferred `3/3` admits only `6/43` suspect proposals and reaches `+$30.90/+$52.76/+$141.89`, recent `+$15.18/15`, full `+$225.56/678` (`226.6/year`), PF `1.639`, DD `23.11`; both sides/lanes remain positive. Result `f5e920af…`, RTH ledger `94374cab…`. It is the strongest development leader, not a crown or runtime change: discovery is outcome-exposed and independent proof remains absent |
+| E-270 | unchanged UPRO/SPXU Tiered/T+1 replay validates both adjacent E-269 cells across all `8/8` inherited `$850..925` midpoint/ARCA-add settings, with every period positive. Preferred `$900` `3/3` is `+$119.69/+$103.41/+$469.82`, recent `+$52.22`, full `+$692.93/492`, PF `1.498`, intrabar DD `$95.63`, up/down `+$288.89/+$404.04`, scheduled stress `+$701.00`; versus E-267 it improves every period, full net by `6.53%`, and DD by `9.50%`. Adjacent `2/3` is `+$139.47/+$104.05/+$402.13`, proving stability while exposing the balance/full-return tradeoff. Tracked receipt v3 binds result `6a668c16…`. Passive-fill and independent-signal proof remain mandatory; no pricing, selection, order, or clock authority changed |
+| E-271 | E-269 development ends at July 24; a preregistered broker-bar bridge therefore opens only July 27–28. Combined replay reproduces frozen E-267/E-269 ledgers and all `492/+$692.93` cash-prefix trades exactly. The sole held-out RTH trade is up from `11:20→16:00 ET` on July 28: `+0.96` XSP points, MFE/MAE `3.49/0.21`; unchanged `$900` UPRO uses `6` shares and models `+$5.40` gross, `$0.70` cost, `+$4.70` net with no block/unavailable fill. E-269 equals E-267 because the special maturation branch did not occur. Receipt `1404caf4…` is independent non-regression/transport evidence, not branch validation, a crown, selection, order, or clock start |
 
 ### Decision anchors
 
@@ -749,19 +769,25 @@ five-session receipts exist and the final calibration/risk verdict is explicit.
 
 Opening Edge v2 remains the historical research crown; broker strategy is
 `NO_TRADE`, v2 has no selected capital identity, and the profitability clock is
-`NOT_STARTED`. Base-ledger ETF substitutions remain rejected. The materially
-different E-262 lineage is now the strongest development challenger:
-`+$197.64/709`, PF `1.534`, DD `23.86`, positive and improved in all three
-annual slices, with exact recent parity. Its unchanged Tiered/T+1 cash replay
-passes all `8/8` inherited UPRO/SPXU cells; the `$900` ARCA-add favorite is
-`+$564.67/506`, PF `1.396`, and `$108.03` intrabar DD. It is not a crown or an
-executable transport: discovery inspected opened outcomes, passive
+`NOT_STARTED`. Base-ledger ETF substitutions remain rejected. E-269 is now the
+strongest cross-regime historical development leader:
+`+$30.90/+$52.76/+$141.89`, recent `+$15.18/15`, and full `+$225.56/678`
+(`226.6/year`), PF `1.639`, DD `23.11`. It combines recovery/flat inverse-flip
+ownership with one-bar maturation of the exact minimally observed,
+non-unanimous recovery-up cohort; deterioration stays responsive. E-270 keeps
+all `8/8` inherited UPRO/SPXU cells positive, while preferred `$900` ARCA-add
+reaches `+$119.69/+$103.41/+$469.82`, full `+$692.93/492`, PF `1.498`, and
+`$95.63` intrabar DD. Adjacent `2/3` reaches
+`+$139.47/+$104.05/+$402.13`, confirming a stable balance frontier. This is not
+a crown or executable transport: discovery inspected opened outcomes, passive
 Tiered-quality fills remain unproved, and no fresh quote-derived broker
-selection exists. The armed r2 tape now asks the exact remaining execution
-question at full historical quantity and includes the real `15:57 ET`
-liquidation lifecycle. The live observer remains non-submitting and preserves
-every intervening decision trace. Nothing authorizes a pricing-plan change,
-subscription, backfill, forced trade, or GTH execution.
+selection exists. The untouched July 27–28 bridge is positive
+(`+0.96` XSP points; `+$4.70` modeled UPRO net) with exact prefix parity, but
+the new maturation branch did not fire. The armed r2 tape asks the
+exact execution question at full historical quantity and includes the real
+`15:57 ET` liquidation lifecycle. The live observer remains non-submitting.
+Nothing authorizes a pricing-plan change, subscription, backfill, forced trade,
+or GTH execution.
 
 **Predictive observation:** the next binary evidence is the instrument-matched
 UPRO/SPXU microtape plus a genuinely later signal boundary. If passive fill

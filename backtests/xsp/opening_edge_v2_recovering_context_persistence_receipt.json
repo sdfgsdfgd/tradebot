@@ -1,0 +1,448 @@
+{
+  "schema": "xsp.opening-edge-v2-recovering-context-persistence-receipt.v3",
+  "generated_at_utc": "2026-07-29T07:24:00Z",
+  "authority": "historical_development_challenger_and_cash_feasibility_only",
+  "order_authority": "none",
+  "submitted_orders": 0,
+  "hypothesis": "During a strictly-prior 84-session drawdown recovery or flat phase, when the 21- and 84-session paths agree, require an otherwise-valid opposing RTH flip to persist for one completed bar before it takes ownership; preserve immediate reversal authority during deterioration. During recovery only, a bullish proposal with exactly three observed impulse horizons and non-unanimous coherence must close higher one bar later with persistent source direction and unanimous fast slope velocity before admission.",
+  "architecture": {
+    "base": "transition-up short fast3 plus damage-phase short financing",
+    "scope": "RTH inverse-source surrender during recovering or flat state only",
+    "strictly_prior_state": "84-session drawdown change over the prior five complete sessions",
+    "agreement_horizons_sessions": [
+      21,
+      84
+    ],
+    "confirmation_bars": 1,
+    "recovery_up_maturation": {
+      "scope": "recovering RTH up proposals only",
+      "observed_impulse_horizons": 3,
+      "coherence": "non-unanimous",
+      "confirmation_bars": 1,
+      "price_confirmation": "next close above proposal close",
+      "source_confirmation": "up",
+      "fast_slope_velocity_confirmation": "3 of 3 across 1, 3, and 6 bars"
+    },
+    "unchanged": [
+      "all entries and directional proposals outside the exact recovery-up cohort",
+      "deteriorating and unavailable states",
+      "existing weak-opposition two-bar owner",
+      "damage-phase short financing",
+      "GTH lane",
+      "EOD exits",
+      "friction and sizing"
+    ],
+    "explicitly_not_used": [
+      "named event or date",
+      "clock whitelist",
+      "PnL or MFE",
+      "news or breadth",
+      "opaque regime router",
+      "raw price threshold",
+      "generic volatility exit or trailing stop"
+    ]
+  },
+  "provenance": {
+    "mfe_state_anatomy_sha256": "81bdb2d0dab24d71052c29f381a147854c4e3c2302ba46056dd8b70bfbb7c1e6",
+    "long_regime_motif_sha256": "938f2fc22344f8cd29d325207aad99a451b89f5809a614c4ba26e65ef489c593",
+    "flip_long_state_anatomy_sha256": "b68aea450e2a3913d465a5292ea18bf8f7391f642f2f3ffcdcea5f6a6fe85af9",
+    "preregistration_sha256": "b6a80c9c6495d67748c6d172c1b8ce25e63b745bbd3a06a91be5c1dc930a7af5",
+    "runner_sha256": "77aa88f20d260f8ab3482dd3ea9702edc05fbccb85bef961d180e53546634f56",
+    "full_result_sha256": "c186454e4a5fcd61c957d7b06ed494b5c2645d4222991841ed0f6b8163ba2beb",
+    "candidate_rth_ledger_sha256": "b0e2ae13510c580caa692c00590c8ecd377f2915e7047010aa56a51d94a085d1",
+    "cash_preregistration_sha256": "5c2a9165011559d767ce0afbeb9040435db263787f34134d19a5068ade7da7cb",
+    "cash_runner_sha256": "ecab6ac910731cb91c40c6f7801c14d4148b3bc631f9f19685dd832d5a83ed99",
+    "cash_adapter_sha256": "6cd4523e8dd96839096c8e47e2f95c9b13384ec604b7471c14e8867fb261f342",
+    "full_cash_result_sha256": "048b649a7644ee1df6c291513aad0f79a8b1b76f96b527cfc89a283ecc976299"
+    ,
+    "phase_neighbor_preregistration_sha256": "7b6bfa18bfee3ba319516647aea3daddb4ee2937a007ec33e8087d604fb05560",
+    "phase_neighbor_runner_sha256": "b16c9009817707596227a48ed9eadeada9a716c9ad8bdd4e3bb089d5ad3fbe09",
+    "phase_neighbor_full_result_sha256": "e7a5b58cccd7bf5eed48cb21b227c223d03232f46d3c04deca1d36c6b269469b",
+    "phase_neighbor_rth_ledger_sha256": "96f53000ebf2e27e5936c226f13ff92261f3c4bc18a53fd0141e05f8bf3a15bb",
+    "recovery_flat_cash_preregistration_sha256": "c2ad88a52819d53365733333c4b352a383764447681f617c8bbd5a9c87507c02",
+    "recovery_flat_cash_runner_sha256": "dc0780404e9c9f6ea59d864d3993198d68167380aa1f9edb5990bb39ab146b5e",
+    "recovery_flat_full_cash_result_sha256": "cf4596a35a21631b767bd9ccbb0eed426c4cf33f74a55eea89bc5db55b3af27a",
+    "recovery_up_maturation_preregistration_sha256": "752a10eaa1c86ab660247fb6818d489e20abd76ba5428bdcf6ceddb05bdd6faa",
+    "recovery_up_maturation_runner_sha256": "e2c0ffa5074d32ad7375e95a1175d94470401a1eeea2ca858182483930831353",
+    "recovery_up_maturation_result_sha256": "f5e920af950c13e2605c76690886b4f3fbe3873dac63b0d89c6a20ee1c59e47d",
+    "recovery_up_cash_preregistration_sha256": "30f6e6eb6d9c83912fbdbca287a1d7179d322d93b52ad87f5e8d595bdb3d1136",
+    "recovery_up_cash_runner_sha256": "8b0ee7a617104212e3b98ccda7c0a8c80fab4406d94653ec3b3e0864dbceecee",
+    "recovery_up_cash_result_sha256": "6a668c16f91d29f02542908de75af023cacb35a602345e9f475cbdb17bd3643e",
+    "post_development_holdout_preregistration_sha256": "058af5ccea0175f1f1a9c3d023ac997b9ca6f16b9d0cfe872e8031553eaa9f5d",
+    "post_development_holdout_runner_sha256": "97df7deb10fa847ed7fbe2000db2f01db80884304d1fea65c4696e58037ceaec",
+    "post_development_holdout_result_sha256": "1404caf4d0fe2cf90e6323b1fb4ed4db665a31acdf6473d454c8fa26d0106f32"
+  },
+  "diagnosis": {
+    "year_1_financed_givebacks": 92,
+    "year_1_financed_giveback_net_pnl": -83.98,
+    "year_2_financed_givebacks": 76,
+    "year_2_financed_giveback_net_pnl": -99.85,
+    "median_peak_to_exit_bars_year_1": 10,
+    "median_peak_to_exit_bars_year_2": 10,
+    "conclusion": "Weak-year entries usually locate movement; the portable defect is surrender timing during long-horizon recovery, not blanket admission accuracy."
+  },
+  "base": {
+    "year_1": {
+      "net_pnl": 20.9548,
+      "trades": 237
+    },
+    "year_2": {
+      "net_pnl": 44.9683,
+      "trades": 219
+    },
+    "year_3": {
+      "net_pnl": 139.1824,
+      "trades": 250
+    },
+    "recent": {
+      "net_pnl": 11.6675,
+      "trades": 16
+    },
+    "full_three_year": {
+      "net_pnl": 205.1056,
+      "trades": 706,
+      "trades_per_year": 235.9576,
+      "profit_factor": 1.5576,
+      "max_drawdown": 23.86
+    }
+  },
+  "cells": [
+    {
+      "id": "recovering_prior_21_84_agree_hold_one_bar",
+      "year_1": {
+        "net_pnl": 26.6548,
+        "trades": 232,
+        "profit_factor": 1.2561,
+        "max_drawdown": 19.9012
+      },
+      "year_2": {
+        "net_pnl": 49.3883,
+        "trades": 216,
+        "profit_factor": 1.3732,
+        "max_drawdown": 17.7989
+      },
+      "year_3": {
+        "net_pnl": 135.8324,
+        "trades": 248,
+        "profit_factor": 2.0384,
+        "max_drawdown": 24.05
+      },
+      "recent": {
+        "net_pnl": 11.9475,
+        "trades": 16,
+        "profit_factor": 2.4911,
+        "max_drawdown": 7.9425
+      },
+      "full_three_year": {
+        "net_pnl": 211.8756,
+        "trades": 696,
+        "trades_per_year": 232.6154,
+        "profit_factor": 1.577,
+        "max_drawdown": 24.05,
+        "up_net_pnl": 70.8,
+        "down_net_pnl": 141.0756,
+        "rth_net_pnl": 201.67,
+        "gth_net_pnl": 10.2056,
+        "versus_opening_edge_v2_net_pct": 17.9278,
+        "versus_opening_edge_v2_pf_pct": 8.2956,
+        "versus_opening_edge_v2_drawdown_reduction_pct": 9.1386
+      }
+    },
+    {
+      "id": "recovering_prior_21_84_agree_hold_two_bars",
+      "year_1_net_pnl": 25.1548,
+      "year_2_net_pnl": 46.5183,
+      "year_3_net_pnl": 127.7924,
+      "recent_net_pnl": 12.6575,
+      "full_three_year_net_pnl": 199.4656,
+      "trades_per_year": 232.2812,
+      "profit_factor": 1.5256,
+      "max_drawdown": 24.34
+    },
+    {
+      "id": "recovering_plus_flat_prior_21_84_agree_hold_one_bar",
+      "year_1": {
+        "net_pnl": 29.5248,
+        "trades": 232,
+        "profit_factor": 1.2853,
+        "max_drawdown": 19.9012
+      },
+      "year_2": {
+        "net_pnl": 49.4583,
+        "trades": 216,
+        "profit_factor": 1.3736,
+        "max_drawdown": 17.7989
+      },
+      "year_3": {
+        "net_pnl": 136.0124,
+        "trades": 248,
+        "profit_factor": 2.0384,
+        "max_drawdown": 24.05
+      },
+      "recent": {
+        "net_pnl": 11.9475,
+        "trades": 16,
+        "profit_factor": 2.4911,
+        "max_drawdown": 7.9425
+      },
+      "full_three_year": {
+        "net_pnl": 214.9956,
+        "trades": 696,
+        "trades_per_year": 232.6154,
+        "profit_factor": 1.5861,
+        "max_drawdown": 24.05,
+        "up_net_pnl": 70.71,
+        "down_net_pnl": 144.2856,
+        "rth_net_pnl": 204.79,
+        "gth_net_pnl": 10.2056,
+        "versus_opening_edge_v2_net_pct": 19.6621,
+        "versus_opening_edge_v2_pf_pct": 8.9205,
+        "versus_opening_edge_v2_drawdown_reduction_pct": 9.1386
+      }
+    },
+    {
+      "id": "recovering_up_minimal_nonunanimous_price_fast2",
+      "role": "balanced_adjacent_support",
+      "matured_proposals": 17,
+      "expired_proposals": 26,
+      "year_1_net_pnl": 34.7448,
+      "year_2_net_pnl": 53.0183,
+      "year_3_net_pnl": 122.0024,
+      "recent_net_pnl": 15.1775,
+      "full_three_year_net_pnl": 209.7656,
+      "trades": 681,
+      "trades_per_year": 227.6021,
+      "profit_factor": 1.5786,
+      "max_drawdown": 24.4
+    },
+    {
+      "id": "recovering_up_minimal_nonunanimous_price_fast3",
+      "role": "preferred_development_successor",
+      "matured_proposals": 6,
+      "expired_proposals": 37,
+      "year_1": {
+        "net_pnl": 30.9048,
+        "trades": 229,
+        "profit_factor": 1.2981,
+        "max_drawdown": 18.2201
+      },
+      "year_2": {
+        "net_pnl": 52.7583,
+        "trades": 205,
+        "profit_factor": 1.4313,
+        "max_drawdown": 17.0689
+      },
+      "year_3": {
+        "net_pnl": 141.8924,
+        "trades": 244,
+        "profit_factor": 2.1176,
+        "max_drawdown": 23.11
+      },
+      "recent": {
+        "net_pnl": 15.1775,
+        "trades": 15,
+        "profit_factor": 4.1735,
+        "max_drawdown": 5.42
+      },
+      "full_three_year": {
+        "net_pnl": 225.5556,
+        "trades": 678,
+        "trades_per_year": 226.5995,
+        "profit_factor": 1.639,
+        "max_drawdown": 23.11,
+        "up_net_pnl": 82.59,
+        "down_net_pnl": 142.9656,
+        "rth_net_pnl": 215.35,
+        "gth_net_pnl": 10.2056,
+        "versus_e267_net_pct": 4.9117,
+        "versus_opening_edge_v2_net_pct": 25.5449
+      }
+    },
+    {
+      "id": "recovering_plus_deteriorating_prior_21_84_agree_hold_one_bar",
+      "year_1_net_pnl": 20.8448,
+      "year_2_net_pnl": 48.8283,
+      "year_3_net_pnl": 122.4824,
+      "recent_net_pnl": 13.4875,
+      "full_three_year_net_pnl": 192.1556,
+      "trades_per_year": 230.6101,
+      "profit_factor": 1.5115,
+      "max_drawdown": 26.91
+    }
+  ],
+  "e267_cash_result": {
+    "vehicle_pair": {
+      "up": "UPRO",
+      "down": "SPXU"
+    },
+    "execution_bound": "arca_add_bound",
+    "fixed_entry_notional_usd": 900.0,
+    "starting_cash_usd": 1350.0,
+    "strict_settlement": "T_plus_1",
+    "executed_trades": 509,
+    "blocked_entries": 9,
+    "recent": {
+      "trades": 13,
+      "net_usd": 38.9796,
+      "profit_factor": 2.5035
+    },
+    "year_1": {
+      "trades": 176,
+      "net_usd": 112.5587,
+      "profit_factor": 1.2336
+    },
+    "year_2": {
+      "trades": 153,
+      "net_usd": 87.3538,
+      "profit_factor": 1.1648
+    },
+    "year_3": {
+      "trades": 180,
+      "net_usd": 450.5509,
+      "profit_factor": 2.0139
+    },
+    "full_three_year": {
+      "trades": 509,
+      "net_usd": 650.4634,
+      "profit_factor": 1.4466,
+      "intrabar_max_drawdown_usd": 105.6689,
+      "daily_pnl_lcb95": 0.3249,
+      "up_net_usd": 230.706,
+      "down_net_usd": 419.7574
+    },
+    "scheduled_exit_stress": {
+      "trades": 509,
+      "net_usd": 660.0532,
+      "profit_factor": 1.4542,
+      "intrabar_max_drawdown_usd": 106.0989
+    },
+    "stable_neighborhood": {
+      "frozen_cells_tested": 8,
+      "frozen_cells_positive_every_period": 8,
+      "fixed_entry_notional_usd": [
+        850.0,
+        875.0,
+        900.0,
+        925.0
+      ],
+      "execution_bounds": [
+        "midpoint_neutral_venue",
+        "arca_add_bound"
+      ]
+    }
+  },
+  "development_successor_cash": {
+    "vehicle_pair": {
+      "up": "UPRO",
+      "down": "SPXU"
+    },
+    "execution_bound": "arca_add_bound",
+    "fixed_entry_notional_usd": 900.0,
+    "starting_cash_usd": 1350.0,
+    "strict_settlement": "T_plus_1",
+    "preferred_fast3": {
+      "executed_trades": 492,
+      "blocked_entries": 8,
+      "recent_net_usd": 52.2168,
+      "year_1_net_usd": 119.6938,
+      "year_2_net_usd": 103.4121,
+      "year_3_net_usd": 469.8221,
+      "full_net_usd": 692.9281,
+      "full_profit_factor": 1.4977,
+      "intrabar_max_drawdown_usd": 95.6326,
+      "daily_pnl_lcb95": 0.428,
+      "up_net_usd": 288.8897,
+      "down_net_usd": 404.0384,
+      "scheduled_exit_net_usd": 700.998,
+      "versus_e267_full_net_pct": 6.5283,
+      "versus_e267_intrabar_drawdown_reduction_pct": 9.498
+    },
+    "adjacent_fast2": {
+      "executed_trades": 495,
+      "recent_net_usd": 52.2168,
+      "year_1_net_usd": 139.4678,
+      "year_2_net_usd": 104.0539,
+      "year_3_net_usd": 402.1263,
+      "full_net_usd": 645.6481,
+      "full_profit_factor": 1.4549,
+      "intrabar_max_drawdown_usd": 96.1473,
+      "scheduled_exit_net_usd": 654.0779
+    },
+    "stable_neighborhood": {
+      "signal_cells_tested": 2,
+      "signal_cells_passing": 2,
+      "cash_cells_per_signal": 8,
+      "cash_cells_positive_every_period_per_signal": 8,
+      "fixed_entry_notional_usd": [
+        850.0,
+        875.0,
+        900.0,
+        925.0
+      ],
+      "execution_bounds": [
+        "midpoint_neutral_venue",
+        "arca_add_bound"
+      ]
+    }
+  },
+  "post_development_holdout": {
+    "development_last_bar_utc": "2026-07-24T20:00:00+00:00",
+    "sessions": [
+      "2026-07-27",
+      "2026-07-28"
+    ],
+    "prefix_parity_exact": true,
+    "candidate_changed_decision": false,
+    "interpretation": "Held-out non-regression and transport evidence; the special maturation branch did not fire.",
+    "signal": {
+      "trades": 1,
+      "direction": "up",
+      "entry_time_utc": "2026-07-28T15:20:00",
+      "exit_time_utc": "2026-07-28T20:00:00",
+      "net_points": 0.96,
+      "mfe_points": 3.49,
+      "mae_points": 0.21
+    },
+    "cash": {
+      "symbol": "UPRO",
+      "quantity": 6,
+      "gross_usd": 5.4,
+      "modeled_cost_usd": 0.6971,
+      "net_usd": 4.7029,
+      "blocked_entries": 0,
+      "unavailable_fills": 0
+    }
+  },
+  "verdict": {
+    "status": "e269_fast3_strongest_cross_regime_development_leader_with_stable_cash_geometry",
+    "one_bar_beats_two_bars": true,
+    "recovery_plus_flat_beats_recovery_only_in_every_annual_slice_and_full": true,
+    "recovery_plus_deteriorating_rejected": true,
+    "recovery_up_maturation_fast2_and_fast3_both_pass": true,
+    "preferred_fast3_improves_every_signal_period_vs_e267": true,
+    "preferred_fast3_cash_year_1_and_year_2_above_100_usd": true,
+    "preferred_fast3_cash_improves_every_period_vs_e267": true,
+    "post_development_holdout_non_regression_pass": true,
+    "post_development_cash_trade_positive": true,
+    "maturation_branch_independently_exercised": false,
+    "improves_year_1_year_2_recent_and_full_vs_base": true,
+    "beats_opening_edge_v2_in_every_annual_slice": true,
+    "both_directions_positive": true,
+    "both_lanes_positive": true,
+    "cadence_pass": true,
+    "cash_positive_every_annual_slice": true,
+    "cash_positive_both_directions": true,
+    "cash_passes_drawdown_cap": true,
+    "cash_survives_scheduled_exit_stress": true,
+    "crown_eligible": false,
+    "crown_changed": false,
+    "runtime_changed": false,
+    "selection_changed": false,
+    "profitability_clock_started": false,
+    "blockers": [
+      "The recovery-phase maturation cohort was discovered on opened historical outcomes and requires independent frozen or prospective validation.",
+      "Passive Tiered-quality UPRO/SPXU fills remain a mathematical bound until the armed instrument-matched microtape proves attainability.",
+      "No selected-run identity, broker preview, restart proof, or bounded capital authority exists."
+    ]
+  }
+}
