@@ -556,6 +556,9 @@ directional consistency is proven.
     `09:35 ET` receipt passes its coarse Tiered/zero-order condition; the
     selector independently revalidates every full gate. Selection baseline and
     post-selection timestamp checks forbid buying any pre-authority signal.
+    Separate evidence-only finalizer `dda18ce8…` runs at July 29 `16:20 ET`,
+    after the `16:05` book-tape close and `16:17` lifecycle checkpoint, to
+    produce one terminal Fixed/Tiered counterfactual without partial polling.
 17. `[BLOCKED]` Alpha/theta structures and any live-capital canary belong to a
     later quest after directional causality and spot consistency are proven.
 
@@ -771,6 +774,7 @@ and
 | E-287 | before v3 could warm into its first post-gate RTH position, counterfactual gate `5860d168…` froze source prefix `b6238bd3…/16`, crown/owner/cash identities, and the already-running live book tape. Pure runner `a8a98170…` maps only changed v3 RTH state through the actual checkpoint clock, `$900` quote-derived quantities, full displayed depth, sell-before-buy, one leg/checkpoint, and strict T+1 cash, then reports the same fills under Fixed-realistic and explicitly conditional Tiered fees plus MFE/MAE. Synthetic proof closes a profitable round trip and correctly blocks a same-day replacement buy under both profiles; the first real prefix reports one checkpoint, zero transitions/trades, and zero invented P&L. Immutable q bundle manifest is `077585f8…`; this changes no observer, signal, selection, order, pricing, or clock |
 | E-288 | the final activation audit found the deployed transaction still required v2 ranking/dwell evidence and rejected the v3 observer. Minimal selector `7b71c408…` is now v3-only: it requires one exact fresh preview, the immutable v3 cash receipt, and an explicit `--accept-rth-only-cash-scope`; the shared signal, sizing, execution ladder, risk, and runtime owners are unchanged. Atomic success, missing-scope refusal, pre-selection rollback, and post-selection reconciliation lock passed `5/5` focused transaction tests; all XSP boundaries passed `170/170` and the complete suite passed `955` with `4` deselected. No q installation, writable drop-in, selection, order, or clock was created; publication precedes tomorrow's broker proof |
 | E-289 | immutable q bundle `0680a00d…` closes the last manual activation gap without adding an owner. At July 30 `09:39 ET`, systemd invokes selector `7b71c408…` only if the exact `09:35 ET` receipt says Tiered passed, `PREVIEW_PASS_STILL_HOLD`, zero submissions, and no selection; the selector then independently revalidates fresh source/broker/cash/contracts/quantities/commission and explicit RTH scope. Calendar, unit syntax, manifest, and synthetic pass/fail condition are green. A frozen baseline plus strictly post-selection signal timestamp prevents backfill. Timer is waiting; selection/drop-in remain absent, observer stays read-only, and no order or clock exists |
+| E-290 | July 29 terminal-economics bundle `dda18ce8…` schedules the already-frozen pure runner for `16:20 ET`, after the live UPRO/SPXU book tape ends at `16:05` and the observer's final lifecycle checkpoint at `16:17`. The runner requires the terminal tape summary, frozen gate/source prefix, every changed RTH state, actual checkpoint clock, full depth, strict T+1 cash, and separate Fixed-realistic/Tiered-conditional costs; it has no broker imports or selection/order authority. Timer is waiting and the result path is absent by design |
 
 ### Decision anchors
 
