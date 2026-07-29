@@ -566,6 +566,59 @@ def test_v3_selection_rejects_a_higher_broker_commission_bound(
         )
 
 
+@pytest.mark.parametrize(
+    ("preview_age", "passes"),
+    (
+        (timedelta(minutes=4), True),
+        (timedelta(minutes=10, seconds=1), False),
+    ),
+)
+def test_v3_selection_preview_age_covers_scheduled_handoff(
+    tmp_path: Path,
+    preview_age: timedelta,
+    passes: bool,
+) -> None:
+    preview = _v3_preview()
+    preview_at = SELECTED_AT - preview_age
+    preview["observed_at_utc"] = preview_at.isoformat()
+    for row in preview["rows"]:
+        for book in row["books"].values():
+            book["observed_at_utc"] = preview_at.isoformat()
+    preview_path = _write(tmp_path / "v3-timed-preview.json", preview)
+    kwargs = {
+        "cash_receipt_path": Path(
+            "backtests/xsp/opening_edge_v3_regime_harmony_cash_receipt.json"
+        ),
+        "preview_path": preview_path,
+        "source_receipt": _source(
+            None,
+            recorded_at=SELECTED_AT - timedelta(seconds=30),
+        ),
+        "broker_snapshot": {
+            "observed_at_utc": (SELECTED_AT - timedelta(seconds=5)).isoformat(),
+            "cash_observed_at_utc": (
+                SELECTED_AT - timedelta(seconds=10)
+            ).isoformat(),
+            "account_id": "DU123456",
+            "account_type": "CASH",
+            "settled_cash_usd": 1_200.0,
+            "positions": {"UPRO": 0, "SPXU": 0},
+            "unrelated_positions": [],
+            "open_orders": [],
+        },
+        "selected_at": SELECTED_AT,
+        "rth_scope_accepted": True,
+    }
+
+    if passes:
+        assert select_xsp_v3_transport(**kwargs)["selected_at_utc"] == (
+            SELECTED_AT.isoformat()
+        )
+    else:
+        with pytest.raises(ValueError, match="requires fresh preview"):
+            select_xsp_v3_transport(**kwargs)
+
+
 def test_v3_selection_rejects_a_stale_internal_book(tmp_path: Path) -> None:
     preview = _v3_preview()
     preview["rows"][0]["books"]["smart"]["observed_at_utc"] = (
