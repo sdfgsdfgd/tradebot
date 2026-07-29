@@ -98,8 +98,9 @@ def _trade(
 
 
 class _Client:
-    def __init__(self, contract) -> None:
+    def __init__(self, contract, preview: _Preview | None = None) -> None:
         self.contract = contract
+        self.preview = preview or _Preview()
         self.matches = []
         self.previewed = []
         self.placed = []
@@ -110,7 +111,7 @@ class _Client:
 
     async def preview_limit_order(self, *args):
         self.previewed.append(args)
-        return _Preview()
+        return self.preview
 
     async def place_limit_order(self, *args):
         self.placed.append(args)
@@ -487,6 +488,59 @@ def test_selected_leg_is_previewed_submitted_and_terminal_once(
     )
     assert again["submitted_orders"] == 0
     assert len(client.placed) == 1
+
+
+def test_completed_ticket_ceiling_accepts_tiered_sell_and_rejects_fixed(
+    tmp_path: Path,
+) -> None:
+    selection, plan, contract, ticker = _actionable(tmp_path)
+    selection = deepcopy(selection)
+    selection["nominee"]["commission_limits_usd"] = {
+        "SPYU": 0.45034925,
+        "SPXU": 0.45034925,
+    }
+    selection["broker_at_selection"]["minimum_settled_cash_usd"] = 1302.25174625
+    body = {key: value for key, value in selection.items() if key != "selection_id"}
+    selection["selection_id"] = calibration_fingerprint(body)
+    plan = deepcopy(plan)
+    plan["selection_id"] = selection["selection_id"]
+    plan["leg"]["action"] = "SELL"
+
+    accepted = asyncio.run(
+        execute_xsp_v2_transport_plan(
+            LiveCalibrationLedger(tmp_path / "tiered-sell.jsonl"),
+            client=_Client(
+                contract,
+                _Preview(
+                    commission=0.45,
+                    min_commission=0.35,
+                    max_commission=0.45,
+                ),
+            ),
+            selection=selection,
+            plan=plan,
+            contract=contract,
+            ticker=ticker,
+            observed_at=OBSERVED_AT,
+        )
+    )
+    assert accepted["status"] == "TERMINAL"
+
+    with pytest.raises(
+        ValueError,
+        match="fresh broker preview exceeds selected commission",
+    ):
+        asyncio.run(
+            execute_xsp_v2_transport_plan(
+                LiveCalibrationLedger(tmp_path / "fixed-sell.jsonl"),
+                client=_Client(contract),
+                selection=selection,
+                plan=plan,
+                contract=contract,
+                ticker=ticker,
+                observed_at=OBSERVED_AT,
+            )
+        )
 
 
 def test_extended_hours_authority_is_sell_only(tmp_path: Path) -> None:

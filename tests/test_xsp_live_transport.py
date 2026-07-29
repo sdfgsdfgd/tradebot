@@ -464,6 +464,10 @@ def test_v3_selection_requires_explicit_rth_scope_and_binds_tiered_identity(
     assert selection["direction_symbols"] == {"up": "UPRO", "down": "SPXU"}
     assert selection["nominee"]["fixed_entry_notional_usd"] == 900.0
     assert selection["nominee"]["pricing_plan"] == "Tiered"
+    assert selection["nominee"]["commission_limits_usd"] == {
+        "UPRO": 0.45034925,
+        "SPXU": 0.45034925,
+    }
     assert selection["execution"]["UPRO_BUY"] == {
         "initial_mode": "OPTIMISTIC",
         "chase_mode": "AUTO",

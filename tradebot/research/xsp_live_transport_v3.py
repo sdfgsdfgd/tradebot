@@ -51,9 +51,13 @@ _RTH_LEDGER_SHA256 = (
 
 
 def _tiered_commission_limit(quantity: int) -> float:
+    # Selection must cover the dearer sell side, including SEC and TAF.
     base = max(0.35, quantity * 0.0035)
-    return base + quantity * (0.003 + 0.00020 + 0.000003) + base * (
-        0.000175 + 0.00056
+    return (
+        base
+        + quantity * (0.003 + 0.00020 + 0.000003 + 0.000195)
+        + base * (0.000175 + 0.00056)
+        + 900.0 * 0.0000206
     )
 
 
