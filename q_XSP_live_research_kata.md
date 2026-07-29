@@ -670,6 +670,7 @@ and
 | E-270 | unchanged UPRO/SPXU Tiered/T+1 replay validates both adjacent E-269 cells across all `8/8` inherited `$850..925` midpoint/ARCA-add settings, with every period positive. Preferred `$900` `3/3` is `+$119.69/+$103.41/+$469.82`, recent `+$52.22`, full `+$692.93/492`, PF `1.498`, intrabar DD `$95.63`, up/down `+$288.89/+$404.04`, scheduled stress `+$701.00`; versus E-267 it improves every period, full net by `6.53%`, and DD by `9.50%`. Adjacent `2/3` is `+$139.47/+$104.05/+$402.13`, proving stability while exposing the balance/full-return tradeoff. Tracked receipt v4 binds result `6a668c16…` plus the later cost boundary. Independent signal and authentic full-size execution proof remain mandatory; no pricing, selection, order, or clock authority changed |
 | E-271 | E-269 development ends at July 24; a preregistered broker-bar bridge therefore opens only July 27–28. Combined replay reproduces frozen E-267/E-269 ledgers and all `492/+$692.93` cash-prefix trades exactly. The sole held-out RTH trade is up from `11:20→16:00 ET` on July 28: `+0.96` XSP points, MFE/MAE `3.49/0.21`; unchanged `$900` UPRO uses `6` shares and models `+$5.40` gross, `$0.70` cost, `+$4.70` net with no block/unavailable fill. E-269 equals E-267 because the special maturation branch did not occur. Receipt `1404caf4…` is independent non-regression/transport evidence, not branch validation, a crown, selection, order, or clock start |
 | E-272 | before the July 29 tape started, candidate-specific preregistration proved E-269 survives a complete quoted-spread cross under conservative Tiered removal fees: `+$30.10/+$51.05/+$401.63`, recent `+$47.32`, full `+$482.78/488`, PF `1.325`, intrabar DD `$116.37`; required optimistic-fill share is therefore `0%`. Measured current-Fixed full-cross fails `-$184.31/-$124.62/+$158.84`, full `-$150.09`, PF `0.918`, DD `$325.95`. Immutable q bundle `4f18b795…` supersedes only the still-unfired post-capture evaluator: byte-identical r2 capture/timing/`24`-share quantity remains, while r3 requires all `304` normal and two terminal cases to complete by `CROSS`. Pass remains `HOLD` pending independent signal, explicit Fixed→Tiered choice, exact preview/identity/restart, and selection; no pricing, runtime, order, or clock changed |
+| E-273 | immutable pre-outcome bundle `bd2e76bd…` schedules one read-only `16:12 ET` broker-bar freeze for July 29. It requires authenticated XSP/SPY/UPRO/SPXU five-minute RTH bars through `16:00 ET`, writes atomically, validates any restart output, and carries `order_authority=none`. The later local replay must first reproduce every E-269 development prefix, then disclose whether today's untouched session changed a decision or exercised the special maturation branch. No parallel live signal owner, outcome inspection, pricing, selection, order, or clock was introduced |
 
 ### Decision anchors
 
@@ -797,7 +798,9 @@ decision. The untouched July 27–28 bridge is positive
 the new maturation branch did not fire. The armed r2 tape plus r3 evaluator asks
 the exact execution question at full historical quantity: every case must
 complete by `CROSS`, including the real `15:57 ET` liquidation lifecycle. The
-live observer remains non-submitting.
+live observer remains non-submitting; a separate pre-outcome `16:12 ET`
+read-only freeze preserves today's four broker bar tapes for later E-269 prefix
+and branch validation without installing another live direction engine.
 Nothing authorizes a pricing-plan change, subscription, backfill, forced trade,
 or GTH execution.
 
