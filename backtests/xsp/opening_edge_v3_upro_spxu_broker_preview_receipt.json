@@ -1,0 +1,62 @@
+{
+  "schema": "xsp.opening-edge-v3-upro-spxu-broker-preview-receipt.v1",
+  "candidate": "Opening Edge v3 — Regime Harmony 24/5",
+  "authority": "broker_preview_only",
+  "observed_at_utc": "2026-07-29T13:35:04.648993+00:00",
+  "raw_q_result": {
+    "path": "/var/tmp/tradebot-xsp-v3-upro-spxu-preview-20260729-r1/result.json",
+    "sha256": "d9b1725bca9b4f17192cb37b86185444cb9ff260d619d7c5966e27dd3f79c114"
+  },
+  "source": {
+    "checkpoint_id": "5bc506eccb972bb39924c83f2baac0277891e9d428f5424fb7a38516d07717ea",
+    "crown_artifact_sha256": "d47eb39cef3d2ca575d779d6b5b87e3b88e08606fd09a8801b8cb55c350208db",
+    "state_owner_sha256": "643b6a04478e598fe7fbdc2d5aa6deabe6935761b3fa83cf487a9fdd16a265bc",
+    "daily_context_fingerprint": "f4fe049b8cdd0ae7cb8099a3e57351f78d15bc8e4f3f08528329669142b228c7"
+  },
+  "cash_receipt_sha256": "e41e44db270ea872679746cb2b83b2aa73987e523863236472f6e8ec0434c8dc",
+  "fixed_entry_notional_usd": 900.0,
+  "settled_cash_usd": 973.8697,
+  "books_pass": true,
+  "quantity_and_cash_pass": true,
+  "effective_tiered_commission_pass": false,
+  "rows": [
+    {
+      "symbol": "UPRO",
+      "con_id": 61228752,
+      "smart_bid": 136.79,
+      "smart_ask": 136.85,
+      "direct_arca_bid": 136.78,
+      "direct_arca_ask": 136.85,
+      "quantity": 6,
+      "purchase_notional_usd": 821.1,
+      "observed_commission_usd": 1.000018,
+      "tiered_conservative_limit_usd": 0.36947525,
+      "cash_fit": true
+    },
+    {
+      "symbol": "SPXU",
+      "con_id": 828937771,
+      "smart_bid": 38.38,
+      "smart_ask": 38.39,
+      "direct_arca_bid": 38.38,
+      "direct_arca_ask": 38.39,
+      "quantity": 23,
+      "purchase_notional_usd": 882.97,
+      "observed_commission_usd": 1.000069,
+      "tiered_conservative_limit_usd": 0.42392625,
+      "cash_fit": true
+    }
+  ],
+  "pricing_verdict": "Fixed remained effective; the submitted Tiered request had not processed",
+  "selection_created": false,
+  "selected_transport_absent": true,
+  "profitability_clock_started": false,
+  "order_authority": "none",
+  "submitted_orders": 0,
+  "verdict": "HOLD",
+  "next_business_day_preview": {
+    "scheduled_at": "2026-07-30T09:35:00-04:00",
+    "q_bundle": "/var/tmp/tradebot-xsp-v3-upro-spxu-preview-20260730-r1",
+    "manifest_sha256": "1d289b93b2469f243fcaaae3a822fcb9ab0cd66a9bfbf21b3f23dee72c82f1c4"
+  }
+}

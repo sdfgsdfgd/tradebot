@@ -18,10 +18,10 @@
   is non-submitting
 - **Capital premise:** broker-read `INDIVIDUAL/STKCASH` state is about
   AUD `2,025` NLV and AUD `1,935` BuyingPower/TotalCash; USD `1,228.61` plus
-  AUD `176.94` supports the frozen USD `1,350` total risk identity. Selection
-  re-reads authentic USD cash and requires only the ranked partition plus
-  worst per-slot commissions: one-slot notionals already fit without FX,
-  while any underfunded multi-slot nominee remains `HOLD`
+  AUD `176.94` comfortably covers v3's frozen one-slot USD `$900` notional
+  without FX. Selection still re-reads fresh authentic USD cash and the exact
+  quote-derived whole-share purchase plus modeled worst commission; any
+  underfunded nominee remains `HOLD`
 
 **Operating rule:** update this file only when the frontier, authority, strategy,
 evidence conclusion, risk boundary, or next action changes. Routine test/lint
@@ -42,8 +42,8 @@ output belongs in commit/final verification, not in this management brain.
 | RTH signal freshness | **cleared:** after the user activated `CBOE Streaming Market Indexes`, zero-order receipt `acce7ed3…` returned live type-1 XSP, current five-minute history, and real-time `TRADES` bars without a Gateway restart; the natural `10:07 ET` centralized v2 checkpoint then evaluated with both XSP and SPY through `10:05` and `120s` age |
 | Order/capital authority | `none` |
 | Profitability clock | v3 `NOT_STARTED`; predecessor evidence does not transfer |
-| Execution verdict | `HOLD`; v3 RTH UPRO/SPXU full-cross is positive in recent/every year/full under Fixed (`+$337.06`, PF `1.245`, DD `$135.31`) and Tiered (`+$911.87`, PF `1.833`, DD `$102.68`). The user submitted Stocks/ETFs Tiered before `16:00 ET`; IBKR reports next-business-day processing, so effective commission remains unproved |
-| Next irreversible evidence | capture v3-specific UPRO/SPXU books and one exact quote-derived non-transmitting broker preview; capital remains `HOLD` until Tiered is proved effective and the cash, identity, restart, and explicit RTH-scope gates all pass |
+| Execution verdict | `HOLD`; v3 RTH UPRO/SPXU full-cross is positive in recent/every year/full under Fixed (`+$337.06`, PF `1.245`, DD `$135.31`) and Tiered (`+$911.87`, PF `1.833`, DD `$102.68`). The July 29 preview proved books/cash but returned Fixed `$1.000018/$1.000069` commissions rather than Tiered `$0.36948/$0.42393` limits |
+| Next irreversible evidence | repeat the identical zero-order UPRO/SPXU preview at `2026-07-30 09:35 ET` after IBKR's stated next-business-day processing; capital remains `HOLD` until Tiered is proved effective and cash, identity, restart, and explicit RTH-scope gates all pass |
 | First active work | preserve continuous v3 proposal/gate/position/MFE/MAE/flip/exit observation while completing the exact RTH cash nominee and commission proof. News joins only after its natural publication and never drives work cadence |
 
 ### Immediate sequence
@@ -752,6 +752,7 @@ and
 | E-283 | final-source isolated q preflight, outside the deployed checkout and with `IBKR_READONLY=1`, froze future `08:00 ET` v3 start before broker work and emitted `CLOSED/run_not_started`; the same immutable identity then advanced after the boundary to `EVALUATED`. Two-record ledger `0a8e289b…` binds crown `d47eb39c…`, owner `643b6a04…`, `780` XSP and `2,716` SPY close-aligned bars, and exact `1,257`-session context fingerprint `f4fe049b…`. It prospectively observed one GTH-down counterfactual with zero closed trades; selected run/transport remain absent and order authority/submitted orders remain `none/0`. v3 may prefreeze the next exact five-minute GTH boundary rather than waiting until the next `20:15 ET` trading-day open; v2 semantics remain unchanged |
 | E-284 | deployed activation exposed two fail-closed migration defects before capital authority: legacy v2 rows initially failed v3 context parsing, then the first intraday v3 prefix could schedule a pre-start signal because the shared replay filtered only by trading date. Published `0844365…` accepts legacy rows without weakening malformed-v3 refusal; published `ffe382c…` adds one central `entry_not_before` gate while retaining all warmup. The exact historical RTH ledger remains `40708a28…/425`. Isolated q proof `1f6c9ac…` froze `08:25 ET` then advanced with zero position/trades; the mixed 373-row ledger is recoverably archived at hash `8875d682…`, and the clean deployed ledger froze `08:30` then naturally advanced at `08:32` to `EVALUATED`, hash `1b4a3b49…`, exact crown/owner/context identity, zero safety breaches, authority/orders `none/0`. The corrected timer is active; selection and profitability clocks remain unopened |
 | E-285 | the approved E-276 seam is now centralized locally without a second executor: one selection-bound transport contract projects v2 SPYU/SPXU or v3 UPRO/SPXU through the same plan, shared `OPTIMISTIC→MID→AGGRESSIVE→CROSS→RELENTLESS` execution owner, terminal-fill reconciliation, strict T+1 cash reconstruction, and restart ledger. The v3 selector binds crown/cash/RTH-ledger hashes, `$900`, exact SMART/ARCA contract IDs, fresh internal book timestamps, Tiered commissions, quote-derived quantities inside `UPRO 6..24 / SPXU 3..24`, flat cash-account state, `$135/$67.50` risk, and an explicit RTH-only scope acceptance; GTH remains false. Legacy v2 wrappers and behavior remain green. Source hashes are transport `41348556…`, runtime `a377e387…`, selector `823f3200…`, state `ea76bc7a…`, risk `10865397…`; full verification is `954 passed, 4 deselected`. No q deployment, selection, order, or clock follows from this pre-preview proof |
+| E-286 | published/deployed `ca574817…` closes the v3 cash-owner implementation boundary; q-native compile/import and the natural `09:22 ET` recurrence are green. The `09:35 ET` exact preview `d9b1725b…` proved fresh type-1 SMART/direct-ARCA books, quote-derived `6 UPRO / 23 SPXU`, `$973.8697` settled cash, exact contract IDs, flat positions/orders, and zero submissions, but broker what-if returned Fixed `$1.000018/$1.000069` commissions versus Tiered ceilings `$0.369475/$0.423926`; verdict is `HOLD`. The exact selector then rejected the receipt and left selection absent. The `09:37 ET` RTH observer returned fresh `EVALUATED`, flat, zero trades/authority. Tomorrow's byte-identical zero-order retry is armed for `09:35 ET` in bundle `1d289b93…`. The separate 09:25 microtape unit had a direct-Exec missing-shebang defect; repair `993725d5…` started it at `09:26`, so its continuing tape is useful prospective anatomy but cannot claim the preregistered exact 09:25 full-session prefix. Raw preview, negative selector proof, repair pair, and tomorrow owner are immutable under q archive manifest `e5b44efa…` |
 
 ### Decision anchors
 
@@ -879,17 +880,17 @@ identity exists, and the profitability clock is `NOT_STARTED`. Authentic
 UPRO/SPXU RTH full-cross/T+1 cash replay is positive in every period under both
 current Fixed and conservative Tiered pricing, but the complete selection law
 still fails: RTH-only cadence is about `141/year`, GTH cash transport is
-unqualified, Fixed DD is `$135.31` against the frozen `$135` boundary, and
-fresh v3-specific books, quote-derived sizing, broker preview, cash/restart
-identity, and selected-run receipt are absent. The user submitted the
-Stocks/ETFs/Warrants Tiered request at `2026-07-29T11:21Z`; treat it as Fixed
-until a broker what-if proves effective Tiered pricing. No predecessor tape,
-selection, clock, or counterfactual outcome transfers to v3.
+unqualified, and Fixed DD is `$135.31` against the frozen `$135` boundary.
+The first v3-specific preview cleared books, quote-derived sizing, cash, and
+contract identity but proved the account still charged Fixed `$1.00` tickets;
+the selector rejected it and created no run. The byte-identical next-business-
+day check is armed for July 30 `09:35 ET`. No predecessor tape, selection,
+clock, or counterfactual outcome transfers to v3.
 
-**Predictive observation:** after publication and a clean non-submitting q
-restart, the next legitimate binary boundary is a fresh v3 UPRO/SPXU
-commission/book/quantity proof. If it confirms Tiered and the remaining
-cadence, GTH, cash, restart, and identity gates are resolved, freeze one
-bounded selected run and begin the immutable `24h → 48h → five-session`
-clock. Otherwise retain `HOLD`; do not reopen rejected ETF substitutions,
-profit locks, broad threshold sweeps, news authority, or a parallel executor.
+**Predictive observation:** the next legitimate binary boundary is the
+unchanged July 30 `09:35 ET` UPRO/SPXU preview after IBKR's stated pricing-plan
+processing window. If it confirms Tiered and the fresh cash/source plus
+explicit RTH-first scope gates pass, freeze one bounded non-backfilling run and
+begin the immutable `24h → 48h → five-session` clock. Otherwise retain `HOLD`;
+do not reopen rejected ETF substitutions, profit locks, broad threshold
+sweeps, news authority, or a parallel executor.
