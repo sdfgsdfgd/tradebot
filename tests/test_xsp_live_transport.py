@@ -37,7 +37,10 @@ from tradebot.research.xsp_live_transport_runtime import (
 )
 from tradebot.engines.execution import execution_policy_contract
 from tradebot.engines.market import xsp_rth_evaluation_slots
-from tradebot.research.xsp_opening_edge_v3 import XSP_OPENING_EDGE_V3_VERSION
+from tradebot.research.xsp_opening_edge_v3 import (
+    XSP_OPENING_EDGE_V3_CONTEXT_STATE_SCHEMA,
+    XSP_OPENING_EDGE_V3_VERSION,
+)
 
 
 SELECTED_AT = datetime(2026, 7, 29, 13, 38, tzinfo=timezone.utc)
@@ -221,6 +224,19 @@ def _source(
     checkpoint: str = "checkpoint",
     session: str = "RTH",
 ) -> dict[str, object]:
+    context_state = {
+        "as_of_day": "2026-07-28",
+        "windows": {
+            horizon: {"return_sigma": 0.0}
+            for horizon in ("5", "10", "21", "42", "63", "84")
+        },
+        "return_velocity": {
+            horizon: 0.0 for horizon in ("5", "10", "21", "42", "63", "84")
+        },
+        "return_acceleration": {
+            horizon: 0.0 for horizon in ("5", "10", "21", "42", "63", "84")
+        },
+    }
     profile = {
         "run_started_at_utc": "2026-07-28T00:15:00+00:00",
         "latest_position": position,
@@ -234,6 +250,15 @@ def _source(
         "recorded_at_utc": recorded_at.isoformat(),
         "paired_equity": {
             "crown_config_fingerprint": "crown",
+            "state_owner_sha256": "a" * 64,
+            "daily_context_fingerprint": "b" * 64,
+            "daily_context_state": {
+                "schema": XSP_OPENING_EDGE_V3_CONTEXT_STATE_SCHEMA,
+                "trading_day": "2026-07-29",
+                "context_as_of_day": "2026-07-28",
+                "state_fingerprint": calibration_fingerprint(context_state),
+                "state": context_state,
+            },
             "profiles": {
                 "research": dict(profile),
                 "broker": dict(profile),
@@ -469,11 +494,94 @@ def test_v3_selection_requires_explicit_rth_scope_and_binds_tiered_identity(
         "UPRO": 0.45034925,
         "SPXU": 0.45034925,
     }
+    assert selection["evidence"]["source_daily_context"] == {
+        "schema": XSP_OPENING_EDGE_V3_CONTEXT_STATE_SCHEMA,
+        "trading_day": "2026-07-29",
+        "context_as_of_day": "2026-07-28",
+        "state_fingerprint": _source(
+            None,
+            recorded_at=SELECTED_AT - timedelta(seconds=30),
+        )["paired_equity"]["daily_context_state"]["state_fingerprint"],
+    }
     assert selection["execution"]["UPRO_BUY"] == {
         "initial_mode": "OPTIMISTIC",
         "chase_mode": "AUTO",
     }
     assert load_xsp_v3_transport_selection_from_mapping(selection) == selection
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    (
+        "missing",
+        "fingerprint",
+        "noncausal",
+        "wrong_day",
+        "horizons",
+    ),
+)
+def test_v3_selection_requires_canonical_causal_daily_context(
+    tmp_path: Path,
+    mutation: str,
+) -> None:
+    source = _source(
+        None,
+        recorded_at=SELECTED_AT - timedelta(seconds=30),
+    )
+    context = source["paired_equity"]["daily_context_state"]
+    if mutation == "missing":
+        del source["paired_equity"]["daily_context_state"]
+    elif mutation == "fingerprint":
+        context["state_fingerprint"] = "0" * 64
+    elif mutation == "noncausal":
+        context["context_as_of_day"] = context["trading_day"]
+        context["state"]["as_of_day"] = context["trading_day"]
+        context["state_fingerprint"] = calibration_fingerprint(context["state"])
+    elif mutation == "wrong_day":
+        context["trading_day"] = "2026-07-30"
+    else:
+        del context["state"]["return_velocity"]["84"]
+        context["state_fingerprint"] = calibration_fingerprint(context["state"])
+
+    preview_path = _write(tmp_path / "v3-preview.json", _v3_preview())
+    with pytest.raises(ValueError, match="canonical causal daily context"):
+        select_xsp_v3_transport(
+            cash_receipt_path=Path(
+                "backtests/xsp/opening_edge_v3_regime_harmony_cash_receipt.json"
+            ),
+            preview_path=preview_path,
+            source_receipt=source,
+            broker_snapshot={
+                "observed_at_utc": (
+                    SELECTED_AT - timedelta(seconds=5)
+                ).isoformat(),
+                "cash_observed_at_utc": (
+                    SELECTED_AT - timedelta(seconds=10)
+                ).isoformat(),
+                "account_id": "DU123456",
+                "account_type": "CASH",
+                "settled_cash_usd": 1_200.0,
+                "positions": {"UPRO": 0, "SPXU": 0},
+                "unrelated_positions": [],
+                "open_orders": [],
+            },
+            selected_at=SELECTED_AT,
+            rth_scope_accepted=True,
+        )
+
+
+def test_v3_selection_loader_rejects_readdressed_noncausal_context(
+    tmp_path: Path,
+) -> None:
+    selection = deepcopy(_v3_selection(tmp_path))
+    source_context = selection["evidence"]["source_daily_context"]
+    source_context["context_as_of_day"] = source_context["trading_day"]
+    selection["selection_id"] = calibration_fingerprint(
+        {key: value for key, value in selection.items() if key != "selection_id"}
+    )
+
+    with pytest.raises(ValueError, match="invalid selected XSP v3"):
+        load_xsp_v3_transport_selection_from_mapping(selection)
 
 
 def test_v3_cash_equity_starts_one_usd_profitability_clock(

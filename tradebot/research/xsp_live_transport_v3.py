@@ -6,9 +6,10 @@ import json
 import os
 import tempfile
 from collections.abc import Mapping, Sequence
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 
+from ..engines.market import xsp_trading_date
 from .live_calibration import (
     SELECTED_CASH_EQUITY_SCHEMA,
     XspProfitabilityPolicy,
@@ -34,6 +35,7 @@ from .xsp_live_transport import (
     _v3_execution_contract,
 )
 from .xsp_opening_edge_v3 import (
+    XSP_OPENING_EDGE_V3_CONTEXT_STATE_SCHEMA,
     XSP_OPENING_EDGE_V3_TRANSPORT_VERSION,
     XSP_OPENING_EDGE_V3_VERSION,
 )
@@ -48,6 +50,7 @@ _CROWN_SHA256 = "d47eb39cef3d2ca575d779d6b5b87e3b88e08606fd09a8801b8cb55c350208d
 _RTH_LEDGER_SHA256 = (
     "40708a28476fad504d29b1222e52b88481b1c0da8313ed4667076e2b6ed3f157"
 )
+_CONTEXT_HORIZONS = frozenset({"5", "10", "21", "42", "63", "84"})
 
 
 def _tiered_commission_limit(quantity: int) -> float:
@@ -233,6 +236,39 @@ def select_xsp_v3_transport(
     source_at = _utc(source_receipt.get("recorded_at_utc"))
     broker_at = _utc(broker_snapshot.get("observed_at_utc"))
     cash_at = _utc(broker_snapshot.get("cash_observed_at_utc"))
+    paired = source_receipt.get("paired_equity")
+    context = (
+        paired.get("daily_context_state")
+        if isinstance(paired, Mapping)
+        else None
+    )
+    context_state = context.get("state") if isinstance(context, Mapping) else None
+    try:
+        context_day = date.fromisoformat(str(context.get("trading_day")))
+        context_as_of = date.fromisoformat(str(context.get("context_as_of_day")))
+    except (AttributeError, KeyError, TypeError, ValueError):
+        raise ValueError(
+            "v3 selection requires canonical causal daily context"
+        ) from None
+    if (
+        not isinstance(paired, Mapping)
+        or len(str(paired.get("state_owner_sha256") or "")) != 64
+        or len(str(paired.get("daily_context_fingerprint") or "")) != 64
+        or not isinstance(context, Mapping)
+        or context.get("schema") != XSP_OPENING_EDGE_V3_CONTEXT_STATE_SCHEMA
+        or not isinstance(context_state, Mapping)
+        or context.get("context_as_of_day") != context_state.get("as_of_day")
+        or context.get("state_fingerprint")
+        != calibration_fingerprint(context_state)
+        or context_as_of >= context_day
+        or context_day != xsp_trading_date(source_at)
+        or any(
+            not isinstance(context_state.get(field), Mapping)
+            or set(context_state[field]) != _CONTEXT_HORIZONS
+            for field in ("windows", "return_velocity", "return_acceleration")
+        )
+    ):
+        raise ValueError("v3 selection requires canonical causal daily context")
     if (
         not 0
         <= (selected_utc - preview_at).total_seconds()
@@ -294,6 +330,12 @@ def select_xsp_v3_transport(
         "preview": {"path": str(preview_path), "sha256": _sha256(preview_path)},
         "source_checkpoint_id": source_receipt["checkpoint_id"],
         "source_recorded_at_utc": source_at.isoformat(),
+        "source_daily_context": {
+            "schema": context["schema"],
+            "trading_day": context_day.isoformat(),
+            "context_as_of_day": context_as_of.isoformat(),
+            "state_fingerprint": context["state_fingerprint"],
+        },
         "rth_scope": {
             "accepted": True,
             "historical_trades": 423,
@@ -403,6 +445,11 @@ def load_xsp_v3_transport_selection_from_mapping(
     nominee = selection.get("nominee")
     broker = selection.get("broker_at_selection")
     evidence = selection.get("evidence")
+    source_context = (
+        evidence.get("source_daily_context")
+        if isinstance(evidence, Mapping)
+        else None
+    )
     baseline = selection.get("baseline_state")
     body = {key: value for key, value in selection.items() if key != "selection_id"}
     try:
@@ -418,6 +465,12 @@ def load_xsp_v3_transport_selection_from_mapping(
         contract_ids = nominee["contract_ids"]
         preview_quantities = nominee["preview_quantities"]
         minimum_cash = 900.0 + max(float(value) for value in commissions.values())
+        source_context_day = date.fromisoformat(
+            str(source_context["trading_day"])
+        )
+        source_context_as_of = date.fromisoformat(
+            str(source_context["context_as_of_day"])
+        )
         baseline_valid = baseline is None or bool(
             isinstance(baseline, Mapping)
             and set(baseline) == set(_POSITION_STATE_FIELDS)
@@ -475,6 +528,10 @@ def load_xsp_v3_transport_selection_from_mapping(
             }
             and broker.get("settled_cash_usd") >= minimum_cash
             and broker.get("minimum_settled_cash_usd") == minimum_cash
+            and source_context.get("schema")
+            == XSP_OPENING_EDGE_V3_CONTEXT_STATE_SCHEMA
+            and source_context_as_of < source_context_day
+            and len(str(source_context.get("state_fingerprint") or "")) == 64
             and baseline_valid
         )
     except (KeyError, TypeError, ValueError):
@@ -517,6 +574,7 @@ def load_xsp_v3_transport_selection_from_mapping(
             "preview",
             "source_checkpoint_id",
             "source_recorded_at_utc",
+            "source_daily_context",
             "rth_scope",
         }
         or not isinstance(evidence.get("cash_receipt"), Mapping)
@@ -525,6 +583,7 @@ def load_xsp_v3_transport_selection_from_mapping(
         or len(str(evidence["preview"].get("sha256") or "")) != 64
         or not str(evidence.get("source_checkpoint_id") or "")
         or not str(evidence.get("source_recorded_at_utc") or "")
+        or not isinstance(source_context, Mapping)
         or evidence.get("rth_scope")
         != {
             "accepted": True,
