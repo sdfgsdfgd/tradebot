@@ -24,6 +24,7 @@ from .xsp_opening_edge_v2 import (
 XSP_V2_TRANSPORT_SELECTION_SCHEMA = "xsp.opening-edge-v2-spyu-spxu-selected-run.v1"
 XSP_V2_TRANSPORT_PLAN_SCHEMA = "xsp.opening-edge-v2-spyu-spxu-transport-plan.v1"
 XSP_V3_TRANSPORT_SELECTION_SCHEMA = "xsp.opening-edge-v3-upro-spxu-selected-run.v1"
+XSP_V3_ROTATION_SELECTION_SCHEMA = "xsp.opening-edge-v3-upro-spxu-selected-run.v2"
 XSP_V3_TRANSPORT_PLAN_SCHEMA = "xsp.opening-edge-v3-upro-spxu-transport-plan.v1"
 XSP_V2_TRANSPORT_ORDER_AUTHORITY = "rth_cash_pair_limit_only"
 XSP_V2_TRANSPORT_EXECUTION_VERSION = (
@@ -39,6 +40,10 @@ XSP_V3_TRANSPORT_EXECUTION_SCHEMA = (
     "xsp.opening-edge-v3-upro-spxu-execution-checkpoint.v1"
 )
 XSP_V3_TRANSPORT_CAPITAL_SLEEVE = "xsp-upro-spxu-rth-cash"
+XSP_V3_IMMEDIATE_PROCEEDS_SETTLEMENT = "ibkr_australia_trading_immediate_stock_sale_proceeds"
+XSP_V3_TRANSPORT_SELECTION_SCHEMAS = frozenset(
+    {XSP_V3_TRANSPORT_SELECTION_SCHEMA, XSP_V3_ROTATION_SELECTION_SCHEMA}
+)
 _RANKING_SCHEMA = "xsp.opening-edge-v2-spyu-selection-ranking-result.v1"
 _DWELL_SCHEMA = "xsp.network-b-symbol-dwell-validation-result.v1"
 _PREVIEW_SCHEMA = "xsp.opening-edge-v2-ranked-nominee-preview.v1"
@@ -54,7 +59,6 @@ _NAV_MAX_AGE_SECONDS = 30.0
 _STARTING_CASH_IDENTITY_USD = 1_350.0
 _FIXED_NOTIONALS_USD = frozenset({1_050.0, 1_150.0, 1_200.0})
 _POSITION_STATE_FIELDS = ("lane", "direction", "entry_time", "trading_date", "entry_price")
-
 
 def _execution_contract() -> dict[str, object]:
     return {
@@ -639,7 +643,7 @@ def load_xsp_transport_selection_from_mapping(
 
     if selection.get("schema") == XSP_V2_TRANSPORT_SELECTION_SCHEMA:
         return load_xsp_v2_transport_selection_from_mapping(selection)
-    if selection.get("schema") == XSP_V3_TRANSPORT_SELECTION_SCHEMA:
+    if selection.get("schema") in XSP_V3_TRANSPORT_SELECTION_SCHEMAS:
         from .xsp_live_transport_v3 import (
             load_xsp_v3_transport_selection_from_mapping,
         )
@@ -670,6 +674,8 @@ def xsp_transport_contract(
             "generic_ticks": {"SPYU": "577,614,623"},
             "nav_symbol": "SPYU",
         }
+    if selected["schema"] not in XSP_V3_TRANSPORT_SELECTION_SCHEMAS:
+        raise ValueError("unsupported selected XSP cash transport")
     return {
         "symbols": _V3_SYMBOLS,
         "direction_symbols": dict(_V3_DIRECTION_SYMBOL),
@@ -735,7 +741,15 @@ def _post_selection_target(
     if raw_target is None:
         return None, None
     if raw_target == selection.get("baseline_state"):
-        return None, None
+        continuity = selection.get("continuity")
+        if (
+            selection.get("schema") != XSP_V3_ROTATION_SELECTION_SCHEMA
+            or not isinstance(continuity, Mapping)
+            or raw_target != continuity.get("source_target_state")
+        ):
+            return None, None
+        direction = str(raw_target.get("direction") or "")
+        return direction, direction_symbols.get(direction)
     if raw_target.get("lane") != "rth":
         raise ValueError("GTH execution is forbidden")
     direction = (

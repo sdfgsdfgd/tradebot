@@ -1,0 +1,57 @@
+{
+  "schema": "xsp.opening-edge-v3-immediate-proceeds-receipt.v1",
+  "authority": "historical_cash_and_broker_preview_only",
+  "order_authority": "none",
+  "submitted_orders": 0,
+  "candidate": "Opening Edge v3 - Regime Harmony 24/5",
+  "scope": "RTH UPRO/SPXU whole-share transport only",
+  "single_change": {
+    "from": "strict_T_plus_1_settled_cash_only",
+    "to": "ibkr_australia_trading_immediate_stock_sale_proceeds",
+    "sell_before_buy": true,
+    "full_sell_and_flat_reconciliation_required": true,
+    "fixed_entry_notional_usd": 900.0
+  },
+  "official_account_contract": {
+    "url": "https://www.interactivebrokers.com.au/en/accounts/configuring-your-account.php",
+    "boundary": "Trading Accounts under IBKR Australia make stock purchase and sale proceeds available immediately",
+    "runtime_cash_reconciliation_still_required": true
+  },
+  "historical_replay": {
+    "preregistration_sha256": "3319eb0e2899c04cfbab15e12425536ee29e4e27f9344fe8bf95943982525771",
+    "runner_sha256": "09f1eb899f18918d6b51407ed379ce13ccdf67171d908c808a4708ce799d739d",
+    "result_sha256": "2f21b91ff5515b5b0912770104f1894d4d46c2584137894108683c24f3aa9e98",
+    "rth_ledger_sha256": "40708a28476fad504d29b1222e52b88481b1c0da8313ed4667076e2b6ed3f157",
+    "executed_trades": 426,
+    "blocked_entries": 0,
+    "recent_net_usd": 35.353664178998315,
+    "year_1_net_usd": 229.93375412600324,
+    "year_2_net_usd": 212.55970492400024,
+    "year_3_net_usd": 469.4894769889836,
+    "full_net_usd": 911.9829360389871,
+    "profit_factor": 1.8288357005217517,
+    "intrabar_max_drawdown_usd": 102.68285040800129,
+    "scheduled_exit_full_net_usd": 921.4227415749873,
+    "all_gates_pass": true
+  },
+  "broker_preview": {
+    "result_sha256": "b7de0dfc2ebc6bcbc81088ab23972a8df43223405f1bab15cabb28aa0faeb9b5",
+    "observed_at_utc": "2026-07-30T16:05:48.422159+00:00",
+    "account_id": "U12825049",
+    "sell": {
+      "symbol": "SPXU",
+      "quantity": 23
+    },
+    "buy": {
+      "symbol": "UPRO",
+      "quantity": 6
+    },
+    "combo_status": "PreSubmitted",
+    "warning_text": "",
+    "matching_open_orders_after": 0,
+    "submitted_orders": 0
+  },
+  "verdict": "PASS_IMPLEMENTATION_AND_FRESH_POST_SELL_BROKER_RECONCILIATION_REQUIRED",
+  "selection_changed": false,
+  "profitability_clock_started": false
+}

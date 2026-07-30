@@ -22,10 +22,11 @@ from .xsp_live_transport import (
     XSP_V2_TRANSPORT_ORDER_AUTHORITY,
     XSP_V2_TRANSPORT_PLAN_SCHEMA,
     XSP_V2_TRANSPORT_SELECTION_SCHEMA,
+    XSP_V3_IMMEDIATE_PROCEEDS_SETTLEMENT,
     XSP_V3_TRANSPORT_EXECUTION_SCHEMA,
     XSP_V3_TRANSPORT_EXECUTION_VERSION,
     XSP_V3_TRANSPORT_PLAN_SCHEMA,
-    XSP_V3_TRANSPORT_SELECTION_SCHEMA,
+    XSP_V3_TRANSPORT_SELECTION_SCHEMAS,
     load_xsp_transport_selection_from_mapping,
     project_xsp_transport_plan,
     xsp_signal_utc,
@@ -567,15 +568,20 @@ async def advance_xsp_live_transport(
     source_receipt: Mapping[str, object],
     observed_at: datetime,
     quote_wait_seconds: float = 3.0,
+    _rotation_depth: int = 0,
 ) -> dict[str, object]:
-    """Reconcile one selected sleeve, then execute at most one exact RTH leg."""
+    """Reconcile one sleeve and atomically continue one admitted inversion."""
 
     selected = load_xsp_transport_selection_from_mapping(selection)
     transport = xsp_transport_contract(selected)
     symbols = tuple(transport["symbols"])
     execution_version = str(transport["execution_version"])
     order_ref_prefix = f"{transport['order_ref_prefix']}-"
-    if observed_at.tzinfo is None or quote_wait_seconds < 0:
+    if (
+        observed_at.tzinfo is None
+        or quote_wait_seconds < 0
+        or _rotation_depth not in {0, 1}
+    ):
         raise ValueError("live transport observation inputs are invalid")
     broker_snapshot = await xsp_v2_broker_snapshot(client, symbols=symbols)
     account_id = str(broker_snapshot["account_id"])
@@ -772,7 +778,7 @@ async def advance_xsp_live_transport(
             risk_state=risk_state,
             reconciled=True,
         )
-        if selected["schema"] == XSP_V3_TRANSPORT_SELECTION_SCHEMA
+        if selected["schema"] in XSP_V3_TRANSPORT_SELECTION_SCHEMAS
         else None
     )
     plan = project_xsp_transport_plan(
@@ -836,7 +842,7 @@ async def advance_xsp_live_transport(
         ticker=tickers[symbol],
         observed_at=observed_at,
     )
-    return {
+    result = {
         "status": "EXECUTED",
         "selection_id": selected["selection_id"],
         "checkpoint_id": state_checkpoint["checkpoint_id"],
@@ -845,6 +851,47 @@ async def advance_xsp_live_transport(
         "execution": execution,
         "submitted_orders": execution["submitted_orders"],
     }
+    risk = selected["risk"]
+    assert isinstance(risk, Mapping)
+    broker_order = execution.get("broker_order")
+    leg = plan["leg"]
+    assert isinstance(leg, Mapping)
+    full_inverse_sell = bool(
+        _rotation_depth == 0
+        and risk.get("settlement") == XSP_V3_IMMEDIATE_PROCEEDS_SETTLEMENT
+        and plan.get("reason") == "sell_incumbent_before_target"
+        and plan.get("target_symbol") in symbols
+        and plan.get("target_symbol") != leg.get("symbol")
+        and execution.get("status") == "TERMINAL"
+        and isinstance(broker_order, Mapping)
+        and float(broker_order.get("filled") or 0.0) == float(leg["quantity"])
+        and float(broker_order.get("remaining") or 0.0) == 0.0
+    )
+    if full_inverse_sell:
+        source_at = datetime.fromisoformat(
+            str(source_receipt["recorded_at_utc"]).replace("Z", "+00:00")
+        )
+        rotation_at = datetime.now(timezone.utc)
+        if (
+            rotation_at - source_at.astimezone(timezone.utc)
+        ).total_seconds() <= 90.0:
+            inverse = await advance_xsp_live_transport(
+                ledger,
+                client=client,
+                selection=selected,
+                source_receipt=source_receipt,
+                observed_at=rotation_at,
+                quote_wait_seconds=quote_wait_seconds,
+                _rotation_depth=1,
+            )
+            result["inverse_execution"] = inverse
+            result["submitted_orders"] += int(inverse["submitted_orders"])
+        else:
+            result["inverse_execution"] = {
+                "status": "DEFERRED_SOURCE_REFRESH_REQUIRED",
+                "submitted_orders": 0,
+            }
+    return result
 
 
 async def advance_xsp_v2_live_transport(

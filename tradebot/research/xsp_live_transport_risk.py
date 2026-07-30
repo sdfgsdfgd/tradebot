@@ -13,8 +13,9 @@ from .live_calibration import (
 )
 from .xsp_live_transport import (
     XSP_V2_TRANSPORT_SELECTION_SCHEMA,
+    XSP_V3_IMMEDIATE_PROCEEDS_SETTLEMENT,
     XSP_V3_TRANSPORT_CAPITAL_SLEEVE,
-    XSP_V3_TRANSPORT_SELECTION_SCHEMA,
+    XSP_V3_TRANSPORT_SELECTION_SCHEMAS,
     load_xsp_transport_selection_from_mapping,
     xsp_transport_contract,
 )
@@ -36,6 +37,19 @@ def xsp_transport_risk_state(
     if observed_at.tzinfo is None:
         raise ValueError("risk observation timestamp must be aware")
     fills_by_id: dict[str, dict[str, object]] = {}
+    continuity = selected.get("continuity")
+    if isinstance(continuity, Mapping):
+        inherited = continuity.get("inherited_fills")
+        if not isinstance(inherited, list):
+            raise ValueError("selected transport continuity has no inherited fills")
+        for raw_fill in inherited:
+            if not isinstance(raw_fill, Mapping):
+                raise ValueError("inherited broker fill must be an object")
+            fill = dict(raw_fill)
+            exec_id = str(fill.get("exec_id") or "").strip()
+            if not exec_id or exec_id in fills_by_id:
+                raise ValueError("inherited broker execution identity is invalid")
+            fills_by_id[exec_id] = fill
     prior_risks = []
     attribution_complete = True
     for record in records:
@@ -105,7 +119,15 @@ def xsp_transport_risk_state(
     assert isinstance(risk_identity, Mapping)
     selected_broker = selected["broker_at_selection"]
     assert isinstance(selected_broker, Mapping)
-    settled_cash = float(selected_broker["settled_cash_usd"])
+    immediate_proceeds = (
+        risk_identity.get("settlement")
+        == XSP_V3_IMMEDIATE_PROCEEDS_SETTLEMENT
+    )
+    settled_cash = float(
+        continuity["predecessor_starting_cash_usd"]
+        if isinstance(continuity, Mapping)
+        else selected_broker["settled_cash_usd"]
+    )
     pending_settlements: list[tuple[object, float]] = []
     canonical_fills = []
 
@@ -190,10 +212,14 @@ def xsp_transport_risk_state(
                 trade_gross = position_realized_gross[symbol]
                 closed_trade_gross.append(trade_gross)
                 position_realized_gross[symbol] = 0.0
-            settlement_day = fill_trading_day + timedelta(days=1)
-            while not is_trading_day(settlement_day):
-                settlement_day += timedelta(days=1)
-            pending_settlements.append((settlement_day, proceeds))
+            if immediate_proceeds:
+                settled_cash += proceeds
+                settlement_day = fill_trading_day
+            else:
+                settlement_day = fill_trading_day + timedelta(days=1)
+                while not is_trading_day(settlement_day):
+                    settlement_day += timedelta(days=1)
+                pending_settlements.append((settlement_day, proceeds))
         canonical_fills.append(
             {
                 "exec_id": fill["exec_id"],
@@ -306,6 +332,7 @@ def xsp_transport_risk_state(
         "holdings_from_fills": holdings,
         "open_cost_usd": open_cost,
         "starting_settled_cash_usd": float(selected_broker["settled_cash_usd"]),
+        "settlement": risk_identity["settlement"],
         "settled_cash_usd": settled_cash,
         "pending_settlement_usd": sum(row["proceeds_usd"] for row in pending_receipt),
         "pending_settlements": pending_receipt,
@@ -333,7 +360,7 @@ def xsp_transport_cash_equity(
     """Project reconciled fill economics into the shared profitability schema."""
 
     selected = load_xsp_transport_selection_from_mapping(selection)
-    if selected["schema"] != XSP_V3_TRANSPORT_SELECTION_SCHEMA:
+    if selected["schema"] not in XSP_V3_TRANSPORT_SELECTION_SCHEMAS:
         raise ValueError("selected cash equity requires a v3 selected transport")
     if risk_state.get("valid") is not True:
         raise ValueError("selected cash equity requires valid transport risk state")

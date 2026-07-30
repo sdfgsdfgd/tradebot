@@ -14,15 +14,20 @@ from tradebot.research.live_calibration import (
 )
 from tradebot.research.xsp_live_transport import (
     XSP_V2_TRANSPORT_ORDER_AUTHORITY,
+    XSP_V3_IMMEDIATE_PROCEEDS_SETTLEMENT,
+    XSP_V3_ROTATION_SELECTION_SCHEMA,
     XSP_V3_TRANSPORT_EXECUTION_VERSION,
     XSP_V3_TRANSPORT_SELECTION_SCHEMA,
-    project_xsp_transport_plan,
     load_xsp_v2_transport_selection,
+    project_xsp_transport_plan,
     project_xsp_v2_transport_plan,
     select_xsp_v2_transport,
     write_xsp_v2_transport_selection,
 )
 from tradebot.research.xsp_live_transport_state import latest_xsp_v2_source_receipt
+from tradebot.research.xsp_live_transport_handoff import (
+    handoff_xsp_v3_immediate_proceeds,
+)
 from tradebot.research.xsp_live_transport_v3 import (
     load_xsp_v3_transport_selection_from_mapping,
     select_xsp_v3_transport,
@@ -453,6 +458,236 @@ def _v3_selection(tmp_path: Path) -> dict[str, object]:
         selected_at=SELECTED_AT,
         rth_scope_accepted=True,
     )
+
+
+def _v3_rotation_selection(
+    tmp_path: Path,
+    *,
+    source_direction: str = "down",
+) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
+    predecessor = _v3_selection(tmp_path)
+    handoff_at = SELECTED_AT + timedelta(minutes=15)
+    fill = {
+        "exec_id": "v3-inherited-spxu-buy",
+        "time_utc": (SELECTED_AT + timedelta(minutes=5)).isoformat(),
+        "symbol": "SPXU",
+        "side": "BOT",
+        "shares": 23,
+        "price": 39.0,
+        "commission": 0.35,
+        "commission_currency": "USD",
+    }
+    record = {
+        "kind": "checkpoint",
+        "strategy_version": XSP_V3_TRANSPORT_EXECUTION_VERSION,
+        "trading_date": "2026-07-29",
+        "evidence": {
+            "selection_id": predecessor["selection_id"],
+            "phase": "TERMINAL",
+            "broker_order": {"filled": 23, "fills": [fill]},
+        },
+    }
+    source = _source(
+        _position(
+            source_direction,
+            entry_time=SELECTED_AT + timedelta(minutes=4),
+        ),
+        recorded_at=handoff_at - timedelta(seconds=30),
+        checkpoint="e" * 64,
+    )
+    selection = handoff_xsp_v3_immediate_proceeds(
+        predecessor=predecessor,
+        records=(record,),
+        source_receipt=source,
+        broker_snapshot={
+            "observed_at_utc": (handoff_at - timedelta(seconds=5)).isoformat(),
+            "cash_observed_at_utc": (
+                handoff_at - timedelta(seconds=10)
+            ).isoformat(),
+            "account_id": "DU123456",
+            "account_type": "CASH",
+            "settled_cash_usd": 302.65,
+            "positions": {"UPRO": 0, "SPXU": 23},
+            "unrelated_positions": [],
+            "open_orders": [],
+        },
+        immediate_proceeds_receipt_path=Path(
+            "backtests/xsp/opening_edge_v3_immediate_proceeds_receipt.json"
+        ),
+        selected_at=handoff_at,
+    )
+    return selection, record, source
+
+
+def test_v3_rotation_handoff_inherits_exact_open_position_and_target(
+    tmp_path: Path,
+) -> None:
+    selection, _record, _source_at_handoff = _v3_rotation_selection(tmp_path)
+    observed_at = SELECTED_AT + timedelta(minutes=16)
+    source = _source(
+        _position(
+            "down",
+            entry_time=SELECTED_AT + timedelta(minutes=4),
+        ),
+        recorded_at=observed_at - timedelta(seconds=30),
+        checkpoint="f" * 64,
+    )
+
+    assert selection["schema"] == XSP_V3_ROTATION_SELECTION_SCHEMA
+    assert selection["risk"]["settlement"] == XSP_V3_IMMEDIATE_PROCEEDS_SETTLEMENT
+    assert selection["baseline_state"]["direction"] == "down"
+    assert selection["continuity"]["inherited_holding_direction"] == "down"
+    assert selection["continuity"]["predecessor_selection_id"] != selection[
+        "selection_id"
+    ]
+    risk = xsp_transport_risk_state(
+        selection=selection,
+        records=(),
+        observed_at=observed_at,
+        liquidation_bids={"SPXU": 39.5},
+    )
+    assert risk["holdings_from_fills"] == {"UPRO": 0.0, "SPXU": 23.0}
+    assert risk["settled_cash_usd"] == pytest.approx(302.65)
+    plan = project_xsp_transport_plan(
+        selection=selection,
+        source_receipt=source,
+        observed_at=observed_at,
+        positions={"UPRO": 0, "SPXU": 23},
+        open_orders=[],
+        settled_cash_usd=302.65,
+        quotes={
+            "SPXU": {
+                "bid": 39.49,
+                "ask": 39.50,
+                "age_seconds": 0.5,
+                "market_data_type": 1,
+            }
+        },
+    )
+    assert plan["status"] == "UNCHANGED"
+    assert plan["reason"] == "target_already_owned"
+
+    tampered = deepcopy(selection)
+    tampered["continuity"]["inherited_fills"][0]["shares"] = 22
+    body = {key: value for key, value in tampered.items() if key != "selection_id"}
+    tampered["selection_id"] = calibration_fingerprint(body)
+    with pytest.raises(ValueError, match="invalid immediate-proceeds"):
+        load_xsp_v3_transport_selection_from_mapping(tampered)
+
+
+def test_v3_rotation_handoff_preserves_an_already_pending_inverse(
+    tmp_path: Path,
+) -> None:
+    selection, _record, _source_at_handoff = _v3_rotation_selection(
+        tmp_path,
+        source_direction="up",
+    )
+    observed_at = SELECTED_AT + timedelta(minutes=16)
+    source = _source(
+        _position(
+            "up",
+            entry_time=SELECTED_AT + timedelta(minutes=4),
+        ),
+        recorded_at=observed_at - timedelta(seconds=30),
+        checkpoint="f" * 64,
+    )
+
+    plan = project_xsp_transport_plan(
+        selection=selection,
+        source_receipt=source,
+        observed_at=observed_at,
+        positions={"UPRO": 0, "SPXU": 23},
+        open_orders=[],
+        settled_cash_usd=302.65,
+        quotes={
+            "SPXU": {
+                "bid": 39.49,
+                "ask": 39.50,
+                "age_seconds": 0.5,
+                "market_data_type": 1,
+            }
+        },
+    )
+
+    assert selection["continuity"]["inherited_holding_direction"] == "down"
+    assert selection["baseline_state"]["direction"] == "up"
+    assert plan["reason"] == "sell_incumbent_before_target"
+    assert plan["target_symbol"] == "UPRO"
+    assert plan["leg"]["action"] == "SELL"
+    assert plan["leg"]["symbol"] == "SPXU"
+    assert plan["leg"]["quantity"] == 23
+
+
+def test_v3_rotation_reuses_completed_sale_proceeds_without_symbol_overlap(
+    tmp_path: Path,
+) -> None:
+    selection, _record, _source_at_handoff = _v3_rotation_selection(tmp_path)
+    sell_at = SELECTED_AT + timedelta(minutes=16)
+    buy_at = sell_at + timedelta(minutes=1)
+
+    def terminal_fill(
+        *,
+        exec_id: str,
+        when: datetime,
+        symbol: str,
+        side: str,
+        shares: int,
+        price: float,
+    ) -> dict[str, object]:
+        return {
+            "kind": "checkpoint",
+            "strategy_version": XSP_V3_TRANSPORT_EXECUTION_VERSION,
+            "trading_date": "2026-07-29",
+            "evidence": {
+                "selection_id": selection["selection_id"],
+                "phase": "TERMINAL",
+                "broker_order": {
+                    "filled": shares,
+                    "fills": [
+                        {
+                            "exec_id": exec_id,
+                            "time_utc": when.isoformat(),
+                            "symbol": symbol,
+                            "side": side,
+                            "shares": shares,
+                            "price": price,
+                            "commission": 0.35,
+                            "commission_currency": "USD",
+                        }
+                    ],
+                },
+            },
+        }
+
+    state = xsp_transport_risk_state(
+        selection=selection,
+        records=(
+            terminal_fill(
+                exec_id="rotate-sell",
+                when=sell_at,
+                symbol="SPXU",
+                side="SLD",
+                shares=23,
+                price=40.0,
+            ),
+            terminal_fill(
+                exec_id="rotate-buy",
+                when=buy_at,
+                symbol="UPRO",
+                side="BOT",
+                shares=6,
+                price=135.0,
+            ),
+        ),
+        observed_at=buy_at + timedelta(minutes=1),
+        liquidation_bids={"UPRO": 136.0},
+    )
+
+    assert state["settlement"] == XSP_V3_IMMEDIATE_PROCEEDS_SETTLEMENT
+    assert state["pending_settlement_usd"] == 0.0
+    assert state["holdings_from_fills"] == {"UPRO": 6.0, "SPXU": 0.0}
+    assert state["settled_cash_usd"] == pytest.approx(411.95)
+    assert state["fill_count"] == 3
 
 
 def test_v3_selection_requires_explicit_rth_scope_and_binds_tiered_identity(

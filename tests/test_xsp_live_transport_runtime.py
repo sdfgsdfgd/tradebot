@@ -20,11 +20,16 @@ from tradebot.research.xsp_live_transport import (
     XSP_V2_TRANSPORT_ORDER_AUTHORITY,
     XSP_V2_TRANSPORT_PLAN_SCHEMA,
     XSP_V2_TRANSPORT_SELECTION_SCHEMA,
+    XSP_V3_IMMEDIATE_PROCEEDS_SETTLEMENT,
+    XSP_V3_ROTATION_SELECTION_SCHEMA,
+    XSP_V3_TRANSPORT_EXECUTION_VERSION,
+    XSP_V3_TRANSPORT_PLAN_SCHEMA,
     project_xsp_v2_transport_plan,
 )
 from tradebot.research.xsp_live_transport_runtime import (
     XSP_V2_TRANSPORT_EXECUTION_SCHEMA,
     XSP_V2_TRANSPORT_EXECUTION_VERSION,
+    advance_xsp_live_transport,
     advance_xsp_v2_live_transport,
     execute_xsp_v2_transport_plan,
     xsp_v2_transport_risk_state,
@@ -1415,3 +1420,207 @@ def test_live_recurrence_liquidates_selected_sleeve_before_rth_close(
     assert result["plan"]["leg"]["outside_rth"] is False
     assert client.placed[0][1:3] == ("SELL", 8)
     assert client.placed[0][-2] is False
+
+
+@pytest.mark.parametrize(
+    ("sell_status", "sell_filled", "expected_actions"),
+    (
+        ("TERMINAL", 23, ["SELL", "BUY"]),
+        ("PENDING", 22, ["SELL"]),
+    ),
+)
+def test_v3_immediate_rotation_chains_only_after_terminal_full_sell(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    sell_status: str,
+    sell_filled: int,
+    expected_actions: list[str],
+) -> None:
+    now = datetime.now(timezone.utc)
+    contracts = {}
+    tickers = {}
+    for symbol, con_id, bid, ask in (
+        ("UPRO", 61_228_752, 135.0, 135.05),
+        ("SPXU", 53_362_064, 40.0, 40.01),
+    ):
+        contract = Stock(symbol, "SMART", "USD")
+        contract.conId = con_id
+        contracts[symbol] = contract
+        tickers[symbol] = SimpleNamespace(
+            contract=contract,
+            bid=bid,
+            ask=ask,
+            last=(bid + ask) / 2.0,
+            close=bid,
+            bidSize=100,
+            askSize=100,
+            marketDataType=1,
+            tbTopQuoteUpdatedMono=time.monotonic(),
+        )
+
+    class RotationClient:
+        async def qualify_proxy_contracts(self, *_contracts):
+            return list(contracts.values())
+
+        async def ensure_ticker(self, contract, **_kwargs):
+            return tickers[contract.symbol]
+
+    selection = {
+        "schema": XSP_V3_ROTATION_SELECTION_SCHEMA,
+        "selection_id": "a" * 64,
+        "broker_at_selection": {"account_id": "DU123456"},
+        "nominee": {
+            "contract_ids": {
+                symbol: contract.conId for symbol, contract in contracts.items()
+            }
+        },
+        "risk": {"settlement": XSP_V3_IMMEDIATE_PROCEEDS_SETTLEMENT},
+    }
+    snapshots = iter(
+        (
+            {
+                "account_id": "DU123456",
+                "settled_cash_usd": 302.65,
+                "positions": {"UPRO": 0.0, "SPXU": 23.0},
+                "unrelated_positions": [],
+                "open_orders": [],
+            },
+            {
+                "account_id": "DU123456",
+                "settled_cash_usd": 1_222.30,
+                "positions": {"UPRO": 0.0, "SPXU": 0.0},
+                "unrelated_positions": [],
+                "open_orders": [],
+            },
+        )
+    )
+
+    async def broker_snapshot(_client, *, symbols):
+        assert tuple(symbols) == ("UPRO", "SPXU")
+        return next(snapshots)
+
+    risk_calls = 0
+
+    def risk_state(*, selection, records, observed_at, liquidation_bids):
+        nonlocal risk_calls
+        del selection, records, observed_at, liquidation_bids
+        risk_calls += 1
+        sold = risk_calls == 2
+        return {
+            "valid": True,
+            "holdings_from_fills": (
+                {"UPRO": 0.0, "SPXU": 0.0}
+                if sold
+                else {"UPRO": 0.0, "SPXU": 23.0}
+            ),
+            "settled_cash_usd": 1_222.30 if sold else 302.65,
+            "session_net_usd": 0.0,
+            "drawdown_usd": 0.0,
+        }
+
+    def plan(*, positions, **_kwargs):
+        selling = positions["SPXU"] > 0
+        return {
+            "schema": XSP_V3_TRANSPORT_PLAN_SCHEMA,
+            "selection_id": selection["selection_id"],
+            "transition_id": ("b" if selling else "c") * 64,
+            "source_checkpoint_id": "source",
+            "source_session": "RTH",
+            "target_direction": "up",
+            "target_symbol": "UPRO",
+            "signal_context": {
+                "schema": "xsp.execution-signal-context.v1",
+                "decision_trace_fingerprint": "d" * 64,
+                "signal_bar_ts": (now - timedelta(minutes=5)).isoformat(),
+                "directional_impulse": {},
+                "market_state": {},
+            },
+            "order_authority": XSP_V2_TRANSPORT_ORDER_AUTHORITY,
+            "status": "ACTIONABLE",
+            "reason": (
+                "sell_incumbent_before_target"
+                if selling
+                else "buy_post_selection_target"
+            ),
+            "leg": {
+                "action": "SELL" if selling else "BUY",
+                "symbol": "SPXU" if selling else "UPRO",
+                "quantity": 23 if selling else 6,
+                "initial_mode": "OPTIMISTIC",
+                "chase_mode": "AUTO",
+                "outside_rth": False,
+            },
+        }
+
+    executed = []
+
+    async def execute(_ledger, *, plan, **_kwargs):
+        executed.append(plan["leg"]["action"])
+        selling = plan["leg"]["action"] == "SELL"
+        return {
+            "status": sell_status if selling else "TERMINAL",
+            "broker_order": {
+                "filled": sell_filled if selling else plan["leg"]["quantity"],
+                "remaining": (
+                    plan["leg"]["quantity"] - sell_filled if selling else 0
+                ),
+            },
+            "submitted_orders": 1,
+        }
+
+    monkeypatch.setattr(
+        "tradebot.research.xsp_live_transport_runtime."
+        "load_xsp_transport_selection_from_mapping",
+        lambda selected: dict(selected),
+    )
+    monkeypatch.setattr(
+        "tradebot.research.xsp_live_transport_runtime.xsp_transport_contract",
+        lambda _selected: {
+            "symbols": ("UPRO", "SPXU"),
+            "execution_version": XSP_V3_TRANSPORT_EXECUTION_VERSION,
+            "order_ref_prefix": "XSPV3",
+            "ticker_owner": "test",
+            "generic_ticks": {},
+            "nav_symbol": None,
+        },
+    )
+    monkeypatch.setattr(
+        "tradebot.research.xsp_live_transport_runtime.xsp_v2_broker_snapshot",
+        broker_snapshot,
+    )
+    monkeypatch.setattr(
+        "tradebot.research.xsp_live_transport_runtime.xsp_transport_risk_state",
+        risk_state,
+    )
+    monkeypatch.setattr(
+        "tradebot.research.xsp_live_transport_runtime.xsp_transport_cash_equity",
+        lambda **_kwargs: {},
+    )
+    monkeypatch.setattr(
+        "tradebot.research.xsp_live_transport_runtime.project_xsp_transport_plan",
+        plan,
+    )
+    monkeypatch.setattr(
+        "tradebot.research.xsp_live_transport_runtime.execute_xsp_transport_plan",
+        execute,
+    )
+
+    result = asyncio.run(
+        advance_xsp_live_transport(
+            LiveCalibrationLedger(tmp_path / "rotation.jsonl"),
+            client=RotationClient(),
+            selection=selection,
+            source_receipt={
+                "recorded_at_utc": (now - timedelta(seconds=10)).isoformat(),
+            },
+            observed_at=now,
+            quote_wait_seconds=0,
+        )
+    )
+
+    assert executed == expected_actions
+    assert result["submitted_orders"] == len(expected_actions)
+    if sell_status == "TERMINAL":
+        assert result["inverse_execution"]["status"] == "EXECUTED"
+    else:
+        assert "inverse_execution" not in result

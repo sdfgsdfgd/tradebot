@@ -18,6 +18,8 @@ from .live_calibration import (
 from .xsp_execution_observer import xsp_v2_position_state
 from .xsp_live_transport import (
     XSP_V2_TRANSPORT_ORDER_AUTHORITY,
+    XSP_V3_IMMEDIATE_PROCEEDS_SETTLEMENT,
+    XSP_V3_ROTATION_SELECTION_SCHEMA,
     XSP_V3_TRANSPORT_SELECTION_SCHEMA,
     XSP_V3_TRANSPORT_CAPITAL_SLEEVE,
     XSP_V3_TRANSPORT_EXECUTION_VERSION,
@@ -51,6 +53,13 @@ _RTH_LEDGER_SHA256 = (
     "40708a28476fad504d29b1222e52b88481b1c0da8313ed4667076e2b6ed3f157"
 )
 _CONTEXT_HORIZONS = frozenset({"5", "10", "21", "42", "63", "84"})
+_IMMEDIATE_PROCEEDS_SCHEMA = (
+    "xsp.opening-edge-v3-immediate-proceeds-receipt.v1"
+)
+_IMMEDIATE_PROCEEDS_SHA256 = (
+    "bbe079289882d06f3bf7f7a1351595ff9d2392d80f3959fff34362629cf4fd71"
+)
+_CONTINUITY_SCHEMA = "xsp.opening-edge-v3-selection-continuity.v1"
 
 
 def _sha256_identity(value: object) -> bool:
@@ -385,6 +394,87 @@ def select_xsp_v3_transport(
     return {**body, "selection_id": calibration_fingerprint(body)}
 
 
+def _inherited_fills(
+    records: Sequence[Mapping[str, object]],
+    *,
+    selection_id: str,
+) -> list[dict[str, object]]:
+    fills: dict[str, dict[str, object]] = {}
+    for record in records:
+        evidence = record.get("evidence")
+        order = (
+            evidence.get("broker_order")
+            if isinstance(evidence, Mapping)
+            and evidence.get("selection_id") == selection_id
+            and evidence.get("phase") == "TERMINAL"
+            else None
+        )
+        if not isinstance(order, Mapping):
+            continue
+        rows = order.get("fills")
+        if not isinstance(rows, list):
+            raise ValueError("predecessor terminal order has no fills")
+        for raw in rows:
+            if not isinstance(raw, Mapping):
+                raise ValueError("predecessor fill is invalid")
+            row = dict(raw)
+            exec_id = str(row.get("exec_id") or "")
+            if not exec_id or (exec_id in fills and fills[exec_id] != row):
+                raise ValueError("predecessor execution identity is invalid")
+            fills[exec_id] = row
+    return sorted(
+        fills.values(),
+        key=lambda row: (
+            str(row.get("time_utc") or ""),
+            str(row.get("exec_id") or ""),
+        ),
+    )
+
+
+def _inherited_cash_and_holdings(
+    fills: Sequence[Mapping[str, object]],
+    *,
+    starting_cash_usd: float,
+) -> tuple[float, dict[str, int]]:
+    cash = float(starting_cash_usd)
+    holdings = {symbol: 0 for symbol in _V3_SYMBOLS}
+    seen = set()
+    for fill in fills:
+        try:
+            exec_id = str(fill["exec_id"])
+            symbol = str(fill["symbol"])
+            side = str(fill["side"]).upper()
+            shares = float(fill["shares"])
+            price = float(fill["price"])
+            commission = float(fill["commission"])
+            fill_at = _utc(fill["time_utc"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError("inherited fill economics are incomplete") from exc
+        if (
+            not exec_id
+            or exec_id in seen
+            or symbol not in _V3_SYMBOLS
+            or side not in {"BOT", "BUY"}
+            or shares <= 0
+            or shares != int(shares)
+            or price <= 0
+            or commission < 0
+            or str(fill.get("commission_currency") or "").upper() != "USD"
+            or fill_at > datetime.now(fill_at.tzinfo)
+        ):
+            raise ValueError("only one open whole-share predecessor BUY is inheritable")
+        seen.add(exec_id)
+        holdings[symbol] += int(shares)
+        cash -= shares * price + commission
+    if (
+        not fills
+        or cash < -1e-7
+        or sum(quantity > 0 for quantity in holdings.values()) != 1
+    ):
+        raise ValueError("predecessor fills do not define one funded open position")
+    return cash, holdings
+
+
 def xsp_v3_transport_profitability_policy(
     selection: Mapping[str, object],
 ) -> XspProfitabilityPolicy:
@@ -442,10 +532,10 @@ def write_xsp_v3_transport_selection(
             temporary.unlink(missing_ok=True)
 
 
-def load_xsp_v3_transport_selection_from_mapping(
+def _load_xsp_v3_initial_selection_from_mapping(
     selection: Mapping[str, object],
 ) -> dict[str, object]:
-    """Validate one in-memory v3 UPRO/SPXU selection."""
+    """Validate the original flat-start v3 UPRO/SPXU selection."""
 
     nominee = selection.get("nominee")
     broker = selection.get("broker_at_selection")
@@ -606,3 +696,219 @@ def load_xsp_v3_transport_selection_from_mapping(
     ):
         raise ValueError("invalid selected XSP v3 cash transport")
     return dict(selection)
+
+
+def _load_xsp_v3_rotation_selection_from_mapping(
+    selection: Mapping[str, object],
+) -> dict[str, object]:
+    """Validate the immediate-proceeds successor and inherited open position."""
+
+    nominee = selection.get("nominee")
+    broker = selection.get("broker_at_selection")
+    evidence = selection.get("evidence")
+    continuity = selection.get("continuity")
+    baseline = selection.get("baseline_state")
+    source_context = (
+        evidence.get("source_daily_context")
+        if isinstance(evidence, Mapping)
+        else None
+    )
+    body = {key: value for key, value in selection.items() if key != "selection_id"}
+    try:
+        selected_at = _utc(selection["selected_at_utc"])
+        source_at = _utc(evidence["source_recorded_at_utc"])
+        broker_at = _utc(broker["observed_at_utc"])
+        cash_at = _utc(broker["cash_observed_at_utc"])
+        ranges = nominee["historical_quantity_ranges"]
+        commissions = nominee["commission_limits_usd"]
+        contract_ids = nominee["contract_ids"]
+        preview_quantities = nominee["preview_quantities"]
+        fills = continuity["inherited_fills"]
+        starting_cash = float(continuity["predecessor_starting_cash_usd"])
+        replay_cash, replay_holdings = _inherited_cash_and_holdings(
+            fills,
+            starting_cash_usd=starting_cash,
+        )
+        broker_positions = {
+            symbol: int(
+                _number(broker["positions"][symbol], name=f"{symbol} position")
+            )
+            for symbol in _V3_SYMBOLS
+        }
+        held_symbol = next(
+            symbol
+            for symbol, quantity in broker_positions.items()
+            if quantity > 0
+        )
+        held_direction = next(
+            direction
+            for direction, symbol in _V3_DIRECTION_SYMBOL.items()
+            if symbol == held_symbol
+        )
+        source_target = continuity["source_target_state"]
+        context_day = date.fromisoformat(str(source_context["trading_day"]))
+        context_as_of = date.fromisoformat(
+            str(source_context["context_as_of_day"])
+        )
+        semantic_valid = bool(
+            selection["run_started_at_utc"] == selected_at.isoformat()
+            and 0
+            <= (selected_at - source_at).total_seconds()
+            <= _SOURCE_MAX_AGE_SECONDS
+            and 0
+            <= (selected_at - broker_at).total_seconds()
+            <= _BROKER_SNAPSHOT_MAX_AGE_SECONDS
+            and 0
+            <= (broker_at - cash_at).total_seconds()
+            <= _BROKER_SNAPSHOT_MAX_AGE_SECONDS
+            and ranges == {"UPRO": [6, 24], "SPXU": [3, 24]}
+            and commissions
+            == {
+                symbol: _tiered_commission_limit(24)
+                for symbol in _V3_SYMBOLS
+            }
+            and set(contract_ids) == set(_V3_SYMBOLS)
+            and all(
+                isinstance(contract_ids[symbol], int)
+                and not isinstance(contract_ids[symbol], bool)
+                and contract_ids[symbol] > 0
+                for symbol in _V3_SYMBOLS
+            )
+            and set(preview_quantities) == set(_V3_SYMBOLS)
+            and all(
+                isinstance(preview_quantities[symbol], int)
+                and not isinstance(preview_quantities[symbol], bool)
+                and int(ranges[symbol][0])
+                <= preview_quantities[symbol]
+                <= int(ranges[symbol][1])
+                for symbol in _V3_SYMBOLS
+            )
+            and nominee["profile_id"] == "tiered_conservative_full_cross"
+            and nominee["pricing_plan"] == "Tiered"
+            and nominee["fixed_entry_notional_usd"] == 900.0
+            and nominee["capital_identity"]
+            == {
+                "starting_cash_identity_usd": 900.0,
+                "fixed_entry_notional_usd": 900.0,
+                "cash_slots": 1,
+                "maximum_gross_purchase_notional_usd": 900.0,
+                "settlement": XSP_V3_IMMEDIATE_PROCEEDS_SETTLEMENT,
+                "unsettled_sale_proceeds_reused": True,
+            }
+            and replay_holdings == broker_positions
+            and abs(replay_cash - float(broker["settled_cash_usd"])) <= 0.02
+            and sum(quantity > 0 for quantity in broker_positions.values()) == 1
+            and continuity["inherited_holding_direction"] == held_direction
+            and baseline == source_target
+            and (
+                source_target is None
+                or (
+                    isinstance(source_target, Mapping)
+                    and source_target["lane"] == "rth"
+                    and str(source_target["direction"]) in _V3_DIRECTION_SYMBOL
+                )
+            )
+            and continuity["inherited_fill_ledger_fingerprint"]
+            == calibration_fingerprint(fills)
+            and source_context["schema"]
+            == XSP_OPENING_EDGE_V3_CONTEXT_STATE_SCHEMA
+            and context_as_of < context_day
+            and context_day == xsp_trading_date(source_at)
+            and _sha256_identity(source_context["state_fingerprint"])
+        )
+    except (KeyError, StopIteration, TypeError, ValueError):
+        semantic_valid = False
+    immediate = (
+        evidence.get("immediate_proceeds")
+        if isinstance(evidence, Mapping)
+        else None
+    )
+    if (
+        selection.get("schema") != XSP_V3_ROTATION_SELECTION_SCHEMA
+        or selection.get("strategy_version") != XSP_OPENING_EDGE_V3_VERSION
+        or selection.get("source_strategy_version")
+        != XSP_OPENING_EDGE_V3_TRANSPORT_VERSION
+        or selection.get("authority") != "selected_live_cash_transport"
+        or selection.get("order_authority") != XSP_V2_TRANSPORT_ORDER_AUTHORITY
+        or selection.get("profitability_clock_started") is not True
+        or selection.get("execution_session") != "RTH"
+        or selection.get("direction_symbols") != _V3_DIRECTION_SYMBOL
+        or selection.get("risk")
+        != {
+            "starting_cash_identity_usd": 900.0,
+            "settlement": XSP_V3_IMMEDIATE_PROCEEDS_SETTLEMENT,
+            "max_drawdown_usd": 135.0,
+            "max_session_loss_usd": 67.5,
+            "gth_execution_allowed": False,
+        }
+        or selection.get("execution") != _v3_execution_contract()
+        or not isinstance(nominee, Mapping)
+        or not isinstance(broker, Mapping)
+        or not str(broker.get("account_id") or "")
+        or broker.get("account_type") != "CASH"
+        or broker.get("open_orders") != []
+        or not isinstance(broker.get("unrelated_positions"), list)
+        or any(
+            not isinstance(row, Mapping)
+            or str(row.get("symbol") or "") in _V3_SYMBOLS
+            for row in broker["unrelated_positions"]
+        )
+        or not isinstance(continuity, Mapping)
+        or set(continuity)
+        != {
+            "schema",
+            "predecessor_schema",
+            "predecessor_selection_id",
+            "predecessor_run_started_at_utc",
+            "predecessor_starting_cash_usd",
+            "inherited_holding_direction",
+            "source_target_state",
+            "inherited_fills",
+            "inherited_fill_ledger_fingerprint",
+        }
+        or continuity.get("schema") != _CONTINUITY_SCHEMA
+        or continuity.get("predecessor_schema")
+        != XSP_V3_TRANSPORT_SELECTION_SCHEMA
+        or not _sha256_identity(continuity.get("predecessor_selection_id"))
+        or not str(continuity.get("predecessor_run_started_at_utc") or "")
+        or not isinstance(evidence, Mapping)
+        or set(evidence)
+        != {
+            "cash_receipt",
+            "preview",
+            "source_checkpoint_id",
+            "source_recorded_at_utc",
+            "source_daily_context",
+            "rth_scope",
+            "immediate_proceeds",
+        }
+        or not _sha256_identity(evidence.get("source_checkpoint_id"))
+        or evidence.get("rth_scope")
+        != {
+            "accepted": True,
+            "historical_trades": 423,
+            "trades_per_year": 141.0,
+            "gth_execution_allowed": False,
+        }
+        or not isinstance(immediate, Mapping)
+        or immediate.get("sha256") != _IMMEDIATE_PROCEEDS_SHA256
+        or immediate.get("official_account_contract_url")
+        != "https://www.interactivebrokers.com.au/en/accounts/configuring-your-account.php"
+        or not _sha256_identity(immediate.get("broker_preview_sha256"))
+        or not semantic_valid
+        or selection.get("selection_id") != calibration_fingerprint(body)
+    ):
+        raise ValueError("invalid immediate-proceeds XSP v3 cash transport")
+    return dict(selection)
+
+
+def load_xsp_v3_transport_selection_from_mapping(
+    selection: Mapping[str, object],
+) -> dict[str, object]:
+    """Validate either immutable v3 cash-selection generation."""
+
+    if selection.get("schema") == XSP_V3_TRANSPORT_SELECTION_SCHEMA:
+        return _load_xsp_v3_initial_selection_from_mapping(selection)
+    if selection.get("schema") == XSP_V3_ROTATION_SELECTION_SCHEMA:
+        return _load_xsp_v3_rotation_selection_from_mapping(selection)
+    raise ValueError("unsupported selected XSP v3 cash transport")

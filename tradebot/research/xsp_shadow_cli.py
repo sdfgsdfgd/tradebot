@@ -49,6 +49,7 @@ from .xsp_live_transport_state import (
     latest_xsp_v3_source_receipt,
     xsp_v2_broker_snapshot,
 )
+from .xsp_live_transport_handoff import handoff_xsp_v3_immediate_proceeds
 from .xsp_live_transport_v3 import (
     load_xsp_v3_transport_selection,
     select_xsp_v3_transport,
@@ -89,6 +90,7 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
         default="db/calibration/xsp_selected_live_transport.json",
     )
     parser.add_argument("--freeze-selected-transport", action="store_true")
+    parser.add_argument("--handoff-immediate-proceeds", action="store_true")
     parser.add_argument("--transport-ranking")
     parser.add_argument("--transport-dwell")
     parser.add_argument("--transport-preview")
@@ -96,11 +98,58 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
         "--transport-cash-receipt",
         default="backtests/xsp/opening_edge_v3_regime_harmony_cash_receipt.json",
     )
+    parser.add_argument(
+        "--transport-immediate-proceeds-receipt",
+        default="backtests/xsp/opening_edge_v3_immediate_proceeds_receipt.json",
+    )
     parser.add_argument("--accept-rth-only-cash-scope", action="store_true")
     args = parser.parse_args(argv)
 
     selected_path = Path(args.selected_run).expanduser()
     selected_transport_path = Path(args.selected_transport).expanduser()
+    if args.freeze_selected_transport and args.handoff_immediate_proceeds:
+        raise ValueError("transport freeze and handoff are mutually exclusive")
+    if args.handoff_immediate_proceeds:
+        if args.mode != "opening-edge-v3" or not selected_transport_path.exists():
+            raise ValueError("immediate-proceeds handoff requires a selected v3 run")
+        from ..client import IBKRClient
+
+        config = auxiliary_client_config(load_config(), 84)
+        if not config.readonly:
+            raise ValueError("transport handoff requires a read-only broker client")
+        client = IBKRClient(config)
+        ledger = LiveCalibrationLedger(args.ledger)
+        predecessor = load_xsp_v3_transport_selection(selected_transport_path)
+        try:
+            successor = handoff_xsp_v3_immediate_proceeds(
+                predecessor=predecessor,
+                records=tuple(ledger.records()),
+                source_receipt=latest_xsp_v3_source_receipt(
+                    tuple(ledger.records())
+                ),
+                broker_snapshot=await xsp_v2_broker_snapshot(
+                    client,
+                    symbols=("UPRO", "SPXU"),
+                ),
+                immediate_proceeds_receipt_path=Path(
+                    args.transport_immediate_proceeds_receipt
+                ).expanduser(),
+                selected_at=datetime.now(timezone.utc),
+            )
+            archive = selected_transport_path.with_name(
+                f"{selected_transport_path.stem}."
+                f"{predecessor['selection_id']}.json"
+            )
+            if archive.exists():
+                if load_xsp_v3_transport_selection(archive) != predecessor:
+                    raise ValueError("selected predecessor archive changed")
+            else:
+                write_xsp_transport_selection(archive, predecessor)
+            write_xsp_transport_selection(selected_transport_path, successor)
+        finally:
+            await client.disconnect()
+        print(json.dumps(successor, allow_nan=False, indent=2, sort_keys=True))
+        return 0
     if args.freeze_selected_transport:
         evidence_paths = tuple(
             Path(value).expanduser()

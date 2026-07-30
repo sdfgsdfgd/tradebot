@@ -2655,6 +2655,101 @@ def test_shadow_cli_freezes_v3_transport_from_one_exact_preview(
     assert json.loads(capsys.readouterr().out) == selection
 
 
+def test_shadow_cli_handoffs_v3_position_without_order_authority(
+    tmp_path,
+    monkeypatch,
+    capsys,
+) -> None:
+    from tradebot.research.xsp_shadow_cli import _main_async
+
+    captured = {"writes": []}
+    ledger = tmp_path / "ledger.jsonl"
+    ledger.write_text("", encoding="utf-8")
+    selected = tmp_path / "selected.json"
+    selected.write_text("{}", encoding="utf-8")
+    capability = tmp_path / "immediate.json"
+    capability.write_text("{}", encoding="utf-8")
+    predecessor = {
+        "selection_id": "p" * 64,
+        "schema": "xsp.opening-edge-v3-upro-spxu-selected-run.v1",
+    }
+    successor = {
+        "selection_id": "s" * 64,
+        "schema": "xsp.opening-edge-v3-upro-spxu-selected-run.v2",
+    }
+
+    class _Client:
+        def __init__(self, config):
+            captured["readonly"] = config.readonly
+
+        async def disconnect(self):
+            captured["disconnected"] = True
+
+    monkeypatch.setenv("IBKR_READONLY", "1")
+    monkeypatch.setattr("tradebot.client.IBKRClient", _Client)
+    monkeypatch.setattr(
+        "tradebot.research.xsp_shadow_cli.load_xsp_v3_transport_selection",
+        lambda path: predecessor if path == selected else None,
+    )
+    monkeypatch.setattr(
+        "tradebot.research.xsp_shadow_cli.latest_xsp_v3_source_receipt",
+        lambda records: {"checkpoint_id": "source", "records": len(records)},
+    )
+
+    async def _broker(_client, **kwargs):
+        captured["broker_symbols"] = kwargs["symbols"]
+        return {"account_id": "DU123"}
+
+    def _handoff(**kwargs):
+        captured.update(kwargs)
+        return successor
+
+    monkeypatch.setattr(
+        "tradebot.research.xsp_shadow_cli.xsp_v2_broker_snapshot",
+        _broker,
+    )
+    monkeypatch.setattr(
+        "tradebot.research.xsp_shadow_cli.handoff_xsp_v3_immediate_proceeds",
+        _handoff,
+    )
+    monkeypatch.setattr(
+        "tradebot.research.xsp_shadow_cli.write_xsp_transport_selection",
+        lambda path, value: captured["writes"].append((path, value)),
+    )
+
+    assert (
+        asyncio.run(
+            _main_async(
+                (
+                    "--mode",
+                    "opening-edge-v3",
+                    "--ledger",
+                    str(ledger),
+                    "--selected-transport",
+                    str(selected),
+                    "--handoff-immediate-proceeds",
+                    "--transport-immediate-proceeds-receipt",
+                    str(capability),
+                )
+            )
+        )
+        == 0
+    )
+    archive = selected.with_name(
+        f"{selected.stem}.{predecessor['selection_id']}.json"
+    )
+    assert captured["readonly"] is True
+    assert captured["broker_symbols"] == ("UPRO", "SPXU")
+    assert captured["predecessor"] == predecessor
+    assert captured["immediate_proceeds_receipt_path"] == capability
+    assert captured["writes"] == [
+        (archive, predecessor),
+        (selected, successor),
+    ]
+    assert captured["disconnected"] is True
+    assert json.loads(capsys.readouterr().out) == successor
+
+
 def test_shadow_cli_selected_transport_requires_explicit_writable_broker(
     tmp_path,
     monkeypatch,
