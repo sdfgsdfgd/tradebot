@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from copy import deepcopy
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -36,6 +36,7 @@ from tradebot.research.xsp_live_transport_runtime import (
     xsp_transport_risk_state,
 )
 from tradebot.engines.execution import execution_policy_contract
+from tradebot.engines.market import xsp_rth_evaluation_slots
 from tradebot.research.xsp_opening_edge_v3 import XSP_OPENING_EDGE_V3_VERSION
 
 
@@ -534,6 +535,110 @@ def test_v3_cash_equity_starts_one_usd_profitability_clock(
         "eligible_sessions_incomplete",
         "net_not_positive",
     ]
+
+
+def test_v3_selection_owns_all_usd_milestones_without_preselection_leakage(
+    tmp_path: Path,
+) -> None:
+    selection = _v3_selection(tmp_path)
+    policy = xsp_v3_transport_profitability_policy(selection)
+    baseline = xsp_transport_cash_equity(
+        selection=selection,
+        risk_state=xsp_transport_risk_state(
+            selection=selection,
+            records=(),
+            observed_at=OBSERVED_AT,
+            liquidation_bids={},
+        ),
+        reconciled=True,
+    )
+    ledger = LiveCalibrationLedger(tmp_path / "v3-cash-milestones.jsonl")
+    first_slot = xsp_rth_evaluation_slots(date(2026, 7, 29))[0]
+    ledger.checkpoint(
+        evaluation_as_of=first_slot,
+        strategy_id=XSP_OPENING_EDGE_V3_VERSION,
+        strategy_version=XSP_V3_TRANSPORT_EXECUTION_VERSION,
+        trading_date="2026-07-29",
+        session="RTH",
+        status="EVALUATED",
+        evidence={
+            "selected_cash_equity": {
+                **baseline,
+                "run_id": "preselection-run",
+                "config_fingerprint": "preselection-run",
+                "cumulative_gross_usd": 1_001.0,
+                "cumulative_cost_usd": 1.0,
+                "cumulative_net_usd": 1_000.0,
+                "cumulative_realized_net_usd": 1_000.0,
+                "closed_trades": 10,
+                "gross_wins_usd": 1_001.0,
+                "top_five_gross_wins_usd": 400.4,
+            },
+        },
+        recorded_at=first_slot,
+    )
+
+    days = (
+        date(2026, 7, 29),
+        date(2026, 7, 30),
+        date(2026, 7, 31),
+        date(2026, 8, 3),
+        date(2026, 8, 4),
+        date(2026, 8, 5),
+    )
+    for day_index, trading_day in enumerate(days):
+        slots = xsp_rth_evaluation_slots(trading_day)
+        for slot_index, slot in enumerate(slots):
+            if slot.astimezone(timezone.utc) < SELECTED_AT:
+                continue
+            complete = slot_index == len(slots) - 1
+            gross = 12.0 * (day_index + int(complete))
+            cost = 2.0 * (day_index + int(complete))
+            equity = {
+                **baseline,
+                "cumulative_gross_usd": gross,
+                "cumulative_cost_usd": cost,
+                "cumulative_net_usd": gross - cost,
+                "cumulative_realized_net_usd": gross - cost,
+                "session_gross_usd": 12.0 if complete else 0.0,
+                "session_cost_usd": 2.0 if complete else 0.0,
+                "session_net_usd": 10.0 if complete else 0.0,
+                "closed_trades": 2 * (day_index + int(complete)),
+                "gross_wins_usd": gross,
+                "top_five_gross_wins_usd": 4.8 * (
+                    day_index + int(complete)
+                ),
+            }
+            ledger.checkpoint(
+                evaluation_as_of=slot,
+                strategy_id=XSP_OPENING_EDGE_V3_VERSION,
+                strategy_version=XSP_V3_TRANSPORT_EXECUTION_VERSION,
+                trading_date=trading_day.isoformat(),
+                session="RTH",
+                status="EVALUATED",
+                evidence={"selected_cash_equity": equity},
+                recorded_at=slot,
+            )
+
+    receipt = ledger.xsp_profitability_receipt(
+        policy=policy,
+        as_of=xsp_rth_evaluation_slots(days[-1])[-1] + timedelta(minutes=2),
+    )
+
+    assert receipt["status"] == "PASSED"
+    assert receipt["policy"]["run_id"] == selection["selection_id"]
+    assert receipt["clock"]["coverage_broken"] is False
+    assert receipt["clock"]["complete_sessions"] == 5
+    assert receipt["economics"]["net_usd"] == 60.0
+    assert receipt["milestones"]["24h"]["economics"]["net_usd"] == 20.0
+    assert receipt["milestones"]["48h"]["economics"]["net_usd"] == 30.0
+    assert (
+        receipt["milestones"]["five_session_week"]["economics"]["net_usd"]
+        == 60.0
+    )
+    assert all(
+        milestone["passed"] for milestone in receipt["milestones"].values()
+    )
 
 
 def test_v3_selection_rejects_a_higher_broker_commission_bound(
