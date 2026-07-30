@@ -487,8 +487,9 @@ def xsp_execution_state_context(
         if isinstance(paired, Mapping)
         else None
     )
+    signal_session = "RTH" if session == "CURB" else session
     observation = (
-        observations.get(session.lower())
+        observations.get(signal_session.lower())
         if isinstance(observations, Mapping)
         else None
     )
@@ -513,7 +514,7 @@ def xsp_execution_state_context(
         else ""
     )
     if (
-        session not in {"RTH", "GTH"}
+        session not in {"RTH", "GTH", "CURB"}
         or not isinstance(observation, Mapping)
         or observation.get("schema") != "spot.signal-snapshot.v1"
         or not signal_bar_ts
@@ -531,6 +532,7 @@ def xsp_execution_state_context(
         "source_checkpoint_id": source_receipt.get("checkpoint_id"),
         "source_recorded_at_utc": source_receipt.get("recorded_at_utc"),
         "session": session,
+        **({"signal_session": signal_session} if session == "CURB" else {}),
         "signal_bar_ts": signal_bar_ts,
         "signal_snapshot_age_bars": observation.get(
             "signal_snapshot_age_bars"

@@ -1,0 +1,76 @@
+{
+  "schema": "xsp.opening-edge-v3-post-close-stale-source-receipt.v1",
+  "authority": "causal_incident_and_repair_evidence",
+  "trading_date": "2026-07-30",
+  "selection_id": "daf1609b10b98ae2b10393097183bccdbc7629a2afcb474b79716ad805975b7a",
+  "selection_sha256": "a5891868d77f2e722d54de28d1f483bb4bcf70a059baaa72f2963659e6787e15",
+  "incident": {
+    "error": "ValueError: live transport requires a fresh post-selection source",
+    "source_checkpoints": [
+      {
+        "checkpoint_id": "cff4e584b879958eade09b36444b1a575913cb8839d5191df0a448d69b235610",
+        "recorded_at_utc": "2026-07-30T20:12:02.474914+00:00",
+        "session": "RTH",
+        "status": "STALE_DATA",
+        "latest_xsp_close_utc": "2026-07-30T20:00:00+00:00"
+      },
+      {
+        "checkpoint_id": "00968c3f2b5760a10830d3e215183e023555ba08d77f87ac9df951df299b5115",
+        "recorded_at_utc": "2026-07-30T20:17:02.439794+00:00",
+        "session": "CURB",
+        "status": "STALE_DATA",
+        "latest_xsp_close_utc": "2026-07-30T20:00:00+00:00"
+      }
+    ],
+    "broker_positions_after": [],
+    "broker_open_orders_after": [],
+    "submitted_orders": 0,
+    "profitability_prefix": "INELIGIBLE",
+    "prefix_reason": "required 16:12 and 16:17 selected-execution checkpoints are absent and cannot be backfilled"
+  },
+  "repair": {
+    "source_freshness_relaxed": false,
+    "stale_source_can_open_or_reverse": false,
+    "stale_source_can_buy": false,
+    "stale_source_can_journal_flat": true,
+    "stale_source_can_liquidate_incumbent_at_time_boundary": true,
+    "curb_signal_attribution": "final_RTH_directional_anatomy",
+    "expected_production_replay": [
+      {
+        "source_checkpoint_id": "cff4e584b879958eade09b36444b1a575913cb8839d5191df0a448d69b235610",
+        "transition_id": "38e63d12502ecb5129fca4ffce172b60776240ce10f6fbc7d1931a043175f2a3",
+        "status": "UNCHANGED",
+        "reason": "source_not_executable",
+        "target_symbol": null,
+        "leg": null,
+        "submitted_orders": 0
+      },
+      {
+        "source_checkpoint_id": "00968c3f2b5760a10830d3e215183e023555ba08d77f87ac9df951df299b5115",
+        "transition_id": "ae36ff2fb33448d361f555f3d9eff6a3fa32d9bddce7eaee3785d72930aeb971",
+        "status": "UNCHANGED",
+        "reason": "source_not_executable",
+        "target_symbol": null,
+        "leg": null,
+        "submitted_orders": 0
+      }
+    ]
+  },
+  "verification": {
+    "focused_and_architecture_tests_passed": 153,
+    "full_tests_passed": 986,
+    "full_tests_deselected": 4,
+    "ruff": "pass",
+    "diff_check": "pass",
+    "central_transport_module_lines": 1000
+  },
+  "boundaries": {
+    "strategy_changed": false,
+    "direction_or_admission_changed": false,
+    "sizing_changed": false,
+    "execution_ladder_changed": false,
+    "settlement_changed": false,
+    "order_authority_changed": false,
+    "new_clean_selection_required": true
+  }
+}

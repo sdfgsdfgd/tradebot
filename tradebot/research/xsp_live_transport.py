@@ -711,7 +711,7 @@ def _post_selection_target(
     source_receipt: Mapping[str, object],
     *,
     observed_at: datetime,
-) -> tuple[str | None, str | None]:
+) -> tuple[str | None, str | None, bool]:
     contract = xsp_transport_contract(selection)
     direction_symbols = contract["direction_symbols"]
     assert isinstance(direction_symbols, Mapping)
@@ -723,19 +723,19 @@ def _post_selection_target(
         observed_at <= selected_at
         or source_at <= selected_at
         or (observed_at - source_at).total_seconds() > _SOURCE_MAX_AGE_SECONDS
-        or source_receipt.get("evaluation_status") != "EVALUATED"
-        or source_receipt.get("freshness_ok") is not True
         or source_session not in {"GTH", "RTH", "CURB"}
         or source_session != observed_session
         or source_receipt.get("order_authority") != "none"
         or not isinstance(source_receipt.get("paired_equity"), Mapping)
     ):
         raise ValueError("live transport requires a fresh post-selection source")
+    if (source_receipt.get("evaluation_status"), source_receipt.get("freshness_ok")) != ("EVALUATED", True):
+        return None, None, False
     _, raw_target = xsp_v2_position_state(source_receipt["paired_equity"])
     if source_session != "RTH":
-        return None, None
+        return None, None, True
     if raw_target is None:
-        return None, None
+        return None, None, True
     if raw_target == selection.get("baseline_state"):
         continuity = selection.get("continuity")
         if (
@@ -743,17 +743,13 @@ def _post_selection_target(
             or not isinstance(continuity, Mapping)
             or raw_target != continuity.get("source_target_state")
         ):
-            return None, None
+            return None, None, True
         direction = str(raw_target.get("direction") or "")
-        return direction, direction_symbols.get(direction)
+        return direction, direction_symbols.get(direction), True
     if raw_target.get("lane") != "rth":
         raise ValueError("GTH execution is forbidden")
-    direction = (
-        str(raw_target.get("direction"))
-        if xsp_signal_utc(raw_target.get("entry_time")) > selected_at
-        else None
-    )
-    return direction, direction_symbols.get(direction)
+    direction = str(raw_target.get("direction")) if xsp_signal_utc(raw_target.get("entry_time")) > selected_at else None
+    return direction, direction_symbols.get(direction), True
 
 
 def _cash_pair_holdings(
@@ -793,10 +789,8 @@ def project_xsp_transport_plan(
     assert isinstance(symbols, Sequence)
     plan_schema = str(contract["plan_schema"])
     observed_utc = _utc(observed_at)
-    target_direction, target_symbol = _post_selection_target(
-        selected,
-        source_receipt,
-        observed_at=observed_utc,
+    target_direction, target_symbol, source_executable = _post_selection_target(
+        selected, source_receipt, observed_at=observed_utc,
     )
     source_session = str(source_receipt["session"])
     signal_context = xsp_execution_signal_context(source_receipt["paired_equity"])
@@ -822,6 +816,8 @@ def project_xsp_transport_plan(
         "selection_id": selected["selection_id"],
         "source_checkpoint_id": source_receipt.get("checkpoint_id"),
         "source_session": source_session,
+        "source_evaluation_status": source_receipt.get("evaluation_status"),
+        "source_freshness_ok": source_receipt.get("freshness_ok"),
         "target_direction": target_direction,
         "target_symbol": target_symbol,
         "entry_window_open": entry_window_open,
@@ -873,7 +869,11 @@ def project_xsp_transport_plan(
         return {
             **base,
             "status": "UNCHANGED",
-            "reason": "target_already_owned" if held else "flat_target",
+            "reason": (
+                "target_already_owned" if held
+                else "flat_target" if source_executable
+                else "source_not_executable"
+            ),
             "leg": None,
         }
     if not entry_window_open:

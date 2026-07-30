@@ -2120,6 +2120,93 @@ def test_curb_checkpoint_can_only_liquidate_incumbent(
     assert flat["reason"] == "flat_target"
 
 
+@pytest.mark.parametrize(
+    ("session", "observed_at"),
+    [
+        ("RTH", datetime(2026, 7, 29, 20, 12, tzinfo=timezone.utc)),
+        ("CURB", datetime(2026, 7, 29, 20, 17, tzinfo=timezone.utc)),
+    ],
+)
+def test_stale_post_close_source_is_journaled_fail_closed(
+    tmp_path: Path,
+    session: str,
+    observed_at: datetime,
+) -> None:
+    source = _source(
+        None,
+        recorded_at=observed_at - timedelta(seconds=30),
+        session="RTH" if session == "CURB" else session,
+    )
+    source["session"] = session
+    source["evaluation_status"] = "STALE_DATA"
+    source["freshness_ok"] = False
+
+    plan = project_xsp_transport_plan(
+        selection=_v3_selection(tmp_path),
+        source_receipt=source,
+        observed_at=observed_at,
+        positions={"UPRO": 0, "SPXU": 0},
+        open_orders=[],
+        settled_cash_usd=1_200.0,
+        quotes={},
+    )
+
+    assert plan["status"] == "UNCHANGED"
+    assert plan["reason"] == "source_not_executable"
+    assert plan["target_direction"] is None
+    assert plan["target_symbol"] is None
+    assert plan["source_evaluation_status"] == "STALE_DATA"
+    assert plan["source_freshness_ok"] is False
+    assert plan["execution_state_context"]["schema"] == (
+        "xsp.execution-state-context.v1"
+    )
+    if session == "CURB":
+        assert plan["execution_state_context"]["session"] == "CURB"
+        assert plan["execution_state_context"]["signal_session"] == "RTH"
+    assert plan["leg"] is None
+    assert plan["submitted_orders"] == 0
+
+
+def test_stale_post_close_source_can_only_liquidate_incumbent(
+    tmp_path: Path,
+) -> None:
+    observed_at = datetime(2026, 7, 29, 20, 12, tzinfo=timezone.utc)
+    source = _source(
+        _position(
+            "up",
+            entry_time=SELECTED_AT + timedelta(minutes=2),
+        ),
+        recorded_at=observed_at - timedelta(seconds=30),
+    )
+    source["evaluation_status"] = "STALE_DATA"
+    source["freshness_ok"] = False
+
+    plan = project_xsp_transport_plan(
+        selection=_v3_selection(tmp_path),
+        source_receipt=source,
+        observed_at=observed_at,
+        positions={"UPRO": 6, "SPXU": 0},
+        open_orders=[],
+        settled_cash_usd=300.0,
+        quotes={
+            "UPRO": {
+                "bid": 135.0,
+                "ask": 135.05,
+                "age_seconds": 0.5,
+                "market_data_type": 1,
+            }
+        },
+    )
+
+    assert plan["status"] == "ACTIONABLE"
+    assert plan["reason"] == "rth_end_liquidation"
+    assert plan["target_direction"] is None
+    assert plan["target_symbol"] is None
+    assert plan["leg"]["action"] == "SELL"
+    assert plan["leg"]["symbol"] == "UPRO"
+    assert plan["leg"]["quantity"] == 6
+
+
 def test_early_close_uses_the_same_preclose_liquidation_boundary(
     tmp_path: Path,
 ) -> None:
