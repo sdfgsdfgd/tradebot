@@ -1,0 +1,214 @@
+{
+  "schema": "xsp.opening-edge-v3-opening-microtape-receipt.v1",
+  "authority": "research_and_live_attribution_only",
+  "generated_at_utc": "2026-07-30T14:42:06Z",
+  "selection": {
+    "selection_id": "d07262363fbaba72390639ad9c228ca27ba7a3e748e9e04af84589c7e4be203b",
+    "strategy": "Opening Edge v3 - Regime Harmony 24/5",
+    "cash_scope": "rth_cash_pair_limit_only",
+    "up_symbol": "UPRO",
+    "down_symbol": "SPXU",
+    "pricing_plan": "Tiered",
+    "fixed_notional_usd": 900.0,
+    "started_at_utc": "2026-07-30T13:44:47.029993Z"
+  },
+  "actual_selected_run": {
+    "position": null,
+    "submitted_orders": 0,
+    "fills": 0,
+    "closed_trades": 0,
+    "net_usd": 0.0,
+    "max_drawdown_usd": 0.0,
+    "safety_breaches": 0,
+    "profitability_clock": "ACTIVE"
+  },
+  "opening_microtape": {
+    "q_directory": "/var/tmp/tradebot-xsp-v3-upro-spxu-opening-microtape-evidence-20260730-r1",
+    "started_at_utc": "2026-07-30T13:25:00.898506Z",
+    "ended_at_utc": "2026-07-30T14:30:00.142211Z",
+    "duration_minutes": 65.0,
+    "read_only": true,
+    "order_authority": "none",
+    "submitted_orders": 0,
+    "resumed": false,
+    "partial_tail_repaired": false,
+    "capture": {
+      "bytes": 862453932,
+      "lines": 2513282,
+      "sha256": "7375d85ef71efbd7cfdde4e2e572bb6c1d15cbf7b35219f880289307bca433c5",
+      "mode": "0444"
+    },
+    "summary": {
+      "bytes": 2910,
+      "sha256": "50da564cdf6dc3cfb1a17a68c0ea4220ead64c54ac22a0fe439a8a092e321adb",
+      "mode": "0444"
+    },
+    "events_by_symbol": {
+      "UPRO": {
+        "quote": 14280,
+        "bid_ask": 507816,
+        "trade": 507816
+      },
+      "SPXU": {
+        "quote": 13879,
+        "bid_ask": 734745,
+        "trade": 734745
+      }
+    },
+    "broker_messages": {
+      "classification": "informational_farm_status_only",
+      "codes": [
+        2104,
+        2106,
+        2108,
+        2119,
+        2158
+      ]
+    }
+  },
+  "strictly_prior_daily_context": {
+    "directions": {
+      "5_session": "down",
+      "10_session": "down",
+      "21_session": "down",
+      "42_session": "down",
+      "63_session": "up",
+      "84_session": "up"
+    },
+    "fast_direction": "down",
+    "soft_direction": "down",
+    "mid_direction": "up",
+    "hard_direction": "up",
+    "transition": "transition_down",
+    "damage_phase": "down",
+    "true_range_phase": "high_up",
+    "true_range_velocity": 0.00388575,
+    "true_range_acceleration": 0.00404805,
+    "drawdown_84_percent": -3.814,
+    "interpretation": "short_and_mid_horizon_correction_inside_longer_hard_up_climate"
+  },
+  "news_attribution": {
+    "authority": "attribution_only",
+    "signal_as_of_utc": "2026-07-30T14:07:50Z",
+    "direction": -1,
+    "impact": 84,
+    "confidence": 0.98,
+    "signed_pressure": -0.8232,
+    "pressure_delta": 0.0294,
+    "pressure_velocity_per_hour": 0.005704,
+    "change": "weakening",
+    "interpretation": "strongly_bearish_level_with_easing_bearish_derivative"
+  },
+  "blocked_proposals": [
+    {
+      "source_checkpoint_sha256": "b6f8abd8f30dc62b33de6771138724e5bd6f2109bc9fc3e3176a9740a098a875",
+      "signal_time_utc": "2026-07-30T14:05:00Z",
+      "evaluated_at_utc": "2026-07-30T14:07:00Z",
+      "direction": "up",
+      "admitted": false,
+      "blocked_by": "directional_impulse_admission:block:atr_velocity",
+      "impulse": {
+        "observed_horizons": 3,
+        "coherence": 1.0,
+        "direction_score": 0.2586668,
+        "smoothed_direction_score": 0.2863052,
+        "conviction": 0.2586668,
+        "atr_fast_percent": 0.1412833,
+        "atr_velocity_percent": -0.0095247,
+        "atr_acceleration_percent": 0.0397674,
+        "retrace_atr": 3.293918,
+        "slopes_percent": {
+          "1_bar": 0.004048,
+          "3_bar": 0.0567667,
+          "6_bar": 0.0700062
+        },
+        "slope_velocities": {
+          "1_bar": -0.0864399,
+          "3_bar": -0.0375035
+        },
+        "six_bar_efficiency": 0.85267
+      },
+      "live_book": {
+        "observed_at_utc": "2026-07-30T14:07:00.137Z",
+        "symbol": "UPRO",
+        "quantity": 6,
+        "bid": 135.85,
+        "ask": 135.9,
+        "spread": 0.05,
+        "optimistic_limit": 135.86,
+        "mid_limit": 135.88,
+        "aggressive_limit": 135.89,
+        "cross_limit": 135.9
+      },
+      "frozen_15_minute_outcome": {
+        "xsp_close_points": -0.9,
+        "exit_bid": 135.59,
+        "full_cross_gross_usd": -1.86,
+        "entry_commission_bound_usd": 0.36947525,
+        "exit_commission_bound_usd": 0.45034925,
+        "full_cross_net_usd": -2.6798245,
+        "optimistic_entry_net_usd": -2.4398245
+      }
+    },
+    {
+      "source_checkpoint_sha256": "43f74a4594a06fa61162c2e8450a1b998033507f78f9676a19e414e9048f8b9f",
+      "signal_time_utc": "2026-07-30T14:20:00Z",
+      "evaluated_at_utc": "2026-07-30T14:22:00Z",
+      "direction": "down",
+      "admitted": false,
+      "blocked_by": "directional_impulse_admission:block:down_retrace",
+      "impulse": {
+        "observed_horizons": 3,
+        "coherence": 0.6667,
+        "direction_score": -0.1256277,
+        "conviction": 0.0837518,
+        "atr_velocity_percent": 0.0113031,
+        "atr_acceleration_percent": 0.0252175,
+        "retrace_atr": 1.2122601,
+        "required_down_retrace_atr": 1.25,
+        "slopes_percent": {
+          "1_bar": -0.0243109,
+          "3_bar": -0.0404787,
+          "6_bar": 0.0081095
+        },
+        "slope_velocities": {
+          "1_bar": -0.0486276,
+          "3_bar": -0.0094438,
+          "6_bar": -0.0234642
+        }
+      },
+      "live_book": {
+        "observed_at_utc": "2026-07-30T14:22:00.109Z",
+        "symbol": "SPXU",
+        "quantity": 23,
+        "bid": 38.6,
+        "ask": 38.61,
+        "spread": 0.01,
+        "optimistic_limit": 38.6,
+        "mid_limit": 38.61,
+        "aggressive_limit": 38.61,
+        "cross_limit": 38.61
+      },
+      "frozen_15_minute_outcome": {
+        "xsp_close_points": 0.62,
+        "exit_bid": 38.51,
+        "full_cross_gross_usd": -2.3,
+        "entry_commission_bound_usd": 0.42392625,
+        "exit_commission_bound_usd": 0.45034925,
+        "full_cross_net_usd": -3.1742755,
+        "optimistic_entry_net_usd": -2.9442755
+      }
+    }
+  ],
+  "verdict": {
+    "raw_turns_observed": 2,
+    "admitted_transitions": 0,
+    "vetoes_with_negative_frozen_15_minute_outcomes": 2,
+    "interpretation": "both causal vetoes protected capital over their frozen 15-minute outcomes, but n=2 is attribution evidence only",
+    "strategy_changed": false,
+    "gate_changed": false,
+    "crown_changed": false,
+    "order_authority_changed": false,
+    "counterfactual_only": true
+  }
+}
