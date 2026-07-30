@@ -1,0 +1,43 @@
+{
+  "schema": "xsp.opening-edge-v3-next-rth-reset-quarantine-preregistration.v1",
+  "frozen_at_utc": "2026-07-30T21:02:54Z",
+  "authority": "pre_outcome_operational_safety_only",
+  "order_authority": "none",
+  "submitted_orders": 0,
+  "supersedes": {
+    "bundle_manifest_sha256": "98565f714df2ae8ce17822e09f442e22f21567e1e48abbab5bf3f117f2db2841",
+    "preregistration_sha256": "159501bdce22a4273f2d6837093e4c0a73795a84de2e867e17c07f2be645d474"
+  },
+  "discovered_defect": {
+    "predecessor_selection_id": "daf1609b10b98ae2b10393097183bccdbc7629a2afcb474b79716ad805975b7a",
+    "predecessor_profitability_eligible": false,
+    "problem": "The original pre-selection failure branch restored writable cadence around the permanently evidence-ineligible predecessor. A later admitted RTH direction could therefore consume capital under an identity that can never earn the required profitability prefix."
+  },
+  "frozen_correction": {
+    "pre_selection_failure": "Atomically replace the writable selected-live drop-in with a read-only no-selection observer drop-in, reload systemd, and preserve the normal five-minute source cadence.",
+    "selection_success": "Install the exact tracked writable drop-in before the first selected recurrence, then require flat holdings, a null leg, and zero submitted orders before restoring cadence.",
+    "post_selection_failure": "Keep cadence disabled for exact reconciliation, unchanged from the predecessor transaction.",
+    "selection_file": "Preserve the predecessor or newly frozen successor intact; never move, rewrite, or delete it as a rollback mechanism."
+  },
+  "required_proofs": [
+    "The observation-only drop-in resolves IBKR_READONLY=1 and an explicitly absent selected-transport path.",
+    "The writable drop-in remains byte-identical to deploy/systemd/tradebot-xsp-shadow-selected-live.conf.",
+    "A synthetic pre-selection failure preserves source cadence while making selected transport loading impossible.",
+    "A synthetic success restores writable selected cadence only after a new immutable selection exists.",
+    "Any failure after selection freezes leaves recurring cadence disabled."
+  ],
+  "unchanged": [
+    "Opening Edge v3 signal, state, admission, lifecycle, RTH and GTH semantics",
+    "UPRO/SPXU nominee, fixed notional, cash, Tiered commission and risk limits",
+    "shared patient-to-relentless execution ladder and immediate-proceeds settlement",
+    "natural 20:22 ET GTH proof and July 31 09:39 ET reset clock",
+    "no-backfill, no-forced-order and GTH-no-capital boundaries"
+  ],
+  "outcome_state_at_freeze": {
+    "next_rth_source": null,
+    "next_rth_preview": null,
+    "successor_selection": null,
+    "live_order": null,
+    "profitability_clock": "NOT_STARTED"
+  }
+}
