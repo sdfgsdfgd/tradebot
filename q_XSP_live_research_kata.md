@@ -44,7 +44,7 @@ output belongs in commit/final verification, not in this management brain.
 | Order/capital authority | `none` |
 | Profitability clock | v3 `NOT_STARTED`; predecessor evidence does not transfer. The selected v3 runtime is now prepared to anchor the shared `24h→48h→five-session` verifier from reconciled USD fills at its first post-selection RTH slot |
 | Execution verdict | `HOLD`; v3 RTH UPRO/SPXU full-cross is positive in recent/every year/full under Fixed (`+$337.06`, PF `1.245`, DD `$135.31`) and Tiered (`+$911.87`, PF `1.833`, DD `$102.68`). Exact one-extra-bar Tiered latency parity also passes at `+$721.71/422`, PF `1.626`, DD `$110.98`, both directions and every period positive. The July 29 preview proved books/cash but returned Fixed `$1.000018/$1.000069` commissions rather than Tiered limits |
-| Next irreversible evidence | repeat the byte-identical zero-order UPRO/SPXU preview at `2026-07-30 09:35 ET`. Immutable one-shot `0680a00d…` attempts the atomic selector at `09:39 ET` only when the preview explicitly passes Tiered with zero submissions; any failed condition remains `HOLD` |
+| Next irreversible evidence | repeat the byte-identical zero-order UPRO/SPXU preview at `2026-07-30 09:35 ET`. Immutable one-shot `0680a00d…` attempts the atomic selector at `09:39 ET` only when the preview explicitly passes Tiered with zero submissions; before capital authority, independently confirm IB Gateway's own `Read-Only API` setting is off rather than inferring it from tradebot's writable drop-in. Any failed condition remains `HOLD` |
 | First active work | preserve continuous v3 proposal/gate/position/MFE/MAE/flip/exit observation at low-frequency event boundaries; then audit the July 30 Tiered preview/selector transaction. News remains attribution-only and never drives work cadence |
 
 ### Immediate sequence
@@ -557,6 +557,11 @@ directional consistency is proven.
     `09:35 ET` receipt passes its coarse Tiered/zero-order condition; the
     selector independently revalidates every full gate. Selection baseline and
     post-selection timestamp checks forbid buying any pre-authority signal.
+    Tradebot's selection-bound `IBKR_READONLY=0` proves only the client-side
+    permission. Before capital authority, independently confirm that IB
+    Gateway's encrypted `API → Settings → Read-Only API` control is off; a
+    successful what-if is not proof because it can pass while live submission
+    remains disabled.
     July 29 evidence-only finalizer `7fb6adae…` is rejected as an authority:
     it required an `RTH` checkpoint at `16:17 ET`, while the canonical exchange
     clock correctly labels `16:15..17:00` as `CURB`. Preserve the failed frozen
@@ -796,6 +801,7 @@ and
 | E-302 | terminal deployment exposed one service-status mismatch after the correct `CLOSED` row was already persisted: the CLI returned `2` for a normal `closed_calendar` no-op. Published/deployed `b27bf72…` treats only v2/v3 `CLOSED` skips `run_not_started/closed_calendar` as success while stale/unsupported data still fail; all `961` tests pass, q advanced `92→93` with exit `0`, owner `643b6a…`, no broker request, selection, or order. Quarantined outcome-aware UPRO replay maps the sole July 29 long to `6` shares, `-$8.88` gross and `-$10.90` Fixed / `-$9.64` conditional Tiered after cost; it is forensic attribution only and cannot qualify selection or start a clock |
 | E-303 | the first natural post-recovery GTH recurrences at `20:22/20:27 ET` exited `0` and advanced q to `95` checkpoints. They incorporated exact July 29 OHLC under daily-context fingerprint `594b7d…`, retained explicit `prior_xsp_close_anchored_spy_returns` provenance plus fresh SPY OVERNIGHT request/tape identities, and persisted TA/news evidence. The initial raw down state had only `1/3` required horizons and therefore failed underwarm admission: no proposal, position, second trade, selection, writable drop-in, or order |
 | E-304 | v3's frozen cash receipt covered full-spread/T+1 and scheduled-exit stress but not entry latency. Immutable first gate `3abac5a8…` conservatively returned `HOLD` only because one delayed historical UPRO entry derived `5` shares outside runtime range `6..24`, while every economic check passed. Runtime-parity successor `716d64c5…` preserved that failure and applied the already-centralized fail-closed rule: reject only that entry and allow later causal retry. One-extra-bar Tiered stress then retained `422/423` trades, recent `+$33.89`, annual `+$183.72/+$160.20/+$377.80`, full `+$721.71`, PF `1.626`, DD `$110.98`, both directions positive, zero unavailable/cross-date fills, and frozen ranges. Clock audit `084d5586…` confirms `411/412` matched entries moved exactly `+5m`, one sell-before-buy entry already carried the extra bar, and none moved earlier. Receipt `opening_edge_v3_regime_harmony_entry_latency_receipt.json` is execution evidence only; selection remains `HOLD` pending the unchanged July 30 effective-Tiered preview |
+| E-305 | pre-live permission audit separated two independent controls: the deployed selector can install tradebot's explicit `IBKR_READONLY=0` drop-in, but q reaches the Mac Gateway through the existing tunnel and the Gateway's own `Read-Only API` value lives in encrypted `ibg.xml`. The settings dialog was opened read-only and closed with `Cancel`; macOS accessibility exposed the API tree but not the selected checkbox pane, so no value is fabricated and no setting changed. One direct visual confirmation remains mandatory before capital authority; no order-shaped probe, Gateway restart, selection, order, or clock was created |
 
 ### Decision anchors
 
