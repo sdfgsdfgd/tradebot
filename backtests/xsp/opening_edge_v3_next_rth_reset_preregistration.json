@@ -1,0 +1,45 @@
+{
+  "schema": "xsp.opening-edge-v3-next-rth-reset-preregistration.v1",
+  "preregistered_at_utc": "2026-07-30T20:40:30Z",
+  "authority": "future_rth_selection_transaction_only",
+  "scheduled_at_et": "2026-07-31T09:39:00-04:00",
+  "predecessor": {
+    "selection_id": "daf1609b10b98ae2b10393097183bccdbc7629a2afcb474b79716ad805975b7a",
+    "selection_file_sha256": "a5891868d77f2e722d54de28d1f483bb4bcf70a059baaa72f2963659e6787e15",
+    "required_state": "flat_zero_economics_safe_but_profitability_prefix_ineligible"
+  },
+  "required_preconditions": [
+    "The deployed 20:22 ET GTH recurrence exists under the predecessor, has no executable leg, and submitted zero orders.",
+    "q is clean and synchronized with origin/main; the centralized runtime and reset-owner hashes are unchanged.",
+    "The observer timer is active, the service is idle, and the writable RTH drop-in is already installed.",
+    "A dedicated current-RTH source checkpoint is generated read-only with no selected transport.",
+    "Fresh type-1 SMART and direct-ARCA UPRO/SPXU books, quote-derived whole-share quantities, settled cash, and non-transmitting Tiered what-ifs pass.",
+    "The source is flat, causal, current-day, attribution-complete, and within the frozen freshness window.",
+    "The broker independently reports zero UPRO/SPXU holdings and zero relevant open orders."
+  ],
+  "transaction": [
+    "Pause only the five-minute observer timer and wait for its service to become idle.",
+    "Append one fresh read-only v3 source checkpoint without a selected transport.",
+    "Create one fresh atomic broker preview with zero submissions.",
+    "Invoke the existing clean immediate-proceeds rebase owner; archive the predecessor unchanged and freeze one new selection identity.",
+    "Run one immediate selected recurrence, require flat holdings, zero orders/fills/PnL/DD/breaches, then restore the timer."
+  ],
+  "failure_contract": {
+    "before_selection": "restore the predecessor timer and retain no new authority",
+    "after_selection": "keep the timer disabled pending exact reconciliation",
+    "missing_gth_proof": "fail before broker preview or selection",
+    "nonflat_source_or_broker": "fail before selection",
+    "stale_or_failed_book_preview": "fail before selection",
+    "gth_execution_allowed": false,
+    "backfill_forbidden": true
+  },
+  "unchanged": [
+    "Opening Edge v3 direction, admission, state ownership, lifecycle, and sizing",
+    "UPRO/SPXU Tiered 900 USD RTH-only cash scope",
+    "shared patient-to-relentless execution ladder",
+    "135 USD drawdown and 67.5 USD session-loss limits",
+    "news attribution-only authority",
+    "GTH NO_TRADE"
+  ],
+  "success_boundary": "A new immutable flat RTH selection starts at zero fills, zero PnL, zero drawdown, and current settled cash. The 24h clock starts only from its first gap-free required recurrence; no order is forced."
+}
