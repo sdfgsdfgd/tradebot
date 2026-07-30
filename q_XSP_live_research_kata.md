@@ -44,7 +44,7 @@ output belongs in commit/final verification, not in this management brain.
 | Order/capital authority | `none` |
 | Profitability clock | v3 `NOT_STARTED`; predecessor evidence does not transfer. The selected v3 runtime is now prepared to anchor the shared `24h→48h→five-session` verifier from reconciled USD fills at its first post-selection RTH slot |
 | Execution verdict | `HOLD`; v3 RTH UPRO/SPXU full-cross is positive in recent/every year/full under Fixed (`+$337.06`, PF `1.245`, DD `$135.31`) and Tiered (`+$911.87`, PF `1.833`, DD `$102.68`). Exact one-extra-bar Tiered latency parity also passes at `+$721.71/422`, PF `1.626`, DD `$110.98`, both directions and every period positive. The July 29 preview proved books/cash but returned Fixed `$1.000018/$1.000069` commissions rather than Tiered limits |
-| Next irreversible evidence | repeat the byte-identical zero-order UPRO/SPXU preview at `2026-07-30 09:35 ET`. The `09:39 ET` selector is deliberately disabled until IB Gateway's own `Read-Only API` setting is independently confirmed off rather than inferred from tradebot's writable drop-in; a passing preview therefore remains `HOLD` until that final broker-permission gate is explicit |
+| Next irreversible evidence | capture the immutable `09:25 ET` opening microtape, then repeat the byte-identical zero-order UPRO/SPXU preview at `09:35 ET`. Direct user-visible proof now shows IB Gateway's `API → Settings → Read-Only API` checkbox empty on socket `4001`; the already-audited `09:39 ET` selector timer is armed, but its receipt condition and independent full revalidation still preserve `HOLD` on any failure |
 | First active work | preserve continuous v3 proposal/gate/position/MFE/MAE/flip/exit observation at low-frequency event boundaries; then audit the July 30 Tiered preview/selector transaction. News remains attribution-only and never drives work cadence |
 
 ### Immediate sequence
@@ -553,17 +553,17 @@ directional consistency is proven.
     obsolete v2 ranking/dwell inputs. It still freezes selection before the
     writable drop-in, restores read-only cadence on pre-selection failure, and
     disables cadence for reconciliation after any post-selection failure.
-    The dated `09:39 ET` selector remains the only activation owner, but its
-    timer is disabled while the broker-side API-write permission is unproved.
-    Once that independent gate is explicit, the selector may be invoked only
-    after the `09:35 ET` receipt passes its coarse Tiered/zero-order condition;
-    it then independently revalidates every full gate. Selection baseline and
+    The dated `09:39 ET` selector remains the only activation owner. Direct
+    user-visible proof on July 30 shows Gateway's `Read-Only API` checkbox
+    empty on socket `4001`, so its timer is armed; it still runs only after
+    the `09:35 ET` receipt passes its coarse Tiered/zero-order condition, then
+    independently revalidates every full gate. Selection baseline and
     post-selection timestamp checks forbid buying any pre-authority signal.
     Tradebot's selection-bound `IBKR_READONLY=0` proves only the client-side
-    permission. Before capital authority, independently confirm that IB
-    Gateway's encrypted `API → Settings → Read-Only API` control is off; a
-    successful what-if is not proof because it can pass while live submission
-    remains disabled.
+    permission; E-314 independently proves Gateway's encrypted
+    `API → Settings → Read-Only API` control is off. A successful what-if alone
+    remains insufficient because it can pass while live submission is
+    disabled; future Gateway replacement/restart must preserve this boundary.
     July 29 evidence-only finalizer `7fb6adae…` is rejected as an authority:
     it required an `RTH` checkpoint at `16:17 ET`, while the canonical exchange
     clock correctly labels `16:15..17:00` as `CURB`. Preserve the failed frozen
@@ -812,6 +812,7 @@ and
 | E-311 | outcome-exposed `09:45/09:55` anatomy tested whether the causally available one/two XSP horizons plus frozen daily hard/transition/range/damage context can identify a genuine next-hour upside expansion. At `09:55`, two up slopes (`285` sessions) and two up slopes plus velocities (`162`) remained near baseline and inconsistent by year; hard-up/recovery context did not improve them. Fast-up plus daily range acceleration was the only positive aggregate motif, but its forward close was negative in Y1 and nearly flat in Y3. No stable cross-year hypothesis earned preregistration. Early microstructure may remain prospective telemetry, but cannot bypass the third-horizon warmup or change v3, selection, orders, or clocks |
 | E-312 | q-only immutable bundle `0175b041…` reuses the byte-identical proven UPRO/SPXU Network B recorder for one bounded `09:25..10:30 ET` July 30 opening microtape. It records type-1 NBBO, tick-by-tick trades/bid-ask, and the existing execution-ladder price projections under a distinct broker client, read-only connection, `order_authority=none`, and zero submissions. This is the genuinely different information source for later sub-five-minute onset/patience anatomy; it cannot gate the `09:35` preview, bypass v3 warmup, select, trade, or start a clock |
 | E-313 | preregistered execution-only attribution `ff166c92…` tested one compact urgency interaction without changing v3: at least `2/3` aligned fast slope-velocity horizons had to strengthen versus the prior bar while ATR velocity was positive and rising. Across `198` eligible entries, five-minute delay was worse by `+0.0425` XSP points on average, but the effect failed portability: Y1 median delay was `-0.04`, Y2 mean 15-minute follow-through was negative, and down signals had only `49.0%` worse-entry incidence. The stricter `3/3` neighbor retained the same Y1 weakness. Result `3e6bb712…` therefore rejects velocity curvature as independent ladder-dwell authority; it remains telemetry only. Crown, shared ladder, preview, selection, orders, and clocks are unchanged |
+| E-314 | the final human-visible broker permission gate is explicit: IB Gateway `API → Settings` showed `Read-Only API` unchecked and socket `4001`, so no setting change or restart was needed. q's previously audited `09:39 ET` selector timer was enabled at `06:42 ET`; preview result, selected identity, writable drop-in, position, order, and profitability clock remained absent/absent/absent/flat/zero/`NOT_STARTED`. The timer still requires the exact `09:35` receipt to say effective Tiered, `PREVIEW_PASS_STILL_HOLD`, and zero submissions before the selector independently revalidates source, books, cash, contracts, quantity, commission, scope, and restart identity |
 
 ### Decision anchors
 
@@ -943,15 +944,15 @@ unqualified, and Fixed DD is `$135.31` against the frozen `$135` boundary.
 The first v3-specific preview cleared books, quote-derived sizing, cash, and
 contract identity but proved the account still charged Fixed `$1.00` tickets;
 the selector rejected it and created no run. The byte-identical next-business-
-day check is armed for July 30 `09:35 ET`. No predecessor tape, selection,
-clock, or counterfactual outcome transfers to v3.
+day check is armed for July 30 `09:35 ET`; direct visual proof shows Gateway
+`Read-Only API` off, and the conditional `09:39 ET` selector is armed. No
+predecessor tape, selection, clock, or counterfactual outcome transfers to v3.
 
 **Predictive observation:** the next legitimate economic boundary is the
 unchanged July 30 `09:35 ET` UPRO/SPXU preview after IBKR's stated pricing-plan
 processing window. If it confirms Tiered and the fresh cash/source gates pass,
-retain the passing receipt at `HOLD` until Gateway's independent API-write
-setting is explicitly cleared; then invoke the existing bounded,
-non-backfilling selector and begin the immutable
-`24h → 48h → five-session` clock. Otherwise retain `HOLD`; do not reopen
+the armed bounded selector may freeze the non-backfilling RTH identity and
+begin the immutable `24h → 48h → five-session` clock. Otherwise retain
+`HOLD`; do not reopen
 rejected ETF substitutions, profit locks, broad threshold sweeps, news
 authority, or a parallel executor.
