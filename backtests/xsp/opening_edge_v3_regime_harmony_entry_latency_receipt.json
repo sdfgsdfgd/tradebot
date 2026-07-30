@@ -1,0 +1,104 @@
+{
+  "schema": "xsp.opening-edge-v3-regime-harmony-entry-latency-receipt.v1",
+  "authority": "historical_execution_stress_only",
+  "candidate": "Opening Edge v3 — Regime Harmony 24/5",
+  "scope": "RTH UPRO/SPXU whole-share transport only",
+  "signal_rth_ledger_sha256": "40708a28476fad504d29b1222e52b88481b1c0da8313ed4667076e2b6ed3f157",
+  "cash_receipt_sha256": "e41e44db270ea872679746cb2b83b2aa73987e523863236472f6e8ec0434c8dc",
+  "execution_contract": {
+    "starting_cash_usd": 900.0,
+    "pricing": "Tiered conservative full-spread cross",
+    "settlement": "strict T+1 cash",
+    "baseline_entry": "next interval open",
+    "stress_entry": "one additional completed five-minute bar",
+    "exits": "unchanged",
+    "signal_and_state_owner": "unchanged",
+    "sizing": "floor(900 / delayed ask)",
+    "runtime_quantity_behavior": "reject only the entry when quote-derived quantity leaves the frozen symbol range, then remain flat"
+  },
+  "predecessor_conservative_gate": {
+    "preregistration_sha256": "3abac5a800d81c199c07db376e7e838cdbd7d98889ad65a26ccce83678f3634b",
+    "runner_sha256": "ec94afc4d987b2e2c9d44e9df5c9dd1c86436ab2563eb6c4fa53028c5fe6a36f",
+    "result_sha256": "0338181b4f0b1016f16dd5bb8b50f6533d5aea73d5d82e4dbd67c467394de13a",
+    "verdict": "HOLD",
+    "reason": "one delayed historical UPRO entry derived 5 shares outside the frozen 6..24 runtime range",
+    "economics_passed": true
+  },
+  "runtime_parity_successor": {
+    "preregistration_sha256": "716d64c5fd41dc61a95a18fc6d796a5b8a251c63085963c134ca32e72617dc88",
+    "runner_sha256": "c310d0768311cfe7304d0181ac09bb26cb72449de20c2494e8369cb758acbaa9",
+    "result_sha256": "75271dd0b10198bde44800e61948f17742506b435ed0631dda1b1bc8ac257c1b",
+    "derived_cash_result_sha256": "3208d6e4e5a543f3a9c9c24393975d58e8ef0320c8a6f9a63fa1fd22be23cadd",
+    "derived_owner_sha256": "ed917d0f160e3153049bf9a51ab195048b37b018324fe6be07637dadfc601c20",
+    "source_checks_passed": true,
+    "range_rejections": 1,
+    "unavailable_execution_bars": 0,
+    "same_date_rth_violations": 0,
+    "quantity_ranges": {
+      "UPRO": [
+        6,
+        24
+      ],
+      "SPXU": [
+        3,
+        24
+      ]
+    }
+  },
+  "tiered_latency_metrics": {
+    "recent": {
+      "net_usd": 33.891,
+      "trades": 11,
+      "profit_factor": 3.3813
+    },
+    "year_1": {
+      "net_usd": 183.7171,
+      "trades": 149,
+      "profit_factor": 1.4943
+    },
+    "year_2": {
+      "net_usd": 160.1986,
+      "trades": 127,
+      "profit_factor": 1.3752
+    },
+    "year_3": {
+      "net_usd": 377.7983,
+      "trades": 146,
+      "profit_factor": 2.0675
+    },
+    "full_three_year": {
+      "net_usd": 721.714,
+      "trades": 422,
+      "profit_factor": 1.6262,
+      "up_net_usd": 230.2449,
+      "down_net_usd": 491.4691,
+      "intrabar_max_drawdown_usd": 110.9822
+    },
+    "scheduled_exit_stress": {
+      "net_usd": 730.7138,
+      "trades": 422,
+      "profit_factor": 1.6351
+    }
+  },
+  "checks": {
+    "baseline_reproduced_byte_exact": true,
+    "recent_each_annual_and_full_positive": true,
+    "both_directions_positive": true,
+    "profit_factor_above_one": true,
+    "intrabar_drawdown_at_or_below_135_usd": true,
+    "at_least_95_percent_trade_retention": true,
+    "scheduled_exit_full_positive": true,
+    "executed_quantities_within_frozen_ranges": true,
+    "zero_unavailable_execution_bars": true,
+    "all_entries_same_date_rth": true
+  },
+  "verdict": "LATENCY_PARITY_PASS_SELECTION_STILL_HOLD",
+  "selection_gate": {
+    "effective_tiered_commission_preview": false,
+    "fresh_quote_derived_quantity_preview": false,
+    "selected": false,
+    "order_authority": "none",
+    "submitted_orders": 0,
+    "profitability_clock": "not_started"
+  }
+}
