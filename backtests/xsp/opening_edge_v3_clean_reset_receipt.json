@@ -1,0 +1,79 @@
+{
+  "schema": "xsp.opening-edge-v3-clean-reset-receipt.v1",
+  "generated_at_utc": "2026-07-30T17:10:13.067738+00:00",
+  "authority": "rth_cash_pair_limit_only",
+  "strategy": {
+    "crown": "Opening Edge v3 - Regime Harmony 24/5",
+    "signal_strategy_id": "xsp.opening-edge-v3-regime-harmony-24x5.v1",
+    "execution_strategy_version": "xsp.opening-edge-v3-upro-spxu-live-execution.v1",
+    "cash_scope": "UPRO_SPXU_RTH_ONLY",
+    "gth_order_authority": "none"
+  },
+  "implementation": {
+    "commit": "4818dcffe8cbee497ba6a721a3ea6d516ded4c4b",
+    "focused_tests_passed": 126,
+    "full_tests_passed": 983,
+    "full_tests_deselected": 4,
+    "lint": "PASS",
+    "architecture_ceiling": "PASS"
+  },
+  "predecessor": {
+    "selection_id": "ab0bb43a47251fdaffac96e9f222b281e499d2ec41711a5d60e5292c063274e5",
+    "selection_sha256": "be9495178f241e5a792c280fa904b15d524ef5a9a9b5b8b6c8da6ec74f5a014e",
+    "status": "TERMINAL_FLAT_ARCHIVED",
+    "closed_trades": 1,
+    "realized_net_usd": -13.07900699999996,
+    "fill_ledger_fingerprint": "2d0562256f4a8f729a018f9787882a2fa6b62466c85ad7b753d93c830cdfc3cd",
+    "first_live_exit_attribution_receipt_sha256": "da6be71e31cd8062548d9cd62d9553ed9c34e864d2341990c3f85b4bb8dd52d4"
+  },
+  "fresh_selection": {
+    "selection_id": "9e517007153b7883dcb760b908f289551b2c7aa3c702990f397349201b2006e1",
+    "selection_sha256": "9374a9c3de93303fc130cb99e5b4276b7e3987d0e9320891623e44ecadddd998",
+    "selected_at_utc": "2026-07-30T17:08:23.183622+00:00",
+    "run_started_at_utc": "2026-07-30T17:08:23.183622+00:00",
+    "source_checkpoint_id": "19026f79580655553783959110c0f278c89374a953c0bbe12456f9ff34c5be06",
+    "preview_sha256": "85ed0dad07dcb381327feca8f304da222237bade67ab9536605a4315f318b14c",
+    "baseline_state": null,
+    "continuity_inherited": false,
+    "reset_schema": "xsp.opening-edge-v3-flat-reset.v1",
+    "broker_at_selection": {
+      "account_type": "CASH",
+      "settled_cash_usd": 1318.051,
+      "positions": {
+        "SPXU": 0,
+        "UPRO": 0
+      },
+      "open_orders": []
+    },
+    "submitted_orders": 0
+  },
+  "restart_proof": {
+    "recorded_at_utc": "2026-07-30T17:10:13.067738+00:00",
+    "source_checkpoint_id": "ca856fff797d7390631c6859b1f5eec37fb18cb1c66f17eba0e95089f3e2d4a5",
+    "plan_status": "UNCHANGED",
+    "plan_reason": "flat_target",
+    "target_direction": null,
+    "holdings": {
+      "SPXU": 0,
+      "UPRO": 0
+    },
+    "fill_count": 0,
+    "closed_trades": 0,
+    "run_gross_usd": 0.0,
+    "run_cost_usd": 0.0,
+    "run_net_usd": 0.0,
+    "drawdown_usd": 0.0,
+    "starting_settled_cash_usd": 1318.051,
+    "settled_cash_usd": 1318.051,
+    "fill_ledger_fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "safety_breaches": [],
+    "submitted_orders": 0
+  },
+  "profitability_clock": {
+    "started_at_utc": "2026-07-30T17:08:23.183622+00:00",
+    "current_status": "NOT_YET_DUE",
+    "original_prefix_status": "INVALID_EVIDENCE",
+    "predecessor_pnl_inherited": false,
+    "missing_slots_backfilled": false
+  }
+}
