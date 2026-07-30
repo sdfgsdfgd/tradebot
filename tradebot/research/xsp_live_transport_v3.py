@@ -30,9 +30,9 @@ from .xsp_live_transport import (
     _load,
     _number,
     _sha256,
-    _signal_utc,
     _utc,
     _v3_execution_contract,
+    xsp_signal_utc,
 )
 from .xsp_opening_edge_v3 import (
     XSP_OPENING_EDGE_V3_CONTEXT_STATE_SCHEMA,
@@ -487,7 +487,7 @@ def load_xsp_v3_transport_selection_from_mapping(
                 or baseline.get("direction") == "down"
             )
             and bool(str(baseline.get("trading_date") or ""))
-            and _signal_utc(baseline.get("entry_time"))
+            and xsp_signal_utc(baseline.get("entry_time"))
             and _number(baseline.get("entry_price"), name="baseline entry price") > 0
         )
         semantic_valid = bool(

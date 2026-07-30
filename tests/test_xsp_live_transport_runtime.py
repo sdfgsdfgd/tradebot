@@ -586,6 +586,30 @@ def test_extended_hours_authority_is_sell_only(tmp_path: Path) -> None:
         )
 
 
+def test_execution_accepts_canonical_utc_naive_signal_bar(
+    tmp_path: Path,
+) -> None:
+    selection, plan, contract, ticker = _actionable(tmp_path)
+    plan["signal_context"]["signal_bar_ts"] = (
+        SELECTED_AT + timedelta(minutes=1)
+    ).replace(tzinfo=None).isoformat()
+
+    result = asyncio.run(
+        execute_xsp_v2_transport_plan(
+            LiveCalibrationLedger(tmp_path / "utc-naive-signal.jsonl"),
+            client=_Client(contract),
+            selection=selection,
+            plan=plan,
+            contract=contract,
+            ticker=ticker,
+            observed_at=OBSERVED_AT,
+        )
+    )
+
+    assert result["status"] == "TERMINAL"
+    assert result["submitted_orders"] == 1
+
+
 def test_prepared_restart_adopts_exact_broker_order_without_resubmission(
     tmp_path: Path,
 ) -> None:

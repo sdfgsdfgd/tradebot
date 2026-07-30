@@ -111,7 +111,7 @@ def _utc(value: object) -> datetime:
     return parsed.astimezone(timezone.utc)
 
 
-def _signal_utc(value: object) -> datetime:
+def xsp_signal_utc(value: object) -> datetime:
     """Read the crown's canonical UTC-naive bar timestamp."""
 
     parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
@@ -545,7 +545,7 @@ def load_xsp_v2_transport_selection_from_mapping(
                 or baseline.get("direction") == "down"
             )
             and bool(str(baseline.get("trading_date") or ""))
-            and _signal_utc(baseline.get("entry_time"))
+            and xsp_signal_utc(baseline.get("entry_time"))
             and _number(baseline.get("entry_price"), name="baseline entry price") > 0
         )
         semantic_numbers_valid = bool(
@@ -740,7 +740,7 @@ def _post_selection_target(
         raise ValueError("GTH execution is forbidden")
     direction = (
         str(raw_target.get("direction"))
-        if _signal_utc(raw_target.get("entry_time")) > selected_at
+        if xsp_signal_utc(raw_target.get("entry_time")) > selected_at
         else None
     )
     return direction, direction_symbols.get(direction)

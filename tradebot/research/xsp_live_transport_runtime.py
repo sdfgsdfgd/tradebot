@@ -28,6 +28,7 @@ from .xsp_live_transport import (
     XSP_V3_TRANSPORT_SELECTION_SCHEMA,
     load_xsp_transport_selection_from_mapping,
     project_xsp_transport_plan,
+    xsp_signal_utc,
     xsp_transport_contract,
 )
 from .xsp_live_transport_state import xsp_v2_broker_snapshot
@@ -296,14 +297,9 @@ async def execute_xsp_transport_plan(
     ):
         raise ValueError("actionable transport has no causal signal context")
     try:
-        signal_at = datetime.fromisoformat(
-            str(signal_context["signal_bar_ts"]).replace("Z", "+00:00")
-        )
+        signal_at_utc = xsp_signal_utc(signal_context["signal_bar_ts"])
     except (KeyError, TypeError, ValueError) as exc:
         raise ValueError("transport signal timestamp is invalid") from exc
-    if signal_at.tzinfo is None:
-        raise ValueError("transport signal timestamp must be aware")
-    signal_at_utc = signal_at.astimezone(timezone.utc)
     symbol = str(leg.get("symbol") or "")
     action = str(leg.get("action") or "").upper()
     quantity = leg.get("quantity")
