@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import cast
 
 from ..backtest.models import Bar
-from ..engines.market import xsp_session_label_et
+from ..engines.market import xsp_session_label_et, xsp_trading_date
 from ..spot.champions import (
     discover_current_champions,
     load_champion_group,
@@ -44,6 +44,9 @@ XSP_OPENING_EDGE_V3_TRANSPORT_VERSION = (
 )
 XSP_OPENING_EDGE_V3_HISTORY_DURATION = XSP_OPENING_EDGE_V2_HISTORY_DURATION
 XSP_OPENING_EDGE_V3_CONTEXT_SCHEMA = "xsp.opening-edge-v3-daily-context-seed.v1"
+XSP_OPENING_EDGE_V3_CONTEXT_STATE_SCHEMA = (
+    "xsp.opening-edge-v3-daily-context-state.v1"
+)
 XSP_OPENING_EDGE_V3_EXECUTION_GATE = {
     "verdict": "HOLD",
     "eligible": False,
@@ -263,12 +266,28 @@ def xsp_opening_edge_v3_equities(
         candidate_schema="xsp.opening-edge-v3-candidate-equity.v1",
         execution_gate=XSP_OPENING_EDGE_V3_EXECUTION_GATE,
     )
+    context_owner = XspOpeningEdgeV3StateOwner(daily)
+    context_day = xsp_trading_date(observed_at)
+    context_state = (
+        context_owner.context_for_day(context_day)
+        if context_day is not None
+        else None
+    )
     paired["state_owner_sha256"] = spec.state_owner_sha256
     paired["daily_context_seed_sha256"] = spec.daily_context_seed_sha256
     paired["daily_context_bars"] = len(daily)
-    paired["daily_context_fingerprint"] = XspOpeningEdgeV3StateOwner(
-        daily
-    ).context_fingerprint
+    paired["daily_context_fingerprint"] = context_owner.context_fingerprint
+    paired["daily_context_state"] = (
+        {
+            "schema": XSP_OPENING_EDGE_V3_CONTEXT_STATE_SCHEMA,
+            "trading_day": context_day.isoformat(),
+            "context_as_of_day": context_state["as_of_day"],
+            "state_fingerprint": calibration_fingerprint(context_state),
+            "state": dict(context_state),
+        }
+        if context_day is not None and context_state is not None
+        else None
+    )
     paired["daily_context_appends"] = [
         {**asdict(row), "day": row.day.isoformat()}
         for row in daily

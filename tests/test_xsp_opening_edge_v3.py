@@ -8,7 +8,10 @@ from datetime import date, datetime, timedelta, timezone
 import pytest
 
 from tradebot.backtest.models import Bar
-from tradebot.research.live_calibration import LiveCalibrationLedger
+from tradebot.research.live_calibration import (
+    LiveCalibrationLedger,
+    calibration_fingerprint,
+)
 from tradebot.research.xsp_opening_edge_v2 import (
     load_xsp_opening_edge_v2_spec,
 )
@@ -186,6 +189,27 @@ def test_opening_edge_v3_context_appends_only_complete_exact_rth() -> None:
             "close": fresh.close,
         }
     ]
+    expected_context = XspOpeningEdgeV3StateOwner(merged).context_for_day(
+        date(2026, 7, 29)
+    )
+    assert paired["daily_context_state"] == {
+        "schema": "xsp.opening-edge-v3-daily-context-state.v1",
+        "trading_day": "2026-07-29",
+        "context_as_of_day": "2026-07-28",
+        "state_fingerprint": calibration_fingerprint(expected_context),
+        "state": expected_context,
+    }
+    assert set(paired["daily_context_state"]["state"]["windows"]) >= {
+        "21",
+        "63",
+        "84",
+    }
+    assert set(
+        paired["daily_context_state"]["state"]["return_velocity"]
+    ) >= {"21", "63", "84"}
+    assert set(
+        paired["daily_context_state"]["state"]["return_acceleration"]
+    ) >= {"21", "63", "84"}
     assert _persisted_daily_context((persisted,)) == (fresh,)
     assert xsp_daily_bars_from_intraday(complete[:20]) == ()
     assert xsp_daily_bars_from_intraday(complete[20:]) == ()
