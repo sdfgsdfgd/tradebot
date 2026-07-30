@@ -406,6 +406,47 @@ This event-driven spot lane preempts every research sidequest without requiring
 active poll loops; alpha/theta structures remain a later-week expansion after
 directional consistency is proven.
 
+#### `[WIP]` 15-minute Hawkeye review format
+
+Use this as the analytical quality bar for each scheduled review—not a rigid
+form and not permission to poll more frequently. Report only the latest
+completed causal checkpoint and separate observation from capital authority:
+
+1. **Live authority and economics:** ET timestamp, selection prefix, actual
+   SPXU/UPRO holdings, new-run fills/closed trades, realized/open P&L, costs,
+   drawdown, settled cash, orders/breaches, timer health, and clean-clock
+   continuity.
+2. **Immediate multitimeframe anatomy:** name the centralized gate and exact
+   decision (`proposed`, `admitted`, or blocked reason); summarize 5/15/30/60/
+   120-minute slope direction and velocity strength, ATR ratio, ATR velocity,
+   ATR acceleration, coherence, turn state/age, entry-window status, and any
+   active incumbent/pending lifecycle state.
+3. **Long-horizon regime harmony:** compare causal 5/10/21/42/63/84-session
+   direction, velocity/acceleration, drawdown phase, hard/soft direction and
+   age, transition pattern, and realized-volatility phase. Explicitly call out
+   mixed structures such as entrenched long strength plus fast deterioration,
+   stable downturn, choppy compression, shock ramp, or rebound.
+4. **Fundamental pressure:** report signed pressure, delta, hourly velocity,
+   confidence, freshness, and horizon only when a new causal publication is
+   already present. Always state `attribution-only`; news cannot create, veto,
+   size, or reverse a trade.
+5. **Integrated interpretation:** explain in plain language whether price
+   slopes, their velocity, volatility phase, long climate, and news pressure
+   reinforce or contradict one another—and why the engine's action or refusal
+   is coherent. Distinguish immediate error, financed giveback, re-entry churn,
+   reversal lag, and correct abstention when observable.
+6. **Next lawful boundary:** state the earliest possible capital event,
+   outstanding evidence, and what would falsify the current interpretation.
+   Never force a trade or imply that an observation changed the frozen crown.
+
+Illustrative quality bar: “Slower 15–120-minute slopes remain positive, but
+the five-minute slope and fast velocity turned negative while ATR velocity and
+acceleration contracted. The 21/42-session path is down against an entrenched
+63/84-session up state, and bearish news pressure is easing rather than
+reversing. Remaining flat is coherent: v3 is refusing to chase a fading
+upswing outside its frozen entry window.” Preserve exact numbers immediately
+above an interpretation like this whenever the checkpoint supplies them.
+
 1. `[DONE]` Opening Edge v2 earned the historical crown with positive recent,
    all three annual slices, full-three-year economics, both directions, both
    lanes, and the unchanged cadence law.
@@ -806,6 +847,7 @@ and
 | E-318 | v3's first admitted live turn was the `10:55 ET` bearish core cascade: all `1/3/6/12` slopes and slope velocities were negative, coherence `1.0`, ATR velocity `+0.0123`, retrace `2.73 ATR`. Three pre-submit recurrences then failed closed on integration-only representation seams—cost-adjusted position metadata, causal-signal versus attribution identity, and the crown's canonical UTC-naive bar timestamp—repaired by `6237b6f…`, `f043f48…`, and `5430eba…` with `151` focused/wider tests green. The next natural recurrence derived fresh `39.11/39.12` SPXU NBBO and one `$900` slot, previewed Tiered commission `$0.283626..$0.423926`, and submitted exactly one bounded order through the shared ladder. Terminal receipt `4fe26eb1…` records `23 SPXU @ $39.10`, commission `$0.318126`, zero remainder; independent read-only broker audit and restart checkpoint `ff09ef79…` matched `23` shares, no open orders, one fill, zero duplicate submissions, and no safety breach. First mark was `-$1.008126`. The missing `11:02/11:07/11:12 ET` slots make the original profitability prefix `INVALID_EVIDENCE`; they are never backfilled. Compact receipt `opening_edge_v3_first_live_fill_receipt.json` is `e6a4e9fd…` |
 | E-319 | v3 intentionally surrendered its first live `down` state without admitting `up`: the `11:45 ET` raw up turn had strongly positive fast slopes/velocities but failed the long admission gate on negative ATR velocity; after the incumbent's frozen `12`-bar minimum hold, the persistent up source closed the research short at `12:05 ET` next-open with `entry_dir=null`. This is conditional flat ownership, not a flat-regime router. Immediate-proceeds capability/replay/preview then migrated live authority from archived `d0726236…` to position-preserving successor `ab0bb43a…` (`be949517…`); fixes `951157d…` and `69e489b…` permit that fresh flat-source state to liquidate without fabricating entry context while retaining mandatory context for every directional BUY/rotation (`981` tests green). The shared ladder sold all `23 SPXU @ $38.56`, commission `$0.340881`; the complete round trip realized `-$13.079007`. Broker-qualified ticks now attribute the same trade honestly: immediate sale at the first causal live-flat checkpoint (`12:02:09 ET`, `$38.70` bid) was `-$9.86..-$9.97`; the finalized crown-ledger boundary (`12:05 ET`, `$38.58` bid) was `-$12.62..-$12.73`. Thus delayed integration cost `$3.11..$3.22` versus the live causal checkpoint but only `$0.35..$0.46` versus the stable crown ledger; compact receipt `opening_edge_v3_first_live_exit_attribution.json` is `da6be71e…` and never rewrites the realized account result. Post-fill restart matched `SPXU=0`, `UPRO=0`, no open orders, `$1,318.051` settled USD, no duplicate or safety breach. Original prefix remains invalid and continuity selection cannot masquerade as a clean post-flat start; timer remains paused pending that freeze |
 | E-320 | published reset owner `4818dcf…` preserves terminal predecessor `ab0bb43a…` and its `-$13.079007` loss as evidence while clean selection `9e517007…` (`9374a9c3…`) starts flat with `$1,318.051`, no continuity, zero fills/P&L/DD, and no order. Fresh Tiered preview `85ed0dad…`, restart source `ca856fff…`, and the restored five-minute timer independently retained `flat_target`, zero submissions/breaches, and fill fingerprint `4f53cda1…`. The new profitability clock starts `17:08:23Z`; no prefix is due, predecessor P&L and missing slots are never inherited, and GTH order authority remains none. Compact receipt `opening_edge_v3_clean_reset_receipt.json` (`7d078320…`) preserves the boundary |
+| E-321 | execution-attribution audit found one prospective receipt blocker without changing the crown: directional BUY/rotation ladder transitions already froze their admitted signal, but a valid v3 flat SELL carried no current ATR/slope/velocity/regime snapshot and would make the selected run's attribution incomplete. One centralized `execution_state_context` now freezes the current shared 1/3/6/12/24-horizon impulse, ATR velocity/acceleration, daily `5/10/21/42/63/84` context, and attribution-only news beside every v3 plan; it can satisfy flat-liquidation attribution but has no direction, admission, sizing, settlement, price, ladder, or order authority. Reprojecting the actual terminal exit preserved exact `SELL 23 SPXU`, `$38.59/$38.60` book, `OPTIMISTIC→AUTO`, and `-$13.079007`, while terminal risk became attribution-complete with the same two fills. Focused `150/150` and full `983` tests pass with architecture debt unchanged; compact receipt `opening_edge_v3_execution_state_attribution_receipt.json` is `878e3a14…`. The active task tree also carries the WIP 15-minute Hawkeye review quality bar; neither change alters selection `9e517007…`, its clock, broker state, or capital authority |
 
 ### Decision anchors
 

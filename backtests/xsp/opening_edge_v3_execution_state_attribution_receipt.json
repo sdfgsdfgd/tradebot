@@ -1,0 +1,84 @@
+{
+  "schema": "xsp.opening-edge-v3-execution-state-attribution-receipt.v1",
+  "generated_at_utc": "2026-07-30T17:37:32Z",
+  "authority": "telemetry_only",
+  "source_revision": "87c7a9970f84daba9dea0479d54709cb4d5db448",
+  "selection_id": "ab0bb43a47251fdaffac96e9f222b281e499d2ec41711a5d60e5292c063274e5",
+  "source_checkpoint_id": "9864912eabb155f712841573ac9d9caf3afb65fe1bef7b052f254893dad7a5de",
+  "actual_terminal_execution": {
+    "action": "SELL",
+    "symbol": "SPXU",
+    "quantity": 23,
+    "average_fill_price": 38.56,
+    "commission_usd": 0.340881,
+    "realized_round_trip_net_usd": -13.07900699999996
+  },
+  "reprojection": {
+    "economic_parity": true,
+    "status": "ACTIONABLE",
+    "reason": "sell_incumbent_before_target",
+    "target_direction": null,
+    "target_symbol": null,
+    "entry_window_open": true,
+    "holdings": {
+      "SPXU": 23,
+      "UPRO": 0
+    },
+    "leg": {
+      "action": "SELL",
+      "symbol": "SPXU",
+      "quantity": 23,
+      "bid": 38.59,
+      "ask": 38.6,
+      "initial_mode": "OPTIMISTIC",
+      "chase_mode": "AUTO",
+      "outside_rth": false
+    },
+    "signal_context": null,
+    "execution_state_context_fingerprint": "26620f8c233359037b05f9053cad0c4b3ec77239d421c65b65777fca8347cbb4"
+  },
+  "execution_state_context": {
+    "signal_bar_ts": "2026-07-30T16:45:00",
+    "atr_velocity_pct": 0.01847528434743216,
+    "atr_acceleration_pct": 0.018021757193825802,
+    "coherence": 0.6,
+    "slope_velocity_pct_per_bar": {
+      "1": -0.04319568271576868,
+      "3": -0.029231603097656933,
+      "6": -0.026759906231591895,
+      "12": -0.014234546727355987,
+      "24": 0.0016873199900555025
+    },
+    "daily_context_fingerprint": "7a139df11a46d1ed6e8a1aa57180bb71184e4b8e5f1faa291fc9abc69fdb1dd5",
+    "fundamental_pressure": {
+      "signed_pressure": -0.7488,
+      "pressure_delta": 0.0744,
+      "pressure_velocity_per_hour": 0.033243,
+      "authority": "attribution_only"
+    }
+  },
+  "risk_reconstruction": {
+    "attribution_complete": true,
+    "closed_trades": 1,
+    "fill_count": 2,
+    "run_realized_net_usd": -13.07900699999996,
+    "safety_breaches": []
+  },
+  "invariants": {
+    "direction_authority_changed": false,
+    "admission_authority_changed": false,
+    "sizing_changed": false,
+    "settlement_changed": false,
+    "ladder_changed": false,
+    "order_authority_changed": false,
+    "submitted_orders": 0
+  },
+  "verification": {
+    "focused_tests_passed": 150,
+    "full_tests_passed": 983,
+    "full_tests_deselected": 4,
+    "ruff": "pass",
+    "diff_check": "pass",
+    "architecture_ceiling": "pass"
+  }
+}

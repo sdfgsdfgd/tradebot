@@ -80,9 +80,35 @@ def xsp_transport_risk_state(
             if isinstance(plan, Mapping)
             else None
         )
+        state_context = (
+            plan.get("execution_state_context")
+            if isinstance(plan, Mapping)
+            else None
+        )
+        leg = plan.get("leg") if isinstance(plan, Mapping) else None
+        flat_liquidation_context = (
+            isinstance(leg, Mapping)
+            and str(leg.get("action") or "").upper() == "SELL"
+            and plan.get("target_direction") is None
+            and plan.get("target_symbol") is None
+            and plan.get("reason")
+            in {"sell_incumbent_before_target", "rth_end_liquidation"}
+            and isinstance(state_context, Mapping)
+            and state_context.get("schema")
+            == "xsp.execution-state-context.v1"
+            and isinstance(
+                state_context.get("directional_impulse"), Mapping
+            )
+            and isinstance(
+                state_context.get("daily_context_state"), Mapping
+            )
+        )
         if filled_quantity > 0 and (
-            not isinstance(signal_context, Mapping)
-            or not signal_context.get("decision_trace_fingerprint")
+            (
+                not isinstance(signal_context, Mapping)
+                or not signal_context.get("decision_trace_fingerprint")
+            )
+            and not flat_liquidation_context
         ):
             attribution_complete = False
         if filled_quantity > 0 and not order_fills:

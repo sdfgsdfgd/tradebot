@@ -230,6 +230,12 @@ def _source(
     checkpoint: str = "c" * 64,
     session: str = "RTH",
 ) -> dict[str, object]:
+    source_direction = (
+        str(position["direction"])
+        if isinstance(position, dict)
+        else "up"
+    )
+    signal_bar_ts = (recorded_at - timedelta(minutes=5)).isoformat()
     context_state = {
         "as_of_day": "2026-07-28",
         "windows": {
@@ -254,6 +260,12 @@ def _source(
         "order_authority": "none",
         "checkpoint_id": checkpoint,
         "recorded_at_utc": recorded_at.isoformat(),
+        "fundamental_pressure": {
+            "signed_pressure": -0.5,
+            "pressure_delta": 0.1,
+            "pressure_velocity_per_hour": 0.02,
+            "usable": True,
+        },
         "paired_equity": {
             "crown_config_fingerprint": "crown",
             "state_owner_sha256": "a" * 64,
@@ -268,6 +280,52 @@ def _source(
             "profiles": {
                 "research": dict(profile),
                 "broker": dict(profile),
+            },
+            "signal_observations": {
+                session.lower(): {
+                    "schema": "spot.signal-snapshot.v1",
+                    "signal_bar_ts": signal_bar_ts,
+                    "signal_snapshot_age_bars": 0,
+                    "signal_source_dir": source_direction,
+                    "entry_control": {
+                        "source": "directional_impulse",
+                        "proposed_direction": (
+                            source_direction if position is not None else None
+                        ),
+                        "controls": [],
+                        "blocked_by": None,
+                        "direction": (
+                            source_direction if position is not None else None
+                        ),
+                    },
+                    "directional_impulse": {
+                        "ready": True,
+                        "direction": (
+                            source_direction if position is not None else None
+                        ),
+                        "atr_velocity_pct": 0.01,
+                        "atr_acceleration_pct": 0.005,
+                        "horizons": [
+                            {
+                                "bars": 1,
+                                "slope_velocity_pct_per_bar": 0.02,
+                            }
+                        ],
+                    },
+                    "hard_dir": "up",
+                    "regime4_state": None,
+                    "release_age_bars": None,
+                    "shock_dir": None,
+                    "shock_atr_pct": None,
+                    "shock_atr_vel_pct": 0.01,
+                    "shock_atr_accel_pct": 0.005,
+                    "tr_ratio": 1.0,
+                    "tr_median_pct": 0.1,
+                    "slope_med_pct": 0.02,
+                    "slope_vel_pct": 0.02,
+                    "slope_med_slow_pct": 0.01,
+                    "slope_vel_slow_pct": 0.01,
+                }
             },
         },
     }
@@ -624,14 +682,14 @@ def test_v3_rotation_handoff_can_reconcile_inherited_holding_to_flat(
 ) -> None:
     selection, _record, _source_at_handoff = _v3_rotation_selection(tmp_path)
     observed_at = SELECTED_AT + timedelta(minutes=16)
-
+    source = _source(
+        None,
+        recorded_at=observed_at - timedelta(seconds=30),
+        checkpoint="f" * 64,
+    )
     plan = project_xsp_transport_plan(
         selection=selection,
-        source_receipt=_source(
-            None,
-            recorded_at=observed_at - timedelta(seconds=30),
-            checkpoint="f" * 64,
-        ),
+        source_receipt=source,
         observed_at=observed_at,
         positions={"UPRO": 0, "SPXU": 23},
         open_orders=[],
@@ -649,9 +707,82 @@ def test_v3_rotation_handoff_can_reconcile_inherited_holding_to_flat(
     assert plan["reason"] == "sell_incumbent_before_target"
     assert plan["target_direction"] is None
     assert plan["signal_context"] is None
+    assert plan["execution_state_context"] == {
+        "schema": "xsp.execution-state-context.v1",
+        "source_checkpoint_id": "f" * 64,
+        "source_recorded_at_utc": source["recorded_at_utc"],
+        "session": "RTH",
+        "signal_bar_ts": source["paired_equity"]["signal_observations"]["rth"][
+            "signal_bar_ts"
+        ],
+        "signal_snapshot_age_bars": 0,
+        "signal_source_dir": "up",
+        "entry_control": source["paired_equity"]["signal_observations"]["rth"][
+            "entry_control"
+        ],
+        "directional_impulse": source["paired_equity"][
+            "signal_observations"
+        ]["rth"]["directional_impulse"],
+        "market_state": {
+            key: source["paired_equity"]["signal_observations"]["rth"][key]
+            for key in (
+                "hard_dir",
+                "regime4_state",
+                "release_age_bars",
+                "shock_dir",
+                "shock_atr_pct",
+                "shock_atr_vel_pct",
+                "shock_atr_accel_pct",
+                "tr_ratio",
+                "tr_median_pct",
+                "slope_med_pct",
+                "slope_vel_pct",
+                "slope_med_slow_pct",
+                "slope_vel_slow_pct",
+            )
+        },
+        "daily_context_state": source["paired_equity"][
+            "daily_context_state"
+        ],
+        "fundamental_pressure": source["fundamental_pressure"],
+    }
     assert plan["leg"]["action"] == "SELL"
     assert plan["leg"]["symbol"] == "SPXU"
     assert plan["leg"]["quantity"] == 23
+    state = xsp_transport_risk_state(
+        selection=selection,
+        records=(
+            {
+                "kind": "checkpoint",
+                "strategy_version": XSP_V3_TRANSPORT_EXECUTION_VERSION,
+                "trading_date": "2026-07-29",
+                "evidence": {
+                    "selection_id": selection["selection_id"],
+                    "phase": "TERMINAL",
+                    "plan": plan,
+                    "broker_order": {
+                        "filled": 23,
+                        "fills": [
+                            {
+                                "exec_id": "v3-flat-spxu-sell",
+                                "time_utc": observed_at.isoformat(),
+                                "symbol": "SPXU",
+                                "side": "SLD",
+                                "shares": 23,
+                                "price": 39.49,
+                                "commission": 0.35,
+                                "commission_currency": "USD",
+                            }
+                        ],
+                    },
+                },
+            },
+        ),
+        observed_at=observed_at + timedelta(minutes=1),
+        liquidation_bids={},
+    )
+    assert state["attribution_complete"] is True
+    assert state["closed_trades"] == 1
 
 
 def test_v3_immediate_proceeds_rebase_starts_flat_without_inherited_pnl(
@@ -1481,6 +1612,7 @@ def test_latest_source_projection_uses_only_the_canonical_checkpoint() -> None:
                 "session": source["session"],
                 "evidence": {
                     "paired_equity": source["paired_equity"],
+                    "fundamental_pressure": source["fundamental_pressure"],
                     "rth_provenance_fresh": True,
                     "order_authority": "none",
                 },

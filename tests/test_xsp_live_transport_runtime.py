@@ -704,6 +704,29 @@ def test_resumed_pending_order_ages_from_first_submission(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     selection, plan, contract, ticker = _actionable(tmp_path)
+    state_at = OBSERVED_AT - timedelta(minutes=2)
+    plan["execution_state_context"] = {
+        "schema": "xsp.execution-state-context.v1",
+        "source_checkpoint_id": "state-source",
+        "source_recorded_at_utc": state_at.isoformat(),
+        "session": "RTH",
+        "signal_bar_ts": state_at.isoformat(),
+        "signal_snapshot_age_bars": 0,
+        "signal_source_dir": "up",
+        "entry_control": {"source": "directional_impulse"},
+        "directional_impulse": {
+            "atr_velocity_pct": 0.02,
+            "horizons": [
+                {
+                    "bars": 1,
+                    "slope_velocity_pct_per_bar": 0.03,
+                }
+            ],
+        },
+        "market_state": {"slope_vel_pct": 0.03},
+        "daily_context_state": {"state_fingerprint": "e" * 64},
+        "fundamental_pressure": None,
+    }
     ledger = LiveCalibrationLedger(tmp_path / "execution.jsonl")
     client = _Client(contract)
     order_ref = xsp_v2_transport_order_ref(plan)
@@ -806,6 +829,10 @@ def test_resumed_pending_order_ages_from_first_submission(
     assert transition["signal_context_fingerprint"] == calibration_fingerprint(
         plan["signal_context"]
     )
+    assert transition["state_age_seconds"] >= 120.0
+    assert transition[
+        "execution_state_context_fingerprint"
+    ] == calibration_fingerprint(plan["execution_state_context"])
     context = transition_rows[0]["plan"]["signal_context"]
     assert context["directional_impulse"]["atr_velocity_pct"] == 0.01
     assert (
@@ -818,6 +845,14 @@ def test_resumed_pending_order_ages_from_first_submission(
         "shock_atr_vel_pct": 0.01,
         "slope_vel_pct": 0.02,
     }
+    state_context = transition_rows[0]["plan"]["execution_state_context"]
+    assert state_context["directional_impulse"]["atr_velocity_pct"] == 0.02
+    assert (
+        state_context["directional_impulse"]["horizons"][0][
+            "slope_velocity_pct_per_bar"
+        ]
+        == 0.03
+    )
 
 
 def test_done_order_waits_for_commission_before_terminal_receipt(

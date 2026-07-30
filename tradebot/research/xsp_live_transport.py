@@ -15,10 +15,8 @@ from ..engines.market import equity_rth_close_time_et, xsp_session_label_et
 from ..time_utils import ET_ZONE
 from .live_calibration import calibration_fingerprint
 from .xsp_execution_observer import xsp_v2_position_state
-from .xsp_context import xsp_execution_signal_context
-from .xsp_opening_edge_v2 import (
-    XSP_OPENING_EDGE_V2_VERSION,
-)
+from .xsp_context import xsp_execution_signal_context, xsp_execution_state_context
+from .xsp_opening_edge_v2 import XSP_OPENING_EDGE_V2_VERSION
 
 
 XSP_V2_TRANSPORT_SELECTION_SCHEMA = "xsp.opening-edge-v2-spyu-spxu-selected-run.v1"
@@ -90,7 +88,6 @@ def _v3_execution_contract() -> dict[str, object]:
     }
 
 
-
 def _load(path: Path) -> dict[str, object]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
@@ -134,7 +131,6 @@ def _number(value: object, *, name: str) -> float:
     if not math.isfinite(parsed):
         raise ValueError(f"{name} must be finite")
     return parsed
-
 
 
 def _identity_valid(payload: Mapping[str, object]) -> bool:
@@ -804,6 +800,9 @@ def project_xsp_transport_plan(
     )
     source_session = str(source_receipt["session"])
     signal_context = xsp_execution_signal_context(source_receipt["paired_equity"])
+    execution_state_context = None
+    if plan_schema == XSP_V3_TRANSPORT_PLAN_SCHEMA:
+        execution_state_context = xsp_execution_state_context(source_receipt)
     observed_et = observed_utc.astimezone(ET_ZONE)
     rth_close = equity_rth_close_time_et(observed_et.date())
     rth_liquidation_at = datetime.combine(
@@ -828,6 +827,7 @@ def project_xsp_transport_plan(
         "entry_window_open": entry_window_open,
         "holdings": holdings,
         "signal_context": signal_context,
+        "execution_state_context": execution_state_context,
     }
     base = {
         "schema": plan_schema,

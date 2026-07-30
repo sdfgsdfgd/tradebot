@@ -475,6 +475,94 @@ def xsp_trade_attribution(trade: object) -> dict[str, object]:
     }
 
 
+def xsp_execution_state_context(
+    source_receipt: Mapping[str, object],
+) -> dict[str, object]:
+    """Freeze the current causal engine state beside one execution plan."""
+
+    session = str(source_receipt.get("session") or "").upper()
+    paired = source_receipt.get("paired_equity")
+    observations = (
+        paired.get("signal_observations")
+        if isinstance(paired, Mapping)
+        else None
+    )
+    observation = (
+        observations.get(session.lower())
+        if isinstance(observations, Mapping)
+        else None
+    )
+    daily_context = (
+        paired.get("daily_context_state")
+        if isinstance(paired, Mapping)
+        else None
+    )
+    impulse = (
+        observation.get("directional_impulse")
+        if isinstance(observation, Mapping)
+        else None
+    )
+    entry_control = (
+        observation.get("entry_control")
+        if isinstance(observation, Mapping)
+        else None
+    )
+    signal_bar_ts = (
+        str(observation.get("signal_bar_ts") or "")
+        if isinstance(observation, Mapping)
+        else ""
+    )
+    if (
+        session not in {"RTH", "GTH"}
+        or not isinstance(observation, Mapping)
+        or observation.get("schema") != "spot.signal-snapshot.v1"
+        or not signal_bar_ts
+        or not isinstance(impulse, Mapping)
+        or not isinstance(entry_control, Mapping)
+        or not isinstance(daily_context, Mapping)
+        or not daily_context.get("state_fingerprint")
+    ):
+        raise ValueError("XSP execution state context is incomplete")
+    pressure = source_receipt.get("fundamental_pressure")
+    if pressure is not None and not isinstance(pressure, Mapping):
+        raise ValueError("XSP execution news context is invalid")
+    return {
+        "schema": "xsp.execution-state-context.v1",
+        "source_checkpoint_id": source_receipt.get("checkpoint_id"),
+        "source_recorded_at_utc": source_receipt.get("recorded_at_utc"),
+        "session": session,
+        "signal_bar_ts": signal_bar_ts,
+        "signal_snapshot_age_bars": observation.get(
+            "signal_snapshot_age_bars"
+        ),
+        "signal_source_dir": observation.get("signal_source_dir"),
+        "entry_control": dict(entry_control),
+        "directional_impulse": dict(impulse),
+        "market_state": {
+            key: observation.get(key)
+            for key in (
+                "hard_dir",
+                "regime4_state",
+                "release_age_bars",
+                "shock_dir",
+                "shock_atr_pct",
+                "shock_atr_vel_pct",
+                "shock_atr_accel_pct",
+                "tr_ratio",
+                "tr_median_pct",
+                "slope_med_pct",
+                "slope_vel_pct",
+                "slope_med_slow_pct",
+                "slope_vel_slow_pct",
+            )
+        },
+        "daily_context_state": dict(daily_context),
+        "fundamental_pressure": (
+            dict(pressure) if isinstance(pressure, Mapping) else None
+        ),
+    }
+
+
 def xsp_execution_signal_context(
     paired_equity: Mapping[str, object],
 ) -> dict[str, object] | None:

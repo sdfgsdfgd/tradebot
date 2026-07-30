@@ -291,6 +291,28 @@ async def execute_xsp_transport_plan(
     symbol = str(leg.get("symbol") or "")
     action = str(leg.get("action") or "").upper()
     signal_context = plan.get("signal_context")
+    state_context = plan.get("execution_state_context")
+    state_at_utc: datetime | None = None
+    state_context_fingerprint: str | None = None
+    if state_context is not None:
+        if (
+            not isinstance(state_context, Mapping)
+            or state_context.get("schema") != "xsp.execution-state-context.v1"
+            or not isinstance(
+                state_context.get("directional_impulse"), Mapping
+            )
+            or not isinstance(
+                state_context.get("daily_context_state"), Mapping
+            )
+        ):
+            raise ValueError("transport execution state context is invalid")
+        try:
+            state_at_utc = xsp_signal_utc(state_context["signal_bar_ts"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError(
+                "transport execution state timestamp is invalid"
+            ) from exc
+        state_context_fingerprint = calibration_fingerprint(state_context)
     flat_liquidation = (
         action == "SELL"
         and plan.get("target_direction") is None
@@ -299,8 +321,16 @@ async def execute_xsp_transport_plan(
         in {"sell_incumbent_before_target", "rth_end_liquidation"}
     )
     if signal_context is None and flat_liquidation:
-        signal_at_utc = observed_at.astimezone(timezone.utc)
-        signal_context_fingerprint = str(plan["transition_id"])
+        if plan.get("schema") == XSP_V3_TRANSPORT_PLAN_SCHEMA:
+            if state_at_utc is None or state_context_fingerprint is None:
+                raise ValueError(
+                    "v3 flat liquidation has no causal execution state"
+                )
+            signal_at_utc = state_at_utc
+            signal_context_fingerprint = state_context_fingerprint
+        else:
+            signal_at_utc = observed_at.astimezone(timezone.utc)
+            signal_context_fingerprint = str(plan["transition_id"])
     elif (
         not isinstance(signal_context, Mapping)
         or signal_context.get("schema") != "xsp.execution-signal-context.v1"
@@ -493,6 +523,19 @@ async def execute_xsp_transport_plan(
                     0.0, (transition_at - signal_at_utc).total_seconds()
                 ),
                 "signal_context_fingerprint": signal_context_fingerprint,
+                **(
+                    {
+                        "state_age_seconds": max(
+                            0.0, (transition_at - state_at_utc).total_seconds()
+                        ),
+                        "execution_state_context_fingerprint": (
+                            state_context_fingerprint
+                        ),
+                    }
+                    if state_at_utc is not None
+                    and state_context_fingerprint is not None
+                    else {}
+                ),
                 **payload,
             },
         )

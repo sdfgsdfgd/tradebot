@@ -59,6 +59,7 @@ def _source_receipt_from_checkpoint(
         "order_authority": evidence.get("order_authority"),
         "checkpoint_id": checkpoint["checkpoint_id"],
         "recorded_at_utc": checkpoint.get("recorded_at_utc"),
+        "fundamental_pressure": evidence.get("fundamental_pressure"),
         "paired_equity": evidence["paired_equity"],
     }
 
