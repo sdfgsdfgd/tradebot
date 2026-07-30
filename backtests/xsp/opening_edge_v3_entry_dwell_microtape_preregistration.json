@@ -1,0 +1,112 @@
+{
+  "schema": "xsp.opening-edge-v3-entry-dwell-microtape-preregistration.v1",
+  "preregistered_at_utc": "2026-07-30T20:34:37Z",
+  "authority": "prospective_execution_attribution_only",
+  "strategy": {
+    "id": "xsp.opening-edge-v3-regime-harmony-24x5.v1",
+    "crown_sha256": "d47eb39cef3d2ca575d779d6b5b87e3b88e08606fd09a8801b8cb55c350208db",
+    "rth_ledger_sha256": "40708a28476fad504d29b1222e52b88481b1c0da8313ed4667076e2b6ed3f157",
+    "direction_admission_sizing_and_lifecycle": "unchanged"
+  },
+  "question": "For an already-admitted v3 RTH transition, can strictly causal signal age, multihorizon slope velocity, ATR velocity and acceleration, regime phase, and contemporaneous news-pressure delta distinguish an urgent price escape from a patient executable book strongly enough to tune only the existing ladder dwell?",
+  "null_hypothesis": "The static patient-to-relentless ladder remains preferable; no causal feature cohort delivers stable net execution improvement after spread, commission, missed-fill, and adverse-selection costs.",
+  "lineage_constraints": [
+    "Reuse the shared OPTIMISTIC to MID to AGGRESSIVE to CROSS to bounded RELENTLESS ladder; create no parallel executor.",
+    "Do not alter v3 direction, admission, source ownership, sizing, settlement, or risk.",
+    "Treat quote touch or trade-through as a fill bound, never as proof of queue position.",
+    "Treat news as attribution-only and compare every news-aware patience counterfactual with an otherwise identical TA-only decision.",
+    "Do not infer a rule from one session, one direction, a blocked proposal, or an outcome-selected threshold."
+  ],
+  "capture": {
+    "session_date_et": "2026-07-31",
+    "start_et": "09:25:00",
+    "stop_et": "11:35:00",
+    "symbols": [
+      "UPRO",
+      "SPXU"
+    ],
+    "market_data_type": 1,
+    "sample_seconds": 0.25,
+    "tick_by_tick_types": [
+      "AllLast",
+      "BidAsk"
+    ],
+    "capture_script_sha256": "32f28977dff28f45785987c2e50027723402b0e6b02eb0ce5f75a8ac4183a2ed",
+    "predecessor_capture_sha256": "7375d85ef71efbd7cfdde4e2e572bb6c1d15cbf7b35219f880289307bca433c5",
+    "read_only": true,
+    "order_authority": "none",
+    "submitted_orders": 0
+  },
+  "frozen_features": {
+    "technical": [
+      "signal_age_seconds",
+      "5_15_30_60_120_minute_slope_and_velocity",
+      "atr_ratio",
+      "atr_velocity",
+      "atr_acceleration",
+      "coherence",
+      "turn_state_and_age"
+    ],
+    "long_context": [
+      "5_10_21_42_63_84_session_direction_velocity_and_acceleration",
+      "transition",
+      "hard_and_soft_direction_and_age",
+      "drawdown_phase",
+      "true_range_phase_velocity_and_acceleration"
+    ],
+    "news_attribution_only": [
+      "signed_pressure",
+      "pressure_delta",
+      "pressure_velocity_per_hour",
+      "confidence",
+      "freshness",
+      "horizon"
+    ],
+    "book": [
+      "bid_ask_and_sizes",
+      "spread",
+      "quote_age",
+      "tick_by_tick_trade_and_bid_ask",
+      "existing_ladder_prices"
+    ]
+  },
+  "frozen_measurements": {
+    "primary_population": "natural admitted v3 RTH position transitions whose complete execution window is present",
+    "negative_controls": "blocked raw turns and flat checkpoints remain descriptive only",
+    "post_signal_horizons_seconds": [
+      1,
+      3,
+      5,
+      10,
+      15,
+      30,
+      60,
+      120,
+      300
+    ],
+    "outcomes": [
+      "time_to_full_quantity_executable_touch_at_each_existing_ladder_level",
+      "conservative_trade_through_bound",
+      "price_improvement_vs_immediate_cross",
+      "adverse_selection_after_each_hypothetical_fill",
+      "missed_movement_and_escalation_cost",
+      "spread_and_commission_adjusted_execution_delta"
+    ]
+  },
+  "graduation": {
+    "minimum_admitted_transitions": 30,
+    "minimum_complete_sessions": 5,
+    "both_directions_required": true,
+    "ta_only_pair_required": true,
+    "prospective_stability_required": true,
+    "historical_recent_every_july_year_full_three_year_replay_required_before_runtime_change": true,
+    "neighbor_stability_and_drawdown_non_regression_required": true,
+    "passing_result": "development_challenger_only"
+  },
+  "fail_closed": [
+    "No admitted transition means evidence accumulation, not a relaxed population.",
+    "Missing, delayed, stale, crossed, one-sided, under-sized, or discontinuous books are unavailable rather than imputed.",
+    "The capture cannot select a transport, submit an order, start a profitability clock, or modify the crowned strategy.",
+    "Priority Zero live commissioning preempts analysis immediately."
+  ]
+}
