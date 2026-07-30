@@ -27,6 +27,7 @@ from tradebot.research.xsp_live_transport import (
 from tradebot.research.xsp_live_transport_state import latest_xsp_v2_source_receipt
 from tradebot.research.xsp_live_transport_handoff import (
     handoff_xsp_v3_immediate_proceeds,
+    rebase_xsp_v3_immediate_proceeds,
 )
 from tradebot.research.xsp_live_transport_v3 import (
     load_xsp_v3_transport_selection_from_mapping,
@@ -651,6 +652,132 @@ def test_v3_rotation_handoff_can_reconcile_inherited_holding_to_flat(
     assert plan["leg"]["action"] == "SELL"
     assert plan["leg"]["symbol"] == "SPXU"
     assert plan["leg"]["quantity"] == 23
+
+
+def test_v3_immediate_proceeds_rebase_starts_flat_without_inherited_pnl(
+    tmp_path: Path,
+) -> None:
+    predecessor, _record, _source_at_handoff = _v3_rotation_selection(tmp_path)
+    sold_at = SELECTED_AT + timedelta(minutes=16)
+    rebase_at = SELECTED_AT + timedelta(minutes=20)
+    sell = {
+        "kind": "checkpoint",
+        "strategy_version": XSP_V3_TRANSPORT_EXECUTION_VERSION,
+        "trading_date": "2026-07-29",
+        "evidence": {
+            "selection_id": predecessor["selection_id"],
+            "phase": "TERMINAL",
+            "broker_order": {
+                "filled": 23,
+                "fills": [
+                    {
+                        "exec_id": "v3-terminal-spxu-sell",
+                        "time_utc": sold_at.isoformat(),
+                        "symbol": "SPXU",
+                        "side": "SLD",
+                        "shares": 23,
+                        "price": 38.5,
+                        "commission": 0.35,
+                        "commission_currency": "USD",
+                    }
+                ],
+            },
+        },
+    }
+    preview = _v3_preview()
+    preview["observed_at_utc"] = (rebase_at - timedelta(seconds=20)).isoformat()
+    preview["settled_cash_usd"] = 1_187.8
+    preview["source"]["checkpoint_id"] = "f" * 64
+    for row in preview["rows"]:
+        for book in row["books"].values():
+            book["observed_at_utc"] = (
+                rebase_at - timedelta(seconds=25)
+            ).isoformat()
+    preview_path = _write(tmp_path / "v3-rebase-preview.json", preview)
+    source = _source(
+        None,
+        recorded_at=rebase_at - timedelta(seconds=30),
+        checkpoint="f" * 64,
+    )
+    selection = rebase_xsp_v3_immediate_proceeds(
+        predecessor=predecessor,
+        records=(sell,),
+        source_receipt=source,
+        broker_snapshot={
+            "observed_at_utc": (rebase_at - timedelta(seconds=5)).isoformat(),
+            "cash_observed_at_utc": (
+                rebase_at - timedelta(seconds=10)
+            ).isoformat(),
+            "account_id": "DU123456",
+            "account_type": "CASH",
+            "settled_cash_usd": 1_187.8,
+            "positions": {"UPRO": 0, "SPXU": 0},
+            "unrelated_positions": [],
+            "open_orders": [],
+        },
+        cash_receipt_path=Path(
+            "backtests/xsp/opening_edge_v3_regime_harmony_cash_receipt.json"
+        ),
+        preview_path=preview_path,
+        immediate_proceeds_receipt_path=Path(
+            "backtests/xsp/opening_edge_v3_immediate_proceeds_receipt.json"
+        ),
+        selected_at=rebase_at,
+        rth_scope_accepted=True,
+    )
+
+    assert selection["schema"] == XSP_V3_ROTATION_SELECTION_SCHEMA
+    assert "continuity" not in selection
+    assert selection["baseline_state"] is None
+    assert selection["reset"]["predecessor_selection_id"] == predecessor[
+        "selection_id"
+    ]
+    assert selection["reset"]["predecessor_realized_net_usd"] == pytest.approx(
+        -12.2
+    )
+    state = xsp_transport_risk_state(
+        selection=selection,
+        records=(),
+        observed_at=rebase_at + timedelta(minutes=1),
+        liquidation_bids={},
+    )
+    assert state["holdings_from_fills"] == {"UPRO": 0.0, "SPXU": 0.0}
+    assert state["starting_settled_cash_usd"] == pytest.approx(1_187.8)
+    assert state["settled_cash_usd"] == pytest.approx(1_187.8)
+    assert state["run_net_usd"] == 0.0
+    assert state["fill_count"] == 0
+    assert state["closed_trades"] == 0
+
+    future = rebase_at + timedelta(minutes=2)
+    plan = project_xsp_transport_plan(
+        selection=selection,
+        source_receipt=_source(
+            _position("up", entry_time=rebase_at + timedelta(minutes=1)),
+            recorded_at=future - timedelta(seconds=30),
+            checkpoint="1" * 64,
+        ),
+        observed_at=future,
+        positions={"UPRO": 0, "SPXU": 0},
+        open_orders=[],
+        settled_cash_usd=1_187.8,
+        quotes={
+            "UPRO": {
+                "bid": 99.98,
+                "ask": 100.0,
+                "age_seconds": 0.5,
+                "market_data_type": 1,
+            }
+        },
+    )
+    assert plan["status"] == "ACTIONABLE"
+    assert plan["reason"] == "buy_post_selection_target"
+    assert plan["leg"]["action"] == "BUY"
+    assert plan["leg"]["symbol"] == "UPRO"
+
+    tampered = deepcopy(selection)
+    tampered["reset"]["predecessor_realized_net_usd"] = 0.0
+    with pytest.raises(ValueError, match="invalid immediate-proceeds"):
+        load_xsp_v3_transport_selection_from_mapping(tampered)
 
 
 def test_v3_rotation_reuses_completed_sale_proceeds_without_symbol_overlap(

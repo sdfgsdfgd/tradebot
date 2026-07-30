@@ -26,12 +26,30 @@ from .xsp_live_transport_v3 import (
     _CONTINUITY_SCHEMA,
     _IMMEDIATE_PROCEEDS_SCHEMA,
     _IMMEDIATE_PROCEEDS_SHA256,
+    _RESET_SCHEMA,
     _inherited_cash_and_holdings,
     _inherited_fills,
     _sha256_identity,
     load_xsp_v3_transport_selection_from_mapping,
+    select_xsp_v3_transport,
 )
 from .xsp_opening_edge_v3 import XSP_OPENING_EDGE_V3_CONTEXT_STATE_SCHEMA
+
+
+def _immediate_proceeds_capability(path: Path) -> dict[str, object]:
+    capability = _load(path)
+    if (
+        _sha256(path) != _IMMEDIATE_PROCEEDS_SHA256
+        or capability.get("schema") != _IMMEDIATE_PROCEEDS_SCHEMA
+        or capability.get("verdict")
+        != "PASS_IMPLEMENTATION_AND_FRESH_POST_SELL_BROKER_RECONCILIATION_REQUIRED"
+        or capability.get("order_authority") != "none"
+        or capability.get("submitted_orders") != 0
+        or capability.get("historical_replay", {}).get("all_gates_pass") is not True
+        or capability.get("broker_preview", {}).get("matching_open_orders_after") != 0
+    ):
+        raise ValueError("immediate-proceeds capability receipt is invalid")
+    return capability
 
 
 def handoff_xsp_v3_immediate_proceeds(
@@ -48,18 +66,7 @@ def handoff_xsp_v3_immediate_proceeds(
     prior = load_xsp_v3_transport_selection_from_mapping(predecessor)
     if prior["schema"] != XSP_V3_TRANSPORT_SELECTION_SCHEMA:
         raise ValueError("immediate-proceeds handoff requires the original v3 selection")
-    capability = _load(immediate_proceeds_receipt_path)
-    if (
-        _sha256(immediate_proceeds_receipt_path) != _IMMEDIATE_PROCEEDS_SHA256
-        or capability.get("schema") != _IMMEDIATE_PROCEEDS_SCHEMA
-        or capability.get("verdict")
-        != "PASS_IMPLEMENTATION_AND_FRESH_POST_SELL_BROKER_RECONCILIATION_REQUIRED"
-        or capability.get("order_authority") != "none"
-        or capability.get("submitted_orders") != 0
-        or capability.get("historical_replay", {}).get("all_gates_pass") is not True
-        or capability.get("broker_preview", {}).get("matching_open_orders_after") != 0
-    ):
-        raise ValueError("immediate-proceeds capability receipt is invalid")
+    capability = _immediate_proceeds_capability(immediate_proceeds_receipt_path)
 
     selected_utc = _utc(selected_at)
     source_at = _utc(source_receipt.get("recorded_at_utc"))
@@ -221,6 +228,111 @@ def handoff_xsp_v3_immediate_proceeds(
             "gth_execution_allowed": False,
         },
         "evidence": evidence,
+    }
+    selected = {**body, "selection_id": calibration_fingerprint(body)}
+    return load_xsp_v3_transport_selection_from_mapping(selected)
+
+
+def rebase_xsp_v3_immediate_proceeds(
+    *,
+    predecessor: Mapping[str, object],
+    records: Sequence[Mapping[str, object]],
+    source_receipt: Mapping[str, object],
+    broker_snapshot: Mapping[str, object],
+    cash_receipt_path: Path,
+    preview_path: Path,
+    immediate_proceeds_receipt_path: Path,
+    selected_at: datetime,
+    rth_scope_accepted: bool,
+) -> dict[str, object]:
+    """Freeze a zero-inheritance immediate-proceeds run from terminal flat state."""
+
+    from .xsp_live_transport_risk import xsp_transport_risk_state
+
+    prior = load_xsp_v3_transport_selection_from_mapping(predecessor)
+    if prior["schema"] != XSP_V3_ROTATION_SELECTION_SCHEMA:
+        raise ValueError("clean rebase requires an immediate-proceeds predecessor")
+    capability = _immediate_proceeds_capability(immediate_proceeds_receipt_path)
+    selected_utc = _utc(selected_at)
+    terminal = xsp_transport_risk_state(
+        selection=prior,
+        records=tuple(records),
+        observed_at=selected_utc,
+        liquidation_bids={},
+    )
+    broker_cash = _number(
+        broker_snapshot.get("settled_cash_usd"),
+        name="rebase USD cash",
+    )
+    if (
+        terminal["holdings_from_fills"] != {"UPRO": 0.0, "SPXU": 0.0}
+        or terminal["closed_trades"] < 1
+        or terminal["fill_count"] < 2
+        or terminal["pending_settlement_usd"] != 0
+        or terminal["safety_breaches"]
+        or abs(float(terminal["settled_cash_usd"]) - broker_cash) > 0.02
+        or str(broker_snapshot.get("account_id") or "")
+        != str(prior["broker_at_selection"]["account_id"])
+    ):
+        raise ValueError("clean rebase predecessor is not terminal and flat")
+    base = select_xsp_v3_transport(
+        cash_receipt_path=cash_receipt_path,
+        preview_path=preview_path,
+        source_receipt=source_receipt,
+        broker_snapshot=broker_snapshot,
+        selected_at=selected_utc,
+        rth_scope_accepted=rth_scope_accepted,
+    )
+    if base["baseline_state"] is not None:
+        raise ValueError("clean rebase requires a flat v3 source")
+    nominee = json.loads(json.dumps(base["nominee"]))
+    nominee["capital_identity"] = {
+        "starting_cash_identity_usd": 900.0,
+        "fixed_entry_notional_usd": 900.0,
+        "cash_slots": 1,
+        "maximum_gross_purchase_notional_usd": 900.0,
+        "settlement": XSP_V3_IMMEDIATE_PROCEEDS_SETTLEMENT,
+        "unsettled_sale_proceeds_reused": True,
+    }
+    evidence = json.loads(json.dumps(base["evidence"]))
+    evidence["immediate_proceeds"] = {
+        "path": str(immediate_proceeds_receipt_path),
+        "sha256": _sha256(immediate_proceeds_receipt_path),
+        "official_account_contract_url": capability["official_account_contract"][
+            "url"
+        ],
+        "broker_preview_sha256": capability["broker_preview"]["result_sha256"],
+    }
+    reset = {
+        "schema": _RESET_SCHEMA,
+        "predecessor_schema": prior["schema"],
+        "predecessor_selection_id": prior["selection_id"],
+        "predecessor_run_started_at_utc": prior["run_started_at_utc"],
+        "predecessor_fill_ledger_fingerprint": terminal[
+            "fill_ledger_fingerprint"
+        ],
+        "predecessor_risk_state_fingerprint": calibration_fingerprint(terminal),
+        "predecessor_realized_net_usd": terminal["run_realized_net_usd"],
+        "predecessor_closed_trades": terminal["closed_trades"],
+        "source_target_state": None,
+    }
+    body = {
+        **{
+            key: json.loads(json.dumps(value))
+            for key, value in base.items()
+            if key not in {"selection_id", "schema", "nominee", "risk", "evidence"}
+        },
+        "schema": XSP_V3_ROTATION_SELECTION_SCHEMA,
+        "nominee": nominee,
+        "risk": {
+            "starting_cash_identity_usd": 900.0,
+            "settlement": XSP_V3_IMMEDIATE_PROCEEDS_SETTLEMENT,
+            "max_drawdown_usd": 135.0,
+            "max_session_loss_usd": 67.5,
+            "gth_execution_allowed": False,
+        },
+        "evidence": evidence,
+        "reset": reset,
     }
     selected = {**body, "selection_id": calibration_fingerprint(body)}
     return load_xsp_v3_transport_selection_from_mapping(selected)

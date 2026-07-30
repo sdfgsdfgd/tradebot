@@ -40,6 +40,7 @@ from .xsp_execution_observer import (
     advance_xsp_v2_etf_execution_observer,
 )
 from .xsp_live_transport import (
+    XSP_V3_TRANSPORT_SELECTION_SCHEMA,
     load_xsp_v2_transport_selection,
     select_xsp_v2_transport,
     write_xsp_v2_transport_selection,
@@ -49,7 +50,10 @@ from .xsp_live_transport_state import (
     latest_xsp_v3_source_receipt,
     xsp_v2_broker_snapshot,
 )
-from .xsp_live_transport_handoff import handoff_xsp_v3_immediate_proceeds
+from .xsp_live_transport_handoff import (
+    handoff_xsp_v3_immediate_proceeds,
+    rebase_xsp_v3_immediate_proceeds,
+)
 from .xsp_live_transport_v3 import (
     load_xsp_v3_transport_selection,
     select_xsp_v3_transport,
@@ -117,24 +121,40 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
         config = auxiliary_client_config(load_config(), 84)
         if not config.readonly:
             raise ValueError("transport handoff requires a read-only broker client")
-        client = IBKRClient(config)
         ledger = LiveCalibrationLedger(args.ledger)
         predecessor = load_xsp_v3_transport_selection(selected_transport_path)
+        if (
+            predecessor["schema"] != XSP_V3_TRANSPORT_SELECTION_SCHEMA
+            and not args.transport_preview
+        ):
+            raise ValueError("clean immediate-proceeds rebase requires a fresh preview")
+        client = IBKRClient(config)
         try:
-            successor = handoff_xsp_v3_immediate_proceeds(
-                predecessor=predecessor,
-                records=tuple(ledger.records()),
-                source_receipt=latest_xsp_v3_source_receipt(
-                    tuple(ledger.records())
-                ),
-                broker_snapshot=await xsp_v2_broker_snapshot(
+            records = tuple(ledger.records())
+            common = {
+                "predecessor": predecessor,
+                "records": records,
+                "source_receipt": latest_xsp_v3_source_receipt(records),
+                "broker_snapshot": await xsp_v2_broker_snapshot(
                     client,
                     symbols=("UPRO", "SPXU"),
                 ),
-                immediate_proceeds_receipt_path=Path(
+                "immediate_proceeds_receipt_path": Path(
                     args.transport_immediate_proceeds_receipt
                 ).expanduser(),
-                selected_at=datetime.now(timezone.utc),
+                "selected_at": datetime.now(timezone.utc),
+            }
+            successor = (
+                handoff_xsp_v3_immediate_proceeds(**common)
+                if predecessor["schema"] == XSP_V3_TRANSPORT_SELECTION_SCHEMA
+                else rebase_xsp_v3_immediate_proceeds(
+                    **common,
+                    cash_receipt_path=Path(
+                        args.transport_cash_receipt
+                    ).expanduser(),
+                    preview_path=Path(args.transport_preview).expanduser(),
+                    rth_scope_accepted=args.accept_rth_only_cash_scope,
+                )
             )
             archive = selected_transport_path.with_name(
                 f"{selected_transport_path.stem}."

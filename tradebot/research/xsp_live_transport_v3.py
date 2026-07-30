@@ -60,6 +60,7 @@ _IMMEDIATE_PROCEEDS_SHA256 = (
     "bbe079289882d06f3bf7f7a1351595ff9d2392d80f3959fff34362629cf4fd71"
 )
 _CONTINUITY_SCHEMA = "xsp.opening-edge-v3-selection-continuity.v1"
+_RESET_SCHEMA = "xsp.opening-edge-v3-flat-reset.v1"
 
 
 def _sha256_identity(value: object) -> bool:
@@ -701,17 +702,60 @@ def _load_xsp_v3_initial_selection_from_mapping(
 def _load_xsp_v3_rotation_selection_from_mapping(
     selection: Mapping[str, object],
 ) -> dict[str, object]:
-    """Validate the immediate-proceeds successor and inherited open position."""
+    """Validate an immediate-proceeds continuity or clean-reset selection."""
 
     nominee = selection.get("nominee")
     broker = selection.get("broker_at_selection")
     evidence = selection.get("evidence")
     continuity = selection.get("continuity")
+    reset = selection.get("reset")
     baseline = selection.get("baseline_state")
     source_context = (
         evidence.get("source_daily_context")
         if isinstance(evidence, Mapping)
         else None
+    )
+    continuity_valid = bool(
+        isinstance(continuity, Mapping)
+        and set(continuity)
+        == {
+            "schema",
+            "predecessor_schema",
+            "predecessor_selection_id",
+            "predecessor_run_started_at_utc",
+            "predecessor_starting_cash_usd",
+            "inherited_holding_direction",
+            "source_target_state",
+            "inherited_fills",
+            "inherited_fill_ledger_fingerprint",
+        }
+        and continuity.get("schema") == _CONTINUITY_SCHEMA
+        and continuity.get("predecessor_schema")
+        == XSP_V3_TRANSPORT_SELECTION_SCHEMA
+        and _sha256_identity(continuity.get("predecessor_selection_id"))
+        and bool(str(continuity.get("predecessor_run_started_at_utc") or ""))
+    )
+    reset_valid = bool(
+        isinstance(reset, Mapping)
+        and set(reset)
+        == {
+            "schema",
+            "predecessor_schema",
+            "predecessor_selection_id",
+            "predecessor_run_started_at_utc",
+            "predecessor_fill_ledger_fingerprint",
+            "predecessor_risk_state_fingerprint",
+            "predecessor_realized_net_usd",
+            "predecessor_closed_trades",
+            "source_target_state",
+        }
+        and reset.get("schema") == _RESET_SCHEMA
+        and reset.get("predecessor_schema") == XSP_V3_ROTATION_SELECTION_SCHEMA
+        and _sha256_identity(reset.get("predecessor_selection_id"))
+        and bool(str(reset.get("predecessor_run_started_at_utc") or ""))
+        and _sha256_identity(reset.get("predecessor_fill_ledger_fingerprint"))
+        and _sha256_identity(reset.get("predecessor_risk_state_fingerprint"))
+        and reset.get("source_target_state") is None
     )
     body = {key: value for key, value in selection.items() if key != "selection_id"}
     try:
@@ -723,29 +767,72 @@ def _load_xsp_v3_rotation_selection_from_mapping(
         commissions = nominee["commission_limits_usd"]
         contract_ids = nominee["contract_ids"]
         preview_quantities = nominee["preview_quantities"]
-        fills = continuity["inherited_fills"]
-        starting_cash = float(continuity["predecessor_starting_cash_usd"])
-        replay_cash, replay_holdings = _inherited_cash_and_holdings(
-            fills,
-            starting_cash_usd=starting_cash,
-        )
         broker_positions = {
             symbol: int(
                 _number(broker["positions"][symbol], name=f"{symbol} position")
             )
             for symbol in _V3_SYMBOLS
         }
-        held_symbol = next(
-            symbol
-            for symbol, quantity in broker_positions.items()
-            if quantity > 0
-        )
-        held_direction = next(
-            direction
-            for direction, symbol in _V3_DIRECTION_SYMBOL.items()
-            if symbol == held_symbol
-        )
-        source_target = continuity["source_target_state"]
+        if continuity_valid:
+            fills = continuity["inherited_fills"]
+            replay_cash, replay_holdings = _inherited_cash_and_holdings(
+                fills,
+                starting_cash_usd=float(
+                    continuity["predecessor_starting_cash_usd"]
+                ),
+            )
+            held_symbol = next(
+                symbol
+                for symbol, quantity in broker_positions.items()
+                if quantity > 0
+            )
+            held_direction = next(
+                direction
+                for direction, symbol in _V3_DIRECTION_SYMBOL.items()
+                if symbol == held_symbol
+            )
+            source_target = continuity["source_target_state"]
+            lifecycle_valid = bool(
+                replay_holdings == broker_positions
+                and abs(replay_cash - float(broker["settled_cash_usd"])) <= 0.02
+                and sum(
+                    quantity > 0 for quantity in broker_positions.values()
+                )
+                == 1
+                and continuity["inherited_holding_direction"] == held_direction
+                and baseline == source_target
+                and (
+                    source_target is None
+                    or (
+                        isinstance(source_target, Mapping)
+                        and source_target["lane"] == "rth"
+                        and str(source_target["direction"])
+                        in _V3_DIRECTION_SYMBOL
+                    )
+                )
+                and continuity["inherited_fill_ledger_fingerprint"]
+                == calibration_fingerprint(fills)
+            )
+        else:
+            source_target = reset["source_target_state"]
+            lifecycle_valid = bool(
+                reset_valid
+                and broker_positions == {"UPRO": 0, "SPXU": 0}
+                and baseline is None
+                and source_target is None
+                and broker["settled_cash_usd"]
+                >= 900.0 + max(float(value) for value in commissions.values())
+                and broker["minimum_settled_cash_usd"]
+                == 900.0 + max(float(value) for value in commissions.values())
+                and isinstance(reset["predecessor_closed_trades"], int)
+                and not isinstance(reset["predecessor_closed_trades"], bool)
+                and reset["predecessor_closed_trades"] >= 1
+                and _number(
+                    reset["predecessor_realized_net_usd"],
+                    name="predecessor realized net",
+                )
+                == float(reset["predecessor_realized_net_usd"])
+            )
         context_day = date.fromisoformat(str(source_context["trading_day"]))
         context_as_of = date.fromisoformat(
             str(source_context["context_as_of_day"])
@@ -795,21 +882,7 @@ def _load_xsp_v3_rotation_selection_from_mapping(
                 "settlement": XSP_V3_IMMEDIATE_PROCEEDS_SETTLEMENT,
                 "unsettled_sale_proceeds_reused": True,
             }
-            and replay_holdings == broker_positions
-            and abs(replay_cash - float(broker["settled_cash_usd"])) <= 0.02
-            and sum(quantity > 0 for quantity in broker_positions.values()) == 1
-            and continuity["inherited_holding_direction"] == held_direction
-            and baseline == source_target
-            and (
-                source_target is None
-                or (
-                    isinstance(source_target, Mapping)
-                    and source_target["lane"] == "rth"
-                    and str(source_target["direction"]) in _V3_DIRECTION_SYMBOL
-                )
-            )
-            and continuity["inherited_fill_ledger_fingerprint"]
-            == calibration_fingerprint(fills)
+            and lifecycle_valid
             and source_context["schema"]
             == XSP_OPENING_EDGE_V3_CONTEXT_STATE_SCHEMA
             and context_as_of < context_day
@@ -853,24 +926,7 @@ def _load_xsp_v3_rotation_selection_from_mapping(
             or str(row.get("symbol") or "") in _V3_SYMBOLS
             for row in broker["unrelated_positions"]
         )
-        or not isinstance(continuity, Mapping)
-        or set(continuity)
-        != {
-            "schema",
-            "predecessor_schema",
-            "predecessor_selection_id",
-            "predecessor_run_started_at_utc",
-            "predecessor_starting_cash_usd",
-            "inherited_holding_direction",
-            "source_target_state",
-            "inherited_fills",
-            "inherited_fill_ledger_fingerprint",
-        }
-        or continuity.get("schema") != _CONTINUITY_SCHEMA
-        or continuity.get("predecessor_schema")
-        != XSP_V3_TRANSPORT_SELECTION_SCHEMA
-        or not _sha256_identity(continuity.get("predecessor_selection_id"))
-        or not str(continuity.get("predecessor_run_started_at_utc") or "")
+        or continuity_valid == reset_valid
         or not isinstance(evidence, Mapping)
         or set(evidence)
         != {
