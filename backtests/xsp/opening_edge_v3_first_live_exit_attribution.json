@@ -1,0 +1,66 @@
+{
+  "schema": "xsp.opening-edge-v3-first-live-exit-attribution.v1",
+  "authority": "retrospective_execution_attribution_only",
+  "strategy_id": "xsp.opening-edge-v3-regime-harmony-24x5.v1",
+  "transport": "UPRO/SPXU RTH cash pair",
+  "pricing_plan": "Tiered",
+  "quantity": 23,
+  "actual_entry": {
+    "symbol": "SPXU",
+    "time_utc": "2026-07-30T15:27:26.871125+00:00",
+    "price_usd": 39.1,
+    "commission_usd": 0.318126
+  },
+  "first_causal_live_flat": {
+    "checkpoint_recorded_at_utc": "2026-07-30T16:02:09.815495+00:00",
+    "checkpoint_id": "7670b48ae615008526df314f68c4b1d5690215651a8f30f0396803ce76791c97",
+    "book_time_utc": "2026-07-30T16:02:09+00:00",
+    "executable_bid_usd": 38.7,
+    "bid_size": 1500,
+    "actual_exit_fee_proxy_usd": 0.340881,
+    "conservative_modeled_exit_fee_usd": 0.44695125,
+    "net_with_actual_fee_proxy_usd": -9.859007,
+    "net_with_conservative_fee_usd": -9.96507725
+  },
+  "finalized_crown_ledger_exit": {
+    "exit_time_utc": "2026-07-30T16:05:00+00:00",
+    "stable_checkpoint_recorded_at_utc": "2026-07-30T16:07:09.840113+00:00",
+    "checkpoint_id": "f446b82b53a22bdd6caea00118365a49243c0ae15fd54020c710b0169b1b1c34",
+    "book_time_utc": "2026-07-30T16:05:00+00:00",
+    "executable_bid_usd": 38.58,
+    "bid_size": 16200,
+    "actual_exit_fee_proxy_usd": 0.340881,
+    "conservative_modeled_exit_fee_usd": 0.44695125,
+    "net_with_actual_fee_proxy_usd": -12.619007,
+    "net_with_conservative_fee_usd": -12.72507725
+  },
+  "actual_exit": {
+    "time_utc": "2026-07-30T16:45:55.313938+00:00",
+    "price_usd": 38.56,
+    "commission_usd": 0.340881,
+    "realized_round_trip_net_usd": -13.079007
+  },
+  "attribution": {
+    "execution_debt_vs_first_causal_live_flat_usd": {
+      "using_actual_exit_fee_proxy": 3.22,
+      "using_conservative_modeled_exit_fee": 3.11392975
+    },
+    "execution_debt_vs_finalized_crown_ledger_usd": {
+      "using_actual_exit_fee_proxy": 0.46,
+      "using_conservative_modeled_exit_fee": 0.35392975
+    },
+    "verdict": "The actual account loss remains authoritative. The fair directional result is reported separately: the first causal live-flat bound is approximately -$9.86 to -$9.97, while the finalized crown-ledger bound is approximately -$12.62 to -$12.73. The remaining difference is integration and execution debt."
+  },
+  "evidence": {
+    "broker_contract_id": 828937771,
+    "minute_book_probe_sha256": "a18950a443bc15b02a76ee857b6e4b228e7ab6cdf05eb8bd5227adce170084ca",
+    "historical_tick_probe_sha256": "06ea02f0271170585632931ea7ffe4cec3f1bc9147b29d8f37add4267cef4718",
+    "submitted_orders": 0
+  },
+  "notes": [
+    "The 12:02 ET checkpoint was the first prospective live prefix that exposed a flat research position.",
+    "The 12:05 ET exit is the stable next-open crown-ledger timestamp after the following bar completed.",
+    "The actual-fee value is a proxy because a hypothetical historical order cannot have a broker-confirmed commission; the conservative value uses the selection owner's frozen sell-side Tiered limit.",
+    "This receipt neither rewrites realized P&L nor starts, repairs, or backfills a profitability prefix."
+  ]
+}

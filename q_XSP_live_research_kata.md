@@ -1,11 +1,11 @@
 # XSP Mastery — Live Research Kata
 
-- **Status:** `[ACTIVE] Opening Edge v3 is the frozen historical crown and its
-  Tiered UPRO/SPXU RTH cash run is live on q with `23 SPXU` from its first
-  qualified bearish transition. Bounded `rth_cash_pair_limit_only` authority
-  remains active; three fail-closed integration gaps invalidate the original
-  proof prefix but not the reconciled trade. The 24/5 GTH lane remains
-  observation-only`
+- **Status:** `[ACTIVE] Opening Edge v3 is the frozen historical crown. Its
+  first Tiered UPRO/SPXU RTH round trip is terminal and q is flat: v3
+  conditionally surrendered `down` without admitting `up`, then the live owner
+  sold all `23 SPXU`. The original prefix remains invalid; the recurring timer
+  is paused until one clean post-flat proof identity is frozen. The 24/5 GTH
+  lane remains observation-only`
 - **Authority:** canonical resume state, active task tree, critical evidence
   index, and promotion contract
 - **Cold history:** [`q_XSP_live_research_kata-archive.md`](q_XSP_live_research_kata-archive.md)
@@ -18,12 +18,13 @@
   restart, and broker-permission gates passed; its narrower `141/year` RTH cash
   scope is explicitly accepted for the first canary. GTH cash execution remains
   separately unqualified
-- **Capital premise:** selection froze authentic settled USD `$1,331.13`, one
-  `$900` strict-T+1 cash slot, and a conservative maximum completed-ticket
-  commission of `$0.45034925`. The first live ticket bought `23 SPXU @ $39.10`
-  for `$0.318126` commission; the first reconciled state held `23 SPXU`, no
-  open order, `$431.511874` settled cash, and no safety breach. One unrelated
-  TQQQ share remains outside this run
+- **Capital premise:** the position-preserving successor binds IBKR Australia's
+  immediate stock-sale proceeds, one `$900` cash slot, and a conservative
+  maximum completed-ticket commission of `$0.45034925`. The first round trip
+  bought `23 SPXU @ $39.10` for `$0.318126`, then sold all `23 @ $38.56` for
+  `$0.340881`: realized `-$13.079007`, current settled USD `$1,318.051`, no
+  relevant position/order, and no safety breach. One unrelated TQQQ share
+  remains outside this run
 
 **Operating rule:** update this file only when the frontier, authority, strategy,
 evidence conclusion, risk boundary, or next action changes. Routine test/lint
@@ -36,17 +37,17 @@ output belongs in commit/final verification, not in this management brain.
 | Authority | Current truth |
 |---|---|
 | Broker/order strategy | Tiered UPRO/SPXU, RTH cash pair, bounded limit-only execution; GTH remains `NO_TRADE` |
-| Selected live run | `d0726236…`; selection file `e76ebaca…`, source checkpoint `2688c896…`, start `2026-07-30T13:44:47Z` |
+| Selected live run | continuity successor `ab0bb43a…`; selection file `be949517…`; predecessor `d0726236…` is archived intact. This identity managed the inherited position and is not a clean profitability-prefix start |
 | Research crown | **Opening Edge v3 — Regime Harmony 24/5**; `xsp.opening-edge-v3-regime-harmony-24x5.v1` |
 | Runtime parity | Central v3 owner reproduces RTH `40708a28…` exactly over `425/425` trades; unchanged GTH Down Sleeve reproduces `9e04807f…` over `179/179`; combined `604`, `+291.1756`, PF `2.0919`, DD `17.63` |
-| Runtime source anchor | q is clean at published `5430eba…`; central owner `643b6a…`, crown `d47eb39…`, canonical daily-context fingerprint `7a139df1…`, selected drop-in `c831b847…` |
-| Observer cadence | Active five-minute timer. The first admitted `10:55 ET` bearish turn survived every crown gate; after three fail-closed integration repairs, the `11:27 ET` recurrence submitted exactly one bounded order and the `11:32 ET` recurrence reconciled it without resubmission |
+| Runtime source anchor | q is clean at published `69e489b…`; central owner `643b6a…`, crown `d47eb39…`, canonical daily-context fingerprint `7a139df1…` |
+| Observer cadence | Five-minute timer paused after clean post-fill restart proof. Strategy truth is flat: the `12:00 ET` source reversal exited `down` at `12:05 ET` next-open, but `entry_dir=null` correctly queued no `up` re-entry |
 | RTH signal freshness | **cleared:** after the user activated `CBOE Streaming Market Indexes`, zero-order receipt `acce7ed3…` returned live type-1 XSP, current five-minute history, and real-time `TRADES` bars without a Gateway restart; the natural `10:07 ET` centralized v2 checkpoint then evaluated with both XSP and SPY through `10:05` and `120s` age |
-| Order/capital authority | `rth_cash_pair_limit_only`; up→UPRO, down→SPXU, fresh streaming NBBO, sell-before-buy, one strict-T+1 cash slot |
-| Profitability clock | Original prefix is `INVALID_EVIDENCE`, not failed economics: fail-closed crashes left `11:02/11:07/11:12 ET` slots absent. The live position remains exactly attributable; a fresh uninterrupted successor proof may begin only from a flat, newly frozen selection |
-| Execution verdict | `LIVE`. Order `XSPV3-b5255f…` bought `23 SPXU @ $39.10`, one fill, `$0.318126` Tiered commission, zero remainder. Independent broker audit matched `23 SPXU`, no open orders; the `11:32 ET` restart reconciled one fill and submitted zero duplicates |
-| Next irreversible evidence | v3's natural inverse turn or session boundary must sell the exact `23 SPXU` through the same owner; after flat reconciliation, freeze a clean successor proof prefix rather than backfilling missing slots |
-| First active work | manage and audit the live SPXU position at 15-minute review intervals while the five-minute owner continues; preserve every proposal/veto, slope/velocity/ATR and daily context, fill/cost, MFE/MAE, exit, safety, and TA/news contradiction |
+| Order/capital authority | `rth_cash_pair_limit_only`; up→UPRO, down→SPXU, fresh streaming NBBO, full SELL reconciliation before an admitted opposite BUY, one immediate-proceeds cash slot |
+| Profitability clock | `NOT_RESTARTED`. Original prefix is permanently `INVALID_EVIDENCE`; continuity run `ab0bb43a…` proves position-safe migration/exit but began with an inherited holding. No missing slot or inherited P&L may be backfilled into the clean 24h prefix |
+| Execution verdict | `LIVE_FLAT`. `23 SPXU @ $39.10` was sold completely at `$38.56`; total commission `$0.659007`, realized `-$13.079007`. Broker-qualified attribution separates the strategy-timed loss (`-$9.86..-$9.97` at the first causal live-flat checkpoint; `-$12.62..-$12.73` at the finalized crown-ledger boundary) from integration/execution debt. Post-fill restart matched `SPXU=0`, `UPRO=0`, no open orders, `$1,318.051` settled USD, and zero duplicate submissions |
+| Next irreversible evidence | freeze one clean post-flat immediate-proceeds selection, then resume the five-minute owner and anchor new 24h → 48h → five-session receipts from its immutable start |
+| First active work | prove the clean post-flat selection/restart boundary, then resume 15-minute evidence reviews over every proposal/veto, slope/velocity/ATR and daily context, fill/cost, MFE/MAE, exit, safety, and TA/news contradiction |
 
 ### Immediate sequence
 
@@ -119,11 +120,15 @@ output belongs in commit/final verification, not in this management brain.
     context, restart, risk, and human-visible Gateway permission gates passed.
     The first natural recurrence and independent broker census prove flat,
     uncontaminated startup with zero submissions or safety breaches.
-19. `[WIP]` Manage the first reconciled `23 SPXU` position through its natural
-    v3 exit. Preserve the original prefix as invalid because three fail-closed
-    slots are missing; once flat, freeze a fresh selected prefix and issue the
-    immutable 24h, 48h, and five-session verdicts without forcing trades.
-20. `[TODO]` Qualify a distinct GTH cash transport before granting overnight
+19. `[DONE]` Manage the first `23 SPXU` position through v3's natural
+    conditional flatten. The source exited `down` without admitting `up`; the
+    position-preserving successor sold all shares, and a post-fill restart
+    proved flat broker/source state with zero duplicate orders.
+20. `[WIP]` Freeze a clean post-flat immediate-proceeds identity. Preserve the
+    original prefix as invalid and the continuity run as migration evidence;
+    only the new immutable flat start may anchor 24h, 48h, and five-session
+    verdicts.
+21. `[TODO]` Qualify a distinct GTH cash transport before granting overnight
     order authority; the selected experiment is deliberately RTH-only.
 
 ### Never infer
@@ -800,6 +805,7 @@ and
 | E-316 | July 30's first authentic preview passed Tiered books, cash, quantity, commission, and zero-order gates (`7df81320…`), but the selector safely stopped before state writes because q's clean source lagged published causal-context/identity changes. q then fast-forwarded to `3841e48…`; `45` focused tests, q-native compile/import, and fresh strictly-prior `5/10/21/42/63/84` context `7a139df1…` passed. The preserved preview was repeated unchanged in authority and passed at current quotes (`2695811f…`); selector success froze run `d0726236…`, selection file `e76ebaca…`, and writable drop-in `c831b847…` at `13:44:47Z`. Its immediate checkpoint and first natural `09:47 ET` recurrence both returned `flat_target/UNCHANGED`, zero fills/orders/DD/breaches, and `$1,331.13` settled cash; an independent read-only broker census found no relevant position, order, or execution. The RTH profitability clock is active; GTH remains observation-only and the independent opening microtape continues |
 | E-317 | the selected run's first two fully warmed raw turns were independently blocked by distinct centralized gates and both vetoes protected capital over frozen 15-minute outcomes: the `10:05 ET` up proposal had three positive slopes but fading fast velocity, negative ATR velocity, and `3.29 ATR` retrace, then lost `0.90` XSP points / an estimated `-$2.68` at full-cross UPRO; the `10:20 ET` down proposal missed the `1.25 ATR` retrace proof at `1.212`, then XSP rose `0.62` / an estimated full-cross SPXU trade lost `-$3.17`. Actual run `d0726236…` remained flat with zero orders/fills/net/DD. Fresh news pressure stayed strongly bearish but eased (`-0.8232`, delta `+0.0294`, velocity `+0.005704/hour`) and retained attribution-only authority. The read-only `09:25→10:30 ET` opening microtape is terminal and sealed: `2,513,282` rows / `862,453,932` bytes, raw SHA `7375d85e…`, summary `50da564c…`, zero submissions. Receipt `opening_edge_v3_opening_microtape_receipt.json` is prospective attribution only; `2/2` useful vetoes are too few to alter the crown, gates, or authority |
 | E-318 | v3's first admitted live turn was the `10:55 ET` bearish core cascade: all `1/3/6/12` slopes and slope velocities were negative, coherence `1.0`, ATR velocity `+0.0123`, retrace `2.73 ATR`. Three pre-submit recurrences then failed closed on integration-only representation seams—cost-adjusted position metadata, causal-signal versus attribution identity, and the crown's canonical UTC-naive bar timestamp—repaired by `6237b6f…`, `f043f48…`, and `5430eba…` with `151` focused/wider tests green. The next natural recurrence derived fresh `39.11/39.12` SPXU NBBO and one `$900` slot, previewed Tiered commission `$0.283626..$0.423926`, and submitted exactly one bounded order through the shared ladder. Terminal receipt `4fe26eb1…` records `23 SPXU @ $39.10`, commission `$0.318126`, zero remainder; independent read-only broker audit and restart checkpoint `ff09ef79…` matched `23` shares, no open orders, one fill, zero duplicate submissions, and no safety breach. First mark was `-$1.008126`. The missing `11:02/11:07/11:12 ET` slots make the original profitability prefix `INVALID_EVIDENCE`; they are never backfilled. Compact receipt `opening_edge_v3_first_live_fill_receipt.json` is `e6a4e9fd…` |
+| E-319 | v3 intentionally surrendered its first live `down` state without admitting `up`: the `11:45 ET` raw up turn had strongly positive fast slopes/velocities but failed the long admission gate on negative ATR velocity; after the incumbent's frozen `12`-bar minimum hold, the persistent up source closed the research short at `12:05 ET` next-open with `entry_dir=null`. This is conditional flat ownership, not a flat-regime router. Immediate-proceeds capability/replay/preview then migrated live authority from archived `d0726236…` to position-preserving successor `ab0bb43a…` (`be949517…`); fixes `951157d…` and `69e489b…` permit that fresh flat-source state to liquidate without fabricating entry context while retaining mandatory context for every directional BUY/rotation (`981` tests green). The shared ladder sold all `23 SPXU @ $38.56`, commission `$0.340881`; the complete round trip realized `-$13.079007`. Broker-qualified ticks now attribute the same trade honestly: immediate sale at the first causal live-flat checkpoint (`12:02:09 ET`, `$38.70` bid) was `-$9.86..-$9.97`; the finalized crown-ledger boundary (`12:05 ET`, `$38.58` bid) was `-$12.62..-$12.73`. Thus delayed integration cost `$3.11..$3.22` versus the live causal checkpoint but only `$0.35..$0.46` versus the stable crown ledger; compact receipt `opening_edge_v3_first_live_exit_attribution.json` is `da6be71e…` and never rewrites the realized account result. Post-fill restart matched `SPXU=0`, `UPRO=0`, no open orders, `$1,318.051` settled USD, no duplicate or safety breach. Original prefix remains invalid and continuity selection cannot masquerade as a clean post-flat start; timer remains paused pending that freeze |
 
 ### Decision anchors
 
@@ -850,6 +856,7 @@ and
 | D-183 | v3 long context must load the content-addressed five-minute-aggregated seed, reconcile exact recent five-minute overlaps, and append only complete next RTH sessions. Broker one-day bars are independent drift evidence; they cannot silently alter context, state age, direction, financing, or surrender |
 | D-184 | a new v3 observer may freeze any strictly future exact five-minute GTH boundary, then recover only that immutable start. This permits same-day prospective observation without backfill; it does not transfer earlier outcomes or relax selection/order clocks. The v2 trading-day-open boundary remains unchanged |
 | D-185 | v3 may reuse only the existing selected cash-pair execution owner. Selection must bind fresh SMART and direct-ARCA books, exact quote-derived whole shares, effective Tiered what-if economics, current contract/cash identity, strict T+1 risk, and explicit acceptance of the below-global-cadence RTH-first scope. A historical pass, pricing request, stale internal book, preselection state, or missing GTH qualification cannot create authority |
+| D-186 | transport follows the crowned lifecycle's three states exactly: hold incumbent; sell to flat when the source surrenders but no opposite entry is admitted; or fully SELL then BUY when the opposite direction is admitted. Immediate sale proceeds may finance the latter only after terminal full-sale and fresh broker reconciliation. Never invent signal context for a flat liquidation, infer a long from raw up bias, or let an inherited-position continuity identity start a clean profitability prefix |
 
 ---
 
@@ -922,22 +929,23 @@ the frozen `40708a28…` RTH ledger exactly; the `9e04807f…` GTH lane remains
 unchanged. There is no date router, news authority, generic stop/trail, quota,
 or sizing change.
 
-Tiered UPRO/SPXU RTH cash run `d0726236…` is live with bounded
-`rth_cash_pair_limit_only` authority. Its first qualified bearish transition
-bought `23 SPXU @ $39.10` through the shared ladder for `$0.318126` commission.
-The terminal local receipt, independent read-only broker census, and next
-five-minute restart agree on one fill, `23` shares, no open order, no duplicate,
-and no safety breach. GTH signal observation remains 24/5, but GTH cash
-authority is separately unqualified.
+Tiered UPRO/SPXU RTH cash authority is now flat under continuity selection
+`ab0bb43a…`. Its first qualified bearish transition bought `23 SPXU @ $39.10`;
+v3 later surrendered `down` without admitting `up`, and the shared ladder sold
+all `23 @ $38.56`. Total commission was `$0.659007`; realized P&L was
+`-$13.079007`. Post-fill restart agrees on `SPXU=0`, `UPRO=0`, no open order,
+no duplicate, `$1,318.051` settled USD, and no safety breach. GTH signal
+observation remains 24/5, but GTH cash authority is separately unqualified.
 
 The original profitability prefix is permanently `INVALID_EVIDENCE` because
-the fail-closed repairs left three scheduled slots absent. The trade remains
-valid prospective capital evidence and must be managed through v3's natural
-exit; the missing prefix is never backfilled. A clean 24h → 48h → five-session
-proof begins only from a flat, freshly frozen successor selection.
+the fail-closed repairs left three scheduled slots absent. The continuity
+successor is valid migration/exit evidence but began with an inherited holding;
+it cannot start a clean clock. Missing slots and inherited P&L are never
+backfilled. A clean 24h → 48h → five-session proof begins only from a flat,
+freshly frozen identity.
 
-**Predictive observation:** the next legitimate capital event is v3's natural
-inverse turn or session-boundary exit for the exact `23 SPXU`. Until then,
-15-minute reviews compare live P&L, MFE/MAE, gate state, multihorizon
+**Predictive observation:** after one clean post-flat selection/restart proof,
+the next legitimate capital event is a newly admitted v3 direction. Fifteen-
+minute reviews then compare live P&L, MFE/MAE, gate state, multihorizon
 slope/velocity/ATR, daily context, and attribution-only news pressure without
-altering direction or forcing an exit.
+altering direction or forcing an entry.
