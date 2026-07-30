@@ -1,0 +1,161 @@
+{
+  "authority": "prospective_live_capital_evidence",
+  "broker_reconciliation": {
+    "average_cost_usd_per_share": 39.113831565217396,
+    "executions": [
+      {
+        "price_usd": 39.1,
+        "shares": 23.0,
+        "side": "BOT",
+        "symbol": "SPXU",
+        "time_utc": "2026-07-30T15:27:25+00:00"
+      }
+    ],
+    "open_orders": [],
+    "position": {
+      "quantity": 23.0,
+      "symbol": "SPXU"
+    },
+    "read_only_client_id": 3199,
+    "submitted_orders": 0,
+    "transient_audit_invocation_id": "ea89131f173649b4bf744677c133f204"
+  },
+  "execution": {
+    "action": "BUY",
+    "average_fill_price_usd": 39.1,
+    "commission_currency": "USD",
+    "commission_usd": 0.318126,
+    "completed_at_utc": "2026-07-30T15:27:26.871125+00:00",
+    "contract_id": 828937771,
+    "exec_id": "0001051b.6a6c11a8.01.01",
+    "filled_shares": 23.0,
+    "initial_optimistic_limit_usd": 39.09,
+    "order_id": 8,
+    "order_ref": "XSPV3-b5255f23036a59a9edbcb85b",
+    "perm_id": 1402274591,
+    "remaining_shares": 0.0,
+    "status": "Filled",
+    "symbol": "SPXU"
+  },
+  "execution_checkpoints": {
+    "prepared": "df07d6c014794b85a5f3d6a27b255bd7b4983509c317584245233df3124a8c54",
+    "reconciled_state": "ff09ef7946e6c6d77b6e2f3b6d7def99aec9c4fdd5f029363ebc981898e47d54",
+    "state": "3cf3899acd50cab0d6fa8a23140a1432a2beb9ce928d46d20837acc1a2af0142",
+    "submitted": "2d6caf88347ecc48e552aca72bad8f4cda3a1ed71b8c6817395026adf67fa645",
+    "terminal": "4fe26eb1fd5718aaed34ac2649251d5d75c76b643182ec36339ec97292d1351b"
+  },
+  "fail_closed_repairs": [
+    {
+      "commit": "6237b6fc0852cca8d6012059196d76f516237ca0",
+      "failure": "research/broker position state drift",
+      "repair": "compare semantic position identity while retaining canonical research metadata"
+    },
+    {
+      "commit": "f043f48f9f10d562b92dcd10d3b9573c45dce416",
+      "failure": "research/broker execution attribution drift",
+      "repair": "separate causal signal identity from cost-adjusted attribution metadata"
+    },
+    {
+      "commit": "5430eba3c347b6fad7f9454c5d93231475a9f294",
+      "failure": "canonical UTC-naive signal bar rejected by the execution owner",
+      "repair": "centralize canonical signal timestamp normalization"
+    }
+  ],
+  "first_reconciled_mark": {
+    "as_of_utc": "2026-07-30T15:32:08.047969+00:00",
+    "broker_cash_balance_usd": 431.5119,
+    "broker_open_orders": [],
+    "broker_positions": {
+      "SPXU": 23.0,
+      "UPRO": 0.0
+    },
+    "drawdown_usd": 1.0081260000000545,
+    "fill_count": 1,
+    "holdings_from_fills": {
+      "SPXU": 23.0,
+      "UPRO": 0.0
+    },
+    "open_cost_usd": 899.6181260000001,
+    "open_mark_net_usd": -1.0081260000000545,
+    "run_cost_usd": 0.318126,
+    "run_gross_usd": -0.6900000000000546,
+    "run_net_usd": -1.0081260000000545,
+    "safety_breaches": [],
+    "settled_cash_usd": 431.51187400000003,
+    "submitted_orders": 0
+  },
+  "ladder": {
+    "active_mode": "OPT",
+    "ask_usd": 39.11,
+    "bid_usd": 39.1,
+    "checkpoint_id": "09d65132ba844558d472ff7ba2023015dba0d56ce0afead38fff2bc2f25175f5",
+    "initial_limit_usd": 39.09,
+    "quote_age_seconds": 0.6317609409998113,
+    "quote_eligible": true,
+    "selected_mode": "AUTO",
+    "signal_age_seconds": 1942.674502
+  },
+  "profitability_evidence": {
+    "missing_slots_et": [
+      "2026-07-30T11:02:00-04:00",
+      "2026-07-30T11:07:00-04:00",
+      "2026-07-30T11:12:00-04:00"
+    ],
+    "reason": "incomplete_session_coverage",
+    "status": "INVALID_EVIDENCE",
+    "trade_and_risk_attribution_valid": true
+  },
+  "schema": "xsp.opening-edge-v3-first-live-fill-receipt.v1",
+  "selection": {
+    "capital_sleeve": "xsp-upro-spxu-rth-cash",
+    "fixed_entry_notional_usd": 900.0,
+    "order_authority": "rth_cash_pair_limit_only",
+    "pricing_plan": "Tiered",
+    "selection_id": "d07262363fbaba72390639ad9c228ca27ba7a3e748e9e04af84589c7e4be203b",
+    "settlement": "strict_T_plus_1_settled_cash_only"
+  },
+  "signal": {
+    "admission": "directional_impulse_admission:pass:core",
+    "atr_acceleration_pct": -0.010272523823993324,
+    "atr_fast_pct": 0.1739659270645494,
+    "atr_velocity_pct": 0.012316863770848757,
+    "coherence": 1.0,
+    "direction": "down",
+    "direction_score": -0.35905067005540753,
+    "entry_state_price": 736.1500000000001,
+    "entry_state_time_utc": "2026-07-30T15:00:00",
+    "horizons": [
+      {
+        "bars": 1,
+        "slope_pct_per_bar": -0.12843912661393286,
+        "slope_velocity_pct_per_bar": -0.039287284817934864
+      },
+      {
+        "bars": 3,
+        "slope_pct_per_bar": -0.11063737924334645,
+        "slope_velocity_pct_per_bar": -0.05664534306868048
+      },
+      {
+        "bars": 6,
+        "slope_pct_per_bar": -0.0393904607558467,
+        "slope_velocity_pct_per_bar": -0.02633145657246113
+      },
+      {
+        "bars": 12,
+        "slope_pct_per_bar": -0.019470667945202063,
+        "slope_velocity_pct_per_bar": -0.0169927551587216
+      }
+    ],
+    "retrace_atr": 2.732674059080967,
+    "signal_bar_utc": "2026-07-30T14:55:00",
+    "source_checkpoint_id": "8d8ff7539cd3fe2a2790f71dfba43308035e82c29e84dd91f41f317331297c21",
+    "turn_sequence_order": "short_to_long"
+  },
+  "submitted_orders": 1,
+  "what_if_preview": {
+    "commission_currency": "USD",
+    "max_commission_usd": 0.42392625,
+    "min_commission_usd": 0.28362625,
+    "status": "PreSubmitted"
+  }
+}
