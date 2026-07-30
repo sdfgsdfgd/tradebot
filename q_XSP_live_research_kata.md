@@ -2,10 +2,10 @@
 
 - **Status:** `[ACTIVE] Opening Edge v3 is the frozen historical crown. Its
   first Tiered UPRO/SPXU RTH round trip is terminal and q is flat. Clean
-  post-flat selection `9e517007…` now starts with zero fills/P&L/DD, the
-  recurring owner is active, and its new 24h → 48h → five-session clock is
-  anchored without inheriting the first loss. The 24/5 GTH lane remains
-  observation-only`
+  attribution-complete selection `daf1609b…` starts with zero fills/P&L/DD,
+  the recurring owner is active, and its 24h → 48h → five-session clock is
+  anchored without inheriting the first loss or the superseded zero-economic
+  prefix. The 24/5 GTH lane remains observation-only`
 - **Authority:** canonical resume state, active task tree, critical evidence
   index, and promotion contract
 - **Cold history:** [`q_XSP_live_research_kata-archive.md`](q_XSP_live_research_kata-archive.md)
@@ -37,16 +37,16 @@ output belongs in commit/final verification, not in this management brain.
 | Authority | Current truth |
 |---|---|
 | Broker/order strategy | Tiered UPRO/SPXU, RTH cash pair, bounded limit-only execution; GTH remains `NO_TRADE` |
-| Selected live run | clean reset `9e517007…`; selection file `9374a9c3…`; terminal continuity predecessor `ab0bb43a…` (`be949517…`) is archived intact with its realized loss |
+| Selected live run | attribution-complete reset `daf1609b…`; selection file `a5891868…`; zero-economic predecessor `9e517007…` and terminal continuity predecessor `ab0bb43a…` are archived intact |
 | Research crown | **Opening Edge v3 — Regime Harmony 24/5**; `xsp.opening-edge-v3-regime-harmony-24x5.v1` |
 | Runtime parity | Central v3 owner reproduces RTH `40708a28…` exactly over `425/425` trades; unchanged GTH Down Sleeve reproduces `9e04807f…` over `179/179`; combined `604`, `+291.1756`, PF `2.0919`, DD `17.63` |
-| Runtime source anchor | q/origin are clean and synchronized; runtime code milestone `0ad1b29…`, central owner `643b6a…`, crown `d47eb39…`, canonical daily-context fingerprint `7a139df1…` |
+| Runtime source anchor | q/origin are clean and synchronized; attribution contract `7b37a4f…`, central owner `643b6a…`, crown `d47eb39…`, canonical daily-context fingerprint `7a139df1…` |
 | Observer cadence | Five-minute timer active. Clean restart and timer recurrence both preserved flat source/broker state, zero fills/orders/P&L/DD, and `$1,318.051` settled USD |
 | RTH signal freshness | **cleared:** after the user activated `CBOE Streaming Market Indexes`, zero-order receipt `acce7ed3…` returned live type-1 XSP, current five-minute history, and real-time `TRADES` bars without a Gateway restart; the natural `10:07 ET` centralized v2 checkpoint then evaluated with both XSP and SPY through `10:05` and `120s` age |
 | Order/capital authority | `rth_cash_pair_limit_only`; up→UPRO, down→SPXU, fresh streaming NBBO, full SELL reconciliation before an admitted opposite BUY, one immediate-proceeds cash slot |
-| Profitability clock | `STARTED` at `2026-07-30T17:08:23.183622Z` under `9e517007…`; no complete prefix is due yet. The first lawful `24h` verdict also requires Friday's complete `09:37..16:02 ET` session plus the frozen `90s` tolerance. Original prefix remains permanently `INVALID_EVIDENCE`; no missing slot or predecessor P&L is inherited or backfilled |
+| Profitability clock | `STARTED` at `2026-07-30T18:36:55.474840Z` under `daf1609b…`, with gap-free coverage from `18:37:00Z`; no complete prefix is due yet. The first lawful `24h` verdict also requires Friday's complete eligible session plus the frozen `90s` tolerance. Earlier prefixes remain evidence but are ineligible; no context, missing slot, or predecessor P&L is inherited or backfilled |
 | Execution verdict | `LIVE_FLAT`. `23 SPXU @ $39.10` was sold completely at `$38.56`; total commission `$0.659007`, realized `-$13.079007`. Broker-qualified attribution separates the strategy-timed loss (`-$9.86..-$9.97` at the first causal live-flat checkpoint; `-$12.62..-$12.73` at the finalized crown-ledger boundary) from integration/execution debt. Post-fill restart matched `SPXU=0`, `UPRO=0`, no open orders, `$1,318.051` settled USD, and zero duplicate submissions |
-| Next irreversible evidence | the first newly admitted v3 direction under clean selection `9e517007…`, followed by independently complete 24h, 48h, and five-session receipts |
+| Next irreversible evidence | the first newly admitted v3 direction under clean selection `daf1609b…`, followed by independently complete 24h, 48h, and five-session receipts |
 | First active work | continue 15-minute evidence reviews over every proposal/veto, slope/velocity/ATR and daily context, fill/cost, MFE/MAE, exit, safety, and TA/news contradiction |
 
 ### Immediate sequence
@@ -124,9 +124,10 @@ output belongs in commit/final verification, not in this management brain.
     conditional flatten. The source exited `down` without admitting `up`; the
     position-preserving successor sold all shares, and a post-fill restart
     proved flat broker/source state with zero duplicate orders.
-20. `[DONE]` Freeze clean post-flat immediate-proceeds identity `9e517007…`.
-    Restart proof begins at zero fills/P&L/DD and `$1,318.051` settled USD;
-    predecessor loss and missing slots remain excluded from every new prefix.
+20. `[DONE]` Freeze attribution-complete post-flat immediate-proceeds identity
+    `daf1609b…`. Restart proof begins at zero fills/P&L/DD and `$1,318.051`
+    settled USD; predecessor loss, missing slots, and incomplete context remain
+    excluded from every new prefix.
 21. `[TODO]` Qualify a distinct GTH cash transport before granting overnight
     order authority; the selected experiment is deliberately RTH-only.
 
@@ -919,6 +920,7 @@ and
 | E-321 | execution-attribution audit found one prospective receipt blocker without changing the crown: directional BUY/rotation ladder transitions already froze their admitted signal, but a valid v3 flat SELL carried no current ATR/slope/velocity/regime snapshot and would make the selected run's attribution incomplete. One centralized `execution_state_context` now freezes the current shared 1/3/6/12/24-horizon impulse, ATR velocity/acceleration, daily `5/10/21/42/63/84` context, and attribution-only news beside every v3 plan; it can satisfy flat-liquidation attribution but has no direction, admission, sizing, settlement, price, ladder, or order authority. Reprojecting the actual terminal exit preserved exact `SELL 23 SPXU`, `$38.59/$38.60` book, `OPTIMISTIC→AUTO`, and `-$13.079007`, while terminal risk became attribution-complete with the same two fills. Focused `150/150` and full `983` tests pass with architecture debt unchanged; compact receipt `opening_edge_v3_execution_state_attribution_receipt.json` is `878e3a14…`. The active task tree also carries the WIP 15-minute Hawkeye review quality bar; neither change alters selection `9e517007…`, its clock, broker state, or capital authority |
 | E-322 | the first natural q recurrence after `e5e2c2e…` proved exact selection/clock/broker continuity and exposed one final projection omission: the source checkpoint persisted the full fresh news-pressure object, but its compact return receipt did not hand that same object to execution. Published/deployed `0ad1b29…` now returns that already-computed `fundamental_pressure` unchanged; the natural `13:57 ET` recurrence produced identical source/execution pressure SHA `7413c39c…`, retained clean selection `9e517007…`, flat broker state, zero fills/orders/P&L/DD/breaches, and uninterrupted required slots from `13:12 ET`. An independent selected-ledger receipt is `ACTIVE`, coverage-unbroken, and zero-economics with no complete session yet; its first lawful `24h` verdict requires Friday's complete `09:37..16:02 ET` session plus `90s`. Full suite remains `983` passed; strategy, gate, sizing, ladder, capital authority, and clock identity are unchanged |
 | E-323 | exact production replay independently reproduced v3 RTH at `425` trades / `+280.97` / PF `2.2887` / DD `17.43` with canonical ledger `40708a28…`. A frozen anatomy of all `834` raw bullish turns blocked solely by negative ATR velocity was aggregate noise, rejecting any blanket relaxation. One preregistered aligned-up pullback maturation produced only six entries and improved RTH by `+8.16` (`+0.28/+5.55/+2.33` across Y1/Y2/Y3) without increasing DD, but its sole categorical adjacent proof retained five entries and made Y1 `-0.47` worse despite `+7.41` aggregate improvement. The mechanism therefore fails stability and is closed: no combined-24/5 or cash qualification, crown/gate/runtime/selection/order/clock change, or follow-on sweep is permitted. Base proof `4dc5d899…`; adjacent failure `cc6f3634…` |
+| E-324 | a cross-ledger audit found that selection `9e517007…` had zero fills/economics but its earliest checkpoints predated complete execution-state context; the economic receipt's fill-only attribution flag could therefore overstate TA/regime/news coverage. No row was backfilled. Published/deployed `7b37a4f…` now makes every v3 checkpoint fail attribution closed unless canonical directional impulse, causal daily context, and fundamental-pressure mappings are present, while permitting only a flat zero-fill/$0 identity to reset. Focused `150/150` and full `983` tests passed. Fresh source `7346a660…`, Tiered preview `07481440…`, flat broker state, zero orders, and `$1,318.051` froze successor `daf1609b…` (`a5891868…`). Its first natural `14:37 ET` checkpoint was `flat_target`, zero fills/P&L/DD/breaches, and exactly matched source/execution pressure; audit `d0236e4f…` proves `1/1` source linkage, complete cross-ledger attribution, and unbroken coverage from `18:37Z`. Strategy, gates, sizing, ladder, and order authority are unchanged; prior selections and the realized first loss remain archived evidence |
 
 ### Decision anchors
 
