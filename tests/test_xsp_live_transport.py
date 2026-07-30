@@ -618,6 +618,41 @@ def test_v3_rotation_handoff_preserves_an_already_pending_inverse(
     assert plan["leg"]["quantity"] == 23
 
 
+def test_v3_rotation_handoff_can_reconcile_inherited_holding_to_flat(
+    tmp_path: Path,
+) -> None:
+    selection, _record, _source_at_handoff = _v3_rotation_selection(tmp_path)
+    observed_at = SELECTED_AT + timedelta(minutes=16)
+
+    plan = project_xsp_transport_plan(
+        selection=selection,
+        source_receipt=_source(
+            None,
+            recorded_at=observed_at - timedelta(seconds=30),
+            checkpoint="f" * 64,
+        ),
+        observed_at=observed_at,
+        positions={"UPRO": 0, "SPXU": 23},
+        open_orders=[],
+        settled_cash_usd=302.65,
+        quotes={
+            "SPXU": {
+                "bid": 39.49,
+                "ask": 39.50,
+                "age_seconds": 0.5,
+                "market_data_type": 1,
+            }
+        },
+    )
+
+    assert plan["reason"] == "sell_incumbent_before_target"
+    assert plan["target_direction"] is None
+    assert plan["signal_context"] is None
+    assert plan["leg"]["action"] == "SELL"
+    assert plan["leg"]["symbol"] == "SPXU"
+    assert plan["leg"]["quantity"] == 23
+
+
 def test_v3_rotation_reuses_completed_sale_proceeds_without_symbol_overlap(
     tmp_path: Path,
 ) -> None:

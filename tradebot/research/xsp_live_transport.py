@@ -846,7 +846,7 @@ def project_xsp_transport_plan(
             "open_orders": cash_pair_orders,
         }
     if held and (held[0] != target_symbol or not entry_window_open):
-        if signal_context is None:
+        if signal_context is None and target_symbol is not None:
             raise ValueError("actionable transport has no causal signal context")
         symbol = held[0]
         bid, ask = _fresh_quote(quotes.get(symbol), symbol=symbol)
