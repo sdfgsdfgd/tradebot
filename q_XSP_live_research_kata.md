@@ -40,7 +40,7 @@ output belongs in commit/final verification, not in this management brain.
 | Selected live run | flat runtime selection `daf1609b…`; selection file `a5891868…`; its profitability prefix, zero-economic predecessor `9e517007…`, and terminal continuity predecessor `ab0bb43a…` are ineligible/archived intact. A new identity is required before the next RTH capital event |
 | Research crown | **Opening Edge v3 — Regime Harmony 24/5**; `xsp.opening-edge-v3-regime-harmony-24x5.v1` |
 | Runtime parity | Central v3 owner reproduces RTH `40708a28…` exactly over `425/425` trades; unchanged GTH Down Sleeve reproduces `9e04807f…` over `179/179`; combined `604`, `+291.1756`, PF `2.0919`, DD `17.63` |
-| Runtime source anchor | q/origin are clean at `6caa066…`; attribution contract `7b37a4f…`, central owner `643b6a…`, crown `d47eb39…`, canonical daily-context fingerprint `7a139df1…` |
+| Runtime source anchor | q/origin are clean at `69f8b56…`; stale-close repair `6caa066…`, attribution contract `7b37a4f…`, central owner `643b6a…`, crown `d47eb39…`, canonical daily-context fingerprint `7a139df1…` |
 | Observer cadence | Five-minute timer active. Repair `6caa066…` makes structurally valid stale RTH/CURB sources journal no target/order instead of crashing; exact failed-receipt replay is green and the first natural GTH restart proof is due at `20:22 ET` |
 | RTH signal freshness | **cleared:** after the user activated `CBOE Streaming Market Indexes`, zero-order receipt `acce7ed3…` returned live type-1 XSP, current five-minute history, and real-time `TRADES` bars without a Gateway restart; the natural `10:07 ET` centralized v2 checkpoint then evaluated with both XSP and SPY through `10:05` and `120s` age |
 | Order/capital authority | `rth_cash_pair_limit_only`; up→UPRO, down→SPXU, fresh streaming NBBO, full SELL reconciliation before an admitted opposite BUY, one immediate-proceeds cash slot |
@@ -129,12 +129,16 @@ output belongs in commit/final verification, not in this management brain.
     but its missing 16:12/16:17 execution rows make the prefix permanently
     ineligible; no row is backfilled.
 21. `[WIP]` Prove deployed stale-close repair `6caa066…` at the first natural
-    GTH recurrence. Immutable reset bundle `98565f71…` then requires that exact
-    zero-order proof before its July 31 `09:39 ET` fresh source, Tiered preview,
-    flat-broker rebase, and immediate restart. Any pre-selection failure
-    restores predecessor cadence; any post-selection proof failure disables
-    cadence for reconciliation. No order is forced and only a successful new
-    identity may start a profitability clock.
+    GTH recurrence. Zero-authority auditor `3318e60d…` reads the natural
+    `20:22 ET` source/execution pair once at `20:25`, requires exact checkpoint,
+    TA/regime/news-context linkage, flat holdings, null leg, zero submissions,
+    and disabled GTH cash authority, then writes immutable `PASS` or `HOLD`
+    without invoking runtime or broker. Reset bundle `98565f71…` requires the
+    same zero-order proof before its July 31 `09:39 ET` fresh source, Tiered
+    preview, flat-broker rebase, and immediate restart. Any pre-selection
+    failure restores predecessor cadence; any post-selection proof failure
+    disables cadence for reconciliation. No order is forced and only a
+    successful new identity may start a profitability clock.
 22. `[TODO]` Qualify a distinct GTH cash transport before granting overnight
     order authority; the selected experiment is deliberately RTH-only.
 
@@ -941,6 +945,7 @@ and
 | E-325 | `daf1609b…` remained flat with zero fills/P&L/DD and exact source linkage through `16:07 ET`, but normal finalization exposed one integration defect: valid source checkpoints `cff4e584…` at `16:12 RTH` and `00968c3f…` at `16:17 CURB` correctly returned `STALE_DATA` over the final `16:00` XSP bar, while the selected transport raised before journaling its unchanged state. Independent broker truth remained flat with no open order or later execution. The two absent selected-execution rows make this prefix permanently ineligible; they are never backfilled. Published/deployed `6caa066…` keeps freshness strict but treats a structurally valid stale source as no target/no BUY, permits only time-owned incumbent liquidation, and attributes CURB to final RTH anatomy. Exact production replay yields deterministic `source_not_executable`, null target/leg, and zero submissions for both receipts. Focused/architecture `153` and full `986` tests pass with the central transport exactly `1,000` lines; receipt `opening_edge_v3_post_close_stale_source_receipt.json` is `4283174b…`. Strategy, admission, sizing, ladder, settlement, and capital authority are unchanged; a new clean identity is required |
 | E-326 | one pre-outcome execution-dwell sidequest is frozen before July 31 data exists. Preregistration `499c4603…` and q bundle `c9b12fe2…` reuse recorder `32f28977…` for a bounded `09:25..11:35 ET` type-1 UPRO/SPXU NBBO plus AllLast/BidAsk capture under client `3097`, read-only connection, `order_authority=none`, and zero submissions. The primary population is natural admitted v3 transitions; blocked turns are descriptive controls. It measures full-quantity executable touch/trade-through bounds, price improvement, adverse selection, missed movement, and after-cost execution delta against the unchanged shared ladder using causal signal age, slope/ATR velocities, long context, and attribution-only news delta. Minimum graduation is `30` admitted transitions, five complete sessions, both directions, a TA-only pair, and later recent/every-year/full-three-year stability. It cannot change the crown, direction, admission, sizing, runtime, selection, order, GTH scope, or profitability clock |
 | E-327 | pre-outcome reset contract `159501bd…` and q bundle `98565f71…` bind the only next-RTH selection transaction to predecessor `daf1609b…` / file `a5891868…`. At July 31 `09:39 ET`, it first requires the natural post-repair `20:22 ET` GTH row to have no leg/order, q to be clean/current, the predecessor to remain flat/zero-economic, and runtime/reset hashes to match. It then pauses only the observer timer, appends one selected-transport-free read-only source, captures fresh type-1 SMART/direct-ARCA books plus non-transmitting Tiered what-ifs, invokes the existing clean immediate-proceeds rebase owner, and proves one immediate flat zero-order recurrence before restoring cadence. Missing GTH proof, nonflat source/broker, stale data, cash/quantity/commission failure, or identity drift fails before selection and restores predecessor cadence; failure after a successor freezes disables cadence for exact reconciliation. GTH remains forbidden, no missing row is backfilled, and no order is forced |
+| E-328 | pre-outcome bundle `3318e60d…` closes the last manual post-repair judgment gap without creating another observer. At July 30 `20:25 ET`, its stdlib-only auditor reads the ledger and exact `daf1609b…` selection once, accepts exactly one adjacent source/execution pair in the natural `20:22..<20:27` GTH window, and requires evaluated state, source-checkpoint identity, exact impulse/control/daily-context/news-pressure projection, flat UPRO/SPXU holdings, null leg, zero submissions, `rth_cash_pair_limit_only`, and `gth_execution_allowed=false`. It writes one atomic immutable `PASS` or `HOLD` receipt under its q bundle; it has no Gateway dependency, cannot run the observer, cannot touch selection/runtime/broker, and cannot backfill evidence. Synthetic success exercised all `19` invariants; a wrong selection hash failed closed |
 
 ### Decision anchors
 
