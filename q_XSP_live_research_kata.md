@@ -1044,8 +1044,8 @@ the frozen `40708a28…` RTH ledger exactly; the `9e04807f…` GTH lane remains
 unchanged. There is no date router, news authority, generic stop/trail, quota,
 or sizing change.
 
-Tiered UPRO/SPXU RTH cash authority is now flat under clean selection
-`9e517007…`. Its archived predecessor bought `23 SPXU @ $39.10`; v3 later
+Tiered UPRO/SPXU RTH cash authority is now flat under attribution-complete
+selection `daf1609b…`. Its archived predecessor bought `23 SPXU @ $39.10`; v3 later
 surrendered `down` without admitting `up`, and the shared ladder sold all
 `23 @ $38.56`. Total commission was `$0.659007`; realized P&L was
 `-$13.079007`. The new selection starts at zero fills/P&L/DD with `SPXU=0`,
@@ -1053,9 +1053,11 @@ surrendered `down` without admitting `up`, and the shared ladder sold all
 signal observation remains 24/5, but GTH cash authority is separately
 unqualified.
 
-The original profitability prefix remains permanently `INVALID_EVIDENCE`.
-Clean clock `9e517007…` began at `2026-07-30T17:08:23.183622Z`; no prefix is
-due yet, and missing slots or predecessor P&L are never backfilled.
+The original live prefix and superseded zero-economic prefix remain ineligible
+evidence. Clean clock `daf1609b…` began at
+`2026-07-30T18:36:55.474840Z`, with gap-free coverage from `18:37:00Z`; no
+prefix is due yet, and missing context, slots, or predecessor P&L are never
+backfilled.
 
 **Predictive observation:** the next legitimate capital event is a newly
 admitted v3 direction. Fifteen-minute reviews compare live P&L, MFE/MAE, gate
