@@ -36,11 +36,14 @@ _GATE_RELATIVE_PATH = Path(
 _RECEIPT_RELATIVE_PATH = Path(
     "backtests/xsp/opening_edge_v2_upro_spxu_acceptance_receipt.json"
 )
-_STATE_FIELDS = (
+_STATE_IDENTITY_FIELDS = (
     "lane",
     "direction",
     "entry_time",
     "trading_date",
+)
+_STATE_FIELDS = (
+    *_STATE_IDENTITY_FIELDS,
     "entry_price",
 )
 
@@ -114,6 +117,7 @@ def xsp_v2_position_state(
     if not isinstance(profiles, Mapping):
         raise ValueError("v2 execution observation requires paired profiles")
     states = []
+    identities = []
     starts = []
     for name in ("research", "broker"):
         profile = profiles.get(name)
@@ -123,6 +127,7 @@ def xsp_v2_position_state(
         starts.append(str(profile.get("run_started_at_utc") or ""))
         if position is None:
             states.append(None)
+            identities.append(None)
             continue
         if (
             not isinstance(position, Mapping)
@@ -131,10 +136,12 @@ def xsp_v2_position_state(
             or not position.get("entry_time")
         ):
             raise ValueError("invalid v2 open-position state")
-        states.append(
-            {field: position.get(field) for field in _STATE_FIELDS}
+        state = {field: position.get(field) for field in _STATE_FIELDS}
+        states.append(state)
+        identities.append(
+            {field: state.get(field) for field in _STATE_IDENTITY_FIELDS}
         )
-    if states[0] != states[1] or len(set(starts)) != 1 or not starts[0]:
+    if identities[0] != identities[1] or len(set(starts)) != 1 or not starts[0]:
         raise ValueError("v2 research/broker position state drift")
     run_key = calibration_fingerprint(
         {

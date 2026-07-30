@@ -16,6 +16,7 @@ from tradebot.research.xsp_execution_observer import (
     XSP_V2_ETF_EXECUTION_OBSERVER_VERSION,
     advance_xsp_v2_etf_execution_observer,
     load_xsp_v2_etf_transport,
+    xsp_v2_position_state,
 )
 
 
@@ -284,6 +285,23 @@ def test_execution_observer_fails_closed_on_profile_state_drift(
                 recorded_at=NOW + timedelta(seconds=1),
             )
         )
+
+
+def test_position_state_allows_cost_adjusted_entry_price() -> None:
+    research = _position("up")
+    broker = {**research, "entry_price": 740.5}
+
+    _run_key, state = xsp_v2_position_state(
+        _paired(research, broker_position=broker)
+    )
+
+    assert state == {
+        "lane": "gth",
+        "direction": "up",
+        "entry_time": research["entry_time"],
+        "trading_date": "2026-07-28",
+        "entry_price": 742.0,
+    }
 
 
 def test_execution_observer_skips_non_evaluated_sources(
