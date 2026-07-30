@@ -408,6 +408,14 @@ directional consistency is proven.
 
 #### `[WIP]` 15-minute Hawkeye review format
 
+This is the canonical inspirational format for the 15-minute cycle
+observations throughout the ongoing `24h → 48h → five-session/one-week` live
+profitability proof. Its purpose is not merely status reporting: rich,
+simultaneous observation should expose powerful intraday nuances, especially
+during volatile periods or patterns the strategy may not yet handle strongly,
+and feed two bounded sidequests—sharpening the strategy and discovering new
+causal hypotheses—without changing live authority from narration.
+
 Use this as the analytical quality bar for each scheduled review—not a rigid
 form and not permission to poll more frequently. Report only the latest
 completed causal checkpoint and separate observation from capital authority:
@@ -446,6 +454,67 @@ acceleration contracted. The 21/42-session path is down against an entrenched
 reversing. Remaining flat is coherent: v3 is refusing to chase a fading
 upswing outside its frozen entry window.” Preserve exact numbers immediately
 above an interpretation like this whenever the checkpoint supplies them.
+
+Preserve this full exemplar verbatim as the stylistic and analytical baseline:
+
+```text
+Current live state at 13:12 ET:
+
+- Selection: clean 9e517007….
+- Position: flat — SPXU 0 / UPRO 0.
+- New-run fills/trades: 0 / 0.
+- New-run P&L, costs, and drawdown: all $0.
+- Settled cash: $1,318.051.
+- Orders or safety breaches: none.
+- Five-minute owner: active; next bars are recorded automatically.
+- Analytical review cadence: every 15 minutes.
+- Clean clock: gap-free from its first required 13:12 ET recurrence.
+
+Latest centralized RTH state:
+
+- Underlying state: upward over the 15–120-minute horizons, but the immediate five-minute horizon turned down.
+- Slopes:
+    - 5-minute: negative;
+    - 15-, 30-, 60-, and 120-minute: positive.
+
+- Velocity:
+    - sharply negative at five minutes;
+    - negative at 15 minutes;
+    - barely positive at 30 minutes;
+    - slightly negative at 60 and 120 minutes.
+
+- ATR ratio: 0.762.
+- ATR velocity: −0.01531.
+- ATR acceleration: −0.02962.
+- Coherence: 0.80.
+- Decision: weak_direction; no proposed or admitted direction.
+- Turn state: outside the frozen RTH entry window; therefore v3 cannot manufacture a late-afternoon entry today.
+
+The interpretation is coherent: the prior upswing still exists in slower price slopes, but fast momentum and volatility are fading. The engine correctly remains flat instead of chasing it.
+
+Long-horizon context is an unusually valuable mixed regime:
+
+- 5/10/21/42-session directions: down.
+- 63/84-session directions: up.
+- State: transition_down.
+- Volatility phase: high_up, fresh and accelerating.
+- Long hard direction: still up.
+- Fast/soft direction: down.
+
+News remains strongly bearish but is becoming less bearish:
+
+- Signed pressure: −0.7488.
+- Pressure delta: +0.0744.
+- Pressure velocity: +0.033243/hour.
+- Confidence: 0.96.
+- Authority: attribution-only; it cannot create or veto a trade.
+
+That technical/fundamental combination is exactly the prospective evidence we wanted: entrenched long-term strength, medium-term deterioration, contracting intraday volatility, and bearish—but improving—
+fundamental pressure.
+
+Because the RTH turn window has closed and GTH cash authority remains disabled, the earliest legitimate new capital event is the next RTH entry window. The observer will still capture every five-minute state
+transition through today’s close; no order will be forced merely to populate the clock.
+```
 
 1. `[DONE]` Opening Edge v2 earned the historical crown with positive recent,
    all three annual slices, full-three-year economics, both directions, both
