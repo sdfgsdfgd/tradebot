@@ -53,6 +53,11 @@ _RTH_LEDGER_SHA256 = (
 _CONTEXT_HORIZONS = frozenset({"5", "10", "21", "42", "63", "84"})
 
 
+def _sha256_identity(value: object) -> bool:
+    text = str(value or "")
+    return len(text) == 64 and all(character in "0123456789abcdef" for character in text)
+
+
 def _tiered_commission_limit(quantity: int) -> float:
     # Selection must cover the dearer sell side, including SEC and TAF.
     base = max(0.35, quantity * 0.0035)
@@ -105,8 +110,8 @@ def _validated_nominee(
         or preview.get("relevant_open_orders") != []
         or not isinstance(source, Mapping)
         or source.get("crown_artifact_sha256") != _CROWN_SHA256
-        or not source.get("state_owner_sha256")
-        or not source.get("daily_context_fingerprint")
+        or not _sha256_identity(source.get("state_owner_sha256"))
+        or not _sha256_identity(source.get("daily_context_fingerprint"))
         or not isinstance(rows, list)
         or len(rows) != len(_V3_SYMBOLS)
     ):
@@ -252,8 +257,8 @@ def select_xsp_v3_transport(
         ) from None
     if (
         not isinstance(paired, Mapping)
-        or len(str(paired.get("state_owner_sha256") or "")) != 64
-        or len(str(paired.get("daily_context_fingerprint") or "")) != 64
+        or not _sha256_identity(paired.get("state_owner_sha256"))
+        or not _sha256_identity(paired.get("daily_context_fingerprint"))
         or not isinstance(context, Mapping)
         or context.get("schema") != XSP_OPENING_EDGE_V3_CONTEXT_STATE_SCHEMA
         or not isinstance(context_state, Mapping)
@@ -280,7 +285,7 @@ def select_xsp_v3_transport(
         or source_receipt.get("freshness_ok") is not True
         or source_receipt.get("session") != "RTH"
         or source_receipt.get("order_authority") != "none"
-        or not source_receipt.get("checkpoint_id")
+        or not _sha256_identity(source_receipt.get("checkpoint_id"))
         or not isinstance(source_receipt.get("paired_equity"), Mapping)
         or not 0
         <= (selected_utc - broker_at).total_seconds()
@@ -454,6 +459,7 @@ def load_xsp_v3_transport_selection_from_mapping(
     body = {key: value for key, value in selection.items() if key != "selection_id"}
     try:
         selected_at = _utc(selection.get("selected_at_utc"))
+        source_at = _utc(evidence["source_recorded_at_utc"])
         broker_at = _utc(
             broker.get("observed_at_utc") if isinstance(broker, Mapping) else None
         )
@@ -486,6 +492,9 @@ def load_xsp_v3_transport_selection_from_mapping(
         )
         semantic_valid = bool(
             selection.get("run_started_at_utc") == selected_at.isoformat()
+            and 0
+            <= (selected_at - source_at).total_seconds()
+            <= _SOURCE_MAX_AGE_SECONDS
             and 0
             <= (selected_at - broker_at).total_seconds()
             <= _BROKER_SNAPSHOT_MAX_AGE_SECONDS
@@ -531,7 +540,8 @@ def load_xsp_v3_transport_selection_from_mapping(
             and source_context.get("schema")
             == XSP_OPENING_EDGE_V3_CONTEXT_STATE_SCHEMA
             and source_context_as_of < source_context_day
-            and len(str(source_context.get("state_fingerprint") or "")) == 64
+            and source_context_day == xsp_trading_date(source_at)
+            and _sha256_identity(source_context.get("state_fingerprint"))
             and baseline_valid
         )
     except (KeyError, TypeError, ValueError):
@@ -580,8 +590,8 @@ def load_xsp_v3_transport_selection_from_mapping(
         or not isinstance(evidence.get("cash_receipt"), Mapping)
         or evidence["cash_receipt"].get("sha256") != _CASH_RECEIPT_SHA256
         or not isinstance(evidence.get("preview"), Mapping)
-        or len(str(evidence["preview"].get("sha256") or "")) != 64
-        or not str(evidence.get("source_checkpoint_id") or "")
+        or not _sha256_identity(evidence["preview"].get("sha256"))
+        or not _sha256_identity(evidence.get("source_checkpoint_id"))
         or not str(evidence.get("source_recorded_at_utc") or "")
         or not isinstance(source_context, Mapping)
         or evidence.get("rth_scope")

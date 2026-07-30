@@ -221,7 +221,7 @@ def _source(
     position: dict[str, object] | None,
     *,
     recorded_at: datetime,
-    checkpoint: str = "checkpoint",
+    checkpoint: str = "c" * 64,
     session: str = "RTH",
 ) -> dict[str, object]:
     context_state = {
@@ -400,8 +400,8 @@ def _v3_preview() -> dict[str, object]:
             "crown_artifact_sha256": (
                 "d47eb39cef3d2ca575d779d6b5b87e3b88e08606fd09a8801b8cb55c350208db"
             ),
-            "state_owner_sha256": "s" * 64,
-            "daily_context_fingerprint": "d" * 64,
+            "state_owner_sha256": "a" * 64,
+            "daily_context_fingerprint": "b" * 64,
         },
         "cash_receipt_sha256": (
             "e41e44db270ea872679746cb2b83b2aa73987e523863236472f6e8ec0434c8dc"
@@ -570,12 +570,24 @@ def test_v3_selection_requires_canonical_causal_daily_context(
         )
 
 
-def test_v3_selection_loader_rejects_readdressed_noncausal_context(
+@pytest.mark.parametrize(
+    "mutation",
+    ("noncausal", "stale_source", "invalid_checkpoint"),
+)
+def test_v3_selection_loader_rejects_readdressed_source_evidence(
     tmp_path: Path,
+    mutation: str,
 ) -> None:
     selection = deepcopy(_v3_selection(tmp_path))
-    source_context = selection["evidence"]["source_daily_context"]
-    source_context["context_as_of_day"] = source_context["trading_day"]
+    if mutation == "noncausal":
+        source_context = selection["evidence"]["source_daily_context"]
+        source_context["context_as_of_day"] = source_context["trading_day"]
+    elif mutation == "stale_source":
+        selection["evidence"]["source_recorded_at_utc"] = (
+            SELECTED_AT - timedelta(minutes=11)
+        ).isoformat()
+    else:
+        selection["evidence"]["source_checkpoint_id"] = "z" * 64
     selection["selection_id"] = calibration_fingerprint(
         {key: value for key, value in selection.items() if key != "selection_id"}
     )
