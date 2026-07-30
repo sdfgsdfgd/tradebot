@@ -978,5 +978,6 @@ async def advance_xsp_opening_edge_v2_from_ibkr(
         "checkpoint_id": checkpoint["checkpoint_id"],
         "paired_equity": paired_equity,
         "recorded_at_utc": checkpoint_recorded_at.isoformat(),
+        "fundamental_pressure": fundamental_log,
         "order_authority": "none",
     }

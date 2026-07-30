@@ -523,6 +523,7 @@ def test_opening_edge_v2_observer_uses_spy_full_session_and_xsp_rth(
             client=client,
             observed_at=observed_at,
             run_started_at=run_start,
+            news_snapshot=_news_snapshot(observed_at - timedelta(minutes=5)),
             recorded_at=observed_at,
         )
     )
@@ -560,6 +561,9 @@ def test_opening_edge_v2_observer_uses_spy_full_session_and_xsp_rth(
         row["evidence"]["run_started_at_utc"] == "2026-07-28T00:15:00+00:00"
         for row in checkpoints
     )
+    assert receipt["fundamental_pressure"] == checkpoints[-1]["evidence"][
+        "fundamental_pressure"
+    ]
 
 
 @pytest.mark.parametrize(
