@@ -45,6 +45,21 @@
       ]
     }
   },
+  "clock_displacement_audit": {
+    "runner_sha256": "d524a322b709f324226dbcf1344bb08c13c520e4aacf459a2ccee7e3cc4ada04",
+    "result_sha256": "084d5586c56a9e9ffb4332af26726d77349076ab5b6bf5dacef41c8ce8e435f1",
+    "baseline_trades": 423,
+    "delayed_trades": 422,
+    "sequence_matched_trades": 412,
+    "entry_delta_minutes": {
+      "0": 1,
+      "5": 411
+    },
+    "negative_entry_displacements": 0,
+    "unmatched_baseline_rows": 11,
+    "unmatched_delayed_rows": 10,
+    "interpretation": "411 matched fills moved exactly five minutes later; one sell-before-buy lifecycle entry already carried the extra bar and remained unchanged; delayed ownership changed ten later exit sequences"
+  },
   "tiered_latency_metrics": {
     "recent": {
       "net_usd": 33.891,
