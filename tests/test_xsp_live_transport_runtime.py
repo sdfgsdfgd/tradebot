@@ -31,6 +31,7 @@ from tradebot.research.xsp_live_transport_runtime import (
     XSP_V2_TRANSPORT_EXECUTION_VERSION,
     advance_xsp_live_transport,
     advance_xsp_v2_live_transport,
+    execute_xsp_transport_plan,
     execute_xsp_v2_transport_plan,
     xsp_v2_transport_risk_state,
     xsp_v2_transport_order_ref,
@@ -613,6 +614,42 @@ def test_execution_accepts_canonical_utc_naive_signal_bar(
 
     assert result["status"] == "TERMINAL"
     assert result["submitted_orders"] == 1
+
+
+def test_flat_source_liquidation_does_not_invent_entry_signal_context(
+    tmp_path: Path,
+) -> None:
+    selection, plan, contract, ticker = _actionable(tmp_path)
+    plan = {
+        **plan,
+        "target_direction": None,
+        "target_symbol": None,
+        "signal_context": None,
+        "reason": "sell_incumbent_before_target",
+        "leg": {
+            **plan["leg"],
+            "action": "SELL",
+            "initial_mode": "OPTIMISTIC",
+            "chase_mode": "AUTO",
+        },
+    }
+    client = _Client(contract)
+
+    result = asyncio.run(
+        execute_xsp_transport_plan(
+            LiveCalibrationLedger(tmp_path / "flat-liquidation.jsonl"),
+            client=client,
+            selection=selection,
+            plan=plan,
+            contract=contract,
+            ticker=ticker,
+            observed_at=OBSERVED_AT,
+        )
+    )
+
+    assert result["status"] == "TERMINAL"
+    assert result["submitted_orders"] == 1
+    assert client.placed[0][1:3] == ("SELL", 8)
 
 
 def test_prepared_restart_adopts_exact_broker_order_without_resubmission(

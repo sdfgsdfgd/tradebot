@@ -288,8 +288,20 @@ async def execute_xsp_transport_plan(
         raise ValueError("only one selected actionable transport plan may execute")
     leg = plan["leg"]
     assert isinstance(leg, Mapping)
+    symbol = str(leg.get("symbol") or "")
+    action = str(leg.get("action") or "").upper()
     signal_context = plan.get("signal_context")
-    if (
+    flat_liquidation = (
+        action == "SELL"
+        and plan.get("target_direction") is None
+        and plan.get("target_symbol") is None
+        and plan.get("reason")
+        in {"sell_incumbent_before_target", "rth_end_liquidation"}
+    )
+    if signal_context is None and flat_liquidation:
+        signal_at_utc = observed_at.astimezone(timezone.utc)
+        signal_context_fingerprint = str(plan["transition_id"])
+    elif (
         not isinstance(signal_context, Mapping)
         or signal_context.get("schema") != "xsp.execution-signal-context.v1"
         or not signal_context.get("decision_trace_fingerprint")
@@ -297,12 +309,12 @@ async def execute_xsp_transport_plan(
         or not isinstance(signal_context.get("market_state"), Mapping)
     ):
         raise ValueError("actionable transport has no causal signal context")
-    try:
-        signal_at_utc = xsp_signal_utc(signal_context["signal_bar_ts"])
-    except (KeyError, TypeError, ValueError) as exc:
-        raise ValueError("transport signal timestamp is invalid") from exc
-    symbol = str(leg.get("symbol") or "")
-    action = str(leg.get("action") or "").upper()
+    else:
+        try:
+            signal_at_utc = xsp_signal_utc(signal_context["signal_bar_ts"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError("transport signal timestamp is invalid") from exc
+        signal_context_fingerprint = calibration_fingerprint(signal_context)
     quantity = leg.get("quantity")
     outside_rth = leg.get("outside_rth")
     if (
@@ -480,7 +492,7 @@ async def execute_xsp_transport_plan(
                 "signal_age_seconds": max(
                     0.0, (transition_at - signal_at_utc).total_seconds()
                 ),
-                "signal_context_fingerprint": calibration_fingerprint(signal_context),
+                "signal_context_fingerprint": signal_context_fingerprint,
                 **payload,
             },
         )
