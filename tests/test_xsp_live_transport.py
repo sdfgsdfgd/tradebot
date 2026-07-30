@@ -1352,6 +1352,43 @@ def test_actionable_plan_rejects_profile_signal_attribution_drift(
         )
 
 
+def test_actionable_plan_allows_execution_adjusted_attribution_metadata(
+    tmp_path: Path,
+) -> None:
+    source = _source(
+        _position(
+            "up",
+            entry_time=SELECTED_AT + timedelta(minutes=2),
+        ),
+        recorded_at=OBSERVED_AT - timedelta(seconds=30),
+    )
+    broker_position = deepcopy(
+        source["paired_equity"]["profiles"]["broker"]["latest_position"]
+    )
+    broker_position["entry_price"] = 749.0
+    broker_position["attribution"]["decision_trace_fingerprint"] = "e" * 64
+    broker_position["attribution"]["entry"]["local_extrema"] = {
+        "15m": {"range_pos": 0.2}
+    }
+    source["paired_equity"]["profiles"]["broker"][
+        "latest_position"
+    ] = broker_position
+
+    plan = project_xsp_v2_transport_plan(
+        selection=_selection(tmp_path),
+        source_receipt=source,
+        observed_at=OBSERVED_AT,
+        positions={"SPYU": 0, "SPXU": 0},
+        open_orders=[],
+        settled_cash_usd=1_350.0,
+        quotes=_quotes(),
+        spyu_nav={"value": 30.49, "age_seconds": 1.0},
+    )
+
+    assert plan["target_direction"] == "up"
+    assert plan["signal_context"]["decision_trace_fingerprint"] == "d" * 64
+
+
 def test_flip_sells_incumbent_before_buying_target(tmp_path: Path) -> None:
     source = _source(
         _position(

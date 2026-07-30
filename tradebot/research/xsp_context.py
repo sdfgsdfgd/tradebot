@@ -480,10 +480,20 @@ def xsp_execution_signal_context(
 ) -> dict[str, object] | None:
     """Freeze one profile-parity-checked engine signal for later execution."""
 
+    identity_fields = (
+        "lane",
+        "direction",
+        "entry_time_utc",
+        "signal_bar_ts",
+        "control",
+        "directional_impulse",
+        "market_state",
+    )
     profiles = paired_equity.get("profiles")
     if not isinstance(profiles, Mapping):
         raise ValueError("XSP execution attribution requires paired profiles")
     contexts: list[dict[str, object] | None] = []
+    identities: list[dict[str, object] | None] = []
     for name in ("research", "broker"):
         profile = profiles.get(name)
         if not isinstance(profile, Mapping):
@@ -491,6 +501,7 @@ def xsp_execution_signal_context(
         position = profile.get("latest_position")
         if position is None:
             contexts.append(None)
+            identities.append(None)
             continue
         attribution = (
             position.get("attribution")
@@ -531,24 +542,26 @@ def xsp_execution_signal_context(
             raise ValueError("XSP open position has no causal engine attribution")
         control = entry.get("control")
         extrema = entry.get("local_extrema")
-        contexts.append(
-            {
-                "schema": "xsp.execution-signal-context.v1",
-                "lane": position["lane"],
-                "direction": position["direction"],
-                "entry_time_utc": position["entry_time"],
-                "signal_bar_ts": signal_bar_ts,
-                "decision_trace_fingerprint": attribution[
-                    "decision_trace_fingerprint"
-                ],
-                "control": dict(control) if isinstance(control, Mapping) else None,
-                "directional_impulse": dict(impulse),
-                "market_state": dict(market_state),
-                "local_extrema": (
-                    dict(extrema) if isinstance(extrema, Mapping) else None
-                ),
-            }
+        context = {
+            "schema": "xsp.execution-signal-context.v1",
+            "lane": position["lane"],
+            "direction": position["direction"],
+            "entry_time_utc": position["entry_time"],
+            "signal_bar_ts": signal_bar_ts,
+            "decision_trace_fingerprint": attribution[
+                "decision_trace_fingerprint"
+            ],
+            "control": dict(control) if isinstance(control, Mapping) else None,
+            "directional_impulse": dict(impulse),
+            "market_state": dict(market_state),
+            "local_extrema": (
+                dict(extrema) if isinstance(extrema, Mapping) else None
+            ),
+        }
+        contexts.append(context)
+        identities.append(
+            {field: context.get(field) for field in identity_fields}
         )
-    if contexts[0] != contexts[1]:
+    if identities[0] != identities[1]:
         raise ValueError("XSP research/broker execution attribution drift")
     return contexts[0]
