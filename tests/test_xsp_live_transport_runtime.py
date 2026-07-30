@@ -1580,6 +1580,7 @@ def test_v3_immediate_rotation_chains_only_after_terminal_full_sell(
         sold = risk_calls == 2
         return {
             "valid": True,
+            "attribution_complete": True,
             "holdings_from_fills": (
                 {"UPRO": 0.0, "SPXU": 0.0}
                 if sold
@@ -1607,6 +1608,16 @@ def test_v3_immediate_rotation_chains_only_after_terminal_full_sell(
                 "directional_impulse": {},
                 "market_state": {},
             },
+            "execution_state_context": (
+                {
+                    "schema": "xsp.execution-state-context.v1",
+                    "directional_impulse": {},
+                    "daily_context_state": {},
+                    "fundamental_pressure": {},
+                }
+                if sell_status == "TERMINAL"
+                else None
+            ),
             "order_authority": XSP_V2_TRANSPORT_ORDER_AUTHORITY,
             "status": "ACTIONABLE",
             "reason": (
@@ -1625,6 +1636,7 @@ def test_v3_immediate_rotation_chains_only_after_terminal_full_sell(
         }
 
     executed = []
+    cash_attribution = []
 
     async def execute(_ledger, *, plan, **_kwargs):
         executed.append(plan["leg"]["action"])
@@ -1664,9 +1676,13 @@ def test_v3_immediate_rotation_chains_only_after_terminal_full_sell(
         "tradebot.research.xsp_live_transport_runtime.xsp_transport_risk_state",
         risk_state,
     )
+    def cash_equity(**kwargs):
+        cash_attribution.append(kwargs["risk_state"]["attribution_complete"])
+        return {}
+
     monkeypatch.setattr(
         "tradebot.research.xsp_live_transport_runtime.xsp_transport_cash_equity",
-        lambda **_kwargs: {},
+        cash_equity,
     )
     monkeypatch.setattr(
         "tradebot.research.xsp_live_transport_runtime.project_xsp_transport_plan",
@@ -1691,6 +1707,11 @@ def test_v3_immediate_rotation_chains_only_after_terminal_full_sell(
     )
 
     assert executed == expected_actions
+    assert cash_attribution
+    assert all(
+        value is (sell_status == "TERMINAL")
+        for value in cash_attribution
+    )
     assert result["submitted_orders"] == len(expected_actions)
     if sell_status == "TERMINAL":
         assert result["inverse_execution"]["status"] == "EXECUTED"

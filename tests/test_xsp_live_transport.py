@@ -905,10 +905,75 @@ def test_v3_immediate_proceeds_rebase_starts_flat_without_inherited_pnl(
     assert plan["leg"]["action"] == "BUY"
     assert plan["leg"]["symbol"] == "UPRO"
 
+    second_rebase_at = rebase_at + timedelta(minutes=5)
+    second_preview = deepcopy(preview)
+    second_preview["observed_at_utc"] = (
+        second_rebase_at - timedelta(seconds=20)
+    ).isoformat()
+    second_preview["source"]["checkpoint_id"] = "e" * 64
+    for row in second_preview["rows"]:
+        for book in row["books"].values():
+            book["observed_at_utc"] = (
+                second_rebase_at - timedelta(seconds=25)
+            ).isoformat()
+    second_preview_path = _write(
+        tmp_path / "v3-zero-economics-rebase-preview.json",
+        second_preview,
+    )
+    zero_successor = rebase_xsp_v3_immediate_proceeds(
+        predecessor=selection,
+        records=(),
+        source_receipt=_source(
+            None,
+            recorded_at=second_rebase_at - timedelta(seconds=30),
+            checkpoint="e" * 64,
+        ),
+        broker_snapshot={
+            "observed_at_utc": (
+                second_rebase_at - timedelta(seconds=5)
+            ).isoformat(),
+            "cash_observed_at_utc": (
+                second_rebase_at - timedelta(seconds=10)
+            ).isoformat(),
+            "account_id": "DU123456",
+            "account_type": "CASH",
+            "settled_cash_usd": 1_187.8,
+            "positions": {"UPRO": 0, "SPXU": 0},
+            "unrelated_positions": [],
+            "open_orders": [],
+        },
+        cash_receipt_path=Path(
+            "backtests/xsp/opening_edge_v3_regime_harmony_cash_receipt.json"
+        ),
+        preview_path=second_preview_path,
+        immediate_proceeds_receipt_path=Path(
+            "backtests/xsp/opening_edge_v3_immediate_proceeds_receipt.json"
+        ),
+        selected_at=second_rebase_at,
+        rth_scope_accepted=True,
+    )
+    assert zero_successor["reset"]["predecessor_selection_id"] == selection[
+        "selection_id"
+    ]
+    assert zero_successor["reset"]["predecessor_closed_trades"] == 0
+    assert zero_successor["reset"]["predecessor_realized_net_usd"] == 0.0
+
     tampered = deepcopy(selection)
     tampered["reset"]["predecessor_realized_net_usd"] = 0.0
     with pytest.raises(ValueError, match="invalid immediate-proceeds"):
         load_xsp_v3_transport_selection_from_mapping(tampered)
+
+    tampered_zero = deepcopy(zero_successor)
+    tampered_zero["reset"]["predecessor_realized_net_usd"] = -1.0
+    tampered_zero["selection_id"] = calibration_fingerprint(
+        {
+            key: value
+            for key, value in tampered_zero.items()
+            if key != "selection_id"
+        }
+    )
+    with pytest.raises(ValueError, match="invalid immediate-proceeds"):
+        load_xsp_v3_transport_selection_from_mapping(tampered_zero)
 
 
 def test_v3_rotation_reuses_completed_sale_proceeds_without_symbol_overlap(

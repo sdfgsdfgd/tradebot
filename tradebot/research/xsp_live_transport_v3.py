@@ -826,12 +826,17 @@ def _load_xsp_v3_rotation_selection_from_mapping(
                 == 900.0 + max(float(value) for value in commissions.values())
                 and isinstance(reset["predecessor_closed_trades"], int)
                 and not isinstance(reset["predecessor_closed_trades"], bool)
-                and reset["predecessor_closed_trades"] >= 1
+                and reset["predecessor_closed_trades"] >= 0
                 and _number(
                     reset["predecessor_realized_net_usd"],
                     name="predecessor realized net",
                 )
                 == float(reset["predecessor_realized_net_usd"])
+                and (
+                    reset["predecessor_closed_trades"] > 0
+                    or abs(float(reset["predecessor_realized_net_usd"]))
+                    <= 1e-9
+                )
             )
         context_day = date.fromisoformat(str(source_context["trading_day"]))
         context_as_of = date.fromisoformat(

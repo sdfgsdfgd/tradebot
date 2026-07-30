@@ -827,15 +827,6 @@ async def advance_xsp_live_transport(
         for symbol in symbols
     ):
         raise ValueError("broker holdings disagree with selected-run fill ledger")
-    selected_cash_equity = (
-        xsp_transport_cash_equity(
-            selection=selected,
-            risk_state=risk_state,
-            reconciled=True,
-        )
-        if selected["schema"] in XSP_V3_TRANSPORT_SELECTION_SCHEMAS
-        else None
-    )
     plan = project_xsp_transport_plan(
         selection=selected,
         source_receipt=source_receipt,
@@ -851,6 +842,33 @@ async def advance_xsp_live_transport(
         session_net_usd=float(risk_state["session_net_usd"]),
         drawdown_usd=float(risk_state["drawdown_usd"]),
     )
+    if selected["schema"] in XSP_V3_TRANSPORT_SELECTION_SCHEMAS:
+        state_context = plan.get("execution_state_context")
+        if (
+            not isinstance(state_context, Mapping)
+            or state_context.get("schema")
+            != "xsp.execution-state-context.v1"
+            or not isinstance(
+                state_context.get("directional_impulse"), Mapping
+            )
+            or not isinstance(
+                state_context.get("daily_context_state"), Mapping
+            )
+            or not isinstance(
+                state_context.get("fundamental_pressure"), Mapping
+            )
+        ):
+            risk_state = {
+                **risk_state,
+                "attribution_complete": False,
+            }
+        selected_cash_equity = xsp_transport_cash_equity(
+            selection=selected,
+            risk_state=risk_state,
+            reconciled=True,
+        )
+    else:
+        selected_cash_equity = None
     broker_state = {
         "account_id": account_id,
         "account_type": "STKCASH",

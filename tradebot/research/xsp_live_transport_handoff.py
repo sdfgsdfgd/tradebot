@@ -264,17 +264,35 @@ def rebase_xsp_v3_immediate_proceeds(
         broker_snapshot.get("settled_cash_usd"),
         name="rebase USD cash",
     )
+    completed_round_trip = (
+        terminal["closed_trades"] >= 1
+        and terminal["fill_count"] >= 2
+    )
+    zero_economics = (
+        terminal["closed_trades"] == 0
+        and terminal["fill_count"] == 0
+        and all(
+            abs(float(terminal[field])) <= 1e-9
+            for field in (
+                "run_realized_net_usd",
+                "run_gross_usd",
+                "run_cost_usd",
+                "run_net_usd",
+            )
+        )
+    )
     if (
         terminal["holdings_from_fills"] != {"UPRO": 0.0, "SPXU": 0.0}
-        or terminal["closed_trades"] < 1
-        or terminal["fill_count"] < 2
+        or not (completed_round_trip or zero_economics)
         or terminal["pending_settlement_usd"] != 0
         or terminal["safety_breaches"]
         or abs(float(terminal["settled_cash_usd"]) - broker_cash) > 0.02
         or str(broker_snapshot.get("account_id") or "")
         != str(prior["broker_at_selection"]["account_id"])
     ):
-        raise ValueError("clean rebase predecessor is not terminal and flat")
+        raise ValueError(
+            "clean rebase predecessor is not terminal, flat, and attributable"
+        )
     base = select_xsp_v3_transport(
         cash_receipt_path=cash_receipt_path,
         preview_path=preview_path,
