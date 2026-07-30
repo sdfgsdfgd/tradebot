@@ -40,7 +40,7 @@ output belongs in commit/final verification, not in this management brain.
 | Selected live run | clean reset `9e517007…`; selection file `9374a9c3…`; terminal continuity predecessor `ab0bb43a…` (`be949517…`) is archived intact with its realized loss |
 | Research crown | **Opening Edge v3 — Regime Harmony 24/5**; `xsp.opening-edge-v3-regime-harmony-24x5.v1` |
 | Runtime parity | Central v3 owner reproduces RTH `40708a28…` exactly over `425/425` trades; unchanged GTH Down Sleeve reproduces `9e04807f…` over `179/179`; combined `604`, `+291.1756`, PF `2.0919`, DD `17.63` |
-| Runtime source anchor | q is clean at published `0ad1b29…`; central owner `643b6a…`, crown `d47eb39…`, canonical daily-context fingerprint `7a139df1…` |
+| Runtime source anchor | q/origin are clean and synchronized; runtime code milestone `0ad1b29…`, central owner `643b6a…`, crown `d47eb39…`, canonical daily-context fingerprint `7a139df1…` |
 | Observer cadence | Five-minute timer active. Clean restart and timer recurrence both preserved flat source/broker state, zero fills/orders/P&L/DD, and `$1,318.051` settled USD |
 | RTH signal freshness | **cleared:** after the user activated `CBOE Streaming Market Indexes`, zero-order receipt `acce7ed3…` returned live type-1 XSP, current five-minute history, and real-time `TRADES` bars without a Gateway restart; the natural `10:07 ET` centralized v2 checkpoint then evaluated with both XSP and SPY through `10:05` and `120s` age |
 | Order/capital authority | `rth_cash_pair_limit_only`; up→UPRO, down→SPXU, fresh streaming NBBO, full SELL reconciliation before an admitted opposite BUY, one immediate-proceeds cash slot |
