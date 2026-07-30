@@ -1,10 +1,9 @@
 # XSP Mastery — Live Research Kata
 
 - **Status:** `[ACTIVE] Opening Edge v3 is the frozen historical crown and its
-  centralized non-submitting runtime is deployed on q. Completed-session
-  persistence repair `8c2b980…` and safe closed-calendar service semantics
-  `b27bf72…` now pass exact terminal restart; v3-specific cash selection remains
-  fail-closed before capital authority`
+  content-addressed Tiered UPRO/SPXU RTH cash run is selected on q. Bounded
+  `rth_cash_pair_limit_only` authority and the profitability clock began at
+  `2026-07-30T13:44:47Z`; the 24/5 GTH lane remains observation-only`
 - **Authority:** canonical resume state, active task tree, critical evidence
   index, and promotion contract
 - **Cold history:** [`q_XSP_live_research_kata-archive.md`](q_XSP_live_research_kata-archive.md)
@@ -12,17 +11,15 @@
 - **Scope:** XSP signal mastery. Opening Edge v3 supersedes v2 as the historical
   crown after the E-259→E-280 regime-harmony lineage improved every annual
   slice, full net/PF/DD, both directions, and both lanes. Its authentic
-  UPRO/SPXU RTH cash mapping is positive under complete spread crossing, but no
-  v3 transport is selected: Fixed narrowly exceeds the frozen DD boundary,
-  Tiered is submitted but not yet proved effective, RTH cash cadence is below
-  the global floor, and GTH cash execution remains unqualified. Every observer
-  is non-submitting
-- **Capital premise:** broker-read `INDIVIDUAL/STKCASH` state is about
-  AUD `2,025` NLV and AUD `1,935` BuyingPower/TotalCash; USD `1,228.61` plus
-  AUD `176.94` comfortably covers v3's frozen one-slot USD `$900` notional
-  without FX. Selection still re-reads fresh authentic USD cash and the exact
-  quote-derived whole-share purchase plus modeled worst commission; any
-  underfunded nominee remains `HOLD`
+  UPRO/SPXU RTH cash mapping is positive under complete spread crossing.
+  Authentic Tiered preview, cash, books, contract, quantity, causal-context,
+  restart, and broker-permission gates passed; its narrower `141/year` RTH cash
+  scope is explicitly accepted for the first canary. GTH cash execution remains
+  separately unqualified
+- **Capital premise:** selection froze authentic settled USD `$1,331.13`, one
+  `$900` strict-T+1 cash slot, and a conservative maximum completed-ticket
+  commission of `$0.45034925`; UPRO/SPXU holdings and orders were zero. One
+  unrelated TQQQ share remains outside this run
 
 **Operating rule:** update this file only when the frontier, authority, strategy,
 evidence conclusion, risk boundary, or next action changes. Routine test/lint
@@ -34,18 +31,18 @@ output belongs in commit/final verification, not in this management brain.
 
 | Authority | Current truth |
 |---|---|
-| Broker/order strategy | `NO_TRADE` |
-| Selected shadow | Opening Edge v1 predecessor `9fac460e…`; cannot confer v3 authority |
+| Broker/order strategy | Tiered UPRO/SPXU, RTH cash pair, bounded limit-only execution; GTH remains `NO_TRADE` |
+| Selected live run | `d0726236…`; selection file `e76ebaca…`, source checkpoint `2688c896…`, start `2026-07-30T13:44:47Z` |
 | Research crown | **Opening Edge v3 — Regime Harmony 24/5**; `xsp.opening-edge-v3-regime-harmony-24x5.v1` |
 | Runtime parity | Central v3 owner reproduces RTH `40708a28…` exactly over `425/425` trades; unchanged GTH Down Sleeve reproduces `9e04807f…` over `179/179`; combined `604`, `+291.1756`, PF `2.0919`, DD `17.63` |
-| Runtime source anchor | published/deployed `ca574817…` central v3 owner plus `932c62c…` broker-fill USD milestone projection; content-addressed crown/cash/runtime receipts and one opt-in `XspOpeningEdgeV3StateOwner`; predecessors remain independently reproducible and disabled defaults are unchanged |
-| Observer cadence | **recovered:** after a physical q power-cord disconnect, the `08:22 ET` reboot recurrence evaluated successfully with state owner `643b6a…`, flat state, no breach, and `order_authority=none`. The `09:25/09:35/09:39 ET` evidence timers remain armed; selection/order authority remain absent |
+| Runtime source anchor | q is clean at published `3841e48…`; central owner `643b6a…`, crown `d47eb39…`, canonical daily-context fingerprint `7a139df1…`, selected drop-in `c831b847…` |
+| Observer cadence | Active five-minute timer. The first natural selected recurrence at `09:47 ET` loaded `d0726236…`, evaluated fresh RTH state, returned `flat_target/UNCHANGED`, and reconciled zero fills, zero DD, and no safety breach |
 | RTH signal freshness | **cleared:** after the user activated `CBOE Streaming Market Indexes`, zero-order receipt `acce7ed3…` returned live type-1 XSP, current five-minute history, and real-time `TRADES` bars without a Gateway restart; the natural `10:07 ET` centralized v2 checkpoint then evaluated with both XSP and SPY through `10:05` and `120s` age |
-| Order/capital authority | `none` |
-| Profitability clock | v3 `NOT_STARTED`; predecessor evidence does not transfer. The selected v3 runtime is now prepared to anchor the shared `24h→48h→five-session` verifier from reconciled USD fills at its first post-selection RTH slot |
-| Execution verdict | `HOLD`; v3 RTH UPRO/SPXU full-cross is positive in recent/every year/full under Fixed (`+$337.06`, PF `1.245`, DD `$135.31`) and Tiered (`+$911.87`, PF `1.833`, DD `$102.68`). Exact one-extra-bar Tiered latency parity also passes at `+$721.71/422`, PF `1.626`, DD `$110.98`, both directions and every period positive. The July 29 preview proved books/cash but returned Fixed `$1.000018/$1.000069` commissions rather than Tiered limits |
-| Next irreversible evidence | capture the immutable `09:25 ET` opening microtape, then repeat the byte-identical zero-order UPRO/SPXU preview at `09:35 ET`. Direct user-visible proof now shows IB Gateway's `API → Settings → Read-Only API` checkbox empty on socket `4001`; the already-audited `09:39 ET` selector timer is armed, but its receipt condition and independent full revalidation still preserve `HOLD` on any failure |
-| First active work | preserve continuous v3 proposal/gate/position/MFE/MAE/flip/exit observation at low-frequency event boundaries; then audit the July 30 Tiered preview/selector transaction. News remains attribution-only and never drives work cadence |
+| Order/capital authority | `rth_cash_pair_limit_only`; up→UPRO, down→SPXU, fresh streaming NBBO, sell-before-buy, one strict-T+1 cash slot |
+| Profitability clock | `ACTIVE` from `2026-07-30T13:44:47Z`; current `0` trades / `$0` net / `$0` DD. Due boundaries: 24h `2026-07-31T13:46:17Z`, 48h `2026-08-01T13:46:17Z`, five sessions `2026-08-06T13:46:17Z` |
+| Execution verdict | `SELECTED`. Fresh repeated preview `2695811f…` proved Tiered, live SMART/direct-ARCA books, `6 UPRO / 23 SPXU`, `$1,331.13` settled USD, commission bounds, zero relevant positions/orders/submissions, and exact causal source. Independent post-selection broker census remains empty |
+| Next irreversible evidence | first qualified post-selection RTH transition and any resulting bounded-ladder fill; terminal opening-microtape receipt; then immutable 24h profitability verdict. No trade is forced |
+| First active work | continuously audit live proposals, vetoes, slope/velocity/ATR and daily context, broker fills/costs, MFE/MAE, exits, and safety at natural event boundaries. News remains attribution-only and never drives work cadence |
 
 ### Immediate sequence
 
@@ -113,11 +110,16 @@ output belongs in commit/final verification, not in this management brain.
     crown/cash/runtime receipts; prove exact historical, prefix, restart,
     underwarm, disabled-default, selector, and UI parity; fast-forward q and
     activate only the non-submitting v3 observer.
-18. `[WIP]` Bind any live candidate to v3-specific UPRO/SPXU books,
-    quote-derived whole-share quantity, broker what-if, cash/restart identity,
-    and an explicit Fixed-versus-Tiered decision. Separately qualify GTH cash
-    execution or accept an explicitly narrower RTH experiment. Only a complete
-    passing identity may start `24h → 48h → five-session` clocks.
+18. `[DONE]` Freeze selected RTH cash identity `d0726236…` only after authentic
+    Tiered books, quote-derived quantity, broker what-if, cash, contract,
+    context, restart, risk, and human-visible Gateway permission gates passed.
+    The first natural recurrence and independent broker census prove flat,
+    uncontaminated startup with zero submissions or safety breaches.
+19. `[WIP]` Audit every selected live transition and reconciled fill; issue the
+    immutable 24h, 48h, and five-session profitability/drawdown verdicts without
+    forcing trades.
+20. `[TODO]` Qualify a distinct GTH cash transport before granting overnight
+    order authority; the selected experiment is deliberately RTH-only.
 
 ### Never infer
 
@@ -366,7 +368,7 @@ stale, underwarmed, failed, or horizon-expired evidence means no extra gate.
 | Pre-open bridge | Under a frozen `360s`, model-consensus-only GTH/Curb anchor, do exact `2h/4h/6h` velocities distinguish strengthening, exhaustion, or reversal into the first RTH turn? | separately versioned replay; descriptive cohorts only |
 | Crash/rebound | Can displacement + multiscale reversal + fresh GTH/news distinguish crash/rebound episodes? | peer state; never a regime router |
 | Microstructure | Can top-of-book/package liquidity, spread state, and quote evolution distinguish valuable turns? | primary new admission frontier |
-| ETF execution state | At each actual v3 position transition only, what do broker-qualified NBBO, shared `OPT→MID→AGG→CROSS` prices, and non-transmitting previews reveal after the positive full-cross UPRO/SPXU qualification? | discovery only until a v3-specific selected identity passes; frozen `HOLD`, zero unchanged-state polling, zero orders |
+| ETF execution state | At each actual v3 position transition, what do broker-qualified NBBO, shared `OPT→MID→AGG→CROSS` prices, fills, commissions, signal age, and slope/velocity/ATR urgency reveal? | selected RTH run only; record without changing v3 direction, admission, sizing, or ladder |
 
 News and option evidence begins only at append time. Historical headlines may
 explain plausibility but cannot label old trades or support value claims.
@@ -536,45 +538,21 @@ directional consistency is proven.
     strictly next session may append, and invalid warmup or sequence fails
     closed.
     Do not add a second executor or edit runtime before the prospective gates.
-16. `[WIP]` Qualify the already-positive v3 UPRO/SPXU RTH path under the
-    complete selection law. Never transfer E-269 timestamps or predecessor
-    evidence.
-    Fresh books, exact quote-derived sizing, non-transmitting what-if,
-    cash/restart identity, and explicit Fixed-versus-Tiered status are
-    mandatory; GTH remains a separate unqualified cash lane. While July 30
-    commission processing remains external, frozen gate `5860d168…` joins only
-    post-gate v3 RTH state changes to full-depth July 29 UPRO/SPXU books at the
-    actual checkpoint clock. It applies `$900` quote-derived whole shares,
-    sell-before-buy, one leg/checkpoint, strict T+1 cash, separate
-    Fixed-realistic versus conditional-Tiered fees, and never selects, orders,
-    backfills, or starts the profitability clock.
-    The atomic activation owner is now v3-only: one exact preview plus the
-    frozen cash receipt and explicit `--accept-rth-only-cash-scope` replace the
-    obsolete v2 ranking/dwell inputs. It still freezes selection before the
-    writable drop-in, restores read-only cadence on pre-selection failure, and
-    disables cadence for reconciliation after any post-selection failure.
-    The dated `09:39 ET` selector remains the only activation owner. Direct
-    user-visible proof on July 30 shows Gateway's `Read-Only API` checkbox
-    empty on socket `4001`, so its timer is armed; it still runs only after
-    the `09:35 ET` receipt passes its coarse Tiered/zero-order condition, then
-    independently revalidates every full gate. Selection baseline and
-    post-selection timestamp checks forbid buying any pre-authority signal.
-    Tradebot's selection-bound `IBKR_READONLY=0` proves only the client-side
-    permission; E-314 independently proves Gateway's encrypted
-    `API → Settings → Read-Only API` control is off. A successful what-if alone
-    remains insufficient because it can pass while live submission is
-    disabled; future Gateway replacement/restart must preserve this boundary.
-    July 29 evidence-only finalizer `7fb6adae…` is rejected as an authority:
-    it required an `RTH` checkpoint at `16:17 ET`, while the canonical exchange
-    clock correctly labels `16:15..17:00` as `CURB`. Preserve the failed frozen
-    artifact; never synthesize or relabel a checkpoint. Its mistake does not
-    gate the independently chained July 30 preview/selector.
-    The same selected runtime now projects only reconciled broker fills into
-    one USD cash-equity schema; the existing milestone verifier owns coverage,
-    fees, net, drawdown, closed trades, and concentration without transferring
-    any preselection counterfactual.
-17. `[BLOCKED]` Alpha/theta structures and any live-capital canary belong to a
-    later quest after directional causality and spot consistency are proven.
+16. `[DONE]` Select the v3 UPRO/SPXU RTH cash path under the complete law.
+    Identity `d0726236…` binds Tiered pricing, `$900` quote-derived whole-share
+    sizing, exact contracts, fresh books, non-transmitting what-if, authentic
+    cash, causal daily context, restart state, human-visible Gateway permission,
+    strict T+1 settlement, bounded risk, and the shared execution ladder.
+    Preselection signals and predecessor evidence cannot backfill the run.
+17. `[WIP]` Run Prospective Live Edge Commissioning. Persist only reconciled
+    broker fills into the selected USD ledger; continuously compare proposal,
+    veto, multitimeframe state, ladder behavior, realized costs, MFE/MAE,
+    drawdown, and expected-versus-realized outcomes. Issue independent positive
+    or negative 24h, 48h, and five-session receipts without forced trades.
+18. `[TODO]` Treat GTH cash execution as a separate qualification; the full
+    crown remains 24/5, but current capital authority is RTH-only.
+19. `[BLOCKED]` Alpha/theta structures belong to a later quest after spot
+    consistency is proven.
 
 ---
 
@@ -814,6 +792,7 @@ and
 | E-313 | preregistered execution-only attribution `ff166c92…` tested one compact urgency interaction without changing v3: at least `2/3` aligned fast slope-velocity horizons had to strengthen versus the prior bar while ATR velocity was positive and rising. Across `198` eligible entries, five-minute delay was worse by `+0.0425` XSP points on average, but the effect failed portability: Y1 median delay was `-0.04`, Y2 mean 15-minute follow-through was negative, and down signals had only `49.0%` worse-entry incidence. The stricter `3/3` neighbor retained the same Y1 weakness. Result `3e6bb712…` therefore rejects velocity curvature as independent ladder-dwell authority; it remains telemetry only. Crown, shared ladder, preview, selection, orders, and clocks are unchanged |
 | E-314 | the final human-visible broker permission gate is explicit: IB Gateway `API → Settings` showed `Read-Only API` unchecked and socket `4001`, so no setting change or restart was needed. q's previously audited `09:39 ET` selector timer was enabled at `06:42 ET`; preview result, selected identity, writable drop-in, position, order, and profitability clock remained absent/absent/absent/flat/zero/`NOT_STARTED`. The timer still requires the exact `09:35` receipt to say effective Tiered, `PREVIEW_PASS_STILL_HOLD`, and zero submissions before the selector independently revalidates source, books, cash, contracts, quantity, commission, scope, and restart identity |
 | E-315 | q lost mains power at `07:15 ET` because its cord was physically disconnected. The old journal ends abruptly during ordinary activity with no shutdown/reboot/suspend/panic/OOM/thermal sequence; the `08:20 ET` boot marked the user journal unclean. All three `Persistent=false` v3 timers survived and remain waiting for `09:25/09:35/09:39 ET`; the natural `08:22/08:32` observer recurrences completed flat with no breach or authority, and an isolated read-only Gateway census found zero relevant positions, open orders, executions, or submissions. `server_py` transiently retried while UC's unpinned fallback held ChromeDriver `151` against Chrome `148`, then recovered through its existing pinned-`148` path without intervention; CDP `9223`, the gRPC UDS, and a real `GetPacing` RPC are green. q Ethernet `48:21:0b:56:83:8f` supports magic wake and now has current `Wake-on: g` plus canonical Netplan `wakeonlan: true`; q captured the Mac's exact `102`-byte magic packet with zero drops. Original Netplan `18b5780b…` is preserved as `/etc/netplan/99-q-ethernet-static.yaml.pre-wol-20260730`. WOL requires connected mains/standby power and cannot wake an unplugged host. The unrelated expired E269 fetch timer was disabled after its pre-outage `1,791` malformed-exec retries; no v3 unit changed |
+| E-316 | July 30's first authentic preview passed Tiered books, cash, quantity, commission, and zero-order gates (`7df81320…`), but the selector safely stopped before state writes because q's clean source lagged published causal-context/identity changes. q then fast-forwarded to `3841e48…`; `45` focused tests, q-native compile/import, and fresh strictly-prior `5/10/21/42/63/84` context `7a139df1…` passed. The preserved preview was repeated unchanged in authority and passed at current quotes (`2695811f…`); selector success froze run `d0726236…`, selection file `e76ebaca…`, and writable drop-in `c831b847…` at `13:44:47Z`. Its immediate checkpoint and first natural `09:47 ET` recurrence both returned `flat_target/UNCHANGED`, zero fills/orders/DD/breaches, and `$1,331.13` settled cash; an independent read-only broker census found no relevant position, order, or execution. The RTH profitability clock is active; GTH remains observation-only and the independent opening microtape continues |
 
 ### Decision anchors
 
@@ -936,24 +915,19 @@ the frozen `40708a28…` RTH ledger exactly; the `9e04807f…` GTH lane remains
 unchanged. There is no date router, news authority, generic stop/trail, quota,
 or sizing change.
 
-Broker strategy remains `NO_TRADE`, order authority is `none`, no v3 capital
-identity exists, and the profitability clock is `NOT_STARTED`. Authentic
-UPRO/SPXU RTH full-cross/T+1 cash replay is positive in every period under both
-current Fixed and conservative Tiered pricing, but the complete selection law
-still fails: RTH-only cadence is about `141/year`, GTH cash transport is
-unqualified, and Fixed DD is `$135.31` against the frozen `$135` boundary.
-The first v3-specific preview cleared books, quote-derived sizing, cash, and
-contract identity but proved the account still charged Fixed `$1.00` tickets;
-the selector rejected it and created no run. The byte-identical next-business-
-day check is armed for July 30 `09:35 ET`; direct visual proof shows Gateway
-`Read-Only API` off, and the conditional `09:39 ET` selector is armed. No
-predecessor tape, selection, clock, or counterfactual outcome transfers to v3.
+Tiered UPRO/SPXU RTH cash run `d0726236…` is now selected with bounded
+`rth_cash_pair_limit_only` authority. It freezes one `$900` strict-T+1 cash
+slot, fresh streaming NBBO, quote-derived whole shares, sell-before-buy, the
+shared patient-to-relentless ladder, `$135` maximum DD, and `$67.50` maximum
+session loss. Authentic selection cash was `$1,331.13`; UPRO/SPXU positions,
+orders, and executions were zero. The first natural selected recurrence at
+`09:47 ET` remained flat with zero cost/net/DD and no safety breach. The
+profitability clock began at `2026-07-30T13:44:47Z`; no predecessor,
+counterfactual, or preselection result transfers into it. GTH signal
+observation remains 24/5, but GTH cash authority is separately unqualified.
 
-**Predictive observation:** the next legitimate economic boundary is the
-unchanged July 30 `09:35 ET` UPRO/SPXU preview after IBKR's stated pricing-plan
-processing window. If it confirms Tiered and the fresh cash/source gates pass,
-the armed bounded selector may freeze the non-backfilling RTH identity and
-begin the immutable `24h → 48h → five-session` clock. Otherwise retain
-`HOLD`; do not reopen
-rejected ETF substitutions, profit locks, broad threshold sweeps, news
-authority, or a parallel executor.
+**Predictive observation:** the next legitimate capital event is the first new
+qualified post-selection RTH transition. It may submit only through the frozen
+bounded ladder; silence or a veto is valid evidence, never a reason to force a
+trade. The opening microtape then closes independently, followed by immutable
+24h, 48h, and five-session profitability/drawdown verdicts.
