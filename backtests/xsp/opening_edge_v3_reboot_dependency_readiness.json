@@ -1,0 +1,83 @@
+{
+  "schema": "xsp.opening-edge-v3-reboot-dependency-readiness.v1",
+  "authority": "read_only_systemd_topology_audit",
+  "observed_at_utc": "2026-07-31T22:26:57Z",
+  "source_revision": "598dba0baa6e2ed355e200b1c3d117950c5be69a",
+  "user_manager": {
+    "linger": true,
+    "state": "active",
+    "runtime_path": "/run/user/1000"
+  },
+  "xsp_service": {
+    "tracked_sha256": "b843a8c63ef0cd5366dbe0729362bf76f8e80cfcec512ffe9c7d313526315b72",
+    "installed_sha256": "b843a8c63ef0cd5366dbe0729362bf76f8e80cfcec512ffe9c7d313526315b72",
+    "selected_dropin_tracked_sha256": "c831b847862cdcc9fa8b87eb9bc6bdc54fb7a2f9ced3c11c9359090863e6d6ad",
+    "selected_dropin_installed_sha256": "c831b847862cdcc9fa8b87eb9bc6bdc54fb7a2f9ced3c11c9359090863e6d6ad",
+    "requires": "tradebot-ib-gateway-tunnel.service",
+    "after": [
+      "network-online.target",
+      "tradebot-ib-gateway-tunnel.service"
+    ],
+    "merged_ibkr_readonly": false,
+    "type": "oneshot",
+    "timeout": "8min",
+    "condition_result": true
+  },
+  "xsp_timer": {
+    "tracked_sha256": "542a78303d6e245f2477cc1ea16765252b40bd9a077639409fa6d7c77a33ab50",
+    "installed_sha256": "542a78303d6e245f2477cc1ea16765252b40bd9a077639409fa6d7c77a33ab50",
+    "enabled": true,
+    "active": true,
+    "substate": "waiting",
+    "persistent": false,
+    "next_elapse_aest": "2026-08-03T10:22:00+10:00",
+    "next_elapse_et": "2026-08-02T20:22:00-04:00"
+  },
+  "gateway_tunnel": {
+    "tracked_sha256": "8583c9a20b01a0ce0adad5fe7450c7e89bf5267a95494fe661a6cf5462b266a8",
+    "installed_sha256": "8583c9a20b01a0ce0adad5fe7450c7e89bf5267a95494fe661a6cf5462b266a8",
+    "enabled_state": "static",
+    "on_demand": true,
+    "stop_when_unneeded": true,
+    "local_forward": "127.0.0.1:4001 -> 192.168.1.2:127.0.0.1:4001",
+    "exit_on_forward_failure": true,
+    "batch_mode": true,
+    "strict_host_key_checking": true,
+    "server_alive_interval_seconds": 15,
+    "server_alive_count_max": 2,
+    "restart": "on-failure"
+  },
+  "selection": {
+    "selection_id": "b4799fa693ea3da1bf65a7b66412dde318c6ecb427fa14be73b5a5cf1dd40c20",
+    "sha256": "eb6aad41c8f428d12599abd76232d69b3b3f52881a363eaf8c1e79b01b618517",
+    "mode": "0600",
+    "owner": "x"
+  },
+  "checks": {
+    "user_linger_enabled": true,
+    "xsp_service_installed_equals_tracked": true,
+    "selected_dropin_installed_equals_tracked": true,
+    "xsp_timer_installed_equals_tracked": true,
+    "gateway_tunnel_installed_equals_tracked": true,
+    "timer_enabled_waiting_nonpersistent": true,
+    "xsp_requires_gateway_tunnel": true,
+    "systemd_verify_passed": true,
+    "selection_private_and_unchanged": true
+  },
+  "external_precondition": {
+    "required": true,
+    "condition": "Mac 192.168.1.2 must be reachable and authenticated IB Gateway must listen on Mac localhost port 4001",
+    "verified_in_this_audit": false,
+    "failure_effect": "tunnel and selected invocation fail closed; missing evidence is not replayed or backfilled"
+  },
+  "verdict": "PASS_STATIC_REBOOT_CHAIN_EXTERNAL_GATEWAY_REQUIRED",
+  "boundaries": {
+    "broker_queried": false,
+    "service_or_timer_started_or_restarted": false,
+    "checkpoint_created": false,
+    "selection_mutated": false,
+    "order_authority_mutated": false,
+    "submitted_orders": 0,
+    "profitability_clock_mutated": false
+  }
+}
