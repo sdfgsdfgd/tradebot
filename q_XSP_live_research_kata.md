@@ -143,8 +143,13 @@ output belongs in commit/final verification, not in this management brain.
     post-selection proof failure disables cadence for reconciliation. No order
     is forced and only a successful new identity may start a profitability
     clock.
-23. `[TODO]` Qualify a distinct GTH cash transport before granting overnight
-    order authority; the selected experiment is deliberately RTH-only.
+23. `[BLOCKED]` Grant no overnight order authority until a materially
+    independent cash-account S&P inverse transport appears. The existing
+    SPXU/SPXS/SDS lineage fails GTH annual/recent economics or authentic fill
+    coverage even under Tiered/patient assumptions; lower-leverage inverse
+    ETFs cannot repair movement per paid ticket. Reopen only for a new
+    broker-qualified instrument or genuinely independent prospective evidence,
+    never another notional/spread replay of the same family.
 
 ### Never infer
 
@@ -952,6 +957,7 @@ and
 | E-328 | pre-outcome bundle `3318e60d…` closes the last manual post-repair judgment gap without creating another observer. At July 30 `20:25 ET`, its stdlib-only auditor reads the ledger and exact `daf1609b…` selection once, accepts exactly one adjacent source/execution pair in the natural `20:22..<20:27` GTH window, and requires evaluated state, source-checkpoint identity, exact impulse/control/daily-context/news-pressure projection, flat UPRO/SPXU holdings, null leg, zero submissions, `rth_cash_pair_limit_only`, and `gth_execution_allowed=false`. It writes one atomic immutable `PASS` or `HOLD` receipt under its q bundle; it has no Gateway dependency, cannot run the observer, cannot touch selection/runtime/broker, and cannot backfill evidence. Synthetic success exercised all `19` invariants; a wrong selection hash failed closed |
 | E-329 | pre-outcome fallback audit found E-327's “restore predecessor cadence” branch could restore writable service around `daf1609b…`, even though its missing close rows make that identity permanently profitability-ineligible. Preregistration `9a65cf5c…` and immutable r2 bundle `ea80ddaf…` supersede only that rollback: success installs the exact tracked writable drop-in after a new flat selection freezes; any pre-selection failure installs an explicit `IBKR_READONLY=1` / nonexistent-selection drop-in and preserves five-minute source evidence; post-selection failure still disables cadence for reconciliation. Synthetic execution of the exact trap proved pre-selection `daemon-reload → reset-failed → enable` with the observation drop-in, and post-selection `disable` without rollback; staged systemd merge is valid, writable drop-in remains `c831b847…`, wrapper `01a6bbeb…`, service `e6920813…`. r1 remains immutable but its service target is superseded. Strategy, sizing, ladder, broker, selection, timer clock, GTH prohibition, and no-backfill law are unchanged; result, preview, successor, order, and profitability clock remain absent |
 | E-330 | the first natural post-repair GTH transaction passed exactly. Immutable audit receipt `71891e4b…` binds ledger prefix `49525d28…`, adjacent source/execution rows `401/402`, source checkpoint `a47403f4…`, execution checkpoint `b4b7da0…`, selection `daf1609b…`, and selection file `a5891868…`; all `19` preregistered invariants are true. The causal `00:20Z` GTH bar was underwarmed with no proposal/admission, while mixed `5↑/10↓/21↓/42↓/63↑/84↑`, `transition_down/high_flat`, and bearish-but-easing pressure `-0.6984 / +0.0504 / +0.01203h⁻¹` were projected identically into execution. The plan remained `flat_target`, UPRO/SPXU were `0/0`, the order leg was null, and submissions/P&L/DD stayed zero. The succeeding `20:27 ET` recurrence remained flat with fresh type-1 books and `$1,318.051` settled USD. This proves the deployed restart/context seam without granting GTH authority, repairing `daf1609b…` eligibility, starting a clock, or touching broker state |
+| E-331 | a bounded free-window audit closed the current GTH cash-ETF universe without another replay. The strongest archived Tiered SPXU GTH cell is recent `-$9.60`, annual `+$0.38/+30.57/-$69.61`, and full `-$38.66`, with the missing `2025-11-20 05:25 ET` entry not tradable for `525m`; the strongest high-notional SPXS cell is recent `-$3.44`, annual `+$14.03/+$0.77/-$91.68`, full `-$76.89`, and retains `118` fill issues. SDS remains negative in every GTH year even under its optimistic patient-spread research cell (`-$28.79/-$19.27/-$46.89`) and has `100` zero-volume fill paths. Official issuer families expose these `-3x` vehicles plus lower-capture `-2x/-1x` alternatives, not a structurally stronger cash inverse. No materially distinct hypothesis remains under the Week-1 cash/spot law; GTH stays observation-only and no signal, pricing, selection, order, or clock changed |
 
 ### Decision anchors
 
@@ -1059,6 +1065,8 @@ five-session receipts exist and the final calibration/risk verdict is explicit.
 - [IBKR Australia U.S. stock/ETF commissions](https://www.interactivebrokers.com.au/en/pricing/commissions-stocks.php)
 - [IBKR ARCA add/remove-liquidity fees](https://portal.interactivebrokers.com/en/accounts/fees/ARCAstkfee.php?nhf=T)
 - [IBKR order types and combinations](https://ibkrcampus.com/campus/ibkr-api-page/order-types/)
+- [ProShares leveraged/inverse ETF directory](https://www.proshares.com/our-etfs/find-leveraged-and-inverse-etfs)
+- [Direxion SPXL/SPXS product page](https://www.direxion.com/product/daily-sp-500-bull-bear-3x-etfs)
 - [BMO SPYU pricing supplement](https://www.sec.gov/Archives/edgar/data/927971/000121465926002335/d220262424b2.htm)
 
 ---
