@@ -1,0 +1,34 @@
+{
+  "schema": "mcl.narrative-lag-convexity-clock-repair-preregistration.v1",
+  "preregistered_at_utc": "2026-07-31T19:19:04Z",
+  "authority": "prospective_research_only",
+  "status": "ACCUMULATING_ZERO_EVENTS",
+  "supersedes_only": "prospective publication availability, MCL bar freshness, and clean-prefix start",
+  "hypothesis_and_graduation_gates_unchanged": true,
+  "original_preregistration_sha256": "c17a1a241a4aac9583fca229d548a1b4173861532e579079b950334f3ba66761",
+  "excluded_clock_invalid_receipt_sha256": "8160580610fe186dfd7d079e8be8f10584ee5a93539e0e3632fa27d38568dc7d",
+  "prospective_start_strictly_after_utc": "2026-07-31T19:16:52Z",
+  "runner_sha256": "28e6233aaf03352769674aaf7f8f938917267428455a3b47108609ddf4c7e02a",
+  "clock_contract": {
+    "signal_as_of_utc": "evidence-search and inference-start provenance only",
+    "snapshot_as_of_utc": "atomic publication availability and sole market-alignment clock",
+    "maximum_completed_mcl_bar_age_seconds": 300,
+    "pre_repair_history": "immutable diagnostic evidence only"
+  },
+  "prefix": {
+    "eligible_publications": 0,
+    "ta_onsets": 0,
+    "extreme_pressure_onsets": 0,
+    "controls": 0,
+    "settled_outcomes": 0
+  },
+  "boundaries": {
+    "news_direction_authority": false,
+    "mcl_instrument_authority": "none",
+    "option_authority": "none",
+    "submitted_orders": 0,
+    "xsp_strategy_changed": false,
+    "xsp_selection_changed": false,
+    "profitability_clock_changed": false
+  }
+}

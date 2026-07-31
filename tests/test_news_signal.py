@@ -32,6 +32,7 @@ from tradebot.news.pipeline import (
     select_candidates,
 )
 from tradebot.research.mcl_narrative_lag_convexity import (
+    PROSPECTIVE_START_AFTER,
     fresh_bar_index,
     load_news as load_mcl_news,
 )
@@ -928,6 +929,21 @@ def test_mcl_narrative_refuses_a_stale_market_clock() -> None:
 
     assert fresh_bar_index(ends, NOW + timedelta(minutes=10)) == 1
     assert fresh_bar_index(ends, NOW + timedelta(minutes=10, seconds=1)) is None
+
+
+def test_mcl_narrative_prefix_starts_after_clock_repair() -> None:
+    invalid_publication = datetime(2026, 7, 31, 18, 34, 6, tzinfo=timezone.utc)
+
+    assert invalid_publication < PROSPECTIVE_START_AFTER
+    assert PROSPECTIVE_START_AFTER == datetime(
+        2026,
+        7,
+        31,
+        19,
+        16,
+        52,
+        tzinfo=timezone.utc,
+    )
 
 
 def test_due_event_runs_codex_without_new_articles(tmp_path: Path) -> None:

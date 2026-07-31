@@ -17,7 +17,7 @@ from ..news.contract import load_news_history
 
 NEWS_HISTORY = Path.home() / ".local/state/tradebot/news/history"
 BAR = timedelta(minutes=5)
-PROSPECTIVE_START_AFTER = datetime(2026, 7, 31, 16, 2, 57, tzinfo=timezone.utc)
+PROSPECTIVE_START_AFTER = datetime(2026, 7, 31, 19, 16, 52, tzinfo=timezone.utc)
 
 
 def number(value: object) -> float | None:
