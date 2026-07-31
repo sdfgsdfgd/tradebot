@@ -5,8 +5,9 @@
   SMART/direct-ARCA books, quote-derived `6 UPRO / 23 SPXU`, cash, effective
   Tiered commission, flat broker state, immutable identity, and restart proof
   passed. Its first restart and natural `09:47 ET` recurrence remained flat
-  with zero submissions; the five-minute capital owner and read-only dwell
-  recorder are active. GTH cash authority remains disabled`
+  with zero submissions; the five-minute capital owner is active and the first
+  read-only dwell capture is terminally audited `ACCUMULATE`. GTH cash
+  authority remains disabled`
 - **Authority:** canonical resume state, active task tree, critical evidence
   index, and promotion contract
 - **Cold history:** [`q_XSP_live_research_kata-archive.md`](q_XSP_live_research_kata-archive.md)
@@ -42,13 +43,13 @@ output belongs in commit/final verification, not in this management brain.
 | Research crown | **Opening Edge v3 — Regime Harmony 24/5**; `xsp.opening-edge-v3-regime-harmony-24x5.v1` |
 | Runtime parity | Central v3 owner reproduces RTH `40708a28…` exactly over `425/425` trades; unchanged GTH Down Sleeve reproduces `9e04807f…` over `179/179`; combined `604`, `+291.1756`, PF `2.0919`, DD `17.63` |
 | Runtime source anchor | q/origin are clean and synchronized; runtime fix `12be31c…`, reset contract `69f8b56…`, stale-close repair `6caa066…`, cash-finalization verifier `9db0bee…`, attribution contract `7b37a4f…`, central owner `643b6a…`, crown `d47eb39…`, canonical daily-context fingerprint `7a139df1…` |
-| Observer cadence | Five-minute timer active with tracked writable drop-in `c831b847…`. Mandatory restart proof at `09:45:33 ET` and first natural `09:47 ET` recurrence both returned `flat_target`, null leg, flat holdings, and zero submissions. Read-only entry-dwell capture remains active through `11:35 ET` |
+| Observer cadence | Five-minute timer active with tracked writable drop-in `c831b847…`. Mandatory restart proof at `09:45:33 ET` and first natural `09:47 ET` recurrence both returned `flat_target`, null leg, flat holdings, and zero submissions. The first read-only entry-dwell tape completed cleanly at `11:35 ET`; zero admissions means the cohort remains `ACCUMULATE` |
 | RTH signal freshness | **cleared:** after the user activated `CBOE Streaming Market Indexes`, zero-order receipt `acce7ed3…` returned live type-1 XSP, current five-minute history, and real-time `TRADES` bars without a Gateway restart; the natural `10:07 ET` centralized v2 checkpoint then evaluated with both XSP and SPY through `10:05` and `120s` age |
 | Order/capital authority | `rth_cash_pair_limit_only` for `b4799fa6…`: up→UPRO, down→SPXU, fresh streaming NBBO, full SELL reconciliation before an admitted opposite BUY, one `$900` immediate-proceeds cash slot. No direction is currently admitted; GTH remains forbidden |
 | Profitability clock | `ACTIVE` for run start `13:42:55Z`; selected execution coverage begins with the zero-order restart at `13:45:33Z` and first natural required recurrence at `13:47:00Z`. The selected-cash verifier still requires every five-minute and `close+7/+12/+17` row; no missing slot may be backfilled and no trade is forced |
 | Execution verdict | `LIVE_FLAT` for `b4799fa6…`: zero fills/P&L/DD, `SPXU=0`, `UPRO=0`, no open order or breach. Archived first round trip bought `23 SPXU @ $39.10` and sold at `$38.56`; total commission `$0.659007`, realized `-$13.079007`. Broker-qualified attribution separates strategy timing from integration debt; none transfers into the new identity |
-| Next irreversible evidence | only a newly admitted v3 RTH direction may create the first `b4799fa6…` capital event. Until then, five-minute evidence and 20-minute Hawkeye reviews must remain gap-free; the read-only dwell capture receives its terminal audit after `11:35 ET` |
-| First active work | preserve every selected recurrence; review proposal/veto, slope/velocity/ATR, long context, economics, MFE/MAE, safety, and TA/news attribution at 20-minute cadence; reconcile any real fill immediately; issue 24h/48h/five-session receipts only at their lawful boundaries |
+| Next irreversible evidence | only a newly admitted v3 RTH direction may create the first `b4799fa6…` capital event. Until then, five-minute evidence and 20-minute Hawkeye reviews must remain gap-free; neither the accumulating dwell cohort nor the MCL onset study has capital authority |
+| First active work | preserve every selected recurrence; review proposal/veto, slope/velocity/ATR, long context, economics, MFE/MAE, safety, and TA/news attribution at 20-minute cadence; reconcile any real fill immediately; accumulate the preregistered MCL TA-onset/news-convexity comparison only after unseen natural publications; issue 24h/48h/five-session receipts only at lawful boundaries |
 
 ### Immediate sequence
 
@@ -706,10 +707,11 @@ transition through today’s close; no order will be forced merely to populate t
     v3. Preregistration `499c4603…` binds natural admitted RTH transitions to
     full-size UPRO/SPXU book evolution, the existing ladder prices, signal age,
     multihorizon slope/ATR velocity and acceleration, causal long context, and
-    attribution-only news delta. Immutable q bundle `c9b12fe2…` schedules the
-    first read-only `09:25..11:35 ET` capture for July 31. At least `30`
-    admitted transitions across five complete sessions and both directions
-    are required before any historical patience replay; quote touch remains a
+    attribution-only news delta. The first complete `09:25..11:35 ET` capture
+    passed integrity over `5,594,032` rows and zero submissions, but contained
+    zero admitted transitions; two blocked turns remain controls only. At least
+    `30` admitted transitions across five complete sessions and both directions
+    are still required before any historical patience replay; quote touch is a
     bound rather than fill proof. No direction, admission, sizing, runtime,
     selection, order, or profitability-clock authority exists.
 21. `[WIP]` Accumulate the canonical prospective v3 TA-only versus
@@ -723,6 +725,15 @@ transition through today’s close; no order will be forced merely to populate t
     promising anatomy, not authority; continue through the `24h → 48h →
     five-session` gates and ordinary/trend/shock regimes before considering
     any freshness-aware patience or surrender rule.
+22. `[WIP]` Accumulate the preregistered MCL Narrative-Lag Convexity Onset
+    challenger. MCL price impulse deceleration owns the research direction;
+    fresh `|signed_pressure| >= 0.80` is only a persistence/convexity classifier.
+    Discovery and `+2h` controls show price already carries reversal information,
+    so graduation requires at least `12` unseen extreme onsets across six
+    sessions and both prior directions, improved four-hour MFE/range versus the
+    identical TA-only cohort, no worse MAE/DD, positive bootstrap lower bound,
+    and stability without pressure delta/innovation. The prospective prefix
+    starts at zero events; no MCL future, option, selector, or capital authority.
 
 ---
 
@@ -985,6 +996,8 @@ and
 | E-336 | the corrected clock exposed a pre-open authority race: invalid `daf1609b…` remained behind `IBKR_READONLY=0`, while the normal first RTH recurrence is `09:37 ET` and the clean reset is `09:39`. The already-frozen observation drop-in was installed immediately without touching the broker or selection file; the natural `03:37 ET` recurrence then persisted source evidence only with null selected transport/execution/profitability. Immutable r4 bundle `73cf3820…` supersedes r3 only by expecting this quarantine and using self-contained r4 paths; it installs writable execution solely after fresh source/preview/rebase and a new-selection restart pass. Every non-time precondition, manifest, unit, timer, source hash, predecessor identity, and GTH zero-order proof passes. A 09:37 admission cannot consume capital; failure before selection remains observation-only and failure after selection disables cadence. Signal, lifecycle, sizing, ladder, broker state, historical evidence, and clock remain unchanged |
 | E-337 | the single preregistered pre-open free-window study rejected the tempting “rising premarket ATR plus unanimous up slopes predicts the daily spike” bridge. Frozen `07:30..08:30 ET` unanimous up slopes with positive ATR velocity/acceleration mapped `312` authentic UPRO trades but lost `-$167.43/-$178.07/-$185.31` across the three annual slices, `-$530.82` full, PF `0.417`, and DD `$543.18`; doubled-spread and adjacent-window controls also failed. q bundle manifest `7d8599ec…`; receipt `d00cc198…`. Premarket remains Hawkeye context only and cannot warm, admit, size, or execute v3 |
 | E-338 | July 31 commissioning passed after two fail-closed representation defects without relaxing one economic or strategy gate. r4 `73cf3820…` obtained a fresh source but could not atomically write its preview into its immutable root; r5 `77e4cbb2…` moved only ephemeral outputs to mode-0700 runtime storage. Fresh SMART/direct-ARCA books, effective Tiered commissions, `$1,318.05` settled cash, exact `6 UPRO / 23 SPXU` quantities, empty relevant positions/orders, and zero submissions all passed; selection/rebase are byte-identical `eb6aad41…`, preview `62edc222…`, and predecessor `daf1609b…` is archived `a5891868…`. r5 then stopped on shell text `0.0 != 0` after the numerically zero reset had already frozen selection `b4799fa6…`; post-selection finalizer `d65ab212…` validated numeric zero plus every original identity/gate, installed writable drop-in `c831b847…`, and proved one immediate `09:45:33 ET` plus one natural `09:47 ET` flat/null-leg/zero-order recurrence. Independent `09:48:43 ET` read-only broker census found no UPRO/SPXU position or open order and no new session fill. Compact receipt `opening_edge_v3_next_rth_selection_receipt.json` is `f0d11ba4…`. The selected RTH clock is active without inherited economics; GTH remains forbidden and no trade was forced |
+| E-339 | the first preregistered entry-dwell capture completed exactly `09:25..11:35 ET`: service success, `5,594,032` valid rows / `1.916 GB`, zero timestamp/authority/submission errors, zero submitted orders, `1,630,869` SPXU and `1,105,135` UPRO quotes, and maximum interquote gaps `2.04s/3.17s`. No natural v3 admission occurred; blocked `10:25 up / atr_velocity` and `11:10 down / down_retrace` turns remain descriptive controls. Tape `91d8956…`, terminal audit `aa31e3e…`, compact receipt `8f0ef07c…`; verdict `ACCUMULATE`, with no ladder inference or runtime/capital change |
+| E-340 | the first six-checkpoint/two-hour Hawkeye block ranked MCL Narrative-Lag Convexity Onset above XSP dwell sharpening, then froze it before new outcomes. Discovery found news pressure delta mostly followed the preceding four-hour MCL move and had approximately zero following-four-hour correlation; TA-only deceleration and a `+2h` placebo also reversed, so news cannot own direction. Preregistration `c17a1a2…` instead tests whether fresh `|pressure| >= 0.80` adds persistence/convexity after the same TA-owned opposite-impulse onset. It requires `12` unseen extreme events, six sessions, both directions, TA-only/time-shift controls, improved MFE/range without worse MAE/DD, and stable bootstrap evidence. The initial prospective prefix is exactly zero events (`f11a8aef…`); discovery `c7171064…` is outcome-exposed and excluded. No manipulation claim, fixed news coefficient, MCL instrument, option, selector, order, or clock authority exists |
 
 ### Decision anchors
 
@@ -1131,6 +1144,7 @@ authority is separately unqualified.
 **Predictive observation:** the warming RTH owner should continue flat until a
 fully qualified v3 turn survives its centralized admission and lifecycle
 rules. That first admission—not the clock or a deadline—may create the next
-capital event. The read-only dwell capture should finish at `11:35 ET`; its
-terminal audit and thirty-minute Hawkeye reviews may sharpen future execution
-patience, never today's direction, sizing, or authority.
+capital event. The terminal dwell tape and twenty-minute Hawkeye reviews may
+sharpen future execution patience, while the separately preregistered MCL onset
+study may accumulate only unseen publications. Neither may alter today's v3
+direction, sizing, or authority.

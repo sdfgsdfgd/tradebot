@@ -1,0 +1,74 @@
+{
+  "schema": "xsp.opening-edge-v3-entry-dwell-microtape-receipt.v1",
+  "authority": "prospective_execution_attribution_only",
+  "session_date_et": "2026-07-31",
+  "capture_window_et": [
+    "09:25:00",
+    "11:35:00"
+  ],
+  "service": {
+    "result": "success",
+    "exit_status": 0,
+    "started_at_utc": "2026-07-31T13:25:00Z",
+    "ended_at_utc": "2026-07-31T15:35:01Z"
+  },
+  "identity": {
+    "preregistration_sha256": "499c4603a4d4cec90096f03e26c83dbacdad6e2b8d52a573735954ba02e974c1",
+    "capture_script_sha256": "32f28977dff28f45785987c2e50027723402b0e6b02eb0ce5f75a8ac4183a2ed",
+    "audit_script_sha256": "6196bd73bb21f8ddedd1774359190593205fc862b504464ec11920bb9faf41be",
+    "audit_receipt_sha256": "aa31e3e7bf2146706944a7e5f3805db704e76e5d28c0417e534a5a073a444595",
+    "tape_sha256": "91d8956fc38ed8fdb11e2aa2b1f208fe83df640127cb25b12f95249899568636"
+  },
+  "tape": {
+    "bytes": 1916308816,
+    "rows": 5594032,
+    "first_received_at_utc": "2026-07-31T13:25:02.472887+00:00",
+    "last_received_at_utc": "2026-07-31T15:34:59.689619+00:00",
+    "json_errors": 0,
+    "timestamp_regressions": 0,
+    "authority_errors": 0,
+    "submission_errors": 0,
+    "submitted_orders": 0,
+    "schemas": {
+      "xsp.network-b-microtape-bid-ask.v1": 2768449,
+      "xsp.network-b-microtape-row.v1": 57133,
+      "xsp.network-b-microtape-start.v2": 1,
+      "xsp.network-b-microtape-trade.v1": 2768449
+    },
+    "books": {
+      "SPXU": {
+        "quotes": 1630869,
+        "mean_spread_usd": 0.009953871218539025,
+        "max_interquote_gap_seconds": 2.037199
+      },
+      "UPRO": {
+        "quotes": 1105135,
+        "mean_spread_usd": 0.061386473145647075,
+        "max_interquote_gap_seconds": 3.171762
+      }
+    }
+  },
+  "strategy_join": {
+    "natural_admitted_transitions": 0,
+    "blocked_turn_controls": [
+      {
+        "signal_bar_utc": "2026-07-31T14:25:00Z",
+        "direction": "up",
+        "blocked_by": "atr_velocity"
+      },
+      {
+        "signal_bar_utc": "2026-07-31T15:10:00Z",
+        "direction": "down",
+        "blocked_by": "down_retrace"
+      }
+    ]
+  },
+  "graduation": {
+    "minimum_admitted_transitions": 30,
+    "minimum_complete_sessions": 5,
+    "both_directions_required": true,
+    "passed": false,
+    "verdict": "ACCUMULATE"
+  },
+  "conclusion": "The first complete session proves authentic continuous UPRO/SPXU books and zero order authority but contains no admitted v3 transition. Blocked turns remain descriptive controls; no ladder-dwell inference, runtime change, selection, order, or profitability claim is permitted."
+}

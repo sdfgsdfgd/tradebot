@@ -1,0 +1,99 @@
+{
+  "schema": "mcl.narrative-lag-convexity-preregistration.v1",
+  "preregistered_at_utc": "2026-07-31T16:02:57Z",
+  "authority": "prospective_research_only",
+  "status": "ACCUMULATING",
+  "question": "When MCL's own four-hour impulse has already stopped making proportional progress, does a fresh extreme causal-news pressure state identify greater persistence or convexity after the same TA-owned reversal onset?",
+  "null_hypothesis": "The extreme-pressure label adds no stable forward MFE, range, holding-value, or drawdown information beyond the identical TA-only onset and time-shifted controls.",
+  "prospective_accumulator": {
+    "script_sha256": "04231e78342aca14112c8f6155d9e6966971300cf92f63521e1605f199fd4036",
+    "initial_zero-event_receipt_sha256": "f11a8aef3882c3d33757d141f5ae4384c347ace9843e8cca502be486b3cb531a",
+    "initial_prospective_ta_onsets": 0,
+    "initial_prospective_extreme_pressure_onsets": 0,
+    "broker_connection": "read_only",
+    "order_authority": "none",
+    "submitted_orders": 0
+  },
+  "discovery_cut": {
+    "outcome_exposed": true,
+    "last_included_publication_utc": "2026-07-31T14:22:42Z",
+    "prospective_start_strictly_after_utc": "2026-07-31T16:02:57Z",
+    "news_history_sha256": "f8a612d9ddb124affc310ecc8dbf9a468a69e62648bd44f6191707534893672a",
+    "analysis_script_sha256": "04db3389687000637c2ad4c87954e5afed5c90f86121e3942cb4220f7a71800a",
+    "discovery_receipt_sha256": "c717106446c135fd7bde3c5d309a1cb8298cafa4c40cd75080e0794f85a790c4",
+    "publications": 39,
+    "mature_four_hour_outcomes": 38,
+    "contract": {
+      "symbol": "MCL",
+      "local_symbol": "MCLU6",
+      "con_id": 661016525,
+      "expiry": "20260819",
+      "exchange": "NYMEX"
+    }
+  },
+  "frozen_signal": {
+    "clock": "natural causal-news publication timestamps; use only completed five-minute MCL bars",
+    "ta_onset": [
+      "Measure MCL return over the preceding four hours and the last thirty minutes.",
+      "The prior four-hour direction is nonzero.",
+      "Last-thirty-minute progress in that direction is no greater than the preceding four-hour average hourly progress.",
+      "The research direction is opposite the prior MCL price impulse; news cannot choose or reverse it."
+    ],
+    "news_classifier": [
+      "The publication is causally available and fresh.",
+      "Absolute signed pressure, direction times impact/100 times confidence, is at least 0.80.",
+      "Pressure delta, velocity, change label, and expanding innovation residual remain attribution-only secondary fields."
+    ],
+    "no_fixed_news_coefficient": true
+  },
+  "frozen_controls": [
+    "Identical TA-only onsets without the extreme-pressure label.",
+    "Identical price-state evaluation two hours after each publication.",
+    "Nonextreme-pressure onsets, separated by prior price direction and UTC session.",
+    "A later production candidate must replace the proxy direction with an independently qualified MCL-native TA owner before any execution study."
+  ],
+  "outcomes": [
+    "opposite-prior-impulse return at 30, 60, and 240 minutes",
+    "MFE and MAE at 30, 60, and 240 minutes",
+    "four-hour high-low range and time to favorable/adverse excursion",
+    "persistence versus surrender after TA onset",
+    "event overlap, session concentration, and sensitivity to complete-spread and commission assumptions"
+  ],
+  "prospective_gate": {
+    "minimum_extreme_pressure_onsets": 12,
+    "minimum_distinct_sessions": 6,
+    "minimum_each_prior_impulse_direction": 4,
+    "ta_only_control_required": true,
+    "two_hour_shift_control_required": true,
+    "graduation_requires": [
+      "Extreme-pressure onsets improve median four-hour favorable excursion and range over the TA-only complement.",
+      "Median four-hour adverse excursion and drawdown do not worsen.",
+      "The direction and session strata do not reveal one-cluster dependence.",
+      "A bootstrap 95% lower bound for the primary favorable-excursion difference is above zero.",
+      "The result remains stable when pressure delta and innovation residual are omitted."
+    ],
+    "passing_result": "development_challenger_only"
+  },
+  "discovery_summary": {
+    "ta_only_onsets": 16,
+    "ta_only_opposite_return_mean_pct": {
+      "30m": 0.348,
+      "60m": 0.3086,
+      "240m": 0.2468
+    },
+    "extreme_pressure_onsets": 4,
+    "extreme_pressure_opposite_return_mean_pct": {
+      "30m": 0.7188,
+      "60m": 0.8688,
+      "240m": 1.029
+    },
+    "strict_extreme_catchup_onsets": 3,
+    "warning": "All discovery outcomes were inspected; none count toward prospective graduation."
+  },
+  "fail_closed": [
+    "No historical headline reconstruction or news backfill.",
+    "No manipulation claim, headline-sign direction, fixed news percentage, selector, order, position, or profitability clock.",
+    "No MCL future or option authority without separate contract, quote, spread, commission, cash/margin, risk, restart, and attribution proof.",
+    "Opening Edge v3 live commissioning preempts this study."
+  ]
+}
