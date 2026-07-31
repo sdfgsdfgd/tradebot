@@ -713,7 +713,10 @@ transition through today’s close; no order will be forced merely to populate t
     `30` admitted transitions across five complete sessions and both directions
     are still required before any historical patience replay; quote touch is a
     bound rather than fill proof. No direction, admission, sizing, runtime,
-    selection, order, or profitability-clock authority exists.
+    selection, order, or profitability-clock authority exists. Its dated
+    one-shot timer is terminal and no recurring capture owner exists, so
+    accumulation is paused pending a pre-outcome successor architecture;
+    never repeat multi-gigabyte full-session tapes by inertia.
 21. `[WIP]` Accumulate the canonical prospective v3 TA-only versus
     defensive-news comparison. The pure reducer joins only actual v3 lifecycle
     entries to their earliest exact pre-entry source checkpoint and an exact
