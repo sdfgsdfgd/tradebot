@@ -1560,6 +1560,66 @@ def test_v3_restart_risk_and_order_identity_use_selected_symbols(
     assert xsp_transport_order_ref(plan).startswith("XSPV3-")
 
 
+def test_v3_selection_survives_weekend_but_monday_source_must_be_fresh(
+    tmp_path: Path,
+) -> None:
+    selection = _v3_selection(tmp_path)
+    monday = datetime(2026, 8, 3, 14, 0, tzinfo=timezone.utc)
+    position = _position("up", entry_time=monday - timedelta(minutes=1))
+    position["trading_date"] = monday.date().isoformat()
+    source = _source(position, recorded_at=monday - timedelta(seconds=30))
+    daily = source["paired_equity"]["daily_context_state"]
+    daily["trading_day"] = monday.date().isoformat()
+    daily["context_as_of_day"] = "2026-07-31"
+    daily["state"]["as_of_day"] = "2026-07-31"
+    daily["state_fingerprint"] = calibration_fingerprint(daily["state"])
+
+    assert load_xsp_v3_transport_selection_from_mapping(selection) == selection
+    plan = project_xsp_transport_plan(
+        selection=selection,
+        source_receipt=source,
+        observed_at=monday,
+        positions={"UPRO": 0, "SPXU": 0},
+        open_orders=[],
+        settled_cash_usd=1_200.0,
+        quotes={
+            "UPRO": {
+                "bid": 99.98,
+                "ask": 100.0,
+                "age_seconds": 0.5,
+                "market_data_type": 1,
+            },
+            "SPXU": {
+                "bid": 49.98,
+                "ask": 50.0,
+                "age_seconds": 0.5,
+                "market_data_type": 1,
+            },
+        },
+    )
+
+    assert plan["status"] == "ACTIONABLE"
+    assert plan["leg"]["action"] == "BUY"
+    assert plan["leg"]["symbol"] == "UPRO"
+    assert plan["source_checkpoint_id"] == source["checkpoint_id"]
+
+    stale = deepcopy(source)
+    stale["recorded_at_utc"] = (monday - timedelta(minutes=11)).isoformat()
+    with pytest.raises(
+        ValueError,
+        match="fresh post-selection source",
+    ):
+        project_xsp_transport_plan(
+            selection=selection,
+            source_receipt=stale,
+            observed_at=monday,
+            positions={"UPRO": 0, "SPXU": 0},
+            open_orders=[],
+            settled_cash_usd=1_200.0,
+            quotes={},
+        )
+
+
 def test_selection_binds_every_gate_and_starts_strictly_flat_run(
     tmp_path: Path,
 ) -> None:
