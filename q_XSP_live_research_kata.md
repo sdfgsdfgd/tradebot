@@ -47,8 +47,8 @@ output belongs in commit/final verification, not in this management brain.
 | Order/capital authority | `rth_cash_pair_limit_only` for `b4799fa6…`: up→UPRO, down→SPXU, fresh streaming NBBO, full SELL reconciliation before an admitted opposite BUY, one `$900` immediate-proceeds cash slot. No direction is currently admitted; GTH remains forbidden |
 | Profitability clock | `ACTIVE` for run start `13:42:55Z`; selected execution coverage begins with the zero-order restart at `13:45:33Z` and first natural required recurrence at `13:47:00Z`. The selected-cash verifier still requires every five-minute and `close+7/+12/+17` row; no missing slot may be backfilled and no trade is forced |
 | Execution verdict | `LIVE_FLAT` for `b4799fa6…`: zero fills/P&L/DD, `SPXU=0`, `UPRO=0`, no open order or breach. Archived first round trip bought `23 SPXU @ $39.10` and sold at `$38.56`; total commission `$0.659007`, realized `-$13.079007`. Broker-qualified attribution separates strategy timing from integration debt; none transfers into the new identity |
-| Next irreversible evidence | only a newly admitted v3 RTH direction may create the first `b4799fa6…` capital event. Until then, five-minute evidence and 30-minute Hawkeye reviews must remain gap-free; the read-only dwell capture receives its terminal audit after `11:35 ET` |
-| First active work | preserve every selected recurrence; review proposal/veto, slope/velocity/ATR, long context, economics, MFE/MAE, safety, and TA/news attribution at 30-minute cadence; reconcile any real fill immediately; issue 24h/48h/five-session receipts only at their lawful boundaries |
+| Next irreversible evidence | only a newly admitted v3 RTH direction may create the first `b4799fa6…` capital event. Until then, five-minute evidence and 20-minute Hawkeye reviews must remain gap-free; the read-only dwell capture receives its terminal audit after `11:35 ET` |
+| First active work | preserve every selected recurrence; review proposal/veto, slope/velocity/ATR, long context, economics, MFE/MAE, safety, and TA/news attribution at 20-minute cadence; reconcile any real fill immediately; issue 24h/48h/five-session receipts only at their lawful boundaries |
 
 ### Immediate sequence
 
@@ -430,9 +430,9 @@ This event-driven spot lane preempts every research sidequest without requiring
 active poll loops; alpha/theta structures remain a later-week expansion after
 directional consistency is proven.
 
-#### `[WIP]` 30-minute Hawkeye review format
+#### `[WIP]` 20-minute Hawkeye review format
 
-This is the canonical inspirational format for the 30-minute cycle
+This is the canonical inspirational format for the 20-minute cycle
 observations throughout the ongoing `24h → 48h → five-session/one-week` live
 profitability proof. Its purpose is not merely status reporting: rich,
 simultaneous observation should expose powerful intraday nuances, especially
@@ -440,7 +440,7 @@ during volatile periods or patterns the strategy may not yet handle strongly,
 and feed two bounded sidequests—sharpening the strategy and discovering new
 causal hypotheses—without changing live authority from narration.
 
-Four reviews form one two-hour evolution block. During each block, maintain
+Six reviews form one two-hour evolution block. During each block, maintain
 two bounded causal candidates: one XSP v3/execution refinement and one
 high-value alpha/theta or cross-asset research idea. At a quiet block end,
 rank both, preserve the runner-up, preregister the winner, add one plan item,
