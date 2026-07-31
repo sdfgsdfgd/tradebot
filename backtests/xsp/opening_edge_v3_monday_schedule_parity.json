@@ -1,0 +1,50 @@
+{
+  "schema": "xsp.opening-edge-v3-monday-schedule-parity.v1",
+  "authority": "static_schedule_read_only",
+  "observed_at_utc": "2026-07-31T22:21:11Z",
+  "source_revision": "611f991ad1e696b544ace7724b02d6182016fff7",
+  "trading_date": "2026-08-03",
+  "identity": {
+    "audit_runner_sha256": "97d79087037fb5027eaccbd54510a13f8247fd6a839b59ceb54787201e7db6fd",
+    "cash_slot_owner_sha256": "a3bd38b1b64119901c34b6cd68531128e54403e9acb304715bb74fbbfa643598",
+    "tracked_timer_sha256": "542a78303d6e245f2477cc1ea16765252b40bd9a077639409fa6d7c77a33ab50",
+    "installed_timer_sha256": "542a78303d6e245f2477cc1ea16765252b40bd9a077639409fa6d7c77a33ab50",
+    "selected_live_dropin_sha256": "c831b847862cdcc9fa8b87eb9bc6bdc54fb7a2f9ced3c11c9359090863e6d6ad"
+  },
+  "cash_slots": {
+    "expected": 81,
+    "scheduled": 81,
+    "first_et": "2026-08-03T09:37:00-04:00",
+    "last_et": "2026-08-03T16:17:00-04:00",
+    "missing": [],
+    "unexpected": []
+  },
+  "preopen_source_slots_et": [
+    "09:02:00",
+    "09:07:00",
+    "09:12:00",
+    "09:17:00",
+    "09:22:00",
+    "09:27:00"
+  ],
+  "checks": {
+    "tracked_and_installed_timer_equal": true,
+    "persistent_false": true,
+    "expected_slot_count_81": true,
+    "scheduled_slot_count_81": true,
+    "no_missing_slots": true,
+    "no_unexpected_slots": true,
+    "preopen_source_slots_exact": true
+  },
+  "passes": true,
+  "boundary": {
+    "persistent_false_effect": "missed invocations cannot replay or backfill evidence",
+    "broker_queried": false,
+    "service_or_timer_mutated": false,
+    "checkpoint_created": false,
+    "selection_mutated": false,
+    "order_authority": "none",
+    "submitted_orders": 0,
+    "profitability_clock_mutated": false
+  }
+}
