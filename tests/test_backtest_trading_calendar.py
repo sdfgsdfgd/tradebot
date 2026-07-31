@@ -14,12 +14,26 @@ from tradebot.engines.market import (
     xsp_bar_session_label_et,
     xsp_bar_trading_date,
     xsp_capture_window_date,
+    xsp_rth_cash_evaluation_slots,
     xsp_session_label_et,
     xsp_trading_date,
 )
 
 
 class BacktestTradingCalendarTests(unittest.TestCase):
+    def test_cash_evaluation_slots_include_final_reconciliation(self) -> None:
+        regular = xsp_rth_cash_evaluation_slots(date(2026, 7, 30))
+        early = xsp_rth_cash_evaluation_slots(date(2025, 11, 28))
+
+        self.assertEqual(
+            (regular[-4].time(), regular[-1].time()),
+            (time(16, 2), time(16, 17)),
+        )
+        self.assertEqual(
+            (early[-4].time(), early[-1].time()),
+            (time(13, 2), time(13, 17)),
+        )
+
     def test_session_label_and_maintenance_gap(self) -> None:
         self.assertEqual(session_label_et(time(3, 49)), "OVERNIGHT_EARLY")
         self.assertIsNone(session_label_et(time(3, 50)))

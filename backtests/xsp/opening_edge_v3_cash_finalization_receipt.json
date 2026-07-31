@@ -1,0 +1,51 @@
+{
+  "schema": "xsp.opening-edge-v3-cash-finalization-receipt.v1",
+  "authority": "selected_cash_profitability_evidence",
+  "preregistration_sha256": "b852ce269dfdf61f310d0e6554271cf8f1b614727a7f6bad53aa82eda0db96b8",
+  "selection": {
+    "selection_id": "daf1609b10b98ae2b10393097183bccdbc7629a2afcb474b79716ad805975b7a",
+    "selection_sha256": "a5891868d77f2e722d54de28d1f483bb4bcf70a059baaa72f2963659e6787e15",
+    "ledger_prefix_sha256": "da5a75096e400f78671cfdc37857eafbcfd51e6761539fe004fa18a92996d077"
+  },
+  "before": {
+    "status": "ACTIVE",
+    "coverage_broken": false,
+    "due_slots": 18,
+    "evaluated_slots": 18,
+    "missing_slots": []
+  },
+  "after": {
+    "status": "INVALID_EVIDENCE",
+    "reasons": [
+      "incomplete_session_coverage"
+    ],
+    "coverage_broken": true,
+    "expected_slots": 81,
+    "due_slots": 21,
+    "evaluated_slots": 19,
+    "missing_slots": [
+      "2026-07-30T16:12:00-04:00",
+      "2026-07-30T16:17:00-04:00"
+    ]
+  },
+  "ownership": {
+    "research_shadow_schedule_changed": false,
+    "selected_cash_schedule": "RTH close+2 through close+17",
+    "normal_day_terminal_session": "CURB",
+    "early_close_terminal_time": "exchange close+17 minutes",
+    "historical_rows_backfilled": false,
+    "signal_or_lifecycle_changed": false,
+    "selection_or_order_authority_changed": false,
+    "broker_or_service_mutation": false
+  },
+  "verification": {
+    "focused_tests_passed": 142,
+    "full_tests_passed": 989,
+    "full_tests_deselected": 4,
+    "ruff": "pass",
+    "diff_check": "pass",
+    "architecture": "pass",
+    "live_calibration_lines": 999,
+    "real_q_prefix_replayed_read_only": true
+  }
+}

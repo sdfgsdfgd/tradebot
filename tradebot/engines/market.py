@@ -292,6 +292,17 @@ def xsp_rth_evaluation_slots(day: date) -> tuple[datetime, ...]:
     return tuple(slots)
 
 
+def xsp_rth_cash_evaluation_slots(day: date) -> tuple[datetime, ...]:
+    """RTH cash-owner cadence through its final post-close reconciliation."""
+
+    slots = xsp_rth_evaluation_slots(day)
+    if not slots:
+        return ()
+    return slots + tuple(
+        slots[-1] + timedelta(minutes=offset) for offset in (5, 10, 15)
+    )
+
+
 def full24_post_close_time_et(day: date) -> time:
     # IBKR full-session equity bars typically stop at 17:00 ET on NYSE half-days.
     return time(17, 0) if is_early_close_day(day) else time(20, 0)

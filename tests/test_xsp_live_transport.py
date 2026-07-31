@@ -42,7 +42,11 @@ from tradebot.research.xsp_live_transport_runtime import (
     xsp_transport_risk_state,
 )
 from tradebot.engines.execution import execution_policy_contract
-from tradebot.engines.market import xsp_rth_evaluation_slots
+from tradebot.engines.market import (
+    xsp_rth_cash_evaluation_slots,
+    xsp_rth_evaluation_slots,
+    xsp_session_label_et,
+)
 from tradebot.research.xsp_opening_edge_v3 import (
     XSP_OPENING_EDGE_V3_CONTEXT_STATE_SCHEMA,
     XSP_OPENING_EDGE_V3_VERSION,
@@ -1300,7 +1304,7 @@ def test_v3_selection_owns_all_usd_milestones_without_preselection_leakage(
         date(2026, 8, 5),
     )
     for day_index, trading_day in enumerate(days):
-        slots = xsp_rth_evaluation_slots(trading_day)
+        slots = xsp_rth_cash_evaluation_slots(trading_day)
         for slot_index, slot in enumerate(slots):
             if slot.astimezone(timezone.utc) < SELECTED_AT:
                 continue
@@ -1327,7 +1331,7 @@ def test_v3_selection_owns_all_usd_milestones_without_preselection_leakage(
                 strategy_id=XSP_OPENING_EDGE_V3_VERSION,
                 strategy_version=XSP_V3_TRANSPORT_EXECUTION_VERSION,
                 trading_date=trading_day.isoformat(),
-                session="RTH",
+                session=str(xsp_session_label_et(slot)),
                 status="EVALUATED",
                 evidence={"selected_cash_equity": equity},
                 recorded_at=slot,
@@ -1335,7 +1339,8 @@ def test_v3_selection_owns_all_usd_milestones_without_preselection_leakage(
 
     receipt = ledger.xsp_profitability_receipt(
         policy=policy,
-        as_of=xsp_rth_evaluation_slots(days[-1])[-1] + timedelta(minutes=2),
+        as_of=xsp_rth_cash_evaluation_slots(days[-1])[-1]
+        + timedelta(minutes=2),
     )
 
     assert receipt["status"] == "PASSED"

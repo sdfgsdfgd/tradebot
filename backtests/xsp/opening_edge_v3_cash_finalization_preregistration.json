@@ -1,0 +1,42 @@
+{
+  "schema": "xsp.opening-edge-v3-cash-finalization-preregistration.v1",
+  "authority": "preimplementation_evidence_contract_only",
+  "problem": {
+    "selection_id": "daf1609b10b98ae2b10393097183bccdbc7629a2afcb474b79716ad805975b7a",
+    "generic_rth_last_slot_et": "16:02",
+    "capital_owner_last_slot_et": "16:17",
+    "observed_selected_execution_through_et": "16:07",
+    "missing_required_slots_et": [
+      "16:12",
+      "16:17"
+    ],
+    "false_current_receipt": {
+      "status": "ACTIVE",
+      "coverage_broken": false,
+      "due_slots": 18,
+      "evaluated_slots": 18
+    }
+  },
+  "frozen_change": {
+    "scope": "selected_cash_profitability_evidence_only",
+    "research_rth_schedule_changed": false,
+    "signal_or_lifecycle_changed": false,
+    "selection_or_order_authority_changed": false,
+    "cash_session_schedule": "canonical RTH slots through close+2, then close+7, close+12, close+17",
+    "normal_day_terminal_session": "CURB",
+    "early_close_terminal_time": "exchange close+17 minutes"
+  },
+  "acceptance": {
+    "broken_predecessor_status": "INVALID_EVIDENCE",
+    "broken_predecessor_due_slots": 21,
+    "broken_predecessor_evaluated_slots": 19,
+    "broken_predecessor_missing_slots_et": [
+      "16:12",
+      "16:17"
+    ],
+    "synthetic_complete_cash_session_passes_coverage": true,
+    "shadow_profitability_schedule_unchanged": true,
+    "old_rows_backfilled": false,
+    "runtime_or_broker_mutation": false
+  }
+}

@@ -11,7 +11,11 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Iterator, Mapping, Sequence
 
-from ..engines.market import xsp_rth_evaluation_slots
+from ..engines.market import (
+    xsp_rth_cash_evaluation_slots,
+    xsp_rth_evaluation_slots,
+    xsp_session_label_et,
+)
 from ..time_utils import ET_ZONE
 from .xsp_profitability import (
     LIVE_PROFITABILITY_SCHEMA,
@@ -638,9 +642,14 @@ class LiveCalibrationLedger:
         first_day = run_started.astimezone(ET_ZONE).date()
         final_day = observed_at.astimezone(ET_ZONE).date()
         days = []
+        cash_evidence = policy.equity_schema == SELECTED_CASH_EQUITY_SCHEMA
         cursor = first_day
         while cursor <= final_day:
-            slots = xsp_rth_evaluation_slots(cursor)
+            slots = (
+                xsp_rth_cash_evaluation_slots(cursor)
+                if cash_evidence
+                else xsp_rth_evaluation_slots(cursor)
+            )
             due = tuple(
                 slot for slot in slots
                 if run_started <= slot.astimezone(timezone.utc) <= observed_at
@@ -660,11 +669,14 @@ class LiveCalibrationLedger:
             conflict_slots = []
             for slot in due_slots:
                 slot_utc = slot.astimezone(timezone.utc)
+                expected_session = (
+                    xsp_session_label_et(slot) if cash_evidence else "RTH"
+                )
                 candidates = [
                     item
                     for item in parsed
                     if item[3] == trading_day
-                    and item[0].get("session") == "RTH"
+                    and item[0].get("session") == expected_session
                     and abs((item[1] - slot_utc).total_seconds()) <= policy.slot_tolerance_seconds
                     and abs((item[2] - slot_utc).total_seconds()) <= policy.slot_tolerance_seconds
                 ]

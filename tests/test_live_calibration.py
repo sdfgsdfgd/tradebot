@@ -721,6 +721,7 @@ def _append_selected_session(
     gross_wins: float,
     top_five_wins: float,
     omit_slot: int | None = None,
+    omit_slots: frozenset[int] = frozenset(),
     session_gross: float = 3.0,
     session_cost: float = 0.5,
     run_started: datetime | None = None,
@@ -730,15 +731,27 @@ def _append_selected_session(
     checkpoint_delay: timedelta = timedelta(0),
     recording_delay: timedelta = timedelta(0),
 ) -> tuple[float, float, int, float, float]:
-    from tradebot.engines.market import xsp_rth_evaluation_slots
+    from tradebot.engines.market import (
+        xsp_rth_cash_evaluation_slots,
+        xsp_rth_evaluation_slots,
+        xsp_session_label_et,
+    )
 
     cash = policy.equity_schema == SELECTED_CASH_EQUITY_SCHEMA
     evidence_key = "selected_cash_equity" if cash else "selected_equity"
     suffix = "usd" if cash else "points"
-    slots = xsp_rth_evaluation_slots(day)
+    slots = (
+        xsp_rth_cash_evaluation_slots(day)
+        if cash
+        else xsp_rth_evaluation_slots(day)
+    )
     run_started = run_started or datetime(2026, 7, 27, 9, 37, tzinfo=ET_ZONE)
     for index, slot in enumerate(slots):
-        if index == omit_slot or slot < (owned_from or run_started):
+        if (
+            index == omit_slot
+            or index in omit_slots
+            or slot < (owned_from or run_started)
+        ):
             continue
         last = index == len(slots) - 1
         reported_gross = (
@@ -757,7 +770,11 @@ def _append_selected_session(
             strategy_id=policy.strategy_id,
             strategy_version=policy.strategy_version,
             trading_date=day.isoformat(),
-            session=session,
+            session=(
+                str(xsp_session_label_et(slot))
+                if cash and session == "RTH"
+                else session
+            ),
             status="EVALUATED",
             evidence={
                 evidence_key: {
@@ -1322,7 +1339,7 @@ def test_cash_profitability_clock_proves_usd_24h_48h_and_week(tmp_path) -> None:
             session_gross=12.0,
             session_cost=2.0,
         )
-    as_of = datetime(2026, 8, 3, 16, 2, tzinfo=ET_ZONE)
+    as_of = datetime(2026, 8, 3, 16, 17, tzinfo=ET_ZONE)
 
     receipt = ledger.xsp_profitability_receipt(policy=policy, as_of=as_of)
 
@@ -1331,6 +1348,10 @@ def test_cash_profitability_clock_proves_usd_24h_48h_and_week(tmp_path) -> None:
     assert receipt["policy"]["equity_schema"] == SELECTED_CASH_EQUITY_SCHEMA
     assert receipt["clock"]["coverage_broken"] is False
     assert receipt["clock"]["complete_sessions"] == 6
+    assert receipt["sessions"][-1]["expected_slots"] == 81
+    assert receipt["sessions"][-1]["completed_at_utc"] == (
+        "2026-08-03T20:17:00+00:00"
+    )
     assert receipt["economics"] == {
         "unit": "USD",
         "gross_usd": 72.0,
@@ -1353,6 +1374,53 @@ def test_cash_profitability_clock_proves_usd_24h_48h_and_week(tmp_path) -> None:
     assert weekly["economics"]["closed_trades"] == 10
     assert weekly["economics"]["top_five_win_share"] == pytest.approx(0.4)
     assert weekly["reasons"] == []
+
+
+def test_cash_profitability_requires_post_close_finalization_rows(
+    tmp_path,
+) -> None:
+    ledger = LiveCalibrationLedger(tmp_path / "calibration.jsonl")
+    policy = XspProfitabilityPolicy(
+        run_id="broken-live-prefix",
+        strategy_id="xsp.opening-edge-v3-regime-harmony-24x5.v1",
+        strategy_version="xsp.opening-edge-v3-upro-spxu-execution.v1",
+        config_fingerprint="broken-live-prefix",
+        capital_sleeve="xsp-upro-spxu-rth-cash",
+        max_drawdown_points=135.0,
+        max_session_loss_points=67.5,
+        minimum_week_closed_trades=2,
+        maximum_top_five_win_share=0.5,
+        unit="USD",
+        equity_schema=SELECTED_CASH_EQUITY_SCHEMA,
+    )
+    run_started = datetime(2026, 7, 30, 14, 36, 55, tzinfo=ET_ZONE)
+    _append_selected_session(
+        ledger,
+        policy=policy,
+        day=date(2026, 7, 30),
+        cumulative_gross=0.0,
+        cumulative_costs=0.0,
+        closed_trades=0,
+        gross_wins=0.0,
+        top_five_wins=0.0,
+        run_started=run_started,
+        omit_slots=frozenset({79, 80}),
+    )
+
+    receipt = ledger.xsp_profitability_receipt(
+        policy=policy,
+        as_of=datetime(2026, 7, 30, 16, 17, 30, tzinfo=ET_ZONE),
+    )
+
+    assert receipt["status"] == "INVALID_EVIDENCE"
+    assert receipt["clock"]["coverage_broken"] is True
+    assert receipt["sessions"][0]["due_slots"] == 21
+    assert receipt["sessions"][0]["evaluated_slots"] == 19
+    assert receipt["sessions"][0]["missing_slots"] == [
+        "2026-07-30T16:12:00-04:00",
+        "2026-07-30T16:17:00-04:00",
+    ]
+    assert "incomplete_session_coverage" in receipt["reasons"]
 
 
 def test_profitability_milestones_cannot_rewrite_earlier_losses(tmp_path) -> None:
