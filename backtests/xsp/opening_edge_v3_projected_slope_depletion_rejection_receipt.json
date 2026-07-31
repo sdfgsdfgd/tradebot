@@ -1,0 +1,40 @@
+{
+  "schema": "xsp.opening-edge-v3-projected-slope-depletion-rejection-receipt.v1",
+  "generated_at_utc": "2026-07-31T18:02:03Z",
+  "authority": "outcome_exposed_historical_anatomy_only",
+  "hypothesis": "After a financed favorable excursion, surrender the incumbent when the fast slope turns adverse, ATR velocity is nonpositive, and at least three of four projected 15/30/60/120-minute slopes no longer support ownership.",
+  "base_identity": {
+    "trades": 425,
+    "net_points": 280.97,
+    "ledger_sha256": "40708a28476fad504d29b1222e52b88481b1c0da8313ed4667076e2b6ed3f157"
+  },
+  "frozen_sources": {
+    "preregistration_sha256": "f380d56afe70f9e71b78060f00d85b89f3359ce3873fa89549c8b65edb6c53f2",
+    "full_anatomy_sha256": "83b88a233ba92bc3b62716c9b6c9bba34964ebd16eccddf571aa0ef9bcb0c313"
+  },
+  "result": {
+    "events": 207,
+    "protected_delta_points": -85.36,
+    "protected_mean_points": -0.4124,
+    "protected_median_points": -0.14,
+    "later_favorable_mean_points": 1.4411,
+    "later_favorable_median_points": 0.83,
+    "by_year": {
+      "year_1": -26.16,
+      "year_2": -24.11,
+      "year_3": -35.09
+    },
+    "by_direction": {
+      "up": -27.69,
+      "down": -57.67
+    }
+  },
+  "verdict": "REJECT",
+  "reason": "Projected multihorizon depletion is an attractive description of temporary giveback, but v3's patient ownership captures materially more later movement. The mechanism loses in every year and both directions.",
+  "boundaries": {
+    "production_changed": false,
+    "selection_changed": false,
+    "submitted_orders": 0,
+    "profitability_clock_changed": false
+  }
+}

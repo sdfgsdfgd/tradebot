@@ -1,0 +1,71 @@
+{
+  "schema": "mcl.narrative-innovation-fast-consensus-development-receipt.v1",
+  "generated_at_utc": "2026-07-31T18:02:03Z",
+  "authority": "outcome_exposed_secondary_seed_only",
+  "question": "Does a statistically surprising causal-news update open a short information-assimilation window in which rapid MCL-native fast-slope consensus has more favorable convexity than the identical TA pattern at ordinary updates?",
+  "causal_boundary": {
+    "news_role": "absolute surprise magnitude arms attention only",
+    "direction_owner": "first rapid 3-of-3 agreement across 5/15/30-minute MCL slopes",
+    "slow_context": "at least one 60/120-minute slope still retains the opposing state at initial 2-of-3 fast agreement",
+    "half_life": "3-of-3 fast agreement must be immediate or arrive on the next completed five-minute bar within thirty minutes of publication",
+    "news_sign_authority": false
+  },
+  "statistical_repairs": [
+    "Reset the causal innovation model whenever score_version or horizon_hours changes.",
+    "Require at least eight prior same-semantic publications.",
+    "Studentize each new residual with its OLS prediction interval, including sample-size and leverage uncertainty."
+  ],
+  "discovery": {
+    "mature_same_semantic_publications": 19,
+    "rapid_ta_consensus_events": 8,
+    "studentized_novel_events": 1,
+    "novel_event": {
+      "publication_at_utc": "2026-07-27T02:57:33Z",
+      "ta_direction": "down",
+      "studentized_innovation": -5.7607759063,
+      "confirmation_delay_minutes": 7.45,
+      "return_30m_pct": 0.2693839307,
+      "return_1h_pct": 0.5036308269,
+      "return_4h_pct": 1.7568517217,
+      "mfe_4h_pct": 2.3893183415,
+      "mae_4h_pct": -0.0585617241
+    },
+    "ordinary_control": {
+      "events": 7,
+      "mean_return_4h_pct": 0.1074291018,
+      "positive_rate_4h": 0.4285714286,
+      "mean_mfe_4h_pct": 1.0725171013,
+      "mean_mae_4h_pct": -0.8635828417
+    },
+    "plus_2h_placebo_for_novel_event": {
+      "return_4h_pct": -2.0369716237,
+      "mfe_4h_pct": 0.0470976098,
+      "mae_4h_pct": -2.4137525021
+    }
+  },
+  "frozen_sources": {
+    "studentized_enrichment_sha256": "4eadc2724d6f29105e32ca8b7481a0f87c8160f1fb3d576b013836b4564ced1d",
+    "studentized_control_sha256": "30e0a4109a33500f3ba64ba1ee6933ade4f91d28c40fc67f284c24503de2e364"
+  },
+  "verdict": "UNDERWARMED_SECONDARY_SEED",
+  "prospective_start_strictly_after_utc": "2026-07-31T18:02:03Z",
+  "prospective_events_at_freeze": 0,
+  "graduation_floor": {
+    "novel_events": 12,
+    "distinct_sessions": 6,
+    "both_ta_directions": true,
+    "ordinary_magnitude_control": true,
+    "plus_2h_clock_control": true,
+    "positive_bootstrap_lower_bound": true,
+    "no_worse_mae_or_drawdown": true
+  },
+  "primary_candidate_unchanged": "MCL Narrative-Lag Convexity Onset c17a1a2 remains the sole active accumulator.",
+  "boundaries": {
+    "instrument_authority": "none",
+    "option_authority": "none",
+    "submitted_orders": 0,
+    "xsp_strategy_changed": false,
+    "xsp_selection_changed": false,
+    "profitability_clock_changed": false
+  }
+}
