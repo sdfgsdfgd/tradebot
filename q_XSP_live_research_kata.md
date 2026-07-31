@@ -498,7 +498,7 @@ Current live state at 13:12 ET:
 - Settled cash: $1,318.051.
 - Orders or safety breaches: none.
 - Five-minute owner: active; next bars are recorded automatically.
-- Analytical review cadence: every 30 minutes.
+- Analytical review cadence: every 20 minutes.
 - Clean clock: gap-free from its first required 13:12 ET recurrence.
 
 Latest centralized RTH state:
