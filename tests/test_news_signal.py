@@ -31,6 +31,7 @@ from tradebot.news.pipeline import (
     run_once,
     select_candidates,
 )
+from tradebot.research.mcl_narrative_lag_convexity import load_news as load_mcl_news
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "news" / "finviz_news.html"
@@ -890,6 +891,33 @@ def test_normal_publication_is_invisible_until_atomic_completion(
     )
     assert observation.usable
     assert observation.reason == "fresh"
+
+
+def test_mcl_narrative_alignment_uses_atomic_publication_availability(
+    tmp_path: Path,
+) -> None:
+    signal_at = NOW
+    available_at = NOW + timedelta(minutes=11, seconds=12)
+    asset = _analysis([])["assets"]["MCL"]
+    history = tmp_path / "2026-07.jsonl"
+    history.write_text(
+        json.dumps(
+            {
+                "signal_as_of_utc": _iso(signal_at),
+                "snapshot_as_of_utc": _iso(available_at),
+                "analysis": {"assets": {"MCL": asset}},
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    loaded = load_mcl_news(tmp_path)
+
+    assert len(loaded) == 1
+    assert loaded[0]["signal_at"] == signal_at
+    assert loaded[0]["at"] == available_at
+    assert loaded[0]["pressure"] == 0.95
 
 
 def test_due_event_runs_codex_without_new_articles(tmp_path: Path) -> None:

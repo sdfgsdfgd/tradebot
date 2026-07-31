@@ -12,6 +12,8 @@ from pathlib import Path
 
 from ib_insync import ContFuture, IB
 
+from ..news.contract import load_news_history
+
 
 NEWS_HISTORY = Path.home() / ".local/state/tradebot/news/history"
 BAR = timedelta(minutes=5)
@@ -42,16 +44,18 @@ def pct(start: float | None, end: float | None) -> float | None:
     return (end / start - 1.0) * 100.0
 
 
-def load_news() -> list[dict[str, object]]:
+def load_news(history_dir: Path = NEWS_HISTORY) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
     prior_pressure: float | None = None
-    for path in sorted(NEWS_HISTORY.glob("*.jsonl")):
-        for line in path.read_text().splitlines():
+    for path in sorted(history_dir.glob("*.jsonl")):
+        for payload in load_news_history(path):
             try:
-                payload = json.loads(line)
                 asset = payload["analysis"]["assets"]["MCL"]
-                at = datetime.fromisoformat(
+                signal_at = datetime.fromisoformat(
                     payload["signal_as_of_utc"].replace("Z", "+00:00")
+                )
+                at = datetime.fromisoformat(
+                    payload["snapshot_as_of_utc"].replace("Z", "+00:00")
                 )
                 pressure = round(
                     float(asset["direction"])
@@ -60,11 +64,14 @@ def load_news() -> list[dict[str, object]]:
                     * float(asset["confidence"]),
                     6,
                 )
-            except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+            except (AttributeError, KeyError, TypeError, ValueError):
                 continue
+            if at < signal_at:
+                raise ValueError("MCL publication availability precedes its signal")
             rows.append(
                 {
                     "at": at.astimezone(timezone.utc),
+                    "signal_at": signal_at.astimezone(timezone.utc),
                     "pressure": pressure,
                     "delta": (
                         None
