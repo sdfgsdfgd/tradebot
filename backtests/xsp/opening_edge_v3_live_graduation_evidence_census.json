@@ -1,0 +1,68 @@
+{
+  "schema": "xsp.opening-edge-v3-live-graduation-evidence-census.v1",
+  "authority": "read_only_requirement_census_only",
+  "observed_at_utc": "2026-07-31T22:14:23Z",
+  "source_revision": "335a86c3fd7aaae1b2715ea920e12bb1df20e6d3",
+  "selection": {
+    "selection_id": "b4799fa693ea3da1bf65a7b66412dde318c6ecb427fa14be73b5a5cf1dd40c20",
+    "selection_sha256": "eb6aad41c8f428d12599abd76232d69b3b3f52881a363eaf8c1e79b01b618517",
+    "ledger_prefix_sha256": "eb004df02e7d5455801136866e73509dde36a5abd7c2212651ecc27963fa6322"
+  },
+  "evidence": {
+    "selection_receipt_sha256": "f0d11ba48fa7f897c49b44c6afea8ce8f481a44fd02a521a17ddfe6c2c0732ea",
+    "selected_prefix_audit_sha256": "ba4fa36e0b53eff070e9286edb46e8ec82e4d53a5c4a40b20047f7790c0493e1",
+    "current_runtime_parity_audit_sha256": "f9f06b2b8683b121a7958f25a9a924bc47cca76059d51a60aa30510bdbabfe95",
+    "entry_dwell_microtape_receipt_sha256": "8f0ef07c79251e4025b92583208eda599fd51898131659d0df45c37d2add04d6"
+  },
+  "requirements": {
+    "data_integrity": {
+      "status": "PASS_CURRENT_PREFIX",
+      "evidence": "80/80 exact adjacent source/execution pairs; 79/79 due slots; zero missing, conflict, identity, attribution, cash, risk, or field-parity errors",
+      "remaining": "repeat at each mature milestone cutoff"
+    },
+    "profitability_and_drawdown": {
+      "status": "WAITING_MILESTONE",
+      "evidence": "zero fills, trades, gross, cost, net, and drawdown; zero complete sessions; all milestones false",
+      "remaining": "positive after-cost 24h and 48h plus positive five-session evidence with at least two closed trades and bounded concentration"
+    },
+    "execution_quality": {
+      "status": "WAITING_ACTUAL_FILL",
+      "evidence": "authentic entry-dwell tape is complete but contains zero admitted transitions; selected run has zero fills",
+      "remaining": "grade actual plan BBO, ladder transitions, fill price, latency, commission, slippage, and reconciliation for this selection"
+    },
+    "selector_stability": {
+      "status": "BASELINE_FROZEN",
+      "evidence": "one immutable selection id and file hash are bound by the selection and prefix receipts",
+      "remaining": "reprove the same selection file hash and identity at each milestone cutoff"
+    },
+    "safety": {
+      "status": "PASS_CURRENT_PREFIX",
+      "evidence": "zero submitted orders, forced orders, safety breaches, holding drift, or inherited economics",
+      "remaining": "continue through each mature cutoff"
+    },
+    "restart_recovery": {
+      "status": "INITIAL_RESTART_PASS",
+      "evidence": "selection restart and first natural recurrence both reconciled flat with zero submissions",
+      "remaining": "bind restart recovery evidence to a mature selected-ledger cutoff"
+    },
+    "strategy_attribution": {
+      "status": "PARTIAL",
+      "evidence": "current production owner exactly reproduces crown ledger 40708a28 and every selected execution row pairs to its exact causal source row",
+      "remaining": "bind runtime parity and source/execution attribution to the same selection, ledger-prefix hash, and milestone cutoff"
+    }
+  },
+  "ownership_gap": {
+    "status": "OPEN",
+    "detail": "no single immutable artifact currently binds selection id, selection file hash, ledger-prefix hash, cutoff, profitability, execution quality, selector stability, safety, restart recovery, and strategy attribution into one deterministic verdict"
+  },
+  "verdict": "HOLD_MILESTONE_IMMATURE",
+  "boundaries": {
+    "broker_queried": false,
+    "service_or_timer_mutated": false,
+    "strategy_or_runtime_mutated": false,
+    "selection_mutated": false,
+    "order_authority_mutated": false,
+    "profitability_clock_mutated": false,
+    "graduation_reducer_implemented": false
+  }
+}
