@@ -1,0 +1,77 @@
+{
+  "schema": "mcl.narrative-onset-prospective-event.v1",
+  "generated_at_utc": "2026-07-31T18:48:15Z",
+  "authority": "prospective_research_only",
+  "status": "PENDING_OUTCOMES",
+  "source": {
+    "publication_id": "3fd1fc3c3056952c4620eecf07dd89a266cb4561098756320f24b8b0fed80dfb",
+    "signal_as_of_utc": "2026-07-31T18:34:06Z",
+    "snapshot_as_of_utc": "2026-07-31T18:34:06Z",
+    "score_version": "causal-impact-100.v2",
+    "history_row_sha256": "1e359771688cff1f364f81a75e51e5dd7c45fa7e5cccb9476bf5cd2ac730fcfd",
+    "bar_end_utc": "2026-07-31T18:40:00Z"
+  },
+  "causal_state": {
+    "direction": 1,
+    "impact": 84,
+    "confidence": 0.99,
+    "horizon_hours": 4,
+    "change": "weakening",
+    "signed_pressure": 0.8316,
+    "pressure_delta": -0.0198,
+    "publication_interval_seconds": 15084.0,
+    "pressure_velocity_per_hour": -0.004725536993,
+    "mcl_return_pre_4h_pct": -0.7977475364,
+    "mcl_return_pre_1h_pct": -0.2712584031,
+    "mcl_return_last_30m_pct": -0.1535010037,
+    "range_ratio": 1.0242145414,
+    "range_acceleration": 0.0181709232,
+    "expected_pressure_delta": -0.0796286277,
+    "studentized_innovation": 0.2632695138,
+    "innovation_sample_n": 17,
+    "innovation_leverage": 0.0887171048
+  },
+  "frozen_classification": {
+    "semantic_model_warm": true,
+    "extreme_pressure": true,
+    "narrative_stage": "catchup_confirming",
+    "reactive_update": true,
+    "novel_update": false,
+    "ta_deceleration_onset": false,
+    "primary_extreme_onset": false,
+    "secondary_novel_assimilation_arm": false,
+    "control_role": "extreme_reactive_publication_without_ta_onset",
+    "reason": "The last-30-minute move continued the prior four-hour MCL decline faster than its preceding hourly rate; the pressure update was not statistically novel."
+  },
+  "outcomes": {
+    "earliest_complete_at_utc": "2026-07-31T22:34:06Z",
+    "return_30m_pct": null,
+    "return_1h_pct": null,
+    "return_4h_pct": null,
+    "mfe_30m_pct": null,
+    "mae_30m_pct": null,
+    "mfe_1h_pct": null,
+    "mae_1h_pct": null,
+    "mfe_4h_pct": null,
+    "mae_4h_pct": null
+  },
+  "frozen_evidence": {
+    "primary_preregistration_sha256": "c17a1a241a4aac9583fca229d548a1b4173861532e579079b950334f3ba66761",
+    "primary_runner_sha256": "04231e78342aca14112c8f6155d9e6966971300cf92f63521e1605f199fd4036",
+    "primary_output_sha256": "08dd1f52b077516cc4dc590bb521395b020c8cd53b380c2b5e3b3d430240089a",
+    "secondary_seed_receipt_sha256": "153dc5836dc679ad37c7d2082439e7deb379545fcbe97c2e755dd4c79be25d48",
+    "secondary_runner_sha256": "525c280e7ca3440aa6a777d223f5f9249d09cc97b1d26ddcb682bad8c2e2caa9",
+    "secondary_output_sha256": "14f1f455a1d925ceb9da6ce48f663e98b6fa2bfb66ad4f1466762177b51c122e"
+  },
+  "boundaries": {
+    "prospective_qualifying_onsets_after_event": 0,
+    "pending_control_publications_after_event": 1,
+    "news_direction_authority": false,
+    "instrument_authority": "none",
+    "option_authority": "none",
+    "submitted_orders": 0,
+    "xsp_strategy_changed": false,
+    "xsp_selection_changed": false,
+    "profitability_clock_changed": false
+  }
+}
