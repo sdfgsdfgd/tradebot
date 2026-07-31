@@ -888,6 +888,8 @@ async def advance_xsp_opening_edge_v2_from_ibkr(
     fundamental_log = {
         field: fundamental.get(field)
         for field in (
+            "source",
+            "authority",
             "usable",
             "signal_as_of_utc",
             "snapshot_fingerprint",

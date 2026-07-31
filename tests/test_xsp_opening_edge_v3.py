@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Mapping
 import json
 from dataclasses import replace
 from datetime import date, datetime, timedelta, timezone
@@ -11,6 +12,9 @@ from tradebot.backtest.models import Bar
 from tradebot.research.live_calibration import (
     LiveCalibrationLedger,
     calibration_fingerprint,
+)
+from tradebot.research.xsp_benchmarks import (
+    xsp_fundamental_defensive_benchmark,
 )
 from tradebot.research.xsp_opening_edge_v2 import (
     load_xsp_opening_edge_v2_spec,
@@ -27,6 +31,7 @@ from tradebot.research.xsp_opening_edge_v3 import (
     next_xsp_v3_run_start,
     xsp_opening_edge_v3_bundle,
     xsp_opening_edge_v3_equities,
+    xsp_opening_edge_v3_fundamental_pairs,
     xsp_opening_edge_v3_run_start,
 )
 from tradebot.research.xsp_opening_edge_state import (
@@ -246,6 +251,127 @@ def test_opening_edge_v3_persisted_context_ignores_predecessor_records() -> None
     }
     with pytest.raises(ValueError, match="persisted context is malformed"):
         _persisted_daily_context((malformed,))
+
+
+def test_opening_edge_v3_news_pairs_require_actual_entry_and_exact_outcome(
+    tmp_path,
+) -> None:
+    ledger = LiveCalibrationLedger(tmp_path / "v3-news-pairs.jsonl")
+    decision_at = datetime(2026, 7, 30, 14, 55, tzinfo=timezone.utc)
+    entry_at = decision_at + timedelta(minutes=5)
+    trading_day = "2026-07-30"
+    trade = {
+        "lane": "rth",
+        "direction": "up",
+        "entry_time": entry_at.replace(tzinfo=None).isoformat(),
+        "attribution": {
+            "entry": {
+                "signal_bar_ts": decision_at.replace(tzinfo=None).isoformat(),
+            }
+        },
+    }
+
+    def checkpoint(
+        signal_at: datetime,
+        *,
+        close: float,
+        direction: str | None = None,
+        position: Mapping[str, object] | None = None,
+    ) -> None:
+        evaluated_at = signal_at + timedelta(minutes=2)
+        ledger.checkpoint(
+            evaluation_as_of=evaluated_at,
+            strategy_id=XSP_OPENING_EDGE_V3_VERSION,
+            strategy_version=XSP_OPENING_EDGE_V3_TRANSPORT_VERSION,
+            trading_date=trading_day,
+            session="RTH",
+            status="EVALUATED",
+            evidence={
+                "paired_equity": {
+                    "signal_observations": {
+                        "rth": {
+                            "signal_bar_ts": signal_at.replace(
+                                tzinfo=None
+                            ).isoformat(),
+                            "signal_snapshot_age_bars": 0,
+                            "close": close,
+                            "entry_control": {
+                                "direction": direction,
+                                "proposed_direction": direction,
+                            },
+                            "directional_impulse": {"turn_event": direction},
+                        }
+                    },
+                    "profiles": {
+                        "research": {
+                            "latest_position": position,
+                            "latest_trade": None,
+                        }
+                    },
+                    "daily_context_state": {
+                        "state": {
+                            "transition": "transition_down",
+                            "tr_phase": "high_up",
+                        }
+                    },
+                },
+                "fundamental_pressure": {
+                    "source": "causal_news",
+                    "authority": "observation_only",
+                    "usable": True,
+                    "direction": -1,
+                    "impact": 90,
+                    "confidence": 0.95,
+                    "snapshot_fingerprint": "news-at-decision",
+                    "signal_as_of_utc": "2026-07-30T14:00:00+00:00",
+                    "signed_pressure": -0.855,
+                    "pressure_delta": -0.05,
+                    "pressure_velocity_per_hour": -0.01,
+                },
+            },
+            recorded_at=evaluated_at,
+        )
+
+    checkpoint(decision_at, close=100.0, direction="up")
+    checkpoint(entry_at, close=99.8, position=trade)
+    checkpoint(
+        decision_at + timedelta(minutes=15),
+        close=100.3,
+        direction="down",
+        position=trade,
+    )
+    checkpoint(
+        decision_at + timedelta(minutes=60),
+        close=98.0,
+        position=trade,
+    )
+    checkpoint(
+        decision_at + timedelta(minutes=75),
+        close=101.0,
+        position=trade,
+    )
+
+    pairs = xsp_opening_edge_v3_fundamental_pairs(tuple(ledger.records()))
+    assert len(pairs) == 1
+    assert pairs[0]["decision_at"] == decision_at
+    assert pairs[0]["direction"] == "up"
+    assert pairs[0]["ta_points"] == pytest.approx(-2.1)
+    assert pairs[0]["context"]["decision_close"] == 100.0
+    assert pairs[0]["context"]["outcome_close"] == 98.0
+
+    benchmark = xsp_fundamental_defensive_benchmark(
+        ledger,
+        settled_pairs=pairs,
+        prospective_evidence_mode="forward_v3_checkpoint",
+    )
+    assert benchmark["pairs"] == benchmark["prospective_pairs"] == 1
+    assert benchmark["vetoes"] == benchmark["prospective_vetoes"] == 1
+    assert benchmark["ta_observer_points"] == pytest.approx(-2.1)
+    assert benchmark["defended_observer_points"] == 0.0
+    assert benchmark["paired_delta_points"] == pytest.approx(2.1)
+    assert benchmark["policy"]["prospective_evidence_mode"] == (
+        "forward_v3_checkpoint"
+    )
 
 
 def test_opening_edge_v3_prefreezes_without_broker_or_backfill(tmp_path) -> None:

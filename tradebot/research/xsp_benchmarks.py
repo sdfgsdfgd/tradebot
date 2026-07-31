@@ -251,13 +251,21 @@ def xsp_profitability_policy_from_selected_run(
 
 def xsp_fundamental_defensive_benchmark(
     ledger: LiveCalibrationLedger,
+    *,
+    settled_pairs: Sequence[Mapping[str, object]] | None = None,
+    prospective_evidence_mode: str = "forward_broker_history",
 ) -> dict[str, object]:
     """Score one preregistered defensive veto without granting trade authority."""
 
     pairs = []
-    for settled in ledger.settled_directional_pairs(
-        horizon_minutes=XSP_FUNDAMENTAL_PRIMARY_HORIZON_MINUTES,
-    ):
+    observations = (
+        list(settled_pairs)
+        if settled_pairs is not None
+        else ledger.settled_directional_pairs(
+            horizon_minutes=XSP_FUNDAMENTAL_PRIMARY_HORIZON_MINUTES,
+        )
+    )
+    for settled in observations:
         context = settled["context"]
         news = context.get("fundamental_pressure")
         if not isinstance(news, Mapping):
@@ -319,7 +327,7 @@ def xsp_fundamental_defensive_benchmark(
             "min_impact": XSP_FUNDAMENTAL_MIN_IMPACT,
             "min_confidence": XSP_FUNDAMENTAL_MIN_CONFIDENCE,
             "missing_or_ineligible": "unchanged",
-            "prospective_evidence_mode": "forward_broker_history",
+            "prospective_evidence_mode": str(prospective_evidence_mode),
         },
         "source_ledger_sha256": ledger.receipt()["sha256"],
         "pair_fingerprint": calibration_fingerprint(pairs),

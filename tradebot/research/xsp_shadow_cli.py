@@ -34,6 +34,7 @@ from .xsp_opening_edge_v3 import (
     XSP_OPENING_EDGE_V3_VERSION,
     advance_xsp_opening_edge_v3_from_ibkr,
     load_xsp_opening_edge_v3_spec,
+    xsp_opening_edge_v3_fundamental_pairs,
     xsp_opening_edge_v3_run_start,
 )
 from .xsp_execution_observer import (
@@ -379,16 +380,25 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
     finally:
         await client.disconnect()
     completed_at = datetime.now(tz=timezone.utc)
+    fundamental_benchmark = (
+        xsp_fundamental_defensive_benchmark(ledger)
+        if args.mode == "directional-v1"
+        else xsp_fundamental_defensive_benchmark(
+            ledger,
+            settled_pairs=xsp_opening_edge_v3_fundamental_pairs(
+                tuple(ledger.records())
+            ),
+            prospective_evidence_mode="forward_v3_checkpoint",
+        )
+        if args.mode == "opening-edge-v3"
+        else None
+    )
     print(
         json.dumps(
             {
                 **receipt,
                 "mode": str(args.mode),
-                "fundamental_defensive_benchmark": (
-                    xsp_fundamental_defensive_benchmark(ledger)
-                    if args.mode == "directional-v1"
-                    else None
-                ),
+                "fundamental_defensive_benchmark": fundamental_benchmark,
                 "option_parity_participation_benchmark": (
                     xsp_option_parity_participation_benchmark(ledger)
                     if args.mode == "directional-v1"

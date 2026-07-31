@@ -1,0 +1,116 @@
+{
+  "schema": "xsp.opening-edge-v3-fundamental-pairing-receipt.v1",
+  "generated_at_utc": "2026-07-31T00:57:47Z",
+  "authority": "prospective_observation_only",
+  "promotion_eligible": false,
+  "order_authority": "none",
+  "source": {
+    "ledger": "q:db/calibration/xsp_live_calibration.jsonl",
+    "records": 414,
+    "sha256": "3efeee92c391f0fef08c320cfc861e1bcf8733276af1f868b64c44505fba0bc8",
+    "prospective_rows_only": true,
+    "historical_backfill": false
+  },
+  "policy": {
+    "population": "actual Opening Edge v3 lifecycle entries",
+    "raw_turns_or_unowned_admissions": "excluded",
+    "gth_up_establishment": "excluded",
+    "entry_evidence": "earliest exact pre-entry v3 source checkpoint",
+    "outcome": "exact same-lane signal close 60 minutes after the decision",
+    "late_or_missing_outcome": "excluded",
+    "friction_points": 0.1,
+    "news_action": "opposing fresh impact>=70 confidence>=0.80 veto counterfactual",
+    "economic_interpretation": "overlapping observer events, not tradable equity"
+  },
+  "census": {
+    "raw_direction_rows": 4,
+    "actual_lifecycle_entries": 2,
+    "settled_exact_60m_pairs": 2,
+    "excluded_raw_or_unowned_directions": 2,
+    "news_usable_pairs": 2,
+    "opposing_news_vetoes": 1
+  },
+  "pairs": [
+    {
+      "forecast_id": "0a597dec55ca436a861912b3a31ad0dcab116b3e4574a34458a43638aa796989",
+      "source_checkpoint_id": "29c1049351b845dbf0ea944e939653031f4fed042d0ef54915539448ff9b31b4",
+      "outcome_checkpoint_id": "ac54539c87e720508d91aedb8d0aa12c99cb4ab3a760540ebe65fc1b80bb7f66",
+      "decision_as_of_utc": "2026-07-29T14:55:00+00:00",
+      "outcome_as_of_utc": "2026-07-29T15:55:00+00:00",
+      "lane": "rth",
+      "direction": "up",
+      "decision_close": 737.33,
+      "outcome_close": 735.79,
+      "ta_points": -1.6400000000000774,
+      "news": {
+        "direction": -1,
+        "impact": 76,
+        "confidence": 0.96,
+        "signed_pressure": -0.7296,
+        "pressure_delta": 0.0464,
+        "pressure_velocity_per_hour": 0.011104,
+        "usable": true,
+        "opposing": true,
+        "vetoed": true
+      },
+      "daily_context": "unavailable_in_frozen_source_checkpoint"
+    },
+    {
+      "forecast_id": "9f32bc2155dd88951e447cf2d06604e272d5b7b1f788315d4ea135d59157744a",
+      "source_checkpoint_id": "454cf254101ab11cbd85df48064835b037afe9449f68d21f10fd0d514e013590",
+      "outcome_checkpoint_id": "407079f3d2720c262e007ab5392ecd6b1234f71d4722b6a79bb10825c1e1ac1f",
+      "decision_as_of_utc": "2026-07-30T14:55:00+00:00",
+      "outcome_as_of_utc": "2026-07-30T15:55:00+00:00",
+      "lane": "rth",
+      "direction": "down",
+      "decision_close": 738.7,
+      "outcome_close": 739.67,
+      "ta_points": -1.0699999999999137,
+      "news": {
+        "direction": -1,
+        "impact": 84,
+        "confidence": 0.98,
+        "signed_pressure": -0.8232,
+        "pressure_delta": 0.0294,
+        "pressure_velocity_per_hour": 0.005704,
+        "usable": true,
+        "opposing": false,
+        "vetoed": false
+      },
+      "daily_context": {
+        "directions": {
+          "5": "down",
+          "10": "down",
+          "21": "down",
+          "42": "down",
+          "63": "up",
+          "84": "up"
+        },
+        "hard_direction": "up",
+        "soft_direction": "down",
+        "transition": "transition_down",
+        "volatility_phase": "high_up"
+      }
+    }
+  ],
+  "benchmark": {
+    "pair_fingerprint": "e3223e47a66237131a20b403305cac8a44b8dc5ea4c0be67b064371a08e7bae1",
+    "ta_observer_points": -2.709999999999991,
+    "defended_observer_points": -1.0699999999999137,
+    "paired_delta_points": 1.6400000000000774,
+    "avoided_loss_points": 1.6400000000000774,
+    "foregone_gain_points": 0,
+    "interpretation": "early defensive value, insufficient sample for authority"
+  },
+  "implementation": {
+    "v3_pair_owner_sha256": "853132b252b053e09b9ee6bc8e92b53cb49a3c6c77b35c21c15877d99681c13a",
+    "benchmark_owner_sha256": "d14f5ec4624863fd493a138a2afca6779e522017e5fcbb9f1eff97689ed0c0d4",
+    "fundamental_projection_owner_sha256": "cf5d915049d4a7401b975748d11cd040cdb92d1da5636cf2d40ae76daba8f988",
+    "cli_owner_sha256": "0204a5be94922c5a9b498d87a1a5dcd7a135c8d8415179ba47853b25e179028e",
+    "focused_tests": "90 passed",
+    "full_tests": "987 passed, 4 deselected",
+    "lint_and_diff": "clean"
+  },
+  "verdict": "ACCUMULATE",
+  "capital_effect": "none"
+}

@@ -47,6 +47,10 @@ XSP_OPENING_EDGE_V3_CONTEXT_SCHEMA = "xsp.opening-edge-v3-daily-context-seed.v1"
 XSP_OPENING_EDGE_V3_CONTEXT_STATE_SCHEMA = (
     "xsp.opening-edge-v3-daily-context-state.v1"
 )
+XSP_OPENING_EDGE_V3_NEWS_PAIR_SCHEMA = (
+    "xsp.opening-edge-v3-fundamental-pair.v1"
+)
+XSP_OPENING_EDGE_V3_NEWS_HORIZON_MINUTES = 60
 XSP_OPENING_EDGE_V3_EXECUTION_GATE = {
     "verdict": "HOLD",
     "eligible": False,
@@ -374,6 +378,201 @@ def is_xsp_v3_run_start(value: datetime) -> bool:
         and candidate.minute % 5 == 0
         and xsp_session_label_et(candidate) == "GTH"
     )
+
+
+def xsp_opening_edge_v3_fundamental_pairs(
+    records: Sequence[Mapping[str, object]],
+) -> list[dict[str, object]]:
+    """Join actual v3 entries to exact forward checkpoints without backfill."""
+
+    def timestamp(value: object) -> datetime:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        return (
+            parsed.replace(tzinfo=timezone.utc)
+            if parsed.tzinfo is None
+            else parsed.astimezone(timezone.utc)
+        )
+
+    checkpoints = [
+        row
+        for row in records
+        if row.get("kind") == "checkpoint"
+        and row.get("strategy_version") == XSP_OPENING_EDGE_V3_TRANSPORT_VERSION
+        and row.get("status") == "EVALUATED"
+        and isinstance(row.get("evidence"), Mapping)
+        and isinstance(row["evidence"].get("paired_equity"), Mapping)
+    ]
+    trades: dict[tuple[str, str, str, str], Mapping[str, object]] = {}
+    for checkpoint in checkpoints:
+        paired = checkpoint["evidence"]["paired_equity"]
+        profiles = paired.get("profiles")
+        research = (
+            profiles.get("research") if isinstance(profiles, Mapping) else None
+        )
+        if not isinstance(research, Mapping):
+            continue
+        for field in ("latest_position", "latest_trade"):
+            trade = research.get(field)
+            attribution = (
+                trade.get("attribution") if isinstance(trade, Mapping) else None
+            )
+            entry = (
+                attribution.get("entry")
+                if isinstance(attribution, Mapping)
+                else None
+            )
+            if not isinstance(trade, Mapping) or not isinstance(entry, Mapping):
+                continue
+            lane = str(trade.get("lane") or "").lower()
+            direction = str(trade.get("direction") or "").lower()
+            signal_at = str(entry.get("signal_bar_ts") or "")
+            entry_at = str(trade.get("entry_time") or "")
+            if (
+                lane not in {"rth", "gth"}
+                or direction not in {"up", "down"}
+                or (lane == "gth" and direction != "down")
+                or not signal_at
+                or not entry_at
+            ):
+                continue
+            trades.setdefault(
+                (lane, entry_at, direction, signal_at),
+                trade,
+            )
+
+    pairs = []
+    for lane, entry_raw, direction, signal_raw in sorted(trades):
+        try:
+            decision_at = timestamp(signal_raw)
+            entry_at = timestamp(entry_raw)
+        except (TypeError, ValueError):
+            continue
+        source_candidates = []
+        for checkpoint in checkpoints:
+            evidence = checkpoint["evidence"]
+            paired = evidence["paired_equity"]
+            observations = paired.get("signal_observations")
+            snapshot = (
+                observations.get(lane)
+                if isinstance(observations, Mapping)
+                else None
+            )
+            control = (
+                snapshot.get("entry_control")
+                if isinstance(snapshot, Mapping)
+                else None
+            )
+            try:
+                recorded_at = timestamp(checkpoint["recorded_at_utc"])
+                signal_at = timestamp(snapshot["signal_bar_ts"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            if (
+                not isinstance(control, Mapping)
+                or signal_at != decision_at
+                or snapshot.get("signal_snapshot_age_bars") != 0
+                or str(control.get("direction") or "").lower() != direction
+                or recorded_at >= entry_at
+            ):
+                continue
+            source_candidates.append((recorded_at, checkpoint, snapshot))
+        if not source_candidates:
+            continue
+        _, source, source_snapshot = min(
+            source_candidates,
+            key=lambda row: row[0],
+        )
+        outcome_at = decision_at + timedelta(
+            minutes=XSP_OPENING_EDGE_V3_NEWS_HORIZON_MINUTES
+        )
+        outcome_candidates = []
+        for checkpoint in checkpoints:
+            if checkpoint.get("trading_date") != source.get("trading_date"):
+                continue
+            paired = checkpoint["evidence"]["paired_equity"]
+            observations = paired.get("signal_observations")
+            snapshot = (
+                observations.get(lane)
+                if isinstance(observations, Mapping)
+                else None
+            )
+            try:
+                recorded_at = timestamp(checkpoint["recorded_at_utc"])
+                signal_at = timestamp(snapshot["signal_bar_ts"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            if (
+                signal_at == outcome_at
+                and snapshot.get("signal_snapshot_age_bars") == 0
+                and recorded_at >= outcome_at
+            ):
+                outcome_candidates.append((recorded_at, checkpoint, snapshot))
+        if not outcome_candidates:
+            continue
+        _, outcome, outcome_snapshot = min(
+            outcome_candidates,
+            key=lambda row: row[0],
+        )
+        try:
+            decision_close = float(source_snapshot["close"])
+            outcome_close = float(outcome_snapshot["close"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        news_raw = source["evidence"].get("fundamental_pressure")
+        news = dict(news_raw) if isinstance(news_raw, Mapping) else {}
+        news.setdefault("source", "causal_news")
+        news.setdefault("authority", "observation_only")
+        sign = 1.0 if direction == "up" else -1.0
+        forecast_id = calibration_fingerprint(
+            {
+                "schema": XSP_OPENING_EDGE_V3_NEWS_PAIR_SCHEMA,
+                "source_checkpoint_id": source["checkpoint_id"],
+                "lane": lane,
+                "direction": direction,
+                "decision_as_of_utc": decision_at.isoformat(),
+                "outcome_not_before_utc": outcome_at.isoformat(),
+                "entry": "confirmed_v3_lifecycle_entry",
+                "exit": "exact_60m_signal_close",
+                "friction_points": XSP_OPENING_EDGE_V2_COSTS["research"][
+                    "round_trip_points"
+                ],
+            }
+        )
+        pairs.append(
+            {
+                "forecast_id": forecast_id,
+                "decision_at": decision_at,
+                "direction": direction,
+                "ta_points": (
+                    (outcome_close - decision_close) * sign
+                    - float(
+                        XSP_OPENING_EDGE_V2_COSTS["research"][
+                            "round_trip_points"
+                        ]
+                    )
+                ),
+                "context": {
+                    "schema": XSP_OPENING_EDGE_V3_NEWS_PAIR_SCHEMA,
+                    "evidence_mode": "forward_v3_checkpoint",
+                    "lane": lane,
+                    "source_checkpoint_id": source["checkpoint_id"],
+                    "outcome_checkpoint_id": outcome["checkpoint_id"],
+                    "decision_close": decision_close,
+                    "outcome_close": outcome_close,
+                    "directional_impulse": source_snapshot.get(
+                        "directional_impulse"
+                    ),
+                    "entry_control": source_snapshot.get("entry_control"),
+                    "daily_context_state": source["evidence"][
+                        "paired_equity"
+                    ].get("daily_context_state"),
+                    "fundamental_pressure": news,
+                },
+                "evidence_mode": "forward_v3_checkpoint",
+                "prospective": True,
+            }
+        )
+    return pairs
 
 
 async def advance_xsp_opening_edge_v3_from_ibkr(

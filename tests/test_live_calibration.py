@@ -564,6 +564,8 @@ def test_opening_edge_v2_observer_uses_spy_full_session_and_xsp_rth(
     assert receipt["fundamental_pressure"] == checkpoints[-1]["evidence"][
         "fundamental_pressure"
     ]
+    assert receipt["fundamental_pressure"]["source"] == "causal_news"
+    assert receipt["fundamental_pressure"]["authority"] == "observation_only"
 
 
 @pytest.mark.parametrize(
