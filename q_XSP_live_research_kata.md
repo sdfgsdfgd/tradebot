@@ -733,8 +733,9 @@ transition through today’s close; no order will be forced merely to populate t
     sessions and both prior directions, improved four-hour MFE/range versus the
     identical TA-only cohort, no worse MAE/DD, positive bootstrap lower bound,
     and stability without pressure delta/innovation. The first unseen
-    publication is one extreme reactive non-onset control with outcomes pending;
-    qualifying onset count remains zero. A separately frozen studentized
+    publication is clock-invalid and counts as neither onset nor control; the
+    clean prefix remains zero and starts at the first unseen post-fix
+    publication. A separately frozen studentized
     fast-consensus seed has only one outcome-exposed event and remains
     underwarmed; it cannot replace this primary accumulator. No MCL future,
     option, selector, or capital authority.
