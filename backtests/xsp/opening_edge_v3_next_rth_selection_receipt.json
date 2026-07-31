@@ -1,0 +1,107 @@
+{
+  "schema": "xsp.opening-edge-v3-next-rth-selection-receipt.v1",
+  "status": "ACTIVE",
+  "authority": "selected_live_rth_cash_transport",
+  "selection": {
+    "selection_id": "b4799fa693ea3da1bf65a7b66412dde318c6ecb427fa14be73b5a5cf1dd40c20",
+    "sha256": "eb6aad41c8f428d12599abd76232d69b3b3f52881a363eaf8c1e79b01b618517",
+    "selected_at_utc": "2026-07-31T13:42:55.293507+00:00",
+    "run_started_at_utc": "2026-07-31T13:42:55.293507+00:00",
+    "source_checkpoint_id": "09adbda25373ec5e5110deff3fd8b4bb7e46699aa76e5512e1b68abe0110df02",
+    "baseline_state": null,
+    "predecessor_selection_id": "daf1609b10b98ae2b10393097183bccdbc7629a2afcb474b79716ad805975b7a",
+    "predecessor_archive_sha256": "a5891868d77f2e722d54de28d1f483bb4bcf70a059baaa72f2963659e6787e15",
+    "inherited_fills": 0,
+    "inherited_pnl_usd": 0.0
+  },
+  "broker_preview": {
+    "sha256": "62edc222c1794979cf0ee793d663f8a379d0544a9eff983096f49b7e951bf168",
+    "observed_at_utc": "2026-07-31T13:42:54.023048+00:00",
+    "settled_cash_usd": 1318.05,
+    "books_pass": true,
+    "quantity_and_cash_pass": true,
+    "effective_tiered_commission_pass": true,
+    "submitted_orders": 0,
+    "relevant_positions": [],
+    "relevant_open_orders": [],
+    "rows": {
+      "UPRO": {
+        "quantity": 6,
+        "smart_bid": 138.23,
+        "smart_ask": 138.30,
+        "direct_arca_bid": 138.23,
+        "direct_arca_ask": 138.31,
+        "maximum_commission_usd": 0.36947525
+      },
+      "SPXU": {
+        "quantity": 23,
+        "smart_bid": 37.83,
+        "smart_ask": 37.84,
+        "direct_arca_bid": 37.83,
+        "direct_arca_ask": 37.84,
+        "maximum_commission_usd": 0.42392625
+      }
+    }
+  },
+  "execution": {
+    "session": "RTH",
+    "order_authority": "rth_cash_pair_limit_only",
+    "gth_execution_allowed": false,
+    "fixed_entry_notional_usd": 900.0,
+    "pricing_plan": "Tiered",
+    "writable_dropin_sha256": "c831b847862cdcc9fa8b87eb9bc6bdc54fb7a2f9ced3c11c9359090863e6d6ad",
+    "reset_r5_manifest_sha256": "77e4cbb238fef3dc0de2ba45c7cfd8f5aa45b33e06ad83bf995672c6ae5235ca",
+    "post_selection_finalizer_manifest_sha256": "d65ab21210204b6d929e81946ff1e968482fdc0b443a79eaa5157c491b4244f3"
+  },
+  "restart_proof": {
+    "recorded_at_utc": "2026-07-31T13:45:33.657229+00:00",
+    "checkpoint_id": "5836d21de6e2ef4b06c67c367e3fbbf2d4892c40adc15a1d2193c714716abf75",
+    "plan_reason": "flat_target",
+    "holdings": {
+      "SPXU": 0,
+      "UPRO": 0
+    },
+    "leg": null,
+    "submitted_orders": 0
+  },
+  "first_natural_recurrence": {
+    "recorded_at_utc": "2026-07-31T13:47:00.565969+00:00",
+    "checkpoint_id": "a67c81fecd3b9c434e85cb6a69a831493b984ae381f6b573f374ba58a9d17537",
+    "status": "EVALUATED",
+    "plan_reason": "flat_target",
+    "holdings": {
+      "SPXU": 0,
+      "UPRO": 0
+    },
+    "leg": null,
+    "submitted_orders": 0
+  },
+  "independent_broker_census": {
+    "observed_at_utc": "2026-07-31T13:48:43.976785+00:00",
+    "readonly": true,
+    "positions": [],
+    "open_orders": [],
+    "new_selection_fills": [],
+    "submitted_orders": 0
+  },
+  "profitability": {
+    "clock_started": true,
+    "coverage_broken": false,
+    "closed_trades": 0,
+    "gross_usd": 0.0,
+    "cost_usd": 0.0,
+    "net_usd": 0.0,
+    "drawdown_usd": 0.0,
+    "milestones": [
+      "24h",
+      "48h",
+      "five_sessions"
+    ]
+  },
+  "safety": {
+    "forced_orders": 0,
+    "safety_breaches": 0,
+    "predecessor_gaps_backfilled": false,
+    "news_authority": "attribution_only"
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "schema": "xsp.opening-edge-v3-premarket-up-ramp-rejection-receipt.v1",
+  "authority": "historical_research_rejection_only",
+  "order_authority": "none",
+  "submitted_orders": 0,
+  "hypothesis": "A causal premarket all-horizon SPY up-ramp with expanding ATR can finance an independent UPRO cash ticket before the RTH v3 owner begins.",
+  "identity": {
+    "preregistration_sha256": "d07760ff8b62b0effa901821adcd35b12b418655ce57561b4a2e30cf7d8fd0ac",
+    "runner_sha256": "68172977cac78734e30dac3eabbd6ea698647a3bd1da95213d52f86ecee7af38",
+    "result_sha256": "c430e39e00546fb0fb68f99fa85a7aa85447dbc8da210bd42828a84cf2d65010",
+    "q_archive_manifest_sha256": "7d8599ec05e9d8b39bf1f72e083a807143c753d33ad0992ffbd9e787b487d11e",
+    "directional_impulse_owner_sha256": "bad78a5d4cf6b472c5a1687bc1dda50cf947a1f1968693a8aae3ee599322ceb2",
+    "daily_context_owner_sha256": "643b6a04478e598fe7fbdc2d5aa6deabe6935761b3fa83cf487a9fdd16a265bc",
+    "upro_tape_sha256": "fcf16e45f79fac4a6597ad443b195bc804ceeb8dc9b126290ff11437bb0ff3da"
+  },
+  "primary_60_to_120_minute_ramp": {
+    "trades": 312,
+    "blocked": 19,
+    "recent_net_usd": -16.984191,
+    "annual_net_usd": [
+      -167.431247,
+      -178.07474,
+      -185.311946
+    ],
+    "full_net_usd": -530.817932,
+    "profit_factor": 0.41742,
+    "intrabar_max_drawdown_usd": 543.175837,
+    "win_rate": 0.310897,
+    "gross_before_cost_usd": -79.5,
+    "fees_and_spread_usd": 451.317932,
+    "hard_down_net_usd": -85.923528,
+    "hard_up_net_usd": -444.894404
+  },
+  "cost_and_timing_stability": {
+    "doubled_spread_full_net_usd": -700.967932,
+    "adjacent_window_full_net_usd": -636.912893,
+    "forward_net_usd_outcome_labeled_only": {
+      "09:25_open": -530.817932,
+      "10:00_open": -405.547932,
+      "11:00_open": -489.307932,
+      "16:00_close": -763.317932
+    }
+  },
+  "checks": {
+    "cadence": true,
+    "positive_each_year_and_full": false,
+    "profit_factor": false,
+    "drawdown": false,
+    "doubled_spread_stability": false,
+    "adjacent_window_stability": false
+  },
+  "verdict": "REJECT_EXACT_PREMARKET_UP_RAMP_CASH_BRIDGE",
+  "boundaries": [
+    "Premarket slope and ATR expansion remains descriptive telemetry only.",
+    "No later v3 signal selected days and no v3 state was warmed, seeded, vetoed, or changed.",
+    "No date filter, outcome-aware regime label, later exit, cheaper cost, runtime change, selection, order, or profitability clock may rescue this rejected identity."
+  ]
+}
