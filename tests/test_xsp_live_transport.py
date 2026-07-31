@@ -508,7 +508,14 @@ def _v3_selection(tmp_path: Path) -> dict[str, object]:
         "account_type": "CASH",
         "settled_cash_usd": 1_200.0,
         "positions": {"UPRO": 0, "SPXU": 0},
-        "unrelated_positions": [],
+        "unrelated_positions": [
+            {
+                "symbol": "TQQQ",
+                "con_id": 72_539_702,
+                "sec_type": "STK",
+                "quantity": 1.0,
+            }
+        ],
         "open_orders": [],
     }
     return select_xsp_v3_transport(
@@ -1226,8 +1233,22 @@ def test_v3_cash_equity_starts_one_usd_profitability_clock(
         as_of=OBSERVED_AT,
     )
 
+    assert selection["broker_at_selection"]["unrelated_positions"] == [
+        {
+            "symbol": "TQQQ",
+            "con_id": 72_539_702,
+            "sec_type": "STK",
+            "quantity": 1.0,
+        }
+    ]
+    assert risk["holdings_from_fills"] == {"UPRO": 0.0, "SPXU": 0.0}
+    assert risk["fill_count"] == 0
+    assert risk["run_net_usd"] == 0.0
+    assert risk["drawdown_usd"] == 0.0
     assert equity["schema"] == SELECTED_CASH_EQUITY_SCHEMA
     assert equity["unit"] == "USD"
+    assert equity["cumulative_net_usd"] == 0.0
+    assert equity["closed_trades"] == 0
     assert policy.unit == "USD"
     assert policy.equity_schema == SELECTED_CASH_EQUITY_SCHEMA
     assert receipt["status"] == "ACTIVE"
