@@ -704,8 +704,10 @@ transition through today’s close; no order will be forced merely to populate t
     veto, multitimeframe state, ladder behavior, realized costs, MFE/MAE,
     drawdown, and expected-versus-realized outcomes. Issue independent positive
     or negative 24h, 48h, and five-session receipts without forced trades.
-18. `[TODO]` Treat GTH cash execution as a separate qualification; the full
-    crown remains 24/5, but current capital authority is RTH-only.
+18. `[DONE]` Close the current Week-1 GTH cash-ETF qualification. E-331 proves
+    SPXU/SPXS/SDS fail annual/recent economics or authentic fills; GTH remains
+    observation-only. Any future GTH capital candidate must be separately
+    crowned and materially distinct, never another sizing/wrapper rerun.
 19. `[BLOCKED]` Alpha/theta structures belong to a later quest after spot
     consistency is proven.
 20. `[WIP]` Accumulate one execution-only entry-dwell cohort without changing
