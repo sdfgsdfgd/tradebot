@@ -31,7 +31,10 @@ from tradebot.news.pipeline import (
     run_once,
     select_candidates,
 )
-from tradebot.research.mcl_narrative_lag_convexity import load_news as load_mcl_news
+from tradebot.research.mcl_narrative_lag_convexity import (
+    fresh_bar_index,
+    load_news as load_mcl_news,
+)
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "news" / "finviz_news.html"
@@ -918,6 +921,13 @@ def test_mcl_narrative_alignment_uses_atomic_publication_availability(
     assert loaded[0]["signal_at"] == signal_at
     assert loaded[0]["at"] == available_at
     assert loaded[0]["pressure"] == 0.95
+
+
+def test_mcl_narrative_refuses_a_stale_market_clock() -> None:
+    ends = [NOW, NOW + timedelta(minutes=5)]
+
+    assert fresh_bar_index(ends, NOW + timedelta(minutes=10)) == 1
+    assert fresh_bar_index(ends, NOW + timedelta(minutes=10, seconds=1)) is None
 
 
 def test_due_event_runs_codex_without_new_articles(tmp_path: Path) -> None:

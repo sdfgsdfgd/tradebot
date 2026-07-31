@@ -44,6 +44,13 @@ def pct(start: float | None, end: float | None) -> float | None:
     return (end / start - 1.0) * 100.0
 
 
+def fresh_bar_index(ends: list[datetime], at: datetime) -> int | None:
+    index = bisect.bisect_right(ends, at) - 1
+    if index < 0 or at - ends[index] > BAR:
+        return None
+    return index
+
+
 def load_news(history_dir: Path = NEWS_HISTORY) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
     prior_pressure: float | None = None
@@ -176,8 +183,7 @@ def main() -> None:
     ends = [row["end"] for row in bars]
 
     def index_at(at: datetime) -> int | None:
-        index = bisect.bisect_right(ends, at) - 1
-        return index if index >= 0 else None
+        return fresh_bar_index(ends, at)
 
     def close_at(at: datetime) -> float | None:
         index = index_at(at)
