@@ -2386,6 +2386,107 @@ def test_shadow_cli_fails_when_the_checkpoint_is_not_evaluated(
     capsys.readouterr()
 
 
+@pytest.mark.parametrize(
+    ("source_session", "entry_window_open", "expected_status"),
+    (
+        ("CURB", False, 0),
+        ("RTH", True, 2),
+        ("GTH", False, 2),
+    ),
+)
+def test_shadow_cli_accepts_only_a_terminal_selected_v3_stale_noop(
+    tmp_path,
+    monkeypatch,
+    capsys,
+    source_session,
+    entry_window_open,
+    expected_status,
+) -> None:
+    from tradebot.research.xsp_shadow_cli import _main_async
+
+    selected_path = tmp_path / "selected-live-transport.json"
+    selected_path.write_text("{}", encoding="utf-8")
+    selection = {
+        "selection_id": "selected-v3-transport",
+        "strategy_version": "xsp.opening-edge-v3-regime-harmony-24x5.v1",
+        "order_authority": "rth_cash_pair_limit_only",
+    }
+
+    class _Client:
+        def __init__(self, _config):
+            pass
+
+        async def disconnect(self):
+            pass
+
+    async def _advance(_ledger, **_kwargs):
+        return {
+            "evaluation_status": "STALE_DATA",
+            "freshness_ok": False,
+            "session": source_session,
+            "checkpoint_id": "source",
+            "recorded_at_utc": NOW.isoformat(),
+        }
+
+    async def _execute(_ledger, **_kwargs):
+        return {
+            "status": "UNCHANGED",
+            "submitted_orders": 0,
+            "plan": {
+                "source_session": source_session,
+                "entry_window_open": entry_window_open,
+                "reason": "source_not_executable",
+            },
+        }
+
+    monkeypatch.delenv("IBKR_READONLY", raising=False)
+    monkeypatch.setattr("tradebot.client.IBKRClient", _Client)
+    monkeypatch.setattr(
+        "tradebot.research.xsp_shadow_cli.load_xsp_v3_transport_selection",
+        lambda path: selection if path == selected_path else None,
+    )
+    monkeypatch.setattr(
+        "tradebot.research.xsp_shadow_cli.xsp_v3_transport_profitability_policy",
+        lambda _selection: None,
+    )
+    monkeypatch.setattr(
+        "tradebot.research.xsp_shadow_cli.load_xsp_opening_edge_v3_spec",
+        lambda: "v3-spec",
+    )
+    monkeypatch.setattr(
+        "tradebot.research.xsp_shadow_cli.xsp_opening_edge_v3_run_start",
+        lambda *_args, **_kwargs: NOW,
+    )
+    monkeypatch.setattr(
+        "tradebot.research.xsp_shadow_cli.advance_xsp_opening_edge_v3_from_ibkr",
+        _advance,
+    )
+    monkeypatch.setattr(
+        "tradebot.research.xsp_shadow_cli.advance_xsp_live_transport",
+        _execute,
+    )
+
+    assert (
+        asyncio.run(
+            _main_async(
+                (
+                    "--mode",
+                    "opening-edge-v3",
+                    "--ledger",
+                    str(tmp_path / "v3-live.jsonl"),
+                    "--news-signal",
+                    str(tmp_path / "missing-news.json"),
+                    "--selected-transport",
+                    str(selected_path),
+                )
+            )
+        )
+        == expected_status
+    )
+    output = json.loads(capsys.readouterr().out)
+    assert output["transport_execution"]["submitted_orders"] == 0
+
+
 def test_shadow_cli_v2_prefreezes_without_loading_v1_selection(
     tmp_path,
     monkeypatch,

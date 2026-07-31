@@ -462,9 +462,26 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
         and receipt.get("broker_request_skipped")
         in {"run_not_started", "closed_calendar"}
     )
+    terminal_plan = (
+        transport_execution.get("plan")
+        if isinstance(transport_execution, dict)
+        else None
+    )
+    successful_terminal_noop = (
+        args.mode == "opening-edge-v3"
+        and receipt.get("evaluation_status") == "STALE_DATA"
+        and isinstance(terminal_plan, dict)
+        and terminal_plan.get("source_session") in {"RTH", "CURB"}
+        and terminal_plan.get("entry_window_open") is False
+        and terminal_plan.get("reason") == "source_not_executable"
+        and transport_execution.get("status") == "UNCHANGED"
+        and transport_execution.get("submitted_orders") == 0
+    )
     return (
         0
-        if receipt.get("evaluation_status") == "EVALUATED" or successful_noop
+        if receipt.get("evaluation_status") == "EVALUATED"
+        or successful_noop
+        or successful_terminal_noop
         else 2
     )
 
