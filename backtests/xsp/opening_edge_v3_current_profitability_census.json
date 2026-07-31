@@ -1,0 +1,73 @@
+{
+  "schema": "xsp.opening-edge-v3-current-profitability-census.v1",
+  "authority": "canonical_profitability_verifier_read_only",
+  "observed_at_utc": "2026-07-31T22:16:25.230908+00:00",
+  "source_revision": "3c3fef30013edb898cdebeed65a8e5b767934515",
+  "selection_id": "b4799fa693ea3da1bf65a7b66412dde318c6ecb427fa14be73b5a5cf1dd40c20",
+  "ledger_prefix_sha256": "eb004df02e7d5455801136866e73509dde36a5abd7c2212651ecc27963fa6322",
+  "verifier": {
+    "audit_runner_sha256": "92f1b39a7dc77fcc1cde7aec85643325fb30b65ec60c6d77762c5500d5ce9843",
+    "live_calibration_owner_sha256": "997a5c47fbedd84c74b956f352a1ffa6c6653b2871af53664f1675884710aab3",
+    "profitability_contract_owner_sha256": "2c74f96868a6fc8a61643b3f3fda06738e5b8ea6c15413326cdd3b13b5313d80",
+    "transport_policy_owner_sha256": "4d80a84021be8fe2abf33e8e2aa9ff736decb8b7461663599e8e6156f6647491"
+  },
+  "terminal_prefix": {
+    "as_of_utc": "2026-07-31T20:17:00.541744+00:00",
+    "status": "ACTIVE",
+    "coverage_started_at_utc": "2026-07-31T13:47:00+00:00",
+    "complete_sessions": 0,
+    "coverage_broken": false
+  },
+  "current_wall_clock": {
+    "as_of_utc": "2026-07-31T22:16:25.230908+00:00",
+    "status": "ACTIVE",
+    "elapsed_seconds": 30565.230908,
+    "complete_sessions": 0,
+    "coverage_broken": false
+  },
+  "economics": {
+    "closed_trades": 0,
+    "gross_usd": 0.0,
+    "cost_usd": 0.0,
+    "net_usd": 0.0,
+    "realized_net_usd": 0.0,
+    "open_mark_usd": 0.0,
+    "maximum_drawdown_usd": 0.0,
+    "worst_session_usd": 0.0
+  },
+  "milestones": {
+    "24h": {
+      "passed": false,
+      "reasons": [
+        "elapsed_time_incomplete",
+        "eligible_sessions_incomplete",
+        "net_not_positive"
+      ]
+    },
+    "48h": {
+      "passed": false,
+      "reasons": [
+        "elapsed_time_incomplete",
+        "eligible_sessions_incomplete",
+        "net_not_positive"
+      ]
+    },
+    "five_session_week": {
+      "passed": false,
+      "reasons": [
+        "elapsed_time_incomplete",
+        "eligible_sessions_incomplete",
+        "net_not_positive"
+      ]
+    }
+  },
+  "verdict": "ACTIVE_VALID_IMMATURE",
+  "boundaries": {
+    "broker_queried": false,
+    "service_or_timer_mutated": false,
+    "selection_mutated": false,
+    "order_authority": "none",
+    "submitted_orders": 0,
+    "profitability_clock_mutated": false
+  }
+}
