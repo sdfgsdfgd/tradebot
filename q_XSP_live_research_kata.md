@@ -47,8 +47,8 @@ output belongs in commit/final verification, not in this management brain.
 | Order/capital authority | `rth_cash_pair_limit_only` for `b4799fa6…`: up→UPRO, down→SPXU, fresh streaming NBBO, full SELL reconciliation before an admitted opposite BUY, one `$900` immediate-proceeds cash slot. No direction is currently admitted; GTH remains forbidden |
 | Profitability clock | `ACTIVE` for run start `13:42:55Z`; selected execution coverage begins with the zero-order restart at `13:45:33Z` and first natural required recurrence at `13:47:00Z`. The selected-cash verifier still requires every five-minute and `close+7/+12/+17` row; no missing slot may be backfilled and no trade is forced |
 | Execution verdict | `LIVE_FLAT` for `b4799fa6…`: zero fills/P&L/DD, `SPXU=0`, `UPRO=0`, no open order or breach. Archived first round trip bought `23 SPXU @ $39.10` and sold at `$38.56`; total commission `$0.659007`, realized `-$13.079007`. Broker-qualified attribution separates strategy timing from integration debt; none transfers into the new identity |
-| Next irreversible evidence | only a newly admitted v3 RTH direction may create the first `b4799fa6…` capital event. Until then, five-minute evidence and 15-minute Hawkeye reviews must remain gap-free; the read-only dwell capture receives its terminal audit after `11:35 ET` |
-| First active work | preserve every selected recurrence; review proposal/veto, slope/velocity/ATR, long context, economics, MFE/MAE, safety, and TA/news attribution at 15-minute cadence; reconcile any real fill immediately; issue 24h/48h/five-session receipts only at their lawful boundaries |
+| Next irreversible evidence | only a newly admitted v3 RTH direction may create the first `b4799fa6…` capital event. Until then, five-minute evidence and 30-minute Hawkeye reviews must remain gap-free; the read-only dwell capture receives its terminal audit after `11:35 ET` |
+| First active work | preserve every selected recurrence; review proposal/veto, slope/velocity/ATR, long context, economics, MFE/MAE, safety, and TA/news attribution at 30-minute cadence; reconcile any real fill immediately; issue 24h/48h/five-session receipts only at their lawful boundaries |
 
 ### Immediate sequence
 
@@ -430,15 +430,21 @@ This event-driven spot lane preempts every research sidequest without requiring
 active poll loops; alpha/theta structures remain a later-week expansion after
 directional consistency is proven.
 
-#### `[WIP]` 15-minute Hawkeye review format
+#### `[WIP]` 30-minute Hawkeye review format
 
-This is the canonical inspirational format for the 15-minute cycle
+This is the canonical inspirational format for the 30-minute cycle
 observations throughout the ongoing `24h → 48h → five-session/one-week` live
 profitability proof. Its purpose is not merely status reporting: rich,
 simultaneous observation should expose powerful intraday nuances, especially
 during volatile periods or patterns the strategy may not yet handle strongly,
 and feed two bounded sidequests—sharpening the strategy and discovering new
 causal hypotheses—without changing live authority from narration.
+
+Four reviews form one two-hour evolution block. During each block, maintain
+two bounded causal candidates: one XSP v3/execution refinement and one
+high-value alpha/theta or cross-asset research idea. At a quiet block end,
+rank both, preserve the runner-up, preregister the winner, add one plan item,
+and begin bounded replay; live commissioning always preempts.
 
 Use this as the analytical quality bar for each scheduled review—not a rigid
 form and not permission to poll more frequently. Report only the latest
@@ -491,7 +497,7 @@ Current live state at 13:12 ET:
 - Settled cash: $1,318.051.
 - Orders or safety breaches: none.
 - Five-minute owner: active; next bars are recorded automatically.
-- Analytical review cadence: every 15 minutes.
+- Analytical review cadence: every 30 minutes.
 - Clean clock: gap-free from its first required 13:12 ET recurrence.
 
 Latest centralized RTH state:
@@ -1017,7 +1023,7 @@ and
 | D-171 | delayed/no-value SPYU NAV cannot satisfy the ETN divergence guard. Do not accept a data subscription or substitute market price for indicative value implicitly; require a fresh timestamped issuer/broker source or retain HOLD |
 | D-172 | treat exact next-interval-open fills as the causal historical benchmark, not guaranteed live execution. Before selection, every SPYU nominee must also survive one additional complete five-minute entry bar under the unchanged family gate; failure is HOLD, while success still lacks authority until fresh NAV/NBBO/what-if and a new USD selection identity pass |
 | D-173 | the sealed cash replay/ranker is the sole sizing owner: freeze its historical maximum SPYU/SPXU quantities for depth validation, but derive the actual next-RTH whole-share order only from the ranked notional and fresh limit price. Never reopen arbitrary sizes or let stale retired-contract files satisfy a current-ledger manifest |
-| D-174 | operational proof always outranks research, but a verified gap exceeding one hour may host one bounded local challenger. It must be causally distinct, preregister development versus sealed challenge windows, run at low priority without q or crown mutation, and stop after one neighborhood verdict; rejected families, broad sweeps, news backfill, and outcome-driven live changes remain closed |
+| D-174 | operational proof always outranks research, but a verified gap exceeding two hours may host one bounded local challenger. It must be causally distinct, preregister development versus sealed challenge windows, run at low priority without q or crown mutation, and stop after one neighborhood verdict; rejected families, broad sweeps, news backfill, and outcome-driven live changes remain closed |
 | D-175 | Prospective Live Edge Commissioning is Priority 0: live signal/gate/position/execution evidence, transport graduation, and immutable profitability milestones preempt all research. Scheduled event boundaries replace polling; news is joined once only after a new four-hour publication already exists and never drives monitoring cadence. Free-window work may only enrich the same causal ledger and must stop immediately when commissioning evidence arrives |
 | D-176 | the leaderboard's global coronation law is mandatory: a free-window result may become a frozen development leader, never an automatic crown. Coronation requires cadence; positive superiority over the complete three-year tape and a strict majority of July-to-July years since July 2023; `>=5%` material three-year improvement; stability/cost proof; and an explicit milestone decision. The frozen latest four weeks remain a mandatory diagnostic, not a strict superiority gate; material unexplained recent failure may still veto |
 | D-177 | the tested whole-share cash-ETF transport frontier is closed: do not reopen SPY, UPRO/SPXU, SPXL/SPXS, SPYU/SPXU, SSO/SDS, or TQQQ/SQQQ through sizing, spread, timing, or pricing-plan hindsight. Continue live technical commissioning under HOLD; any new spot path must be materially different, preregistered, and pass complete authentic economics before broker preview or subscription |
@@ -1126,5 +1132,5 @@ authority is separately unqualified.
 fully qualified v3 turn survives its centralized admission and lifecycle
 rules. That first admission—not the clock or a deadline—may create the next
 capital event. The read-only dwell capture should finish at `11:35 ET`; its
-terminal audit and fifteen-minute Hawkeye reviews may sharpen future execution
+terminal audit and thirty-minute Hawkeye reviews may sharpen future execution
 patience, never today's direction, sizing, or authority.
