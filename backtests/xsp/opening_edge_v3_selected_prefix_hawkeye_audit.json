@@ -1,0 +1,105 @@
+{
+  "schema": "xsp.opening-edge-v3-selected-prefix-hawkeye-audit.v1",
+  "authority": "read_only_prefix_integrity_only",
+  "observed_at_utc": "2026-07-31T21:55:54.696973+00:00",
+  "selection": {
+    "selection_id": "b4799fa693ea3da1bf65a7b66412dde318c6ecb427fa14be73b5a5cf1dd40c20",
+    "selection_sha256": "eb6aad41c8f428d12599abd76232d69b3b3f52881a363eaf8c1e79b01b618517"
+  },
+  "ledger": {
+    "path": "db/calibration/xsp_live_calibration.jsonl",
+    "records": 809,
+    "sha256": "eb004df02e7d5455801136866e73509dde36a5abd7c2212651ecc27963fa6322"
+  },
+  "audit_tool_sha256": "aad738b3b52e6fc22bf4718e599810363a856af9b084ec05171b120412cd2cb2",
+  "checkpoint_pairing": {
+    "execution_checkpoints": 80,
+    "referenced_source_checkpoints": 80,
+    "source_execution_adjacency_exact": true,
+    "source_statuses": {
+      "EVALUATED": 78,
+      "STALE_DATA": 2
+    },
+    "plan_reasons": {
+      "flat_target": 78,
+      "source_not_executable": 2
+    },
+    "errors": []
+  },
+  "hawkeye_anatomy": {
+    "complete": true,
+    "errors": [],
+    "exact_source_execution_fields": [
+      "directional_impulse",
+      "entry_control",
+      "daily_context_state",
+      "fundamental_pressure",
+      "signal_bar_ts"
+    ],
+    "required_intraday_horizons_bars": [
+      1,
+      3,
+      6,
+      12,
+      24
+    ],
+    "required_daily_horizons_sessions": [
+      5,
+      10,
+      21,
+      42,
+      63,
+      84
+    ],
+    "directional_impulse_readiness": {
+      "causal_underwarm": 23,
+      "fully_ready": 57,
+      "causal_underwarm_first_utc": "2026-07-31T13:45:33.657229+00:00",
+      "causal_underwarm_last_utc": "2026-07-31T15:32:00.549845+00:00",
+      "observed_horizon_counts": {
+        "1": 2,
+        "2": 3,
+        "3": 6,
+        "4": 12,
+        "5": 57
+      },
+      "underwarm_policy": "strict prefix of 1/3/6/12/24-bar horizons with ready=false and abstain_reason=not_ready; ready checkpoints require all five"
+    }
+  },
+  "selected_economics": {
+    "closed_trades": 0,
+    "fills": 0,
+    "gross_usd": 0.0,
+    "cost_usd": 0.0,
+    "net_usd": 0.0,
+    "realized_net_usd": 0.0,
+    "open_mark_usd": 0.0,
+    "maximum_drawdown_usd": 0.0,
+    "submitted_orders": 0,
+    "safety_breaches": []
+  },
+  "coverage": {
+    "trading_date": "2026-07-31",
+    "expected_slots": 81,
+    "due_slots": 79,
+    "evaluated_slots": 79,
+    "missing_slots": [],
+    "conflict_slots": [],
+    "coverage_broken": false,
+    "complete_sessions": 0
+  },
+  "milestones": {
+    "24h_passed": false,
+    "48h_passed": false,
+    "five_session_week_passed": false
+  },
+  "verdict": "PASS_FIELD_COMPLETENESS_ONLY",
+  "boundaries": {
+    "broker_queried": false,
+    "selection_changed": false,
+    "runtime_changed": false,
+    "timer_changed": false,
+    "order_authority_changed": false,
+    "profitability_milestone_created": false
+  }
+}
