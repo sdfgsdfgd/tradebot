@@ -1,0 +1,26 @@
+[Unit]
+Description=Freeze and settle prospective MCL narrative-price assimilation evidence
+Requires=tradebot-ib-gateway-tunnel.service
+After=tradebot-news.service tradebot-ib-gateway-tunnel.service
+ConditionPathExists=%h/Desktop/py/tradebot/tradebot/research/mcl_narrative_lag_convexity.py
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/Desktop/py/tradebot
+Environment=PATH=%h/.local/share/tradebot/venv/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONUNBUFFERED=1
+Environment=IBKR_HOST=127.0.0.1
+Environment=IBKR_PORT=4001
+Environment=IBKR_CLIENT_ID=3194
+Environment=IBKR_READONLY=1
+Environment=MCL_NARRATIVE_LEDGER=%h/.local/state/tradebot/research/mcl_narrative_lag_convexity.jsonl
+ExecCondition=/usr/bin/test -x %h/.local/share/tradebot/venv/bin/python
+ExecStart=/usr/bin/env python3 -m tradebot.research.mcl_narrative_lag_convexity
+TimeoutStartSec=3min
+Restart=on-failure
+RestartSec=30s
+Nice=10
+IOSchedulingClass=idle
+PrivateTmp=true
+NoNewPrivileges=true
+UMask=0077

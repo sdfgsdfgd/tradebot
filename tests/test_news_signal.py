@@ -33,9 +33,11 @@ from tradebot.news.pipeline import (
 )
 from tradebot.research.mcl_narrative_lag_convexity import (
     PROSPECTIVE_START_AFTER,
+    advance_mcl_narrative_prospective,
     fresh_bar_index,
     load_news as load_mcl_news,
 )
+from tradebot.research.live_calibration import LiveCalibrationLedger
 
 
 FIXTURE = Path(__file__).parent / "fixtures" / "news" / "finviz_news.html"
@@ -360,6 +362,7 @@ def test_asset_observation_rejects_future_or_incompatible_state() -> None:
 def test_systemd_budget_leaves_atomic_publication_grace() -> None:
     deploy = Path(__file__).parents[1] / "deploy/systemd"
     unit = (deploy / "tradebot-news.service").read_text()
+    mcl = (deploy / "tradebot-mcl-narrative-prospective.service").read_text()
     guide = (deploy / "README.md").read_text()
 
     assert "--timeout-sec" not in unit
@@ -371,6 +374,13 @@ def test_systemd_budget_leaves_atomic_publication_grace() -> None:
     assert "StartLimitBurst=31" in unit
     assert "Restart=on-failure" in unit
     assert "RestartSec=30s" in unit
+    assert "OnSuccess=tradebot-mcl-narrative-prospective.service" in unit
+    assert "Requires=tradebot-ib-gateway-tunnel.service" in mcl
+    assert "IBKR_READONLY=1" in mcl
+    assert "IBKR_READONLY=0" not in mcl
+    assert "MCL_NARRATIVE_LEDGER=%h/.local/state/tradebot/research/" in mcl
+    assert "python3 -m tradebot.research.mcl_narrative_lag_convexity" in mcl
+    assert "tradebot-mcl-narrative-prospective.service" in guide
     assert "systemctl --user stop tradebot-news.timer" in guide
     assert 'test "$news_state" = inactive || test "$news_state" = failed' in guide
     assert (
@@ -944,6 +954,128 @@ def test_mcl_narrative_prefix_starts_after_clock_repair() -> None:
         52,
         tzinfo=timezone.utc,
     )
+
+
+def test_mcl_narrative_forecast_is_frozen_before_and_settled_after_outcome(
+    tmp_path: Path,
+) -> None:
+    publication_at = PROSPECTIVE_START_AFTER + timedelta(hours=1)
+    start = publication_at - timedelta(hours=4)
+    bars = []
+    for offset in range(97):
+        end = start + timedelta(minutes=5 * offset)
+        if end <= publication_at - timedelta(minutes=30):
+            progress = (end - start).total_seconds() / (3.5 * 3600)
+            close = 100.0 + 4.0 * progress
+        elif end <= publication_at:
+            close = 104.0
+        else:
+            progress = (end - publication_at).total_seconds() / (4 * 3600)
+            close = 104.0 - 4.0 * progress
+        bars.append(
+            {
+                "end": end,
+                "open": close,
+                "high": close + 0.1,
+                "low": close - 0.1,
+                "close": close,
+            }
+        )
+    news_row = {
+        "at": publication_at,
+        "signal_at": publication_at - timedelta(minutes=10),
+        "publication_id": "publication-1",
+        "pressure": 0.85,
+        "delta": 0.1,
+    }
+    ledger = LiveCalibrationLedger(tmp_path / "mcl.jsonl")
+    contract = {"conId": 1, "localSymbol": "MCLQ6"}
+
+    first = advance_mcl_narrative_prospective(
+        ledger,
+        news=[news_row],
+        bars=bars,
+        observed_at=publication_at + timedelta(minutes=1),
+        contract=contract,
+    )
+    repeated = advance_mcl_narrative_prospective(
+        ledger,
+        news=[news_row],
+        bars=bars,
+        observed_at=publication_at + timedelta(minutes=2),
+        contract=contract,
+    )
+
+    assert first["frozen"] == 1
+    assert first["settled"] == 0
+    assert repeated["frozen"] == 0
+    assert ledger.receipt()["forecasts"] == 1
+    forecast = next(row for row in ledger.records() if row["kind"] == "forecast")
+    assert forecast["context"]["direction"] == "down"
+    assert forecast["context"]["news"]["extreme"] is True
+    assert forecast["gates"]["order_authority"] == "none"
+
+    mature = advance_mcl_narrative_prospective(
+        ledger,
+        news=[news_row],
+        bars=bars,
+        observed_at=publication_at + timedelta(hours=4, minutes=1),
+        contract=contract,
+    )
+
+    assert mature["settled"] == 1
+    assert ledger.receipt()["unsettled"] == []
+    result = next(row for row in ledger.records() if row["kind"] == "result")
+    assert result["observed"]["direction"] == "down"
+    assert result["observed"]["horizons"]["240"]["return_pct"] > 0
+    assert result["observed"]["horizons"]["240"]["mfe_pct"] > 0
+    assert result["observed"]["horizons"]["240"]["mae_pct"] < 0
+
+    late = LiveCalibrationLedger(tmp_path / "late.jsonl")
+    excluded = advance_mcl_narrative_prospective(
+        late,
+        news=[news_row],
+        bars=bars,
+        observed_at=publication_at + timedelta(hours=4, minutes=1),
+        contract=contract,
+    )
+    assert excluded["excluded_late"] == 1
+    assert late.receipt()["forecasts"] == 0
+
+
+def test_mcl_narrative_freezes_nonextreme_ta_control(tmp_path: Path) -> None:
+    publication_at = PROSPECTIVE_START_AFTER + timedelta(hours=1)
+    ends = [
+        publication_at - timedelta(hours=4),
+        publication_at - timedelta(minutes=30),
+        publication_at,
+    ]
+    bars = [
+        {"end": ends[0], "high": 100.1, "low": 99.9, "close": 100.0},
+        {"end": ends[1], "high": 104.1, "low": 103.9, "close": 104.0},
+        {"end": ends[2], "high": 104.1, "low": 103.9, "close": 104.0},
+    ]
+    ledger = LiveCalibrationLedger(tmp_path / "control.jsonl")
+
+    advance_mcl_narrative_prospective(
+        ledger,
+        news=[
+            {
+                "at": publication_at,
+                "signal_at": publication_at,
+                "publication_id": "control",
+                "pressure": 0.5,
+                "delta": 0.1,
+            }
+        ],
+        bars=bars,
+        observed_at=publication_at + timedelta(minutes=1),
+        contract={"conId": 1, "localSymbol": "MCLQ6"},
+    )
+
+    forecast = next(row for row in ledger.records() if row["kind"] == "forecast")
+    assert forecast["context"]["news"]["extreme"] is False
+    assert forecast["counterfactuals"][0]["decision"] == "down"
 
 
 def test_due_event_runs_codex_without_new_articles(tmp_path: Path) -> None:

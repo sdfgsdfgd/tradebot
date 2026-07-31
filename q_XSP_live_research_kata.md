@@ -732,13 +732,22 @@ transition through today’s close; no order will be forced merely to populate t
     so graduation requires at least `12` unseen extreme onsets across six
     sessions and both prior directions, improved four-hour MFE/range versus the
     identical TA-only cohort, no worse MAE/DD, positive bootstrap lower bound,
-    and stability without pressure delta/innovation. The first unseen
+    and stability without pressure delta/innovation. The first nominal unseen
     publication is clock-invalid and counts as neither onset nor control; the
     clean prefix remains zero and starts at the first unseen post-fix
     publication. A separately frozen studentized
     fast-consensus seed has only one outcome-exposed event and remains
     underwarmed; it cannot replace this primary accumulator. No MCL future,
     option, selector, or capital authority.
+23. `[WIP]` Prove the event-time MCL accumulator selected by the third
+    six-checkpoint Hawkeye block. Preregistration `8a08c6cf…` binds one
+    read-only news-success companion to atomic publication availability,
+    completed/fresh MCL bars, the canonical content-addressed ledger, and the
+    unchanged primary/control gates. It must freeze each eligible extreme or
+    nonextreme TA onset before `+4h`, settle `30/60/240m` return/MFE/MAE/range
+    exactly once, and exclude late first observation rather than backfill. The
+    first natural post-install run remains required; no MCL instrument, option,
+    selector, order, or XSP-clock authority exists.
 
 ---
 
@@ -1005,6 +1014,7 @@ and
 | E-340 | the first six-checkpoint/two-hour Hawkeye block ranked MCL Narrative-Lag Convexity Onset above XSP dwell sharpening, then froze it before new outcomes. Discovery found news pressure delta mostly followed the preceding four-hour MCL move and had approximately zero following-four-hour correlation; TA-only deceleration and a `+2h` placebo also reversed, so news cannot own direction. Preregistration `c17a1a2…` instead tests whether fresh `|pressure| >= 0.80` adds persistence/convexity after the same TA-owned opposite-impulse onset. It requires `12` unseen extreme events, six sessions, both directions, TA-only/time-shift controls, improved MFE/range without worse MAE/DD, and stable bootstrap evidence. The initial prospective prefix is exactly zero events (`f11a8aef…`); discovery `c7171064…` is outcome-exposed and excluded. No manipulation claim, fixed news coefficient, MCL instrument, option, selector, order, or clock authority exists |
 | E-341 | the second six-checkpoint Hawkeye block rejected one XSP ownership shortcut and preserved one underwarmed MCL seed without changing active work. Preregistered projected-slope depletion fired on `207` financed v3 positions but surrendered `-85.36` points: `-26.16/-24.11/-35.09` across Y1/Y2/Y3 and negative in both directions, while median later favorable movement remained `+0.83`; compact rejection receipt `opening_edge_v3_projected_slope_depletion_rejection_receipt.json`. MCL innovation anatomy initially looked spectacular, but same-horizon reset and prediction-interval studentization correctly removed semantic-transition and high-leverage artifacts, leaving one clean rapid-consensus event (`+1.7569%` at four hours versus `-2.0370%` at the exact `+2h` placebo). Receipt `mcl_narrative_innovation_fast_consensus_development_receipt.json` therefore freezes it as an outcome-exposed secondary seed with zero prospective events; primary preregistration `c17a1a2…` remains the sole accumulator. No threshold sweep, v3 change, MCL instrument/option authority, selection, order, or clock change occurred |
 | E-342 | the first nominal MCL control is excluded before outcomes: normal publication `3fd1fc3…` stamped `18:34:06Z` for both inference and availability but its atomic files became durable only at `18:45:18Z`, a `672s` causal-clock gap. Receipt `mcl_narrative_onset_prospective_event_20260731T183406Z.json` is now `INVALID_CLOCK_PROVENANCE`, counts neither onset nor control, and must never settle. Publisher `437401c…` preserves `signal_as_of_utc` as the evidence-search clock while setting `snapshot_as_of_utc` at atomic completion; the tracked accumulator reads locked canonical history, aligns MCL price only to availability, and refuses a market bar more than one five-minute interval old. Repair preregistration `4f2f429…` moves the prospective cut to `19:16:52Z`, after the complete clock/freshness repair was deployed, so the invalid row cannot re-enter replay and the clean prefix remains zero. Old history remains immutable/diagnostic; full proof is `993` passed. XSP signal, selected identity, broker authority, orders, and profitability clock are unchanged |
+| E-343 | the third six-checkpoint Hawkeye block rejected late-window XSP relaxation and selected event-time MCL accumulation. At `15:40 ET` all five intraday slopes/velocities were up, but by `16:00` XSP lost `0.96` points, fast slopes flipped down, ATR reached `2.0647x` with `0.06327` velocity, and v3 correctly stayed flat; this outcome-exposed seed cannot retune the crown. MCL preregistration `8a08c6cf…` instead adds one read-only news-success companion around existing owner `a40d2fc…`: freeze both extreme and nonextreme TA onsets before `+4h`, settle `30/60/240m` return/MFE/MAE/range once, and exclude late first observation. Focused proof is `36` passed; full proof is `995` passed. The selected XSP run remains flat at zero fills/P&L/DD with `$1,318.05` settled cash; no signal, selection, broker/order, or profitability-clock authority changed |
 
 ### Decision anchors
 

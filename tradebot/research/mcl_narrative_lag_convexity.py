@@ -9,15 +9,28 @@ import os
 import statistics
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Mapping, Sequence
 
 from ib_insync import ContFuture, IB
 
 from ..news.contract import load_news_history
+from .live_calibration import LiveCalibrationLedger, calibration_fingerprint
 
 
 NEWS_HISTORY = Path.home() / ".local/state/tradebot/news/history"
 BAR = timedelta(minutes=5)
 PROSPECTIVE_START_AFTER = datetime(2026, 7, 31, 19, 16, 52, tzinfo=timezone.utc)
+MCL_NARRATIVE_STRATEGY_VERSION = "mcl.narrative-lag-convexity-onset.v1"
+MCL_NARRATIVE_CONFIG_FINGERPRINT = calibration_fingerprint(
+    {
+        "prospective_start_after": PROSPECTIVE_START_AFTER.isoformat(),
+        "price_clock": "completed_5m_bar_within_300s",
+        "ta_onset": "4h_impulse_last30_directional_progress_not_faster",
+        "direction": "opposite_prior_4h_impulse",
+        "news_classifier": "abs_signed_pressure_gte_0.80",
+        "outcomes_minutes": [30, 60, 240],
+    }
+)
 
 
 def number(value: object) -> float | None:
@@ -79,6 +92,7 @@ def load_news(history_dir: Path = NEWS_HISTORY) -> list[dict[str, object]]:
                 {
                     "at": at.astimezone(timezone.utc),
                     "signal_at": signal_at.astimezone(timezone.utc),
+                    "publication_id": payload.get("publication_id"),
                     "pressure": pressure,
                     "delta": (
                         None
@@ -93,6 +107,235 @@ def load_news(history_dir: Path = NEWS_HISTORY) -> list[dict[str, object]]:
             )
             prior_pressure = pressure
     return rows
+
+
+def advance_mcl_narrative_prospective(
+    ledger: LiveCalibrationLedger,
+    *,
+    news: Sequence[Mapping[str, object]],
+    bars: Sequence[Mapping[str, object]],
+    observed_at: datetime,
+    contract: Mapping[str, object],
+) -> dict[str, object]:
+    """Freeze fresh TA onsets before outcomes, then settle mature forecasts."""
+
+    now = observed_at.astimezone(timezone.utc)
+    ends = [row["end"] for row in bars]
+    if any(not isinstance(value, datetime) for value in ends):
+        raise ValueError("MCL bars require timezone-aware end timestamps")
+
+    def close_at(at: datetime) -> tuple[int, float] | None:
+        index = fresh_bar_index(ends, at)
+        return None if index is None else (index, float(bars[index]["close"]))
+
+    records = list(ledger.records())
+    identity_ids = {
+        str(row["identity_id"])
+        for row in records
+        if row.get("kind") == "forecast"
+    }
+    frozen = 0
+    excluded_late = 0
+    for source in news:
+        at = source.get("at")
+        if not isinstance(at, datetime) or at <= PROSPECTIVE_START_AFTER:
+            continue
+        current_row = close_at(at)
+        prior_row = close_at(at - timedelta(hours=4))
+        fast_row = close_at(at - timedelta(minutes=30))
+        if current_row is None or prior_row is None or fast_row is None:
+            continue
+        index, current = current_row
+        pre4h = pct(prior_row[1], current)
+        last30 = pct(fast_row[1], current)
+        if sign(pre4h) == 0 or last30 is None:
+            continue
+        if sign(pre4h) * last30 / 0.5 > abs(float(pre4h)) / 4.0:
+            continue
+        direction = "down" if sign(pre4h) > 0 else "up"
+        pressure = float(source["pressure"])
+        decision_bar_end = ends[index]
+        tape_fingerprint = calibration_fingerprint(
+            {
+                "publication_id": source.get("publication_id"),
+                "publication_available_at": at.isoformat(),
+                "signal_at": str(source.get("signal_at")),
+                "pressure": pressure,
+                "pressure_delta": source.get("delta"),
+                "decision_bar_end": decision_bar_end.isoformat(),
+                "decision_close": current,
+                "contract": dict(contract),
+            }
+        )
+        identity = {
+            "strategy_id": "NO_TRADE",
+            "strategy_version": MCL_NARRATIVE_STRATEGY_VERSION,
+            "decision_as_of_utc": at.isoformat(),
+            "tape_fingerprint": tape_fingerprint,
+            "config_fingerprint": MCL_NARRATIVE_CONFIG_FINGERPRINT,
+            "capital_sleeve": "mcl-research-only",
+        }
+        identity_id = calibration_fingerprint(identity)
+        if identity_id in identity_ids:
+            continue
+        outcome_at = at + timedelta(hours=4)
+        if now >= outcome_at:
+            excluded_late += 1
+            continue
+        ledger.freeze(
+            identity=identity,
+            forecast={
+                "decision": "NO_TRADE",
+                "outcome_not_before_utc": outcome_at.isoformat(),
+                "pnl_distribution": {"research_only": True},
+                "risk": {"max_loss": 0.0},
+                "costs": {"modeled": 0.0},
+                "fill_assumptions": {"orders": 0, "continuous_future": True},
+            },
+            context={
+                "schema": "mcl.narrative-lag-convexity-forecast.v1",
+                "evidence_mode": "prospective_atomic_news_mcl_bar",
+                "contract": dict(contract),
+                "publication_id": source.get("publication_id"),
+                "publication_available_at_utc": at.isoformat(),
+                "signal_at_utc": str(source.get("signal_at")),
+                "decision_bar_end_utc": decision_bar_end.isoformat(),
+                "decision_close": current,
+                "pre4h_pct": pre4h,
+                "last30_pct": last30,
+                "direction": direction,
+                "news": {
+                    "signed_pressure": pressure,
+                    "pressure_delta": source.get("delta"),
+                    "extreme": abs(pressure) >= 0.80,
+                    "role": "persistence_convexity_classifier_only",
+                },
+            },
+            counterfactuals=[
+                {
+                    "strategy_id": "mcl.ta-only-deceleration.v1",
+                    "decision": direction,
+                }
+            ],
+            gates={
+                "selected_admissible": False,
+                "news_direction_authority": False,
+                "order_authority": "none",
+            },
+            recorded_at=now,
+        )
+        identity_ids.add(identity_id)
+        frozen += 1
+
+    records = list(ledger.records())
+    settled_ids = {
+        str(row["forecast_id"])
+        for row in records
+        if row.get("kind") == "result"
+    }
+    settled = 0
+    for forecast in records:
+        if forecast.get("kind") != "forecast":
+            continue
+        identity = forecast.get("identity")
+        frozen_forecast = forecast.get("forecast")
+        context = forecast.get("context")
+        forecast_id = str(forecast.get("forecast_id") or "")
+        if (
+            not isinstance(identity, Mapping)
+            or not isinstance(frozen_forecast, Mapping)
+            or not isinstance(context, Mapping)
+            or identity.get("strategy_version") != MCL_NARRATIVE_STRATEGY_VERSION
+            or forecast_id in settled_ids
+        ):
+            continue
+        outcome_at = datetime.fromisoformat(
+            str(frozen_forecast["outcome_not_before_utc"]).replace("Z", "+00:00")
+        ).astimezone(timezone.utc)
+        if now < outcome_at:
+            continue
+        decision_at = datetime.fromisoformat(
+            str(identity["decision_as_of_utc"]).replace("Z", "+00:00")
+        ).astimezone(timezone.utc)
+        decision_bar_end = datetime.fromisoformat(
+            str(context["decision_bar_end_utc"]).replace("Z", "+00:00")
+        ).astimezone(timezone.utc)
+        decision_close = float(context["decision_close"])
+        direction = str(context["direction"])
+        orientation = 1.0 if direction == "up" else -1.0
+        horizons: dict[str, object] = {}
+        complete = True
+        for minutes in (30, 60, 240):
+            target = decision_at + timedelta(minutes=minutes)
+            outcome_row = close_at(target)
+            if outcome_row is None:
+                complete = False
+                break
+            outcome_index, outcome_close = outcome_row
+            left = bisect.bisect_right(ends, decision_bar_end)
+            window = bars[left : outcome_index + 1]
+            if not window:
+                complete = False
+                break
+            excursions = []
+            for bar in window:
+                high = (float(bar["high"]) / decision_close - 1.0) * 100.0
+                low = (float(bar["low"]) / decision_close - 1.0) * 100.0
+                excursions.append(
+                    (
+                        bar["end"],
+                        max(high * orientation, low * orientation),
+                        min(high * orientation, low * orientation),
+                    )
+                )
+            favorable = max(excursions, key=lambda row: row[1])
+            adverse = min(excursions, key=lambda row: row[2])
+            horizons[str(minutes)] = {
+                "return_pct": (outcome_close / decision_close - 1.0)
+                * 100.0
+                * orientation,
+                "mfe_pct": favorable[1],
+                "mae_pct": adverse[2],
+                "mfe_after_minutes": (
+                    favorable[0] - decision_at
+                ).total_seconds()
+                / 60.0,
+                "mae_after_minutes": (
+                    adverse[0] - decision_at
+                ).total_seconds()
+                / 60.0,
+                "range_pct": (
+                    max(float(bar["high"]) for bar in window)
+                    - min(float(bar["low"]) for bar in window)
+                )
+                / decision_close
+                * 100.0,
+            }
+        if not complete:
+            continue
+        ledger.settle(
+            forecast_id=forecast_id,
+            observed={
+                "outcome_as_of_utc": outcome_at.isoformat(),
+                "contract": dict(contract),
+                "direction": direction,
+                "horizons": horizons,
+            },
+            drift={"signal": "none", "economic": 0.0},
+            verdict="HOLD",
+            settled_at=now,
+        )
+        settled_ids.add(forecast_id)
+        settled += 1
+
+    return {
+        "authority": "prospective_research_only",
+        "submitted_orders": 0,
+        "frozen": frozen,
+        "settled": settled,
+        "excluded_late": excluded_late,
+        "ledger": ledger.receipt(),
+    }
 
 
 def ols(prior: list[dict[str, object]], x: float) -> tuple[float, float | None]:
@@ -514,6 +757,21 @@ def main() -> None:
             "events": wakeups,
         },
     }
+    ledger_path = os.environ.get("MCL_NARRATIVE_LEDGER")
+    if ledger_path:
+        output["prospective_accumulator"] = advance_mcl_narrative_prospective(
+            LiveCalibrationLedger(Path(ledger_path).expanduser()),
+            news=news,
+            bars=bars,
+            observed_at=datetime.now(timezone.utc),
+            contract={
+                "conId": getattr(contract, "conId", None),
+                "localSymbol": getattr(contract, "localSymbol", None),
+                "lastTradeDateOrContractMonth": getattr(
+                    contract, "lastTradeDateOrContractMonth", None
+                ),
+            },
+        )
     print(json.dumps(output, indent=2, default=lambda value: value.isoformat()))
 
 

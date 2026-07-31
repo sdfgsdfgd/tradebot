@@ -2,6 +2,7 @@
 Description=Tradebot one-shot XSP/MCL news inference
 Wants=network-online.target
 After=network-online.target
+OnSuccess=tradebot-mcl-narrative-prospective.service
 StartLimitIntervalSec=2h
 StartLimitBurst=31
 

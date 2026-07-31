@@ -1,0 +1,54 @@
+{
+  "schema": "mcl.narrative-event-accumulator-preregistration.v1",
+  "preregistered_at_utc": "2026-07-31T20:03:57Z",
+  "authority": "prospective_research_only",
+  "status": "FROZEN_BEFORE_FIRST_ELIGIBLE_PUBLICATION",
+  "two_hour_hawkeye_ranking": {
+    "winner": "mcl_narrative_price_assimilation_event_accumulator",
+    "runner_up": "xsp_late_continuation_window_relaxation",
+    "runner_up_verdict": "FROZEN_REJECTED_SEED",
+    "runner_up_evidence": {
+      "aligned_close_at_1540_et": 749.91,
+      "close_at_1600_et": 748.95,
+      "twenty_minute_delta_points": -0.96,
+      "terminal_fast_slopes": "5m_15m_30m_down",
+      "terminal_atr_ratio": 2.0647167429,
+      "terminal_atr_velocity": 0.0632697304
+    }
+  },
+  "frozen_sources": {
+    "primary_preregistration_sha256": "c17a1a241a4aac9583fca229d548a1b4173861532e579079b950334f3ba66761",
+    "clock_repair_preregistration_sha256": "4f2f4291308f398784a9a5d3c34445ae80b8332644cc6ae4bbba26c20bfe1777",
+    "analysis_owner_sha256": "28e6233aaf03352769674aaf7f8f938917267428455a3b47108609ddf4c7e02a",
+    "publication_owner_sha256": "bcb682087e4957d98a26663144d100f2997ece11b30204687f72eb61ab3922df",
+    "ledger_owner_sha256": "997a5c47fbedd84c74b956f352a1ffa6c6653b2871af53664f1675884710aab3"
+  },
+  "forecast_contract": {
+    "trigger": "one natural atomic news publication strictly after 2026-07-31T19:16:52Z",
+    "market_clock": "latest completed MCL five-minute TRADES bar no more than 300 seconds old",
+    "ta_owner": "preceding four-hour MCL impulse whose last-thirty-minute directional progress no longer exceeds its prior hourly rate",
+    "research_direction": "opposite the preceding MCL impulse",
+    "news_role": "absolute signed pressure at least 0.80 classifies persistence and convexity only",
+    "population": "freeze both extreme and nonextreme TA onsets before their outcomes",
+    "outcome_not_before": "publication availability plus four hours",
+    "settlement": "one immutable result containing 30m, 60m, and 240m return, MFE, MAE, range, and excursion timing",
+    "late_first_observation": "exclude rather than backfill"
+  },
+  "runtime_contract": {
+    "owner": "one read-only systemd OnSuccess companion to tradebot-news.service",
+    "ledger": "~/.local/state/tradebot/research/mcl_narrative_lag_convexity.jsonl",
+    "broker": "IBKR historical MCL data only",
+    "idempotence": "LiveCalibrationLedger content addresses one forecast per publication and one result per forecast",
+    "failure": "news publication remains successful; companion retries independently and fails closed"
+  },
+  "graduation_gates_unchanged": true,
+  "boundaries": {
+    "news_direction_authority": false,
+    "mcl_instrument_authority": "none",
+    "option_authority": "none",
+    "submitted_orders": 0,
+    "xsp_strategy_changed": false,
+    "xsp_selection_changed": false,
+    "xsp_profitability_clock_changed": false
+  }
+}

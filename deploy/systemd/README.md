@@ -7,6 +7,7 @@ before enabling the timer:
 mkdir -p ~/.config/systemd/user
 install -m 0644 deploy/systemd/tradebot-news.service ~/.config/systemd/user/
 install -m 0644 deploy/systemd/tradebot-news.timer ~/.config/systemd/user/
+install -m 0644 deploy/systemd/tradebot-mcl-narrative-prospective.service ~/.config/systemd/user/
 systemctl --user daemon-reload
 systemctl --user start tradebot-news.service
 journalctl --user -u tradebot-news.service -n 100 --no-pager
@@ -74,15 +75,23 @@ test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
 ~/.local/share/tradebot/venv/bin/pip check
 ~/.local/share/tradebot/venv/bin/python -c 'import ib_insync, textual; from zoneinfo import ZoneInfo; ZoneInfo("US/Eastern")'
 install -m 0644 deploy/systemd/tradebot-news.{service,timer} ~/.config/systemd/user/
+install -m 0644 deploy/systemd/tradebot-mcl-narrative-prospective.service ~/.config/systemd/user/
 install -m 0644 deploy/systemd/tradebot-ib-gateway-tunnel.service ~/.config/systemd/user/
 install -m 0644 deploy/systemd/tradebot-xsp-{quotes,shadow}.{service,timer} ~/.config/systemd/user/
 systemctl --user daemon-reload
 systemd-analyze --user verify \
   ~/.config/systemd/user/tradebot-news.{service,timer} \
+  ~/.config/systemd/user/tradebot-mcl-narrative-prospective.service \
   ~/.config/systemd/user/tradebot-ib-gateway-tunnel.service \
   ~/.config/systemd/user/tradebot-xsp-{quotes,shadow}.{service,timer}
 cmp -s deploy/systemd/tradebot-news.service ~/.config/systemd/user/tradebot-news.service
+cmp -s deploy/systemd/tradebot-mcl-narrative-prospective.service ~/.config/systemd/user/tradebot-mcl-narrative-prospective.service
 ```
+
+Successful atomic news publication triggers the read-only MCL companion. It
+freezes eligible TA-owned forecasts before their four-hour outcome and settles
+older forecasts idempotently; companion failure never rewrites the published
+news snapshot or grants instrument/order authority.
 
 The tunnel is localhost-only, broker-enforced read-only, and started on demand.
 It retries every 30 seconds without a start ceiling. The long-running producer
