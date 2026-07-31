@@ -1,0 +1,70 @@
+{
+  "schema": "xsp.opening-edge-v3-post-selection-source-stability-audit.v1",
+  "authority": "offline_git_object_comparison_only",
+  "observed_at_utc": "2026-07-31T22:24:26Z",
+  "selection": {
+    "selection_id": "b4799fa693ea3da1bf65a7b66412dde318c6ecb427fa14be73b5a5cf1dd40c20",
+    "selection_sha256": "eb6aad41c8f428d12599abd76232d69b3b3f52881a363eaf8c1e79b01b618517",
+    "selected_at_utc": "2026-07-31T13:42:55.293507+00:00",
+    "source_revision_at_selection": "6540bc0db31f0fe01c89744cab6a66e612205fbd",
+    "audited_revision": "f305e304b24f5c41b6b69bd555412d52506f3b24"
+  },
+  "unchanged_capital_semantic_surface": {
+    "tradebot/research/xsp_opening_edge_state.py": "643b6a04478e598fe7fbdc2d5aa6deabe6935761b3fa83cf487a9fdd16a265bc",
+    "tradebot/research/xsp_opening_edge_v3.py": "853132b252b053e09b9ee6bc8e92b53cb49a3c6c77b35c21c15877d99681c13a",
+    "tradebot/research/xsp_live_transport.py": "1651fdc78d9f804c42b70bf11ce2568d8224b8062c353409a4779db189989ac6",
+    "tradebot/research/xsp_live_transport_v3.py": "4d80a84021be8fe2abf33e8e2aa9ff736decb8b7461663599e8e6156f6647491",
+    "tradebot/research/xsp_live_transport_handoff.py": "0f87b2c8fb8f729cc851d3105aad88b3c9fbd34265607d8c79035c5ed001bba0",
+    "tradebot/research/xsp_live_transport_risk.py": "aafb358934f44d35505488fa8daee3fcfa59f1be0ced6293d36ddba663520af3",
+    "tradebot/research/xsp_live_transport_runtime.py": "f837844bb58873438074617adef290d10153908aa40e011c8b1507047e911a56",
+    "tradebot/research/xsp_profitability.py": "2c74f96868a6fc8a61643b3f3fda06738e5b8ea6c15413326cdd3b13b5313d80",
+    "tradebot/research/live_calibration.py": "997a5c47fbedd84c74b956f352a1ffa6c6653b2871af53664f1675884710aab3",
+    "tradebot/engines/market.py": "a3bd38b1b64119901c34b6cd68531128e54403e9acb304715bb74fbbfa643598",
+    "deploy/systemd/tradebot-xsp-shadow.service": "b843a8c63ef0cd5366dbe0729362bf76f8e80cfcec512ffe9c7d313526315b72",
+    "deploy/systemd/tradebot-xsp-shadow.timer": "542a78303d6e245f2477cc1ea16765252b40bd9a077639409fa6d7c77a33ab50"
+  },
+  "classified_change": {
+    "path": "tradebot/research/xsp_shadow_cli.py",
+    "old_sha256": "0204a5be94922c5a9b498d87a1a5dcd7a135c8d8415179ba47853b25e179028e",
+    "new_sha256": "96c6ba1805d716fb65b5176cfc906160d20171c971a7e750c77348420a37efd0",
+    "commit": "5b88dfe2f75e612b2d8c41353a3f29450bff984d",
+    "scope": "process_exit_classification_after receipt and transport projection",
+    "success_requires": [
+      "opening-edge-v3 mode",
+      "STALE_DATA source status",
+      "RTH or CURB source session",
+      "entry window closed",
+      "source_not_executable plan reason",
+      "UNCHANGED transport status",
+      "zero submitted orders"
+    ],
+    "regression": "test_shadow_cli_accepts_only_a_terminal_selected_v3_stale_noop",
+    "capital_semantics_changed": false
+  },
+  "noncapital_changes": {
+    "news_and_mcl": "publication availability and read-only MCL research changed; selected XSP direction authority remains TA-only",
+    "tests_and_receipts": "additional evidence and regression coverage only",
+    "task_brain": "documentation only"
+  },
+  "checks": {
+    "selection_file_unchanged": true,
+    "signal_owner_unchanged": true,
+    "admission_and_lifecycle_unchanged": true,
+    "sizing_and_settlement_unchanged": true,
+    "ladder_and_order_projection_unchanged": true,
+    "risk_and_profitability_owners_unchanged": true,
+    "market_clock_and_systemd_schedule_unchanged": true,
+    "only_xsp_runtime_change_is_zero_order_terminal_exit_classification": true
+  },
+  "verdict": "PASS_POST_SELECTION_CAPITAL_SEMANTICS_STABLE",
+  "remaining_requirement": "repeat source and selection binding at each profitability milestone cutoff; this point-in-time audit cannot authorize future unclassified code drift",
+  "boundaries": {
+    "broker_queried": false,
+    "service_or_timer_mutated": false,
+    "checkpoint_created": false,
+    "selection_mutated": false,
+    "order_authority": "none",
+    "submitted_orders": 0,
+    "profitability_clock_mutated": false
+  }
+}
