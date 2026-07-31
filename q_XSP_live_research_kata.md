@@ -5,8 +5,9 @@
   `daf1609b…` is evidence-ineligible after its 16:12/16:17 stale-close
   execution rows failed before persistence; repair `6caa066…` is deployed,
   its first natural GTH restart passed exact source/execution/context parity,
-  and a new clean clock must start from the quarantined next-RTH selection.
-  The recurring owner is active and the 24/5 GTH lane remains observation-only`
+  and invalid capital authority is now quarantined behind a source-only,
+  read-only recurrence until reset r4 can freeze a clean next-RTH selection.
+  The recurring source owner is active and all cash execution is currently off`
 - **Authority:** canonical resume state, active task tree, critical evidence
   index, and promotion contract
 - **Cold history:** [`q_XSP_live_research_kata-archive.md`](q_XSP_live_research_kata-archive.md)
@@ -38,16 +39,16 @@ output belongs in commit/final verification, not in this management brain.
 | Authority | Current truth |
 |---|---|
 | Broker/order strategy | Tiered UPRO/SPXU, RTH cash pair, bounded limit-only execution; GTH remains `NO_TRADE` |
-| Selected live run | flat runtime selection `daf1609b…`; selection file `a5891868…`; its profitability prefix, zero-economic predecessor `9e517007…`, and terminal continuity predecessor `ab0bb43a…` are ineligible/archived intact. A new identity is required before the next RTH capital event |
+| Selected live run | no selection is loaded by the active service. Invalid flat selection file `daf1609b…` / `a5891868…` and predecessors `9e517007…` / `ab0bb43a…` remain preserved evidence only. A new identity is required before the next RTH capital event |
 | Research crown | **Opening Edge v3 — Regime Harmony 24/5**; `xsp.opening-edge-v3-regime-harmony-24x5.v1` |
 | Runtime parity | Central v3 owner reproduces RTH `40708a28…` exactly over `425/425` trades; unchanged GTH Down Sleeve reproduces `9e04807f…` over `179/179`; combined `604`, `+291.1756`, PF `2.0919`, DD `17.63` |
 | Runtime source anchor | q/origin are clean and synchronized; runtime fix `12be31c…`, reset contract `69f8b56…`, stale-close repair `6caa066…`, cash-finalization verifier `9db0bee…`, attribution contract `7b37a4f…`, central owner `643b6a…`, crown `d47eb39…`, canonical daily-context fingerprint `7a139df1…` |
-| Observer cadence | Five-minute timer active. Repair `6caa066…` makes structurally valid stale RTH/CURB sources journal no target/order instead of crashing; natural GTH audit receipt `71891e4b…` passed all `19` source/execution/context invariants with flat holdings and zero submissions |
+| Observer cadence | Five-minute timer active in source-only `IBKR_READONLY=1` quarantine. Its first natural `03:37 ET` recurrence appended v3 source evidence with `selected_transport_id=null`, `transport_execution=null`, and `profitability=null`. Repair `6caa066…` remains deployed; no invalid selected-execution row or order can recur before reset |
 | RTH signal freshness | **cleared:** after the user activated `CBOE Streaming Market Indexes`, zero-order receipt `acce7ed3…` returned live type-1 XSP, current five-minute history, and real-time `TRADES` bars without a Gateway restart; the natural `10:07 ET` centralized v2 checkpoint then evaluated with both XSP and SPY through `10:05` and `120s` age |
-| Order/capital authority | `rth_cash_pair_limit_only`; up→UPRO, down→SPXU, fresh streaming NBBO, full SELL reconciliation before an admitted opposite BUY, one immediate-proceeds cash slot |
+| Order/capital authority | currently `none`. Reset r4 may install `rth_cash_pair_limit_only` only after a clean successor freezes: up→UPRO, down→SPXU, fresh streaming NBBO, full SELL reconciliation before an admitted opposite BUY, one immediate-proceeds cash slot. GTH remains forbidden |
 | Profitability clock | `NOT_STARTED` for the next eligible identity. The centralized selected-cash verifier now requires the capital owner's `close+7/+12/+17` finalization rows: real-ledger replay makes `daf1609b…` correctly `INVALID_EVIDENCE` at `21` due / `19` evaluated with exact `16:12/16:17` gaps. Its prefix is permanently ineligible and never backfilled. A fresh next-RTH preview/source/broker reset must start the successor clock |
 | Execution verdict | `LIVE_FLAT`. `23 SPXU @ $39.10` was sold completely at `$38.56`; total commission `$0.659007`, realized `-$13.079007`. Broker-qualified attribution separates the strategy-timed loss (`-$9.86..-$9.97` at the first causal live-flat checkpoint; `-$12.62..-$12.73` at the finalized crown-ledger boundary) from integration/execution debt. Post-fill restart matched `SPXU=0`, `UPRO=0`, no open orders, `$1,318.051` settled USD, and zero duplicate submissions |
-| Next irreversible evidence | read-only execution-dwell capture starts `09:25 ET`; superseding reset r3 bundle `676bdada…` performs the fresh next-RTH source/preview/broker transaction at `09:39 ET`. Success grants only the new identity capital authority; pre-selection failure preserves source observation while quarantining invalid predecessor execution |
+| Next irreversible evidence | read-only execution-dwell capture starts `09:25 ET`; superseding reset r4 bundle `73cf3820…` performs the fresh next-RTH source/preview/broker transaction at `09:39 ET`. It expects observation-only quarantine before opening and grants only a successful new identity RTH capital authority; failure cannot revive the invalid predecessor |
 | First active work | re-prove both waiting bundles before RTH, freeze a clean successor only on exact source/preview/broker/restart success, then begin the new identity's 15-minute proposal/veto, slope/velocity/ATR, context, economics, MFE/MAE, safety, and TA/news proof |
 
 ### Immediate sequence
@@ -135,7 +136,7 @@ output belongs in commit/final verification, not in this management brain.
     leg, zero submissions, and disabled GTH cash authority across all `19`
     frozen invariants. It invoked neither runtime nor broker and changed no
     selection, order, economics, or clock.
-22. `[WIP]` Execute superseding reset r3 bundle `676bdada…` at July 31 `09:39 ET`
+22. `[WIP]` Execute superseding reset r4 bundle `73cf3820…` at July 31 `09:39 ET`
     after the independent `09:25 ET` read-only execution-dwell capture starts.
     The reset must obtain fresh source, Tiered preview, flat broker rebase, and
     immediate zero-order restart. Any pre-selection failure installs a
@@ -973,6 +974,7 @@ and
 | E-333 | pairing milestone `f58df785…` is deployed on clean q. A natural `03:02 ET` GTH recurrence preserved adjacent source `92f6c100…` / execution `1c765747…`, identical explicit `causal_news/observation_only` context, flat `UPRO/SPXU=0/0`, null leg, and zero submissions; the CLI projected the same `2` pairs / `e3223e47…` fingerprint / `+1.64` defensive delta without appending forecast/result rows. The source-only change invalidated r2's deliberately pinned old CLI hash, so r2 remains immutable and fail-closed. Pre-outcome r3 bundle `676bdada…` supersedes only that dependency and its bundle-root paths, pins CLI `0204a5be…`, passes manifest/shell/systemd proof, and now owns the unchanged `09:39 ET` timer. Independent `09:25 ET` depth capture remains byte-identical at `c9b12fe2…`. No direction, admission, ladder, sizing, selection, broker order, GTH capital, predecessor eligibility, or profitability clock changed |
 | E-334 | the one free-window lineage study was frozen before outcomes as `92b6417d…`: test the TQQQ-derived `transition_up_hot` onset only when an RTH up turn had `soft/fast up`, `hard down`, fresh `high_down` range, an up five-session gap majority, and `>=2/1` fast/slow velocity votes; one no-gap adjacent control was fixed. Exact v3 parity remained `425 / +280.97 / PF 2.2887 / DD 17.43 / 40708a28…`. The motif occurred once in three years (`2025-06-04`): `+0.05/+0.07` at 5/15m reversed to `-0.50/-0.66/-0.78` at 30/60/120m, while MFE stayed `0.33` and MAE reached `1.67`. Every sample/annual/forward/adjacency gate failed; v3's negative-ATR-velocity veto was correct. Compact receipt `opening_edge_v3_transition_up_hot_onset_receipt.json` closes the imported motif with no relaxation, sweep, policy, crown, selection, order, or clock change |
 | E-335 | a read-only audit found the generic RTH profitability calendar ended at `16:02 ET`, so it falsely called broken selection `daf1609b…` `ACTIVE / coverage_broken=false` despite the capital owner missing its required `16:12 RTH` and `16:17 CURB` rows. Preregistered repair `b852ce26…` leaves research/shadow completeness unchanged and gives selected cash one centralized close-relative schedule through `close+17`. Exact untouched-q ledger replay now returns `INVALID_EVIDENCE`: `81` full-session slots, `21` due after selection, `19` evaluated, and only the two known gaps missing. No historical row is backfilled. Published/deployed `12be31c…`; receipt `9db0bee0…`; `142` focused and `989` full tests pass. Signal, lifecycle, cash, ladder, selection, order authority, broker state, and the successor clock remain unchanged |
+| E-336 | the corrected clock exposed a pre-open authority race: invalid `daf1609b…` remained behind `IBKR_READONLY=0`, while the normal first RTH recurrence is `09:37 ET` and the clean reset is `09:39`. The already-frozen observation drop-in was installed immediately without touching the broker or selection file; the natural `03:37 ET` recurrence then persisted source evidence only with null selected transport/execution/profitability. Immutable r4 bundle `73cf3820…` supersedes r3 only by expecting this quarantine and using self-contained r4 paths; it installs writable execution solely after fresh source/preview/rebase and a new-selection restart pass. Every non-time precondition, manifest, unit, timer, source hash, predecessor identity, and GTH zero-order proof passes. A 09:37 admission cannot consume capital; failure before selection remains observation-only and failure after selection disables cadence. Signal, lifecycle, sizing, ladder, broker state, historical evidence, and clock remain unchanged |
 
 ### Decision anchors
 
@@ -1098,7 +1100,8 @@ the frozen `40708a28…` RTH ledger exactly; the `9e04807f…` GTH lane remains
 unchanged. There is no date router, news authority, generic stop/trail, quota,
 or sizing change.
 
-Tiered UPRO/SPXU RTH cash authority is flat. Its archived predecessor bought
+Tiered UPRO/SPXU RTH cash execution is flat and currently quarantined
+observation-only. Its archived predecessor bought
 `23 SPXU @ $39.10`; v3 later surrendered `down` without admitting `up`, and
 the shared ladder sold all `23 @ $38.56`. Total commission was `$0.659007`;
 realized P&L was `-$13.079007`. Selection `daf1609b…` then began at zero
@@ -1119,7 +1122,7 @@ backfilled. Central selected-cash replay now independently proves that
 quarantine instead of relying on the incident journal.
 
 **Predictive observation:** the read-only `09:25 ET` execution-dwell capture
-should begin without authority, then the quarantined r3 `09:39 ET` transaction
+should begin without authority, then the quarantined r4 `09:39 ET` transaction
 will either freeze a fresh flat successor after exact Tiered/broker/restart
 proof or preserve observation-only `HOLD`. Only that successor plus a newly
 admitted v3 RTH direction may create the next capital event; fifteen-minute
