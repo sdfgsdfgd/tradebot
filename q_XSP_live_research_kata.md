@@ -451,6 +451,11 @@ Use this as the analytical quality bar for each scheduled review—not a rigid
 form and not permission to poll more frequently. Report only the latest
 completed causal checkpoint and separate observation from capital authority:
 
+When no bounded quest or capital/safety event is active, monitoring is
+event-driven and one Hawkeye review per 20 minutes is a hard maximum; never
+insert status-only polls inside that interval. The autonomous five-minute
+strategy timer produces evidence and does not authorize assistant polling.
+
 1. **Live authority and economics:** ET timestamp, selection prefix, actual
    SPXU/UPRO holdings, new-run fills/closed trades, realized/open P&L, costs,
    drawdown, settled cash, orders/breaches, timer health, and clean-clock
