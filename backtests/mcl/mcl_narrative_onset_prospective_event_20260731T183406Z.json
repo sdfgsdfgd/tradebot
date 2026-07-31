@@ -2,7 +2,7 @@
   "schema": "mcl.narrative-onset-prospective-event.v1",
   "generated_at_utc": "2026-07-31T18:48:15Z",
   "authority": "prospective_research_only",
-  "status": "PENDING_OUTCOMES",
+  "status": "INVALID_CLOCK_PROVENANCE",
   "source": {
     "publication_id": "3fd1fc3c3056952c4620eecf07dd89a266cb4561098756320f24b8b0fed80dfb",
     "signal_as_of_utc": "2026-07-31T18:34:06Z",
@@ -10,6 +10,15 @@
     "score_version": "causal-impact-100.v2",
     "history_row_sha256": "1e359771688cff1f364f81a75e51e5dd7c45fa7e5cccb9476bf5cd2ac730fcfd",
     "bar_end_utc": "2026-07-31T18:40:00Z"
+  },
+  "provenance_audit": {
+    "verdict": "EXCLUDED_FROM_PROSPECTIVE_PREFIX",
+    "reason": "The normal publisher stamped atomic availability at inference start. The publication became durable 672 seconds later, so its frozen event and outcome clocks are not prospective.",
+    "actual_atomic_availability_utc": "2026-07-31T18:45:18Z",
+    "availability_lag_seconds": 672,
+    "history_mutated": false,
+    "outcome_settlement_allowed": false,
+    "next_eligible_event": "first unseen natural publication produced after the availability-clock repair"
   },
   "causal_state": {
     "direction": 1,
@@ -65,7 +74,8 @@
   },
   "boundaries": {
     "prospective_qualifying_onsets_after_event": 0,
-    "pending_control_publications_after_event": 1,
+    "pending_control_publications_after_event": 0,
+    "clock_invalid_publications": 1,
     "news_direction_authority": false,
     "instrument_authority": "none",
     "option_authority": "none",

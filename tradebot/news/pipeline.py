@@ -674,8 +674,17 @@ def _publish(
     events_text: str,
     latest: dict[str, object],
     state: dict[str, object],
+    available_at: datetime,
 ) -> None:
     frozen = dict(latest)
+    available = available_at.astimezone(timezone.utc).replace(microsecond=0)
+    signal_at = _parse_utc(
+        frozen.get("signal_as_of_utc"),
+        label="publication signal_as_of_utc",
+    )
+    if available < signal_at:
+        raise NewsError("publication availability precedes its signal")
+    frozen["snapshot_as_of_utc"] = _utc_iso(available)
     frozen["publication_id"] = publication_id(frozen)
     _write_json_atomic(
         data_dir / "pending-publication.json",
@@ -707,6 +716,7 @@ def run_once(
     memory_path: Path | None = None,
     events_path: Path | None = None,
     now: datetime | None = None,
+    available_at: datetime | None = None,
     fetcher: Callable[..., str] = fetch_html,
     grader: Callable[..., tuple[dict[str, object], dict[str, object]]] = invoke_codex,
 ) -> dict[str, object]:
@@ -868,6 +878,10 @@ def run_once(
             "last_successful_fetch_utc": as_of,
             "seen": bounded,
         },
+        available_at=(
+            available_at
+            or (datetime.now(timezone.utc) if now is None else observed_at)
+        ),
     )
     return {
         "status": "published",

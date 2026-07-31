@@ -849,6 +849,49 @@ def test_run_once_normalizes_runtime_clock_to_schema_precision(
     assert event["last_verified_utc"] == _iso(NOW)
 
 
+def test_normal_publication_is_invisible_until_atomic_completion(
+    tmp_path: Path,
+) -> None:
+    available_at = NOW + timedelta(minutes=11, seconds=12)
+
+    def grader(prompt: str, _schema: dict, **_kwargs) -> tuple[dict, dict]:
+        inputs = json.loads(prompt.split("INPUT:\n", 1)[1])
+        return _analysis([article["url"] for article in inputs["articles"]]), {
+            "version": "test"
+        }
+
+    run_once(
+        data_dir=tmp_path,
+        now=NOW,
+        available_at=available_at,
+        fetcher=lambda *_args, **_kwargs: _html(),
+        grader=grader,
+    )
+
+    history = load_news_history(tmp_path / "history" / "2026-07.jsonl")
+    published = history[0]
+    assert published["signal_as_of_utc"] == _iso(NOW)
+    assert published["snapshot_as_of_utc"] == _iso(available_at)
+    assert published["publication_id"] == publication_id(published)
+    assert select_news_snapshot_at(
+        history,
+        as_of=available_at - timedelta(seconds=1),
+    ) is None
+    assert select_news_snapshot_at(history, as_of=available_at) == published
+    assert observe_news_signal(
+        published,
+        symbol="MCL",
+        as_of=available_at - timedelta(seconds=1),
+    ).reason == "future"
+    observation = observe_news_signal(
+        published,
+        symbol="MCL",
+        as_of=available_at,
+    )
+    assert observation.usable
+    assert observation.reason == "fresh"
+
+
 def test_due_event_runs_codex_without_new_articles(tmp_path: Path) -> None:
     calls: list[dict[str, object]] = []
 
