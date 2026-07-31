@@ -1,0 +1,60 @@
+{
+  "schema": "xsp.opening-edge-v3-transition-up-hot-onset-receipt.v1",
+  "frozen_at_utc": "2026-07-31T07:13:08Z",
+  "authority": "closed_historical_anatomy_only",
+  "verdict": "REJECT",
+  "order_authority": "none",
+  "submitted_orders": 0,
+  "inputs": {
+    "preregistration_sha256": "92b6417dc6960f9e39a93c50bd706e1cc8986878d9a04bebd70baaff3a498e3b",
+    "runner_sha256": "4c21645ccb40a023a4c6458c45fa3231a895de2195de35a2d04b43c86f2cd92b",
+    "result_sha256": "0475d4ccd3bda4b7af823cd46b6c38647533611bbd9be2e6f91a254eb1e3aa8c"
+  },
+  "baseline": {
+    "rth_trades": 425,
+    "rth_net_points": 280.97,
+    "profit_factor": 2.2887,
+    "max_drawdown_points": 17.43,
+    "ledger_sha256": "40708a28476fad504d29b1222e52b88481b1c0da8313ed4667076e2b6ed3f157"
+  },
+  "cohort": {
+    "strict_events": 1,
+    "adjacent_events": 1,
+    "year_1_events": 0,
+    "year_2_events": 1,
+    "year_3_events": 0,
+    "recent_events": 0,
+    "only_event": {
+      "signal_time": "2025-06-04T15:00:00",
+      "raw_result": "blocked_by_negative_atr_velocity",
+      "forward_close_points": {
+        "5m": 0.05,
+        "15m": 0.07,
+        "30m": -0.5,
+        "60m": -0.66,
+        "120m": -0.78
+      },
+      "forward_mfe_points": {
+        "15m": 0.33,
+        "60m": 0.33,
+        "120m": 0.33
+      },
+      "forward_mae_points": {
+        "15m": 0.11,
+        "60m": 1.05,
+        "120m": 1.67
+      }
+    }
+  },
+  "checks": {
+    "sample": false,
+    "every_year": false,
+    "forward_30m": false,
+    "forward_60m": false,
+    "adjacent_stability": false,
+    "unrecovered_v3_alpha": false
+  },
+  "interpretation": "The imported transition-up-hot label is too rare on XSP and its sole event became a false bounce. Opening Edge v3's ATR-velocity veto was directionally correct.",
+  "follow_up": "closed_without_relaxation_or_sweep",
+  "capital_effect": "none"
+}
