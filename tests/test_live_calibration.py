@@ -1376,6 +1376,58 @@ def test_cash_profitability_clock_proves_usd_24h_48h_and_week(tmp_path) -> None:
     assert weekly["reasons"] == []
 
 
+def test_cash_profitability_weekend_cannot_mature_a_second_session(
+    tmp_path,
+) -> None:
+    ledger = LiveCalibrationLedger(tmp_path / "weekend-cash-clock.jsonl")
+    policy = XspProfitabilityPolicy(
+        run_id="friday-live-run",
+        strategy_id="xsp.opening-edge-v3-regime-harmony-24x5.v1",
+        strategy_version="xsp.opening-edge-v3-upro-spxu-execution.v1",
+        config_fingerprint="friday-live-run",
+        capital_sleeve="xsp-upro-spxu-rth-cash",
+        max_drawdown_points=135.0,
+        max_session_loss_points=67.5,
+        minimum_week_closed_trades=2,
+        maximum_top_five_win_share=0.5,
+        unit="USD",
+        equity_schema=SELECTED_CASH_EQUITY_SCHEMA,
+    )
+    friday = date(2026, 7, 31)
+    _append_selected_session(
+        ledger,
+        policy=policy,
+        day=friday,
+        cumulative_gross=0.0,
+        cumulative_costs=0.0,
+        closed_trades=0,
+        gross_wins=0.0,
+        top_five_wins=0.0,
+        session_gross=12.0,
+        session_cost=2.0,
+        run_started=datetime(2026, 7, 31, 9, 37, tzinfo=ET_ZONE),
+    )
+
+    receipt = ledger.xsp_profitability_receipt(
+        policy=policy,
+        as_of=datetime(2026, 8, 2, 16, 17, tzinfo=ET_ZONE),
+    )
+
+    assert receipt["status"] == "ACTIVE"
+    assert receipt["clock"]["coverage_broken"] is False
+    assert receipt["clock"]["complete_sessions"] == 1
+    assert [row["trading_date"] for row in receipt["sessions"]] == [
+        friday.isoformat()
+    ]
+    assert receipt["milestones"]["24h"]["passed"] is True
+    assert receipt["milestones"]["48h"]["passed"] is False
+    assert receipt["milestones"]["48h"]["reasons"] == [
+        "eligible_sessions_incomplete",
+        "net_not_positive",
+    ]
+    assert receipt["milestones"]["five_session_week"]["passed"] is False
+
+
 def test_cash_profitability_requires_post_close_finalization_rows(
     tmp_path,
 ) -> None:
