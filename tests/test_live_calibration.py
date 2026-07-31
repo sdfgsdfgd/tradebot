@@ -730,6 +730,9 @@ def _append_selected_session(
     owned_from: datetime | None = None,
     checkpoint_delay: timedelta = timedelta(0),
     recording_delay: timedelta = timedelta(0),
+    reconciled: bool = True,
+    attribution_complete: bool = True,
+    safety_breaches: tuple[str, ...] = (),
 ) -> tuple[float, float, int, float, float]:
     from tradebot.engines.market import (
         xsp_rth_cash_evaluation_slots,
@@ -797,9 +800,9 @@ def _append_selected_session(
                     "closed_trades": trades,
                     f"gross_wins_{suffix}": wins,
                     f"top_five_gross_wins_{suffix}": top_five,
-                    "reconciled": True,
-                    "attribution_complete": True,
-                    "safety_breaches": [],
+                    "reconciled": reconciled,
+                    "attribution_complete": attribution_complete,
+                    "safety_breaches": list(safety_breaches),
                 },
                 "order_authority": "none",
             },
@@ -1374,6 +1377,61 @@ def test_cash_profitability_clock_proves_usd_24h_48h_and_week(tmp_path) -> None:
     assert weekly["economics"]["closed_trades"] == 10
     assert weekly["economics"]["top_five_win_share"] == pytest.approx(0.4)
     assert weekly["reasons"] == []
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "reason"),
+    [
+        ({"reconciled": False}, "unreconciled_selected_economics"),
+        (
+            {"attribution_complete": False},
+            "incomplete_selected_attribution",
+        ),
+        ({"safety_breaches": ("unexpected_position",)}, "selected_safety_breach"),
+    ],
+)
+def test_cash_profitability_rejects_unreconciled_unattributed_or_unsafe_rows(
+    tmp_path,
+    kwargs,
+    reason,
+) -> None:
+    ledger = LiveCalibrationLedger(tmp_path / "invalid-cash-prefix.jsonl")
+    policy = XspProfitabilityPolicy(
+        run_id="invalid-cash-prefix",
+        strategy_id="xsp.opening-edge-v3-regime-harmony-24x5.v1",
+        strategy_version="xsp.opening-edge-v3-upro-spxu-execution.v1",
+        config_fingerprint="invalid-cash-prefix",
+        capital_sleeve="xsp-upro-spxu-rth-cash",
+        max_drawdown_points=135.0,
+        max_session_loss_points=67.5,
+        minimum_week_closed_trades=2,
+        maximum_top_five_win_share=0.5,
+        unit="USD",
+        equity_schema=SELECTED_CASH_EQUITY_SCHEMA,
+    )
+    _append_selected_session(
+        ledger,
+        policy=policy,
+        day=date(2026, 7, 27),
+        cumulative_gross=0.0,
+        cumulative_costs=0.0,
+        closed_trades=0,
+        gross_wins=0.0,
+        top_five_wins=0.0,
+        session_gross=12.0,
+        session_cost=2.0,
+        **kwargs,
+    )
+
+    receipt = ledger.xsp_profitability_receipt(
+        policy=policy,
+        as_of=datetime(2026, 7, 27, 16, 17, 30, tzinfo=ET_ZONE),
+    )
+
+    assert receipt["authority"] == "selected_reconciled_economics_only"
+    assert receipt["status"] == "INVALID_EVIDENCE"
+    assert reason in receipt["reasons"]
+    assert not any(row["passed"] for row in receipt["milestones"].values())
 
 
 def test_cash_profitability_weekend_cannot_mature_a_second_session(
