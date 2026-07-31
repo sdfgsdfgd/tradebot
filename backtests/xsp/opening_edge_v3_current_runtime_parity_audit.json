@@ -1,0 +1,58 @@
+{
+  "schema": "xsp.opening-edge-v3-current-runtime-parity-audit.v1",
+  "authority": "offline_historical_rth_parity_only",
+  "observed_at_utc": "2026-07-31T22:10:27Z",
+  "source_revision": "c9974a9d7f9eb5e0c13dc8ce9857491b7f6c4b93",
+  "candidate": "Opening Edge v3 — Regime Harmony 24/5",
+  "inputs": {
+    "frozen_crown_artifact_sha256": "d47eb39cef3d2ca575d779d6b5b87e3b88e08606fd09a8801b8cb55c350208db",
+    "production_state_owner_sha256": "643b6a04478e598fe7fbdc2d5aa6deabe6935761b3fa83cf487a9fdd16a265bc",
+    "production_spec_owner_sha256": "853132b252b053e09b9ee6bc8e92b53cb49a3c6c77b35c21c15877d99681c13a",
+    "production_v2_lane_owner_sha256": "cf5d915049d4a7401b975748d11cd040cdb92d1da5636cf2d40ae76daba8f988",
+    "audit_runner_sha256": "57d22c994706e8fa668f6405e10ff434c49c9cf1d0b7d421c127a0a7fcd59298",
+    "history_manifest_sha256": "0de9666963dee022398f6341ef124d562d470559d98837dec338c03e498030f6",
+    "history_sources": {
+      "XSP_2021-07-26_2024-07-23_5mins_rth.csv": "b7b9039568adaeacd581f204966b490c6439dd268db4c358ea14481a86bfa69a",
+      "XSP_2024-07-24_2024-10-23_5mins_rth.csv": "ba02a39c8af9861fe26f757ea6d8a10a8653ebfa3046b23d477e657ca2165a19",
+      "XSP_2024-10-24_2025-01-23_5mins_rth.csv": "70ad9b039dd83ec4eb1fa3f8142dad9ff8a22c7e2ba51995a4a5646f234b0824",
+      "XSP_2025-01-24_2025-04-23_5mins_rth.csv": "c66243b821b622793aa90d2de1803439442121f337783f0167fd47770284d09f",
+      "XSP_2025-04-24_2025-07-23_5mins_rth.csv": "18f6b150848402516144973786efa5ebc27e7043d73073dbcf91121379f4c8ab",
+      "XSP_2025-07-24_2026-06-30_5mins_rth.csv": "dfcf7bf27fbf75fc4536abeea71404c7edbbcdc32a61bdf77dd44130cc9c20db",
+      "XSP_2026-07-01_2026-07-23_5mins_rth.csv": "eaa6da6c015c8b26c9935c1ce3091902053e5daf5ba2818eaa98c0f566ca7e98",
+      "XSP_2026-07-24_2026-07-24_5mins_rth.csv": "d2cd92f44f6279cf6a5390a1899977901a7d64bca3cd959db76cc7f20fadd183"
+    }
+  },
+  "expected": {
+    "bars": 58560,
+    "trades": 425,
+    "net_points": 280.97,
+    "profit_factor": 2.2887,
+    "max_drawdown_points": 17.43,
+    "ordered_ledger_sha256": "40708a28476fad504d29b1222e52b88481b1c0da8313ed4667076e2b6ed3f157"
+  },
+  "actual": {
+    "bars": 58560,
+    "trades": 425,
+    "net_points": 280.97,
+    "profit_factor": 2.2887,
+    "max_drawdown_points": 17.43,
+    "ordered_ledger_sha256": "40708a28476fad504d29b1222e52b88481b1c0da8313ed4667076e2b6ed3f157",
+    "enriched_runtime_ledger_sha256": "4593f3a03772e456dcfe034cd69bb180129825322c589d2bf40af99e22cdfad0"
+  },
+  "checks": {
+    "trade_count_equal": true,
+    "net_points_equal": true,
+    "profit_factor_equal": true,
+    "max_drawdown_equal": true,
+    "ordered_ledger_equal": true
+  },
+  "passes": true,
+  "safety": {
+    "broker_queried": false,
+    "service_or_timer_mutated": false,
+    "selection_mutated": false,
+    "order_authority": "none",
+    "submitted_orders": 0,
+    "profitability_clock_mutated": false
+  }
+}
