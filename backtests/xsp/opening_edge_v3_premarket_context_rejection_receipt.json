@@ -1,0 +1,85 @@
+{
+  "schema": "xsp.opening-edge-v3-premarket-context-rejection-receipt.v1",
+  "generated_at_utc": "2026-08-01T07:43:00Z",
+  "authority": "historical_research_rejection_only",
+  "crown": {
+    "name": "Opening Edge v3 - Regime Harmony 24/5",
+    "rth_trades": 425,
+    "rth_net_points": 280.97,
+    "rth_profit_factor": 2.2887,
+    "rth_max_drawdown_points": 17.43,
+    "rth_ledger_sha256": "40708a28476fad504d29b1222e52b88481b1c0da8313ed4667076e2b6ed3f157"
+  },
+  "question": "Can exact final-one-hour, final-two-hour, or final-four-hour SPY premarket context improve v3's early-RTH entries or recover a move already underway before XSP's RTH owner warms?",
+  "results": {
+    "mature_existing_v3_admissions": {
+      "verdict": "REJECT",
+      "finding": "Deferring admitted v3 entries for one-bar proof when premarket context opposed or looked mature reduced every annual slice and widened drawdown.",
+      "result_sha256": "2ecdacfb5e10e8220d08e0f7c0819b512e40d4d7f8ffb8dac9b0ff9688ada782"
+    },
+    "release_atr_velocity_blocked_reversals": {
+      "verdict": "REJECT",
+      "net_delta_points": {
+        "year_1": 3.48,
+        "year_2": -6.83,
+        "year_3": 5.4,
+        "recent": 5.37,
+        "full_three_year": 2.05
+      },
+      "candidate_profit_factor": 2.1319,
+      "candidate_max_drawdown_points": 19.32,
+      "finding": "The fixed 60-minute development return did not survive v3 lifecycle ownership; Year 2 churn, lower PF, and wider drawdown reject the release rule.",
+      "result_sha256": "45c85d2c34bb85a9e9e5c5d6a19a6c9cca68908f4181cf871107f45fe9b2da4d"
+    },
+    "seed_persistent_1h_2h_4h_onset_into_v3": {
+      "verdict": "REJECT",
+      "development": "The frozen 09:30-to-10:00 cohort was positive in Years 1 and 2 at +7.22/+10.74 over 56/52 balanced-direction events.",
+      "net_delta_points": {
+        "year_1": -18.64,
+        "year_2": -16.73,
+        "year_3": -15.67,
+        "recent": -7.57,
+        "full_three_year": -51.04
+      },
+      "candidate_profit_factor": 1.6639,
+      "candidate_max_drawdown_points": 19.28,
+      "finding": "Premarket onset was short-lived rather than a durable v3 state; stopless lifecycle ownership overstayed it in every year.",
+      "development_result_sha256": "ff45a4a165c2caf4b3782ea3e72cdf2e6a0e73df74f0f4d09a4775b5d8b43c24",
+      "lifecycle_result_sha256": "a82d893cb9d9e2c36b30f32de56f3881fb92405fbd4c7cb51ab833b89280cfdf"
+    },
+    "separate_fixed_exit_opening_sleeve": {
+      "verdict": "REJECT",
+      "auction_0930_to_1000_net_points": {
+        "year_1": 7.22,
+        "year_2": 10.74,
+        "year_3": -3.52,
+        "recent": -5.73,
+        "full_three_year": 14.44
+      },
+      "post_checkpoint_to_1000_net_points": {
+        "year_1": -3.93,
+        "year_2": 1.72,
+        "year_3": -8.93,
+        "recent": -4.6,
+        "full_three_year": -11.14
+      },
+      "finding": "The apparent auction edge was exhausted or reversed by the first causal post-open checkpoint and failed Year 3/recent; it is not a cash-qualification candidate.",
+      "result_sha256": "c9fccbabd9c49d4863e032f2f6ee69ca0a0965fe633bd974441ea4dc6019b7f2"
+    }
+  },
+  "verdict": "REJECT_PREMARKET_DIRECTION_OR_WARMING_AUTHORITY_KEEP_V3_UNCHANGED",
+  "durable_law": [
+    "Premarket remains causal Hawkeye context and anatomy, not direction, admission, warmup, lifecycle, sizing, or order authority for v3.",
+    "Do not rescue these final-one-hour, final-two-hour, final-four-hour, persistent-opposition, or persistent-alignment branches with return magnitude, coherence, ATR, date, direction, or clock thresholds.",
+    "A future premarket architecture must be materially different and obtain a new untouched challenge; chart-visible premarket continuation is not sufficient evidence."
+  ],
+  "boundaries": {
+    "crown_changed": false,
+    "production_changed": false,
+    "gth_changed": false,
+    "live_selection_changed": false,
+    "profitability_clock_changed": false,
+    "order_authority": "none",
+    "submitted_orders": 0
+  }
+}
