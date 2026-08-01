@@ -1,0 +1,54 @@
+{
+  "schema": "xsp.opening-edge-v3-capital-owner-stability-manifest.v1",
+  "authority": "frozen_post_selection_capital_owner_manifest",
+  "observed_at_utc": "2026-08-01T10:42:56Z",
+  "source_revision": "f5b1cc3d9574f27b3fe9a948612c0d667faa1e0b",
+  "selection": {
+    "selection_id": "b4799fa693ea3da1bf65a7b66412dde318c6ecb427fa14be73b5a5cf1dd40c20",
+    "selection_file_sha256": "eb6aad41c8f428d12599abd76232d69b3b3f52881a363eaf8c1e79b01b618517"
+  },
+  "capital_semantic_surface": {
+    "backtests/xsp/opening_edge_v3_regime_harmony_24x5.json": "d47eb39cef3d2ca575d779d6b5b87e3b88e08606fd09a8801b8cb55c350208db",
+    "deploy/systemd/tradebot-xsp-shadow-selected-live.conf": "c831b847862cdcc9fa8b87eb9bc6bdc54fb7a2f9ced3c11c9359090863e6d6ad",
+    "deploy/systemd/tradebot-xsp-shadow.service": "b843a8c63ef0cd5366dbe0729362bf76f8e80cfcec512ffe9c7d313526315b72",
+    "deploy/systemd/tradebot-xsp-shadow.timer": "542a78303d6e245f2477cc1ea16765252b40bd9a077639409fa6d7c77a33ab50",
+    "tradebot/chart_data/history.py": "c0f70183370aa260881f28669b7c39b119b5ab49955392302bbff2a9df0a42ae",
+    "tradebot/client.py": "5723e9c3b2b1384a5d45dc7fa73742d9a1408308474fd438a63ff40df07513c8",
+    "tradebot/engines/execution.py": "96d8a394d2be5aa245ef958e7d9e9da6ddae21ee493040a0656b85f867036603",
+    "tradebot/engines/market.py": "a3bd38b1b64119901c34b6cd68531128e54403e9acb304715bb74fbbfa643598",
+    "tradebot/research/live_calibration.py": "300a4a49efe0deaf1787e86ace899e028335b698765a305e1e910a21713bbb24",
+    "tradebot/research/live_graduation.py": "60afcda1f6f5dbb82f6301b1a5a7af0732394a38d2be0cfcb46a104839b9118e",
+    "tradebot/research/xsp_context.py": "c0bdc1d58c25793bffd7162852984e2a397b0e7043d681b91261392e1b469b2e",
+    "tradebot/research/xsp_live_transport.py": "1651fdc78d9f804c42b70bf11ce2568d8224b8062c353409a4779db189989ac6",
+    "tradebot/research/xsp_live_transport_handoff.py": "0f87b2c8fb8f729cc851d3105aad88b3c9fbd34265607d8c79035c5ed001bba0",
+    "tradebot/research/xsp_live_transport_risk.py": "aafb358934f44d35505488fa8daee3fcfa59f1be0ced6293d36ddba663520af3",
+    "tradebot/research/xsp_live_transport_runtime.py": "f837844bb58873438074617adef290d10153908aa40e011c8b1507047e911a56",
+    "tradebot/research/xsp_live_transport_state.py": "9f53b275c0017a8759ee78cb5261f4679e161cceb0d03d332f20dadc9f45ba48",
+    "tradebot/research/xsp_live_transport_v3.py": "4d80a84021be8fe2abf33e8e2aa9ff736decb8b7461663599e8e6156f6647491",
+    "tradebot/research/xsp_opening_edge_state.py": "643b6a04478e598fe7fbdc2d5aa6deabe6935761b3fa83cf487a9fdd16a265bc",
+    "tradebot/research/xsp_opening_edge_v2.py": "cf5d915049d4a7401b975748d11cd040cdb92d1da5636cf2d40ae76daba8f988",
+    "tradebot/research/xsp_opening_edge_v3.py": "853132b252b053e09b9ee6bc8e92b53cb49a3c6c77b35c21c15877d99681c13a",
+    "tradebot/research/xsp_profitability.py": "3093f3f3a2936a503afc5f8f2b1b4a571d5131d5b657aa87c22a1017d6774af5",
+    "tradebot/research/xsp_shadow_cli.py": "1097dca43e2585f4c3d7d51b014ea87f8263be68ea029a289b8aba22871caa88"
+  },
+  "checks": {
+    "capital_semantics_classified": true,
+    "deployment_timer_restored": true,
+    "full_repository_tests_green": true,
+    "ledger_identity_unchanged": true,
+    "q_native_import_green": true,
+    "q_worktree_clean": true,
+    "reducer_broker_free": true,
+    "runtime_parity_green": true,
+    "selection_identity_unchanged": true,
+    "selection_loader_revalidated": true
+  },
+  "verdict": "PASS_CAPITAL_OWNER_STABLE",
+  "boundaries": {
+    "broker_queried": false,
+    "service_or_timer_mutated": false,
+    "selection_mutated": false,
+    "submitted_orders": 0,
+    "profitability_clock_mutated": false
+  }
+}
