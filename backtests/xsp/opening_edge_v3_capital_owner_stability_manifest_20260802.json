@@ -1,0 +1,87 @@
+{
+  "authority": "frozen_post_selection_capital_owner_manifest",
+  "boundaries": {
+    "broker_queried": false,
+    "profitability_clock_mutated": false,
+    "selection_mutated": false,
+    "service_or_timer_mutated": false,
+    "submitted_orders": 0
+  },
+  "capital_semantic_surface": {
+    "backtests/xsp/opening_edge_v3_regime_harmony_24x5.json": "d47eb39cef3d2ca575d779d6b5b87e3b88e08606fd09a8801b8cb55c350208db",
+    "deploy/systemd/tradebot-xsp-shadow-selected-live.conf": "c831b847862cdcc9fa8b87eb9bc6bdc54fb7a2f9ced3c11c9359090863e6d6ad",
+    "deploy/systemd/tradebot-xsp-shadow.service": "b843a8c63ef0cd5366dbe0729362bf76f8e80cfcec512ffe9c7d313526315b72",
+    "deploy/systemd/tradebot-xsp-shadow.timer": "542a78303d6e245f2477cc1ea16765252b40bd9a077639409fa6d7c77a33ab50",
+    "tradebot/chart_data/history.py": "c0f70183370aa260881f28669b7c39b119b5ab49955392302bbff2a9df0a42ae",
+    "tradebot/client.py": "5723e9c3b2b1384a5d45dc7fa73742d9a1408308474fd438a63ff40df07513c8",
+    "tradebot/engines/execution.py": "96d8a394d2be5aa245ef958e7d9e9da6ddae21ee493040a0656b85f867036603",
+    "tradebot/engines/market.py": "a3bd38b1b64119901c34b6cd68531128e54403e9acb304715bb74fbbfa643598",
+    "tradebot/live/capital.py": "de36a62e3eeea0dd245d80d518b60b6cfea78f849f12b0db6fa81c92cbba3202",
+    "tradebot/research/live_calibration.py": "300a4a49efe0deaf1787e86ace899e028335b698765a305e1e910a21713bbb24",
+    "tradebot/research/live_graduation.py": "60afcda1f6f5dbb82f6301b1a5a7af0732394a38d2be0cfcb46a104839b9118e",
+    "tradebot/research/xsp_capital_stability.py": "2bc9c33bd1d17db18b3f490fc44f2eb0b1c9f9357aecfaded71e41f9f38115d1",
+    "tradebot/research/xsp_context.py": "c0bdc1d58c25793bffd7162852984e2a397b0e7043d681b91261392e1b469b2e",
+    "tradebot/research/xsp_live_capital.py": "8dc86cf0a9b13ce5b7f0f696e198d168f6679bb3d2a90313b2af9200b9423402",
+    "tradebot/research/xsp_live_transport.py": "1651fdc78d9f804c42b70bf11ce2568d8224b8062c353409a4779db189989ac6",
+    "tradebot/research/xsp_live_transport_handoff.py": "0f87b2c8fb8f729cc851d3105aad88b3c9fbd34265607d8c79035c5ed001bba0",
+    "tradebot/research/xsp_live_transport_risk.py": "aafb358934f44d35505488fa8daee3fcfa59f1be0ced6293d36ddba663520af3",
+    "tradebot/research/xsp_live_transport_runtime.py": "3296880e4ee5699b3877be23e86530ce9130806b08a4e8f5256ff19f9a5ba1a2",
+    "tradebot/research/xsp_live_transport_state.py": "9f53b275c0017a8759ee78cb5261f4679e161cceb0d03d332f20dadc9f45ba48",
+    "tradebot/research/xsp_live_transport_v3.py": "4d80a84021be8fe2abf33e8e2aa9ff736decb8b7461663599e8e6156f6647491",
+    "tradebot/research/xsp_opening_edge_state.py": "643b6a04478e598fe7fbdc2d5aa6deabe6935761b3fa83cf487a9fdd16a265bc",
+    "tradebot/research/xsp_opening_edge_v2.py": "cf5d915049d4a7401b975748d11cd040cdb92d1da5636cf2d40ae76daba8f988",
+    "tradebot/research/xsp_opening_edge_v3.py": "853132b252b053e09b9ee6bc8e92b53cb49a3c6c77b35c21c15877d99681c13a",
+    "tradebot/research/xsp_profitability.py": "f8736aa0e0a03ea2580dab72dae50b7180598bb37848eab5d790fb113e16d592",
+    "tradebot/research/xsp_shadow_cli.py": "40c0486b5004f468b55a2cdda218f9de0a183f0a902a09a5022094dd706c8bc4"
+  },
+  "checks": {
+    "capital_plan_owner_centralized": true,
+    "full_repository_tests_green": true,
+    "ledger_identity_unchanged": true,
+    "predecessor_manifest_bound": true,
+    "q_native_import_green": true,
+    "q_worktree_clean": true,
+    "reducer_broker_free": true,
+    "selection_identity_unchanged": true,
+    "zero_capital_migration_proven": true
+  },
+  "migration": {
+    "effective_at_utc": "2026-08-01T16:01:25Z",
+    "predecessor_path": "backtests/xsp/opening_edge_v3_capital_owner_stability_manifest_20260801.json",
+    "predecessor_sha256": "29b4e7e56bc0ab288e2a302cca43072134abe2ef09ace6b2c1165ab61ddcb9e7",
+    "zero_capital_prefix": {
+      "broker_open_order_rows": 0,
+      "ledger_prefix": {
+        "candidate_records": 809,
+        "clock_regressions": 233,
+        "cutoff_utc": "2026-08-01T16:01:25+00:00",
+        "excluded_for_dependency": 0,
+        "first_record_id": "ce0e72cc7ed591c38a3cf625c3dabef8638d0cceace1b3a7411391f9e5569928",
+        "included_records": 809,
+        "last_record_id": "b0302eff98bc44955d079584f6a630535601ce7c99c1e017cfba258c06a66c24",
+        "schema": "live.calibration-logical-prefix.v1",
+        "sha256": "eb004df02e7d5455801136866e73509dde36a5abd7c2212651ecc27963fa6322"
+      },
+      "max_absolute_net_usd": 0.0,
+      "max_closed_trades": 0.0,
+      "max_cost_usd": 0.0,
+      "max_drawdown_usd": 0.0,
+      "max_fill_count": 0.0,
+      "nonflat_broker_rows": 0,
+      "nonflat_risk_rows": 0,
+      "order_refs": [],
+      "reasons": [],
+      "selected_execution_rows": 80,
+      "status": "PASS",
+      "submitted_orders": 0.0
+    }
+  },
+  "observed_at_utc": "2026-08-01T16:04:20+00:00",
+  "schema": "xsp.opening-edge-v3-capital-owner-stability-manifest.v2",
+  "selection": {
+    "selection_file_sha256": "eb6aad41c8f428d12599abd76232d69b3b3f52881a363eaf8c1e79b01b618517",
+    "selection_id": "b4799fa693ea3da1bf65a7b66412dde318c6ecb427fa14be73b5a5cf1dd40c20"
+  },
+  "source_revision": "bce66d7d2aee42fe36ad99978dc76e219d7d31b0",
+  "verdict": "PASS_CAPITAL_OWNER_STABLE"
+}
