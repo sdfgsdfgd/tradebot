@@ -492,11 +492,11 @@ class LiveCalibrationLedger:
         return tuple(complete)
 
     def xsp_profitability_receipt(
-        self,
-        *,
+        self, *,
         policy: XspProfitabilityPolicy,
         as_of: datetime | str,
         _prefix: bool = False,
+        _records: Sequence[Mapping[str, object]] | None = None,
     ) -> dict[str, object]:
         """Fail closed over one selected, reconciled XSP equity run."""
         observed_at = datetime.fromisoformat(_utc_iso(as_of))
@@ -516,7 +516,7 @@ class LiveCalibrationLedger:
 
         matching = [
             row
-            for row in self.records()
+            for row in (_records if _records is not None else self.records())
             if row.get("kind") == "checkpoint"
             and row.get("strategy_id") == policy.strategy_id
             and row.get("strategy_version") == policy.strategy_version
@@ -827,6 +827,7 @@ class LiveCalibrationLedger:
                 prefix = (
                     self.xsp_profitability_receipt(
                         policy=policy, as_of=evidence_deadline, _prefix=True,
+                        _records=_records,
                     )
                     if observed_at >= evidence_deadline
                     and len(complete_rows) >= required_sessions

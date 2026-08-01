@@ -113,6 +113,7 @@
     "tests/test_live_signal_exit_continuum.py": "live-execution-orders",
     "tests/test_live_execution_registry.py": "live-execution-orders",
     "tests/test_live_calibration.py": "market-realism-parity",
+    "tests/test_live_graduation.py": "market-realism-parity",
     "tests/test_xsp_execution_dwell_validation.py": "market-realism-parity",
     "tests/test_xsp_execution_observer.py": "market-realism-parity",
     "tests/test_xsp_live_transport.py": "market-realism-parity",
@@ -631,6 +632,7 @@
       "evidence": [
         "q_XSP_live_research_kata.md",
         "tests/test_live_calibration.py",
+        "tests/test_live_graduation.py",
         "tests/test_xsp_execution_observer.py",
         "tests/test_xsp_live_transport.py",
         "tests/test_xsp_live_transport_runtime.py",
@@ -644,6 +646,7 @@
         "deploy/systemd/tradebot-xsp-shadow-selected-live.conf",
         "deploy/systemd/tradebot-xsp-shadow.timer",
         "tradebot/research/live_calibration.py",
+        "tradebot/research/live_graduation.py",
         "tradebot/research/xsp_benchmarks.py",
         "tradebot/research/xsp_candidate.py",
         "tradebot/research/xsp_context.py",
@@ -654,6 +657,7 @@
         "tradebot/research/xsp_opening_edge_v3.py",
         "tradebot/research/xsp_live_transport.py",
         "tradebot/research/xsp_live_transport_runtime.py",
+        "tradebot/research/xsp_profitability.py",
         "tradebot/research/xsp_shadow.py",
         "tradebot/research/xsp_shadow_cli.py",
         "tradebot/ui/bot_journal.py"

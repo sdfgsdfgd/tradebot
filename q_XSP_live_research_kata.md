@@ -552,6 +552,26 @@ Because the RTH turn window has closed and GTH cash authority remains disabled, 
 transition through today’s close; no order will be forced merely to populate the clock.
 ```
 
+#### `[WIP]` Hawkeye architecture incubator queue
+
+- `[TODO]` **MCL Immutable Experiment Generation:** bind runner, publisher,
+  accumulator/ledger, preregistration, cutoff, schema, and owner hashes in one
+  immutable generation reused by publication and settlement.
+- `[DEFERRED]` **GTH Regime-Harmony Proof Burden:** test causal hard/soft
+  long-context proof burden without changing the exact RTH ledger; deployment
+  additionally requires a materially distinct, economically qualified GTH
+  transport.
+- `[DEFERRED]` **MCO Directional Debit Vertical:** MCL TA owns direction; news
+  may classify saturation/convexity only after prospective proof; compare one
+  native NYMEX MCO debit vertical with one long MCO option under separate
+  execution, risk, restart, attribution, and profitability authority.
+
+Evidence remains underwarmed: XSP execution-dwell sharpening requires at least
+`30` admitted transitions across five complete sessions and both directions;
+MCL news/TA convexity requires at least `12` unseen extreme onsets across six
+sessions and both prior directions, with improved MFE/range, no worse MAE/DD,
+and stable bootstrap evidence. Neither may be refactored into looking mature.
+
 1. `[DONE]` Opening Edge v2 earned the historical crown with positive recent,
    all three annual slices, full-three-year economics, both directions, both
    lanes, and the unchanged cadence law.

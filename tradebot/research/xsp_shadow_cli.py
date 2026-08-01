@@ -14,6 +14,11 @@ from ..config import auxiliary_client_config, load_config
 from ..engines.market import xsp_trading_date
 from ..news.contract import NewsError, load_news_history
 from .live_calibration import LiveCalibrationLedger
+from .live_graduation import (
+    live_calibration_logical_prefix,
+    publish_live_graduation_receipt,
+    reduce_live_graduation,
+)
 from .xsp_benchmarks import (
     xsp_fundamental_defensive_benchmark,
     xsp_option_parity_participation_benchmark,
@@ -65,6 +70,7 @@ from .xsp_live_transport_runtime import (
     advance_xsp_live_transport,
     advance_xsp_v2_live_transport,
 )
+from .xsp_profitability import xsp_live_graduation_inputs
 
 
 async def _main_async(argv: Sequence[str] | None = None) -> int:
@@ -108,10 +114,89 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
         default="backtests/xsp/opening_edge_v3_immediate_proceeds_receipt.json",
     )
     parser.add_argument("--accept-rth-only-cash-scope", action="store_true")
+    parser.add_argument(
+        "--graduation-target",
+        choices=("24h", "48h", "five-session"),
+    )
+    parser.add_argument("--graduation-cutoff")
+    parser.add_argument(
+        "--graduation-runtime-parity",
+        default="backtests/xsp/opening_edge_v3_current_runtime_parity_audit.json",
+    )
+    parser.add_argument(
+        "--graduation-capital-stability",
+        default=(
+            "backtests/xsp/"
+            "opening_edge_v3_capital_owner_stability_manifest_20260801.json"
+        ),
+    )
+    parser.add_argument("--graduation-output")
     args = parser.parse_args(argv)
 
     selected_path = Path(args.selected_run).expanduser()
     selected_transport_path = Path(args.selected_transport).expanduser()
+    graduation_requested = any(
+        value
+        for value in (
+            args.graduation_target,
+            args.graduation_cutoff,
+            args.graduation_output,
+        )
+    )
+    if graduation_requested:
+        if (
+            args.mode != "opening-edge-v3"
+            or not args.graduation_target
+            or not args.graduation_cutoff
+            or not args.graduation_output
+            or args.freeze_selected_transport
+            or args.handoff_immediate_proceeds
+        ):
+            raise ValueError(
+                "graduation requires v3 target, cutoff, output, and no selection mutation"
+            )
+        cutoff = datetime.fromisoformat(
+            str(args.graduation_cutoff).replace("Z", "+00:00")
+        )
+        if cutoff.tzinfo is None:
+            raise ValueError("graduation cutoff must be timezone-aware")
+        selection = load_xsp_v3_transport_selection(selected_transport_path)
+        policy = xsp_v3_transport_profitability_policy(selection)
+        ledger = LiveCalibrationLedger(args.ledger)
+        records = tuple(ledger.records())
+        _, graduation_records = live_calibration_logical_prefix(
+            records,
+            cutoff_utc=cutoff,
+        )
+        profitability = ledger.xsp_profitability_receipt(
+            policy=policy,
+            as_of=cutoff,
+            _records=graduation_records,
+        )
+        reducer_inputs = xsp_live_graduation_inputs(
+            selection=selection,
+            selection_path=selected_transport_path,
+            records=records,
+            cutoff_utc=cutoff,
+            policy=policy,
+            profitability_receipt=profitability,
+            runtime_parity_path=Path(args.graduation_runtime_parity).expanduser(),
+            capital_owner_stability_path=Path(
+                args.graduation_capital_stability
+            ).expanduser(),
+            repo_root=Path(__file__).resolve().parents[2],
+        )
+        receipt = reduce_live_graduation(
+            target_milestone=args.graduation_target,
+            cutoff_utc=cutoff,
+            **reducer_inputs,
+        )
+        publish_live_graduation_receipt(
+            Path(args.graduation_output).expanduser(),
+            receipt,
+        )
+        print(json.dumps(receipt, allow_nan=False, indent=2, sort_keys=True))
+        return 2 if receipt["verdict"] in {"QUARANTINE", "STOP"} else 0
     if args.freeze_selected_transport and args.handoff_immediate_proceeds:
         raise ValueError("transport freeze and handoff are mutually exclusive")
     if args.handoff_immediate_proceeds:
