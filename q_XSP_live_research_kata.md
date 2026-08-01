@@ -21,7 +21,10 @@
   scope is explicitly accepted for the first canary. GTH cash execution remains
   separately unqualified
 - **Capital premise:** the position-preserving successor binds IBKR Australia's
-  immediate stock-sale proceeds, one `$900` cash slot, and a conservative
+  immediate stock-sale proceeds. Shared plan `f34751af…` now allocates one
+  `$900.46` XSP entry ceiling and preserves `$417.59` as explicit unallocated
+  reserve; it never treats spare account cash as strategy authority. The
+  selected transport retains a conservative
   maximum completed-ticket commission of `$0.45034925`. The first round trip
   bought `23 SPXU @ $39.10` for `$0.318126`, then sold all `23 @ $38.56` for
   `$0.340881`: realized `-$13.079007`, current settled USD `$1,318.051`, no
@@ -42,10 +45,10 @@ output belongs in commit/final verification, not in this management brain.
 | Selected live run | `b4799fa6…` / file `eb6aad41…`, frozen `13:42:55Z` from source `09adbda2…` and preview `62edc222…`; baseline flat, zero inherited fills/P&L/DD. Invalid `daf1609b…` and earlier identities remain archived evidence only |
 | Research crown | **Opening Edge v3 — Regime Harmony 24/5**; `xsp.opening-edge-v3-regime-harmony-24x5.v1` |
 | Runtime parity | Central v3 owner reproduces RTH `40708a28…` exactly over `425/425` trades; unchanged GTH Down Sleeve reproduces `9e04807f…` over `179/179`; combined `604`, `+291.1756`, PF `2.0919`, DD `17.63` |
-| Runtime source anchor | q/origin are clean and synchronized; runtime fix `12be31c…`, reset contract `69f8b56…`, stale-close repair `6caa066…`, cash-finalization verifier `9db0bee…`, attribution contract `7b37a4f…`, central owner `643b6a…`, crown `d47eb39…`, canonical daily-context fingerprint `7a139df1…`, pure graduation owner `f5b1cc3…`, and 22-owner capital-stability manifest `29b4e7e5…` |
+| Runtime source anchor | q/origin are synchronized at capital allocator `331679d…`; runtime fix `12be31c…`, reset contract `69f8b56…`, stale-close repair `6caa066…`, cash-finalization verifier `9db0bee…`, attribution contract `7b37a4f…`, central owner `643b6a…`, crown `d47eb39…`, pure graduation owner `f5b1cc3…`, and migrated 25-owner manifest `59a6a555…` |
 | Observer cadence | Five-minute timer active with tracked writable drop-in `c831b847…`. Mandatory restart proof at `09:45:33 ET` and first natural `09:47 ET` recurrence both returned `flat_target`, null leg, flat holdings, and zero submissions. The first read-only entry-dwell tape completed cleanly at `11:35 ET`; zero admissions means the cohort remains `ACCUMULATE` |
 | RTH signal freshness | **cleared:** after the user activated `CBOE Streaming Market Indexes`, zero-order receipt `acce7ed3…` returned live type-1 XSP, current five-minute history, and real-time `TRADES` bars without a Gateway restart; the natural `10:07 ET` centralized v2 checkpoint then evaluated with both XSP and SPY through `10:05` and `120s` age |
-| Order/capital authority | `rth_cash_pair_limit_only` for `b4799fa6…`: up→UPRO, down→SPXU, fresh streaming NBBO, full SELL reconciliation before an admitted opposite BUY, one `$900` immediate-proceeds cash slot. No direction is currently admitted; GTH remains forbidden |
+| Order/capital authority | `rth_cash_pair_limit_only` for `b4799fa6…`: up→UPRO, down→SPXU, fresh streaming NBBO, full SELL reconciliation before an admitted opposite BUY. Shared plan `f34751af…` grants this exact run `10000 bps` of only its `$900.46` managed pool; every BUY requires a content-addressed admission while SELL risk reduction remains unconditional. No direction is currently admitted; GTH remains forbidden |
 | Profitability clock | `ACTIVE` for run start `13:42:55Z`; selected execution coverage begins with the zero-order restart at `13:45:33Z` and first natural required recurrence at `13:47:00Z`. Friday began after its first cash slot, so it is partial and the clock has `0` complete sessions; the weekend cannot pass `24h`. Conditional on gap-free positive economics, the earliest lawful `24h/48h/five-session` decisions are Monday `16:18:30 ET`, Tuesday `16:18:30 ET`, and Friday `16:18:30 ET`; no missing slot may be backfilled and no trade is forced |
 | Execution verdict | `LIVE_FLAT` for `b4799fa6…`: zero fills/P&L/DD, `SPXU=0`, `UPRO=0`, no open order or breach. Archived first round trip bought `23 SPXU @ $39.10` and sold at `$38.56`; total commission `$0.659007`, realized `-$13.079007`. Broker-qualified attribution separates strategy timing from integration debt; none transfers into the new identity |
 | Next irreversible evidence | only a newly admitted v3 RTH direction may create the first `b4799fa6…` capital event. Until then, five-minute evidence and 20-minute Hawkeye reviews must remain gap-free; neither the accumulating dwell cohort nor the MCL onset study has capital authority |
@@ -160,6 +163,17 @@ output belongs in commit/final verification, not in this management brain.
     capital-owner manifest. Its first immutable q-native `24h` cutoff correctly
     returned `HOLD`; no parallel ledger, timer, observer, or economics owner was
     created.
+26. `[DONE]` Centralize account capital as one immutable sleeve plan. The first
+    generation allocates XSP `10000 bps` of only `$900.46`, preserves `$417.59`
+    outside entry authority, binds exact account/run/selection/capital kind,
+    and records each admission in the existing execution ledger. Owner
+    migration preserves the Friday prefix only because all `80` selected rows
+    prove zero orders, fills, trades, positions, costs, P&L, and drawdown.
+27. `[TODO]` Add one Bot Trade durable-run cockpit adapter after allocator
+    deployment: project q's selected-run registry, capital plan, ledger health,
+    service state, position, P&L, and safety; expose Start/Stop/Replace/Rebalance
+    controls without ever becoming a second broker or order owner. XSP appears
+    first; future MCL appears only after independent transport/selection proof.
 
 ### Never infer
 
@@ -1072,6 +1086,7 @@ and
 | E-359 | reboot-dependency audit proves q `Linger=yes`, enabled nonpersistent XSP timer, base service `b843a8c6…`, selected-live drop-in `c831b847…`, timer `542a7830…`, and on-demand Gateway tunnel `8583c9a2…` installed byte-identical to Git and systemd-valid. The service hard-requires the localhost-only strict tunnel before execution; selection `b4799fa6…/eb6aad41…` remains private mode `0600`. Static chain passes, but Mac `192.168.1.2` plus authenticated Gateway port `4001` remain an explicit external precondition; absence fails closed and cannot backfill. Compact receipt `opening_edge_v3_reboot_dependency_readiness.json`; no broker query, service start/restart, checkpoint, selection, order, authority, or clock mutation |
 | E-360 | a bounded final-`1h/2h/4h` SPY premarket study refined and reconfirmed E-309/E-337 without changing v3. Delaying accepted entries reduced every year; releasing ATR-velocity-blocked reversals improved Y1/Y3 but hurt Y2, lowered PF `2.289→2.132`, and widened DD `17.43→19.32`; seeding persistent aligned onset into v3 lost `-18.64/-16.73/-15.67` across Y1/Y2/Y3. The only apparent fixed-exit auction cohort was `+7.22/+10.74/-3.52`, became `-3.93/+1.72/-8.93` after the first causal RTH checkpoint, and lost `-5.73` recent. Receipt `opening_edge_v3_premarket_context_rejection_receipt.json` therefore keeps premarket descriptive Hawkeye context only and closes direction, warmup, admission, lifecycle, and fixed-opening-sleeve authority; no threshold rescue, crown/runtime/selection/order/clock change, or submission occurred |
 | E-361 | pure graduation owner `f5b1cc3…` now reduces validated selection identity, one dependency-closed append-only ledger prefix, canonical selected-cash profitability, restart/safety/attribution/execution evidence, frozen runtime parity, and rehashed capital owners into `PROMOTE/HOLD/REVISE/QUARANTINE/STOP`; it creates no observer, timer, service, parallel ledger, or second economics calculator. Manifest `29b4e7e5…` binds all `22` capital-semantic files. Its first q-native immutable `24h` receipt `2d7c6dc2…` used exact Friday cutoff `20:18Z`, all `809` rows / prefix `eb004df0…`, and correctly returned `HOLD`: identity, runtime parity, capital stability, restart, cash/risk/safety, and attribution passed; actual execution was unobserved and elapsed/session/positive-net requirements remained incomplete. An identical rerun was idempotent at receipt SHA `e40c4c08…`; selection `eb6aad41…`, ledger, timer, service, broker/order authority, and profitability clock were unchanged |
+| E-362 | shared capital owner `331679d…` replaces implicit spare-cash authority with immutable plan `f34751af…`: `$900.46` managed, `$417.59` explicit reserve, XSP `10000 bps`, exact account/run/selection/kind, conservative cent rounding, no borrowing/reallocation, and unconditional risk reduction. Every BUY now carries a content-addressed admission through the existing runtime/ledger/graduation chain. Generation manifest `59a6a555…` binds `25` owners plus predecessor `29b4e7e5…` and recomputes exact pre-migration prefix `eb004df0…`: `809` rows / `80` selected states / zero orders, fills, trades, positions, costs, net, or DD. q-native boundary proof allows `$900.45034925`, rejects `$900.47`, and keeps the immutable `24h` verdict honestly `HOLD`; no order, selection, clock, or economics changed |
 
 ### Decision anchors
 
@@ -1205,6 +1220,9 @@ orders. The first selected restart at `09:45:33 ET` and natural `09:47 ET`
 recurrence both remained `flat_target` with null leg and zero submissions; an
 independent broker census remained flat. The clock is active from selection
 `13:42:55Z`, with selected coverage beginning gap-free. No order is forced.
+Shared plan `f34751af…` now caps entry at its qualified `$900.46` managed pool,
+leaves `$417.59` outside strategy authority, and makes later XSP/MCL portfolio
+weights one durable account decision rather than independent trading loops.
 
 Archived predecessor `daf1609b…` and the first live round trip remain immutable
 evidence: `23 SPXU @ $39.10` sold at `$38.56`, `$0.659007` commission, realized
