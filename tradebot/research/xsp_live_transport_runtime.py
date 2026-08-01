@@ -16,6 +16,10 @@ from ..engines.execution import EXECUTION_POLICY, execution_price, quote_health
 from ..engines.market import xsp_trading_date
 from ..live.execution import LiveOrderExecution, order_ids
 from .live_calibration import LiveCalibrationLedger, calibration_fingerprint
+from .xsp_live_capital import (
+    apply_xsp_live_capital,
+    xsp_pending_buy_has_capital_reservation,
+)
 from .xsp_live_transport import (
     XSP_V2_TRANSPORT_EXECUTION_SCHEMA,
     XSP_V2_TRANSPORT_EXECUTION_VERSION,
@@ -40,7 +44,6 @@ from .xsp_live_transport_risk import (
 )
 from .xsp_opening_edge_v2 import XSP_OPENING_EDGE_V2_VERSION
 from .xsp_opening_edge_v3 import XSP_OPENING_EDGE_V3_VERSION
-
 
 def xsp_transport_order_ref(plan: Mapping[str, object]) -> str:
     """Return the broker-visible identity for one content-addressed transition."""
@@ -622,6 +625,8 @@ async def advance_xsp_live_transport(
     selection: Mapping[str, object],
     source_receipt: Mapping[str, object],
     observed_at: datetime,
+    capital_plan: Mapping[str, object] | None = None,
+    selection_file_sha256: str = "",
     quote_wait_seconds: float = 3.0,
     _rotation_depth: int = 0,
 ) -> dict[str, object]:
@@ -781,6 +786,11 @@ async def advance_xsp_live_transport(
         pending_plan = pending_evidence.get("plan")
         if not isinstance(pending_plan, Mapping):
             raise ValueError("pending selected transition has no durable plan")
+        if (
+            selected["schema"] in XSP_V3_TRANSPORT_SELECTION_SCHEMAS
+            and not xsp_pending_buy_has_capital_reservation(pending_plan)
+        ):
+            raise ValueError("pending selected BUY has no capital reservation")
         leg = pending_plan.get("leg")
         symbol = str(leg.get("symbol") or "") if isinstance(leg, Mapping) else ""
         if (
@@ -842,6 +852,14 @@ async def advance_xsp_live_transport(
         session_net_usd=float(risk_state["session_net_usd"]),
         drawdown_usd=float(risk_state["drawdown_usd"]),
     )
+    if selected["schema"] in XSP_V3_TRANSPORT_SELECTION_SCHEMAS:
+        plan = apply_xsp_live_capital(
+            plan,
+            capital_plan=capital_plan,
+            selection=selected,
+            selection_file_sha256=selection_file_sha256,
+            available_cash_usd=broker_cash,
+        )
     if selected["schema"] in XSP_V3_TRANSPORT_SELECTION_SCHEMAS:
         state_context = plan.get("execution_state_context")
         if (
@@ -954,6 +972,8 @@ async def advance_xsp_live_transport(
                 selection=selected,
                 source_receipt=source_receipt,
                 observed_at=rotation_at,
+                capital_plan=capital_plan,
+                selection_file_sha256=selection_file_sha256,
                 quote_wait_seconds=quote_wait_seconds,
                 _rotation_depth=1,
             )

@@ -12,6 +12,7 @@ import pytest
 from ib_insync import Stock
 
 from tradebot.engines.execution import execution_policy_contract
+from tradebot.live.capital import build_live_capital_plan
 from tradebot.research.live_calibration import (
     LiveCalibrationLedger,
     calibration_fingerprint,
@@ -1540,7 +1541,10 @@ def test_v3_immediate_rotation_chains_only_after_terminal_full_sell(
     selection = {
         "schema": XSP_V3_ROTATION_SELECTION_SCHEMA,
         "selection_id": "a" * 64,
-        "broker_at_selection": {"account_id": "DU123456"},
+        "broker_at_selection": {
+            "account_id": "DU123456",
+            "account_type": "CASH",
+        },
         "nominee": {
             "contract_ids": {
                 symbol: contract.conId for symbol, contract in contracts.items()
@@ -1632,6 +1636,11 @@ def test_v3_immediate_rotation_chains_only_after_terminal_full_sell(
                 "initial_mode": "OPTIMISTIC",
                 "chase_mode": "AUTO",
                 "outside_rth": False,
+                **(
+                    {"required_settled_cash_usd": 810.75}
+                    if not selling
+                    else {}
+                ),
             },
         }
 
@@ -1693,6 +1702,27 @@ def test_v3_immediate_rotation_chains_only_after_terminal_full_sell(
         execute,
     )
 
+    selection_sha = "e" * 64
+    capital_plan = build_live_capital_plan(
+        account_id="DU123456",
+        account_type="CASH",
+        currency="USD",
+        observed_settled_cash_usd=1_222.30,
+        managed_capital_usd=900.45034925,
+        sleeves=[
+            {
+                "sleeve_id": "xsp-upro-spxu-rth-cash",
+                "strategy_id": "xsp-v3",
+                "run_id": selection["selection_id"],
+                "selection_path": "selection.json",
+                "selection_file_sha256": selection_sha,
+                "capital_kind": "CASH_DEBIT",
+                "weight_bps": 10_000,
+            }
+        ],
+        reserve_reasons=["outside_selected_authority"],
+        created_at_utc=now,
+    )
     result = asyncio.run(
         advance_xsp_live_transport(
             LiveCalibrationLedger(tmp_path / "rotation.jsonl"),
@@ -1702,6 +1732,8 @@ def test_v3_immediate_rotation_chains_only_after_terminal_full_sell(
                 "recorded_at_utc": (now - timedelta(seconds=10)).isoformat(),
             },
             observed_at=now,
+            capital_plan=capital_plan,
+            selection_file_sha256=selection_sha,
             quote_wait_seconds=0,
         )
     )

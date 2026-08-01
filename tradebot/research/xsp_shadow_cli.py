@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
 import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -12,6 +13,7 @@ from typing import Sequence
 from ..backtest.quotes import iter_snapshots
 from ..config import auxiliary_client_config, load_config
 from ..engines.market import xsp_trading_date
+from ..live.capital import load_live_capital_plan
 from ..news.contract import NewsError, load_news_history
 from .live_calibration import LiveCalibrationLedger
 from .live_graduation import (
@@ -100,6 +102,10 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
         "--selected-transport",
         default="db/calibration/xsp_selected_live_transport.json",
     )
+    parser.add_argument(
+        "--capital-plan",
+        default="db/calibration/live_capital_plan.json",
+    )
     parser.add_argument("--freeze-selected-transport", action="store_true")
     parser.add_argument("--handoff-immediate-proceeds", action="store_true")
     parser.add_argument("--transport-ranking")
@@ -135,6 +141,7 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
 
     selected_path = Path(args.selected_run).expanduser()
     selected_transport_path = Path(args.selected_transport).expanduser()
+    capital_plan_path = Path(args.capital_plan).expanduser()
     graduation_requested = any(
         value
         for value in (
@@ -336,6 +343,7 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
         selected_policy = xsp_profitability_policy_from_selected_run(loaded_selection)
         selected_run = loaded_selection
     selected_transport = None
+    selected_transport_sha256 = ""
     if selected_transport_path.exists():
         if args.mode == "opening-edge-v2":
             selected_transport = load_xsp_v2_transport_selection(
@@ -345,6 +353,9 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
             selected_transport = load_xsp_v3_transport_selection(
                 selected_transport_path
             )
+        selected_transport_sha256 = hashlib.sha256(
+            selected_transport_path.read_bytes()
+        ).hexdigest()
     if (
         args.mode == "opening-edge-v3"
         and selected_transport is not None
@@ -422,6 +433,12 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
                     selection=selected_transport,
                     source_receipt=receipt,
                     observed_at=observed_at,
+                    capital_plan=(
+                        load_live_capital_plan(capital_plan_path)
+                        if capital_plan_path.exists()
+                        else None
+                    ),
+                    selection_file_sha256=selected_transport_sha256,
                 )
         elif args.mode == "opening-edge-v2":
             v2_spec = load_xsp_opening_edge_v2_spec()

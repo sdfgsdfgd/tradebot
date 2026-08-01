@@ -113,9 +113,11 @@
     "tests/test_live_signal_exit_continuum.py": "live-execution-orders",
     "tests/test_live_execution_registry.py": "live-execution-orders",
     "tests/test_live_calibration.py": "market-realism-parity",
+    "tests/test_live_capital.py": "policy-risk-sizing",
     "tests/test_live_graduation.py": "market-realism-parity",
     "tests/test_xsp_execution_dwell_validation.py": "market-realism-parity",
     "tests/test_xsp_execution_observer.py": "market-realism-parity",
+    "tests/test_xsp_live_capital.py": "market-realism-parity",
     "tests/test_xsp_live_transport.py": "market-realism-parity",
     "tests/test_xsp_live_transport_runtime.py": "market-realism-parity",
     "tests/test_xsp_opening_edge_v3.py": "market-realism-parity",
@@ -261,11 +263,13 @@
         "current proof surfaces for policy-risk-sizing"
       ],
       "evidence": [
+        "tests/test_live_capital.py",
         "tests/test_spot_policy_graph.py",
         "tests/test_spot_policy_kernel.py"
       ],
       "owner_surface": [
         "tradebot/engines/risk.py",
+        "tradebot/live/capital.py",
         "tradebot/spot/entry_control.py",
         "tradebot/spot/gates.py",
         "tradebot/spot/graph.py",
@@ -632,8 +636,10 @@
       "evidence": [
         "q_XSP_live_research_kata.md",
         "tests/test_live_calibration.py",
+        "tests/test_live_capital.py",
         "tests/test_live_graduation.py",
         "tests/test_xsp_execution_observer.py",
+        "tests/test_xsp_live_capital.py",
         "tests/test_xsp_live_transport.py",
         "tests/test_xsp_live_transport_runtime.py",
         "tests/test_xsp_opening_edge_v3.py"
@@ -647,6 +653,8 @@
         "deploy/systemd/tradebot-xsp-shadow.timer",
         "tradebot/research/live_calibration.py",
         "tradebot/research/live_graduation.py",
+        "tradebot/research/xsp_capital_stability.py",
+        "tradebot/research/xsp_live_capital.py",
         "tradebot/research/xsp_benchmarks.py",
         "tradebot/research/xsp_candidate.py",
         "tradebot/research/xsp_context.py",

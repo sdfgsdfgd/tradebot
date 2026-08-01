@@ -10,9 +10,14 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Mapping, Sequence
 
+from ..live.capital import validate_live_capital_decision
 from .live_graduation import (
     evidence_sha256,
     live_calibration_logical_prefix,
+)
+from .xsp_capital_stability import (
+    XSP_CAPITAL_OWNER_STABILITY_SCHEMA as XSP_CAPITAL_OWNER_STABILITY_SCHEMA,
+    xsp_capital_owner_stability_graduation_gate,
 )
 
 
@@ -54,9 +59,6 @@ _SELECTED_EQUITY_CONTRACTS = {
 }
 
 XSP_RUNTIME_PARITY_SCHEMA = "xsp.opening-edge-v3-current-runtime-parity-audit.v1"
-XSP_CAPITAL_OWNER_STABILITY_SCHEMA = (
-    "xsp.opening-edge-v3-capital-owner-stability-manifest.v1"
-)
 _XSP_RUNTIME_OWNER_PATHS = {
     "frozen_crown_artifact_sha256": (
         "backtests/xsp/opening_edge_v3_regime_harmony_24x5.json"
@@ -290,85 +292,6 @@ def xsp_runtime_parity_graduation_gate(
                 if isinstance(actual, Mapping)
                 else None
             ),
-        },
-    )
-
-
-def xsp_capital_owner_stability_graduation_gate(
-    path: Path,
-    *,
-    repo_root: Path,
-    selection_id: str,
-    selection_file_sha256: str,
-) -> dict[str, object]:
-    """Rehash the frozen post-selection capital-owner manifest now."""
-
-    try:
-        proof, fingerprint = _load_json_proof(path)
-    except (OSError, json.JSONDecodeError, ValueError) as exc:
-        return _graduation_gate(
-            "INVALID",
-            ["capital_owner_manifest_unreadable"],
-            {"path": str(path), "error": str(exc)},
-        )
-    reasons = []
-    root = repo_root.resolve()
-    selection = proof.get("selection")
-    owners = proof.get("capital_semantic_surface")
-    checks = proof.get("checks")
-    boundaries = proof.get("boundaries")
-    if (
-        proof.get("schema") != XSP_CAPITAL_OWNER_STABILITY_SCHEMA
-        or proof.get("authority") != "frozen_post_selection_capital_owner_manifest"
-        or proof.get("verdict") != "PASS_CAPITAL_OWNER_STABLE"
-    ):
-        reasons.append("capital_owner_manifest_verdict_invalid")
-    if (
-        not isinstance(selection, Mapping)
-        or selection.get("selection_id") != selection_id
-        or selection.get("selection_file_sha256") != selection_file_sha256
-    ):
-        reasons.append("capital_owner_selection_mismatch")
-    if (
-        not isinstance(checks, Mapping)
-        or not checks
-        or any(value is not True for value in checks.values())
-    ):
-        reasons.append("capital_owner_checks_invalid")
-    if not isinstance(owners, Mapping) or not owners:
-        reasons.append("capital_owner_surface_missing")
-    else:
-        for relative, expected in sorted(owners.items()):
-            relative = str(relative)
-            owner = (root / relative).resolve()
-            if root not in owner.parents:
-                reasons.append(f"capital_owner_path_invalid:{relative}")
-                continue
-            try:
-                current = _file_sha256(owner)
-            except OSError:
-                reasons.append(f"capital_owner_missing:{relative}")
-                continue
-            if current != expected:
-                reasons.append(f"capital_owner_drift:{relative}")
-    if (
-        not isinstance(boundaries, Mapping)
-        or boundaries.get("broker_queried") is not False
-        or boundaries.get("service_or_timer_mutated") is not False
-        or boundaries.get("selection_mutated") is not False
-        or boundaries.get("submitted_orders") != 0
-        or boundaries.get("profitability_clock_mutated") is not False
-    ):
-        reasons.append("capital_owner_safety_boundary_invalid")
-    return _graduation_gate(
-        "INVALID" if reasons else "PASS",
-        reasons,
-        {
-            "path": str(path),
-            "sha256": fingerprint,
-            "observed_at_utc": proof.get("observed_at_utc"),
-            "source_revision": proof.get("source_revision"),
-            "owner_count": len(owners) if isinstance(owners, Mapping) else 0,
         },
     )
 
@@ -718,6 +641,24 @@ def xsp_execution_graduation_gate(
         symbol = str(leg.get("symbol") or "")
         action = str(leg.get("action") or "").upper()
         try:
+            admission = validate_live_capital_decision(
+                plan.get("capital_admission") or {}
+            )
+        except (TypeError, ValueError):
+            invalid.append("capital_admission_invalid")
+        else:
+            expected_intents = (
+                {"ENTER", "INCREASE", "ROTATE_IN"}
+                if action == "BUY"
+                else {"EXIT", "REDUCE", "ROTATE_OUT"}
+            )
+            if (
+                admission.get("status") != "ALLOW"
+                or admission.get("intent") not in expected_intents
+                or admission.get("run_id") != selection.get("selection_id")
+            ):
+                invalid.append("capital_admission_not_allowed")
+        try:
             quantity_value = float(leg["quantity"])
             quantity = int(quantity_value)
             commission_limit = float(commission_limits[symbol])
@@ -964,6 +905,9 @@ def xsp_live_graduation_inputs(
                 repo_root=repo_root,
                 selection_id=str(selection["selection_id"]),
                 selection_file_sha256=selection_sha,
+                records=records,
+                strategy_id=policy.strategy_id,
+                strategy_version=policy.strategy_version,
             )
         ),
     }

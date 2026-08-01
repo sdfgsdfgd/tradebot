@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from tradebot.live.capital import admit_live_capital, build_live_capital_plan
 from tradebot.research.live_graduation import (
     LIVE_GRADUATION_PREFIX_SCHEMA,
     canonical_json_bytes,
@@ -25,6 +26,10 @@ from tradebot.research.xsp_profitability import (
     xsp_execution_graduation_gate,
     xsp_live_graduation_inputs,
     xsp_runtime_parity_graduation_gate,
+)
+from tradebot.research.xsp_capital_stability import (
+    XSP_CAPITAL_OWNER_GENERATION_SCHEMA,
+    xsp_zero_capital_migration_evidence,
 )
 
 
@@ -308,6 +313,7 @@ def test_receipt_is_immutable_idempotent_and_structurally_validated(
 
 def _execution_selection() -> dict[str, object]:
     return {
+        "selection_id": SELECTION_ID,
         "nominee": {
             "commission_limits_usd": {"UPRO": 0.45, "SPXU": 0.45},
             "contract_ids": {"UPRO": 61_228_752, "SPXU": 828_937_771},
@@ -322,8 +328,42 @@ def _execution_rows(
     exec_id: str = "exec-1",
 ) -> list[dict[str, object]]:
     order_ref = f"XSPV3-{transition[:24]}"
+    capital_plan = build_live_capital_plan(
+        account_id="DU123",
+        account_type="CASH",
+        currency="USD",
+        observed_settled_cash_usd=1_318.05,
+        managed_capital_usd=900.45,
+        sleeves=[
+            {
+                "sleeve_id": "xsp-cash",
+                "strategy_id": "xsp.signal.v3",
+                "run_id": SELECTION_ID,
+                "selection_path": "selection.json",
+                "selection_file_sha256": SELECTION_SHA,
+                "capital_kind": "CASH_DEBIT",
+                "weight_bps": 10_000,
+            }
+        ],
+        reserve_reasons=["outside_selected_authority"],
+        created_at_utc=CUTOFF,
+    )
     plan = {
         "transition_id": transition,
+        "capital_admission": admit_live_capital(
+            capital_plan,
+            intent="ENTER",
+            account_id="DU123",
+            account_type="CASH",
+            currency="USD",
+            sleeve_id="xsp-cash",
+            run_id=SELECTION_ID,
+            selection_file_sha256=SELECTION_SHA,
+            capital_kind="CASH_DEBIT",
+            projected_capital_usd=600.06,
+            cash_debit_usd=600.06,
+            available_cash_usd=1_318.05,
+        ),
         "leg": {
             "action": "BUY",
             "symbol": "UPRO",
@@ -536,7 +576,10 @@ def _state_evidence() -> dict[str, object]:
         "phase": "STATE",
         "submitted_orders": 0,
         "plan": {"holdings": {"UPRO": 0, "SPXU": 0}},
-        "broker_state": {"positions": {"UPRO": 0.0, "SPXU": 0.0}},
+        "broker_state": {
+            "open_orders": [],
+            "positions": {"UPRO": 0.0, "SPXU": 0.0},
+        },
         "risk_state": risk,
         "selected_cash_equity": equity,
     }
@@ -668,6 +711,100 @@ def test_xsp_projection_reuses_prefix_cash_and_proof_contracts(
     assert receipt["gates"]["execution"]["status"] == "HOLD"
     assert receipt["gates"]["profitability"]["status"] == "HOLD"
     assert receipt["verdict"] == "HOLD"
+
+
+def test_xsp_capital_owner_generation_preserves_only_zero_capital_prefix(
+    tmp_path: Path,
+) -> None:
+    owner = tmp_path / "owner.py"
+    owner.write_text("OWNER = 1\n", encoding="utf-8")
+    predecessor = tmp_path / "predecessor.json"
+    selection = {
+        "selection_id": SELECTION_ID,
+        "selection_file_sha256": SELECTION_SHA,
+    }
+    predecessor.write_text(
+        json.dumps(
+            {
+                "schema": "xsp.opening-edge-v3-capital-owner-stability-manifest.v1",
+                "selection": selection,
+            }
+        ),
+        encoding="utf-8",
+    )
+    record = {
+        "kind": "checkpoint",
+        "checkpoint_id": "9" * 64,
+        "recorded_at_utc": (CUTOFF - timedelta(minutes=1)).isoformat(),
+        "strategy_id": "xsp.signal.v3",
+        "strategy_version": "xsp.execution.v3",
+        "evidence": _state_evidence(),
+    }
+    migration = xsp_zero_capital_migration_evidence(
+        [record],
+        cutoff_utc=CUTOFF.isoformat(),
+        strategy_id="xsp.signal.v3",
+        strategy_version="xsp.execution.v3",
+        run_id=SELECTION_ID,
+    )
+    manifest = tmp_path / "capital.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema": XSP_CAPITAL_OWNER_GENERATION_SCHEMA,
+                "authority": "frozen_post_selection_capital_owner_manifest",
+                "observed_at_utc": CUTOFF.isoformat(),
+                "source_revision": "revision",
+                "selection": selection,
+                "capital_semantic_surface": {
+                    "owner.py": hashlib.sha256(owner.read_bytes()).hexdigest(),
+                },
+                "migration": {
+                    "predecessor_path": predecessor.name,
+                    "predecessor_sha256": hashlib.sha256(
+                        predecessor.read_bytes()
+                    ).hexdigest(),
+                    "effective_at_utc": CUTOFF.isoformat(),
+                    "zero_capital_prefix": migration,
+                },
+                "checks": {"zero_capital_migration_proven": True},
+                "verdict": "PASS_CAPITAL_OWNER_STABLE",
+                "boundaries": {
+                    "broker_queried": False,
+                    "service_or_timer_mutated": False,
+                    "selection_mutated": False,
+                    "submitted_orders": 0,
+                    "profitability_clock_mutated": False,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    passed = xsp_capital_owner_stability_graduation_gate(
+        manifest,
+        repo_root=tmp_path,
+        selection_id=SELECTION_ID,
+        selection_file_sha256=SELECTION_SHA,
+        records=[record],
+        strategy_id="xsp.signal.v3",
+        strategy_version="xsp.execution.v3",
+    )
+    changed = deepcopy(record)
+    changed["evidence"]["risk_state"]["fill_count"] = 1
+    rejected = xsp_capital_owner_stability_graduation_gate(
+        manifest,
+        repo_root=tmp_path,
+        selection_id=SELECTION_ID,
+        selection_file_sha256=SELECTION_SHA,
+        records=[changed],
+        strategy_id="xsp.signal.v3",
+        strategy_version="xsp.execution.v3",
+    )
+
+    assert passed["status"] == "PASS"
+    assert rejected["status"] == "INVALID"
+    assert "capital_owner_migration_prefix_invalid" in rejected["reasons"]
 
 
 def test_cli_graduation_branch_never_loads_broker_config(
