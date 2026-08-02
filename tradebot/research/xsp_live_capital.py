@@ -12,25 +12,10 @@ from ..live.capital import (
     build_live_capital_plan,
     validate_live_capital_decision,
 )
-from ..live.runs import LiveRunBinding
-from .xsp_live_transport import (
-    XSP_V3_TRANSPORT_CAPITAL_SLEEVE,
-    XSP_V3_TRANSPORT_EXECUTION_VERSION,
-)
-from .xsp_live_transport_v3 import load_xsp_v3_transport_selection_from_mapping
-from .xsp_opening_edge_v3 import XSP_OPENING_EDGE_V3_VERSION
+from .xsp_live_transport import XSP_V3_TRANSPORT_CAPITAL_SLEEVE
 
 
 XSP_LIVE_CAPITAL_SLEEVE_ID = XSP_V3_TRANSPORT_CAPITAL_SLEEVE
-XSP_LIVE_RUN_BINDING = LiveRunBinding(
-    strategy_id=XSP_OPENING_EDGE_V3_VERSION,
-    label="XSP v3 Regime Harmony · UPRO/SPXU RTH",
-    execution_strategy_version=XSP_V3_TRANSPORT_EXECUTION_VERSION,
-    ledger_path="db/calibration/xsp_live_calibration.jsonl",
-    timer_unit="tradebot-xsp-shadow.timer",
-    service_unit="tradebot-xsp-shadow.service",
-    selection_validator=load_xsp_v3_transport_selection_from_mapping,
-)
 
 
 def build_xsp_live_capital_plan(

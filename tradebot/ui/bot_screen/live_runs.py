@@ -8,11 +8,26 @@ from pathlib import Path
 
 from rich.text import Text
 
-from ...live.runs import LiveRunCockpit
+from ...live.runs import LiveRunBinding, LiveRunCockpit
 from ...research.live_graduation import validate_live_graduation_receipt
-from ...research.xsp_live_capital import XSP_LIVE_RUN_BINDING
+from ...research.xsp_live_transport import XSP_V3_TRANSPORT_EXECUTION_VERSION
+from ...research.xsp_live_transport_v3 import (
+    load_xsp_v3_transport_selection_from_mapping,
+)
+from ...research.xsp_opening_edge_v3 import XSP_OPENING_EDGE_V3_VERSION
 from ..common import _pnl_text
 from .formatting import _center_table_row
+
+
+XSP_LIVE_RUN_BINDING = LiveRunBinding(
+    strategy_id=XSP_OPENING_EDGE_V3_VERSION,
+    label="XSP v3 Regime Harmony · UPRO/SPXU RTH",
+    execution_strategy_version=XSP_V3_TRANSPORT_EXECUTION_VERSION,
+    ledger_path="db/calibration/xsp_live_calibration.jsonl",
+    timer_unit="tradebot-xsp-shadow.timer",
+    service_unit="tradebot-xsp-shadow.service",
+    selection_validator=load_xsp_v3_transport_selection_from_mapping,
+)
 
 
 class BotLiveRunsMixin:
