@@ -61,6 +61,10 @@ profitability clock, order, or XSP mutation exists or is authorized.
 | 11 | Soft-transition bridge after `3/5` completed D1 soft-state bars | exact Stage-7 parity first; both cells add countertrend shorts, keep 7/10 years, worsen the floor to `−$166.59/−$157.22`, and reduce 10y net | reject soft state as direction owner |
 | 12 | Stage-8 late trail only for high-contracting D1 entries | weak years improve to `−$56.72 / −$86.22 / −$14.27`; full 10y `+$2,750.29`, but breadth remains 7/10 | reject as standalone advance; causal component only |
 | 13 | High-contracting retention + low-expanding unfinanced fizzle | Year 7 becomes positive, but Year 6 becomes negative; 7/10 years and recent concentration worsens | reject composition; no post-outcome nesting |
+| 14 | Independent H4 Bollinger reclaim/mean-reversion lane in low-trend transitions | unrestricted `−$1,664.46`, PF `0.670`; restricted variants `−$385.55/−$372.77`; both directions negative | reject family |
+| 15 | Stage-7-blocked H4 10-bar breakout onset with one/two-bar memory | `−$449.02/−$523.68`, PF `0.242/0.230`; fresh breakouts behave as late exhaustion | reject family |
+| 16 | Financed surrender after H4 slope/spread and 21/63/126-day velocity collapse | one-bar proxy repairs weak-year sum but cuts recent by `$1,206.84` and breadth to 4/10; two-bar remains 6/10 | reject broad exit family |
+| 17 | Delay a financed, D1-hard-supported inverse exit for one/two extra H4 states | three-state proof reaches 8/10 and makes Year 7 positive, but Year 4 falls to `−$105.73`, cadence to 23.66/year, DD to `$1,143.23`; two-state remains 7/10 | reject family |
 
 The XSP engine test reused only its portable causal core: normalized
 multihorizon slopes, slope velocities, coherence, ATR ratio/velocity/
@@ -181,16 +185,38 @@ economics, but it cannot add annual breadth. Stage 13 proved a broad
 low-expanding fizzle merely moves the losing year from Year 7 to Year 6 and
 worsens recent concentration.
 
-An outcome-exposed 11-fire audit found a possible future signature—daily
-low-expanding, hard/soft direction aligned, directional strength mixed—but the
-Stage-13 law forbids another nested historical filter after failure. Preserve it
-for unseen/prospective attribution only. Historical development now moves to a
-materially distinct low-trend/transition signal lane whose entries and exits can
-earn independently beside the Stage-7 trend sleeve. Do not reopen generic
-trails, fizzles, soft countertrend entries, H4 confirmation, or volatility
-threshold grids. Promote nothing unless annual breadth and floor, recent three
-years, full 10y, both directions, session stability, cadence, concentration,
-and DD improve together.
+Stage 14 proved that a distinct low-trend mean-reversion sleeve has ample cadence
+but negative expectancy, even when restricted to hard/soft disagreement. Stage
+15 proved that a fresh H4 breakout beside a new cross is usually late exhaustion,
+not causal onset. Both independent-lane families are closed.
+
+Stage-12 residual anatomy then showed that its remaining weak-year loss is
+long-side (`−$180.54`), while the same long owner earns `+$2,053.93` recent and
+`+$2,201.71` full-history; static long vetoes are therefore invalid. Causal
+21/63/126-day displacement direction and velocity votes also fail as admission
+owners: unanimous long context contains both `−$161.36` weak-year loss and
+`+$1,430.95` recent profit. Stage 16 confirmed that broad post-financing
+information-collapse exits repair selected old losses only by cutting modern
+trend ownership and moving losses into other years.
+
+Stage 17 tested that mirror exactly. One extra H4 state improves the floor but
+not breadth or weak-year sum and worsens DD. Two extra states turn Year 7
+positive and reach 8/10, but merely move the floor back to Year 4, lose cadence,
+and raise DD materially. Financed H4 persistence is therefore closed.
+
+The next distinct ownership question comes from frozen Stage-5 evidence, not
+Stage-17 outcomes: the independent D1 EMA 8/21 clock was positive in exactly
+Years 2/4/7, the three Stage-12 losers. Test whether D1 8/21 may retain an
+already-financed Stage-12 incumbent through H4 counterturn noise while both the
+mature D1 21/50 hard state and D1 8/21 soft state still support it. Wrong or
+unfinanced trades and hard reversals must still close immediately; after a
+suppressed H4 exit, a completed soft reversal must flatten even without a new
+H4 cross. This is single-contract hierarchical ownership, not summing sleeves
+or routing known years. Do not reopen generic trails, fizzles, soft countertrend
+entries, H4 admission confirmation/persistence, Bollinger reclaims, breakout
+onsets, broad collapse exits, or volatility grids. Promote nothing unless annual
+breadth and floor, recent three years, full 10y, both directions, session
+stability, cadence, concentration, and DD improve together.
 
 ## Native 1OZ transport gate
 
@@ -216,11 +242,13 @@ we do not pretend fractional futures exist or borrow XSP's reserve.
 
 ## Active work queue
 
-1. `[WIP]` Inventory existing causal gold-capable signal primitives and freeze
-   one materially distinct low-trend/transition lane; it must combine with Stage
-   7 by explicit state ownership, not nested outcome filters.
-2. `[TODO]` Challenge the lane independently across all ten annual slices, then
-   compose only if it has stable neighbouring logic and adds annual breadth.
+1. `[WIP]` Census and freeze hierarchical exit ownership: after an exact
+   Stage-12 inverse exit first appears, retain only a financed incumbent still
+   supported by both D1 hard 21/50 and soft 8/21; soft/hard reversal then owns
+   the flatten.
+2. `[TODO]` Replay the control plus immediate/one-day-persistent soft-reversal
+   neighbours across all ten slices; reject unless breadth/floor and full
+   economics improve without sacrificing modern trends, cadence, or DD.
 3. `[TODO]` Run native 1OZ execution/roll/liquidity replay and derive the exact
    capital requirement.
 4. `[TODO]` Crown or reject the signal; if crowned, publish machine declaration,
@@ -284,6 +312,34 @@ we do not pretend fractional futures exist or borrow XSP's reserve.
 - Stage-13 volatility-cycle receipt:
   `/tmp/gold-stage13-volatility-cycle-lifecycle-20260802.json`, SHA-256
   `353812d1fc6db4fa23269d8f7dbffa33aca9b7c8d472e9325a4fe90827c8f2a4`.
+- Stage-14 preregistration:
+  `/tmp/1oz-gold-regime-harmony-preregistration-v16.json`, SHA-256
+  `4db1cb9425895ed688536e04b3b8cb65e356977e14a0a798841f346d8b338436`.
+- Stage-14 transition-reclaim receipt:
+  `/tmp/gold-stage14-transition-reclaim-20260802.json`, SHA-256
+  `f7b20e8c7c12a8c5f19730cf955635a41a275d6e8bef35f170a127bff77c3b20`.
+- Stage-12 residual and long-context anatomies:
+  `/tmp/gold-stage12-residual-anatomy-20260802.json` and
+  `/tmp/gold-stage12-long-context-anatomy-20260802.json`, SHA-256
+  `de33f0f3f1a30242059391dc10dc3bed140ac183b582e7d7fab505168e63e368` /
+  `5b0855322052e5d2041b15d776aa49921a0b0c9ce9cfb3a5660426e6b5b3d1a6`.
+- Stage-15 preregistration:
+  `/tmp/1oz-gold-regime-harmony-preregistration-v17.json`, SHA-256
+  `90c92e8742bd946708e17df19e217f72193b86697c66ecb80b563e3dc21d1ce6`.
+- Stage-15 breakout-onset receipt:
+  `/tmp/gold-stage15-h4-breakout-onset-20260802.json`, SHA-256
+  `ba8f6bfade054e8d782b6272b3369c6caa74ecfd6e0e8693a0cace791697b613`.
+- Stage-16 financed-surrender proxy:
+  `/tmp/gold-stage16-financed-surrender-proxy-20260802.json`, SHA-256
+  `7760c4aeb7a58de25b0458fef94209359ab17e14671911304488e411176754e8`.
+- Stage-17 preregistration and causal cohort census:
+  `/tmp/1oz-gold-regime-harmony-preregistration-v18.json` and
+  `/tmp/gold-stage17-incumbent-persistence-census-20260802.json`, SHA-256
+  `04565f75cdf4f03627d81679b9dff32746e58dc5e64f4aab8b3af5fa31a2e93a` /
+  `c1dc3400bce2daa2270bc02e0c28d0c4c0477540c6da88825d4312ee2615afcd`.
+- Stage-17 financed-incumbent persistence receipt:
+  `/tmp/gold-stage17-financed-incumbent-persistence-20260802.json`, SHA-256
+  `861fae8b95626f2fbc0988271499a9a290189841d85123942602da75d22d93d7`.
 
 These `/tmp` artifacts are scratch evidence; this file preserves their decisive
 facts across context compaction. Promotion requires canonical repo receipts,
