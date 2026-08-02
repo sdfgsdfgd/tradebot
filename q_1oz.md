@@ -39,6 +39,9 @@ profitability clock, order, or XSP mutation exists or is authorized.
 - One provider-absent day, `2022-01-03`, remains absent; it was not synthesized.
 - GC history: September 2022 onward; cache begins February 2023.
 - Native 1OZ 30-minute history: January 2025 onward.
+- Causal macro attribution tape: adjusted UUP and TIP daily closes from August
+  2015 through July 2026, normalized to completed `16:00 ET` bars. They have no
+  signal authority.
 - Signal parity: XAUUSD↔GC `0.98006` since September 2023 and `0.99302` since
   1OZ launch; GC↔1OZ `0.97157` over native overlap.
 - Context audit: `CAUSAL_CONTEXT_READY`; no outcome has authority to rewrite
@@ -65,6 +68,8 @@ profitability clock, order, or XSP mutation exists or is authorized.
 | 15 | Stage-7-blocked H4 10-bar breakout onset with one/two-bar memory | `−$449.02/−$523.68`, PF `0.242/0.230`; fresh breakouts behave as late exhaustion | reject family |
 | 16 | Financed surrender after H4 slope/spread and 21/63/126-day velocity collapse | one-bar proxy repairs weak-year sum but cuts recent by `$1,206.84` and breadth to 4/10; two-bar remains 6/10 | reject broad exit family |
 | 17 | Delay a financed, D1-hard-supported inverse exit for one/two extra H4 states | three-state proof reaches 8/10 and makes Year 7 positive, but Year 4 falls to `−$105.73`, cadence to 23.66/year, DD to `$1,143.23`; two-state remains 7/10 | reject family |
+| 18 | After a financed H4 inverse, let supporting D1 soft 8/21 own the exit | age-1 reaches 8/10, weak-year sum `+$69.46`, 10y `+$3,082.85`; but Year 2/6 lose, cadence 11.33/year, concentration 85.2%, DD `$1,159.01`; age-2 only 6/10 | reject; retain dual-clock clue |
+| 19 | Canonical H4 KAMA `(2,30)` with ER `10/20` | only 2/10 and 5/10 positive years; floors `−$188.16/−$182.51`; weak-year sums worsen | reject family; no KAMA sweep |
 
 The XSP engine test reused only its portable causal core: normalized
 multihorizon slopes, slope velocities, coherence, ATR ratio/velocity/
@@ -204,19 +209,31 @@ not breadth or weak-year sum and worsens DD. Two extra states turn Year 7
 positive and reach 8/10, but merely move the floor back to Year 4, lose cadence,
 and raise DD materially. Financed H4 persistence is therefore closed.
 
-The next distinct ownership question comes from frozen Stage-5 evidence, not
-Stage-17 outcomes: the independent D1 EMA 8/21 clock was positive in exactly
-Years 2/4/7, the three Stage-12 losers. Test whether D1 8/21 may retain an
-already-financed Stage-12 incumbent through H4 counterturn noise while both the
-mature D1 21/50 hard state and D1 8/21 soft state still support it. Wrong or
-unfinanced trades and hard reversals must still close immediately; after a
-suppressed H4 exit, a completed soft reversal must flatten even without a new
-H4 cross. This is single-contract hierarchical ownership, not summing sleeves
-or routing known years. Do not reopen generic trails, fizzles, soft countertrend
-entries, H4 admission confirmation/persistence, Bollinger reclaims, breakout
-onsets, broad collapse exits, or volatility grids. Promote nothing unless annual
-breadth and floor, recent three years, full 10y, both directions, session
-stability, cadence, concentration, and DD improve together.
+Stage 18 proves the D1 soft clock contains genuine complementary ownership: its
+age-1 form makes Years 4/7 positive, improves the combined weak years from
+`−$157.21` to `+$69.46`, raises 10y net to `+$3,082.85`, and preserves both
+recent directions/sessions. But it shifts loss into Year 6, leaves Year 2
+negative, halves cadence, concentrates 85.2% of gains in five trades, and raises
+DD. The adjacent cell fails. It is evidence for two clocks, not a candidate.
+
+Static UUP/TIP confirmation also fails: the cleanest conflicting long cohort is
+negative full/recent and in all weak years, but earns `+$108.20` in Year 6, so a
+veto merely moves the loss. The causal macro tape remains prospective
+attribution only. Stage 19 then falsified canonical KAMA as a self-contained
+adaptive clock; fixed KAMA parameter hunting is closed.
+
+The next materially distinct architecture is an independent dual-clock
+efficiency router, not a nested Stage-18 rescue. Both H4 Stage-12 and D1-soft
+signals run causally in shadow. At a flat boundary only, a completed daily path
+efficiency state selects which clock may own the next trade; the chosen entry
+owner retains exit authority until flat, preventing mid-trade strobing. High
+directional efficiency should select the slow D1 clock; low efficiency should
+select the H4 clock. Freeze only canonical 21/42-session efficiency neighbours
+relative to their trailing 252-session causal median. Do not reopen generic
+trails, fizzles, soft countertrend entries, H4 persistence, Bollinger reclaims,
+breakout onsets, broad collapse exits, macro gates, KAMA, or volatility grids.
+Promote nothing unless annual breadth/floor, recent/full economics, both
+directions, session stability, cadence, concentration, and DD improve together.
 
 ## Native 1OZ transport gate
 
@@ -242,13 +259,12 @@ we do not pretend fractional futures exist or borrow XSP's reserve.
 
 ## Active work queue
 
-1. `[WIP]` Census and freeze hierarchical exit ownership: after an exact
-   Stage-12 inverse exit first appears, retain only a financed incumbent still
-   supported by both D1 hard 21/50 and soft 8/21; soft/hard reversal then owns
-   the flatten.
-2. `[TODO]` Replay the control plus immediate/one-day-persistent soft-reversal
-   neighbours across all ten slices; reject unless breadth/floor and full
-   economics improve without sacrificing modern trends, cadence, or DD.
+1. `[WIP]` Specify and census the flat-boundary dual-clock efficiency router:
+   shadow H4 Stage-12 and D1-soft clocks, choose one owner from completed daily
+   efficiency only while flat, and forbid mid-position owner switching.
+2. `[TODO]` Preregister 21/42-session efficiency versus trailing 252-session
+   median neighbours, then replay all ten slices; failure closes price-only
+   routing and moves development to prospective fundamental/onset evidence.
 3. `[TODO]` Run native 1OZ execution/roll/liquidity replay and derive the exact
    capital requirement.
 4. `[TODO]` Crown or reject the signal; if crowned, publish machine declaration,
@@ -340,6 +356,27 @@ we do not pretend fractional futures exist or borrow XSP's reserve.
 - Stage-17 financed-incumbent persistence receipt:
   `/tmp/gold-stage17-financed-incumbent-persistence-20260802.json`, SHA-256
   `861fae8b95626f2fbc0988271499a9a290189841d85123942602da75d22d93d7`.
+- Stage-18 preregistration and causal cohort census:
+  `/tmp/1oz-gold-regime-harmony-preregistration-v19.json` and
+  `/tmp/gold-stage18-soft-owner-census-20260802.json`, SHA-256
+  `e9a8aca7d3127220a43df3c32128aa060db60554ae07c8ec70ec197c7d1d5e63` /
+  `3db33f2af7811083eb5ff19321680a0fd93d1835e03cca1e19d85e6ac1c1db3f`.
+- Stage-18 hierarchical-soft receipt:
+  `/tmp/gold-stage18-hierarchical-soft-ownership-20260802.json`, SHA-256
+  `6d5029a203fd40efa26df988e3f77cad9e9e52fb3cb0927f6bcbd48193d9f9ac`.
+- UUP/TIP macro hydration and Stage-12 anatomy:
+  `/tmp/gold-macro-context-hydration-20260802.json` and
+  `/tmp/gold-stage12-macro-context-anatomy-20260802.json`, SHA-256
+  `baf3d95f550e7f21563d63f100b4a0fb7d7c066a1e094595457c81a85128e698` /
+  `f2d5a1f317eab2d3e144b3ac87db86ec10e94a1e41e03a35fe10554e65429fce`.
+- Stage-19 preregistration and signal census:
+  `/tmp/1oz-gold-regime-harmony-preregistration-v20.json` and
+  `/tmp/gold-stage19-kama-census-20260802.json`, SHA-256
+  `4a5f96549eced1e415cccb331b4dba3342ac72c6f5ee19360eea673c68e12db9` /
+  `d8f13722a2204ff3759ae67cecc741fbe6af830101fd325e27c04c25660bcedc`.
+- Stage-19 adaptive-KAMA receipt:
+  `/tmp/gold-stage19-adaptive-kama-20260802.json`, SHA-256
+  `fca734bd1e12a9958320c4d30357bc1f9e2b336c9e18dd8e3e4a18830e79fa05`.
 
 These `/tmp` artifacts are scratch evidence; this file preserves their decisive
 facts across context compaction. Promotion requires canonical repo receipts,
