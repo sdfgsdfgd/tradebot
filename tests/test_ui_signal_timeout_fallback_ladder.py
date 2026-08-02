@@ -9,7 +9,7 @@ from ib_insync import Stock
 from tradebot.client import OhlcvBar
 from tradebot.engines.market import is_early_close_day, is_trading_day
 from tradebot.time_utils import now_et_naive
-from tradebot.ui.bot import BotScreen
+from tradebot.ui.bot_legacy import BotScreen
 
 
 def _screen() -> BotScreen:

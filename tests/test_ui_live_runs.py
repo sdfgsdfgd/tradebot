@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 from tradebot.ui.bot import BotScreen
 from tradebot.ui.bot_screen.live_runs import BotLiveRunsMixin
+from tradebot.ui.bot_screen.portfolio import BotPortfolioMixin
 
 
 class _TableStub:
@@ -22,7 +23,7 @@ class _TableStub:
         self.rows.append((values, kwargs))
 
 
-class _Harness(BotLiveRunsMixin):
+class _Harness(BotPortfolioMixin, BotLiveRunsMixin):
     def _sync_row_marker(self, *_args, **_kwargs) -> None:
         return
 
@@ -122,17 +123,22 @@ def _run() -> dict[str, object]:
     }
 
 
-def test_live_runs_panel_is_official_peer_of_presets_and_local_instances() -> None:
+def test_bot_trade_has_only_durable_candidate_run_and_evidence_panels() -> None:
+    assert "bot-presets" not in BotScreen._PANEL_BY_TABLE_ID
+    assert "bot-instances" not in BotScreen._PANEL_BY_TABLE_ID
+    assert "bot-orders" not in BotScreen._PANEL_BY_TABLE_ID
+    assert BotScreen._PANEL_BY_TABLE_ID["bot-candidates"] == "candidates"
     assert BotScreen._PANEL_BY_TABLE_ID["bot-live-runs"] == "live_runs"
     assert BotScreen._PANEL_ORDER == (
-        "presets",
+        "candidates",
         "live_runs",
-        "instances",
-        "orders",
+        "activity",
         "logs",
     )
-    assert BotScreen._SPACE_HANDLER_BY_PANEL["live_runs"] == "action_toggle_live_run"
-    assert BotScreen._ACTIVATE_HANDLER_BY_PANEL["live_runs"] == "_activate_live_runs_panel"
+    screen = BotScreen(client=SimpleNamespace(), refresh_sec=1.0)
+    assert not hasattr(screen, "_client")
+    assert not hasattr(screen, "_instances")
+    assert not hasattr(screen, "_orders")
 
 
 def test_live_run_table_projects_durable_truth_not_local_bot_instances() -> None:
@@ -183,3 +189,42 @@ def test_live_run_details_reuse_persisted_hawkeye_anatomy() -> None:
     assert any("ATR ratio=+2.065" in line for line in details)
     assert any("Long context" in line and "transition_down" in line for line in details)
     assert any("News attribution" in line and "pressure=+0.5044" in line for line in details)
+
+
+def test_timeline_details_preserve_the_persisted_execution_ladder() -> None:
+    details = [
+        line.plain
+        for line in _Harness()._timeline_detail_lines(
+            {
+                "recorded_at_utc": "2026-07-30T16:45:47+00:00",
+                "kind": "EXECUTION",
+                "phase": "SUBMITTED",
+                "status": "ACTIONABLE",
+                "reason": "sell_incumbent_before_target",
+                "message": "target=flat SELL 23 SPXU",
+                "execution_detail": {
+                    "order_ref": "XSPV3-test",
+                    "ladder_transition": {
+                        "previous_mode": "OPT",
+                        "active_mode": "MID",
+                        "elapsed_seconds": 6.23,
+                        "limit_price": 38.56,
+                        "quote_age_seconds": 1.68,
+                        "quote_eligible": True,
+                        "no_progress_reprices": 1,
+                    },
+                    "broker_order": {
+                        "status": "Filled",
+                        "filled": 23,
+                        "quantity": 23,
+                        "average_fill_price": 38.56,
+                        "fills": [{"commission": 0.340881}],
+                    },
+                },
+            }
+        )
+    ]
+
+    assert any("Execution ladder  OPT→MID" in line for line in details)
+    assert any("quote_age=1.68s" in line for line in details)
+    assert any("ref=XSPV3-test" in line and "commission=$0.3409" in line for line in details)

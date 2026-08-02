@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 
-from tradebot.ui.bot import BotScreen
+from tradebot.ui.bot_legacy import BotScreen
 
 
 class _LockStub:

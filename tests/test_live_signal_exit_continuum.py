@@ -42,7 +42,7 @@ from tradebot.ui.bot_journal_diagnostics import JournalDiagnostics
 from tradebot.ui.bot_models import _BotInstance, _BotOrder
 from tradebot.ui.bot_order_builder import BotOrderBuilderMixin
 from tradebot.ui.bot_signal_runtime import BotSignalRuntimeMixin
-from tradebot.ui.bot import BotScreen
+from tradebot.ui.bot_legacy import BotScreen
 import tradebot.ui.bot_screen.orders as bot_orders_module
 import tradebot.ui.bot_signal_runtime as bot_signal_runtime_module
 

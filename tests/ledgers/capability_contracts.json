@@ -115,6 +115,7 @@
     "tests/test_live_calibration.py": "market-realism-parity",
     "tests/test_live_capital.py": "policy-risk-sizing",
     "tests/test_live_graduation.py": "market-realism-parity",
+    "tests/test_live_portfolio.py": "runtime-configuration-state",
     "tests/test_live_runs.py": "runtime-configuration-state",
     "tests/test_xsp_execution_dwell_validation.py": "market-realism-parity",
     "tests/test_xsp_execution_observer.py": "market-realism-parity",
@@ -179,6 +180,7 @@
       ],
       "evidence": [
         "tests/test_effective_filters_payload.py",
+        "tests/test_live_portfolio.py",
         "tests/test_live_runs.py"
       ],
       "owner_surface": [
@@ -186,7 +188,10 @@
         "tradebot/backtest/config.py",
         "tradebot/backtest/config_filters.py",
         "tradebot/backtest/config_values.py",
+        "tradebot/live/portfolio.py",
+        "tradebot/live/portfolio_endpoint.py",
         "tradebot/live/runs.py",
+        "tradebot/live/strategies.py",
         "tradebot/spot/codec.py"
       ],
       "oracle": [

@@ -81,11 +81,15 @@ def test_full_combo_remains_the_only_spot_stability_pipeline() -> None:
     assert not {path for path in RETIRED_RESEARCH_SURFACES if (ROOT / path).exists()}
 
 
-def test_durable_run_cockpit_has_no_broker_order_owner() -> None:
+def test_official_live_cockpit_has_no_local_signal_or_broker_order_owner() -> None:
     forbidden_imports = {
         "tradebot.client",
         "tradebot.live.execution",
+        "tradebot.ui.bot_engine_runtime",
+        "tradebot.ui.bot_legacy",
         "tradebot.ui.bot_order_builder",
+        "tradebot.ui.bot_signal_runtime",
+        "tradebot.ui.bot_screen.orders",
     }
     forbidden_calls = {
         "cancelOrder",
@@ -95,7 +99,13 @@ def test_durable_run_cockpit_has_no_broker_order_owner() -> None:
     }
     for relative in (
         "tradebot/live/runs.py",
+        "tradebot/live/portfolio.py",
+        "tradebot/live/portfolio_endpoint.py",
+        "tradebot/live/strategies.py",
+        "tradebot/ui/bot.py",
+        "tradebot/ui/bot_runtime.py",
         "tradebot/ui/bot_screen/live_runs.py",
+        "tradebot/ui/bot_screen/portfolio.py",
     ):
         path = ROOT / relative
         tree = ast.parse(path.read_text(), filename=str(path))

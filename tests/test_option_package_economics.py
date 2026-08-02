@@ -39,7 +39,7 @@ if "tradebot.ui" not in sys.modules:
 import tradebot.ui.bot_engine_runtime as bot_engine_runtime_module
 import tradebot.ui.bot_screen.orders as bot_orders_module
 import tradebot.ui.bot_order_builder as bot_order_builder_module
-from tradebot.ui.bot import BotScreen
+from tradebot.ui.bot_legacy import BotScreen
 from tradebot.ui.bot_engine_runtime import BotEngineRuntimeMixin
 from tradebot.ui.bot_models import _BotInstance, _BotOrder
 from tradebot.ui.bot_order_builder import BotOrderBuilderMixin

@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from types import SimpleNamespace
 
-from tradebot.ui.bot import BotScreen
+from tradebot.ui.bot_legacy import BotScreen
 
 
 class _TableStub:

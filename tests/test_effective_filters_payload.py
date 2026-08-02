@@ -4,7 +4,7 @@ import asyncio
 from types import SimpleNamespace
 
 from tradebot.spot.codec import effective_filters_payload
-from tradebot.ui.bot import BotScreen
+from tradebot.ui.bot_legacy import BotScreen
 
 
 def _screen() -> BotScreen:

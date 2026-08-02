@@ -32,6 +32,8 @@ class LiveRunBinding:
     timer_unit: str
     service_unit: str
     selection_validator: SelectionValidator
+    champion_symbol: str = ""
+    champion_track: str = ""
 
 
 def _canonical_json(value: object) -> bytes:

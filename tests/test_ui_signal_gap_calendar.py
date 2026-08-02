@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from types import SimpleNamespace
 
-from tradebot.ui.bot import BotScreen
+from tradebot.ui.bot_legacy import BotScreen
 
 
 @dataclass(frozen=True)

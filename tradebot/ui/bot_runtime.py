@@ -1,19 +1,18 @@
-"""Persistent bot runtime manager for screen-independent execution."""
+"""Navigation owner for the durable portfolio cockpit."""
 
 from __future__ import annotations
 
 from textual.app import App
 
-from ..client import IBKRClient
 from .bot import BotScreen
 
 
 class BotRuntime:
-    """Owns a persistent BotScreen so bot loops survive UI navigation."""
+    """Keep one cockpit screen while q-owned runs outlive every UI session."""
 
     _SCREEN_NAME = "bot-runtime"
 
-    def __init__(self, client: IBKRClient, refresh_sec: float) -> None:
+    def __init__(self, client: object | None, refresh_sec: float) -> None:
         self._screen = BotScreen(client, refresh_sec)
         self._installed = False
 

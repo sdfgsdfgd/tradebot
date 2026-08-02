@@ -169,13 +169,14 @@ output belongs in commit/final verification, not in this management brain.
     and records each admission in the existing execution ledger. Owner
     migration preserves the Friday prefix only because all `80` selected rows
     prove zero orders, fills, trades, positions, costs, P&L, and drawdown.
-27. `[DONE]` Bot Trade now projects official durable runs directly from the
-    immutable capital plan, selected identity, append-only ledger, graduation
-    receipts, and q systemd state. The existing q service remains the sole
-    broker/order owner; UI Start resumes its timer, Stop is flat/order/pending/
-    invocation-safe, and Replace/Rebalance remain successor-artifact gates.
-    Existing Presets/Instances/Orders/Logs are preserved. XSP appears first;
-    future MCL appears only after independent transport/selection proof.
+27. `[DONE]` Bot Trade is now only the q-owned durable champion cockpit:
+    immutable machine crown -> cash/preview/selection proof -> capital sleeve
+    -> product worker -> append-only evidence -> graduation. The active UI has
+    no local instance, signal loop, broker client, order sender, or fallback to
+    Mac state. Candidate and control actions persist request/result receipts on
+    q; README-only crowns remain visible but research-only. XSP appears first;
+    future MCL registers through the same catalog, allocator, control,
+    evidence, and graduation contracts after its own transport proof.
 
 ### Never infer
 
@@ -1090,6 +1091,7 @@ and
 | E-361 | pure graduation owner `f5b1cc3…` now reduces validated selection identity, one dependency-closed append-only ledger prefix, canonical selected-cash profitability, restart/safety/attribution/execution evidence, frozen runtime parity, and rehashed capital owners into `PROMOTE/HOLD/REVISE/QUARANTINE/STOP`; it creates no observer, timer, service, parallel ledger, or second economics calculator. Manifest `29b4e7e5…` binds all `22` capital-semantic files. Its first q-native immutable `24h` receipt `2d7c6dc2…` used exact Friday cutoff `20:18Z`, all `809` rows / prefix `eb004df0…`, and correctly returned `HOLD`: identity, runtime parity, capital stability, restart, cash/risk/safety, and attribution passed; actual execution was unobserved and elapsed/session/positive-net requirements remained incomplete. An identical rerun was idempotent at receipt SHA `e40c4c08…`; selection `eb6aad41…`, ledger, timer, service, broker/order authority, and profitability clock were unchanged |
 | E-362 | shared capital owner `331679d…` replaces implicit spare-cash authority with immutable plan `f34751af…`: `$900.46` managed, `$417.59` explicit reserve, XSP `10000 bps`, exact account/run/selection/kind, conservative cent rounding, no borrowing/reallocation, and unconditional risk reduction. Every BUY now carries a content-addressed admission through the existing runtime/ledger/graduation chain. Generation manifest `59a6a555…` binds `25` owners plus predecessor `29b4e7e5…` and recomputes exact pre-migration prefix `eb004df0…`: `809` rows / `80` selected states / zero orders, fills, trades, positions, costs, net, or DD. q-native boundary proof allows `$900.45034925`, rejects `$900.47`, and keeps the immutable `24h` verdict honestly `HOLD`; no order, selection, clock, or economics changed |
 | E-363 | durable cockpit `78fa72d…` makes the capital plan the sole run registry and projects exact selection SHA, q timer/service, selected-ledger health, holdings/orders, cash, P&L/cost/DD, graduation, safety, and persisted Hawkeye anatomy into Bot Trade. A mounted real-artifact smoke rendered the original `5/15/30/60/120m` slope angles/velocities and ATR ratio/velocity/acceleration plus gate, `5/10/21/42/63/84` regime and news pressure/delta/velocity, while preserving local Presets/Instances/Orders/Logs. Core imports no broker/order owner; Start/flat-safe Stop can touch only the bound timer, while Replace/Rebalance require immutable successors. Review caught and reversed an initial binding placement so frozen `xsp_live_capital.py` remains exact SHA `8dc86cf0…`. q snapshot is `READY/RUNNING`, plan `f34751af…`, selection `b4799fa6…/eb6aad41…`, `80` rows, flat, no open/pending order, `$1,318.05` cash, and zero fills/trades/P&L/DD. Permanent mode-`0600` cutoff receipt `cfdbcfbc…` is visible as honest `24h HOLD`; identity/runtime/capital/restart/safety/attribution pass, execution and profitability remain immature. Full proof `1048` passed / `4` deselected; no broker query, order, selection, strategy, sizing, risk, clock, or economics mutation |
+| E-364 | unified portfolio owner `61728ed8…` supersedes only E-363's UI coexistence boundary: active Bot Trade no longer imports or exposes the in-memory Preset -> local signal/order -> broker path. Machine crown identity and artifact SHA gate commissioning; README crowns are research-only; missing immutable selection/capital proof returns persisted HOLD. Mac uses one explicit SSH q endpoint with no local-state fallback; q persists linked control request/result receipts before/after any timer mutation. The same timeline projects exact source Hawkeye context, execution-ladder dwell/reprices, previews, broker refs, fills, commissions, holdings, risk, P&L/DD, and graduation without recalculation. Legacy UI code is quarantined regression-only. Architecture/full proof is `1054` passed / `4` deselected; current q selection, capital plan, worker, ledger, broker, order, strategy, clock, and economics were untouched |
 
 ### Decision anchors
 
@@ -1141,6 +1143,7 @@ and
 | D-184 | a new v3 observer may freeze any strictly future exact five-minute GTH boundary, then recover only that immutable start. This permits same-day prospective observation without backfill; it does not transfer earlier outcomes or relax selection/order clocks. The v2 trading-day-open boundary remains unchanged |
 | D-185 | v3 may reuse only the existing selected cash-pair execution owner. Selection must bind fresh SMART and direct-ARCA books, exact quote-derived whole shares, effective Tiered what-if economics, current contract/cash identity, strict T+1 risk, and explicit acceptance of the below-global-cadence RTH-first scope. A historical pass, pricing request, stale internal book, preselection state, or missing GTH qualification cannot create authority |
 | D-186 | transport follows the crowned lifecycle's three states exactly: hold incumbent; sell to flat when the source surrenders but no opposite entry is admitted; or fully SELL then BUY when the opposite direction is admitted. Immediate sale proceeds may finance the latter only after terminal full-sale and fresh broker reconciliation. Never invent signal context for a flat liquidation, infer a long from raw up bias, or let an inherited-position continuity identity start a clean profitability prefix |
+| D-187 | Bot Trade has one live meaning: request q to validate or control an immutable candidate/run through the shared capital and graduation owners. It may never construct a mutable local strategy instance, submit/cancel a broker order, recompute Hawkeye evidence, or fall back from q to local state. New products register bindings and product workers behind the same catalog/control/evidence contracts; active positions retain product-worker risk-reduction ownership |
 
 ---
 
@@ -1226,9 +1229,15 @@ independent broker census remained flat. The clock is active from selection
 Shared plan `f34751af…` now caps entry at its qualified `$900.46` managed pool,
 leaves `$417.59` outside strategy authority, and makes later XSP/MCL portfolio
 weights one durable account decision rather than independent trading loops.
-Bot Trade now exposes that exact durable run, its graduation/safety state, and
-the persisted Hawkeye anatomy; closing the UI cannot stop or erase q's owner,
-and the UI has no independent broker submission path.
+Bot Trade is now only the q-owned durable portfolio cockpit. Immutable machine
+crowns, cash/preview/selection proof, capital sleeves, product workers,
+append-only evidence, and graduation form one chain; README crowns remain
+research-only. Mac controls q through an explicit endpoint with no local-state
+fallback. Closing the UI cannot stop or erase q's owner, and the active UI has
+no local signal, instance, broker, or order-submission path. Its activity/log
+timeline projects exact persisted Hawkeye, ladder, broker, risk, and graduation
+evidence. Future MCL may join through the same contracts only after independent
+transport qualification.
 
 Archived predecessor `daf1609b…` and the first live round trip remain immutable
 evidence: `23 SPXU @ $39.10` sold at `$38.56`, `$0.659007` commission, realized

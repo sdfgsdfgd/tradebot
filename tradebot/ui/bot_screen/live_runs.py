@@ -8,39 +8,16 @@ from pathlib import Path
 
 from rich.text import Text
 
-from ...live.runs import LiveRunBinding, LiveRunCockpit
-from ...research.live_graduation import validate_live_graduation_receipt
-from ...research.xsp_live_transport import XSP_V3_TRANSPORT_EXECUTION_VERSION
-from ...research.xsp_live_transport_v3 import (
-    load_xsp_v3_transport_selection_from_mapping,
-)
-from ...research.xsp_opening_edge_v3 import XSP_OPENING_EDGE_V3_VERSION
+from ...live.portfolio_endpoint import LivePortfolioEndpoint
 from ..common import _pnl_text
 from .formatting import _center_table_row
-
-
-XSP_LIVE_RUN_BINDING = LiveRunBinding(
-    strategy_id=XSP_OPENING_EDGE_V3_VERSION,
-    label="XSP v3 Regime Harmony · UPRO/SPXU RTH",
-    execution_strategy_version=XSP_V3_TRANSPORT_EXECUTION_VERSION,
-    ledger_path="db/calibration/xsp_live_calibration.jsonl",
-    timer_unit="tradebot-xsp-shadow.timer",
-    service_unit="tradebot-xsp-shadow.service",
-    selection_validator=load_xsp_v3_transport_selection_from_mapping,
-)
 
 
 class BotLiveRunsMixin:
     _LIVE_RUN_REFRESH_SEC = 5.0
 
     def _init_live_runs(self, repository_root: Path) -> None:
-        self._live_runs_owner = LiveRunCockpit(
-            repository_root=repository_root,
-            capital_plan_path=repository_root / "db/calibration/live_capital_plan.json",
-            bindings=(XSP_LIVE_RUN_BINDING,),
-            graduation_directory=Path("db/calibration/live_graduation"),
-            graduation_validator=validate_live_graduation_receipt,
-        )
+        self._live_runs_owner = LivePortfolioEndpoint.default(repository_root)
         self._live_runs_snapshot: dict[str, object] | None = None
         self._live_run_rows: list[dict[str, object]] = []
         self._live_runs_refreshing = False
@@ -184,10 +161,16 @@ class BotLiveRunsMixin:
             return
         self._live_runs_refreshing = True
         try:
-            snapshot = await asyncio.to_thread(self._live_runs_owner.snapshot)
+            view = await asyncio.to_thread(self._live_runs_owner.view)
+            snapshot = view["snapshot"]
+            timeline = view["timeline"]
             self._live_runs_snapshot = snapshot
             self._render_live_runs_table(snapshot)
-            if self._active_panel == "live_runs":
+            if hasattr(self, "_render_candidates_table"):
+                self._render_candidates_table(snapshot)
+            if hasattr(self, "_render_timeline_tables"):
+                self._render_timeline_tables(timeline)
+            if self._active_panel in {"candidates", "live_runs", "activity", "logs"}:
                 self._render_status()
         except Exception as exc:  # pragma: no cover - operator surface
             self._set_status(f"Live Runs: {exc}")
@@ -260,21 +243,17 @@ class BotLiveRunsMixin:
 
     async def _control_live_run(self, sleeve_id: str, action: str) -> None:
         try:
-            receipt = await asyncio.to_thread(
-                self._live_runs_owner.control,
+            result = await asyncio.to_thread(
+                self._live_runs_owner.request_control,
                 sleeve_id,
                 action,
             )
-            decision = receipt.get("decision")
+            receipt = result.get("receipt")
+            decision = receipt.get("decision") if isinstance(receipt, Mapping) else None
             status = (
                 str(decision.get("status") or "")
                 if isinstance(decision, Mapping)
                 else ""
-            )
-            self._journal_write(
-                event="DURABLE_RUN_CONTROL",
-                reason=action,
-                data={"sleeve_id": sleeve_id, "status": status},
             )
             self._set_status(f"{action.title()} {sleeve_id}: {status}")
         except Exception as exc:
