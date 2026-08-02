@@ -22,6 +22,10 @@ Minimal IBKR TUI trading client & bot
 - Event‑driven UI refresh (redraws only on data changes, throttled to 250ms).
 - **Details screen** per position with contract metadata, live quotes, and an execution panel.
 - **Overnight routing** for equities during the overnight session via the `OVERNIGHT` exchange.
+- **Official Live Runs** cockpit for persistent selected champions: immutable identity,
+  capital sleeve, q-owned service state, position/P&L/DD, graduation/safety, and the
+  exact persisted Hawkeye slope/velocity/ATR/regime/news context. The cockpit may
+  resume or flat-safely pause the durable schedule; it never submits broker orders.
 
 ## Details Screen
 ![Details screen](docs/details.png)
@@ -41,6 +45,8 @@ Minimal IBKR TUI trading client & bot
 - `tradebot/ui/portfolio/` — portfolio search, account table, and market-value presentation.
 - `tradebot/ui/position_detail/` — position detail, charts, market context, and order controls.
 - `tradebot/ui/bot_screen/` — bot configuration, presets, positions, logs, signals, and orders.
+- `tradebot/live/runs.py` — canonical selected-run projection and flat-safe durable
+  schedule controls; the capital plan is the run registry.
 - `tradebot/engines/` — shared market, signal, risk, shock, and execution truth.
 - `tradebot/spot/` — canonical spot payload, policy, sizing, graph, and lifecycle semantics.
 - `tradebot/backtest/cache_ops/` — cache coverage, repair, resampling, sync, and CLI orchestration.

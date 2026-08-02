@@ -484,6 +484,7 @@ class BotOrdersMixin:
         self._render_bot()
 
     def _render_bot(self) -> None:
+        self._status_panel.styles.height = 22 if self._active_panel == "live_runs" else 5
         lines: list[Text] = [Text("Bot Hub", style="bold")]
         if self._payload:
             symbol = self._payload.get("symbol", "?")
@@ -496,7 +497,7 @@ class BotOrdersMixin:
 
         lines.append(
             Text(
-                "Enter=Config/Send  Ctrl+A/p=Presets  f=FilterDTE  w=FilterWin  v=Scope  Tab/h/l=Focus  c=Cancel  Space=Run/Toggle  s=Stop  S=Kill  d=Del  X=Send",
+                "Enter=Inspect/Config/Send  Ctrl+A/p=Presets  Tab/h/l=Focus  Space=Run/Pause  s=Stop  x=Replace  b=Rebalance  c=Cancel  X=Send",
                 style="dim",
             )
         )
@@ -509,6 +510,7 @@ class BotOrdersMixin:
         lines.append(Text(f"Filter: DTE={dte_label} (f)  Win={win_label} (w)", style="dim"))
         focus_style = {
             "presets": "bold #62b0ff",
+            "live_runs": "bold #73d89e",
             "instances": "bold #66d19e",
             "orders": "bold #f3b267",
             "logs": "bold #b7a6ff",
@@ -518,6 +520,7 @@ class BotOrdersMixin:
         focus_line.append(
             f"  Presets: {'ON' if self._presets_visible else 'OFF'}  "
             f"Scope: {'ALL' if self._scope_all else 'Instance'}  "
+            f"Live Runs: {len(self._live_run_rows)}  "
             f"Instances: {len(self._instances)}  Orders: {len(self._order_rows)}",
             style="dim",
         )
@@ -582,6 +585,10 @@ class BotOrdersMixin:
                                     style="dim",
                                 )
                             )
+        elif self._active_panel == "live_runs":
+            run = self._selected_live_run()
+            if run:
+                lines.extend(self._live_run_detail_lines(run))
         elif self._active_panel == "instances":
             instance = self._selected_instance()
             if instance:

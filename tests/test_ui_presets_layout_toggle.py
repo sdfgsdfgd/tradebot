@@ -27,6 +27,7 @@ def test_bot_bindings_include_preset_toggle_hotkey_p() -> None:
 def test_apply_presets_layout_moves_space_to_logs_when_hidden() -> None:
     screen = _screen()
     screen._presets_table = _TableStub()
+    screen._live_runs_table = _TableStub()
     screen._orders_table = _TableStub()
     screen._logs_table = _TableStub()
 

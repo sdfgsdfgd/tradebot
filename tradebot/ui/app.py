@@ -103,6 +103,7 @@ class PositionsApp(
 
     #positions > .datatable--header,
     #bot-presets > .datatable--header,
+    #bot-live-runs > .datatable--header,
     #bot-instances > .datatable--header,
     #bot-orders > .datatable--header,
     #bot-logs > .datatable--header,
@@ -170,6 +171,12 @@ class PositionsApp(
         border: solid #1b3650;
     }
 
+    #bot-live-runs {
+        height: 8;
+        padding: 0 1;
+        border: solid #1b3650;
+    }
+
     #bot-orders {
         height: 1fr;
         padding: 0 1;
@@ -183,6 +190,7 @@ class PositionsApp(
     }
 
     #bot-presets,
+    #bot-live-runs,
     #bot-instances,
     #bot-orders,
     #bot-logs,
@@ -191,6 +199,7 @@ class PositionsApp(
     }
 
     #bot-presets:focus,
+    #bot-live-runs:focus,
     #bot-instances:focus,
     #bot-orders:focus,
     #bot-logs:focus,
@@ -200,6 +209,11 @@ class PositionsApp(
     }
 
     #bot-presets > .datatable--cursor {
+        background: #0d1117;
+        text-style: none;
+    }
+
+    #bot-live-runs > .datatable--cursor {
         background: #0d1117;
         text-style: none;
     }
@@ -225,6 +239,7 @@ class PositionsApp(
     }
 
     #bot-presets > .datatable--header-cursor,
+    #bot-live-runs > .datatable--header-cursor,
     #bot-instances > .datatable--header-cursor,
     #bot-orders > .datatable--header-cursor,
     #bot-logs > .datatable--header-cursor,

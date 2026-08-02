@@ -79,3 +79,41 @@ def test_backtest_dependency_debt_only_shrinks() -> None:
 
 def test_full_combo_remains_the_only_spot_stability_pipeline() -> None:
     assert not {path for path in RETIRED_RESEARCH_SURFACES if (ROOT / path).exists()}
+
+
+def test_durable_run_cockpit_has_no_broker_order_owner() -> None:
+    forbidden_imports = {
+        "tradebot.client",
+        "tradebot.live.execution",
+        "tradebot.ui.bot_order_builder",
+    }
+    forbidden_calls = {
+        "cancelOrder",
+        "placeOrder",
+        "place_limit_order",
+        "submit_order",
+    }
+    for relative in (
+        "tradebot/live/runs.py",
+        "tradebot/ui/bot_screen/live_runs.py",
+    ):
+        path = ROOT / relative
+        tree = ast.parse(path.read_text(), filename=str(path))
+        imports = {
+            alias.name
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Import)
+            for alias in node.names
+        }
+        imports.update(
+            _import_name(path, node)
+            for node in ast.walk(tree)
+            if isinstance(node, ast.ImportFrom)
+        )
+        calls = {
+            node.func.attr
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+        }
+        assert not imports & forbidden_imports, relative
+        assert not calls & forbidden_calls, relative

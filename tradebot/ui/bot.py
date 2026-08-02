@@ -36,6 +36,7 @@ from .bot_screen.formatting import (
     _missing_signal_transport_keys,
 )
 from .bot_screen.logs import BotLogsMixin
+from .bot_screen.live_runs import BotLiveRunsMixin
 from .bot_screen.orders import BotOrdersMixin
 from .bot_screen.positions import BotPositionsMixin
 from .bot_screen.presets import BotPresetsMixin
@@ -48,6 +49,7 @@ class BotScreen(
     BotSignalRuntimeMixin,
     BotEngineRuntimeMixin,
     BotPresetsMixin,
+    BotLiveRunsMixin,
     BotPositionsMixin,
     BotLogsMixin,
     BotSignalDataMixin,
@@ -80,24 +82,29 @@ class BotScreen(
         ("f", "cycle_dte_filter", "Filter"),
         ("w", "cycle_win_filter", "Win"),
         ("r", "reload", "Reload"),
+        ("x", "replace_live_run", "Replace"),
+        ("b", "rebalance_live_runs", "Rebalance"),
     ]
     _PANEL_BY_TABLE_ID = {
         "bot-presets": "presets",
+        "bot-live-runs": "live_runs",
         "bot-instances": "instances",
         "bot-orders": "orders",
         "bot-logs": "logs",
     }
-    _PANEL_ORDER = ("presets", "instances", "orders", "logs")
+    _PANEL_ORDER = ("presets", "live_runs", "instances", "orders", "logs")
     _SIGNAL_HEAL_BACKOFF_BASE_SEC = 8.0
     _SIGNAL_HEAL_BACKOFF_MAX_SEC = 180.0
     _ACTIVATE_HANDLER_BY_PANEL = {
         "presets": "_activate_presets_panel",
+        "live_runs": "_activate_live_runs_panel",
         "instances": "_activate_instances_panel",
         "orders": "_submit_selected_order",
         "logs": "_activate_logs_panel",
     }
     _SPACE_HANDLER_BY_PANEL = {
         "presets": "action_activate",
+        "live_runs": "action_toggle_live_run",
         "instances": "action_toggle_instance",
         "orders": "action_toggle_instance",
         "logs": "action_toggle_instance",
@@ -153,6 +160,7 @@ class BotScreen(
         self._scope_all = False
         self._journal = BotJournal(Path(__file__).resolve().parent / "out")
         self._signal_heal_backoff: dict[tuple[int, str, str, bool], dict[str, float | int]] = {}
+        self._init_live_runs(base.parent)
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -160,6 +168,13 @@ class BotScreen(
             Static("", id="bot-status"),
             DataTable(
                 id="bot-presets",
+                zebra_stripes=True,
+                show_row_labels=False,
+                cursor_foreground_priority="renderable",
+                cursor_background_priority="css",
+            ),
+            DataTable(
+                id="bot-live-runs",
                 zebra_stripes=True,
                 show_row_labels=False,
                 cursor_foreground_priority="renderable",
@@ -192,18 +207,21 @@ class BotScreen(
 
     async def on_mount(self) -> None:
         self._presets_table = self.query_one("#bot-presets", DataTable)
+        self._live_runs_table = self.query_one("#bot-live-runs", DataTable)
         self._status_panel = self.query_one("#bot-status", Static)
         self._orders_table = self.query_one("#bot-orders", DataTable)
         self._instances_table = self.query_one("#bot-instances", DataTable)
         self._logs_table = self.query_one("#bot-logs", DataTable)
         self._render_panel_titles()
         self._presets_table.cursor_type = "row"
+        self._live_runs_table.cursor_type = "row"
         self._orders_table.cursor_type = "row"
         self._instances_table.cursor_type = "row"
         self._logs_table.cursor_type = "row"
         self._setup_tables()
         self._load_leaderboard()
         self._apply_presets_layout()
+        await self._refresh_live_runs()
         await self._refresh_positions()
         self._refresh_instances_table()
         self._refresh_orders_table()
@@ -214,11 +232,19 @@ class BotScreen(
         self._sync_panel_markers(force=True)
         self._client.add_stream_listener(self._on_client_stream_update)
         self._refresh_task = self.set_interval(self._refresh_sec, self._on_refresh_tick)
+        self._live_runs_refresh_task = self.set_interval(
+            self._LIVE_RUN_REFRESH_SEC,
+            self._refresh_live_runs,
+        )
 
     async def on_unmount(self) -> None:
         self._client.remove_stream_listener(self._on_client_stream_update)
         if self._refresh_task:
             self._refresh_task.stop()
+        if self._live_runs_refresh_task:
+            self._live_runs_refresh_task.stop()
+        if self._live_run_control_task and not self._live_run_control_task.done():
+            self._live_run_control_task.cancel()
         if self._stream_refresh_task and not self._stream_refresh_task.done():
             self._stream_refresh_task.cancel()
         for con_id in list(self._tracked_conids):
@@ -234,6 +260,7 @@ class BotScreen(
         if self._refresh_lock.locked():
             return
         await self._refresh_positions()
+        await self._refresh_live_runs()
         self._render_status()
 
     def _on_client_stream_update(self) -> None:
@@ -305,7 +332,10 @@ class BotScreen(
             event.stop()
             return
         if event.character == "S":
-            self._kill_all()
+            if self._active_panel == "live_runs":
+                self._stop_live_run()
+            else:
+                self._kill_all()
             event.stop()
             return
 
@@ -317,11 +347,13 @@ class BotScreen(
 
     def action_reload(self) -> None:
         self._load_leaderboard()
-        self._set_status("Reloaded leaderboard")
+        self._request_live_runs_refresh()
+        self._set_status("Reloaded champions and durable runs")
         self._journal_write(event="RELOAD_LEADERBOARD", reason=None, data=None)
 
     def _apply_presets_layout(self) -> None:
         self._presets_table.display = self._presets_visible
+        self._live_runs_table.styles.height = 8
         self._orders_table.styles.height = "1fr"
         self._logs_table.styles.height = "1fr" if self._presets_visible else "3fr"
 
@@ -329,7 +361,7 @@ class BotScreen(
         self._presets_visible = not self._presets_visible
         self._apply_presets_layout()
         if not self._presets_visible and self._active_panel == "presets":
-            self._focus_panel("instances")
+            self._focus_panel("live_runs")
         elif self._presets_visible and self._active_panel != "presets":
             self._focus_panel("presets")
         self._render_panel_titles()
@@ -372,6 +404,7 @@ class BotScreen(
         target = str(panel or self._active_panel or "logs")
         return {
             "presets": self._presets_table,
+            "live_runs": self._live_runs_table,
             "instances": self._instances_table,
             "orders": self._orders_table,
             "logs": self._logs_table,
@@ -391,6 +424,7 @@ class BotScreen(
     def _render_panel_titles(self) -> None:
         labels = {
             "presets": "Presets",
+            "live_runs": "Official Live Runs",
             "instances": "Instances",
             "orders": "Orders / Positions",
             "logs": "Logs",
@@ -480,6 +514,9 @@ class BotScreen(
         self._dispatch_panel_handler(self._SPACE_HANDLER_BY_PANEL, default="action_toggle_instance")
 
     def action_delete_instance(self) -> None:
+        if self._active_panel == "live_runs":
+            self._set_status("Delete blocked: replace an official run through a qualified successor")
+            return
         instance = self._selected_instance()
         if not instance:
             self._set_status("Del: select an instance")
@@ -529,6 +566,9 @@ class BotScreen(
         self.refresh(layout=True)
 
     def action_stop_bot(self) -> None:
+        if self._active_panel == "live_runs":
+            self._stop_live_run()
+            return
         instance = self._selected_instance()
         if not instance:
             self._set_status("Stop: select an instance")
@@ -828,6 +868,7 @@ class BotScreen(
         )
 
     def _setup_tables(self) -> None:
+        self._setup_live_runs_table()
         self._instances_table.clear(columns=True)
         self._instances_table.add_column(_center_table_cell("ID"), width=4)
         self._instances_table.add_column(_center_table_cell("Strategy"), width=26)
