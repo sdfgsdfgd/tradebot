@@ -23,10 +23,13 @@ profitability clock, order, or XSP mutation exists or is authorized.
 - Intended executable transport: native CME `1OZ` futures, one troy ounce.
 - Historical signal clock: completed H4 bars; execution stress on the next
   tradable H1 bar.
-- Current research incumbent: H4 EMA 8/21 cross timing with one completed H4
-  persistence bar, confirmed by a D1 EMA 21/50 hard direction that has existed
-  for at least six completed daily states. Inverse evidence still closes
-  immediately; maturation affects new risk only.
+- Current frozen signal incumbent: Stage 12 H4 EMA 8/21 cross timing with one
+  completed H4 persistence bar, confirmed by D1 EMA 21/50 hard direction aged
+  at least six completed daily states, plus entry-bound high-contracting
+  retention. Current stability development reference: Stage 22 adds a two-
+  completed-bar UUP/TIP uncertainty maturation to a tiny long-only cohort.
+  Stage 22 is not crowned because it missed the preregistered concentration
+  gate; it has no runtime or capital authority.
 - Frozen round-trip stress: `$2.32` per one-ounce trade = `$0.50` spread +
   `$0.66/side` commission + `$0.25/side` slippage.
 - Historical session law remains honest `24/5`; current/prospective `24/7`
@@ -71,6 +74,9 @@ profitability clock, order, or XSP mutation exists or is authorized.
 | 18 | After a financed H4 inverse, let supporting D1 soft 8/21 own the exit | age-1 reaches 8/10, weak-year sum `+$69.46`, 10y `+$3,082.85`; but Year 2/6 lose, cadence 11.33/year, concentration 85.2%, DD `$1,159.01`; age-2 only 6/10 | reject; retain dual-clock clue |
 | 19 | Canonical H4 KAMA `(2,30)` with ER `10/20` | only 2/10 and 5/10 positive years; floors `−$188.16/−$182.51`; weak-year sums worsen | reject family; no KAMA sweep |
 | 20 | Flat-boundary H4/D1 dual-clock router; 21/42-session efficiency versus prior-252 median | both cells fall to 5/10 positive years; 21-session repairs named weak-year sum to `+$68.44` but cuts recent net to `+$2,076.87`, cadence to 17.0/year, and worsens concentration; 42-session floor is `−$219.71` | reject price-only routing; no horizon/percentile sweep |
+| 21 | Outcome-exposed causal UUP/TIP 5/21/63-day displacement, velocity, acceleration, and state-age anatomy | fresh 5-day mixed direction + mixed velocity at age one loses `−$99.39` across Years 2/4/7; adjacent ages are non-monotonic | anatomy only; freeze temporal uncertainty hypothesis |
+| 22 | Delay only that long cohort by one/two newly completed common UUP/TIP bars while H4/D1-up persists | both cells reach 8/10 positive years, retain cadence and DD, and improve weak years; both narrowly worsen top-five recent concentration | strongest stability reference; reject coronation under frozen gate |
+| 23 | Residual direction-relative macro anatomy after Stage 22 | total 5/21/63 UUP/TIP neutrality contains 15 old shorts, `−$88.79`, only Years 2/3/6 and none in recent/control years; Year-4 long residual has no equally clean macro signature | prospective cohort only; no historical rule test |
 
 The XSP engine test reused only its portable causal core: normalized
 multihorizon slopes, slope velocities, coherence, ATR ratio/velocity/
@@ -159,6 +165,31 @@ not block trades globally.
   financed surrender—not a generic stop, generic first-adverse exit, blanket
   volatility/session veto, or broad entry-threshold sweep.
 
+## Stage-22 strongest stability development reference
+
+`Stage 12 + fresh mixed/mixed UUP/TIP uncertainty wait of two completed bars`
+
+- Annual net: `+$16.53 / −$22.31 / +$19.02 / −$67.35 / +$113.49 /
+  +$41.64 / +$31.84 / +$135.77 / +$695.65 / +$1,728.13`.
+- Positive annual slices improve `7/10 → 8/10`; floor improves
+  `−$86.22 → −$67.35`; named weak-year sum improves `−$157.21 → −$57.82`.
+- Full 10y improves `+$2,750.29 → +$2,812.87`, PF `2.0422`, 264 trades,
+  `26.40/year`; recent 3y remains `+$2,670.86`, PF `3.4296`, 75 trades,
+  `24.99/year`, DD unchanged at `$822.53`.
+- Recent directions remain positive: down `+$557.94`, up `+$2,112.92`;
+  legacy GTH/RTH remain `+$2,252.41 / +$418.45`.
+- The sole failed gate is still real: recent top-five positive-share rises from
+  Stage 12's `46.3986%` to `46.5625%` (`+0.1639 pp`). The one-bar neighbour is
+  closer at `46.4157%` but has a weaker annual floor/weak-year sum. No gate is
+  relaxed after seeing this result.
+- Remaining loss anatomy is asymmetric: Year 2 is down `−$40.44` versus up
+  `+$18.13`; Year 4 is up `−$56.32` versus down `−$11.03`. One blanket gate
+  cannot honestly solve both.
+
+Stage 22 is the best stability development reference, not an eligible crown.
+It may run only as a historical/shadow comparator after a separately approved
+observer design; Stage 12 remains the frozen signal incumbent.
+
 ## Active causal hypothesis
 
 Use two-strength daily state, inspired by—but not copied blindly from—Regime
@@ -242,6 +273,15 @@ the profitable Year-6 and modern long cohorts may earn one preregistered proof-
 burden test. Otherwise historical signal sharpening stops and the missing
 fundamental/onset evidence must be accumulated prospectively.
 
+Stage 21/22 exercised that seam once. The adjacent temporal rule genuinely
+improved annual balance, but its concentration miss activated the stopping law.
+Stage 23 may guide prospective observation only: direction-relative UUP/TIP
+neutrality across 5/21/63 sessions contains `−$88.79` of old short trades and no
+modern/control examples, so historical blocking would be unvalidated regime
+extrapolation. The remaining Year-4 longs span supportive, adverse, and mixed
+macro states. No further historical UUP/TIP rule, horizon, vote, or wait sweep
+is authorized from these outcomes.
+
 ## Native 1OZ transport gate
 
 Signal success is insufficient. Before selection:
@@ -268,17 +308,20 @@ we do not pretend fractional futures exist or borrow XSP's reserve.
 
 1. `[DONE]` Stage-20 flat-boundary dual-clock census and preregistered 21/42-
    session replay: both neighbours rejected; price-only routing is closed.
-2. `[WIP]` Attribute Stage-12 long entries to strictly prior UUP/TIP macro
-   displacement, velocity, acceleration, transition age, and agreement. Seek
-   one cross-year fresh-onset signature—not a threshold grid or static veto.
-3. `[TODO]` If a causal signature survives Year-2/4/7 versus Year-6/8/9/10
-   controls, preregister one minimal admission-proof test; otherwise require a
-   prospective fundamental/onset cohort and stop historical sharpening.
-4. `[TODO]` Run native 1OZ execution/roll/liquidity replay and derive the exact
+2. `[DONE]` Stage-21 causal macro-onset anatomy and Stage-22 one/two-bar
+   uncertainty maturation: meaningful 8/10-year stability advance, but no
+   coronation because both neighbours miss concentration.
+3. `[DONE]` Stage-23 residual anatomy: preserve total cross-asset neutrality as
+   a prospective short cohort only; no clean historical Year-4-long rule.
+4. `[WIP]` Specify the minimum prospective gold onset tape needed to test
+   technical-only versus macro/news-aware admission without contaminating the
+   historical development sample. Any observer/service change needs its own
+   architecture gate before implementation.
+5. `[TODO]` Run native 1OZ execution/roll/liquidity replay and derive the exact
    capital requirement.
-5. `[TODO]` Crown or reject the signal; if crowned, publish machine declaration,
+6. `[TODO]` Crown or reject the signal; if crowned, publish machine declaration,
    reproducible receipt, runtime parity, and non-submitting durable registration.
-6. `[BLOCKED]` Broker preview waits for signal/transport qualification and live
+7. `[BLOCKED]` Broker preview waits for signal/transport qualification and live
    COMEX L1. Capital authority waits for an explicit later graduation boundary.
 
 ## Evidence identities
@@ -394,6 +437,17 @@ we do not pretend fractional futures exist or borrow XSP's reserve.
 - Stage-20 dual-clock router receipt:
   `/tmp/gold-stage20-dual-clock-router-20260802.json`, SHA-256
   `5b17733ef87df495e2f9e915d2b68110a1779c35636e9f8ce0be47eb544a3d5e`.
+- Stage-21 cross-asset macro-onset anatomy:
+  `/tmp/gold-stage21-macro-onset-anatomy-20260802.json`, SHA-256
+  `2ee5a7c36faa1f116e453f79fd48ea9a46af180389fab86391b4fd1084733c32`.
+- Stage-22 preregistration and macro-uncertainty maturation receipt:
+  `/tmp/1oz-gold-regime-harmony-preregistration-v22.json` and
+  `/tmp/gold-stage22-macro-uncertainty-maturation-20260802.json`, SHA-256
+  `5f49eee536f6a85b406767e145fa7ebdab85aa849504708cfc1b44e01d392622` /
+  `0cf08df0333febd6cb86d02ea33a4f0d8eb474938a2bc50b45bc58fabf9e7d31`.
+- Stage-23 direction-relative down-side macro anatomy:
+  `/tmp/gold-stage23-down-macro-anatomy-20260802.json`, SHA-256
+  `66c1ea684b9afe724cd8d9bd5815ecb719c2962b37f37771d02092f4fa6bf1e3`.
 
 These `/tmp` artifacts are scratch evidence; this file preserves their decisive
 facts across context compaction. Promotion requires canonical repo receipts,
