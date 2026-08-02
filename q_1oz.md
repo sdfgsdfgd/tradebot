@@ -70,6 +70,7 @@ profitability clock, order, or XSP mutation exists or is authorized.
 | 17 | Delay a financed, D1-hard-supported inverse exit for one/two extra H4 states | three-state proof reaches 8/10 and makes Year 7 positive, but Year 4 falls to `−$105.73`, cadence to 23.66/year, DD to `$1,143.23`; two-state remains 7/10 | reject family |
 | 18 | After a financed H4 inverse, let supporting D1 soft 8/21 own the exit | age-1 reaches 8/10, weak-year sum `+$69.46`, 10y `+$3,082.85`; but Year 2/6 lose, cadence 11.33/year, concentration 85.2%, DD `$1,159.01`; age-2 only 6/10 | reject; retain dual-clock clue |
 | 19 | Canonical H4 KAMA `(2,30)` with ER `10/20` | only 2/10 and 5/10 positive years; floors `−$188.16/−$182.51`; weak-year sums worsen | reject family; no KAMA sweep |
+| 20 | Flat-boundary H4/D1 dual-clock router; 21/42-session efficiency versus prior-252 median | both cells fall to 5/10 positive years; 21-session repairs named weak-year sum to `+$68.44` but cuts recent net to `+$2,076.87`, cadence to 17.0/year, and worsens concentration; 42-session floor is `−$219.71` | reject price-only routing; no horizon/percentile sweep |
 
 The XSP engine test reused only its portable causal core: normalized
 multihorizon slopes, slope velocities, coherence, ATR ratio/velocity/
@@ -222,18 +223,24 @@ veto merely moves the loss. The causal macro tape remains prospective
 attribution only. Stage 19 then falsified canonical KAMA as a self-contained
 adaptive clock; fixed KAMA parameter hunting is closed.
 
-The next materially distinct architecture is an independent dual-clock
-efficiency router, not a nested Stage-18 rescue. Both H4 Stage-12 and D1-soft
-signals run causally in shadow. At a flat boundary only, a completed daily path
-efficiency state selects which clock may own the next trade; the chosen entry
-owner retains exit authority until flat, preventing mid-trade strobing. High
-directional efficiency should select the slow D1 clock; low efficiency should
-select the H4 clock. Freeze only canonical 21/42-session efficiency neighbours
-relative to their trailing 252-session causal median. Do not reopen generic
-trails, fizzles, soft countertrend entries, H4 persistence, Bollinger reclaims,
-breakout onsets, broad collapse exits, macro gates, KAMA, or volatility grids.
-Promote nothing unless annual breadth/floor, recent/full economics, both
-directions, session stability, cadence, concentration, and DD improve together.
+Stage 20 then tested the independent dual-clock architecture exactly: both H4
+Stage-12 and D1-soft signals ran in shadow, completed daily path efficiency chose
+an owner only while flat, and each trade retained immutable exit ownership. The
+outcome-blind census covered every annual slice and both directions, but both
+canonical neighbours collapsed to 5/10 positive years. The 21-session cell did
+repair the three named weak years in aggregate, proving the slow clock contains
+complementary information, but it removed too much ordinary H4 cadence and
+concentrated modern gains. Price-only engine routing is closed; do not sweep
+efficiency horizons, percentiles, EMA clocks, or switch laws.
+
+The next materially distinct seam is causal cross-asset macro onset—not a static
+UUP/TIP direction gate. Attribute each Stage-12 long entry to strictly prior
+UUP/TIP displacement, velocity, and acceleration changes and distinguish a
+fresh adverse macro transition from a mature/stable conflict. Only a simple
+categorical signature that recurs across the old losing years while preserving
+the profitable Year-6 and modern long cohorts may earn one preregistered proof-
+burden test. Otherwise historical signal sharpening stops and the missing
+fundamental/onset evidence must be accumulated prospectively.
 
 ## Native 1OZ transport gate
 
@@ -259,17 +266,19 @@ we do not pretend fractional futures exist or borrow XSP's reserve.
 
 ## Active work queue
 
-1. `[WIP]` Specify and census the flat-boundary dual-clock efficiency router:
-   shadow H4 Stage-12 and D1-soft clocks, choose one owner from completed daily
-   efficiency only while flat, and forbid mid-position owner switching.
-2. `[TODO]` Preregister 21/42-session efficiency versus trailing 252-session
-   median neighbours, then replay all ten slices; failure closes price-only
-   routing and moves development to prospective fundamental/onset evidence.
-3. `[TODO]` Run native 1OZ execution/roll/liquidity replay and derive the exact
+1. `[DONE]` Stage-20 flat-boundary dual-clock census and preregistered 21/42-
+   session replay: both neighbours rejected; price-only routing is closed.
+2. `[WIP]` Attribute Stage-12 long entries to strictly prior UUP/TIP macro
+   displacement, velocity, acceleration, transition age, and agreement. Seek
+   one cross-year fresh-onset signature—not a threshold grid or static veto.
+3. `[TODO]` If a causal signature survives Year-2/4/7 versus Year-6/8/9/10
+   controls, preregister one minimal admission-proof test; otherwise require a
+   prospective fundamental/onset cohort and stop historical sharpening.
+4. `[TODO]` Run native 1OZ execution/roll/liquidity replay and derive the exact
    capital requirement.
-4. `[TODO]` Crown or reject the signal; if crowned, publish machine declaration,
+5. `[TODO]` Crown or reject the signal; if crowned, publish machine declaration,
    reproducible receipt, runtime parity, and non-submitting durable registration.
-5. `[BLOCKED]` Broker preview waits for signal/transport qualification and live
+6. `[BLOCKED]` Broker preview waits for signal/transport qualification and live
    COMEX L1. Capital authority waits for an explicit later graduation boundary.
 
 ## Evidence identities
@@ -377,6 +386,14 @@ we do not pretend fractional futures exist or borrow XSP's reserve.
 - Stage-19 adaptive-KAMA receipt:
   `/tmp/gold-stage19-adaptive-kama-20260802.json`, SHA-256
   `fca734bd1e12a9958320c4d30357bc1f9e2b336c9e18dd8e3e4a18830e79fa05`.
+- Stage-20 preregistration and outcome-blind dual-clock census:
+  `/tmp/1oz-gold-regime-harmony-preregistration-v21.json` and
+  `/tmp/gold-stage20-dual-clock-census-20260802.json`, SHA-256
+  `663f64ef55955e3e497be49dc712858620341f4907e7c78091294a161ca0da97` /
+  `8fc17d6f71a53fe707b01a46b84c607e407dab06ef9f5863c4b0b654b4be021c`.
+- Stage-20 dual-clock router receipt:
+  `/tmp/gold-stage20-dual-clock-router-20260802.json`, SHA-256
+  `5b17733ef87df495e2f9e915d2b68110a1779c35636e9f8ce0be47eb544a3d5e`.
 
 These `/tmp` artifacts are scratch evidence; this file preserves their decisive
 facts across context compaction. Promotion requires canonical repo receipts,
