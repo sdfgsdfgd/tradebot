@@ -1,0 +1,24 @@
+{
+  "schema": "mcl.profit-memory-product-reentry-census-rejection.v1",
+  "recorded_at_utc": "2026-08-03T22:52:00Z",
+  "authority": "outcome_blind_no_forward_pnl_no_orders_no_capital",
+  "inputs": {
+    "preregistration_sha256": "cc199f1d99c00e9d8acd3ecf36edb83eeb252a50bc7fef5a578d9827b534953c",
+    "evaluator_sha256": "067dafd22e0b84c5d26c35d83542085e9518d4ed9959092faa39977f2986d2b7",
+    "result_sha256": "0593f885470af78a4f0f0e8926711f59c9de6c08f5419fed122972a7d3f6cbaf",
+    "v18_result_sha256": "b9c64409dcb9cd482427588bb0ae314d870d0350a2100aea6d3f0615ae2f4c15",
+    "slow_auction_census_sha256": "3dbb73849ca8bad74c0337abc11a43034c9951e08f9df022ba61669f5e717c74"
+  },
+  "profit_memory_sources": 118,
+  "eligible_candidates": 44,
+  "discovery_validation": [16, 28],
+  "up_down": [25, 19],
+  "acceptance_failure": [0, 44],
+  "median_latency_minutes": 169,
+  "p95_latency_minutes": 445,
+  "forward_outcomes_opened": 0,
+  "verdict": "REJECT_UNDERPOWERED",
+  "reason": "Every candidate was the failed-auction branch, violating the preregistered minimum coverage for both product branches. Removing that gate after the count would convert a structural alias into an outcome-shaped strategy.",
+  "closed_family": "crack_120m product-complex re-entry after V18 profit-memory exit",
+  "submitted_orders": 0
+}
