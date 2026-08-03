@@ -1,0 +1,63 @@
+{
+  "schema": "mcl.two-speed-auction-relay-v11-one-bar-acceptance-development.v1",
+  "recorded_at_utc": "2026-08-03T19:58:55Z",
+  "authority": "research_only_no_orders_no_capital",
+  "coverage": {
+    "manifest_sha256": "7d8807579796522bd4a0866e2ff73779c9c8524948010040b388ed50e5f9489c",
+    "contract_pairs": 10,
+    "common_rows": 279013,
+    "first_utc": "2024-08-04T22:01:00Z",
+    "last_utc": "2025-05-19T20:59:00Z",
+    "validation_opened": false,
+    "missing_july_2023_to_august_2024": true
+  },
+  "identity": {
+    "preregistration_sha256": "169df2023b54f9b18653a4c2f8074734b76b273bc8ba04de0ff49a64168880b2",
+    "evaluator_sha256": "eace994f0192521234c95bbe7bddcae561c6d8984e67c340e3db7381854b8c04",
+    "result_sha256": "80baf88909d78aaaab7d53de00d9bdceb3acfb1cd7f62abe7edb5a0967940021"
+  },
+  "evaluation_correction": {
+    "scope": "units_only_no_signal_or_outcome_change",
+    "before": "ranked at least 160 absolute trades inside a 289-day discovery fragment and used a 2 percent busiest-session ceiling",
+    "after": "rank more than 160 annualized trades and use the preregistered 3 percent busiest-session ceiling",
+    "annual_profit_factor_gates_added": true
+  },
+  "selected_cell": {
+    "id": "retained_state_parity",
+    "law": "the raw turn requires direction-aligned 30-minute velocity and matched-MCL parity; exactly one completed five-minute bar later, the macro state and matched-MCL parity must remain aligned",
+    "trades": 130,
+    "annualized_trades": 164.89404546868633,
+    "primary_net_usd": 726.40,
+    "primary_profit_factor": 1.1844122873825846,
+    "primary_intrabar_drawdown_usd": 890.84,
+    "stress_net_usd": 466.40,
+    "stress_profit_factor": 1.1140621178772319,
+    "stress_intrabar_drawdown_usd": 974.84,
+    "down_net_usd": 463.56,
+    "up_net_usd": 262.84,
+    "positive_months": 6,
+    "worst_month_usd": -139.28,
+    "quarter_nets_usd": [278.28, 82.56, 161.12, 204.44]
+  },
+  "opportunity": {
+    "active_sessions": 103,
+    "mean_admissions_per_active_session": 1.2621359223300972,
+    "median_admissions_per_active_session": 1,
+    "p95_admissions_per_active_session": 2,
+    "maximum_admissions_per_session": 3,
+    "busiest_session_share": 0.023076923076923078
+  },
+  "controls": {
+    "fixed_five_session_roll_primary_stress_usd": [739.84, 473.84],
+    "mcl_only_signal_primary_stress_usd": [734.12, 496.12],
+    "directionally_inverted_same_holds_usd": -1641.60
+  },
+  "verdict": "ADVANCE_EXACT_CELL_TO_SEALED_SUFFIX",
+  "remaining_failures": [
+    "sealed August 2025 onward validation has not been read",
+    "full-period PF and net-to-intrabar-drawdown gates are not met on discovery alone",
+    "July 2023 to August 2024 remains unavailable and is a hard crown blocker"
+  ],
+  "next_architecture": "Freeze retained_state_parity byte-for-byte, complete the dated IBKR hydration, and let the unseen suffix decide it before any anatomy or successor profile.",
+  "submitted_orders": 0
+}
