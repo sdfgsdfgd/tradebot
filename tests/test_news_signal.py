@@ -32,9 +32,12 @@ from tradebot.news.pipeline import (
     select_candidates,
 )
 from tradebot.research.mcl_narrative_lag_convexity import (
+    MCL_NARRATIVE_GENERATION_PATH,
+    MCL_NARRATIVE_GENERATION_SCHEMA,
     PROSPECTIVE_START_AFTER,
     advance_mcl_narrative_prospective,
     fresh_bar_index,
+    load_mcl_narrative_generation,
     load_news as load_mcl_news,
 )
 from tradebot.research.live_calibration import LiveCalibrationLedger
@@ -42,6 +45,15 @@ from tradebot.research.live_calibration import LiveCalibrationLedger
 
 FIXTURE = Path(__file__).parent / "fixtures" / "news" / "finviz_news.html"
 NOW = datetime(2026, 7, 24, 9, 0, tzinfo=timezone.utc)
+
+
+def _mcl_generation(identifier: str = "1" * 64) -> dict[str, object]:
+    return {
+        "schema": MCL_NARRATIVE_GENERATION_SCHEMA,
+        "authority": "prospective_research_only",
+        "generation_id": identifier,
+        "manifest_sha256": "2" * 64,
+    }
 
 
 def _iso(value: datetime) -> str:
@@ -379,6 +391,8 @@ def test_systemd_budget_leaves_atomic_publication_grace() -> None:
     assert "IBKR_READONLY=1" in mcl
     assert "IBKR_READONLY=0" not in mcl
     assert "MCL_NARRATIVE_LEDGER=%h/.local/state/tradebot/research/" in mcl
+    assert "MCL_NARRATIVE_GENERATION=%h/Desktop/py/tradebot/backtests/mcl/" in mcl
+    assert "mcl_narrative_experiment_generation.json" in mcl
     assert "python3 -m tradebot.research.mcl_narrative_lag_convexity" in mcl
     assert "tradebot-mcl-narrative-prospective.service" in guide
     assert "systemctl --user stop tradebot-news.timer" in guide
@@ -934,11 +948,32 @@ def test_mcl_narrative_alignment_uses_atomic_publication_availability(
     assert loaded[0]["pressure"] == 0.95
 
 
-def test_mcl_narrative_refuses_a_stale_market_clock() -> None:
+def test_mcl_narrative_refuses_a_stale_market_clock(tmp_path: Path) -> None:
     ends = [NOW, NOW + timedelta(minutes=5)]
 
     assert fresh_bar_index(ends, NOW + timedelta(minutes=10)) == 1
     assert fresh_bar_index(ends, NOW + timedelta(minutes=10, seconds=1)) is None
+
+    result = advance_mcl_narrative_prospective(
+        LiveCalibrationLedger(tmp_path / "stale.jsonl"),
+        news=[
+            {
+                "at": PROSPECTIVE_START_AFTER + timedelta(days=1),
+                "pressure": 0.9,
+            }
+        ],
+        bars=[
+            {
+                "end": PROSPECTIVE_START_AFTER + timedelta(days=1, minutes=-6),
+                "close": 100.0,
+            }
+        ],
+        observed_at=PROSPECTIVE_START_AFTER + timedelta(days=1),
+        contract={"conId": 1, "localSymbol": "MCLQ6"},
+        generation=_mcl_generation(),
+    )
+    assert result["excluded_stale_clock"] == 1
+    assert result["frozen"] == 0
 
 
 def test_mcl_narrative_prefix_starts_after_clock_repair() -> None:
@@ -954,6 +989,25 @@ def test_mcl_narrative_prefix_starts_after_clock_repair() -> None:
         52,
         tzinfo=timezone.utc,
     )
+
+
+def test_mcl_narrative_generation_binds_current_owners(tmp_path: Path) -> None:
+    generation = load_mcl_narrative_generation()
+
+    assert generation["generation_id"] == (
+        "2c4c543aef726c50bbabcb422e0b59c391685ecfb561e6b22cd23ab2910e3c32"
+    )
+    assert generation["status"] == "ACTIVE_EMPTY_PREFIX"
+
+    tampered = json.loads(MCL_NARRATIVE_GENERATION_PATH.read_text())
+    tampered["owners"]["accumulator"]["sha256"] = "0" * 64
+    path = tmp_path / "generation.json"
+    path.write_text(json.dumps(tampered), encoding="utf-8")
+    with pytest.raises(ValueError, match="owners binding drifted"):
+        load_mcl_narrative_generation(
+            path,
+            root=MCL_NARRATIVE_GENERATION_PATH.parents[2],
+        )
 
 
 def test_mcl_narrative_forecast_is_frozen_before_and_settled_after_outcome(
@@ -997,6 +1051,7 @@ def test_mcl_narrative_forecast_is_frozen_before_and_settled_after_outcome(
         bars=bars,
         observed_at=publication_at + timedelta(minutes=1),
         contract=contract,
+        generation=_mcl_generation(),
     )
     repeated = advance_mcl_narrative_prospective(
         ledger,
@@ -1004,6 +1059,7 @@ def test_mcl_narrative_forecast_is_frozen_before_and_settled_after_outcome(
         bars=bars,
         observed_at=publication_at + timedelta(minutes=2),
         contract=contract,
+        generation=_mcl_generation(),
     )
 
     assert first["frozen"] == 1
@@ -1014,6 +1070,17 @@ def test_mcl_narrative_forecast_is_frozen_before_and_settled_after_outcome(
     assert forecast["context"]["direction"] == "down"
     assert forecast["context"]["news"]["extreme"] is True
     assert forecast["gates"]["order_authority"] == "none"
+    assert forecast["context"]["generation_id"] == "1" * 64
+
+    with pytest.raises(ValueError, match="another generation"):
+        advance_mcl_narrative_prospective(
+            ledger,
+            news=[news_row],
+            bars=bars,
+            observed_at=publication_at + timedelta(hours=4, minutes=1),
+            contract=contract,
+            generation=_mcl_generation("3" * 64),
+        )
 
     mature = advance_mcl_narrative_prospective(
         ledger,
@@ -1021,6 +1088,7 @@ def test_mcl_narrative_forecast_is_frozen_before_and_settled_after_outcome(
         bars=bars,
         observed_at=publication_at + timedelta(hours=4, minutes=1),
         contract=contract,
+        generation=_mcl_generation(),
     )
 
     assert mature["settled"] == 1
@@ -1030,6 +1098,7 @@ def test_mcl_narrative_forecast_is_frozen_before_and_settled_after_outcome(
     assert result["observed"]["horizons"]["240"]["return_pct"] > 0
     assert result["observed"]["horizons"]["240"]["mfe_pct"] > 0
     assert result["observed"]["horizons"]["240"]["mae_pct"] < 0
+    assert result["observed"]["generation_id"] == "1" * 64
 
     late = LiveCalibrationLedger(tmp_path / "late.jsonl")
     excluded = advance_mcl_narrative_prospective(
@@ -1038,6 +1107,7 @@ def test_mcl_narrative_forecast_is_frozen_before_and_settled_after_outcome(
         bars=bars,
         observed_at=publication_at + timedelta(hours=4, minutes=1),
         contract=contract,
+        generation=_mcl_generation(),
     )
     assert excluded["excluded_late"] == 1
     assert late.receipt()["forecasts"] == 0
@@ -1071,6 +1141,7 @@ def test_mcl_narrative_freezes_nonextreme_ta_control(tmp_path: Path) -> None:
         bars=bars,
         observed_at=publication_at + timedelta(minutes=1),
         contract={"conId": 1, "localSymbol": "MCLQ6"},
+        generation=_mcl_generation(),
     )
 
     forecast = next(row for row in ledger.records() if row["kind"] == "forecast")

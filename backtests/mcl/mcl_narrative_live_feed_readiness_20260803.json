@@ -1,0 +1,52 @@
+{
+  "schema": "mcl.narrative-live-feed-readiness.v1",
+  "observed_at_utc": "2026-08-03T14:03:45.413002+00:00",
+  "authority": "read_only_no_orders",
+  "status": "HOLD_NYMEX_L1_REQUIRED",
+  "contract": {
+    "con_id": 661016525,
+    "local_symbol": "MCLU6",
+    "expiry": "20260819"
+  },
+  "prospective_contract": {
+    "required_market_data_type": 1,
+    "maximum_completed_bar_age_seconds": 300,
+    "late_or_stale_rows": "exclude_without_backfill"
+  },
+  "entitlement_probe": {
+    "error_code": 354,
+    "message": "Requested market data is not subscribed; delayed market data is available.",
+    "requested_market_data_type": 1,
+    "bid": null,
+    "ask": null,
+    "last": null
+  },
+  "latest_atomic_publication": {
+    "publication_id": "7bbc235c523d9acd43e3fde64c0cfa598d8f02bc063ad5a6626693c04901b1cb",
+    "signal_as_of_utc": "2026-08-03T13:51:14Z",
+    "snapshot_as_of_utc": "2026-08-03T14:01:56Z"
+  },
+  "latest_historical_bar": {
+    "start_utc": "2026-08-03T13:50:00+00:00",
+    "end_utc": "2026-08-03T13:55:00+00:00",
+    "age_at_publication_seconds": 416,
+    "age_at_probe_seconds": 525.413,
+    "close": 78.78
+  },
+  "natural_news_success_companion": {
+    "news_service_result": "success",
+    "mcl_service_result": "success",
+    "frozen": 0,
+    "settled": 0,
+    "excluded_late": 1,
+    "ledger_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "ledger_records": 0,
+    "submitted_orders": 0
+  },
+  "decision": {
+    "weaken_freshness_gate": false,
+    "use_delayed_prices_as_prospective": false,
+    "required_next_external_state": "genuine NYMEX level-one market data",
+    "xsp_or_gold_authority_changed": false
+  }
+}

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import bisect
+import hashlib
 import json
 import math
 import os
@@ -21,6 +22,15 @@ NEWS_HISTORY = Path.home() / ".local/state/tradebot/news/history"
 BAR = timedelta(minutes=5)
 PROSPECTIVE_START_AFTER = datetime(2026, 7, 31, 19, 16, 52, tzinfo=timezone.utc)
 MCL_NARRATIVE_STRATEGY_VERSION = "mcl.narrative-lag-convexity-onset.v1"
+MCL_NARRATIVE_GENERATION_SCHEMA = "mcl.narrative-experiment-generation.v1"
+MCL_NARRATIVE_FORECAST_SCHEMA = "mcl.narrative-lag-convexity-forecast.v1"
+MCL_NARRATIVE_LEDGER_PATH = (
+    "~/.local/state/tradebot/research/mcl_narrative_lag_convexity.jsonl"
+)
+MCL_NARRATIVE_GENERATION_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "backtests/mcl/mcl_narrative_experiment_generation.json"
+)
 MCL_NARRATIVE_CONFIG_FINGERPRINT = calibration_fingerprint(
     {
         "prospective_start_after": PROSPECTIVE_START_AFTER.isoformat(),
@@ -31,6 +41,57 @@ MCL_NARRATIVE_CONFIG_FINGERPRINT = calibration_fingerprint(
         "outcomes_minutes": [30, 60, 240],
     }
 )
+
+
+def load_mcl_narrative_generation(
+    path: Path = MCL_NARRATIVE_GENERATION_PATH,
+    *,
+    root: Path | None = None,
+) -> dict[str, object]:
+    """Validate one immutable publication-to-settlement generation."""
+
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("MCL experiment generation must be an object")
+    expected = {
+        "strategy_version": MCL_NARRATIVE_STRATEGY_VERSION,
+        "config_fingerprint": MCL_NARRATIVE_CONFIG_FINGERPRINT,
+        "prospective_start_after_utc": PROSPECTIVE_START_AFTER.isoformat(),
+        "forecast_schema": MCL_NARRATIVE_FORECAST_SCHEMA,
+        "ledger_schema": "live_calibration.v1",
+        "ledger_path": MCL_NARRATIVE_LEDGER_PATH,
+        "maximum_completed_bar_age_seconds": 300,
+        "required_market_data_type": 1,
+    }
+    if (
+        payload.get("schema") != MCL_NARRATIVE_GENERATION_SCHEMA
+        or payload.get("authority") != "prospective_research_only"
+        or payload.get("contract") != expected
+    ):
+        raise ValueError("MCL experiment generation contract drifted")
+    repo = (root or Path(__file__).resolve().parents[2]).resolve()
+    for group in ("preregistrations", "owners"):
+        bindings = payload.get(group)
+        if not isinstance(bindings, dict) or not bindings:
+            raise ValueError(f"MCL generation has no {group}")
+        for binding in bindings.values():
+            if not isinstance(binding, dict):
+                raise ValueError(f"MCL generation {group} binding is invalid")
+            relative = Path(str(binding.get("path") or ""))
+            expected_sha = str(binding.get("sha256") or "")
+            target = (repo / relative).resolve()
+            if (
+                relative.is_absolute()
+                or repo not in target.parents
+                or len(expected_sha) != 64
+                or hashlib.sha256(target.read_bytes()).hexdigest() != expected_sha
+            ):
+                raise ValueError(f"MCL generation {group} binding drifted")
+    return {
+        **payload,
+        "generation_id": calibration_fingerprint(payload),
+        "manifest_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+    }
 
 
 def number(value: object) -> float | None:
@@ -116,10 +177,20 @@ def advance_mcl_narrative_prospective(
     bars: Sequence[Mapping[str, object]],
     observed_at: datetime,
     contract: Mapping[str, object],
+    generation: Mapping[str, object],
 ) -> dict[str, object]:
     """Freeze fresh TA onsets before outcomes, then settle mature forecasts."""
 
     now = observed_at.astimezone(timezone.utc)
+    generation_id = str(generation.get("generation_id") or "")
+    manifest_sha256 = str(generation.get("manifest_sha256") or "")
+    if (
+        generation.get("schema") != MCL_NARRATIVE_GENERATION_SCHEMA
+        or generation.get("authority") != "prospective_research_only"
+        or len(generation_id) != 64
+        or len(manifest_sha256) != 64
+    ):
+        raise ValueError("MCL experiment generation is invalid")
     ends = [row["end"] for row in bars]
     if any(not isinstance(value, datetime) for value in ends):
         raise ValueError("MCL bars require timezone-aware end timestamps")
@@ -136,6 +207,8 @@ def advance_mcl_narrative_prospective(
     }
     frozen = 0
     excluded_late = 0
+    excluded_stale_clock = 0
+    excluded_no_onset = 0
     for source in news:
         at = source.get("at")
         if not isinstance(at, datetime) or at <= PROSPECTIVE_START_AFTER:
@@ -144,13 +217,16 @@ def advance_mcl_narrative_prospective(
         prior_row = close_at(at - timedelta(hours=4))
         fast_row = close_at(at - timedelta(minutes=30))
         if current_row is None or prior_row is None or fast_row is None:
+            excluded_stale_clock += 1
             continue
         index, current = current_row
         pre4h = pct(prior_row[1], current)
         last30 = pct(fast_row[1], current)
         if sign(pre4h) == 0 or last30 is None:
+            excluded_no_onset += 1
             continue
         if sign(pre4h) * last30 / 0.5 > abs(float(pre4h)) / 4.0:
+            excluded_no_onset += 1
             continue
         direction = "down" if sign(pre4h) > 0 else "up"
         pressure = float(source["pressure"])
@@ -165,6 +241,7 @@ def advance_mcl_narrative_prospective(
                 "decision_bar_end": decision_bar_end.isoformat(),
                 "decision_close": current,
                 "contract": dict(contract),
+                "generation_id": generation_id,
             }
         )
         identity = {
@@ -172,7 +249,7 @@ def advance_mcl_narrative_prospective(
             "strategy_version": MCL_NARRATIVE_STRATEGY_VERSION,
             "decision_as_of_utc": at.isoformat(),
             "tape_fingerprint": tape_fingerprint,
-            "config_fingerprint": MCL_NARRATIVE_CONFIG_FINGERPRINT,
+            "config_fingerprint": generation_id,
             "capital_sleeve": "mcl-research-only",
         }
         identity_id = calibration_fingerprint(identity)
@@ -193,13 +270,16 @@ def advance_mcl_narrative_prospective(
                 "fill_assumptions": {"orders": 0, "continuous_future": True},
             },
             context={
-                "schema": "mcl.narrative-lag-convexity-forecast.v1",
+                "schema": MCL_NARRATIVE_FORECAST_SCHEMA,
+                "generation_id": generation_id,
+                "generation_manifest_sha256": manifest_sha256,
                 "evidence_mode": "prospective_atomic_news_mcl_bar",
                 "contract": dict(contract),
                 "publication_id": source.get("publication_id"),
                 "publication_available_at_utc": at.isoformat(),
                 "signal_at_utc": str(source.get("signal_at")),
                 "decision_bar_end_utc": decision_bar_end.isoformat(),
+                "decision_bar_age_seconds": (at - decision_bar_end).total_seconds(),
                 "decision_close": current,
                 "pre4h_pct": pre4h,
                 "last30_pct": last30,
@@ -249,6 +329,12 @@ def advance_mcl_narrative_prospective(
             or forecast_id in settled_ids
         ):
             continue
+        if (
+            identity.get("config_fingerprint") != generation_id
+            or context.get("generation_id") != generation_id
+            or context.get("generation_manifest_sha256") != manifest_sha256
+        ):
+            raise ValueError("unsettled MCL forecast belongs to another generation")
         outcome_at = datetime.fromisoformat(
             str(frozen_forecast["outcome_not_before_utc"]).replace("Z", "+00:00")
         ).astimezone(timezone.utc)
@@ -320,6 +406,8 @@ def advance_mcl_narrative_prospective(
                 "contract": dict(contract),
                 "direction": direction,
                 "horizons": horizons,
+                "generation_id": generation_id,
+                "generation_manifest_sha256": manifest_sha256,
             },
             drift={"signal": "none", "economic": 0.0},
             verdict="HOLD",
@@ -334,6 +422,12 @@ def advance_mcl_narrative_prospective(
         "frozen": frozen,
         "settled": settled,
         "excluded_late": excluded_late,
+        "excluded_stale_clock": excluded_stale_clock,
+        "excluded_no_onset": excluded_no_onset,
+        "generation": {
+            "generation_id": generation_id,
+            "manifest_sha256": manifest_sha256,
+        },
         "ledger": ledger.receipt(),
     }
 
@@ -759,6 +853,14 @@ def main() -> None:
     }
     ledger_path = os.environ.get("MCL_NARRATIVE_LEDGER")
     if ledger_path:
+        generation = load_mcl_narrative_generation(
+            Path(
+                os.environ.get(
+                    "MCL_NARRATIVE_GENERATION",
+                    MCL_NARRATIVE_GENERATION_PATH,
+                )
+            ).expanduser()
+        )
         output["prospective_accumulator"] = advance_mcl_narrative_prospective(
             LiveCalibrationLedger(Path(ledger_path).expanduser()),
             news=news,
@@ -771,6 +873,7 @@ def main() -> None:
                     contract, "lastTradeDateOrContractMonth", None
                 ),
             },
+            generation=generation,
         )
     print(json.dumps(output, indent=2, default=lambda value: value.isoformat()))
 
