@@ -27,6 +27,7 @@ UTC = timezone.utc
 
 def test_gold_crown_is_machine_bound_but_cannot_trade() -> None:
     root = Path(__file__).resolve().parents[1]
+    leaderboard = root / "backtests/gold/leaderboard.md"
     refs = discover_current_champions(root=root, symbols=("1OZ",), tracks=("LF",))
 
     assert len(refs) == 1
@@ -49,6 +50,12 @@ def test_gold_crown_is_machine_bound_but_cannot_trade() -> None:
     assert artifact["graduation_enrollment"]["lifecycle_state"] == "CROWNED"
     assert artifact["graduation_enrollment"]["live_24h"] == "NOT_STARTED"
     assert artifact["groups"][0]["entries"] == []
+    leaderboard_text = leaderboard.read_text()
+    assert "# 1OZ Gold Leaderboard" in leaderboard_text
+    assert "CR-001 · 2026-08-03 · 1OZ Gold Regime Harmony" in leaderboard_text
+    assert artifact["schema"] in leaderboard_text
+    assert declaration["artifact_sha256"] in leaderboard_text
+    assert not (root / "q_1oz.md").exists()
 
 
 def test_xauusd_daily_evidence_closes_at_17_et() -> None:

@@ -181,7 +181,8 @@ output belongs in commit/final verification, not in this management brain.
     machine-bound gold research champion after the bounded Stage-88/89
     complementary-owner challenge failed adjacency. It appears in the unified
     catalog as `CROWNED`, with no executable entry, binding, selection, capital,
-    clock, or order authority.
+    clock, or order authority; canonical lineage and future versioning live in
+    `backtests/gold/leaderboard.md`.
 29. `[WIP]` **XSP graduation lane:** preserve every selected recurrence and
     reconcile real execution; issue cutoff-bound 24h/48h/five-session verdicts
     only when due.

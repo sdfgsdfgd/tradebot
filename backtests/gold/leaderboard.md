@@ -1,6 +1,34 @@
-# 1OZ Gold Regime Harmony — active task brain
+# 1OZ Gold Leaderboard
 
 Updated: 2026-08-03 AEST / 2026-08-02 ET
+
+This is the durable gold crown registry, exact research lineage, evidence
+ledger, failure boundary, and ongoing sharpening journal. New crown records
+are prepended; historical records and rejected stages are never rewritten to
+make later outcomes look cleaner.
+
+The leaderboard separates two authorities:
+
+- **Research crown:** a historically reproducible candidate worthy of
+  unchanged prospective evaluation.
+- **Operational crown:** an immutable selected run that independently passes
+  runtime parity, native cash/margin and preview, restart/reconciliation, and
+  `24h → 48h → five-session` after-cost profitability and safety gates.
+
+An historical crown cannot grant the second authority.
+
+---
+
+## Crowns
+
+| Rank | Track | Crown | Identity | Version | State |
+|---:|---|---|---|---:|---|
+| 1 | H4/D1 regime harmony, native dated `1OZ` transport | **1OZ Gold Regime Harmony — Stage 76/77** | `gold.1oz-regime-harmony-stage76-77-crown.v1` | 1 | Frozen historical research crown; prospective onset tape non-submitting |
+| — | Operational/live | **Vacant** | `NO_TRADE` | — | Runtime, cash/margin, preview, selection, restart, and profitability gates not passed |
+
+Machine pointer: `backtests/gold/current-lf.json`, bound to immutable artifact
+`backtests/gold/one_oz_regime_harmony_stage76_77.json` with SHA-256
+`9720399570921c377fb987146618d00c9a928e625a93b836db998af6ea67c282`.
 
 ## Priority Zero
 
@@ -1010,9 +1038,10 @@ order authority.
   `858a1769f3460926db9e37b527c81518172054c97fbacf9269888ac520957af3`
   is invalid for strategy inference because causal predecessor seeding was not
   preserved across annual cutoffs.
-- Canonical frozen frontier:
-  `backtests/gold/one_oz_regime_harmony_frontier_20260803.json`; research-only,
-  not crowned, not selected, and no capital/order authority.
+- Canonical pre-coronation frontier:
+  `backtests/gold/one_oz_regime_harmony_frontier_20260803.json`; immutable
+  research-only evidence later superseded as current leader by `CR-001`, never
+  selected and never granted capital/order authority.
 - First unseen onset receipt:
   `backtests/gold/one_oz_first_unseen_onset_receipt.json`, SHA-256
   `c0dbcfbf985e17ba007b0672d3d0c2c5edcd7d890b3b426dd5175dd7b7250db3`;
@@ -1022,3 +1051,111 @@ order authority.
 These `/tmp` artifacts are scratch evidence; this file preserves their decisive
 facts across context compaction. Promotion requires canonical repo receipts,
 tests, commit/push parity, and q-native reproduction.
+
+---
+
+## Crown record protocol
+
+### Global gold coronation law
+
+A development leader is not a crown. On identical causal clocks, data,
+execution bars, units, costs, and lifecycle, a gold successor must:
+
+- remain positive over the full ten-year and recent three-year challenges;
+- improve annual stability rather than merely transfer P&L between years;
+- preserve useful cadence and positive both-direction and GTH/RTH attribution;
+- survive adjacent logic, complete cost/roll stress, concentration review, and
+  an unseen or frozen challenge not used for discovery;
+- retain exact XAUUSD signal, GC corroboration, and dated native-1OZ mapping
+  identities with no failed or hindsight-selected rolls;
+- improve at least one material frontier—annual floor, after-cost net, PF, or
+  transport-survivable drawdown—without hiding a material regression in the
+  others.
+
+Passing those gates makes a candidate crown-eligible, not automatically
+crowned. Coronation remains an explicit milestone decision. Stage 76/77 is the
+first user-authorized research crown and retains its disclosed `7/10` annual
+breadth and concentration limitations; its precedent does not silently weaken
+future successor gates.
+
+Versioning is immutable:
+
+1. `backtests/gold/current-lf.json` points to exactly one current research
+   crown version and binds its artifact SHA-256.
+2. Any material signal, timing, cost, lifecycle, transport, or authority change
+   creates a new artifact, increments `version`, and prepends a new `CR-*`
+   record. It never edits the predecessor's numbers.
+3. A pure clock/data/runtime repair may amend the current record only when an
+   immutable parity receipt proves the physical ledger and economics unchanged.
+4. Prospective outcomes, news attribution, cash previews, and graduation
+   receipts append evidence to the current version; they do not change its
+   historical identity.
+5. Operational authority remains separate. A research version can become a
+   selected canary only after its independent runtime, native cash/margin,
+   preview, allocation, restart, and profitability gates pass.
+
+Prepend every future crown or challenger using this evidence order:
+
+1. identity, version, status, timestamp, and predecessor;
+2. causal thesis and exact active/inactive gates;
+3. code/config/tape/artifact fingerprints;
+4. unit, costs, fills, rolls, lifecycle, and safety limits;
+5. discovery, frozen challenge, annual slices, and prospective windows;
+6. net, PF, cadence, drawdown, concentration, directions, and sessions;
+7. signal landing and entry/exit/financing/giveback attribution;
+8. stable-neighbour and cost/roll sensitivity;
+9. rejected alternatives and why they failed;
+10. live authority, remaining blockers, and next falsifiable seam.
+
+---
+
+## Crown history — newest first
+
+### CR-001 · 2026-08-03 · 1OZ Gold Regime Harmony — Stage 76/77 · v1
+
+- **Change:** first immutable gold historical research crown.
+- **Predecessor:** none; the gold operational namespace remains vacant.
+- **Identity:** artifact schema
+  `gold.1oz-regime-harmony-stage76-77-crown.v1`; machine declaration version
+  `1`; strategy key `one-oz-regime-harmony-stage76-77`.
+- **Explicit authority:** crowned by the user after the bounded Stage-88/89
+  complementary-owner challenge; historical research authority only.
+- **Earned by:** ten-year `+$3,227.82/257`, PF `2.1891`, DD `$690.07`;
+  recent-three-year `+$3,103.52/73` (`24.33/year`), PF `3.9915`; positive
+  down/up `+$532.40/+$2,571.12` and GTH/RTH
+  `+$2,644.67/+$458.85` attribution.
+- **Native transport:** Stage 77 maps `40/40` overlap trades with zero failures,
+  six fully costed basis-neutral rolls, `+$2,442.78`, PF `3.938`, intrabar DD
+  `$651.89`, and passing harsher cost/roll neighbours.
+- **Final challenge:** Stage 88's three-prior-trade complement reached `9/10`
+  positive years but its five/eight-prior neighbours fell to `6/10` and `5/10`.
+  Stage 89 then proved true D1 transitions lost `−$16.95/37`; the apparent edge
+  was same-hard-state continuation `+$2,119.26/27`. The unstable challenger was
+  rejected rather than blended into the crown.
+- **Disclosed limitations:** only `7/10` annual slices are positive and the
+  top-five-winner share is `52.14%`. Stage 80 remains an annual-floor reference,
+  not a second crown.
+- **Did not earn:** runtime selection, native cash/margin authority, broker
+  preview, capital sleeve, order authority, or any profitability clock.
+- **Next contest:** unchanged Stage 76/77 versus unseen onset outcomes and an
+  independently centralized runtime/native-transport reproduction. Future
+  sharpening competes as a new version; v1 remains immutable.
+
+### Reproduce
+
+The current crown and its prospective evidence boundary are bound by:
+
+```text
+backtests/gold/current-lf.json
+backtests/gold/one_oz_regime_harmony_stage76_77.json
+backtests/gold/one_oz_regime_harmony_frontier_20260803.json
+backtests/gold/one_oz_hostile_transition_final_audit_20260803.json
+backtests/gold/one_oz_onset_tape_preregistration_v2.json
+backtests/gold/one_oz_causal_clock_rebase_receipt.json
+backtests/gold/one_oz_first_unseen_onset_receipt.json
+```
+
+Current declaration SHA-256:
+`6b449d807980043c5f90afb93ecdb1398cf4a11e48e9b040fd831cd15a6b2d8e`.
+Current crown artifact SHA-256:
+`9720399570921c377fb987146618d00c9a928e625a93b836db998af6ea67c282`.

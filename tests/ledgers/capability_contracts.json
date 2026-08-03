@@ -648,7 +648,7 @@
       ],
       "evidence": [
         "q_XSP_live_research_kata.md",
-        "q_1oz.md",
+        "backtests/gold/leaderboard.md",
         "tests/test_gold_onset.py",
         "tests/test_live_calibration.py",
         "tests/test_live_capital.py",
