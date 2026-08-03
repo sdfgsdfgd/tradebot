@@ -1178,9 +1178,11 @@ def test_v3_package_successor_freezes_the_allocated_notional_and_clean_run(
                 },
                 "what_if": {
                     "status": "PreSubmitted",
-                    "commission": 0.35,
+                    "commission": None,
+                    "min_commission": 0.29,
+                    "max_commission": 0.35,
                     "commission_currency": "USD",
-                    "warning_text": "",
+                    "warning_text": None,
                 },
             }
         )

@@ -306,9 +306,15 @@ def _preview_nominee(
         ask = _number(book.get("ask"), name=f"{symbol} ask") if isinstance(book, Mapping) else 0
         quantity = order.get("quantity") if isinstance(order, Mapping) else None
         limit = _tiered_commission_limit(int(bounds[1]))
-        observed_commission = _number(
-            what_if.get("commission"), name=f"{symbol} commission"
-        ) if isinstance(what_if, Mapping) else 0
+        observed_commission = max(
+            (
+                _number(value, name=f"{symbol} commission")
+                for key in ("commission", "min_commission", "max_commission")
+                if isinstance(what_if, Mapping)
+                and (value := what_if.get(key)) is not None
+            ),
+            default=0,
+        )
         if (
             not isinstance(bounds, Sequence)
             or isinstance(bounds, (str, bytes))
