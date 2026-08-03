@@ -121,6 +121,7 @@ async def xsp_portfolio_package_preview(
     notional_usd: int,
     observed_at: datetime,
     quote_wait_seconds: float = 3.0,
+    preview_outside_rth: bool = False,
 ) -> tuple[dict[str, object], dict[str, object]]:
     """Capture one live-book, zero-transmission preview for an XSP package."""
 
@@ -194,7 +195,7 @@ async def xsp_portfolio_package_preview(
             "BUY",
             quantity,
             book.ask,
-            False,
+            preview_outside_rth,
             f"XSPPKG-{notional_usd}-{symbol}",
         )
         rows.append(
@@ -221,6 +222,7 @@ async def xsp_portfolio_package_preview(
                     "limit_price": book.ask,
                     "what_if": True,
                     "transmit": False,
+                    "outside_rth": preview_outside_rth,
                 },
                 "what_if": asdict(preview),
             }
