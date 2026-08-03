@@ -1,0 +1,120 @@
+{
+  "schema": "xsp.opening-edge-v3-financed-cold-start-preregistration.v1",
+  "preregistered_at_utc": "2026-08-03T15:53:37Z",
+  "authority": "historical_research_only_no_runtime_no_capital_no_orders",
+  "source_block": {
+    "hawkeye_checkpoints": 6,
+    "duration_minutes": 120,
+    "final_checkpoint_utc": "2026-08-03T15:52:00Z",
+    "evidence_rows": [
+      "E-369",
+      "E-370",
+      "E-371",
+      "E-372",
+      "E-373"
+    ],
+    "winner": "xsp_financed_cold_start_adoption",
+    "runner_up": "tri_asset_narrative_dispersion_compression",
+    "live_discovery_session_excluded_from_replay": "2026-08-03"
+  },
+  "baseline": {
+    "strategy_version": "xsp.opening-edge-v3-regime-harmony-24x5.v1",
+    "crown_sha256": "d47eb39cef3d2ca575d779d6b5b87e3b88e08606fd09a8801b8cb55c350208db",
+    "rth_start": "2023-07-24",
+    "rth_end": "2026-07-24",
+    "rth_trades": 425,
+    "rth_net_points": 280.97,
+    "rth_profit_factor": 2.2887,
+    "rth_max_drawdown_points": 17.43,
+    "rth_ledger_sha256": "40708a28476fad504d29b1222e52b88481b1c0da8313ed4667076e2b6ed3f157",
+    "research_round_trip_points": 0.1,
+    "gth_lane": "unchanged"
+  },
+  "question": "Can v3 lawfully adopt the first causal RTH directional state that formed while flat but produced no turn, only after that same state is fully coherent, aligned with strictly-prior hard and soft daily context, inside the existing entry and ATR-velocity limits, and has already financed its own frozen round-trip cost?",
+  "null_hypothesis": "Initial-state non-adoption is valuable. Any midcycle adoption adds chase, giveback, direction imbalance, annual instability, or drawdown despite apparently financed movement.",
+  "mechanism": {
+    "population": "Each RTH session's first non-null directional_impulse.trend_state while the ordinary v3 owner is flat and before any ordinary v3 turn, proposal, block, or admission.",
+    "state_birth": "Freeze direction and close at the first causal non-null trend_state; never seed or warm from GTH or premarket.",
+    "eligibility": [
+      "The initial trend_state remains unchanged through the trigger.",
+      "No earlier ordinary v3 turn, proposal, blocked proposal, or admission occurred in the session.",
+      "The current ordinary v3 snapshot has no entry_dir, entry_proposed_dir, or entry_blocked_by.",
+      "turn_ready is true with at least three observed horizons.",
+      "Every observed horizon slope agrees with the state direction, expressed by coherence exactly 1.0.",
+      "Strictly-prior daily hard_direction and soft_direction both equal the state direction.",
+      "ATR velocity remains inside the existing [0.0, 0.055) admission band.",
+      "The trigger is no earlier than 09:35 ET and no later than 11:20 ET for down or 11:30 ET for up.",
+      "Direction-aligned close displacement from state birth finances the cell's exact multiple of the frozen 0.10-point research round trip."
+    ],
+    "turn_specific_boundary": "Retrace is neither required nor relaxed because the tested population has no turn; every ordinary turn continues through the unchanged v3 admission gate.",
+    "entry": "Inject one research-only admission at the qualifying completed close; the unchanged backtest engine executes at the next bar open.",
+    "one_bar_confirmation": "Arm at first eligibility, then require the next completed bar to retain the same state, remain eligible, contain no ordinary turn/proposal/admission, and close no worse in the state direction.",
+    "session_limit": "At most one cold-start adoption per RTH session; expire on an opposite state, any ordinary v3 turn/proposal/admission, the direction-specific window close, or session end.",
+    "lifecycle": "After entry, reuse exact v3 minimum ownership, maturation, financing, surrender, flip, EOD, spread, commission, and next-open semantics without modification."
+  },
+  "cells": [
+    {
+      "id": "finance_1x_confirm_1",
+      "role": "preselected_primary",
+      "round_trip_multiples": 1,
+      "confirmation_bars": 1
+    },
+    {
+      "id": "finance_1x_confirm_0",
+      "role": "maturity_neighbor",
+      "round_trip_multiples": 1,
+      "confirmation_bars": 0
+    },
+    {
+      "id": "finance_2x_confirm_1",
+      "role": "financing_neighbor",
+      "round_trip_multiples": 2,
+      "confirmation_bars": 1
+    },
+    {
+      "id": "finance_2x_confirm_0",
+      "role": "joint_neighbor",
+      "round_trip_multiples": 2,
+      "confirmation_bars": 0
+    }
+  ],
+  "frozen_windows": {
+    "recent": ["2026-06-29", "2026-07-24"],
+    "year_1": ["2023-07-24", "2024-07-23"],
+    "year_2": ["2024-07-24", "2025-07-23"],
+    "year_3": ["2025-07-24", "2026-07-24"],
+    "full_three_year": ["2023-07-24", "2026-07-24"]
+  },
+  "acceptance": {
+    "baseline_parity_required_before_outcomes": true,
+    "primary_required": true,
+    "primary_recent_and_each_annual_net_no_worse_than_baseline": true,
+    "primary_full_net_and_profit_factor_no_worse_than_baseline": true,
+    "primary_max_drawdown_no_worse_than_baseline": true,
+    "primary_up_and_down_net_no_worse_than_baseline": true,
+    "added_cohort_must_cover_every_annual_slice_and_both_directions": true,
+    "minimum_passing_neighbors": 2,
+    "neighbor_gate": "full and every annual net no worse, with no drawdown regression",
+    "unchanged_gth_and_combined_24x5_proof_required_if_rth_passes": true,
+    "authentic_upro_spxu_tiered_immediate_proceeds_cash_replay_required_if_signal_passes": true,
+    "passing_result": "development_challenger_only"
+  },
+  "fail_closed": [
+    "Any baseline identity mismatch aborts before candidate results are interpreted.",
+    "Missing context, impulse, horizon, ATR velocity, causal day, or alignment blocks the candidate rather than imputing it.",
+    "The August 3 live discovery session is absent from the frozen historical challenge.",
+    "No failed cell may be rescued with another threshold, date label, direction exception, news sign, or premarket feature.",
+    "A signal pass cannot change the crown, live selection, capital plan, strategy runtime, order authority, or profitability clock."
+  ],
+  "boundaries": {
+    "production_changed": false,
+    "crown_changed": false,
+    "selection_changed": false,
+    "capital_changed": false,
+    "gth_changed": false,
+    "news_authority": "none",
+    "order_authority": "none",
+    "submitted_orders": 0,
+    "profitability_clock_changed": false
+  }
+}
