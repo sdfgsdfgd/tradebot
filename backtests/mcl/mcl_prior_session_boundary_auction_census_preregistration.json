@@ -1,0 +1,33 @@
+{
+  "schema": "mcl.prior-session-boundary-auction-census-preregistration.v1",
+  "created_at_utc": "2026-08-03T23:12:21Z",
+  "authority": "outcome_blind_count_only_no_forward_pnl_no_orders_no_capital",
+  "name": "MCL Prior-Session Boundary Auction",
+  "hypothesis": "The previous completed Globex session's own CL and MCL high/low form four immutable auction boundaries; the first joint excursion beyond each side and exactly one next completed five-minute verdict may distinguish accepted discovery from a failed auction at a naturally bounded one-to-two-event daily cadence.",
+  "inputs": {
+    "cl_mcl_manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "evaluator_sha256": "93a987962a0325aa2e3896a8691ba00ee2a29ad4754473f9e00e7fef65464714"
+  },
+  "causal_law": {
+    "prior_session": "immediately preceding same-suffix Globex session with at least 200 complete five-minute bars",
+    "boundaries": "independent completed-session CL high/low and MCL high/low",
+    "excursion": "first completed current-session bar whose CL and MCL closes jointly exceed their own prior highs or fall below their own prior lows",
+    "verdict": "exactly the next completed five-minute bar; jointly outside is acceptance/follow, jointly back inside is failed-auction/fade, disagreement consumes the side without a signal",
+    "multiplicity": "each high/low side is consumed once; maximum two events per session",
+    "entry_readiness": "next one-minute same-suffix MCL open exists outside the 16:25–18:00 ET admission blackout",
+    "news_authority": "none"
+  },
+  "eligibility_each_period": {
+    "annualized_events": ">160 and <=520",
+    "minimum_each_direction": 50,
+    "minimum_each_branch": 30,
+    "minimum_each_boundary_side": 50,
+    "minimum_active_session_fraction": 0.45,
+    "median_per_active_session": "1..2",
+    "p95_and_maximum_per_session": "<=2"
+  },
+  "if_eligible": "Freeze exact acceptance/failure lifecycle owners before opening PnL; no side, session, clock, or verdict profile may be selected from outcomes.",
+  "if_ineligible": "Reject prior-session boundary auctions before outcomes; do not widen the verdict, reuse a side, lower completeness/cadence floors, or add thresholds.",
+  "forward_outcomes_opened": 0,
+  "submitted_orders": 0
+}

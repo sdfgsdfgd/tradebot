@@ -1,0 +1,19 @@
+{
+  "schema": "mcl.compression-liquidity-release-census-rejection.v1",
+  "recorded_at_utc": "2026-08-03T23:13:00Z",
+  "authority": "outcome_blind_no_forward_pnl_no_orders_no_capital",
+  "inputs": {
+    "preregistration_sha256": "faccc3d0b649c7e02f1a68be07c7a56eeafd68200b82b7e98b0ada61fd54c540",
+    "evaluator_sha256": "c74cf2996bcf8525ec6eb34f26087f18668754c1e244fd3716f212eb17503a30",
+    "result_sha256": "afc6857a352765bd9dc340f68d3c9a0a88c7fde77b1a1c4a97f73e9ca8c27c98"
+  },
+  "range_volume_annualized_discovery_validation": [1227.8404109589042, 1404.0533748547418],
+  "range_volume_median_p95_discovery": [5, 8],
+  "range_only_annualized_discovery_validation": [1629.1150684931506, 1761.3392944031966],
+  "range_only_median_p95_discovery": [6, 10],
+  "selected_profile": null,
+  "forward_outcomes_opened": 0,
+  "verdict": "REJECT_CADENCE",
+  "closed_family": "rolling compression-to-range/volume release, including efficiency, range, volume, context, refractory, threshold, and quota rescue",
+  "submitted_orders": 0
+}
