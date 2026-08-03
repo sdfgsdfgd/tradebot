@@ -107,6 +107,12 @@ def test_gold_signal_reconstructs_stage12_hard_gate() -> None:
     assert context["stage_12"]["admitted_direction"] == "up"
     assert context["stage_12"]["blocked_by"] is None
     assert context["stage_22"]["admitted_direction"] == "up"
+    assert context["h4"]["authority"] == "attribution_only"
+    assert context["h4"]["hard_direction"] == "up"
+    assert context["h4"]["signed_fast_slope_dollars"] > 0.0
+    assert context["h4"]["fast_bars_to_finance"] > 0.0
+    assert context["h4"]["financing_clock"] in ("within_12h", "within_24h")
+    assert {"12", "30"} <= set(context["h4"]["path"])
 
 
 def test_gold_onset_context_is_canonical_json() -> None:
@@ -151,7 +157,9 @@ def test_gold_onset_context_is_canonical_json() -> None:
     )
 
     json.dumps(context, allow_nan=False, sort_keys=True)
+    assert context["schema"] == "gold.1oz-prospective-onset-context.v2"
     assert context["signal"]["daily"]["end"].endswith("+00:00")
+    assert context["signal"]["h4"]["authority"] == "attribution_only"
     assert "time" not in context["exchange_parity"]["gc"]
 
 
@@ -200,7 +208,7 @@ def test_gold_stage22_waits_then_matures_only_while_up(monkeypatch) -> None:
 
 def _context(decision_at: datetime) -> dict[str, object]:
     return {
-        "schema": "gold.1oz-prospective-onset-context.v1",
+        "schema": "gold.1oz-prospective-onset-context.v2",
         "authority": "prospective_research_only",
         "observed_at_utc": (decision_at + timedelta(minutes=5)).isoformat(),
         "signal": {
@@ -225,6 +233,7 @@ def _context(decision_at: datetime) -> dict[str, object]:
         "timing_parity": {"usable": True},
         "counterfactual_directions": {"stage_12": "up", "stage_22": None},
         "total_cross_asset_neutral_short": False,
+        "slow_financing_neutral_short": False,
         "order_authority": "none",
         "submitted_orders": 0,
     }

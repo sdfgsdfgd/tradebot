@@ -42,13 +42,11 @@ transport, capital, or order authority.
 - Intended executable transport: native CME `1OZ` futures, one troy ounce.
 - Historical signal clock: completed H4 bars; execution stress on the next
   tradable H1 bar.
-- Current frozen signal incumbent: Stage 12 H4 EMA 8/21 cross timing with one
+- Last lawful signal incumbent: Stage 7 H4 EMA 8/21 cross timing with one
   completed H4 persistence bar, confirmed by D1 EMA 21/50 hard direction aged
-  at least six completed daily states, plus entry-bound high-contracting
-  retention. Current stability development reference: Stage 22 adds a two-
-  completed-bar UUP/TIP uncertainty maturation to a tiny long-only cohort.
-  Stage 22 is not crowned because it missed the preregistered concentration
-  gate; it has no runtime or capital authority.
+  at least six completed daily states. Post-clock Stage 22 is the strongest
+  rebased development reference; Stage 28 is an outcome-exposed exploratory
+  frontier only. Neither has runtime or capital authority.
 - Frozen round-trip stress: `$2.32` per one-ounce trade = `$0.50` spread +
   `$0.66/side` commission + `$0.25/side` slippage.
 - Historical session law remains honest `24/5`; current/prospective `24/7`
@@ -78,6 +76,26 @@ transport, capital, or order authority.
 - Context audit: `CAUSAL_CONTEXT_READY`; no outcome has authority to rewrite
   timestamps, costs, warm-up, or missing data.
 
+### 17:00 ET causal-clock rebase
+
+Commit `ea7c64dc…` correctly changed full-session XAUUSD D1 evidence from the
+generic `20:00 ET` stamp to its broker-proven `17:00 ET` liquid close. Stage 7
+reproduces unchanged, but every downstream result using entry-bound D1
+volatility or D1/H4 timing must be rebased. The pre-fix Stage-12/22/24 numbers
+and hashes below are historical provenance only; they cannot support a crown.
+
+- Rebased Stage 12 SHA `a7a7ddd2…`: 7/10 positive years; annual sequence
+  `+24.03 / −56.72 / +15.34 / −132.08 / +108.89 / +26.91 / −44.39 /
+  +135.77 / +638.01 / +1,772.68`; 10y `+$2,608.90`; recent
+  `+$2,657.77`, PF `3.4722`, DD `$822.53`.
+- Rebased Stage 22 SHA `52cfc3dd…`: 8/10 positive years; annual sequence
+  `+16.53 / −22.31 / +29.08 / −113.21 / +113.49 / +41.64 / +1.72 /
+  +135.77 / +614.95 / +1,728.13`; 10y `+$2,666.25`; recent
+  `+$2,590.16`, PF `3.3250`, DD `$822.53`, 24.99 trades/year.
+- Its one-bar neighbour now retains only 7/10. The old neighbour-stability
+  claim is superseded. Rebased Stage 22 remains development evidence, not a
+  lawful advance under its original stopping rule.
+
 ## Frozen lineage and falsifications
 
 | Stage | Frozen test | Decisive result | Verdict |
@@ -93,7 +111,7 @@ transport, capital, or order authority.
 | 9 | Unfinanced fizzle after `18/24` H1 bars below `0.25 H4 ATR` | improves Years 2/4, but Year 7 falls to `−$165/−$170`; only 5–6/10 years positive | reject generic fizzle |
 | 10 | H4 cross maturity `2/3` completed bars | PF/DD improve, but cadence falls below 24/year and only 6/10 years remain positive | reject further global delay |
 | 11 | Soft-transition bridge after `3/5` completed D1 soft-state bars | exact Stage-7 parity first; both cells add countertrend shorts, keep 7/10 years, worsen the floor to `−$166.59/−$157.22`, and reduce 10y net | reject soft state as direction owner |
-| 12 | Stage-8 late trail only for high-contracting D1 entries | weak years improve to `−$56.72 / −$86.22 / −$14.27`; full 10y `+$2,750.29`, but breadth remains 7/10 | reject as standalone advance; causal component only |
+| 12 | Stage-8 late trail only for high-contracting D1 entries | post-clock annual weak years `−$56.72 / −$132.08 / −$44.39`; full 10y `+$2,608.90`; still 7/10 | reject as standalone advance; causal component only |
 | 13 | High-contracting retention + low-expanding unfinanced fizzle | Year 7 becomes positive, but Year 6 becomes negative; 7/10 years and recent concentration worsens | reject composition; no post-outcome nesting |
 | 14 | Independent H4 Bollinger reclaim/mean-reversion lane in low-trend transitions | unrestricted `−$1,664.46`, PF `0.670`; restricted variants `−$385.55/−$372.77`; both directions negative | reject family |
 | 15 | Stage-7-blocked H4 10-bar breakout onset with one/two-bar memory | `−$449.02/−$523.68`, PF `0.242/0.230`; fresh breakouts behave as late exhaustion | reject family |
@@ -103,9 +121,18 @@ transport, capital, or order authority.
 | 19 | Canonical H4 KAMA `(2,30)` with ER `10/20` | only 2/10 and 5/10 positive years; floors `−$188.16/−$182.51`; weak-year sums worsen | reject family; no KAMA sweep |
 | 20 | Flat-boundary H4/D1 dual-clock router; 21/42-session efficiency versus prior-252 median | both cells fall to 5/10 positive years; 21-session repairs named weak-year sum to `+$68.44` but cuts recent net to `+$2,076.87`, cadence to 17.0/year, and worsens concentration; 42-session floor is `−$219.71` | reject price-only routing; no horizon/percentile sweep |
 | 21 | Outcome-exposed causal UUP/TIP 5/21/63-day displacement, velocity, acceleration, and state-age anatomy | fresh 5-day mixed direction + mixed velocity at age one loses `−$99.39` across Years 2/4/7; adjacent ages are non-monotonic | anatomy only; freeze temporal uncertainty hypothesis |
-| 22 | Delay only that long cohort by one/two newly completed common UUP/TIP bars while H4/D1-up persists | both cells reach 8/10 positive years, retain cadence and DD, and improve weak years; both narrowly worsen top-five recent concentration | strongest stability reference; reject coronation under frozen gate |
+| 22 | Delay only that long cohort by one/two newly completed common UUP/TIP bars while H4/D1-up persists | post-clock two-bar cell reaches 8/10 with floor `−$113.21`, 10y `+$2,666.25`, recent `+$2,590.16`; one-bar neighbour falls to 7/10; concentration still worsens | rebased development reference; original neighbour-stability gate fails |
 | 23 | Residual direction-relative macro anatomy after Stage 22 | total 5/21/63 UUP/TIP neutrality contains 15 old shorts, `−$88.79`, only Years 2/3/6 and none in recent/control years; Year-4 long residual has no equally clean macro signature | prospective cohort only; no historical rule test |
-| 24 | Stage-22 weak-year stale/volatility/path anatomy | Year-2-down + Year-4-up = `−$96.76`; 23 financed givebacks lose `−$279.49`, while 22 other trades earn `+$182.73`. Dual-low amplitude earns `+$59.37`; strict stale compression earns `+$55.24`; losses concentrate outside low amplitude | falsifies blunt low-vol/stale veto; isolate causal post-financing turbulent surrender |
+| 24 | Stage-22 weak-year stale/volatility/path anatomy | computed before the 17:00 ET correction | superseded; no post-clock rule authority |
+| 25 | Completed-H4 financed-surrender anatomy across Stage 22 | Every broad giveback exit taxes the modern trend owner. The stable categorical seam is symmetric financing-floor loss while H4 direction/spread momentum and H4 ATR contract: 31 events, 25 improve/5 worsen, proxy delta `+$67.35`; Years 2/4 improve `+$8.62 / +$19.07`, annual breadth remains 8/10, but Years 8/10 lose `−$12.28 / −$31.05` | anatomy only; preregister exact one/two-H4 persistence replay, no direction-specific branch |
+| 26 | Exact one/two-H4 recurrent contracting-surrender lifecycle | One-H4 repairs Years 2/4 to `−$6.46 / −$23.52` and cuts recent DD to `$680.05`, but Year 3 falls to `−$73.89`, breadth to 6/10, ten-year net to `+$2,496.94`, and concentration worsens. Two-H4 retains 7/10 but Years 2/4 remain `−$21.76 / −$80.38`; both neighbours fail | reject recurrent eligibility; it expands beyond Stage-25's first-event cohort |
+| 27 | Exact Stage-26 entry/exit identity attribution | Every annual challenger entry matches Stage 22 exactly; displaced/new-entry delta is `$0`. All P&L changes come from shared entries exiting earlier. Stage 25 classified only each trade's first financing-floor-loss episode, whereas recurrent Stage 26 later admitted trades whose first episode began during ATR expansion, increasing one-H4 exits from 31 to 68 | no re-entry cascade; permit one exact first-event latch proof before closing the family |
+| 28 | First financing-loss episode latch, one/two H4 | post-clock exploratory one-H4 cell reaches 8/10, 10y `+$2,852.98`, recent `+$2,713.43`, PF `4.1196`, DD `$680.05`, but Years 2/4 remain `−$13.69 / −$101.37` and concentration worsens; two-H4 neighbour fails floor/net/weak-year gates | not promotable: preregistration bound stale Stage-22 hash and neighbour fails |
+| 29 | Same-D1-state re-establishment anatomy | first weak-focus entries are `+$6.15`; re-entry after a financed loss is `+$13.89` in focus and `+$1,135.87` overall; simple cooldown is falsified. Re-entry after a prior winner is `−$103.58` in focus but `+$1,292.14` overall | isolate trend quality, not ordinal/cooldown |
+| 30 | Post-winner trend-quality anatomy | all eight Year-4 post-winner longs lose `−$98.01`; modern counterparts earn `+$867.53`. State age/displacement are larger—not smaller—in modern winners; ordinary “late state” gating is backwards | seek causal path efficiency/acceleration; no state-age threshold |
+| 31 | D1 path-quality and acceleration anatomy | Year-4 post-winner longs have state/21d/63d efficiency medians `0.252/0.255/0.275`, overlapping modern `0.246/0.239/0.234`; fast-vs-medium deceleration occurs in both. Year-2 shorts have much weaker 63d efficiency (`0.020` median), but profitable modern shorts also inhabit low-efficiency states | reject generic efficiency/deceleration gate; inspect only categorical slow-state financing interactions |
+| 32 | Fixed-cost financing-velocity anatomy | entries whose signed H4 EMA velocity can finance `$2.32` within 12h earn `+$2,736.99`; 12–24h earns `+$57.31`; slower-than-24h loses `−$128.05`. But removal would erase `+$37.54 / +$183.71 / +$25.72` in Years 1/5/7 and reduce annual breadth | retain cost clock in prospective attribution; reject blanket gate |
+| 33 | Completed-H4 local path coherence over 2/5/10 gold days | Year-4 post-winner failures have lower median 5/10-day efficiency, but overlap both modern winners and losers; flip counts and directional occupancy overlap too | reject generic H4 churn/efficiency gate |
 
 The XSP engine test reused only its portable causal core: normalized
 multihorizon slopes, slope velocities, coherence, ATR ratio/velocity/
@@ -194,30 +221,27 @@ not block trades globally.
   financed surrender—not a generic stop, generic first-adverse exit, blanket
   volatility/session veto, or broad entry-threshold sweep.
 
-## Stage-22 strongest stability development reference
+## Stage-22 post-clock development reference
 
 `Stage 12 + fresh mixed/mixed UUP/TIP uncertainty wait of two completed bars`
 
-- Annual net: `+$16.53 / −$22.31 / +$19.02 / −$67.35 / +$113.49 /
-  +$41.64 / +$31.84 / +$135.77 / +$695.65 / +$1,728.13`.
-- Positive annual slices improve `7/10 → 8/10`; floor improves
-  `−$86.22 → −$67.35`; named weak-year sum improves `−$157.21 → −$57.82`.
-- Full 10y improves `+$2,750.29 → +$2,812.87`, PF `2.0422`, 264 trades,
-  `26.40/year`; recent 3y remains `+$2,670.86`, PF `3.4296`, 75 trades,
-  `24.99/year`, DD unchanged at `$822.53`.
-- Recent directions remain positive: down `+$557.94`, up `+$2,112.92`;
-  legacy GTH/RTH remain `+$2,252.41 / +$418.45`.
-- The sole failed gate is still real: recent top-five positive-share rises from
-  Stage 12's `46.3986%` to `46.5625%` (`+0.1639 pp`). The one-bar neighbour is
-  closer at `46.4157%` but has a weaker annual floor/weak-year sum. No gate is
-  relaxed after seeing this result.
-- Remaining loss anatomy is asymmetric: Year 2 is down `−$40.44` versus up
-  `+$18.13`; Year 4 is up `−$56.32` versus down `−$11.03`. One blanket gate
-  cannot honestly solve both.
+- Annual net: `+$16.53 / −$22.31 / +$29.08 / −$113.21 / +$113.49 /
+  +$41.64 / +$1.72 / +$135.77 / +$614.95 / +$1,728.13`.
+- Positive annual slices: 8/10; floor `−$113.21`; weak Years 2/4/7 sum
+  `−$133.80`.
+- Full 10y `+$2,666.25`, PF `1.9762`, 264 trades, `26.40/year`; recent 3y
+  `+$2,590.16`, PF `3.3250`, 75 trades, `24.99/year`, DD `$822.53`.
+- Recent directions: down `+$557.94`, up `+$2,032.22`; legacy GTH/RTH
+  `+$2,171.71 / +$418.45`; top-five positive share `47.3916%`.
+- The one-bar macro neighbour now has only 7/10 positive years. This breaks the
+  original stable-neighbour gate before concentration is considered.
+- Remaining exact annual weakness is Year 2 and Year 4. Full-ledger anatomy
+  attributes it primarily to Year-2 shorts and Year-4 longs, but annual-window
+  totals remain the qualification authority.
 
-Stage 22 is the best stability development reference, not an eligible crown.
-It may run only as a historical/shadow comparator after a separately approved
-observer design; Stage 12 remains the frozen signal incumbent.
+Stage 22 is the best rebased stability reference, not an eligible crown. Stage
+7 remains the last lawful incumbent; the onset tape may compare Stage 12/22
+counterfactuals but has no signal or capital authority.
 
 ## Active causal hypothesis
 
@@ -311,13 +335,78 @@ extrapolation. The remaining Year-4 longs span supportive, adverse, and mixed
 macro states. No further historical UUP/TIP rule, horizon, vote, or wait sweep
 is authorized from these outcomes.
 
-Stage 24 then tested the user's stale/quiet-regime suspicion directly. It was a
-valuable falsification: low-amplitude and strict stale-compression trades were
-profitable inside the exact weak-year focus. The mutual failure is state
-ownership after financing in non-low-amplitude paths, not inability to find
-movement in quiet gold. Any successor must therefore react only to strictly
-prior financing plus a confirmed turbulent surrender interaction; it may not
-block quiet entries or use the outcome label `financed_giveback` as a feature.
+Stage 24 tested the user's stale/quiet-regime suspicion on the pre-fix daily
+clock. Its conclusions are retained only as provenance; it cannot authorize a
+post-clock rule. Stage 25 independently rebuilt the Stage-22 lifecycle after
+the 17:00 ET fix and is the first current-clock surrender anatomy.
+
+Stage 25 tested that interaction before any rule was frozen. Exiting on one
+cost-unit giveback, half the high-water, or loss of the financing floor broadly
+repairs Years 2/4 but destroys profitable trend recovery elsewhere. Direction-
+specific context branches likewise transfer P&L between regimes. The only
+stable categorical neighbour is symmetric: after MFE has financed the frozen
+`$2.32` round trip, current H4 terminal excursion falls below that floor while
+directional fast slope, EMA-spread velocity, and H4 ATR velocity are all
+nonpositive and D1/H4 are not jointly low amplitude. Its proxy improves 25 of
+31 events and both named weak years. It is not a strategy result: exact
+one/two-completed-H4 lifecycle replay is required next.
+
+Stage 26 supplied exploratory exact replay and rejected **recurrent** surrender
+eligibility.
+The one-H4 cell generated 68 ten-year exits rather than Stage 25's 31 first-
+event proxies, transferred weakness into Years 3/7, reduced breadth to 6/10,
+lowered ten-year net, and worsened concentration. Two-H4 persistence generated
+28 exits and retained only 7/10 years. Stage 27 proved there was no post-flat
+entry cascade: every entry identity is unchanged and all delta comes from
+earlier exits on shared trades. The population expanded because Stage 25 stored
+only each trade's first financing-floor-loss episode, while Stage 26 allowed a
+trade whose first episode began during ATR expansion to qualify on a later
+contracting episode. One causal first-episode latch is therefore the only exact
+mapping still authorized. If its one/two-H4 neighbours fail, financing floors,
+giveback fractions, ATR horizons, medians, directions, sessions, recurrence,
+and longer persistence are closed. Its preregistration, and Stage 28's, bound
+the stale pre-fix Stage-22 receipt hash; both results are anatomy/frontier
+evidence only and cannot be promoted.
+
+Stage 28's first-event latch is nevertheless the strongest post-clock
+exploratory frontier: 8/10 years, 10y `+$2,852.98`, recent `+$2,713.43`, PF
+`4.1196`, and DD `$680.05`, with Years 2/4 still `−$13.69 / −$101.37` and
+top-five concentration worse. Stage 29 then falsified a simple re-entry
+cooldown: first weak-focus entries are slightly profitable and re-entry after a
+financed loss is profitable both in focus and overall. Stage 30 isolated the
+real asymmetry: all eight Year-4 longs following a same-state winner lose
+`−$98.01`, while modern counterparts earn `+$867.53`. Modern winners occur in
+older, farther-travelled D1 states, so a state-age or displacement veto would be
+backwards. The remaining causal seam is path quality/efficiency and acceleration
+inside the slow state—not another exit threshold.
+
+Stage 31 falsified path efficiency as that missing gate. Year-4's failed
+post-winner longs are not measurably more meandering than modern continuations:
+their median state efficiency is `0.252` versus `0.246`, 21-session efficiency
+is `0.255` versus `0.239`, and 63-session efficiency is `0.275` versus `0.234`.
+Fast-vs-medium deceleration is likewise common in both cohorts. Year-2 shorts
+do have exceptionally weak 63-session efficiency, but modern profitable shorts
+also occur in low-efficiency daily states. Do not promote a generic efficiency,
+ATR-acceleration, or velocity-sign veto. Only a simple categorical interaction
+that independently preserves old and modern controls may earn another replay;
+otherwise this historical admission branch closes in favor of unseen onset
+evidence.
+
+Stage 32 tested the fixed-cost asymmetry directly. A causal financing clock is
+real: signed H4 EMA velocity slower than one `$2.32` cost per 24 hours loses
+`−$128.05` overall and its Year-2 shorts lose `−$37.58` with zero winners.
+Nevertheless that same cohort contains major winners in Years 1/5/7; deleting
+it would reduce annual breadth. It is therefore prospective context—not an
+admission veto. Stage 33 then measured completed-H4 path efficiency, hard-state
+occupancy, and flip count over fixed 2/5/10-day clocks. Year-4 re-establishments
+are somewhat weaker over 5/10 days but overlap modern winners and losers, so a
+churn threshold is also unearned.
+
+The clean remaining ownership hypothesis is to mature a same-D1-state
+continuation after an already realized winner rather than veto it. The current
+historical state owner preprojects the tape and has no causal closed-trade
+callback. Do not emulate this with a hindsight two-pass label. It requires a
+separately confirmed centralized lifecycle seam or prospective observation.
 
 ## Native 1OZ transport gate
 
@@ -345,26 +434,45 @@ we do not pretend fractional futures exist or borrow XSP's reserve.
 
 1. `[DONE]` Stage-20 flat-boundary dual-clock census and preregistered 21/42-
    session replay: both neighbours rejected; price-only routing is closed.
-2. `[DONE]` Stage-21 causal macro-onset anatomy and Stage-22 one/two-bar
-   uncertainty maturation: meaningful 8/10-year stability advance, but no
-   coronation because both neighbours miss concentration.
+2. `[DONE]` Rebase Stage 12/22 after the 17:00 ET correction: Stage 7 remains
+   exact; Stage 22 wait-two has 8/10 but wait-one only 7/10, so the original
+   neighbour-stability gate fails.
 3. `[DONE]` Stage-23 residual anatomy: preserve total cross-asset neutrality as
    a prospective short cohort only; no clean historical Year-4-long rule.
-4. `[WIP]` Deploy the now locally proven canonical, non-submitting 1OZ onset tape:
+4. `[DONE]` Deploy the canonical, non-submitting 1OZ onset tape on q:
    Stage-12/22 counterfactuals, raw/proposed/admitted H4 state and gate,
    expiry-aware XAUUSD/GC/1OZ parity, UUP/TIP 5/21/63 direction/velocity/
    acceleration/age/freshness, GC news pressure/delta/velocity, and sealed
-   4h/12h/24h return/MFE/MAE/financing/giveback/reversal outcomes.
-5. `[DONE]` Stage-24 weak-year anatomy: blunt stale/low-vol gating is rejected;
-   financed giveback in turbulent/non-low-amplitude ownership is the exact seam.
-6. `[WIP]` Stage-25 reconstruct the strictly causal post-financing path across
-   weak-year losers and every profitable control; freeze at most a tiny one/two-
-   bar confirmed surrender interaction before replay. Never use outcome labels.
-7. `[TODO]` Run native 1OZ execution/roll/liquidity replay and derive the exact
+   4h/12h/24h return/MFE/MAE/financing/giveback/reversal outcomes. Before the
+   first unseen bar, v2 lawfully added signed-dollar financing velocity and
+   2/5/10-day H4 path coherence as attribution-only context. The first lawful
+   unseen completed-H4 checkpoint is due naturally at `14:07 AEST`.
+5. `[DONE]` Mark pre-clock Stage 24 superseded; Stage 25 is the first post-clock
+   surrender anatomy.
+6. `[DONE]` Stage-26/28 exact one/two-H4 replays: useful exploratory frontier,
+   but neither is promotable because the preregistrations bind the stale
+   Stage-22 hash and neighbour gates fail. Close the surrender family.
+7. `[DONE]` Stage-27 identity attribution: no new/displaced entries; recurrent
+   eligibility—not re-entry—expanded Stage 25's first-event cohort.
+8. `[DONE]` Stage-29/30/31 post-clock admission anatomy: cooldown, state age,
+   displacement, path efficiency, and generic acceleration fail to distinguish
+   Year-4 post-winner losses from modern continuation. Preserve only a possible
+   categorical slow-state-financing interaction; no threshold hunt.
+9. `[DONE]` Stage-32/33 transport-aware speed and H4 coherence anatomy: the
+   24-hour financing clock is predictive in aggregate but damages annual
+   controls; local H4 efficiency/churn overlaps. Preserve both on the onset
+   tape, not as historical gates.
+10. `[WIP]` Audit the first unseen 14:07 AEST onset checkpoint; it must preserve
+   shared-month parity, source freshness, attribution-only news, and zero order
+   authority.
+11. `[TODO]` Run native 1OZ execution/roll/liquidity replay and derive the exact
    capital requirement.
-8. `[TODO]` Crown or reject the signal; if crowned, publish machine declaration,
+12. `[TODO]` At 18:00 freeze the lawful Stage-7 incumbent plus strongest honest
+   post-clock frontier; crown only if a correctly bound neighbour-stable proof
+   actually passes.
+13. `[TODO]` If crowned, publish machine declaration,
    reproducible receipt, runtime parity, and non-submitting durable registration.
-9. `[BLOCKED]` Broker preview waits for signal/transport qualification; COMEX L1
+14. `[BLOCKED]` Broker preview waits for signal/transport qualification; COMEX L1
    is now live. Capital authority waits for an explicit later graduation boundary.
 
 ## Evidence identities
@@ -487,20 +595,71 @@ we do not pretend fractional futures exist or borrow XSP's reserve.
   `/tmp/1oz-gold-regime-harmony-preregistration-v22.json` and
   `/tmp/gold-stage22-macro-uncertainty-maturation-20260802.json`, SHA-256
   `5f49eee536f6a85b406767e145fa7ebdab85aa849504708cfc1b44e01d392622` /
-  `0cf08df0333febd6cb86d02ea33a4f0d8eb474938a2bc50b45bc58fabf9e7d31`.
+  `0cf08df0333febd6cb86d02ea33a4f0d8eb474938a2bc50b45bc58fabf9e7d31`;
+  pre-clock receipt, superseded for promotion.
+- Post-clock regenerated Stage-12/22 development receipts: SHA-256
+  `a7a7ddd270e21660d4bf3edf5b206f2c8d3e577a2232b19cae8298a3844f9a99` /
+  `52cfc3dd1adec6a1e69030cdc2c407868f7269bc0e2f3b8e4420e64d062453cf`.
+  They disclose the mechanical rebase but do not retroactively repair the old
+  preregistration lineage.
 - Stage-23 direction-relative down-side macro anatomy:
   `/tmp/gold-stage23-down-macro-anatomy-20260802.json`, SHA-256
   `66c1ea684b9afe724cd8d9bd5815ecb719c2962b37f37771d02092f4fa6bf1e3`.
 - Stage-24 stale/volatility/path anatomy:
   `/tmp/gold-stage24-stale-regime-anatomy-20260803.json`, SHA-256
-  `e0d1befb7595f04906c6c9e5444120b521ee38f77b8a0e186c49d022324dc9f`.
+  `e0d1befb7595f04906c6c9e5444120b521ee38f77b8a0e186c49d022324dc9f`;
+  pre-clock and superseded.
 - Prospective onset preregistration:
   `backtests/gold/one_oz_onset_tape_preregistration.json`, SHA-256
   `697697843a82ad254ca39cb891032a6243ddcc8811919b0e3b0fbda43a8c10be`.
+- Prospective onset v2 preregistration, frozen before the first unseen 04:00 UTC
+  decision and preserving v1 as immutable provenance:
+  `backtests/gold/one_oz_onset_tape_preregistration_v2.json`, SHA-256
+  `d0cd85aa88f454a002958bda29f5bcd9213a8f63895f5360a23215ad638904a7`.
 - Local canonical onset smoke at `2026-08-03T02:27:40Z`: exact 00:00 UTC
   XAUUSD/GC/1OZ source parity, shared December pair, one content-addressed
   checkpoint, zero forecasts/results/orders; isolated ledger SHA-256
   `396159147eb30facf34e65bb46faf7b92a66fabef92dd956f85f0c25d6a23b2b`.
+- Published/deployed onset implementation: commit
+  `ea7c64dc282206b39d500ad7d2729473fe33ef45`; complete repository proof
+  `1062 passed, 4 deselected`; q ledger after the read-only smoke contains one
+  EVALUATED checkpoint and zero forecasts/results/orders, SHA-256
+  `9962e99198b2e59af856e7d18d94ff38420a542b0b99f2756e5e677624b5e470`.
+- Stage-25 financed-surrender anatomy:
+  `/tmp/gold-stage25-financed-surrender-anatomy-20260803.json`, SHA-256
+  `e6c278288094750c91aa02e5f626cb0040fda31084849ae1b0a19c32fcf333b2`.
+- Stage-25 context attribution:
+  `/tmp/gold-stage25-context-attribution-20260803.json`, SHA-256
+  `d156fb692e01b11c098048114e03d3dd8ff6ac2d10308c5cf658ba45a1b2af74`.
+- Stage-26 preregistration:
+  `/tmp/1oz-gold-regime-harmony-preregistration-v23.json`, SHA-256
+  `b18ac576f2312b3a81876f6b851a65dff6fd8ebdabbd137fb36dcd312305a77d`.
+- Stage-26 exact lifecycle receipt:
+  `/tmp/gold-stage26-h4-contracting-surrender-20260803.json`, SHA-256
+  `633e812a8cfd3522a27e18fd77a3abedf285e171ca0d7fd40bc23ad8828f2e57`.
+- Stage-27 exact entry/exit identity attribution:
+  `/tmp/gold-stage27-reentry-cascade-anatomy-20260803.json`, SHA-256
+  `45162b75f8740a75aa998e1e1212a5605ac8153de1747069262f4b1d78cb566b`.
+- Stage-28 stale-lineage preregistration and exploratory first-event receipt:
+  `/tmp/1oz-gold-regime-harmony-preregistration-v24.json` and
+  `/tmp/gold-stage28-first-surrender-latch-20260803.json`, SHA-256
+  `47af2ee2457e61ea044519ad5323cfb823d5a1ca6f75f064b2e75b6f1c445954` /
+  `921491eb514ec90f7cc759701872619576d84bccf1fc6dbe39583ac300284fc8`.
+- Stage-29 re-establishment anatomy:
+  `/tmp/gold-stage29-reestablishment-anatomy-20260803.json`, SHA-256
+  `e138d96c953266682bef272ee29d397aa6a3198daab5bf7e1b00c606261ea951`.
+- Stage-30 late-chase/trend-quality anatomy:
+  `/tmp/gold-stage30-late-chase-anatomy-20260803.json`, SHA-256
+  `206a8decc1548faf7149680d31867246b3ebcf53146d320abdab3be85b142460`.
+- Stage-31 path-quality/acceleration anatomy:
+  `/tmp/gold-stage31-path-quality-anatomy-20260803.json`, SHA-256
+  `0c7030b464d7bd24a863b832ae56044d842eaca27e39abf2ede1ad62ed42f2e5`.
+- Stage-32 fixed-cost financing-velocity anatomy:
+  `/tmp/gold-stage32-cost-financing-velocity-anatomy-20260803.json`, SHA-256
+  `2994e122316f7934cbfbb8e7a442ef4815217021967611c3d3980e7c65f371cb`.
+- Stage-33 local H4 path-coherence anatomy:
+  `/tmp/gold-stage33-h4-path-coherence-anatomy-20260803.json`, SHA-256
+  `f67ab668dbb445a76cb550e34dd37ca135514b4a647e8a0e72a5c4d64c1ea749`.
 
 These `/tmp` artifacts are scratch evidence; this file preserves their decisive
 facts across context compaction. Promotion requires canonical repo receipts,

@@ -21,13 +21,13 @@ from ..news.contract import (
 from .live_calibration import LiveCalibrationLedger, calibration_fingerprint
 
 
-GOLD_ONSET_VERSION = "gold.1oz-prospective-onset.v1"
+GOLD_ONSET_VERSION = "gold.1oz-prospective-onset.v2"
 GOLD_ONSET_PREREGISTRATION = (
     Path(__file__).resolve().parents[2]
-    / "backtests/gold/one_oz_onset_tape_preregistration.json"
+    / "backtests/gold/one_oz_onset_tape_preregistration_v2.json"
 )
 GOLD_ONSET_PROSPECTIVE_START = datetime(
-    2026, 8, 3, 2, 12, tzinfo=timezone.utc
+    2026, 8, 3, 3, 30, 17, tzinfo=timezone.utc
 )
 GOLD_ONSET_HORIZONS_HOURS = (4, 12, 24)
 GOLD_ONSET_FINANCING_USD = 2.32
@@ -331,10 +331,143 @@ def gold_signal_context(
         ema_preset="8/21", ema_entry_mode="cross", entry_confirm_bars=1
     )
     pending_macro_index = None
+    closes: list[float] = []
+    hard_states: list[str | None] = []
+    prior_close = None
+    prior_atr14 = None
+    prior_fast_slope = None
+    prior_spread = None
+    ranges: deque[float] = deque(maxlen=63)
     latest = None
     for bar in _complete_bars(h4_rows, as_of=as_of):
         stamp = _bar_time(bar)
-        snapshot = engine.update(_bar_value(bar, "close"))
+        close = _bar_value(bar, "close")
+        snapshot = engine.update(close)
+        current_state = snapshot.state if snapshot.ema_ready else None
+        high, low = _bar_value(bar, "high"), _bar_value(bar, "low")
+        true_range = high - low
+        if prior_close is not None:
+            true_range = max(
+                true_range,
+                abs(high - prior_close),
+                abs(low - prior_close),
+            )
+        prior_close = close
+        ranges.append(true_range)
+        atr14 = statistics.fmean(list(ranges)[-14:]) if len(ranges) >= 14 else None
+        atr_velocity = (
+            atr14 - prior_atr14
+            if atr14 is not None and prior_atr14 is not None
+            else None
+        )
+        if atr14 is not None:
+            prior_atr14 = atr14
+        fast_slope = (
+            float(snapshot.ema_fast) - float(snapshot.prev_ema_fast)
+            if snapshot.ema_fast is not None and snapshot.prev_ema_fast is not None
+            else None
+        )
+        spread = (
+            float(snapshot.ema_fast) - float(snapshot.ema_slow)
+            if snapshot.ema_fast is not None and snapshot.ema_slow is not None
+            else None
+        )
+        spread_velocity = (
+            spread - prior_spread
+            if spread is not None and prior_spread is not None
+            else None
+        )
+        fast_acceleration = (
+            fast_slope - prior_fast_slope
+            if fast_slope is not None and prior_fast_slope is not None
+            else None
+        )
+        if fast_slope is not None:
+            prior_fast_slope = fast_slope
+        if spread is not None:
+            prior_spread = spread
+        closes.append(close)
+        hard_states.append(current_state)
+        sign = 1.0 if current_state == "up" else -1.0 if current_state == "down" else None
+        signed_fast = sign * fast_slope if sign is not None and fast_slope is not None else None
+        signed_spread = (
+            sign * spread_velocity
+            if sign is not None and spread_velocity is not None
+            else None
+        )
+        signed_acceleration = (
+            sign * fast_acceleration
+            if sign is not None and fast_acceleration is not None
+            else None
+        )
+        financing_bars = (
+            GOLD_ONSET_FINANCING_USD / signed_fast
+            if signed_fast is not None and signed_fast > 0.0
+            else None
+        )
+        financing_clock = (
+            "unready"
+            if signed_fast is None
+            else "within_12h"
+            if signed_fast >= GOLD_ONSET_FINANCING_USD / 3.0
+            else "within_24h"
+            if signed_fast >= GOLD_ONSET_FINANCING_USD / 6.0
+            else "beyond_24h"
+        )
+        path = {}
+        for horizon in (12, 30, 60):
+            if sign is None or len(closes) <= horizon:
+                continue
+            window_closes = closes[-(horizon + 1) :]
+            window_states = hard_states[-horizon:]
+            travelled = sum(
+                abs(right / left - 1.0)
+                for left, right in zip(
+                    window_closes,
+                    window_closes[1:],
+                    strict=False,
+                )
+            )
+            displacement = sign * (close / window_closes[0] - 1.0)
+            path[str(horizon)] = {
+                "signed_return": displacement,
+                "efficiency": (
+                    abs(close / window_closes[0] - 1.0) / travelled
+                    if travelled > 0.0
+                    else None
+                ),
+                "direction_occupancy": sum(
+                    state == current_state for state in window_states
+                )
+                / len(window_states),
+                "flip_count": sum(
+                    left in ("up", "down")
+                    and right in ("up", "down")
+                    and left != right
+                    for left, right in zip(
+                        window_states,
+                        window_states[1:],
+                        strict=False,
+                    )
+                ),
+            }
+        h4_context = {
+            "authority": "attribution_only",
+            "hard_direction": current_state,
+            "signed_fast_slope_dollars": signed_fast,
+            "signed_spread_velocity_dollars": signed_spread,
+            "signed_fast_acceleration_dollars": signed_acceleration,
+            "atr14_dollars": atr14,
+            "atr_velocity_dollars": atr_velocity,
+            "cost_per_atr14": (
+                GOLD_ONSET_FINANCING_USD / atr14
+                if atr14 is not None and atr14 > 0.0
+                else None
+            ),
+            "fast_bars_to_finance": financing_bars,
+            "financing_clock": financing_clock,
+            "path": path,
+        }
         daily_index = _latest_index(daily_times, stamp)
         macro_index = _latest_index(macro_times, stamp)
         if daily_index < 0:
@@ -405,6 +538,7 @@ def gold_signal_context(
                 "source": stage22_source,
                 "pending_macro_index": pending_macro_index,
             },
+            "h4": h4_context,
             "daily": {**day, "end": _utc(day["end"]).isoformat()},
             "macro_trigger": trigger,
         }
@@ -556,7 +690,7 @@ def build_gold_onset_context(
         for symbol, point in points.items()
     )
     return {
-        "schema": "gold.1oz-prospective-onset-context.v1",
+        "schema": "gold.1oz-prospective-onset-context.v2",
         "authority": "prospective_research_only",
         "observed_at_utc": _utc(observed_at).isoformat(),
         "signal": signal,
@@ -576,6 +710,12 @@ def build_gold_onset_context(
         "total_cross_asset_neutral_short": bool(
             macro.get("total_direction_neutral")
             and any(direction == "down" for direction in directions.values())
+        ),
+        "slow_financing_neutral_short": bool(
+            macro.get("total_direction_neutral")
+            and any(direction == "down" for direction in directions.values())
+            and isinstance(signal.get("h4"), Mapping)
+            and dict(signal["h4"]).get("financing_clock") == "beyond_24h"
         ),
         "order_authority": "none",
         "submitted_orders": 0,
