@@ -1,0 +1,75 @@
+{
+  "schema": "mcl.two-speed-auction-relay-preregistration.v12",
+  "frozen_at_utc": "2026-08-03T20:35:58Z",
+  "authority": "posthoc_development_only_no_unseen_validation_no_orders_no_capital",
+  "supersedes": "mcl.two-speed-auction-relay-preregistration.v11",
+  "candidate": {
+    "name": "MCL Parity-Elasticity Two-Speed Relay",
+    "signal_owner": "exact macro-auction CL directional engine",
+    "transport_proxy": "matched-month MCL",
+    "hypothesis": "a tiny matched-MCL response finances orderly continuation, while a larger response at the same mature CL turn is an exhausted auction to fade"
+  },
+  "causal_seed": {
+    "rejected_result_sha256": "2b5993f9634cd67495ccd7ecdb9928704bf4790b313ec663deee9461d7b69e4e",
+    "anatomy_evaluator_sha256": "722c6fb58310753e959d89f5c78e80bca753e3c9ebe82bfbd4afecfd044ef99a",
+    "anatomy_result_sha256": "9dadef1956d4a87d01f4ee67a6f1ec33f03dc12ba74750d74bd69359b6d83cf2",
+    "observation": "one-to-two raw-turn parity ticks were direction-balanced and stress-positive overall; larger parity responses dominated v11 losses, while fixed global inversion changed sign across periods"
+  },
+  "frozen_engine": {
+    "horizons_bars": [6, 12, 24, 48, 96],
+    "smooth_alpha": 0.15,
+    "initial_score": 0.075,
+    "turn_score": 0.06,
+    "retrace_atr": 2.0,
+    "minimum_state_and_cooldown_bars": 24,
+    "minimum_direction_score": 0.2,
+    "minimum_coherence": 0.6
+  },
+  "lifecycle": {
+    "raw_turn": "close predecessor risk at the next MCL one-minute open; require direction-aligned 30-minute velocity and raw-turn MCL parity",
+    "maturation": "after exactly one completed five-minute bar require retained macro state and renewed MCL parity in the raw direction",
+    "route": "compare absolute raw-turn MCL response ticks with the frozen cell threshold; at or below follows the raw direction, above fades it",
+    "exit": "close either speed on the next raw macro turn or contract roll",
+    "roll": "remain flat until a fresh post-roll turn",
+    "stop_target_timeout": "none"
+  },
+  "bounded_cells": {
+    "primary_follow_le_2_ticks_else_fade": 2,
+    "neighbour_follow_le_1_tick_else_fade": 1,
+    "neighbour_follow_le_3_ticks_else_fade": 3,
+    "declared_cell_count": 3,
+    "selection": "the two-tick cell is primary; neighbors test local sensitivity and cannot replace it from exposed outcomes"
+  },
+  "fixed_economics": {
+    "multiplier": 100,
+    "min_tick": 0.01,
+    "primary_round_trip_cost_usd": 3.52,
+    "stress_round_trip_cost_usd": 5.52
+  },
+  "proof": {
+    "minimum_trades_per_year": 160,
+    "positive_primary_and_stress_each_available_year": true,
+    "annual_profit_factor_min": 1.1,
+    "full_profit_factor_min": 1.2,
+    "full_net_to_intrabar_drawdown_min": 1.5,
+    "both_routed_directions_nonnegative": true,
+    "monthly_positive_pnl_concentration_max": 0.4,
+    "roll_and_mcl_signal_controls": true,
+    "missing_july_2023_to_august_2024": "hard crown blocker",
+    "future_unseen_prospective_evidence": "required before live authority"
+  },
+  "controls": [
+    "v11 global continuation",
+    "global inversion with identical holds",
+    "fixed-five-session roll",
+    "MCL-only signal owner"
+  ],
+  "prohibitions": [
+    "no validation claim from the now-exposed suffix",
+    "no parity magnitude beyond the declared one-two-three tick neighborhood",
+    "no session, calendar, volatility, direction, news, stop, target, or timeout interaction",
+    "no daily quota",
+    "no live authority"
+  ],
+  "submitted_orders": 0
+}
