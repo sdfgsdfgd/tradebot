@@ -1,0 +1,104 @@
+{
+  "schema": "mcl.two-speed-auction-relay-preregistration.v4",
+  "frozen_at_utc": "2026-08-03T18:58:13Z",
+  "authority": "research_only_no_orders_no_capital",
+  "supersedes": "mcl.two-speed-auction-relay-preregistration.v3",
+  "candidate": {
+    "name": "MCL Two-Speed Slow-Financed Auction Relay",
+    "fixed_v3_cell": {
+      "harmony_width_lower_exclusive": 0.8,
+      "harmony_width_upper_inclusive": 1.0,
+      "expanded_width_min_exclusive": 1.15,
+      "expanded_efficiency_max": 0.2
+    },
+    "signal_owner": "matched-month CL",
+    "transport_proxy": "matched-month MCL",
+    "news_authority": "annotation_only"
+  },
+  "discovery_evidence": {
+    "window": "2024-08-04T22:00:00Z through 2024-10-31T20:29:00Z",
+    "manifest_sha256": "bb1321d872b7a10c23100cabc0f37f35221d2275c1211f0b2071d129dd13f30a",
+    "v3_result_sha256": "a9eac74f8968d011f9f7a93b8d52358866b9a8e66a679d835bbfd7ddc0abc22c",
+    "v3_evaluator_sha256": "326360d62dfbca7d6da4c89de6589695a03a09f2c76d2a76e0e33636354e9eb3",
+    "v3_primary_result": {
+      "trades": 59,
+      "net_usd": 100.72,
+      "profit_factor": 1.190339,
+      "acceptance": {
+        "trades": 55,
+        "net_usd": 122.90
+      },
+      "failed_rotation": {
+        "trades": 4,
+        "net_usd": -22.18
+      }
+    },
+    "hypothesis": "a failed-auction reversal needs slower directional financing and must not be entered on a climactic one-minute maturation bar; acceptance-continuation remains unchanged"
+  },
+  "bounded_cells": {
+    "failure_slow_direction_horizon_minutes": [
+      30,
+      60
+    ],
+    "failure_maturation_volume_ratio_max": [
+      2.0,
+      3.0
+    ],
+    "declared_cell_count": 4,
+    "ranking": "discovery eligibility first, then positive quarter count, worst quarter net, net/intrabar-DD, profit factor, and net; validation cannot select a cell"
+  },
+  "two_speeds": {
+    "acceptance": "identical to the fixed v3 cell",
+    "failed_rotation": "retain every v3 failure requirement, then require the completed CL close-versus-exact-prior-close slope at the declared horizon to agree with the reversal and require the causal maturation-volume ratio not to exceed the declared cap",
+    "mutual_exclusion": "first matured decision consumes the eligible block; one position maximum"
+  },
+  "fixed_owners": {
+    "blocks_et": [
+      "18:00-02:00",
+      "02:00-08:00",
+      "08:00-16:25"
+    ],
+    "formation_minutes": 45,
+    "probe_width_fraction": 0.05,
+    "acceptance_closes": 2,
+    "acceptance_volume_ratio": 1.0,
+    "roll": "dual prior-session CL/MCL volume cross, forced three complete sessions before MCL expiry",
+    "costs_usd": {
+      "primary_round_trip": 3.52,
+      "stress_round_trip": 5.52
+    }
+  },
+  "proof_windows": {
+    "discovery": "available dated tape before 2025-08-04T22:00:00Z",
+    "sealed_validation": "2025-08-04T22:00:00Z through 2026-08-04T22:00:00Z",
+    "missing_challenge_prefix": "2023-07 through 2024-08 remains a hard coronation blocker"
+  },
+  "proof_gates": {
+    "minimum_trades_per_complete_year": 160,
+    "positive_primary_and_stress_net_each_complete_year": true,
+    "annual_profit_factor_min": 1.10,
+    "full_profit_factor_min": 1.20,
+    "full_net_to_intrabar_drawdown_min": 1.50,
+    "both_directions_nonnegative_with_trades": true,
+    "both_speeds_nonnegative_with_trades": true,
+    "monthly_positive_pnl_concentration_max": 0.40,
+    "three_block_session_share_max": 0.10,
+    "missing_july_2023_to_august_2024": "hard coronation blocker"
+  },
+  "controls": [
+    "unchanged v3 fixed-cell relay",
+    "acceptance-only and failed-rotation-only attribution",
+    "MCL-only signal and roll controls",
+    "same-hold direction inversion",
+    "immediate parameter neighbours"
+  ],
+  "prohibitions": [
+    "no result-selected validation cell",
+    "no news direction",
+    "no daily quota",
+    "no time-anchor, target, stop, or exit sweep",
+    "no live authority",
+    "no crown without the missing first challenge year"
+  ],
+  "submitted_orders": 0
+}

@@ -653,7 +653,7 @@ transition through today’s close; no order will be forced merely to populate t
   preregistered `4h/12h/24h` onset tape to ask whether such opposition predicts
   exhaustion, delayed turn, or noise against matched TA-only controls; never
   add a second observer, read a sealed outcome early, or let news pick direction.
-- `[INCUBATING 0/6 — CONFIRMED]` **MCL Two-Speed Auction Relay:** sharpen one
+- `[ACTIVE — AUTONOMOUS FOUR-HOUR BLOCK]` **MCL Two-Speed Auction Relay:** sharpen one
   compact `1–5m` MCL state machine that
   arbitrates mutually exclusive acceptance-continuation and failed-auction
   reversal setups. Let completed `5m` CL discover the auction, causal `1m` CL
@@ -672,6 +672,16 @@ transition through today’s close; no order will be forced merely to populate t
   weaken a gate, or submit an unproved strategy. During this block, the durable
   XSP/Gold workers continue but scheduled manual Hawkeye reviews are paused;
   only a real fill/order/reconciliation or safety event preempts MCL research.
+  Live NYMEX L1 is now proven. The dated matched-month IBKR hydration is
+  advancing from August 2024 while the unavailable July-2023–August-2024
+  prefix remains a hard crown blocker. Rolling-range v1 was decisively
+  cost-negative. Anchored-block v2 found a genuinely positive low-efficiency
+  opening cohort. Regime-financed v3's initial three-month discovery slice is
+  `+$100.72/59`, PF `1.190`, but `-$17.28` under two-tick stress; acceptance is
+  `+$122.90/55` while failed rotation is `-$22.18/4`, so it may not hide the
+  weak speed or stress failure. Preregistered v4
+  `1bc354e6…` leaves acceptance unchanged and tests only `30/60m` slow
+  financing × `2x/3x` non-climactic failure maturation on still-unseen tape.
 - `[PRESERVED RUNNER-UP]` **Tri-asset narrative-dispersion compression:** test
   whether convergence among easing-negative XSP pressure, weakening-positive
   MCL pressure, and weakly reversing-positive Gold pressure predicts
@@ -908,6 +918,13 @@ and stable bootstrap evidence. Neither may be refactored into looking mature.
     `2c4c543a…` now binds publication through settlement, but accumulation is
     `HOLD_NYMEX_L1_REQUIRED`. Never weaken freshness or backfill. No MCL
     instrument, option, selector, order, or XSP/Gold-clock authority exists.
+24. `[WIP]` Sharpen the MCL Two-Speed Auction Relay through the user-authorized
+    four-hour autonomous block. Complete the dated CL/MCL tape, preserve
+    matched-month/roll/session/cost truth, and decide frozen v3/v4 on discovery,
+    sealed validation, both directions/speeds, annual cadence, stress costs,
+    PnL/DD, concentration, and controls. Missing July-2023–August-2024 remains
+    a hard crown blocker; no quota, validation-selected cell, order, or capital
+    authority.
 
 ---
 
@@ -1212,6 +1229,7 @@ and
 | E-378 | scheduled `17:12Z` Hawkeye kept plan `b4a920b3…` and both selected canaries flat/clean at `$1,318.05` settled USD, with zero relevant positions/orders, fills/trades, P&L/cost/DD, or breach. XSP closed `758.69`; `5/15/30/60/120m` slopes were `up/up/down/up/up` (`+0.00395/+0.00791/-0.00110/+0.00242/+0.00710`) and all five velocities recovered positive (`+0.00264/+0.01450/+0.00417/+0.00033/+0.00198`). ATR ratio rose to `0.896`, but velocity/acceleration remained `-0.003079/-0.006156`; coherence was `0.80`, retained trend state was up, and a lone `15m` up turn remained `outside_window`, producing `weak_direction`, no proposal/admission, and `flat_target`. Long context remained `5/10/21/63/84 up, 42 down`, hard/soft up, `aligned_up/high_up`; easing-bearish news remained observation-only at `-0.432/+0.1403/+0.033576h^-1`. Gold retained the completed `16:00Z` D1/H4-down source and no target while live type-1 `1OZZ6` quoted `4089.50/4090.00`; its fresh bullish news conflict remains sealed for lawful `4h/12h/24h` settlement. Outcome-blind census found no same-direction incumbent among all `32` pairs exits within the next two bars, closing one-bar patience before outcomes. The surviving flat cohort has `88` up plus `47` down treatments and `222` up plus `96` down standalone controls across every annual slice. Candidates advance to `4/6`; MCL Two-Speed Auction Relay is durably queued for the next block, not substituted into this one. No strategy, selection, capital, service, order, or graduation authority changed |
 | E-379 | scheduled `17:32Z` Hawkeye kept plan `b4a920b3…`, `$1,318.05` settled USD, and both selected canaries economically flat: zero relevant holdings/orders, fills/trades, realized/open P&L, cost, DD, submission, or breach. XSP's completed `17:30Z` state retained up with every `5/15/30/60/120m` slope positive (`+0.01053/+0.02372/+0.01889/+0.00527/+0.01084`) while velocity was negative through `60m` and positive only at `120m` (`-0.01713/-0.00880/-0.00132/-0.00264/+0.00331`). ATR ratio/velocity/acceleration were `1.0205/-0.003084/-0.006144`, coherence `1.00`; no turn/proposal/admission formed outside the frozen window and transport stayed `flat_target`. Long context remained `5/10/21/63/84 up, 42 down`, hard/soft up, `aligned_up/high_up`; easing-bearish news stayed observation-only at `-0.432/+0.1403/+0.033576h^-1`. The separate source counterfactual remains `2` closed trades / `-3.47` points and is not selected-run P&L. Gold retained its completed `16:00Z` raw-H4/D1-down state, null turn/proposal/target, opposing bullish news `+0.1764/+0.4926/+0.117886h^-1`, and sealed `4h/12h/24h` outcomes. Pre-outcome control decontamination plus deterministic maximum-cardinality matching reduced XSP's clean matched cohort to `29`: up `5/5/10`, down `1/5/3`; it fails the frozen `60` total / `5` each direction-year floor before any outcome is read. The XSP candidate closes at eligibility, Gold advances to `5/6`. Separately, the cockpit incorrectly projected the unrelated manual `1 TQQQ` into Gold's per-run positions and blocked only its UI `STOP`; correction `6bff556…` now scopes every run to its capital-plan `position_symbols`, leaves unknown-symbol orders fail-closed, and is deployed/proven on q as Gold `{1OZ:0}`, XSP `{SPXU:0,UPRO:0}`, both STOP `ALLOW`, portfolio `READY`. No live authority changed |
 | E-380 | scheduled `17:52Z` Hawkeye completed block `6/6` with plan `b4a920b3…`, `$1,318.05` settled USD, and both selected canaries flat/clean: zero relevant positions/orders, fills/trades, realized/open P&L, costs, DD, submissions, or breach; both natural workers exited success. XSP's completed `17:50Z` state retained up with all `5/15/30/60/120m` slopes positive (`+0.01843/+0.00395/+0.01449/+0.01175/+0.00775`) but mixed velocities (`+0.00395/-0.00615/-0.00242/+0.00297/-0.00116`). ATR ratio/velocity/acceleration were `0.7678/-0.006582/-0.000435`, coherence `1.00`; no turn/proposal/admission formed outside the frozen window and transport remained `flat_target`. Long context stayed `5/10/21/63/84 up, 42 down`, hard/soft up, `aligned_up/high_up`; the prior bearish news observation crossed its freshness boundary and became unusable rather than being carried forward. Gold retained its completed `16:00Z` raw-H4/D1-down state, null turn/proposal/target, and the preregistered opposing bullish-news conflict; its first unseen settlement is not yet due and remains sealed. Final ranking is honest: Gold conflict maturation ranks first as `ACCUMULATE` through the existing onset tape, while XSP paired-veto residual-range is rejected because only `29` uncontaminated exact matches survived the frozen `60` total / `5` per-direction-year eligibility floor. No new preregistration or outcome run is lawful from this block. The confirmed MCL Two-Speed Auction Relay now becomes the active `0/6` block; no strategy, selection, capital, service, order, or graduation authority changed |
+| E-381 | the autonomous MCL block established authentic type-1 NYMEX CL/MCL data, matched-month execution ownership, exact `$3.52/$5.52` primary/stress round-trip friction, and a resumable dated-contract hydration beginning August 2024. Rolling-range v1 saturated its opportunity ceiling and lost after cost; anchored-block v2 isolated low-efficiency width-harmony/expansion as genuine financing. Regime-financed v3's first three discovery months produced `+$100.72/59`, PF `1.190`, but `-$17.28` under stress; down was `+$107.71`, up `-$6.99`, acceptance `+$122.90/55`, and correctly exposed failed rotation `-$22.18/4`. Before any later outcome, v4 `1bc354e6…` froze only `30/60m` slow-direction financing × `2x/3x` maturation-volume caps for that weak speed, leaving the v3 acceptance law, sessions, rolls, targets, stops, costs, and news authority unchanged. Missing July-2023–August-2024 is an explicit crown blocker. XSP/Gold live owners and all order/capital authority remained unchanged |
 
 ### Decision anchors
 
