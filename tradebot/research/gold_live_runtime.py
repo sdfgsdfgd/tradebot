@@ -137,6 +137,15 @@ async def gold_broker_snapshot(client) -> dict[str, object]:
                 "con_id": int(getattr(contract, "conId", 0) or 0),
                 "sec_type": str(getattr(contract, "secType", "") or ""),
                 "quantity": quantity,
+                "market_value_base_cents": math.ceil(
+                    abs(
+                        _number(
+                            getattr(item, "marketValue", 0.0) or 0.0,
+                            name="broker position market value",
+                        )
+                    )
+                    * 100
+                ),
             }
         )
     open_orders = []
@@ -299,6 +308,42 @@ def _admit_gold_entry(
         positions = broker["positions"]
         orders = broker["open_orders"]
         assert isinstance(positions, Sequence) and isinstance(orders, Sequence)
+        commission = max(_commission_values(preview))
+        resource_state = {
+            "account_positions": [dict(row) for row in positions],
+            "account_open_orders": [dict(row) for row in orders],
+            "base_currency": "AUD",
+            "quantity": 1,
+            "initial_margin_change": preview.init_margin_change,
+            "maintenance_margin_change": preview.maintenance_margin_change,
+            "initial_margin_after": preview.init_margin_after,
+            "maintenance_margin_after": preview.maintenance_margin_after,
+            "equity_with_loan_after": preview.equity_with_loan_after,
+            "available_funds_before": broker["available_funds_aud"],
+            "unrelated_position_gross": broker["gross_position_value_aud"],
+            "usd_to_base_rate": broker["usd_to_aud"],
+        }
+        if capital_plan.get("schema") == "live.capital-plan.v3":
+            resource_state = {
+                "account_positions": [dict(row) for row in positions],
+                "account_open_orders": [dict(row) for row in orders],
+                "base_currency": "AUD",
+                "available_funds_base_cents": math.floor(
+                    float(broker["available_funds_aud"]) * 100
+                ),
+                "excess_liquidity_base_cents": math.floor(
+                    float(broker["excess_liquidity_aud"]) * 100
+                ),
+                "usd_to_base_rate_ppm": math.ceil(
+                    float(broker["usd_to_aud"]) * 1_000_000
+                ),
+                "candidate_initial_margin_base_cents": math.ceil(
+                    float(preview.init_margin_change) * 100
+                ),
+                "candidate_maintenance_margin_base_cents": math.ceil(
+                    float(preview.maintenance_margin_change) * 100
+                ),
+            }
         decision = admit_live_capital(
             capital_plan,
             intent="ENTER",
@@ -309,23 +354,10 @@ def _admit_gold_entry(
             run_id=str(selection["selection_id"]),
             selection_file_sha256=selection_file_sha256,
             capital_kind="FUTURES_MARGIN",
-            projected_capital_usd=0,
-            cash_debit_usd=0,
+            projected_capital_usd=commission,
+            cash_debit_usd=commission,
             available_cash_usd=broker["settled_cash_usd"],
-            resource_state={
-                "account_positions": [dict(row) for row in positions],
-                "account_open_orders": [dict(row) for row in orders],
-                "base_currency": "AUD",
-                "quantity": 1,
-                "initial_margin_change": preview.init_margin_change,
-                "maintenance_margin_change": preview.maintenance_margin_change,
-                "initial_margin_after": preview.init_margin_after,
-                "maintenance_margin_after": preview.maintenance_margin_after,
-                "equity_with_loan_after": preview.equity_with_loan_after,
-                "available_funds_before": broker["available_funds_aud"],
-                "unrelated_position_gross": broker["gross_position_value_aud"],
-                "usd_to_base_rate": broker["usd_to_aud"],
-            },
+            resource_state=resource_state,
         )
     admitted = {**dict(plan), "capital_admission": decision}
     if decision["status"] == "ALLOW":

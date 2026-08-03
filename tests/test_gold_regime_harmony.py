@@ -24,10 +24,12 @@ from tradebot.research.gold_live_state import (
 )
 from tradebot.research.gold_live_transport import (
     GOLD_LIVE_EXECUTION_VERSION,
+    GOLD_LIVE_PACKAGE_SELECTION_SCHEMA,
     GOLD_LIVE_SELECTION_SCHEMA,
     build_gold_portfolio_capital_plan,
     load_gold_live_selection_from_mapping,
     publish_gold_live_selection,
+    reallocate_gold_live_transport,
     select_gold_live_transport,
     advance_gold_regime_harmony_source,
 )
@@ -366,6 +368,35 @@ def test_gold_canary_selection_is_flat_fresh_and_content_addressed() -> None:
             selected_at_utc=selected_at,
             root=ROOT,
         )
+
+
+def test_gold_package_successor_removes_only_the_account_mutex() -> None:
+    selected_at = datetime(2026, 8, 3, 10, tzinfo=UTC)
+    predecessor = _selection(selected_at)
+    successor_at = selected_at + timedelta(minutes=5)
+
+    selected = reallocate_gold_live_transport(
+        predecessor=predecessor,
+        records=(),
+        preview=_preview(successor_at - timedelta(seconds=5)),
+        selected_at_utc=successor_at,
+        stress_receipt_path=ROOT
+        / "backtests/gold/one_oz_stage76_open_position_stress_20260803.json",
+    )
+
+    assert selected["schema"] == GOLD_LIVE_PACKAGE_SELECTION_SCHEMA
+    assert selected["quantity"] == 1
+    assert "max_concurrent_directional_sleeves" not in selected["risk"]
+    assert selected["risk"]["max_open_position_stress_usd"] == 256.16
+    assert selected["risk"]["max_run_drawdown_usd"] == 700.0
+    assert selected["allocation_successor"]["predecessor_selection_id"] == (
+        predecessor["selection_id"]
+    )
+    assert load_gold_live_selection_from_mapping(selected) == selected
+
+    selected["risk"]["max_open_position_stress_usd"] = 255.0
+    with pytest.raises(ValueError, match="invalid"):
+        load_gold_live_selection_from_mapping(selected)
 
 
 def test_gold_selection_extends_xsp_cash_plan_as_exclusive_margin_overlay(

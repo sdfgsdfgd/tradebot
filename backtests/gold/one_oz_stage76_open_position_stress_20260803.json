@@ -1,0 +1,39 @@
+{
+  "authority": "historical_open_position_resource_qualification_only",
+  "capital_authority": "none",
+  "candidate": "1OZ Gold Regime Harmony - Stage 76/77",
+  "definition": "maximum single-position intrabar MAE across the frozen native overlap, including complete spread crossing, commissions, roll costs, and the harsher round-trip neighbour",
+  "frozen_native_receipt": {
+    "path": "/tmp/gold-stage77-native-transport-20260803.json",
+    "sha256": "535c92080cbcd74279d313ca4aa250688ac0460677fb9a5698163f177511ba31"
+  },
+  "harsher_cost_neighbour": {
+    "cell_id": "roll_5__cost_3_32",
+    "mapped_trades": 40,
+    "mapping_failures": 0,
+    "position_rolls": 6,
+    "roundtrip_cost_usd": 3.32,
+    "max_single_position_mae_usd": 256.16,
+    "max_intrabar_run_drawdown_usd": 653.89,
+    "net_usd": 2396.78,
+    "profit_factor": 3.8018423482926718
+  },
+  "worst_position": {
+    "direction": "up",
+    "entry_symbol": "1OZJ6",
+    "exit_symbol": "1OZJ6",
+    "signal_entry_time": "2026-02-04T13:00:00+00:00",
+    "signal_exit_time": "2026-02-05T05:00:00+00:00",
+    "mae_usd": 256.16,
+    "mfe_usd": 21.84,
+    "net_usd": -184.82
+  },
+  "portfolio_resource_contract": {
+    "minimum_executable_units": 1,
+    "maximum_executable_units": 1,
+    "stressed_loss_usd_cents": 25616,
+    "run_drawdown_is_not_single_position_stress": true
+  },
+  "schema": "gold.1oz-stage76-open-position-stress.v1",
+  "submitted_orders": 0
+}

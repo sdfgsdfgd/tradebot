@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .capital import load_live_capital_plan
+from .capital_packages import package_for_sleeve
 
 
 LIVE_RUN_COCKPIT_SCHEMA = "live.run-cockpit.v1"
@@ -520,20 +521,37 @@ class LiveRunCockpit:
                 if timer_active
                 else "PAUSED"
             )
-            weight_bps = int(sleeve["weight_bps"])
-            allocation_cents = managed_capital_cents * weight_bps // 10_000
-            allocation = {
-                "weight_bps": weight_bps,
-                "limit_cents": allocation_cents,
-            }
-            margin = sleeve.get("margin")
-            if isinstance(margin, Mapping):
+            if sleeve.get("allocated_package_id") is not None:
+                package = package_for_sleeve(sleeve, allocated=True)
                 allocation = {
-                    **allocation,
                     "capital_kind": sleeve.get("capital_kind"),
-                    "limit_cents": None,
-                    "margin": dict(margin),
+                    "package_id": package["package_id"],
+                    "cash_debit_cents": package["cash_debit_usd_cents"],
+                    "initial_margin_base_cents": package[
+                        "initial_margin_base_cents"
+                    ],
+                    "maintenance_margin_base_cents": package[
+                        "maintenance_margin_base_cents"
+                    ],
+                    "stressed_loss_usd_cents": package[
+                        "stressed_loss_usd_cents"
+                    ],
                 }
+            else:
+                weight_bps = int(sleeve["weight_bps"])
+                allocation_cents = managed_capital_cents * weight_bps // 10_000
+                allocation = {
+                    "weight_bps": weight_bps,
+                    "limit_cents": allocation_cents,
+                }
+                margin = sleeve.get("margin")
+                if isinstance(margin, Mapping):
+                    allocation = {
+                        **allocation,
+                        "capital_kind": sleeve.get("capital_kind"),
+                        "limit_cents": None,
+                        "margin": dict(margin),
+                    }
             graduation = _latest_graduation(
                 _repo_path(self.repository_root, self.graduation_directory),
                 run_id=run_id,

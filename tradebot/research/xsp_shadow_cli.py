@@ -14,6 +14,7 @@ from ..backtest.quotes import iter_snapshots
 from ..config import auxiliary_client_config, load_config
 from ..engines.market import xsp_trading_date
 from ..live.capital import load_live_capital_plan
+from ..live.capital_packages import load_allocated_live_selection
 from ..news.contract import NewsError, load_news_history
 from .live_calibration import LiveCalibrationLedger
 from .live_graduation import (
@@ -48,6 +49,7 @@ from .xsp_execution_observer import (
     advance_xsp_v2_etf_execution_observer,
 )
 from .xsp_live_transport import (
+    XSP_V3_TRANSPORT_CAPITAL_SLEEVE,
     XSP_V3_TRANSPORT_SELECTION_SCHEMA,
     load_xsp_v2_transport_selection,
     select_xsp_v2_transport,
@@ -142,6 +144,25 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
     selected_path = Path(args.selected_run).expanduser()
     selected_transport_path = Path(args.selected_transport).expanduser()
     capital_plan_path = Path(args.capital_plan).expanduser()
+    capital_plan = (
+        load_live_capital_plan(capital_plan_path)
+        if capital_plan_path.exists()
+        else None
+    )
+    if (
+        args.mode == "opening-edge-v3"
+        and isinstance(capital_plan, dict)
+        and capital_plan.get("schema") == "live.capital-plan.v3"
+    ):
+        if args.freeze_selected_transport or args.handoff_immediate_proceeds:
+            raise ValueError(
+                "package-sized selection changes require one capital-plan generation"
+            )
+        _, selected_transport_path, _ = load_allocated_live_selection(
+            capital_plan,
+            sleeve_id=XSP_V3_TRANSPORT_CAPITAL_SLEEVE,
+            repository_root=Path(__file__).resolve().parents[2],
+        )
     graduation_requested = any(
         value
         for value in (
@@ -434,9 +455,7 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
                     source_receipt=receipt,
                     observed_at=observed_at,
                     capital_plan=(
-                        load_live_capital_plan(capital_plan_path)
-                        if capital_plan_path.exists()
-                        else None
+                        capital_plan
                     ),
                     selection_file_sha256=selected_transport_sha256,
                 )

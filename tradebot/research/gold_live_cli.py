@@ -13,11 +13,13 @@ from typing import Sequence
 from ..client import IBKRClient
 from ..config import auxiliary_client_config, load_config
 from ..live.capital import load_live_capital_plan
+from ..live.capital_packages import load_allocated_live_selection
 from .gold_live_runtime import (
     advance_gold_live_transport,
     latest_gold_source_checkpoint,
 )
 from .gold_live_transport import (
+    GOLD_LIVE_CAPITAL_SLEEVE,
     GOLD_LIVE_LEDGER_PATH,
     GOLD_LIVE_SELECTION_PATH,
     load_gold_live_selection,
@@ -37,6 +39,13 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     selection_path = Path(args.selection).expanduser()
     capital_path = Path(args.capital_plan).expanduser()
+    capital_plan = load_live_capital_plan(capital_path)
+    if capital_plan.get("schema") == "live.capital-plan.v3":
+        _, selection_path, _ = load_allocated_live_selection(
+            capital_plan,
+            sleeve_id=GOLD_LIVE_CAPITAL_SLEEVE,
+            repository_root=Path(__file__).resolve().parents[2],
+        )
     ledger = LiveCalibrationLedger(Path(args.ledger).expanduser())
     selection = load_gold_live_selection(selection_path)
     records = tuple(ledger.records())
@@ -51,7 +60,7 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
             client=client,
             selection=selection,
             source_checkpoint=source,
-            capital_plan=load_live_capital_plan(capital_path),
+            capital_plan=capital_plan,
             selection_file_sha256=hashlib.sha256(
                 selection_path.read_bytes()
             ).hexdigest(),

@@ -11,12 +11,16 @@ from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation, ROUND_CEILING, ROUND_FLOOR
 from pathlib import Path
 
+from .capital_packages import allocate_live_packages, live_package_entry_capacity
+
 
 LIVE_CAPITAL_PLAN_SCHEMA = "live.capital-plan.v1"
 LIVE_CAPITAL_PLAN_V2_SCHEMA = "live.capital-plan.v2"
+LIVE_CAPITAL_PLAN_V3_SCHEMA = "live.capital-plan.v3"
 LIVE_CAPITAL_PLAN_SCHEMAS = {
     LIVE_CAPITAL_PLAN_SCHEMA,
     LIVE_CAPITAL_PLAN_V2_SCHEMA,
+    LIVE_CAPITAL_PLAN_V3_SCHEMA,
 }
 LIVE_CAPITAL_DECISION_SCHEMA = "live.capital-admission.v1"
 LIVE_CAPITAL_ENTRY_INTENTS = {"ENTER", "INCREASE", "ROTATE_IN"}
@@ -318,6 +322,122 @@ def build_live_capital_plan_v2(
     return {**body, "plan_id": _identity(body)}
 
 
+def build_live_capital_plan_v3(
+    *,
+    account_id: str,
+    account_type: str,
+    cash_currency: str,
+    base_currency: str,
+    observed_settled_cash_usd: object,
+    observed_available_funds_base: object,
+    observed_excess_liquidity_base: object,
+    usd_to_base_rate: object,
+    minimum_post_reservation_base: object,
+    unmanaged_position_stress_base: object,
+    sleeves: Sequence[Mapping[str, object]],
+    reserve_reasons: Sequence[str],
+    created_at_utc: datetime | str,
+    supersedes_plan_id: str | None = None,
+) -> dict[str, object]:
+    """Build one minimum-first allocation across cash, margin, and risk."""
+
+    if (
+        not account_id.strip()
+        or account_type.upper() != "CASH"
+        or cash_currency.upper() != "USD"
+        or not str(base_currency or "").strip()
+    ):
+        raise ValueError("v3 capital plans require one USD cash account and base currency")
+    try:
+        rate = Decimal(str(usd_to_base_rate))
+    except (InvalidOperation, TypeError, ValueError) as exc:
+        raise ValueError("USD/base conversion rate is invalid") from exc
+    if not rate.is_finite() or rate <= 0:
+        raise ValueError("USD/base conversion rate is invalid")
+    resources = {
+        "observed_settled_cash_usd_cents": _usd_cents(
+            observed_settled_cash_usd, rounding=ROUND_FLOOR
+        ),
+        "observed_available_funds_base_cents": _usd_cents(
+            observed_available_funds_base, rounding=ROUND_FLOOR
+        ),
+        "observed_excess_liquidity_base_cents": _usd_cents(
+            observed_excess_liquidity_base, rounding=ROUND_FLOOR
+        ),
+        "usd_to_base_rate_ppm": int(
+            (rate * 1_000_000).to_integral_value(rounding=ROUND_CEILING)
+        ),
+        "minimum_buffer_base_cents": usd_to_cents(
+            minimum_post_reservation_base
+        ),
+        "unmanaged_position_stress_base_cents": usd_to_cents(
+            unmanaged_position_stress_base
+        ),
+    }
+    if any(
+        not _sha256_identity(sleeve.get(field))
+        for sleeve in sleeves
+        for field in ("run_id", "selection_file_sha256")
+    ):
+        raise ValueError("package sleeve run or selection identity is invalid")
+    allocated, allocation = allocate_live_packages(
+        sleeves,
+        settled_cash_usd_cents=resources["observed_settled_cash_usd_cents"],
+        available_funds_base_cents=resources[
+            "observed_available_funds_base_cents"
+        ],
+        excess_liquidity_base_cents=resources[
+            "observed_excess_liquidity_base_cents"
+        ],
+        usd_to_base_rate_ppm=resources["usd_to_base_rate_ppm"],
+        minimum_buffer_base_cents=resources["minimum_buffer_base_cents"],
+        unmanaged_position_stress_base_cents=resources[
+            "unmanaged_position_stress_base_cents"
+        ],
+    )
+    reasons = sorted(
+        {str(reason).strip() for reason in reserve_reasons if str(reason).strip()}
+    )
+    managed_cents = int(allocation["capacity"]["cash_debit_usd_cents"])
+    reserve_cents = resources["observed_settled_cash_usd_cents"] - managed_cents
+    if reserve_cents and not reasons:
+        raise ValueError("unallocated cash requires an explicit reserve reason")
+    if supersedes_plan_id is not None and not _sha256_identity(supersedes_plan_id):
+        raise ValueError("superseded capital-plan identity is invalid")
+    body: dict[str, object] = {
+        "schema": LIVE_CAPITAL_PLAN_V3_SCHEMA,
+        "created_at_utc": _aware_utc(created_at_utc),
+        "supersedes_plan_id": supersedes_plan_id,
+        "authority": "minimum_packages_and_portfolio_resource_reservation",
+        "account": {
+            "account_id": account_id,
+            "account_type": "CASH",
+            "cash_currency": "USD",
+            "base_currency": str(base_currency).upper(),
+        },
+        "capital": {
+            "observed_settled_cash_cents": resources[
+                "observed_settled_cash_usd_cents"
+            ],
+            "managed_capital_cents": managed_cents,
+            "unallocated_reserve_cents": reserve_cents,
+            "reserve_reasons": reasons,
+        },
+        "resources": resources,
+        "sleeves": allocated,
+        "allocation": allocation,
+        "constraints": {
+            "minimum_executable_packages_reserved_first": True,
+            "residual_allocation": "minimum_first_weighted_residual.v1",
+            "flat_sleeves_retain_allocated_package_reservation": True,
+            "unmanaged_positions_receive_full_gross_stress": True,
+            "automatic_borrowing_or_unproved_reallocation": False,
+            "risk_reduction_requires_plan": False,
+        },
+    }
+    return {**body, "plan_id": _identity(body)}
+
+
 def _validate_live_capital_plan_v1(value: Mapping[str, object]) -> dict[str, object]:
     """Validate and normalize one immutable v1 cash-plan generation."""
 
@@ -398,6 +518,61 @@ def _validate_live_capital_plan_v2(value: Mapping[str, object]) -> dict[str, obj
     return rebuilt
 
 
+def _validate_live_capital_plan_v3(value: Mapping[str, object]) -> dict[str, object]:
+    plan = dict(value)
+    plan_id = str(plan.pop("plan_id", ""))
+    if plan.get("schema") != LIVE_CAPITAL_PLAN_V3_SCHEMA or plan_id != _identity(plan):
+        raise ValueError("capital-plan content identity is invalid")
+    account = plan.get("account")
+    capital = plan.get("capital")
+    resources = plan.get("resources")
+    sleeves = plan.get("sleeves")
+    if (
+        not all(isinstance(item, Mapping) for item in (account, capital, resources))
+        or not isinstance(sleeves, Sequence)
+        or isinstance(sleeves, (str, bytes))
+    ):
+        raise ValueError("v3 capital-plan resources are invalid")
+    rebuilt = build_live_capital_plan_v3(
+        account_id=str(account.get("account_id") or ""),
+        account_type=str(account.get("account_type") or ""),
+        cash_currency=str(account.get("cash_currency") or ""),
+        base_currency=str(account.get("base_currency") or ""),
+        observed_settled_cash_usd=Decimal(
+            int(resources.get("observed_settled_cash_usd_cents", -1))
+        ) / 100,
+        observed_available_funds_base=Decimal(
+            int(resources.get("observed_available_funds_base_cents", -1))
+        ) / 100,
+        observed_excess_liquidity_base=Decimal(
+            int(resources.get("observed_excess_liquidity_base_cents", -1))
+        ) / 100,
+        usd_to_base_rate=Decimal(int(resources.get("usd_to_base_rate_ppm", -1)))
+        / 1_000_000,
+        minimum_post_reservation_base=Decimal(
+            int(resources.get("minimum_buffer_base_cents", -1))
+        ) / 100,
+        unmanaged_position_stress_base=Decimal(
+            int(resources.get("unmanaged_position_stress_base_cents", -1))
+        ) / 100,
+        sleeves=[
+            {key: item for key, item in sleeve.items() if key != "allocated_package_id"}
+            for sleeve in sleeves
+            if isinstance(sleeve, Mapping)
+        ],
+        reserve_reasons=list(capital.get("reserve_reasons") or ()),
+        created_at_utc=str(plan.get("created_at_utc") or ""),
+        supersedes_plan_id=(
+            str(plan["supersedes_plan_id"])
+            if plan.get("supersedes_plan_id") is not None
+            else None
+        ),
+    )
+    if rebuilt != value:
+        raise ValueError("capital-plan normalized contract changed")
+    return rebuilt
+
+
 def validate_live_capital_plan(value: Mapping[str, object]) -> dict[str, object]:
     """Validate either immutable account capital-plan generation."""
 
@@ -406,6 +581,8 @@ def validate_live_capital_plan(value: Mapping[str, object]) -> dict[str, object]
         return _validate_live_capital_plan_v1(value)
     if schema == LIVE_CAPITAL_PLAN_V2_SCHEMA:
         return _validate_live_capital_plan_v2(value)
+    if schema == LIVE_CAPITAL_PLAN_V3_SCHEMA:
+        return _validate_live_capital_plan_v3(value)
     raise ValueError("capital-plan schema is unsupported")
 
 
@@ -611,7 +788,8 @@ def admit_live_capital(
         sleeve = matches[0]
     cash_currency = (
         account.get("cash_currency")
-        if validated["schema"] == LIVE_CAPITAL_PLAN_V2_SCHEMA
+        if validated["schema"]
+        in {LIVE_CAPITAL_PLAN_V2_SCHEMA, LIVE_CAPITAL_PLAN_V3_SCHEMA}
         else account.get("currency")
     )
     if (
@@ -627,6 +805,26 @@ def admit_live_capital(
             reasons.append("capital_selection_identity_mismatch")
         if sleeve.get("capital_kind") != capital_kind.upper():
             reasons.append("capital_kind_mismatch")
+    if validated["schema"] == LIVE_CAPITAL_PLAN_V3_SCHEMA and sleeve is not None:
+        allocation, capacity_reasons = live_package_entry_capacity(
+            validated,
+            sleeve_id=sleeve_id,
+            resource_state=resource_state,
+            available_cash_usd_cents=_usd_cents(
+                available_cash_usd, rounding=ROUND_FLOOR
+            ),
+            candidate_cash_debit_usd_cents=usd_to_cents(cash_debit_usd),
+        )
+        reasons.extend(capacity_reasons)
+        return _decision(
+            {
+                **base,
+                "status": "HOLD" if reasons else "ALLOW",
+                "reasons": sorted(set(reasons)),
+                "plan_id": validated["plan_id"],
+                "allocation": allocation,
+            }
+        )
     active_sleeves: list[str] = []
     if validated["schema"] == LIVE_CAPITAL_PLAN_V2_SCHEMA:
         active_sleeves, exposure_reasons = _v2_active_sleeves(

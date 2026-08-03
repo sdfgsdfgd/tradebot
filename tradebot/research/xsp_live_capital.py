@@ -81,6 +81,7 @@ def apply_xsp_live_capital(
     available_cash_usd: float,
     account_positions: Sequence[Mapping[str, object]] | None = None,
     account_open_orders: Sequence[Mapping[str, object]] | None = None,
+    account_resource_state: Mapping[str, object] | None = None,
 ) -> dict[str, object]:
     """Attach one allocation receipt and fail a new BUY closed."""
 
@@ -122,6 +123,7 @@ def apply_xsp_live_capital(
         available_cash_usd=available_cash_usd,
         resource_state=(
             {
+                **dict(account_resource_state or {}),
                 "account_positions": [dict(row) for row in account_positions],
                 "account_open_orders": [dict(row) for row in account_open_orders],
             }

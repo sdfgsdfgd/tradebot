@@ -15,6 +15,7 @@ from tradebot.research.live_calibration import (
 from tradebot.research.xsp_live_transport import (
     XSP_V2_TRANSPORT_ORDER_AUTHORITY,
     XSP_V3_IMMEDIATE_PROCEEDS_SETTLEMENT,
+    XSP_V3_PACKAGE_SELECTION_SCHEMA,
     XSP_V3_ROTATION_SELECTION_SCHEMA,
     XSP_V3_TRANSPORT_EXECUTION_VERSION,
     XSP_V3_TRANSPORT_SELECTION_SCHEMA,
@@ -28,6 +29,10 @@ from tradebot.research.xsp_live_transport_state import latest_xsp_v2_source_rece
 from tradebot.research.xsp_live_transport_handoff import (
     handoff_xsp_v3_immediate_proceeds,
     rebase_xsp_v3_immediate_proceeds,
+)
+from tradebot.research.xsp_live_transport_allocation import (
+    XSP_PORTFOLIO_PACKAGE_PREVIEW_SCHEMA,
+    reallocate_xsp_v3_transport,
 )
 from tradebot.research.xsp_live_transport_v3 import (
     load_xsp_v3_transport_selection_from_mapping,
@@ -1112,6 +1117,122 @@ def test_v3_selection_requires_explicit_rth_scope_and_binds_tiered_identity(
         "chase_mode": "AUTO",
     }
     assert load_xsp_v3_transport_selection_from_mapping(selection) == selection
+
+
+def test_v3_package_successor_freezes_the_allocated_notional_and_clean_run(
+    tmp_path: Path,
+) -> None:
+    predecessor, _inherited, _source = _v3_rotation_selection(tmp_path)
+    sold_at = SELECTED_AT + timedelta(minutes=16)
+    selected_at = SELECTED_AT + timedelta(minutes=20)
+    terminal_sale = {
+        "kind": "checkpoint",
+        "strategy_version": XSP_V3_TRANSPORT_EXECUTION_VERSION,
+        "trading_date": "2026-07-29",
+        "evidence": {
+            "selection_id": predecessor["selection_id"],
+            "phase": "TERMINAL",
+            "order_ref": "XSPV3-package-test-sale",
+            "broker_order": {
+                "filled": 23,
+                "fills": [
+                    {
+                        "exec_id": "v3-package-terminal-sale",
+                        "time_utc": sold_at.isoformat(),
+                        "symbol": "SPXU",
+                        "side": "SLD",
+                        "shares": 23,
+                        "price": 38.5,
+                        "commission": 0.35,
+                        "commission_currency": "USD",
+                    }
+                ],
+            },
+        },
+    }
+    rows = []
+    for symbol, con_id, bid, ask in (
+        ("UPRO", 61_228_752, 99.98, 100.0),
+        ("SPXU", 53_362_064, 49.98, 50.0),
+    ):
+        quantity = int(800 // ask)
+        rows.append(
+            {
+                "symbol": symbol,
+                "contract": {
+                    "con_id": con_id,
+                    "exchange": "SMART",
+                    "primary_exchange": "ARCA",
+                    "currency": "USD",
+                },
+                "book": {
+                    "market_data_type": 1,
+                    "bid": bid,
+                    "ask": ask,
+                },
+                "order": {
+                    "action": "BUY",
+                    "quantity": quantity,
+                    "what_if": True,
+                    "transmit": False,
+                },
+                "what_if": {
+                    "status": "PreSubmitted",
+                    "commission": 0.35,
+                    "commission_currency": "USD",
+                    "warning_text": "",
+                },
+            }
+        )
+    preview = {
+        "schema": XSP_PORTFOLIO_PACKAGE_PREVIEW_SCHEMA,
+        "authority": "fresh_nontransmitting_what_if_only",
+        "observed_at_utc": (selected_at - timedelta(seconds=10)).isoformat(),
+        "notional_usd": 800.0,
+        "rows": rows,
+        "relevant_positions": [],
+        "relevant_open_orders": [],
+        "open_trades_before": 0,
+        "open_trades_after": 0,
+        "order_authority": "none",
+        "submitted_orders": 0,
+    }
+    broker = {
+        "observed_at_utc": (selected_at - timedelta(seconds=5)).isoformat(),
+        "cash_observed_at_utc": (selected_at - timedelta(seconds=8)).isoformat(),
+        "account_id": "DU123456",
+        "account_type": "CASH",
+        "settled_cash_usd": 1_187.8,
+        "positions": {"UPRO": 0, "SPXU": 0},
+        "unrelated_positions": [],
+        "open_orders": [],
+    }
+
+    selected = reallocate_xsp_v3_transport(
+        predecessor=predecessor,
+        records=(terminal_sale,),
+        broker_snapshot=broker,
+        preview=preview,
+        package_receipt_path=Path(
+            "backtests/xsp/opening_edge_v3_portfolio_package_curve_20260803.json"
+        ),
+        package_id="xsp-usd-800",
+        selected_at=selected_at,
+    )
+
+    assert selected["schema"] == XSP_V3_PACKAGE_SELECTION_SCHEMA
+    assert selected["nominee"]["fixed_entry_notional_usd"] == 800.0
+    assert selected["broker_at_selection"]["minimum_settled_cash_usd"] == 800.46
+    assert selected["risk"]["max_drawdown_usd"] == 120.0
+    assert selected["allocation_successor"]["predecessor_selection_id"] == (
+        predecessor["selection_id"]
+    )
+    assert load_xsp_v3_transport_selection_from_mapping(selected) == selected
+
+    tampered = deepcopy(selected)
+    tampered["nominee"]["fixed_entry_notional_usd"] = 850.0
+    with pytest.raises(ValueError, match="package-sized"):
+        load_xsp_v3_transport_selection_from_mapping(tampered)
 
 
 @pytest.mark.parametrize(

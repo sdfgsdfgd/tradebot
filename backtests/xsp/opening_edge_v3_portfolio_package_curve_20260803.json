@@ -1,0 +1,35 @@
+{
+  "authority": "historical_cash_package_and_open_position_resource_qualification_only",
+  "candidate": "Opening Edge v3 - Regime Harmony 24/5",
+  "execution_contract": {
+    "commission": "Tiered conservative market-remove",
+    "fill": "complete quoted spread crossing",
+    "settlement": "IBKR Australia immediate stock-sale proceeds after full sell and flat reconciliation",
+    "sizing": "whole shares below a fixed package notional",
+    "transport": "RTH UPRO/SPXU"
+  },
+  "frozen_signal_ledger_sha256": "40708a28476fad504d29b1222e52b88481b1c0da8313ed4667076e2b6ed3f157",
+  "package_cells": [
+    {"notional_usd": 400, "annual_net_usd": [30.194538436000954, 37.242181820998496, 128.91760155699552], "net_usd": 196.35432181399497, "profit_factor": 1.3628064954723829, "intrabar_drawdown_usd": 53.04681693500061, "max_single_position_mae_usd": 17.607181149999974, "quantity_ranges": {"SPXU": [1, 11], "UPRO": [2, 10]}},
+    {"notional_usd": 450, "annual_net_usd": [50.402460483001505, 56.1141653139984, 173.16243448899365], "net_usd": 279.67906028599356, "profit_factor": 1.465569805836271, "intrabar_drawdown_usd": 57.171191275000865, "max_single_position_mae_usd": 20.42495892499994, "quantity_ranges": {"SPXU": [1, 12], "UPRO": [3, 12]}},
+    {"notional_usd": 500, "annual_net_usd": [67.10657828900213, 60.99259972199883, 200.40115193799164], "net_usd": 328.5003299489926, "profit_factor": 1.4972186799306875, "intrabar_drawdown_usd": 61.14522552900053, "max_single_position_mae_usd": 23.242736699999966, "quantity_ranges": {"SPXU": [1, 13], "UPRO": [3, 13]}},
+    {"notional_usd": 550, "annual_net_usd": [96.60758201800417, 83.52437824499833, 234.72635993199196], "net_usd": 414.85832019499446, "profit_factor": 1.5842584598233624, "intrabar_drawdown_usd": 69.60727302200053, "max_single_position_mae_usd": 26.06051447499999, "quantity_ranges": {"SPXU": [2, 15], "UPRO": [3, 15]}},
+    {"notional_usd": 600, "annual_net_usd": [108.78278029400468, 98.97291200899724, 269.781182151995], "net_usd": 477.5368744549969, "profit_factor": 1.6196232452353467, "intrabar_drawdown_usd": 74.60772460700127, "max_single_position_mae_usd": 28.878292249999845, "quantity_ranges": {"SPXU": [2, 16], "UPRO": [4, 16]}},
+    {"notional_usd": 650, "annual_net_usd": [124.48178998200439, 115.17896661599775, 300.2148437429945], "net_usd": 539.8756003409967, "profit_factor": 1.6583797578140935, "intrabar_drawdown_usd": 77.02709764100109, "max_single_position_mae_usd": 28.878292249999845, "quantity_ranges": {"SPXU": [2, 17], "UPRO": [4, 17]}},
+    {"notional_usd": 700, "annual_net_usd": [158.69675722900416, 137.29743010899745, 334.5617367779905], "net_usd": 630.5559241159922, "profit_factor": 1.7199549704367698, "intrabar_drawdown_usd": 80.88049663500101, "max_single_position_mae_usd": 31.696070024999926, "quantity_ranges": {"SPXU": [2, 19], "UPRO": [4, 19]}},
+    {"notional_usd": 750, "annual_net_usd": [171.06966083200427, 148.29856844799838, 358.96585499298703], "net_usd": 678.3340842729897, "profit_factor": 1.7234902685440114, "intrabar_drawdown_usd": 88.69946242600145, "max_single_position_mae_usd": 34.513847799999894, "quantity_ranges": {"SPXU": [2, 20], "UPRO": [5, 20]}},
+    {"notional_usd": 800, "annual_net_usd": [185.9473648920051, 180.25518871699956, 402.0569798219848], "net_usd": 768.2595334309894, "profit_factor": 1.7800059140806042, "intrabar_drawdown_usd": 93.71334615800151, "max_single_position_mae_usd": 37.33162557499986, "quantity_ranges": {"SPXU": [3, 22], "UPRO": [5, 21]}},
+    {"notional_usd": 850, "annual_net_usd": [200.03619948000414, 184.44086884099988, 429.1367287769839], "net_usd": 813.6137970979879, "profit_factor": 1.7773576059417078, "intrabar_drawdown_usd": 101.09618536700145, "max_single_position_mae_usd": 40.14940334999994, "quantity_ranges": {"SPXU": [3, 23], "UPRO": [5, 23]}},
+    {"notional_usd": 900, "annual_net_usd": [229.93375412600324, 212.55970492400024, 469.4894769889836], "net_usd": 911.9829360389871, "profit_factor": 1.8288357005217517, "intrabar_drawdown_usd": 102.68285040800129, "max_single_position_mae_usd": 42.967181125000025, "quantity_ranges": {"SPXU": [3, 24], "UPRO": [6, 24]}}
+  ],
+  "proof": {
+    "blocked_entries_per_cell": 0,
+    "executed_trades_per_cell": 426,
+    "every_annual_slice_positive": true,
+    "probe_path": "/tmp/probe_xsp_minimum_packages.py",
+    "probe_sha256": "0a3f227873d203fb68a1e565ebae65cf533fc1f4c1e3b7398c5f04e66d64e3b6",
+    "recovered_runner_sha256": "cf42663fd40c6569ce0f2946d1cc4ad6b97c0e5853151a02fcf593241fa0be4c"
+  },
+  "schema": "xsp.opening-edge-v3-portfolio-package-curve.v1",
+  "submitted_orders": 0
+}

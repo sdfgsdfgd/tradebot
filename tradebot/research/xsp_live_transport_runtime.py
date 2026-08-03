@@ -535,7 +535,19 @@ async def advance_xsp_live_transport(
         or _rotation_depth not in {0, 1}
     ):
         raise ValueError("live transport observation inputs are invalid")
-    broker_snapshot = await xsp_v2_broker_snapshot(client, symbols=symbols)
+    capital_account = (
+        capital_plan.get("account") if isinstance(capital_plan, Mapping) else None
+    )
+    resource_base = (
+        str(capital_account.get("base_currency") or "")
+        if isinstance(capital_account, Mapping)
+        and capital_plan.get("schema") == "live.capital-plan.v3"
+        else None
+    )
+    snapshot_options = {"symbols": symbols}
+    if resource_base:
+        snapshot_options["resource_base_currency"] = resource_base
+    broker_snapshot = await xsp_v2_broker_snapshot(client, **snapshot_options)
     account_id = str(broker_snapshot["account_id"])
     selected_broker = selected["broker_at_selection"]
     assert isinstance(selected_broker, Mapping)
@@ -751,15 +763,24 @@ async def advance_xsp_live_transport(
             selection=selected,
             selection_file_sha256=selection_file_sha256,
             available_cash_usd=broker_cash,
-            account_positions=[
-                *unrelated_positions,
-                *(
-                    {"symbol": symbol, "quantity": quantity}
-                    for symbol, quantity in positions.items()
-                    if abs(float(quantity)) > 1e-9
-                ),
-            ],
+            account_positions=(
+                list(broker_snapshot["account_positions"])
+                if "account_positions" in broker_snapshot
+                else [
+                    *unrelated_positions,
+                    *(
+                        {"symbol": symbol, "quantity": quantity}
+                        for symbol, quantity in positions.items()
+                        if abs(float(quantity)) > 1e-9
+                    ),
+                ]
+            ),
             account_open_orders=open_rows,
+            account_resource_state=(
+                broker_snapshot.get("account_resources")
+                if isinstance(broker_snapshot.get("account_resources"), Mapping)
+                else None
+            ),
         )
     if selected["schema"] in XSP_V3_TRANSPORT_SELECTION_SCHEMAS:
         state_context = plan.get("execution_state_context")

@@ -18,30 +18,28 @@ from .xsp_execution_observer import xsp_v2_position_state
 from .xsp_context import xsp_execution_signal_context, xsp_execution_state_context
 from .xsp_opening_edge_v2 import XSP_OPENING_EDGE_V2_VERSION
 
-
 XSP_V2_TRANSPORT_SELECTION_SCHEMA = "xsp.opening-edge-v2-spyu-spxu-selected-run.v1"
 XSP_V2_TRANSPORT_PLAN_SCHEMA = "xsp.opening-edge-v2-spyu-spxu-transport-plan.v1"
 XSP_V3_TRANSPORT_SELECTION_SCHEMA = "xsp.opening-edge-v3-upro-spxu-selected-run.v1"
 XSP_V3_ROTATION_SELECTION_SCHEMA = "xsp.opening-edge-v3-upro-spxu-selected-run.v2"
+XSP_V3_PACKAGE_SELECTION_SCHEMA = "xsp.opening-edge-v3-upro-spxu-selected-run.v3"
 XSP_V3_TRANSPORT_PLAN_SCHEMA = "xsp.opening-edge-v3-upro-spxu-transport-plan.v1"
 XSP_V2_TRANSPORT_ORDER_AUTHORITY = "rth_cash_pair_limit_only"
-XSP_V2_TRANSPORT_EXECUTION_VERSION = (
-    "xsp.opening-edge-v2-spyu-spxu-live-execution.v1"
-)
+XSP_V2_TRANSPORT_EXECUTION_VERSION = "xsp.opening-edge-v2-spyu-spxu-live-execution.v1"
 XSP_V2_TRANSPORT_EXECUTION_SCHEMA = (
     "xsp.opening-edge-v2-spyu-spxu-execution-checkpoint.v1"
 )
-XSP_V3_TRANSPORT_EXECUTION_VERSION = (
-    "xsp.opening-edge-v3-upro-spxu-live-execution.v1"
-)
+XSP_V3_TRANSPORT_EXECUTION_VERSION = "xsp.opening-edge-v3-upro-spxu-live-execution.v1"
 XSP_V3_TRANSPORT_EXECUTION_SCHEMA = (
     "xsp.opening-edge-v3-upro-spxu-execution-checkpoint.v1"
 )
 XSP_V3_TRANSPORT_CAPITAL_SLEEVE = "xsp-upro-spxu-rth-cash"
 XSP_V3_IMMEDIATE_PROCEEDS_SETTLEMENT = "ibkr_australia_trading_immediate_stock_sale_proceeds"
-XSP_V3_TRANSPORT_SELECTION_SCHEMAS = frozenset(
-    {XSP_V3_TRANSPORT_SELECTION_SCHEMA, XSP_V3_ROTATION_SELECTION_SCHEMA}
-)
+XSP_V3_TRANSPORT_SELECTION_SCHEMAS = frozenset({
+    XSP_V3_TRANSPORT_SELECTION_SCHEMA,
+    XSP_V3_ROTATION_SELECTION_SCHEMA,
+    XSP_V3_PACKAGE_SELECTION_SCHEMA,
+})
 _RANKING_SCHEMA = "xsp.opening-edge-v2-spyu-selection-ranking-result.v1"
 _DWELL_SCHEMA = "xsp.network-b-symbol-dwell-validation-result.v1"
 _PREVIEW_SCHEMA = "xsp.opening-edge-v2-ranked-nominee-preview.v1"

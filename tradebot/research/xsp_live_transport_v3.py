@@ -19,6 +19,7 @@ from .xsp_execution_observer import xsp_v2_position_state
 from .xsp_live_transport import (
     XSP_V2_TRANSPORT_ORDER_AUTHORITY,
     XSP_V3_IMMEDIATE_PROCEEDS_SETTLEMENT,
+    XSP_V3_PACKAGE_SELECTION_SCHEMA,
     XSP_V3_ROTATION_SELECTION_SCHEMA,
     XSP_V3_TRANSPORT_SELECTION_SCHEMA,
     XSP_V3_TRANSPORT_CAPITAL_SLEEVE,
@@ -972,4 +973,10 @@ def load_xsp_v3_transport_selection_from_mapping(
         return _load_xsp_v3_initial_selection_from_mapping(selection)
     if selection.get("schema") == XSP_V3_ROTATION_SELECTION_SCHEMA:
         return _load_xsp_v3_rotation_selection_from_mapping(selection)
+    if selection.get("schema") == XSP_V3_PACKAGE_SELECTION_SCHEMA:
+        from .xsp_live_transport_allocation import (
+            load_xsp_v3_package_selection_from_mapping,
+        )
+
+        return load_xsp_v3_package_selection_from_mapping(selection)
     raise ValueError("unsupported selected XSP v3 cash transport")

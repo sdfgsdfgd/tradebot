@@ -110,6 +110,7 @@ async def xsp_v2_broker_snapshot(
     client,
     *,
     symbols: Sequence[str] = _V2_SYMBOLS,
+    resource_base_currency: str | None = None,
 ) -> dict[str, object]:
     """Capture the one broker account state used by selection and execution."""
 
@@ -142,6 +143,7 @@ async def xsp_v2_broker_snapshot(
     ):
         raise ValueError("cash-pair symbols are invalid")
     positions = {symbol: 0.0 for symbol in normalized_symbols}
+    account_positions = []
     unrelated_positions = []
     for item in portfolio:
         contract = getattr(item, "contract", None)
@@ -156,6 +158,17 @@ async def xsp_v2_broker_snapshot(
             "sec_type": str(getattr(contract, "secType", "") or ""),
             "quantity": quantity,
         }
+        if resource_base_currency is not None:
+            row["market_value_base_cents"] = math.ceil(
+                abs(
+                    _number(
+                        getattr(item, "marketValue", 0.0) or 0.0,
+                        name="broker portfolio market value",
+                    )
+                )
+                * 100
+            )
+            account_positions.append(dict(row))
         if symbol in positions:
             positions[symbol] += quantity
         elif abs(quantity) > 1e-9:
@@ -179,7 +192,7 @@ async def xsp_v2_broker_snapshot(
                 "status": str(getattr(status, "status", "") or ""),
             }
         )
-    return {
+    snapshot = {
         "observed_at_utc": observed_at.isoformat(),
         "cash_observed_at_utc": cash_at.isoformat(),
         "account_id": account_id,
@@ -189,3 +202,29 @@ async def xsp_v2_broker_snapshot(
         "unrelated_positions": unrelated_positions,
         "open_orders": open_orders,
     }
+    if resource_base_currency is not None:
+        base = str(resource_base_currency or "").upper()
+        if not base:
+            raise ValueError("capital resource base currency is empty")
+
+        def account_cents(tag: str) -> int:
+            value, actual, _updated = client.account_value(tag, currency=base)
+            if str(actual or "").upper() != base:
+                raise ValueError(f"fresh {tag} {base} is unavailable")
+            return math.floor(_number(value, name=f"{tag} {base}") * 100)
+
+        rate, rate_currency, _updated = client.account_value(
+            "ExchangeRate", currency="USD"
+        )
+        if str(rate_currency or "").upper() != "USD":
+            raise ValueError("fresh USD/base exchange rate is unavailable")
+        snapshot["account_positions"] = account_positions
+        snapshot["account_resources"] = {
+            "base_currency": base,
+            "available_funds_base_cents": account_cents("AvailableFunds"),
+            "excess_liquidity_base_cents": account_cents("ExcessLiquidity"),
+            "usd_to_base_rate_ppm": math.ceil(
+                _number(rate, name="USD/base exchange rate") * 1_000_000
+            ),
+        }
+    return snapshot

@@ -31,6 +31,10 @@ from .live_calibration import LiveCalibrationLedger, calibration_fingerprint
 
 GOLD_REGIME_HARMONY_SOURCE_VERSION = "gold.1oz-regime-harmony-source.v1"
 GOLD_LIVE_SELECTION_SCHEMA = "gold.1oz-regime-harmony-selected-run.v1"
+GOLD_LIVE_PACKAGE_SELECTION_SCHEMA = "gold.1oz-regime-harmony-selected-run.v2"
+GOLD_LIVE_SELECTION_SCHEMAS = frozenset(
+    {GOLD_LIVE_SELECTION_SCHEMA, GOLD_LIVE_PACKAGE_SELECTION_SCHEMA}
+)
 GOLD_LIVE_PLAN_SCHEMA = "gold.1oz-regime-harmony-transport-plan.v1"
 GOLD_LIVE_EXECUTION_VERSION = "gold.1oz-regime-harmony-live-execution.v1"
 GOLD_LIVE_EXECUTION_SCHEMA = "gold.1oz-regime-harmony-execution-checkpoint.v1"
@@ -49,6 +53,11 @@ GOLD_LIVE_LEDGER_PATH = Path("db/calibration/gold_live_calibration.jsonl")
 GOLD_RUNTIME_PARITY_PATH = Path(
     "backtests/gold/one_oz_regime_harmony_runtime_parity_20260803.json"
 )
+GOLD_OPEN_POSITION_STRESS_PATH = Path(
+    "backtests/gold/one_oz_stage76_open_position_stress_20260803.json"
+)
+GOLD_OPEN_POSITION_STRESS_SCHEMA = "gold.1oz-stage76-open-position-stress.v1"
+GOLD_PACKAGE_SUCCESSOR_SCHEMA = "gold.1oz-portfolio-package-successor.v1"
 
 
 def _sha256(path: Path) -> str:
@@ -565,8 +574,9 @@ def load_gold_live_selection_from_mapping(
     execution = selection.get("execution")
     risk = selection.get("risk")
     broker = selection.get("broker_at_selection")
+    evidence = selection.get("evidence")
     if (
-        selection.get("schema") != GOLD_LIVE_SELECTION_SCHEMA
+        selection.get("schema") not in GOLD_LIVE_SELECTION_SCHEMAS
         or selection_id != _identity(body)
         or selection.get("strategy_version") != GOLD_REGIME_HARMONY_VERSION
         or selection.get("source_strategy_version")
@@ -594,9 +604,273 @@ def load_gold_live_selection_from_mapping(
         or not isinstance(broker, Mapping)
         or broker.get("account_type") != "CASH"
         or broker.get("base_currency") != "AUD"
+        or not isinstance(evidence, Mapping)
     ):
         raise ValueError("gold selected canary identity is invalid")
+    if selection["schema"] == GOLD_LIVE_SELECTION_SCHEMA:
+        if (
+            risk.get("max_concurrent_directional_sleeves") != 1
+            or "allocation_successor" in selection
+        ):
+            raise ValueError("gold initial allocation identity is invalid")
+    else:
+        successor = selection.get("allocation_successor")
+        stress = evidence.get("open_position_stress")
+        positions = broker.get("positions")
+        expected_risk = {
+            "max_contracts": 1,
+            "max_commission_usd_per_order": GOLD_LIVE_MAX_COMMISSION_USD,
+            "max_initial_margin_change_aud": GOLD_LIVE_MAX_INITIAL_MARGIN_AUD,
+            "max_maintenance_margin_change_aud": (
+                GOLD_LIVE_MAX_MAINTENANCE_MARGIN_AUD
+            ),
+            "max_run_drawdown_usd": GOLD_LIVE_MAX_RUN_DRAWDOWN_USD,
+            "historical_native_intrabar_drawdown_usd": risk.get(
+                "historical_native_intrabar_drawdown_usd"
+            ),
+            "max_open_position_stress_usd": 256.16,
+            "minimum_post_stress_excess_liquidity_aud": (
+                GOLD_LIVE_MIN_STRESS_BUFFER_AUD
+            ),
+            "fx_stress_bps": GOLD_LIVE_FX_STRESS_BPS,
+        }
+        if (
+            risk != expected_risk
+            or not isinstance(successor, Mapping)
+            or successor.get("schema") != GOLD_PACKAGE_SUCCESSOR_SCHEMA
+            or successor.get("predecessor_schema") not in GOLD_LIVE_SELECTION_SCHEMAS
+            or not _sha256_identity(successor.get("predecessor_selection_id"))
+            or not _sha256_identity(
+                successor.get("predecessor_fill_ledger_fingerprint")
+            )
+            or not _sha256_identity(
+                successor.get("predecessor_risk_state_fingerprint")
+            )
+            or not _sha256_identity(successor.get("broker_preview_fingerprint"))
+            or successor.get("package_id") != "gold-one-contract"
+            or successor.get("package_cash_debit_usd_cents") != 66
+            or not isinstance(stress, Mapping)
+            or stress.get("path") != GOLD_OPEN_POSITION_STRESS_PATH.as_posix()
+            or not _sha256_identity(stress.get("sha256"))
+            or stress.get("max_single_position_mae_usd") != 256.16
+            or broker.get("open_orders") != []
+            or not isinstance(positions, Sequence)
+            or isinstance(positions, (str, bytes))
+            or any(
+                isinstance(row, Mapping)
+                and str(row.get("symbol") or "").upper() == "1OZ"
+                and abs(_number(row.get("quantity"), name="1OZ position")) > 1e-9
+                for row in positions
+            )
+        ):
+            raise ValueError("gold package allocation identity is invalid")
     return dict(value)
+
+
+def _sha256_identity(value: object) -> bool:
+    text = str(value or "")
+    return len(text) == 64 and all(character in "0123456789abcdef" for character in text)
+
+
+def _pending_gold_order_refs(
+    records: Sequence[Mapping[str, object]], *, selection_id: str
+) -> list[str]:
+    latest: dict[str, str] = {}
+    for record in records:
+        evidence = record.get("evidence")
+        if (
+            record.get("strategy_version") != GOLD_LIVE_EXECUTION_VERSION
+            or not isinstance(evidence, Mapping)
+            or evidence.get("selection_id") != selection_id
+        ):
+            continue
+        order_ref = str(evidence.get("order_ref") or "")
+        phase = str(evidence.get("phase") or "")
+        if order_ref and phase in {"PREPARED", "SUBMITTED", "TERMINAL"}:
+            latest[order_ref] = phase
+    return sorted(ref for ref, phase in latest.items() if phase != "TERMINAL")
+
+
+def reallocate_gold_live_transport(
+    *,
+    predecessor: Mapping[str, object],
+    records: Sequence[Mapping[str, object]],
+    preview: Mapping[str, object],
+    selected_at_utc: datetime,
+    stress_receipt_path: Path,
+) -> dict[str, object]:
+    """Freeze one clean Gold run without the retired account-wide mutex."""
+
+    from .gold_live_state import gold_transport_risk_state
+
+    prior = load_gold_live_selection_from_mapping(predecessor)
+    selected_at = _utc(selected_at_utc)
+    preview_at = _utc(preview.get("observed_at_utc"))
+    pair = preview.get("pair")
+    one = pair.get("one_oz") if isinstance(pair, Mapping) else None
+    gc = pair.get("gc") if isinstance(pair, Mapping) else None
+    contract = preview.get("contract")
+    what_if = preview.get("what_if")
+    keyed_what_if = (
+        {
+            str(row.get("action") or "").upper(): row
+            for row in what_if
+            if isinstance(row, Mapping)
+        }
+        if isinstance(what_if, Sequence) and not isinstance(what_if, (str, bytes))
+        else {}
+    )
+    positions = preview.get("positions")
+    stress = json.loads(stress_receipt_path.read_text())
+    if not isinstance(stress, Mapping):
+        raise ValueError("gold open-position stress receipt must be one object")
+    risk_state = gold_transport_risk_state(
+        selection=prior,
+        records=records,
+        observed_at=selected_at,
+        liquidation_price=_number(
+            one.get("bid"), name="1OZ liquidation price"
+        ) if isinstance(one, Mapping) else 0,
+    )
+    if (
+        preview.get("schema") != "gold.1oz-selection-preview.v1"
+        or preview.get("authority") != "fresh_nontransmitting_what_if_only"
+        or preview.get("submitted_orders") != 0
+        or preview.get("account_id") != prior["broker_at_selection"]["account_id"]
+        or preview.get("account_type") != "CASH"
+        or preview.get("base_currency") != "AUD"
+        or not 0 <= (selected_at - preview_at).total_seconds() <= 90
+        or not isinstance(pair, Mapping)
+        or pair.get("usable") is not True
+        or not isinstance(one, Mapping)
+        or not isinstance(gc, Mapping)
+        or not isinstance(contract, Mapping)
+        or int(contract.get("con_id") or 0) != int(one.get("con_id") or 0)
+        or not isinstance(what_if, Sequence)
+        or isinstance(what_if, (str, bytes))
+        or len(what_if) != 2
+        or set(keyed_what_if) != {"BUY", "SELL"}
+        or any(
+            not isinstance(row, Mapping)
+            or row.get("status") != "PreSubmitted"
+            or row.get("commission_currency") != "USD"
+            or _number(row.get("commission_usd"), name="gold commission")
+            > GOLD_LIVE_MAX_COMMISSION_USD
+            or _number(row.get("initial_margin_change_aud"), name="gold initial margin")
+            > GOLD_LIVE_MAX_INITIAL_MARGIN_AUD
+            or _number(
+                row.get("maintenance_margin_change_aud"),
+                name="gold maintenance margin",
+            )
+            > GOLD_LIVE_MAX_MAINTENANCE_MARGIN_AUD
+            or str(row.get("warning_text") or "")
+            for row in keyed_what_if.values()
+        )
+        or not isinstance(positions, Sequence)
+        or isinstance(positions, (str, bytes))
+        or any(
+            isinstance(row, Mapping)
+            and str(row.get("symbol") or "").upper() == "1OZ"
+            and abs(_number(row.get("quantity"), name="1OZ position")) > 1e-9
+            for row in positions
+        )
+        or preview.get("open_orders") != []
+        or _pending_gold_order_refs(records, selection_id=str(prior["selection_id"]))
+        or risk_state["position_from_fills"] != 0
+        or risk_state["safety_breaches"]
+        or stress.get("schema") != GOLD_OPEN_POSITION_STRESS_SCHEMA
+        or stress.get("capital_authority") != "none"
+        or stress.get("submitted_orders") != 0
+        or stress.get("harsher_cost_neighbour", {}).get(
+            "max_single_position_mae_usd"
+        )
+        != 256.16
+    ):
+        raise ValueError("gold package successor requires flat, previewed broker truth")
+    successor = {
+        "schema": GOLD_PACKAGE_SUCCESSOR_SCHEMA,
+        "predecessor_schema": prior["schema"],
+        "predecessor_selection_id": prior["selection_id"],
+        "predecessor_run_started_at_utc": prior["run_started_at_utc"],
+        "predecessor_fill_ledger_fingerprint": risk_state[
+            "fill_ledger_fingerprint"
+        ],
+        "predecessor_risk_state_fingerprint": _identity(risk_state),
+        "predecessor_realized_net_usd": risk_state["run_realized_net_usd"],
+        "predecessor_closed_trades": risk_state["closed_trades"],
+        "package_id": "gold-one-contract",
+        "package_cash_debit_usd_cents": 66,
+        "broker_preview_fingerprint": _identity(preview),
+    }
+    evidence = json.loads(json.dumps(prior["evidence"]))
+    evidence["open_position_stress"] = {
+        "path": GOLD_OPEN_POSITION_STRESS_PATH.as_posix(),
+        "sha256": _sha256(stress_receipt_path),
+        "max_single_position_mae_usd": 256.16,
+    }
+    prior_risk = prior["risk"]
+    body = {
+        **{
+            key: json.loads(json.dumps(item))
+            for key, item in prior.items()
+            if key
+            not in {
+                "selection_id",
+                "schema",
+                "selected_at_utc",
+                "run_started_at_utc",
+                "contract",
+                "corroborating_gc",
+                "broker_at_selection",
+                "risk",
+                "evidence",
+                "allocation_successor",
+            }
+        },
+        "schema": GOLD_LIVE_PACKAGE_SELECTION_SCHEMA,
+        "selected_at_utc": selected_at.isoformat(),
+        "run_started_at_utc": selected_at.isoformat(),
+        "contract": dict(contract),
+        "corroborating_gc": {
+            key: gc.get(key)
+            for key in ("local_symbol", "con_id", "expiry", "contract_month")
+        },
+        "broker_at_selection": {
+            key: preview[key]
+            for key in (
+                "observed_at_utc",
+                "account_id",
+                "account_type",
+                "base_currency",
+                "account_values",
+                "positions",
+                "open_orders",
+                "pair",
+                "what_if",
+            )
+        },
+        "risk": {
+            "max_contracts": 1,
+            "max_commission_usd_per_order": GOLD_LIVE_MAX_COMMISSION_USD,
+            "max_initial_margin_change_aud": GOLD_LIVE_MAX_INITIAL_MARGIN_AUD,
+            "max_maintenance_margin_change_aud": (
+                GOLD_LIVE_MAX_MAINTENANCE_MARGIN_AUD
+            ),
+            "max_run_drawdown_usd": GOLD_LIVE_MAX_RUN_DRAWDOWN_USD,
+            "historical_native_intrabar_drawdown_usd": prior_risk[
+                "historical_native_intrabar_drawdown_usd"
+            ],
+            "max_open_position_stress_usd": 256.16,
+            "minimum_post_stress_excess_liquidity_aud": (
+                GOLD_LIVE_MIN_STRESS_BUFFER_AUD
+            ),
+            "fx_stress_bps": GOLD_LIVE_FX_STRESS_BPS,
+        },
+        "evidence": evidence,
+        "allocation_successor": successor,
+    }
+    selected = {**body, "selection_id": _identity(body)}
+    return load_gold_live_selection_from_mapping(selected)
 
 
 def load_gold_live_selection(path: Path) -> dict[str, object]:

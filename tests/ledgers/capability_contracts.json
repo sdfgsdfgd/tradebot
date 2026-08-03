@@ -118,6 +118,7 @@
     "tests/test_live_capital.py": "policy-risk-sizing",
     "tests/test_live_graduation.py": "market-realism-parity",
     "tests/test_live_portfolio.py": "runtime-configuration-state",
+    "tests/test_live_portfolio_packages.py": "policy-risk-sizing",
     "tests/test_live_runs.py": "runtime-configuration-state",
     "tests/test_xsp_execution_dwell_validation.py": "market-realism-parity",
     "tests/test_xsp_execution_observer.py": "market-realism-parity",
@@ -275,12 +276,15 @@
       ],
       "evidence": [
         "tests/test_live_capital.py",
+        "tests/test_live_portfolio_packages.py",
         "tests/test_spot_policy_graph.py",
         "tests/test_spot_policy_kernel.py"
       ],
       "owner_surface": [
         "tradebot/engines/risk.py",
         "tradebot/live/capital.py",
+        "tradebot/live/capital_packages.py",
+        "tradebot/research/live_portfolio_packages.py",
         "tradebot/spot/entry_control.py",
         "tradebot/spot/gates.py",
         "tradebot/spot/graph.py",

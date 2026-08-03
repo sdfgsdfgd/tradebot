@@ -9,10 +9,15 @@ from tradebot.live.capital import (
     admit_live_capital,
     build_live_capital_plan,
     build_live_capital_plan_v2,
+    build_live_capital_plan_v3,
     load_live_capital_plan,
     publish_live_capital_plan,
     usd_to_cents,
     validate_live_capital_decision,
+)
+from tradebot.live.capital_packages import (
+    load_allocated_live_selection,
+    publish_immutable_live_selection,
 )
 
 
@@ -149,6 +154,148 @@ def _admit_gold(plan: dict[str, object], **changes: object) -> dict[str, object]
     return admit_live_capital(plan, **values)
 
 
+def _package(
+    package_id: str,
+    rank: int,
+    *,
+    cash: int = 0,
+    initial: int = 0,
+    maintenance: int = 0,
+    stress: int = 0,
+) -> dict[str, object]:
+    return {
+        "package_id": package_id,
+        "rank": rank,
+        "cash_debit_usd_cents": cash,
+        "initial_margin_base_cents": initial,
+        "maintenance_margin_base_cents": maintenance,
+        "stressed_loss_usd_cents": stress,
+        "fx_stress_bps": 11_000,
+    }
+
+
+def _package_sleeves() -> list[dict[str, object]]:
+    maes = [1_761, 2_043, 2_325, 2_607, 2_888, 2_888, 3_170, 3_452, 3_734, 4_015, 4_297]
+    return [
+        {
+            "sleeve_id": "xsp-upro-spxu-rth-cash",
+            "strategy_id": "xsp.opening-edge-v3-regime-harmony-24x5.v1",
+            "run_id": RUN_ID,
+            "selection_path": "db/calibration/xsp_selected_live_transport.json",
+            "selection_file_sha256": SELECTION_SHA,
+            "capital_kind": "CASH_DEBIT",
+            "position_symbols": ["UPRO", "SPXU"],
+            "residual_weight_bps": 10_000,
+            "minimum_package_id": "xsp-usd-400",
+            "package_ladder": [
+                _package(
+                    f"xsp-usd-{notional}",
+                    rank,
+                    cash=notional * 100 + 46,
+                    stress=maes[rank],
+                )
+                for rank, notional in enumerate(range(400, 901, 50))
+            ],
+        },
+        {
+            "sleeve_id": "gold-1oz-stage76-margin",
+            "strategy_id": "gold.1oz-regime-harmony-stage76.v1",
+            "run_id": GOLD_RUN_ID,
+            "selection_path": "db/calibration/gold_selected_live_transport.json",
+            "selection_file_sha256": GOLD_SELECTION_SHA,
+            "capital_kind": "FUTURES_MARGIN",
+            "position_symbols": ["1OZ"],
+            "residual_weight_bps": 0,
+            "minimum_package_id": "gold-one-contract",
+            "package_ladder": [
+                _package(
+                    "gold-one-contract",
+                    0,
+                    cash=66,
+                    initial=60_000,
+                    maintenance=52_000,
+                    stress=25_616,
+                )
+            ],
+        },
+    ]
+
+
+def _package_plan(**changes: object) -> dict[str, object]:
+    values: dict[str, object] = {
+        "account_id": "U123",
+        "account_type": "CASH",
+        "cash_currency": "USD",
+        "base_currency": "AUD",
+        "observed_settled_cash_usd": "1318.05",
+        "observed_available_funds_base": "2073.52",
+        "observed_excess_liquidity_base": "2078.33",
+        "usd_to_base_rate": "1.4279269",
+        "minimum_post_reservation_base": "300",
+        "unmanaged_position_stress_base": "92.74",
+        "sleeves": _package_sleeves(),
+        "reserve_reasons": ["cash_outside_allocated_executable_packages"],
+        "created_at_utc": "2026-08-03T11:45:26+00:00",
+        "supersedes_plan_id": "e" * 64,
+    }
+    values.update(changes)
+    return build_live_capital_plan_v3(**values)
+
+
+def _package_state(
+    *,
+    positions: list[dict[str, object]] | None = None,
+    available: int = 207_352,
+    excess: int = 207_833,
+    initial: int = 0,
+    maintenance: int = 0,
+) -> dict[str, object]:
+    return {
+        "account_positions": positions
+        if positions is not None
+        else [
+            {
+                "symbol": "TQQQ",
+                "quantity": 1,
+                "market_value_base_cents": 9_274,
+            }
+        ],
+        "account_open_orders": [],
+        "base_currency": "AUD",
+        "available_funds_base_cents": available,
+        "excess_liquidity_base_cents": excess,
+        "usd_to_base_rate_ppm": 1_427_927,
+        "candidate_initial_margin_base_cents": initial,
+        "candidate_maintenance_margin_base_cents": maintenance,
+    }
+
+
+def _admit_package(
+    plan: dict[str, object],
+    *,
+    gold: bool,
+    resource_state: dict[str, object],
+    available_cash: object = "1318.05",
+) -> dict[str, object]:
+    return admit_live_capital(
+        plan,
+        intent="ENTER",
+        account_id="U123",
+        account_type="CASH",
+        currency="USD",
+        sleeve_id=(
+            "gold-1oz-stage76-margin" if gold else "xsp-upro-spxu-rth-cash"
+        ),
+        run_id=GOLD_RUN_ID if gold else RUN_ID,
+        selection_file_sha256=GOLD_SELECTION_SHA if gold else SELECTION_SHA,
+        capital_kind="FUTURES_MARGIN" if gold else "CASH_DEBIT",
+        projected_capital_usd="0.66" if gold else "800.46",
+        cash_debit_usd="0.66" if gold else "800.46",
+        available_cash_usd=available_cash,
+        resource_state=resource_state,
+    )
+
+
 def test_usd_requirements_round_up_to_conservative_cents() -> None:
     assert usd_to_cents("900.45034925") == 90_046
     assert usd_to_cents("0") == 0
@@ -235,6 +382,178 @@ def test_v2_blocks_overlap_and_margin_or_stress_boundary_failures() -> None:
     assert "concurrent_directional_sleeve_active" in occupied["reasons"]
     assert "initial_margin_limit_exceeded" in oversized["reasons"]
     assert "post_stress_excess_liquidity_below_floor" in stressed["reasons"]
+
+
+def test_v3_reserves_all_minima_then_assigns_the_largest_safe_residual_package() -> None:
+    plan = _package_plan()
+    by_id = {row["sleeve_id"]: row for row in plan["sleeves"]}
+
+    assert plan["schema"] == "live.capital-plan.v3"
+    assert by_id["gold-1oz-stage76-margin"]["allocated_package_id"] == (
+        "gold-one-contract"
+    )
+    assert by_id["xsp-upro-spxu-rth-cash"]["allocated_package_id"] == (
+        "xsp-usd-800"
+    )
+    assert plan["allocation"]["capacity"][
+        "post_reservation_available_funds_base_cents"
+    ] >= 30_000
+    assert plan["constraints"]["minimum_executable_packages_reserved_first"] is True
+
+
+def test_v3_rejects_a_portfolio_whose_minimum_packages_cannot_coexist() -> None:
+    sleeves = _package_sleeves()
+    sleeves[1]["package_ladder"][0]["initial_margin_base_cents"] = 180_000
+
+    with pytest.raises(ValueError, match="minimum executable packages"):
+        _package_plan(sleeves=sleeves)
+
+
+def test_v3_package_allocation_is_product_agnostic() -> None:
+    sleeves = deepcopy(_package_sleeves())
+    debit = sleeves[1]
+    debit.update(
+        {
+            "sleeve_id": "mcl-defined-risk-debit",
+            "strategy_id": "mcl.future-selected.v1",
+            "run_id": "f" * 64,
+            "selection_path": "db/calibration/mcl_selected_live_transport.json",
+            "selection_file_sha256": "1" * 64,
+            "capital_kind": "DEFINED_RISK_DEBIT",
+            "position_symbols": ["MCL"],
+            "minimum_package_id": "mcl-debit-one",
+            "package_ladder": [
+                _package(
+                    "mcl-debit-one",
+                    0,
+                    cash=10_066,
+                    stress=10_000,
+                )
+            ],
+        }
+    )
+
+    plan = _package_plan(sleeves=sleeves)
+    by_id = {row["sleeve_id"]: row for row in plan["sleeves"]}
+
+    assert by_id["mcl-defined-risk-debit"]["allocated_package_id"] == (
+        "mcl-debit-one"
+    )
+    assert by_id["xsp-upro-spxu-rth-cash"]["allocated_package_id"] == (
+        "xsp-usd-900"
+    )
+
+
+def test_v3_plan_is_the_atomic_pointer_to_immutable_selected_runs(
+    tmp_path: Path,
+) -> None:
+    selection = {
+        "selection_id": RUN_ID,
+        "strategy_version": "xsp.opening-edge-v3-regime-harmony-24x5.v1",
+        "authority": "selected_live_cash_transport",
+    }
+    relative, digest = publish_immutable_live_selection(tmp_path, selection)
+    sleeves = deepcopy(_package_sleeves())
+    sleeves[0]["selection_path"] = relative
+    sleeves[0]["selection_file_sha256"] = digest
+    plan = _package_plan(sleeves=sleeves)
+
+    loaded, path, loaded_digest = load_allocated_live_selection(
+        plan,
+        sleeve_id="xsp-upro-spxu-rth-cash",
+        repository_root=tmp_path,
+    )
+
+    assert loaded == selection
+    assert path == tmp_path / relative
+    assert loaded_digest == digest
+    assert publish_immutable_live_selection(tmp_path, selection) == (relative, digest)
+
+    path.write_text("{}\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="file identity changed"):
+        load_allocated_live_selection(
+            plan,
+            sleeve_id="xsp-upro-spxu-rth-cash",
+            repository_root=tmp_path,
+        )
+
+
+def test_v3_allows_both_entry_orderings_without_reusing_promised_resources() -> None:
+    plan = _package_plan()
+    both_flat_xsp = _admit_package(plan, gold=False, resource_state=_package_state())
+    both_flat_gold = _admit_package(
+        plan,
+        gold=True,
+        resource_state=_package_state(initial=56_044, maintenance=48_735),
+    )
+    gold_first_then_xsp = _admit_package(
+        plan,
+        gold=False,
+        resource_state=_package_state(
+            positions=[
+                {"symbol": "1OZ", "quantity": 1},
+                {
+                    "symbol": "TQQQ",
+                    "quantity": 1,
+                    "market_value_base_cents": 9_274,
+                },
+            ],
+            available=151_086,
+            excess=158_877,
+        ),
+    )
+    xsp_first_then_gold = _admit_package(
+        plan,
+        gold=True,
+        resource_state=_package_state(
+            positions=[
+                {"symbol": "UPRO", "quantity": 5},
+                {
+                    "symbol": "TQQQ",
+                    "quantity": 1,
+                    "market_value_base_cents": 9_274,
+                },
+            ],
+            available=93_032,
+            excess=190_000,
+            initial=56_044,
+            maintenance=48_735,
+        ),
+        available_cash="517.59",
+    )
+
+    assert both_flat_xsp["status"] == "ALLOW"
+    assert both_flat_gold["status"] == "ALLOW"
+    assert gold_first_then_xsp["status"] == "ALLOW"
+    assert xsp_first_then_gold["status"] == "ALLOW"
+    assert gold_first_then_xsp["allocation"]["active_sleeves"] == [
+        "gold-1oz-stage76-margin"
+    ]
+    assert xsp_first_then_gold["allocation"]["active_sleeves"] == [
+        "xsp-upro-spxu-rth-cash"
+    ]
+
+
+def test_v3_holds_unknown_orders_and_full_stresses_unmanaged_positions() -> None:
+    plan = _package_plan()
+    open_order = _package_state()
+    open_order["account_open_orders"] = [{"symbol": "MCL", "quantity": 1}]
+    oversized_unknown = _package_state(
+        positions=[
+            {
+                "symbol": "UNKNOWN",
+                "quantity": 1,
+                "market_value_base_cents": 80_000,
+            }
+        ]
+    )
+
+    assert "open_order_blocks_portfolio_capacity_proof" in _admit_package(
+        plan, gold=False, resource_state=open_order
+    )["reasons"]
+    assert "post_stress_excess_liquidity_below_floor" in _admit_package(
+        plan, gold=False, resource_state=oversized_unknown
+    )["reasons"]
 
 
 def test_entry_requires_exact_account_run_selection_kind_cap_and_cash() -> None:

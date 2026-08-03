@@ -102,6 +102,19 @@ class BotLiveRunsMixin:
         suffix.append("b:B" if isinstance(rebalance, Mapping) and rebalance.get("status") == "ALLOW" else "b:gate")
         return f"{primary} {' '.join(suffix)}"
 
+    @staticmethod
+    def _live_run_capital(allocation: Mapping[str, object]) -> str:
+        package_id = str(allocation.get("package_id") or "")
+        if package_id:
+            cash = float(allocation.get("cash_debit_cents") or 0) / 100
+            initial = float(allocation.get("initial_margin_base_cents") or 0) / 100
+            if allocation.get("capital_kind") == "FUTURES_MARGIN":
+                return f"{package_id} · margin {initial:,.0f}"
+            return f"${cash:,.2f} · {package_id}"
+        limit = float(allocation.get("limit_cents") or 0) / 100
+        weight = float(allocation.get("weight_bps") or 0) / 100
+        return f"${limit:,.2f} · {weight:.0f}%"
+
     def _render_live_runs_table(self, snapshot: Mapping[str, object]) -> None:
         prior_row = self._live_runs_table.cursor_coordinate.row
         prior_id = None
@@ -119,8 +132,6 @@ class BotLiveRunsMixin:
             allocation = allocation if isinstance(allocation, Mapping) else {}
             economics = economics if isinstance(economics, Mapping) else {}
             safety = safety if isinstance(safety, Mapping) else {}
-            limit = float(allocation.get("limit_cents") or 0) / 100
-            weight = float(allocation.get("weight_bps") or 0) / 100
             fill_count = economics.get("fill_count")
             closed_trades = economics.get("closed_trades")
             breaches = list(safety.get("breaches") or ())
@@ -135,7 +146,7 @@ class BotLiveRunsMixin:
                 *_center_table_row(
                     str(run.get("label") or run.get("strategy_id") or "unknown"),
                     self._live_run_state_cell(run),
-                    f"${limit:,.2f} · {weight:.0f}%",
+                    self._live_run_capital(allocation),
                     self._live_run_position(run),
                     _pnl_text(float(net)) if net is not None else Text("-", style="dim"),
                     f"${float(drawdown):,.2f}" if drawdown is not None else "-",
@@ -278,8 +289,7 @@ class BotLiveRunsMixin:
                 style="dim",
             ),
             Text(
-                f"Capital=${float(allocation.get('limit_cents') or 0) / 100:,.2f} "
-                f"({float(allocation.get('weight_bps') or 0) / 100:.0f}%)  "
+                f"Capital={self._live_run_capital(allocation)}  "
                 f"Position={self._live_run_position(run)}  "
                 f"Cash=${float(run.get('settled_cash_usd') or 0):,.2f}",
                 style="dim",

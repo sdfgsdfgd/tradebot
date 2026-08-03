@@ -27,7 +27,12 @@
   immediate stock-sale proceeds. Shared plan `6950eb11…` preserves the exact
   `$900.46` XSP cash ceiling and `$417.59` unallocated reserve while adding one
   exclusive 1OZ futures-margin sleeve; neither spare cash nor futures margin is
-  interchangeable entry authority. The
+  interchangeable entry authority. `[WIP]` A v3 successor will replace only
+  that cross-product exclusivity with one generic minimum-executable-package
+  allocation: reserve every active champion's declared minimum first, then
+  distribute residual capacity, or emit an exact aggregate-capacity HOLD. The
+  current mutex remains authoritative until that successor passes both entry
+  orderings and is published immutably. The
   selected transport retains a conservative
   maximum completed-ticket commission of `$0.45034925`. The first round trip
   bought `23 SPXU @ $39.10` for `$0.318126`, then sold all `23 @ $38.56` for
@@ -199,6 +204,14 @@ output belongs in commit/final verification, not in this management brain.
 31. `[WIP]` **MCL measurement/news lane:** preserve immutable technical onset,
     price response, and saturation/convexity attribution; no direction or
     capital authority until unseen evidence and an independent transport pass.
+32. `[WIP]` **Generic concurrent-capital lane:** supersede the v2 account mutex
+    with one product-neutral minimum-executable-package contract. Cash lots,
+    futures contracts, and later defined-risk packages declare minimum/maximum
+    units plus frozen cash, margin, and stress envelopes; the account owner
+    reserves all active minima before weighted residual allocation. Prove
+    XSP-first and gold-first entry, aggregate stress, settlement, restart,
+    unconditional reduction, and explicit oversubscription HOLD before any
+    live plan or selection migration.
 
 ### Never infer
 

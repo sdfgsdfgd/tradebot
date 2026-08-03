@@ -3,7 +3,6 @@ Description=Reconcile the selected 1OZ Stage-76 live canary
 Wants=network-online.target
 Requires=tradebot-ib-gateway-tunnel.service
 After=network-online.target tradebot-ib-gateway-tunnel.service
-ConditionPathExists=%h/Desktop/py/tradebot/db/calibration/gold_selected_live_transport.json
 ConditionPathExists=%h/Desktop/py/tradebot/db/calibration/live_capital_plan.json
 
 [Service]

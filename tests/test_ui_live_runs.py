@@ -155,6 +155,25 @@ def test_live_run_table_projects_durable_truth_not_local_bot_instances() -> None
     assert harness._live_run_rows[0]["run_id"] == "a" * 64
 
 
+def test_live_run_capital_projects_executable_package_not_legacy_weight() -> None:
+    assert BotLiveRunsMixin._live_run_capital(
+        {
+            "capital_kind": "CASH_DEBIT",
+            "package_id": "xsp-usd-800",
+            "cash_debit_cents": 80_046,
+            "initial_margin_base_cents": 0,
+        }
+    ) == "$800.46 · xsp-usd-800"
+    assert BotLiveRunsMixin._live_run_capital(
+        {
+            "capital_kind": "FUTURES_MARGIN",
+            "package_id": "gold-one-contract",
+            "cash_debit_cents": 66,
+            "initial_margin_base_cents": 60_000,
+        }
+    ) == "gold-one-contract · margin 600"
+
+
 def test_stop_key_routes_live_runs_to_flat_safe_durable_controller() -> None:
     try:
         asyncio.get_event_loop()
