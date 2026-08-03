@@ -1,0 +1,47 @@
+{
+  "schema": "mcl.profit-memory-resumption-lifecycle-preregistration.v1",
+  "created_at_utc": "2026-08-03T22:56:54Z",
+  "authority": "research_only_no_orders_no_capital",
+  "name": "MCL V18 Profit-Memory Pullback Resumption",
+  "hypothesis": "The outcome-blind complete-bar pullback/resumption cohort adds a genuine second auction leg after V18 has banked profit, raising useful cadence without weakening V18 direction, branch, profit-memory, or raw-turn ownership.",
+  "inputs": {
+    "cl_mcl_manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "v18_result_sha256": "b9c64409dcb9cd482427588bb0ae314d870d0350a2100aea6d3f0615ae2f4c15",
+    "census_preregistration_sha256": "11d110a366e5477887e0521b0a5aaa4f96cf90558b11d3466037fa9198df70b9",
+    "census_result_sha256": "516e95727172f0e896d0fad53ffcdcd60a3f27587dd747f5bab41bdde0b63752",
+    "evaluator_sha256": "5d78fb3691b1861494aea21bd25adffbcf3e860496186209086bd2b8d95b760e"
+  },
+  "candidate_count": 85,
+  "lifecycle": {
+    "entry": "one matched-suffix MCL contract at the projected next one-minute open after the frozen completed pullback/resumption trigger",
+    "direction": "the unchanged direction of the source V18 failed-auction trade",
+    "profit_memory": "identical V18 failed-auction law: after a completed one-minute bar establishes 0.5% MFE, protect 25% of running MFE from the next bar with adverse gap handling",
+    "raw_turn": "close at the next one-minute MCL open following the next raw V18 CL turn",
+    "clock_or_contract_reset": "close at the last continuous MCL close and never reopen",
+    "recursion": "forbidden; a re-entry profit-memory exit cannot seed another re-entry",
+    "overlap": "forbidden; exact baseline V18 ledger remains immutable",
+    "costs": {
+      "multiplier": 100,
+      "primary_round_trip_usd": 3.52,
+      "stress_round_trip_usd": 5.52
+    }
+  },
+  "development_gates": {
+    "exact_reentries": 85,
+    "zero_baseline_overlap": true,
+    "combined_annualized_trades": "200..300",
+    "incremental_discovery_validation_primary_and_stress_net": ">0 in each",
+    "incremental_full_directions_primary_and_stress_net": ">0 for up and down",
+    "combined_discovery_validation_profit_factor": ">=1.35 primary and >=1.20 stress in each",
+    "combined_discovery_validation_cohorts": "both directions and acceptance/failure positive under primary and stress in each",
+    "combined_full_net": "strictly improves unchanged V18 under primary and stress",
+    "combined_full_pnl_to_intrabar_drawdown": ">=3.0 primary and >=2.0 stress",
+    "combined_full_drawdown": "<=125% of unchanged V18 under primary and stress",
+    "combined_full_positive_months": ">=17 primary and >=15 stress",
+    "combined_full_largest_positive_month_share": "<=0.20"
+  },
+  "control": "Invert only the 85 incremental directions over identical holds and primary costs; the control cannot alter the candidate.",
+  "if_any_gate_fails": "Reject exact resumption re-entry. Do not sweep pullback count, breakout distance, activation, retention, hold, stop, timeout, session, or cohort floors.",
+  "if_development_passes": "Preserve as an outcome-exposed development reference only. Missing July-2023 history, unseen prospective evidence, runtime parity, native transport, margin, preview, allocation, restart, and safety remain mandatory before a crown or capital authority.",
+  "submitted_orders": 0
+}

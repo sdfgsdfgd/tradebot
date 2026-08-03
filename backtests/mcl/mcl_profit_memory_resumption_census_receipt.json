@@ -1,0 +1,20 @@
+{
+  "schema": "mcl.profit-memory-resumption-census-receipt.v1",
+  "recorded_at_utc": "2026-08-03T22:56:00Z",
+  "authority": "outcome_blind_no_forward_pnl_no_orders_no_capital",
+  "inputs": {
+    "preregistration_sha256": "11d110a366e5477887e0521b0a5aaa4f96cf90558b11d3466037fa9198df70b9",
+    "evaluator_sha256": "c0f6c2064337cc62da008f96e6fb575b0c8d98b694d6eb55d27935c66da4930a",
+    "result_sha256": "516e95727172f0e896d0fad53ffcdcd60a3f27587dd747f5bab41bdde0b63752",
+    "v18_result_sha256": "b9c64409dcb9cd482427588bb0ae314d870d0350a2100aea6d3f0615ae2f4c15"
+  },
+  "profit_memory_sources": 118,
+  "eligible_candidates": 85,
+  "discovery_validation": [32, 53],
+  "up_down": [46, 39],
+  "median_latency_minutes": 40,
+  "p95_latency_minutes": 226,
+  "forward_outcomes_opened": 0,
+  "verdict": "ELIGIBLE_FOR_LIFECYCLE_PREREGISTRATION",
+  "submitted_orders": 0
+}
