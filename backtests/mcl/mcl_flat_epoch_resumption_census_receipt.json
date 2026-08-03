@@ -1,0 +1,31 @@
+{
+  "schema": "mcl.flat-epoch-resumption-census-receipt.v1",
+  "recorded_at_utc": "2026-08-03T23:04:00Z",
+  "authority": "outcome_blind_no_forward_pnl_no_orders_no_capital",
+  "inputs": {
+    "preregistration_sha256": "59ef5fb1d40b364ca7abce8628a762c4de7d893b6432d03e26533afdb5ab4887",
+    "evaluator_sha256": "7a4887d5d200b55afb7d0bd61e35109e23efce1b67ad16caf0719a4d9dcd32aa",
+    "result_sha256": "9533e5c5334b903866054a828214cb22f6a662343c1b58504b1859c6e39b09fd",
+    "v18_result_sha256": "b9c64409dcb9cd482427588bb0ae314d870d0350a2100aea6d3f0615ae2f4c15"
+  },
+  "raw_turn_epochs": 1492,
+  "discovery": {
+    "events": 467,
+    "annualized": 467.31986301369864,
+    "up_down": [245, 222],
+    "active_session_fraction": 0.8875968992248062,
+    "median_p95_maximum": [2, 4, 5]
+  },
+  "validation": {
+    "events": 423,
+    "annualized": 424.5279324971807,
+    "up_down": [207, 216],
+    "active_session_fraction": 0.8793774319066148,
+    "median_p95_maximum": [2, 3, 4]
+  },
+  "occupied_first_resumptions_rejected": 200,
+  "median_p95_latency_minutes": [45, 200],
+  "forward_outcomes_opened": 0,
+  "verdict": "ELIGIBLE_FOR_LIFECYCLE_PREREGISTRATION",
+  "submitted_orders": 0
+}
