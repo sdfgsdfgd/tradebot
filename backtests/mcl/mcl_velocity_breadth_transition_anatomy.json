@@ -1,0 +1,35 @@
+{
+  "schema": "mcl.velocity-breadth-transition-anatomy.v1",
+  "recorded_at_utc": "2026-08-03T21:13:41Z",
+  "authority": "posthoc_anatomy_only_no_selection_no_orders_no_capital",
+  "identity": {
+    "base_result_sha256": "41d0cf4636218626468412e0876915b0583c6d08e04c3b2c240fd11a636ab314",
+    "temporal_result_sha256": "9daf61dbda39c1f51c9efafa37dea343aeb2f071359938604f764d2cf8d9bdcf",
+    "evaluator_sha256": "89d96a3718ddaf61e1937a756dc2d47f724d30041b9bcffe7e9c240bf0c75624",
+    "result_sha256": "4921dc224f71b262daf09246a926e475bf2eeb997da45f401d7962b4fe00d901"
+  },
+  "joined_continuation_trades": 84,
+  "transition_primary_usd": {
+    "rise_discovery_validation": [
+      197.72,
+      -350.24
+    ],
+    "hold_discovery_validation": [
+      579.68,
+      -32.20
+    ],
+    "decay_discovery_validation": [
+      -23.84,
+      150.20
+    ]
+  },
+  "best_same_hold_transition_router": {
+    "name": "raw_with_rise_override",
+    "discovery_usd": 753.56,
+    "validation_usd": -156.24,
+    "full_usd": 597.32
+  },
+  "interpretation": "Velocity-breadth rise, hold, and decay each change sign across the two available years. Every deterministic transition router failed at least one period or direction, so breadth delta is not promoted to exact lifecycle replay. Static v15 raw-turn breadth remains the stability reference.",
+  "verdict": "CLOSE_TRANSITION_ROUTING",
+  "submitted_orders": 0
+}

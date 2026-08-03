@@ -1,0 +1,62 @@
+{
+  "schema": "mcl.two-speed-auction-relay-preregistration.v17",
+  "frozen_at_utc": "2026-08-03T21:13:41Z",
+  "authority": "adaptive_posthoc_development_only_no_unseen_validation_no_orders_no_capital",
+  "supersedes": "mcl.two-speed-auction-relay-preregistration.v16",
+  "candidate": {
+    "name": "MCL Auction Energy-Curvature Router",
+    "base": "v13 fixed three-tick parity elasticity and failed-auction profit memory",
+    "change": "route small matched-MCL responses from the sign of causal CL ATR acceleration, with velocity breadth only in semantic interaction neighbors",
+    "hypothesis": "a tiny accepted oil response can continue when auction energy is accelerating; when energy curvature is nonpositive, the same response is more plausibly exhaustion and should use the failed-auction route"
+  },
+  "causal_seed": {
+    "categorical_anatomy_evaluator_sha256": "be007b3576b83857fa03cd17c5b6bb7884649ed537de3aa8941b59e9ef4214ec",
+    "categorical_anatomy_result_sha256": "810342f76cba172d345b618bc43e22afebec8606e28ee2d6dede5707cf33f3a1",
+    "breadth_transition_evaluator_sha256": "89d96a3718ddaf61e1937a756dc2d47f724d30041b9bcffe7e9c240bf0c75624",
+    "breadth_transition_result_sha256": "4921dc224f71b262daf09246a926e475bf2eeb997da45f401d7962b4fe00d901",
+    "same_hold_acceleration_proxy_usd": {
+      "discovery": 333.56,
+      "validation": 95.76,
+      "down": 341.08,
+      "up": 88.24
+    }
+  },
+  "frozen_signal_and_lifecycle": {
+    "engine": "v13 exact macro CL engine and one completed five-minute maturation bar",
+    "matched_mcl_parity": "v13 exact raw-turn and maturation direction agreement",
+    "large_response": "responses above three ticks remain failed-auction fades",
+    "failed_auction_profit_memory": "v13 exact 0.5 percent activation and 25 percent running-MFE retention",
+    "roll_and_costs": "v13 exact dual-volume roll, flat-until-fresh-turn law, and 3.52/5.52 costs"
+  },
+  "declared_profiles": {
+    "primary_acceleration": "for one-to-three-tick responses, follow when raw-turn atr_acceleration_pct is positive; otherwise fade",
+    "neighbour_acceleration_or_breadth": "follow when acceleration is positive or at least three raw-turn horizon velocities align",
+    "neighbour_acceleration_and_breadth": "follow only when acceleration is positive and at least three raw-turn horizon velocities align",
+    "admission": "every unchanged v13 admission remains an admission; only routed direction may differ"
+  },
+  "controls": [
+    "unchanged v13 parity-only route",
+    "v15 raw-turn three-horizon velocity-breadth route",
+    "MCL-only signal owner",
+    "fixed-five-session roll",
+    "directionally inverted same holds"
+  ],
+  "proof": {
+    "minimum_trades_per_year": 160,
+    "positive_primary_and_stress_each_available_year": true,
+    "annual_profit_factor_min": 1.1,
+    "full_profit_factor_min": 1.2,
+    "full_primary_net_to_intrabar_drawdown_min": 1.5,
+    "both_directions_and_both_branches_nonnegative": true,
+    "monthly_positive_pnl_concentration_max": 0.4,
+    "future_unseen_evidence_and_missing_first_year": "required before crown"
+  },
+  "selection_law": "ATR acceleration sign alone is the declared primary; OR/AND breadth interactions are sensitivity neighbors and cannot replace it from exposed outcomes",
+  "prohibitions": [
+    "no ATR value, ratio, acceleration, velocity-breadth, parity, retention, or stop threshold sweep",
+    "no abstention, daily quota, synthetic re-entry, added delay, or target",
+    "no timeout, session, direction, calendar, or news interaction",
+    "no crown or live authority from exposed history"
+  ],
+  "submitted_orders": 0
+}
