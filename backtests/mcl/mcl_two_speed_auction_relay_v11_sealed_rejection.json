@@ -1,0 +1,55 @@
+{
+  "schema": "mcl.two-speed-auction-relay-v11-sealed-rejection.v1",
+  "recorded_at_utc": "2026-08-03T20:30:37Z",
+  "authority": "research_only_no_orders_no_capital",
+  "identity": {
+    "validation_bind_sha256": "fe3c859ca687762638023c8576b9410b72792f11ae357fcce77054bf276a4086",
+    "evaluator_sha256": "cb33454de6378e33e7cebdde3fde2f2400653d17f3f35d51bdd876e6919746a1",
+    "hydration_manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "result_sha256": "2b5993f9634cd67495ccd7ecdb9928704bf4790b313ec663deee9461d7b69e4e"
+  },
+  "coverage": {
+    "contract_pairs": 25,
+    "common_rows": 707136,
+    "first_utc": "2024-08-04T22:01:00Z",
+    "last_utc": "2026-08-03T20:26:00Z",
+    "rolls": 24,
+    "duplicates": 0,
+    "within_session_gaps": 0,
+    "missing_july_2023_to_august_2024": true
+  },
+  "frozen_cell": "retained_state_parity",
+  "discovery_year": {
+    "trades": 167,
+    "annualized_trades": 167.11470151198918,
+    "primary_net_usd": -275.84,
+    "stress_net_usd": -609.84,
+    "profit_factor": 0.949355189330514,
+    "intrabar_drawdown_usd": 1088.64,
+    "last_quarter_net_usd": -797.80
+  },
+  "sealed_validation_year": {
+    "trades": 171,
+    "annualized_trades": 171.61767483928583,
+    "primary_net_usd": -3198.92,
+    "stress_net_usd": -3540.92,
+    "profit_factor": 0.7151157198784556,
+    "intrabar_drawdown_usd": 3274.88,
+    "down_net_usd": -1921.80,
+    "up_net_usd": -1277.12,
+    "positive_months": 4,
+    "worst_month_usd": -1708.32
+  },
+  "full": {
+    "trades": 338,
+    "primary_net_usd": -3474.76,
+    "stress_net_usd": -4150.76,
+    "profit_factor": 0.7916235892392386,
+    "intrabar_drawdown_usd": 4345.60,
+    "directionally_inverted_same_holds_usd": 1095.24
+  },
+  "verdict": "REJECT_REGIME_LOCAL_ACCEPTANCE",
+  "interpretation": "One-bar matched-MCL parity did not distinguish continuation from exhaustion. It met cadence but failed the completed discovery year and the sealed validation year in both directions; the globally inverted result changing sign across periods forbids a fixed inversion and points to a missing causal auction-phase owner.",
+  "next_architecture": "Open causal turn/hold anatomy to identify a preregistered continuation-versus-failed-auction state owner. Do not rescue v11, select on validation, or globally invert its direction.",
+  "submitted_orders": 0
+}
