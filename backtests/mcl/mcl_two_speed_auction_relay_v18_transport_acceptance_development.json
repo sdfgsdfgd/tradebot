@@ -1,0 +1,60 @@
+{
+  "schema": "mcl.two-speed-auction-relay-v18-transport-acceptance-development.v1",
+  "recorded_at_utc": "2026-08-03T21:27:54Z",
+  "authority": "posthoc_development_only_no_unseen_validation_no_orders_no_capital",
+  "identity": {
+    "preregistration_sha256": "6cf6aec637e075a06a7b1b9ddf851ec955069ec09904946f3145054a59e92969",
+    "anatomy_receipt_sha256": "00bc4cdd11bb2cada8fceaade4ffbf0fac8b7449526004e38bc1a5dc97af96fd",
+    "evaluator_sha256": "cf9277e623ed6849bcefc238e82e89f9d3ca4a49647228ab8048e9ff4324f0ef",
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "result_sha256": "b9c64409dcb9cd482427588bb0ae314d870d0350a2100aea6d3f0615ae2f4c15"
+  },
+  "primary_lead_breadth_router": {
+    "full_trades": 338,
+    "discovery_annualized_trades": 167.11470151198918,
+    "validation_annualized_trades": 171.61767483928583,
+    "discovery_primary_stress_usd": [1263.91, 929.91],
+    "validation_primary_stress_usd": [1622.58, 1280.58],
+    "full_primary_stress_usd": [2886.49, 2210.49],
+    "full_profit_factor": 1.4289066075472359,
+    "full_intrabar_drawdown_usd": 883.52,
+    "full_primary_net_to_drawdown": 3.2670341361825375,
+    "full_stress_net_to_drawdown": 2.3440790659695967,
+    "down_up_net_usd": [1031.88, 1854.61],
+    "continuation_failed_auction_net_usd": [1259.16, 1627.33],
+    "full_stress_down_up_net_usd": [719.88, 1490.61],
+    "full_stress_continuation_failed_auction_net_usd": [1175.16, 1035.33],
+    "positive_months": 15,
+    "largest_positive_month_share": 0.1721316427007639,
+    "active_sessions": 258,
+    "mean_median_p95_max_admissions_per_active_session": [1.3101, 1, 2, 3],
+    "mean_hold_minutes": 530.2692307692307
+  },
+  "available_years": {
+    "discovery_primary_stress_pf_dd_ratio": [1263.91, 929.91, 1.4108, 487.64, 2.5919],
+    "validation_primary_stress_pf_dd_ratio": [1622.58, 1280.58, 1.4442, 883.52, 1.8365],
+    "discovery_quarter_nets_usd": [73.03, 658.56, 211.62, 320.70]
+  },
+  "sensitivity": {
+    "lead_follow_full_primary_stress_pf_dd_ratio": [2566.49, 1890.49, 1.3695, 1026.47, 2.5003],
+    "lead_fade_full_primary_stress_pf_dd_ratio": [2344.49, 1668.49, 1.3352, 883.52, 2.6536],
+    "selection": "the preregistered lead-breadth primary is stronger than both semantic neighbors and remains selected"
+  },
+  "controls": {
+    "unchanged_v13_primary_stress_dd_usd": [2073.49, 1397.49, 1060.64],
+    "unchanged_v15_primary_stress_dd_usd": [1965.49, 1289.49, 883.52],
+    "mcl_signal_only_primary_stress_dd_usd": [1075.36, 461.36, 1527.04],
+    "fixed_five_session_roll_primary_stress_dd_usd": [2098.16, 1414.16, 920.08],
+    "directionally_inverted_same_holds_usd": -5266.01
+  },
+  "interpretation": "Matched-month micro-book acceptance is a real oil-specific direction owner. V18 preserved v13 cadence and profit memory while improving primary net by 813 dollars, stress net by 813 dollars, drawdown by 177 dollars, and primary PnL/DD from 1.955 to 3.267. Both available annual windows, directions, and branches are positive at primary cost; the primary also beats both frozen lead-profile neighbors.",
+  "verdict": "PRESERVE_STRONGEST_DEVELOPMENT_REFERENCE_NOT_CROWN_ELIGIBLE",
+  "blockers": [
+    "the transport-acceptance rule was derived from outcome-exposed anatomy",
+    "IBKR cannot supply the July-2023 to August-2024 challenge year",
+    "discovery failed-auction attribution is slightly negative under the harsher stress cost despite positive primary attribution and positive total-year stress PnL",
+    "no future unseen, runtime, transport, capital, restart, or prospective profitability proof exists"
+  ],
+  "next_architecture": "Preserve v18 unchanged. Use its hostile-month and failed-auction residual anatomy only to formulate a categorically distinct preregistered owner; do not reopen basis, breadth, parity, retention, hold, or cost thresholds.",
+  "submitted_orders": 0
+}
