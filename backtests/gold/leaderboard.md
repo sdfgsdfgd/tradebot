@@ -23,12 +23,14 @@ An historical crown cannot grant the second authority.
 
 | Rank | Track | Crown | Identity | Version | State |
 |---:|---|---|---|---:|---|
-| 1 | H4/D1 regime harmony, native dated `1OZ` transport | **1OZ Gold Regime Harmony — Stage 76/77** | `gold.1oz-regime-harmony-stage76-77-crown.v1` | 1 | Frozen historical research crown; prospective onset tape non-submitting |
-| — | Operational/live | **Vacant** | `NO_TRADE` | — | Runtime, cash/margin, preview, selection, restart, and profitability gates not passed |
+| 1 | H4/D1 regime harmony, native dated `1OZ` transport | **1OZ Gold Regime Harmony — Stage 76/77** | `gold.1oz-regime-harmony-stage76-77-crown.v1` | 1 | Frozen historical research crown; prospective onset tape active |
+| — | Operational canary | **Stage 76/77 one-contract canary** | selection `12b15bd2…` / plan `6950eb11…` | 1 | `CANARY_LIVE`, selected flat; awaiting a fresh Stage-76 admission and 24h → 48h → five-session graduation |
 
 Machine pointer: `backtests/gold/current-lf.json`, bound to immutable artifact
 `backtests/gold/one_oz_regime_harmony_stage76_77.json` with SHA-256
 `9720399570921c377fb987146618d00c9a928e625a93b836db998af6ea67c282`.
+The operational crown remains vacant: canary authority is real but deliberately
+bounded until after-cost live profitability and safety pass every lawful cutoff.
 
 ## Priority Zero
 
@@ -41,10 +43,12 @@ realistic costs, both directions, useful cadence, stable neighbouring logic,
 concentration control, and drawdown that an indivisible one-ounce transport can
 actually survive.
 
-Stage 76/77 is now the explicit historical research crown. No runtime selection,
-broker preview, allocation, profitability clock, order, or XSP mutation exists
-or is authorized. One canonical, non-submitting prospective onset observer is
-authorized; it has no direction, transport, capital, or order authority.
+Stage 76/77 is the historical research crown and q now owns immutable flat
+selection `12b15bd2…` under one-contract `1OZZ6` canary authority. Runtime
+parity, live COMEX L1, shared-month GC/1OZ parity, margin/cash, two-sided broker
+preview, allocation, cold restart, and the first natural GTH recurrence passed.
+No inherited or forced entry exists: only a fresh post-selection Stage-76
+admission may create risk. The prospective onset tape remains attribution-only.
 
 ## Completed historical mandate through 18:00 AEST, 2026-08-03
 
@@ -676,9 +680,9 @@ order authority.
 
 1. `[WIP]` **XSP graduation:** preserve selected recurrence and broker truth;
    issue only lawful 24h, 48h, and five-session reducer verdicts.
-2. `[WIP]` **1OZ graduation:** settle unseen onset outcomes; centralize and
-   reproduce Stage 76/77; then prove native margin/cash, preview, immutable
-   selection, capital sleeve, restart, and the same 24h/48h/week chain.
+2. `[WIP]` **1OZ graduation:** selection `12b15bd2…` is armed flat on q with a
+   one-contract margin sleeve and shared account mutex. Preserve every natural
+   recurrence and authentic fill; issue 24h/48h/week verdicts only when due.
 3. `[WIP]` **MCL measurement/news:** continue immutable technical-onset and
    narrative-saturation evidence; news remains attribution/convexity context
    until unseen samples and an independent cash transport earn authority.
@@ -742,13 +746,17 @@ order authority.
    `backtests/gold/one_oz_regime_harmony_frontier_20260803.json`.
 16. `[DONE]` Close the Stage-88/89 complementary-owner challenge and publish the
    explicit Stage-76/77 machine crown with zero runtime/order authority.
-17. `[TODO]` Centralize the exact Stage-76 owner and prove frozen signal/native
-   parity before any cash, preview, selection, or canary transaction.
+17. `[DONE]` Centralize the exact Stage-76 owner and prove frozen ten-year,
+   recent-three-year, cold-restart, and native-transport parity.
 18. `[TODO]` Settle the first unseen 4h/12h/24h forecast only when naturally due
    at `2026-08-04T04:00:00Z`; continue canonical non-submitting observations.
-19. `[BLOCKED]` Capital authority waits for exact native margin/cash
-   qualification, a fresh non-transmitting preview, immutable selection,
-   restart/reconciliation proof, and explicit canary graduation authority.
+19. `[DONE]` Qualify exact native margin/cash, live shared-month books, two-sided
+   non-transmitting preview, immutable flat selection, shared capital/mutex,
+   cold restart, and first natural GTH recurrence. Receipt:
+   `one_oz_stage76_canary_commissioning_20260803.json`.
+20. `[WIP]` Preserve the gap-free canary prefix from `10:23:51Z`. Do not force
+   an entry; the first fresh Stage-76 admission may trade in GTH or RTH. An
+   operational crown still requires positive after-cost 24h/48h/week evidence.
 
 ## Evidence identities
 
@@ -1111,10 +1119,33 @@ Prepend every future crown or challenger using this evidence order:
 
 ## Crown history — newest first
 
+### LC-001 · 2026-08-03 · Stage 76/77 one-contract live canary
+
+- **State:** `CANARY_LIVE_ARMED_FLAT_AWAITING_FRESH_STAGE76_ADMISSION`.
+- **Identity:** q selection `12b15bd2…`, file `f7800a0f…`; shared capital plan
+  `6950eb11…`, file `c9206803…`, superseding XSP-only plan `f34751af…` without
+  changing its `$900.46` cash ceiling or `$417.59` reserve.
+- **Transport:** `1OZZ6`, conId `753716608`, one contract; `GCZ6` corroborates
+  the same December month. Both sides returned live type-1 books and `$0.66`
+  what-if commission; maximum observed initial/maintenance changes were
+  `A$561.12/A$487.70`.
+- **Risk:** one account-level execution lock and one-directional-sleeve mutex
+  prevent concurrent XSP/gold entry risk. Risk reduction remains unconditional.
+- **Proof:** two cold invocations plus the first natural `10:27Z` GTH recurrence
+  returned `flat_no_target`, zero orders/fills/P&L/DD, and no safety breach.
+- **Boundary:** RTH is not required. Signal formation remains causal XAUUSD/GC
+  `24x5`; native 1OZ transport is `24x7` subject to exchange maintenance. No
+  inherited, weekend-generated, synthetic, or deadline-forced entry is allowed.
+- **Graduation:** operational crown remains vacant until authentic after-cost
+  24h, 48h, and five-session evidence passes. Immutable receipt:
+  `one_oz_stage76_canary_commissioning_20260803.json`, SHA-256 `37a0ab19…`.
+
 ### CR-001 · 2026-08-03 · 1OZ Gold Regime Harmony — Stage 76/77 · v1
 
 - **Change:** first immutable gold historical research crown.
-- **Predecessor:** none; the gold operational namespace remains vacant.
+- **Predecessor:** none; the gold operational namespace was vacant at this
+  historical coronation. Later canary authority is recorded separately in
+  LC-001 and does not rewrite CR-001.
 - **Identity:** artifact schema
   `gold.1oz-regime-harmony-stage76-77-crown.v1`; machine declaration version
   `1`; strategy key `one-oz-regime-harmony-stage76-77`.
@@ -1153,6 +1184,8 @@ backtests/gold/one_oz_hostile_transition_final_audit_20260803.json
 backtests/gold/one_oz_onset_tape_preregistration_v2.json
 backtests/gold/one_oz_causal_clock_rebase_receipt.json
 backtests/gold/one_oz_first_unseen_onset_receipt.json
+backtests/gold/one_oz_regime_harmony_runtime_parity_20260803.json
+backtests/gold/one_oz_stage76_canary_commissioning_20260803.json
 ```
 
 Current declaration SHA-256:

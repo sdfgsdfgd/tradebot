@@ -1,0 +1,200 @@
+{
+  "schema": "gold.1oz-stage76-canary-commissioning-receipt.v1",
+  "recorded_at_utc": "2026-08-03T10:31:54Z",
+  "cutoff_utc": "2026-08-03T10:27:00.537939+00:00",
+  "host": "Q",
+  "verdict": "CANARY_LIVE_ARMED_FLAT_AWAITING_FRESH_STAGE76_ADMISSION",
+  "authority": {
+    "contracts": 1,
+    "entry": "first_post_selection_stage76_admission_only",
+    "force_or_midcycle_entry": false,
+    "rth_required": false,
+    "signal_hours": "XAUUSD_GC_24x5",
+    "transport_hours": "1OZ_24x7_subject_to_exchange_maintenance",
+    "weekend_new_signal_authority": false,
+    "weekend_risk_reduction_authority": true
+  },
+  "software": {
+    "commissioning_commit": "da3afd4520bc42a02b51ba03360445e7bc23433e",
+    "canonical_parity_fix_commit": "a359bd44776e3e812dc32799c36c29bcd2217bf4",
+    "repository_head_at_cutoff": "a359bd44776e3e812dc32799c36c29bcd2217bf4",
+    "full_test_result": "1079 passed, 4 deselected",
+    "lint_and_compile": "PASS"
+  },
+  "signal_and_transport": {
+    "strategy_id": "gold.1oz-regime-harmony-stage76.v1",
+    "execution_strategy_version": "gold.1oz-regime-harmony-live-execution.v1",
+    "crown_artifact": "backtests/gold/one_oz_regime_harmony_stage76_77.json",
+    "crown_artifact_sha256": "9720399570921c377fb987146618d00c9a928e625a93b836db998af6ea67c282",
+    "runtime_parity_receipt": "backtests/gold/one_oz_regime_harmony_runtime_parity_20260803.json",
+    "runtime_parity_receipt_sha256": "191ba059a1639d3c2c895379aeb72b33401d035da0169c717ae21ffca826ba32",
+    "native_transport_receipt_sha256": "535c92080cbcd74279d313ca4aa250688ac0460677fb9a5698163f177511ba31",
+    "source_checkpoint_id": "ea91ded2a565cc3776dc904565ab6f93e89729dff3d75b35579b4e350848772a",
+    "source_recorded_at_utc": "2026-08-03T10:23:34.522864+00:00",
+    "source_state_sha256": "285145d91503169a3ddfa6b5f60e4cdaba8b169e8431c522cc8726a2648fadde",
+    "target_at_selection": null,
+    "historical_native_intrabar_drawdown_usd": 651.89
+  },
+  "selection": {
+    "path": "db/calibration/gold_selected_live_transport.json",
+    "schema": "gold.1oz-regime-harmony-selected-run.v1",
+    "selection_id": "12b15bd26b716c1785549e5e7aa395a105a51db315333bc107d4f13da19db8cf",
+    "file_sha256": "f7800a0f2d3ee5e81ce4c21757e4d2704fb82ffd1d4bbe2ed95cf343e2a0e1a6",
+    "selected_at_utc": "2026-08-03T10:23:51.583152+00:00",
+    "run_started_at_utc": "2026-08-03T10:23:51.583152+00:00",
+    "authority": "selected_canary_live_margin_transport",
+    "order_authority": "one_oz_limit_canary",
+    "baseline": "flat_zero_inherited_fills_pnl_and_drawdown"
+  },
+  "contracts": {
+    "execution": {
+      "symbol": "1OZ",
+      "local_symbol": "1OZZ6",
+      "con_id": 753716608,
+      "expiry": "20261125",
+      "contract_month": "2026-12",
+      "exchange": "COMEX",
+      "currency": "USD",
+      "multiplier": 1,
+      "min_tick": 0.25
+    },
+    "corroboration": {
+      "symbol": "GC",
+      "local_symbol": "GCZ6",
+      "con_id": 462941472,
+      "expiry": "20261229",
+      "contract_month": "2026-12"
+    },
+    "selection_pair": {
+      "market_data_type": 1,
+      "gc_bid_ask": [4109.5, 4110.0],
+      "one_oz_bid_ask": [4109.5, 4110.0],
+      "gc_volume": 36571,
+      "one_oz_volume": 30498,
+      "basis_usd": 0.0,
+      "usable": true
+    }
+  },
+  "broker_preview": {
+    "account_id": "U12825049",
+    "account_type": "CASH",
+    "base_currency": "AUD",
+    "observed_at_utc": "2026-08-03T10:23:49.846583+00:00",
+    "settled_cash_usd": 1318.05,
+    "equity_with_loan_aud": 2108.25,
+    "available_funds_aud": 2074.67,
+    "excess_liquidity_aud": 2079.53,
+    "relevant_gold_position": 0,
+    "open_orders": 0,
+    "unrelated_positions": ["1 TQQQ"],
+    "buy": {
+      "quantity": 1,
+      "limit_price": 4110.0,
+      "commission_usd": 0.66,
+      "initial_margin_change_aud": 560.86,
+      "maintenance_margin_change_aud": 487.7,
+      "status": "PreSubmitted",
+      "warning_text": ""
+    },
+    "sell": {
+      "quantity": 1,
+      "limit_price": 4109.5,
+      "commission_usd": 0.66,
+      "initial_margin_change_aud": 561.12,
+      "maintenance_margin_change_aud": 487.7,
+      "status": "PreSubmitted",
+      "warning_text": ""
+    }
+  },
+  "capital_plan": {
+    "path": "db/calibration/live_capital_plan.json",
+    "schema": "live.capital-plan.v2",
+    "plan_id": "6950eb11ad3e7b632ce09246558463c9efb5c75ab736a7878409dc2fdc753fb2",
+    "file_sha256": "c9206803ac8909dbb459a0e67442b5fabe8fef094289efd6b17acd770301aab8",
+    "supersedes_plan_id": "f34751af4e2dd6969d9ca923188daf34c281409a10304e4d046e286081b03bc0",
+    "xsp_cash_managed_cents": 90046,
+    "unallocated_cash_reserve_cents": 41759,
+    "gold_margin_sleeve": {
+      "sleeve_id": "gold-1oz-stage76-margin",
+      "max_contracts": 1,
+      "max_initial_margin_aud": 600.0,
+      "max_maintenance_margin_aud": 520.0,
+      "max_stressed_loss_usd": 700.0,
+      "fx_stress_bps": 11000,
+      "minimum_post_stress_excess_liquidity_aud": 300.0
+    },
+    "max_concurrent_directional_sleeves": 1,
+    "automatic_borrowing_or_reallocation": false,
+    "futures_margin_is_not_cash_debit_authority": true
+  },
+  "restart_and_cadence": {
+    "manual_cold_start_checkpoint": "be95b5300e6f2eb4388029361c7b237563e5669d4714556547da3927efa61f74",
+    "manual_restart_checkpoint": "1ddedb3479cf2ec29badf541b4b50aa5b5f44a68be7b6a60433a79e3f1fee2ae",
+    "first_natural_checkpoint": "4bcf4627f01b971b353f27f48f07e30c16e9257ab0c68e5d6460ef3ad8bb92ad",
+    "first_natural_at_utc": "2026-08-03T10:27:00.537939+00:00",
+    "manual_and_natural_results": "STATE_HOLD_FLAT_NO_TARGET_ZERO_SUBMISSIONS",
+    "gold_timer": "active_waiting_every_five_minutes",
+    "xsp_timer": "active_waiting_existing_schedule",
+    "account_execution_lock": "%t/tradebot-live-account.lock",
+    "concurrent_worker_result": "gold_then_xsp_both_completed_successfully"
+  },
+  "ledger_prefix": {
+    "path": "db/calibration/gold_live_calibration.jsonl",
+    "all_rows": 6,
+    "all_rows_sha256": "31b29cfe1221c349a336376ca63183baf23832e7a680fa3f234033a50ebb76d6",
+    "source_rows": 3,
+    "source_rows_sha256": "782e68579c008467c422df6fd92e9d66b0654ae3445aefeab15329b1c8850c69",
+    "selected_execution_rows": 3,
+    "selected_execution_rows_sha256": "7cb97d85c7b037eb3f792128bb01476ea32dab60ebb1d69d7d22158128fd85ed",
+    "submitted_orders": 0,
+    "terminal_orders": 0
+  },
+  "cutoff_state": {
+    "position": "FLAT",
+    "target_direction": null,
+    "plan_reason": "flat_no_target",
+    "quote": {
+      "bid": 4109.75,
+      "ask": 4110.0,
+      "age_seconds": 0.08511442696908489,
+      "market_data_type": 1,
+      "eligible": true
+    },
+    "fills": 0,
+    "closed_trades": 0,
+    "run_gross_usd": 0.0,
+    "run_cost_usd": 0.0,
+    "run_net_usd": 0.0,
+    "drawdown_usd": 0.0,
+    "safety_breaches": []
+  },
+  "fail_closed_rehearsal": {
+    "first_source_checkpoint": "92c6361eb0140449d2fe6f1e036500087877eb30bf463ad9e6016b27921d2497",
+    "first_source_status": "NO_DATA",
+    "cause": "source_expected_obsolete_contract_pair_instead_of_canonical_exchange_parity",
+    "effect": "no_selection_no_order_no_capital_mutation",
+    "corrected_by_commit": "a359bd44776e3e812dc32799c36c29bcd2217bf4",
+    "regression_proof": "PASS"
+  },
+  "graduation": {
+    "enrollment": "ACTIVE_CANARY_PREFIX",
+    "live_24h": "NOT_DUE_AND_NO_AUTHENTIC_TRADE_YET",
+    "live_48h": "NOT_DUE_AND_NO_AUTHENTIC_TRADE_YET",
+    "live_five_session_week": "NOT_DUE_AND_NO_AUTHENTIC_TRADE_YET",
+    "operational_crown": "VACANT",
+    "promotion_requires": "gap_free_after_cost_positive_execution_and_safety_evidence_at_each_lawful_cutoff",
+    "shadow_or_forced_trade_substitution": false
+  },
+  "gates": {
+    "historical_crown": "PASS_WITH_DISCLOSED_7_OF_10_ANNUAL_BREADTH",
+    "runtime_backtest_and_restart_parity": "PASS",
+    "native_historical_transport": "PASS",
+    "live_comex_l1_and_shared_month_pair": "PASS",
+    "margin_cash_and_two_sided_what_if": "PASS",
+    "immutable_flat_selection": "PASS",
+    "shared_capital_and_cross_sleeve_mutex": "PASS",
+    "cold_restart": "PASS",
+    "first_natural_gth_recurrence": "PASS",
+    "after_cost_live_profitability": "PENDING_AUTHENTIC_EXECUTION"
+  }
+}
