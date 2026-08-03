@@ -747,9 +747,12 @@ transition through today’s close; no order will be forced merely to populate t
   `-$594.94/-$1,288.94`, joint-close invalidation `-$482.96/-$1,178.96`.
   Exact discovery anatomy found immediate absorption `+$1,154.12/+$866.12`
   stress over `144`, versus initiative `-$979.08/-$1,387.08` over `204`.
-  V37 preregistration `291017f7…` / evaluator `189cc954…` keeps absorption
-  immediate but requires initiative to mature for exactly one completed `5m`
-  bar (two-bar count neighbor only), then classifies acceptance or failure.
+  V37 count proof rejected the one-bar primary but selected its frozen two-bar
+  neighbor without outcomes: `258/246` events (`258.18/246.89` annualized),
+  `71.7%/73.2%` active sessions, median `1`, p95/max `2`, with absorption
+  `144/151`, initiative acceptance `85/71`, and failure `29/24`. V38
+  preregistration `7ce554fc…` / evaluator `fc62205c…` freezes plain branch-state
+  versus the existing V13 profit-memory law on initiative failures only.
   Rolls, costs, news authority, and live XSP/Gold owners remain unchanged.
 - `[PRESERVED RUNNER-UP]` **Tri-asset narrative-dispersion compression:** test
   whether convergence among easing-negative XSP pressure, weakening-positive
@@ -1156,9 +1159,16 @@ and stable bootstrap evidence. Neither may be refactored into looking mature.
     initiative lost `-$979.08/-$1,387.08` over `204`. Receipt
     `mcl_opening_drive_effort_result_lifecycle_rejection.json` (`2470a7b7…`).
     V37 preregistration `mcl_opening_drive_branch_maturation_census_preregistration.json`
-    (`291017f7…`) / evaluator `189cc954…` retains absorption immediately and
-    count-tests initiative after exactly one completed `5m` verdict; a two-bar
-    neighbor is eligible only if the primary fails count gates. Outcomes stay sealed.
+    (`291017f7…`) / evaluator `189cc954…` retained absorption immediately and
+    count-tested initiative after one completed `5m` verdict; it failed because
+    validation contained only `8` initiative failures. The frozen two-bar
+    neighbor passed at `258.18/246.89` annualized, `71.7%/73.2%` active sessions,
+    median `1`, p95/max `2`, with all three branches and both directions/anchors.
+    Receipt `mcl_opening_drive_branch_maturation_census_receipt.json`
+    (`f4785ffe…`). V38 preregistration
+    `mcl_opening_drive_branch_maturation_lifecycle_preregistration.json`
+    (`7ce554fc…`) / evaluator `fc62205c…` freezes branch-state versus exact V13
+    profit memory on initiative failures only; discovery selects at most one.
     Missing July-2023–August-2024 remains a hard crown blocker; no quota, order,
     or capital authority.
 
@@ -1507,6 +1517,7 @@ and
 | E-420 | V34 lifecycle `af845ca6…` rejected both exact owners in discovery and kept validation sealed: anchor-state made only `+$3.40/305` primary and `-$606.60` stress, PF `1.0005`, DD `$1,102.96`, and `6` positive months; structural invalidation lost `-$429/-$1,029`, PF `.880`, DD `$1,045.52`, and `5` positive months. Side/direction anatomy `7ff06ce1…` and actual product-neutral multitimeframe anatomy `760f7ab4…` could not meet stress PnL/DD, cadence, month, and direction/branch transfer together. Receipt `mcl_two_anchor_inventory_lifecycle_rejection.json` (`a78427bc…`) closes threshold rescue of those direction owners while preserving the useful clocks. V35 preregistration `mcl_opening_drive_effort_result_census_preregistration.json` / evaluator `d52e606d…` instead freezes the first completed `15m` auction after each DST-aware Europe/US anchor, preceding-four-bar CL median-volume effort, matched-MCL result, and mutually exclusive initiative/absorption classification. It may count both periods only; no forward return, MFE/MAE, PnL, news, order, capital, or XSP/Gold authority opens |
 | E-421 | outcome-blind V35 count proof `e387fba3…` advanced the opening-drive relay: effort-gated discovery produced `348` events (`348.24/year`), `89.92%` active sessions, median/p95/max `2/2/2`, initiative/absorption `204/144`, up/down `180/168`, Europe/US `180/168`; validation count produced `309` (`310.12/year`), `84.82%` active, median/p95/max `1/2/2`, initiative/absorption `158/151`, up/down `163/146`, Europe/US `146/163`. The ungated count control was only slightly larger, proving volume did not manufacture scarcity; zero outcomes opened. Receipt `mcl_opening_drive_effort_result_census_receipt.json` (`5fc6ba72…`). V36 preregistration `mcl_opening_drive_effort_result_lifecycle_preregistration.json` / evaluator `8fa754ec…` freezes exact next-open MCL execution, `$3.52/$5.52` costs, existing anchor cutoffs, and only clock-state, branch-specific native structure, or joint completed-5m invalidation. Discovery may select one exact owner; only it opens validation. No news, order, capital, or XSP/Gold mutation |
 | E-422 | V36 lifecycle `1ef514f1…` rejected all three frozen owners in discovery and kept validation sealed: clock-state `348` trades made only `+$175.04` primary and `-$520.96` stress, PF `1.022`, DD `$1,149.88`, PnL/DD `.152`; native structure lost `-$594.94/-$1,288.94`; joint-close invalidation lost `-$482.96/-$1,178.96`. Exact custom anatomy `66688e37…` corrects the generic legacy branch labels and shows immediate absorption `144` trades at `+$1,154.12/+$866.12` stress versus unresolved initiative `204` at `-$979.08/-$1,387.08`; the rejection is invariant because every owner failed stress net/PF/PnL-DD before branch gates. Receipt `mcl_opening_drive_effort_result_lifecycle_rejection.json` (`2470a7b7…`) closes immediate-initiative and stop/timeout rescue. V37 preregistration `mcl_opening_drive_branch_maturation_census_preregistration.json` / evaluator `189cc954…` retains absorption's exact immediate clock but makes initiative wait one completed `5m` CL/MCL verdict to follow acceptance or fade failure; a two-bar count neighbor is considered only if the primary is count-ineligible. No outcomes, news, order, capital, or XSP/Gold mutation |
+| E-423 | outcome-blind V37 maturation count `929b3224…` rejected the one-bar primary solely because its validation-count period had `8` initiative failures below the frozen `20` floor. The two-bar neighbor then passed in frozen order: discovery `258` events (`258.18/year`), `71.71%` active sessions, median/p95/max `1/2/2`, absorption/acceptance/failure `144/85/29`, up/down `142/116`, Europe/US `131/127`; validation count `246` (`246.89/year`), `73.15%` active, `151/71/24`, up/down `126/120`, Europe/US `120/126`. Zero outcomes opened. Receipt `mcl_opening_drive_branch_maturation_census_receipt.json` (`f4785ffe…`). V38 preregistration `mcl_opening_drive_branch_maturation_lifecycle_preregistration.json` / evaluator `fc62205c…` binds next-open matched MCL, `$3.52/$5.52` costs, anchor cutoffs, and only plain branch-state versus the unchanged V13 `0.5%`-activation/`25%`-retention profit memory on initiative-failure positions. Discovery may select one exact owner; only it opens validation. No news, order, capital, or XSP/Gold mutation |
 
 ### Decision anchors
 

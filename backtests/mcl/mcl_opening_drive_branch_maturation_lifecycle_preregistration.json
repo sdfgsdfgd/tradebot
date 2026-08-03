@@ -1,0 +1,82 @@
+{
+  "schema": "mcl.opening-drive-branch-maturation-lifecycle-preregistration.v1",
+  "registered_at_utc": "2026-08-03T23:58:00Z",
+  "authority": "research_only_no_orders_no_capital",
+  "campaign": "mcl.two-speed-auction-relay.v38",
+  "hypothesis": "Immediate absorption plus a ten-minute initiative acceptance-or-failure verdict can clear authentic MCL friction when each anchor owns state only until its next inventory boundary; the already-frozen failed-auction profit-memory law is the sole semantic neighbor.",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "census_preregistration_sha256": "291017f7dde5d882a471aba968974cc91d1409ed3d765be2c22be5bd5196f46c",
+    "census_evaluator_sha256": "189cc954644135b73d36705a63f5d800c046b4bbf26bd2084c4b4efb71a94736",
+    "census_result_sha256": "929b32245f5fc46816c0bc6f1624056d18a087f1749ca0832f46adb496abde9c",
+    "lifecycle_evaluator_path": "/tmp/mcl_stage38_branch_maturation_lifecycle.py",
+    "lifecycle_evaluator_sha256": "fc62205ce6a6479b08a8c19e6d7537e2c824a75474cd73d70b02ec89e38dc274"
+  },
+  "selected_signal_profile": "mature_2x5m",
+  "execution": {
+    "instrument": "matched-expiry MCL dated future",
+    "entry": "exact frozen projected next one-minute MCL open",
+    "multiplier": 100,
+    "primary_round_trip_cost_usd": 3.52,
+    "stress_round_trip_cost_usd": 5.52,
+    "europe_flat": "08:55 America/New_York open",
+    "us_flat": "10:25 America/New_York open",
+    "contract_or_clock_discontinuity": "flatten at last valid matched-MCL close",
+    "next_anchor": "flatten incumbent at successor entry open before admission"
+  },
+  "frozen_semantic_owners": {
+    "branch_state": "Absorption, initiative acceptance, and initiative failure retain their frozen direction until the anchor cutoff.",
+    "initiative_failure_memory": "Same state ownership, except initiative-failure positions activate the pre-existing V13 profit-memory law after favorable movement reaches 0.5 percent of entry; retain exactly 25 percent of achieved MFE with pessimistic gap handling."
+  },
+  "discovery_selection": {
+    "annualized_trades": {
+      "exclusive_minimum": 160,
+      "inclusive_maximum": 520
+    },
+    "minimum_primary_profit_factor": 1.2,
+    "minimum_stress_profit_factor": 1.1,
+    "minimum_primary_pnl_to_intrabar_drawdown": 1.5,
+    "minimum_stress_pnl_to_intrabar_drawdown": 1.0,
+    "minimum_primary_positive_months": 8,
+    "minimum_stress_positive_months": 7,
+    "maximum_largest_positive_month_share": 0.3,
+    "cohorts": "both directions, all three actual branches, both anchors, and both boundary sides must be positive under primary and stress costs",
+    "ranking_after_eligibility": [
+      "highest stress PnL to intrabar drawdown",
+      "highest primary PnL to intrabar drawdown",
+      "highest stress net PnL",
+      "lowest primary intrabar drawdown"
+    ],
+    "maximum_selected_owners": 1
+  },
+  "validation_law": {
+    "if_no_discovery_owner_passes": "reject both owners and leave validation unopened",
+    "if_selected": "open only that exact owner; validation must independently pass every discovery gate",
+    "full_period_extra_gates": {
+      "minimum_primary_profit_factor": 1.25,
+      "minimum_stress_profit_factor": 1.15,
+      "minimum_primary_pnl_to_intrabar_drawdown": 2.5,
+      "minimum_stress_pnl_to_intrabar_drawdown": 1.5,
+      "minimum_primary_positive_months": 18,
+      "minimum_stress_positive_months": 16,
+      "maximum_largest_positive_month_share": 0.2,
+      "all_costed_cohorts_positive": true
+    }
+  },
+  "controls": {
+    "same_holds_inverted_direction": "report only for a lawfully selected owner; never selectable"
+  },
+  "prohibitions": [
+    "no alternative maturation interval",
+    "no profit-memory activation or retention sweep",
+    "no branch-specific cutoff or stop search",
+    "no branch deletion after outcomes",
+    "no regime, month, anchor, side, or direction router",
+    "no news, order, or capital authority"
+  ],
+  "downstream_hold_even_on_pass": [
+    "missing July 2023 through August 2024 dated-contract history",
+    "unseen runtime parity and prospective signal tape",
+    "native MCL spread, liquidity, margin, commission, roll, preview, restart, reconciliation, shared-capital, and graduation proof"
+  ]
+}
