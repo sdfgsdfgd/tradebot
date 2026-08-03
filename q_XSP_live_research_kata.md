@@ -719,11 +719,16 @@ transition through today’s close; no order will be forced merely to populate t
   or low, followed by exactly one completed `5m` acceptance-or-failure verdict.
   It produced `213/201` discovery/validation events (`213.15/201.73` annualized),
   active on `74.81%/73.15%` of sessions with median `1`, p95 `2`, maximum `2`,
-  and both directions, verdicts, and boundary sides represented. V31 freezes
-  exactly four branch-aware semantic owners—state only, structural invalidation,
-  failed-auction profit memory, or both—under evaluator `ca5b784c…`; discovery
-  may choose only one before validation outcomes open. Rolls, costs, news
-  authority, and live XSP/Gold owners remain unchanged.
+  and both directions, verdicts, and boundary sides represented. V31 rejected
+  all four branch-aware semantic owners before validation: primary losses were
+  `-$2,633/-$1,346/-$2,544/-$1,367`. Discovery anatomy then exposed a categorical
+  oil asymmetry rather than a tunable stop defect: inverted prior-high verdicts
+  alone earned `+$2,357.64` / `+$2,121.64` stress over `118` trades, PF `1.541`,
+  DD `$838.16`, PnL/DD `2.813`, and `10/13` positive months, while low-side
+  textbook stress expectancy was negative. V32 freezes that high-absorption
+  component exactly and opens the untouched second year only after evaluator
+  `c7c2506f…` is bound. Rolls, costs, news authority, and live XSP/Gold owners
+  remain unchanged.
 - `[PRESERVED RUNNER-UP]` **Tri-asset narrative-dispersion compression:** test
   whether convergence among easing-negative XSP pressure, weakening-positive
   MCL pressure, and weakly reversing-positive Gold pressure predicts
@@ -1094,13 +1099,17 @@ and stable bootstrap evidence. Neither may be refactored into looking mature.
     Evaluator `93a98796…` advanced count proof with `213/201` events at
     `213.15/201.73` annualized, `74.81%/73.15%` active-session coverage,
     median `1`, p95/max `2`, and both directions, verdicts, and boundary sides.
-    V31 now binds those exact `414` events to four branch-aware semantic owners:
-    state only; structural invalidation; failed-auction profit memory; or both.
-    Evaluator `ca5b784c…` must choose one owner from discovery by frozen
-    after-cost/stress/cohort gates before exposing validation; no widening, side
-    reuse, threshold, owner interaction, or outcome-selected rescue. Missing
-    July-2023–August-2024 remains a hard crown blocker; no quota, order, or
-    capital authority.
+    V31 bound those exact `414` events to four branch-aware semantic owners and
+    rejected all four in discovery: `-$2,633/-$1,346/-$2,544/-$1,367` primary;
+    validation stayed sealed. Posthoc discovery-only side anatomy found the
+    damage concentrated at the prior high. The categorical high-only inversion
+    earned `+$2,357.64/+$2,121.64` stress over `118` trades, PF `1.541`, DD
+    `$838.16`, PnL/DD `2.813`, and `10/13` positive months; both transformed
+    directions and source branches were positive. V32 freezes only that
+    prior-high absorption profile under state ownership and evaluator
+    `c7c2506f…`; the untouched second year must independently transfer before
+    any V18 composition. Missing July-2023–August-2024 remains a hard crown
+    blocker; no quota, order, or capital authority.
 
 ---
 
@@ -1441,6 +1450,7 @@ and
 | E-414 | V28 lifecycle `aefa549f…` rejected the whole flat raw-turn resumption family in discovery without opening validation. Exact `467`-trade cells made state-only `-$2,539.84`, structural `-$1,134.84`, profit-memory `-$2,085.59`, and structural+memory `-$1,641.34`; stress losses were `-$2,069` to `-$3,474`, and both directions lost in every cell. Receipt `mcl_flat_epoch_resumption_lifecycle_rejection.json` closes stop/memory/timeout rescue. V29 preregistration `mcl_compression_liquidity_release_census_preregistration.json` / evaluator `c74cf299…` freezes one new compression episode from completed `12/72`-bar low-efficiency context, one `2x` range plus volume release before the range-only control, same-bar CL/MCL parity, and dominant-book lag=fade routing. Count-only selection precedes any PnL; no news, order, capital, or XSP/Gold mutation |
 | E-415 | outcome-blind V29 compression-release census `afc6857a…` rejected both frozen profiles before PnL: range+volume produced `1,227/1,399` events (`1,227.84/1,404.05` annualized), median `5`, p95 `8/9`; range-only produced `1,628/1,755`, median `6/7`, p95 `10/11`. Receipt `mcl_compression_liquidity_release_census_rejection.json` closes efficiency/range/volume/context/refractory rescue. V30 preregistration `mcl_prior_session_boundary_auction_census_preregistration.json` / evaluator `93a98796…` instead freezes immutable prior-session CL/MCL highs/lows, first joint excursion on each side, and exactly one next-bar acceptance/failure verdict; each side is consumed once for maximum two events/session. Count proof precedes outcomes; no news, order, capital, or XSP/Gold mutation |
 | E-416 | outcome-blind V30 count proof `eaa5851d…` advanced the prior-session auction with `213/201` discovery/validation events (`213.15/201.73` annualized), active-session fractions `74.81%/73.15%`, median `1`, p95/max `2`, up/down `114/99` and `105/96`, acceptance/failure `159/54` and `156/45`, and high/low sides `118/95` and `106/95`; zero forward outcomes opened. Receipt `mcl_prior_session_boundary_auction_census_receipt.json` binds preregistration/evaluator/result `e34fc721…/93a98796…/eaa5851d…`. V31 preregistration `mcl_prior_session_boundary_auction_lifecycle_preregistration.json` / evaluator `ca5b784c…` freezes exactly four branch-aware semantic owners—state only, structural invalidation, failed-auction profit memory, or both—under next-open execution, opposite-verdict reversal, `16:55 ET` flat, and exact `$3.52/$5.52` costs. Discovery may select one owner; only it may open validation. No news, order, capital, or XSP/Gold mutation |
+| E-417 | V31 lifecycle `345e9f70…` rejected every frozen owner in discovery, leaving validation unopened: state only `-$2,632.68/209`, structural `-$1,345.76/213`, failed-auction memory `-$2,543.70/210`, and structural+memory `-$1,367.26/213`; stress losses were `-$1,772` to `-$3,051`, and both directions/branches lost in every cell. Receipt `mcl_prior_session_boundary_auction_lifecycle_rejection.json` closes textbook acceptance-follow/failure-fade plus stop/memory interactions. Discovery-only categorical side anatomy `fb7039bf…` found a distinct asymmetry: exact high-side verdict inversion under state ownership earned `+$2,357.64/+$2,121.64` stress over `118` trades, PF `1.541`, DD `$838.16`, PnL/DD `2.813`, `10/13` positive months, and positive transformed directions/branches; exact low-side textbook stress was `-$120.40`. V32 preregistration `mcl_prior_high_absorption_validation_preregistration.json` / evaluator `c7c2506f…` freezes only that high-absorption component and exact textbook control before opening validation. A pass permits one later flat-only V18 composition preregistration, never a standalone crown; no order, capital, or XSP/Gold mutation |
 
 ### Decision anchors
 

@@ -1,0 +1,67 @@
+{
+  "schema": "mcl.prior-high-absorption-validation-preregistration.v1",
+  "created_at_utc": "2026-08-03T23:24:31Z",
+  "authority": "research_component_only_validation_sealed_until_this_preregistration_no_orders_no_capital",
+  "name": "MCL Prior-High Absorption Component",
+  "hypothesis": "At the prior completed Globex-session high, a completed textbook acceptance is terminal upside absorption and a completed textbook failure is a continuation pullback; therefore invert the frozen V30 high-side verdict only. The prior-low side is excluded because its discovery stress expectancy was null, not direction-selected.",
+  "inputs": {
+    "cl_mcl_manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "census_result_sha256": "eaa5851d8411a633ee4083af9202e01aa19c63fae7561677554a953bc8caa2ed",
+    "v31_preregistration_sha256": "b39e36d871d4543a8ff3f6abb321b70faaa2d005af51ea643e4f7028ecb287cd",
+    "v31_evaluator_sha256": "ca5b784c644e348a2fd721477d78e0c72da1e8dacf7c5858424c0eac9e2734df",
+    "v31_result_sha256": "345e9f70c2833d810bee16b7258e712fd5168350e03390510ae0efb56dcae45f",
+    "discovery_anatomy_evaluator_sha256": "e4ec9244b695c737f67c6f7e65182786fd9f64252581d1c3d40d424cb925cee8",
+    "discovery_anatomy_result_sha256": "fb7039bf1658e170b797b47013c7b4072fc5bf0c26dbf5555f746d76dcb7e63b",
+    "validation_evaluator_sha256": "c7c2506fa0d3f1184af627dd42888b3c2a111d14d727f0442f407d55ed7129e4"
+  },
+  "development_reference": {
+    "period": "2024-08-04T22:00:00Z_to_2025-08-04T22:00:00Z_only",
+    "trades": 118,
+    "annualized_trades": 118.08082191780822,
+    "primary_net": 2357.64,
+    "stress_net": 2121.64,
+    "primary_profit_factor": 1.540793,
+    "primary_stress_pnl_dd": [2.812876, 2.483891],
+    "primary_stress_positive_months": [10, 10],
+    "primary_directions": {
+      "down": 2150.72,
+      "up": 206.92
+    },
+    "primary_branches": {
+      "acceptance": 2150.72,
+      "failure": 206.92
+    }
+  },
+  "frozen_profile": {
+    "events": "exact V30 prior-session events with boundary_side=high only",
+    "direction": "invert the exact frozen V30 verdict",
+    "entry": "one matched-suffix MCL contract at the frozen next one-minute open",
+    "same_direction": "retain incumbent without adding",
+    "opposite_direction": "close and reverse at the same next one-minute open",
+    "exit": "opposite high-side verdict, 16:55 ET prehalt flat, clock/contract reset, or dataset end",
+    "risk_owner": "state only; no stop, target, timeout, profit memory, low-side event, V18 interaction, news, or product-complex gate",
+    "primary_stress_round_trip_usd": [3.52, 5.52]
+  },
+  "validation_gates": {
+    "annualized_trades": ">=80 and <=180",
+    "primary_stress_net": ">0 / >0",
+    "primary_stress_profit_factor": ">=1.20 / >=1.10",
+    "primary_stress_pnl_to_intrabar_drawdown": ">=1.50 / >=1.00",
+    "primary_stress_positive_months": ">=8 / >=7",
+    "largest_positive_month_share": "<=0.30",
+    "cohorts": "both transformed directions and both source branches positive under primary and stress"
+  },
+  "full_component_gates": {
+    "discovery_and_validation": "each independently passes validation gates",
+    "annualized_trades": ">=80 and <=180",
+    "primary_stress_profit_factor": ">=1.25 / >=1.15",
+    "primary_stress_pnl_to_intrabar_drawdown": ">=2.00 / >=1.50",
+    "primary_stress_positive_months": ">=18 / >=16",
+    "largest_positive_month_share": "<=0.20",
+    "control": "candidate beats exact textbook high-only direction under primary and stress in discovery, validation, and full"
+  },
+  "control": "exact high-side V30 events and identical state-only holds without direction inversion",
+  "if_passes": "Preserve as a validated fast component only, then preregister one flat-only composition with unchanged V18. It cannot crown alone because expected cadence is below 160/year and missing July-2023 history, unseen evidence, runtime parity, native transport, margin, preview, allocation, restart, and safety remain mandatory.",
+  "if_fails": "Close prior-session high absorption and all side/branch direction-transform rescue; do not sweep boundary age, confirmation, side, clock, stop, timeout, or costs.",
+  "submitted_orders": 0
+}

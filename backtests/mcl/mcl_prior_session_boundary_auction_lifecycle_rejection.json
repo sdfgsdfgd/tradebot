@@ -1,0 +1,65 @@
+{
+  "schema": "mcl.prior-session-boundary-auction-lifecycle-rejection.v1",
+  "recorded_at_utc": "2026-08-03T23:23:11Z",
+  "authority": "research_only_validation_unopened_no_orders_no_capital",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "census_sha256": "eaa5851d8411a633ee4083af9202e01aa19c63fae7561677554a953bc8caa2ed",
+    "preregistration_sha256": "b39e36d871d4543a8ff3f6abb321b70faaa2d005af51ea643e4f7028ecb287cd",
+    "evaluator_sha256": "ca5b784c644e348a2fd721477d78e0c72da1e8dacf7c5858424c0eac9e2734df",
+    "result_sha256": "345e9f70c2833d810bee16b7258e712fd5168350e03390510ae0efb56dcae45f"
+  },
+  "discovery": [
+    {
+      "owner": "state_only",
+      "trades": 209,
+      "primary_net": -2632.68,
+      "stress_net": -3050.68,
+      "primary_profit_factor": 0.753232,
+      "primary_intrabar_drawdown": 4185.84,
+      "primary_positive_months": 4
+    },
+    {
+      "owner": "structural",
+      "trades": 213,
+      "primary_net": -1345.76,
+      "stress_net": -1771.76,
+      "primary_profit_factor": 0.599209,
+      "primary_intrabar_drawdown": 1475.72,
+      "primary_positive_months": 3
+    },
+    {
+      "owner": "failure_profit_memory",
+      "trades": 210,
+      "primary_net": -2543.70,
+      "stress_net": -2963.70,
+      "primary_profit_factor": 0.741019,
+      "primary_intrabar_drawdown": 4055.36,
+      "primary_positive_months": 4
+    },
+    {
+      "owner": "structural_failure_profit_memory",
+      "trades": 213,
+      "primary_net": -1367.26,
+      "stress_net": -1793.26,
+      "primary_profit_factor": 0.571746,
+      "primary_intrabar_drawdown": 1497.22,
+      "primary_positive_months": 2
+    }
+  ],
+  "anatomy": {
+    "state_only_high_side_primary_stress": [-2900.80, -3130.80],
+    "state_only_low_side_primary_stress": [268.12, 80.12],
+    "all_owners_and_directions_lost_primary": true,
+    "all_owners_and_branches_lost_primary": true
+  },
+  "validation_opened": false,
+  "closed_families": [
+    "textbook_acceptance_follow_failure_fade",
+    "structural_boundary_rescue",
+    "failed_auction_profit_memory_rescue",
+    "semantic_owner_interaction_rescue"
+  ],
+  "verdict": "REJECT",
+  "submitted_orders": 0
+}
