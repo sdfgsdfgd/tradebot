@@ -1044,6 +1044,16 @@ and stable bootstrap evidence. Neither may be refactored into looking mature.
     completed slow-auction origin, or state-only ownership—under evaluator
     `4eda24e0…` / preregistration `86307e1e…`. Discovery chooses at most one
     owner by stress then primary PnL/DD; only that owner may open validation.
+    V23 rejected all three owners in discovery without opening validation:
+    trigger-extreme `-$2,806.92/696`, slow-origin `-$1,638.12/331`, and
+    state-only `-$1,822.08/704`; both directions and branches were negative.
+    Standalone product-complex direction and numeric lifecycle rescue are closed.
+    V24 now asks one narrower outcome-blind question: after V18 causally banks a
+    failed-auction profit-memory exit, does the first same-direction `crack_120m`
+    transition in the same Globex session and before the next raw CL turn form a
+    sufficiently broad one-reentry cohort? Evaluator `067dafd2…` binds exact
+    same-suffix/next-open/maintenance identity and may count only; no forward
+    PnL, hold, stop, target, direction, or validation-selected rescue.
     Missing July-2023–August-2024 remains a hard crown blocker; no quota,
     validation-selected cell, order, or capital authority.
 
@@ -1378,6 +1388,7 @@ and
 | E-406 | the IBKR-only RB/HO product-complex tape completed all `25` dated months with zero missing files, SHA/row mismatches, or orders; frozen manifest is `d81a4bcf…`. Outcome-blind V18 lead census `a61b7d1…` rejected routing before PnL: only `15` events survived (`7/8` discovery/validation, `8/7` up/down, `13` fresh) versus floors `30` total, `10` per period, and `90%` freshness. Receipt `mcl_product_complex_lead_census_rejection.json`; broad classifications remain nonselectable and their PnL was never read |
 | E-407 | outcome-blind continuous product-pulse census `d42d1c8…` mapped `137,430/139,937` completed bars and found `125,000` fresh two-book observations, but all eight outright/crack profiles were structurally hyperactive. The least-active `crack_epoch_flip` still produced `3,110/3,054` annualized events, median `12`, p95 `18`; outright/fast profiles reached `5,909–26,571/year`. Every cell failed the frozen `1–3` median / `<=6` p95 law before PnL. Receipt `mcl_continuous_product_pulse_cadence_rejection.json` closes overlapping pulse and quota rescue. Preregistration `mcl_slow_product_auction_census_preregistration.json` / evaluator `1b934eb5…` now freezes non-overlapping `30/60/120m` Globex product/crack epochs and the first aligned `5m` CL+MCL trigger; outcomes remain unopened |
 | E-408 | outcome-blind slow-auction census `3dbb7384…` selected `crack_120m` by the frozen count-only order before any PnL: `709/699` discovery/validation triggers (`709.49/701.52` annualized), active-session fractions `96.12%/98.44%`, median `3`, p95 `5`, and balanced up/down plus acceptance/failure coverage in both periods. All `1,408` trigger clocks are unique and `85.24%` of slow blocks passed the frozen two-book freshness law. Preregistration `mcl_slow_product_auction_lifecycle_preregistration.json` (`86307e1e…`) / evaluator `4eda24e0…` now bind next-open same-suffix MCL execution, `$3.52/$5.52` costs, maintenance/roll-flat laws, and exactly three semantic risk owners. Discovery may select at most one owner; only that frozen owner may open validation. Missing July-2023 history and unseen/runtime/transport proof remain mandatory; no order, capital, or XSP/Gold mutation |
+| E-409 | V23 standalone slow-auction lifecycle `f7b86eac…` rejected all frozen semantic risk owners in discovery, so validation remained unopened: completed trigger extreme `-$2,806.92/696` (`-$4,198.92` stress, PF `.612`, `1/13` positive months), slow-auction origin `-$1,638.12/331` (`-$2,300.12` stress, PF `.396`, `2/13`), and state-only `-$1,822.08/704` (`-$3,230.08` stress, PF `.896`, `5/13`). Both directions and both branches were negative in every cell. Receipt `mcl_slow_product_auction_lifecycle_rejection.json` closes standalone product direction plus stop/timeout rescue. V24 preregistration `mcl_profit_memory_product_reentry_census_preregistration.json` / evaluator `067dafd2…` instead permits the first same-direction, same-session, same-suffix `crack_120m` trigger only after a causal V18 profit-memory exit and before the next raw CL turn; it may count eligibility only, with zero forward outcomes, orders, capital, or XSP/Gold mutation |
 
 ### Decision anchors
 

@@ -1,0 +1,57 @@
+{
+  "schema": "mcl.slow-product-auction-lifecycle-rejection.v1",
+  "recorded_at_utc": "2026-08-03T22:48:00Z",
+  "authority": "research_only_no_orders_no_capital",
+  "name": "MCL Slow Product Auction Lifecycle",
+  "inputs": {
+    "preregistration_sha256": "86307e1ef2733ef46f369f8c78b737fbbe960358587219c9dfc76e1cf57a735a",
+    "evaluator_sha256": "4eda24e03481b7e20013ee945786ca7b30661603b2afc927beab8aaa2a5facd2",
+    "result_sha256": "f7b86eac4e3a6dd41303fbabf581d78bd49d2162e270c35ee9239f8ac108dd0e",
+    "cl_mcl_manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "cadence_census_sha256": "3dbb73849ca8bad74c0337abc11a43034c9951e08f9df022ba61669f5e717c74"
+  },
+  "frozen_profile": "crack_120m",
+  "discovery": {
+    "fast_trigger_extreme": {
+      "trades": 696,
+      "annualized_trades": 696.4767123287671,
+      "primary_net": -2806.9200000000155,
+      "stress_net": -4198.9200000000155,
+      "profit_factor": 0.6121967394307805,
+      "positive_months": 1,
+      "up_net": -1296.5600000000084,
+      "down_net": -1510.3600000000072
+    },
+    "slow_auction_origin": {
+      "trades": 331,
+      "annualized_trades": 331.2267123287671,
+      "primary_net": -1638.1200000000124,
+      "stress_net": -2300.120000000012,
+      "profit_factor": 0.3960179927733916,
+      "positive_months": 2,
+      "up_net": -907.7600000000074,
+      "down_net": -730.360000000005
+    },
+    "state_only": {
+      "trades": 704,
+      "annualized_trades": 704.482191780822,
+      "primary_net": -1822.0800000000086,
+      "stress_net": -3230.080000000007,
+      "profit_factor": 0.8962872228281035,
+      "positive_months": 5,
+      "up_net": -1148.1600000000076,
+      "down_net": -673.920000000001
+    }
+  },
+  "selection": null,
+  "validation_opened": false,
+  "verdict": "REJECT",
+  "closed_families": [
+    "standalone crack_120m slow-auction direction",
+    "numeric structural-boundary rescue",
+    "timeout rescue",
+    "validation-selected risk owner"
+  ],
+  "surviving_role": "Product-complex transitions may be tested only as a separately preregistered context or re-entry clock for an independently positive owner; they have no standalone direction or capital authority.",
+  "submitted_orders": 0
+}

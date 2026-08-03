@@ -1,0 +1,34 @@
+{
+  "schema": "mcl.profit-memory-product-reentry-census-preregistration.v1",
+  "created_at_utc": "2026-08-03T22:49:55Z",
+  "authority": "outcome_blind_count_only_no_forward_pnl_no_orders_no_capital",
+  "name": "MCL Profit-Memory Product Re-entry Census",
+  "hypothesis": "After V18 has causally banked a failed-auction profit-memory exit, the first same-direction two-hour refinery-crack transition within the same Globex session and before the next raw CL turn may be a distinct financing event that lawfully re-arms one position without changing V18 direction discovery.",
+  "inputs": {
+    "cl_mcl_manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "v18_result_sha256": "b9c64409dcb9cd482427588bb0ae314d870d0350a2100aea6d3f0615ae2f4c15",
+    "slow_auction_census_sha256": "3dbb73849ca8bad74c0337abc11a43034c9951e08f9df022ba61669f5e717c74",
+    "evaluator_sha256": "067dafd22e0b84c5d26c35d83542085e9518d4ed9959092faa39977f2986d2b7"
+  },
+  "source_exit": "V18 basis_breadth failed-auction position closed causally by profit_memory; no PnL value or later path may affect eligibility",
+  "candidate_law": {
+    "clock": "strictly after the profit-memory exit and strictly before the next raw V18 CL turn",
+    "session": "same Globex trading session as the exit",
+    "product_event": "first crack_120m trigger whose direction matches the exited position",
+    "identity": "same dated MCL suffix at exit, trigger, and projected next-minute entry",
+    "entry_readiness": "the projected next one-minute MCL open must exist and lie outside the 16:25–18:00 ET admission blackout",
+    "multiplicity": "at most one candidate per profit-memory exit/raw-turn epoch",
+    "direction_authority": "unchanged V18 direction; product state may only re-arm it",
+    "news_authority": "none"
+  },
+  "eligibility": {
+    "minimum_total": 30,
+    "minimum_each_period": 12,
+    "minimum_each_direction": 10,
+    "minimum_each_product_branch": 5
+  },
+  "if_eligible": "Freeze one exact re-entry lifecycle and costs before reading any candidate forward PnL. The census may not select a hold time, stop, target, threshold, or direction profile.",
+  "if_ineligible": "Reject product-complex profit-memory re-entry before outcomes; do not widen clocks, cross sessions, ignore raw turns, or lower cohort floors.",
+  "forward_outcomes_opened": 0,
+  "submitted_orders": 0
+}
