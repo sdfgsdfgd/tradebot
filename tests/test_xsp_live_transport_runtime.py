@@ -37,6 +37,7 @@ from tradebot.research.xsp_live_transport_runtime import (
     xsp_v2_transport_risk_state,
     xsp_v2_transport_order_ref,
 )
+from tradebot.research.xsp_live_transport_state import xsp_v2_broker_snapshot
 from tradebot.research.xsp_opening_edge_v2 import (
     XSP_OPENING_EDGE_V2_VERSION,
 )
@@ -1354,6 +1355,48 @@ def test_live_recurrence_preserves_unrelated_holding_and_stays_flat(
             "quantity": 1.0,
         }
     ]
+
+
+def test_broker_resource_snapshot_converts_position_value_to_base_currency() -> None:
+    spyu = Stock("SPYU", "SMART", "USD")
+    spyu.conId = 1
+    spxu = Stock("SPXU", "SMART", "USD")
+    spxu.conId = 2
+    client = _LiveClient(spyu, spxu)
+    holding = client.portfolio[0]
+    holding.contract.currency = "USD"
+    holding.marketValue = 64.91
+
+    def account_value(tag, *, currency=None):
+        values = {
+            ("CashBalance", "USD"): (1_318.05, "USD"),
+            ("ExchangeRate", "USD"): (1.428, "USD"),
+            ("AvailableFunds", "AUD"): (2_073.54, "AUD"),
+            ("ExcessLiquidity", "AUD"): (2_078.35, "AUD"),
+        }
+        value, actual = values[(tag, currency)]
+        return value, actual, client.cash_observed_at
+
+    client.account_value = account_value
+    snapshot = asyncio.run(
+        xsp_v2_broker_snapshot(
+            client,
+            symbols=("UPRO", "SPXU"),
+            resource_base_currency="AUD",
+        )
+    )
+
+    assert snapshot["unrelated_positions"] == [
+        {
+            "symbol": "TQQQ",
+            "con_id": 72_539_702,
+            "sec_type": "STK",
+            "quantity": 1.0,
+            "currency": "USD",
+            "market_value_base_cents": 9_270,
+        }
+    ]
+    assert snapshot["account_resources"]["usd_to_base_rate_ppm"] == 1_428_000
 
 
 def test_live_recurrence_rejects_stale_account_cash_snapshot(

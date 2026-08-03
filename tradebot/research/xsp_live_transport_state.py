@@ -142,6 +142,24 @@ async def xsp_v2_broker_snapshot(
         or any(not symbol for symbol in normalized_symbols)
     ):
         raise ValueError("cash-pair symbols are invalid")
+    base = str(resource_base_currency or "").upper()
+    rates: dict[str, float] = {base: 1.0} if base else {}
+
+    def base_rate(currency: str) -> float:
+        normalized = str(currency or "").upper()
+        if not base or not normalized:
+            raise ValueError("portfolio position currency is unavailable")
+        if normalized not in rates:
+            value, actual, _updated = client.account_value(
+                "ExchangeRate", currency=normalized
+            )
+            if str(actual or "").upper() != normalized:
+                raise ValueError(f"fresh {normalized}/{base} exchange rate is unavailable")
+            rates[normalized] = _number(
+                value, name=f"{normalized}/{base} exchange rate"
+            )
+        return rates[normalized]
+
     positions = {symbol: 0.0 for symbol in normalized_symbols}
     account_positions = []
     unrelated_positions = []
@@ -159,6 +177,8 @@ async def xsp_v2_broker_snapshot(
             "quantity": quantity,
         }
         if resource_base_currency is not None:
+            currency = str(getattr(contract, "currency", "") or "").upper()
+            row["currency"] = currency
             row["market_value_base_cents"] = math.ceil(
                 abs(
                     _number(
@@ -166,6 +186,7 @@ async def xsp_v2_broker_snapshot(
                         name="broker portfolio market value",
                     )
                 )
+                * base_rate(currency)
                 * 100
             )
             account_positions.append(dict(row))
@@ -203,7 +224,6 @@ async def xsp_v2_broker_snapshot(
         "open_orders": open_orders,
     }
     if resource_base_currency is not None:
-        base = str(resource_base_currency or "").upper()
         if not base:
             raise ValueError("capital resource base currency is empty")
 
@@ -213,18 +233,14 @@ async def xsp_v2_broker_snapshot(
                 raise ValueError(f"fresh {tag} {base} is unavailable")
             return math.floor(_number(value, name=f"{tag} {base}") * 100)
 
-        rate, rate_currency, _updated = client.account_value(
-            "ExchangeRate", currency="USD"
-        )
-        if str(rate_currency or "").upper() != "USD":
-            raise ValueError("fresh USD/base exchange rate is unavailable")
+        rate = base_rate("USD")
         snapshot["account_positions"] = account_positions
         snapshot["account_resources"] = {
             "base_currency": base,
             "available_funds_base_cents": account_cents("AvailableFunds"),
             "excess_liquidity_base_cents": account_cents("ExcessLiquidity"),
             "usd_to_base_rate_ppm": math.ceil(
-                _number(rate, name="USD/base exchange rate") * 1_000_000
+                rate * 1_000_000
             ),
         }
     return snapshot
