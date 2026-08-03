@@ -1,0 +1,65 @@
+{
+  "schema": "mcl.two-speed-auction-relay-preregistration.v19",
+  "frozen_at_utc": "2026-08-03T21:33:58Z",
+  "authority": "adaptive_posthoc_development_only_no_unseen_validation_no_orders_no_capital",
+  "supersedes": "mcl.two-speed-auction-relay-preregistration.v18",
+  "candidate": {
+    "name": "MCL Crowded-Transport One-Hour Capture",
+    "base": "v18 dominant-book transport-acceptance router unchanged",
+    "change": "give only causally elevated micro-participation admissions a maximum one-hour executable-bar lifetime",
+    "hypothesis": "when MCL barrel-equivalent participation is simultaneously elevated versus its causal one-hour and six-hour baselines, the executable micro book is crowded: direction remains valid briefly, but persistence decays before v18's next raw-turn exit"
+  },
+  "causal_seed": {
+    "structure_anatomy_evaluator_sha256": "2e69a6506f454ed0ccca3222df79fd3847aefad1ea98930b78a91108f67bef4c",
+    "structure_anatomy_result_sha256": "bc8fcba7eb1fdfe42d94433565426d8b20074c6474d9524dfb34862150b2f2d4",
+    "crowded_trades": 111,
+    "crowded_discovery_validation_primary_usd": [146.99, -99.96],
+    "crowded_primary_stress_usd": [47.03, -174.97],
+    "crowded_profit_memory_vs_raw_turn_exit_usd": [524.35, -518.80]
+  },
+  "frozen_signal_direction_and_risk": {
+    "engine_and_router": "v18 exact CL discovery, MCL confirmation, basis-velocity route, and lead-breadth profile",
+    "failed_auction_profit_memory": "v18 exact 0.5 percent activation and 25 percent running-MFE retention; it may exit before the capture clock",
+    "roll_and_costs": "v18 exact dual-volume roll, flat-until-fresh-turn law, and 3.52/5.52 USD round-trip costs",
+    "admission_and_direction": "unchanged; crowded transport cannot veto, invert, add, or size a trade"
+  },
+  "crowded_transport_state": {
+    "volume_share": "100 times MCL contracts divided by 1000 times CL contracts plus 100 times MCL contracts on the completed raw-turn five-minute bar",
+    "fast_baseline": "median of the previous 12 completed contiguous five-minute shares, excluding the current bar",
+    "slow_baseline": "median of the previous 72 completed contiguous five-minute shares, excluding the current bar",
+    "active": "current share is strictly above both baselines",
+    "insufficient_history": "not crowded; v18 lifecycle remains unchanged",
+    "reset": "clear both baselines on contract roll or tape discontinuity"
+  },
+  "declared_lifecycles": {
+    "primary_60": "close a still-open crowded position at the open after 60 completed executable one-minute bars; existing profit-memory, raw-turn, and roll exits retain precedence",
+    "neighbour_30": "same law after 30 completed executable one-minute bars",
+    "neighbour_120": "same law after 120 completed executable one-minute bars",
+    "noncrowded": "unchanged v18 lifecycle"
+  },
+  "controls": [
+    "unchanged v18",
+    "unchanged v15",
+    "MCL-only signal owner",
+    "fixed-five-session roll",
+    "directionally inverted same holds"
+  ],
+  "proof": {
+    "minimum_trades_per_year": 160,
+    "positive_primary_and_stress_each_available_year": true,
+    "annual_profit_factor_min": 1.1,
+    "full_profit_factor_min": 1.2,
+    "full_primary_net_to_intrabar_drawdown_min": 1.5,
+    "both_directions_and_both_branches_nonnegative": true,
+    "monthly_positive_pnl_concentration_max": 0.4,
+    "future_unseen_evidence_and_missing_first_year": "required before crown"
+  },
+  "selection_law": "the one-hour primary is chosen from the causal fast participation horizon before capture outcomes; 30/120-minute cells are semantic sensitivity neighbors and cannot replace it from exposed outcomes",
+  "prohibitions": [
+    "no volume-share, median, lookback, hold, profit-memory, basis, breadth, or parity threshold sweep",
+    "no abstention, direction inversion, daily quota, synthetic re-entry, target, or stop",
+    "no curve, calendar, session, ATR, or news interaction",
+    "no crown or live authority from exposed history"
+  ],
+  "submitted_orders": 0
+}

@@ -1,6 +1,6 @@
 {
   "schema": "mcl.auction-structure-residual-anatomy-receipt.v1",
-  "recorded_at_utc": "2026-08-03T21:35:00Z",
+  "recorded_at_utc": "2026-08-03T21:33:00Z",
   "authority": "posthoc_anatomy_only_no_selection_no_orders_no_capital",
   "identity": {
     "source_v18_result_sha256": "b9c64409dcb9cd482427588bb0ae314d870d0350a2100aea6d3f0615ae2f4c15",
