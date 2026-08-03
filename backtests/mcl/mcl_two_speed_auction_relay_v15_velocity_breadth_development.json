@@ -1,0 +1,81 @@
+{
+  "schema": "mcl.two-speed-auction-relay-v15-velocity-breadth-development.v1",
+  "recorded_at_utc": "2026-08-03T21:06:04Z",
+  "authority": "posthoc_development_only_no_unseen_validation_no_orders_no_capital",
+  "identity": {
+    "preregistration_sha256": "4a51e5b3a6aadc4d0a9ecd55b3e5cfc21f6cecc7a0eb93ceb5ae9feaabe8e7fe",
+    "evaluator_sha256": "819e340d056de2236f210705c5ad845cfaee70ee1bfe2c1fe880a11585afc281",
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "result_sha256": "cff58d78770cc22275d330a5238b682a686501666c0a300362efd6c424d17c74"
+  },
+  "primary_three_horizon_router": {
+    "full_trades": 338,
+    "discovery_annualized_trades": 167.11470151198918,
+    "validation_annualized_trades": 171.61767483928583,
+    "discovery_primary_stress_usd": [
+      509.66,
+      175.66
+    ],
+    "validation_primary_stress_usd": [
+      1455.83,
+      1113.83
+    ],
+    "full_primary_stress_usd": [
+      1965.49,
+      1289.49
+    ],
+    "full_profit_factor": 1.266229878580676,
+    "full_intrabar_drawdown_usd": 883.52,
+    "full_primary_net_to_drawdown": 2.2246129119883973,
+    "full_stress_net_to_drawdown": 1.2949937233240916,
+    "down_up_net_usd": [
+      598.43,
+      1367.06
+    ],
+    "continuation_failed_auction_net_usd": [
+      555.56,
+      1409.93
+    ],
+    "positive_months": 16,
+    "largest_positive_month_share": 0.20358242440153784,
+    "active_sessions": 258,
+    "median_p95_max_admissions_per_active_session": [
+      1,
+      2,
+      3
+    ]
+  },
+  "sensitivity": {
+    "two_horizon_full_primary_stress_usd": [
+      2259.49,
+      1583.49
+    ],
+    "two_horizon_full_profit_factor": 1.3101479712293402,
+    "two_horizon_full_net_to_drawdown": 2.557372781600861,
+    "four_horizon_full_primary_stress_usd": [
+      1253.99,
+      577.99
+    ],
+    "four_horizon_full_profit_factor": 1.1687257471623156,
+    "four_horizon_full_net_to_drawdown": 0.9715731242445719
+  },
+  "control": {
+    "unchanged_v13_full_primary_stress_usd": [
+      2073.49,
+      1397.49
+    ],
+    "unchanged_v13_full_intrabar_drawdown_usd": 1060.64,
+    "unchanged_v13_full_net_to_drawdown": 1.9549422989892775
+  },
+  "interpretation": "Raw-turn velocity breadth is a real direction-profile seam. The frozen three-horizon primary preserved cadence and after-stress positivity in both available years, changed validation continuation and down attribution from negative to positive, and improved primary PnL/DD from v13 1.955 to 2.225 while giving up 108 dollars of full primary net. The two-horizon sensitivity was stronger but cannot be selected from exposed outcomes; four horizons over-routed valid continuation.",
+  "verdict": "PRESERVE_STABILITY_DEVELOPMENT_REFERENCE_NOT_CROWN_ELIGIBLE",
+  "blockers": [
+    "the velocity breadth profile was derived from outcome-exposed v13 anatomy",
+    "the two-horizon neighbour cannot replace the frozen primary from exposed outcomes",
+    "IBKR cannot supply the July-2023 to August-2024 challenge year",
+    "full stressed PnL/DD is 1.295 and discovery failed-auction stress attribution remains negative",
+    "no unseen runtime, transport, capital, restart, or prospective profitability proof exists"
+  ],
+  "next_architecture": "Keep v13 failed-auction profit memory fixed and compare raw-turn versus maturation-time velocity breadth as one temporal financing decision; do not reopen numeric parity, retention, or stop families.",
+  "submitted_orders": 0
+}
