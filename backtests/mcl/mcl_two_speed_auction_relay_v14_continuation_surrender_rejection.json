@@ -1,0 +1,56 @@
+{
+  "schema": "mcl.two-speed-auction-relay-v14-continuation-surrender-rejection.v1",
+  "recorded_at_utc": "2026-08-03T20:58:42Z",
+  "authority": "posthoc_research_rejection_no_orders_no_capital",
+  "identity": {
+    "preregistration_sha256": "563a2d9c634dfbd458547282a88a64bfbe342d260cd204237a080d7838ed12a1",
+    "evaluator_sha256": "1fa755c8e4681383a0b8e3dac1200b1a413e01a690d89d83a68ea5f17400b316",
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "result_sha256": "321ba9a04270c5a7612f43e62875ba2f553cbad93533dd261103b8669149beb9"
+  },
+  "primary_prior_close_boundary": {
+    "full_trades": 338,
+    "discovery_primary_stress_usd": [
+      300.66,
+      -33.34
+    ],
+    "validation_primary_stress_usd": [
+      969.83,
+      627.83
+    ],
+    "full_primary_stress_usd": [
+      1270.49,
+      594.49
+    ],
+    "full_profit_factor": 1.2115973938590454,
+    "full_intrabar_drawdown_usd": 947.75,
+    "full_primary_net_to_drawdown": 1.3405328409390305,
+    "continuation_net_usd": -281.68,
+    "auction_surrender_exits": 77,
+    "auction_surrender_exit_net_usd": -824.04
+  },
+  "semantic_neighbours": {
+    "turn_open_discovery_stress_usd": -36.34,
+    "turn_open_full_primary_usd": 1272.49,
+    "opposite_extreme_discovery_stress_usd": -76.34,
+    "opposite_extreme_full_primary_usd": 1213.49
+  },
+  "control": {
+    "unchanged_v13_full_primary_stress_usd": [
+      2073.49,
+      1397.49
+    ],
+    "unchanged_v13_full_intrabar_drawdown_usd": 1060.64,
+    "origin_boundary_on_failed_auction_invalid_boundaries": 254
+  },
+  "interpretation": "All three causal auction-origin boundaries cut normal oil retests rather than distinguishing failed continuation. The primary converted discovery continuation from positive 753.56 to negative 21.44 and produced negative discovery stress. Its 77 structural exits lost 824.04 in both directions. The entire fixed-origin surrender family is closed; the result does not justify a wider numeric stop sweep.",
+  "verdict": "REJECT_FAMILY",
+  "closed_branches": [
+    "prior-close continuation surrender",
+    "raw-turn-open continuation surrender",
+    "raw-turn opposite-extreme continuation surrender",
+    "numeric widening or stop-distance rescue of these boundaries"
+  ],
+  "preserved_reference": "v13 failed-auction profit memory remains the strongest development reference",
+  "submitted_orders": 0
+}
