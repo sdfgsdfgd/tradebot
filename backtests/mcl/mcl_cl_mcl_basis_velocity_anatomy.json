@@ -1,0 +1,43 @@
+{
+  "schema": "mcl.cl-mcl-basis-velocity-anatomy-receipt.v1",
+  "recorded_at_utc": "2026-08-03T21:22:55Z",
+  "authority": "posthoc_anatomy_only_no_selection_no_orders_no_capital",
+  "identity": {
+    "source_v13_result_sha256": "41d0cf4636218626468412e0876915b0583c6d08e04c3b2c240fd11a636ab314",
+    "evaluator_sha256": "037245375b56705449696a0066e39a2632e9e6a0d77e3dab412cbdf50aafdf68",
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "result_sha256": "1ea87abfdf4a107e36ace60a1417abe4bb3cfda139ce6070f137eb345e3a6f3e"
+  },
+  "cohorts": {
+    "mcl_lags_cl": {
+      "trades": 37,
+      "follow_discovery_validation_full_usd": [-266.96, -247.28, -514.24],
+      "fade_discovery_validation_full_usd": [105.04, 148.72, 253.76]
+    },
+    "equal_move": {
+      "trades": 32,
+      "follow_discovery_validation_full_usd": [780.16, 243.20, 1023.36],
+      "fade_discovery_validation_full_usd": [-899.84, -348.80, -1248.64]
+    },
+    "mcl_leads_cl": {
+      "trades": 15,
+      "follow_discovery_validation_full_usd": [240.36, -228.16, 12.20],
+      "fade_discovery_validation_full_usd": [-289.64, 171.84, -117.80]
+    }
+  },
+  "declared_profile_proxy": {
+    "name": "lead_breadth",
+    "trades": 84,
+    "discovery_validation_full_usd": [1125.56, 575.76, 1701.32],
+    "down_up_usd": [345.08, 1356.24]
+  },
+  "interpretation": "Direction-signed MCL-minus-CL basis velocity is transport acceptance, not catch-up. A lagging executable MCL book rejects the dominant CL turn and should fade; an equal move confirms it and should follow; a leading MCL book is period-ambiguous and requires the preserved raw-turn velocity-breadth owner.",
+  "verdict": "OPEN_EXACT_LIFECYCLE_REPLAY_UNDER_PREREGISTRATION_V18",
+  "blockers": [
+    "all available history is outcome-exposed development data",
+    "the exact lifecycle, costs, drawdown, cadence, directions, branches, months, and controls have not yet been replayed",
+    "IBKR cannot supply the July-2023 to August-2024 challenge year",
+    "no unseen runtime, transport, capital, restart, or prospective profitability proof exists"
+  ],
+  "submitted_orders": 0
+}

@@ -1,0 +1,65 @@
+{
+  "schema": "mcl.two-speed-auction-relay-preregistration.v18",
+  "frozen_at_utc": "2026-08-03T21:22:55Z",
+  "authority": "adaptive_posthoc_development_only_no_unseen_validation_no_orders_no_capital",
+  "supersedes": "mcl.two-speed-auction-relay-preregistration.v17",
+  "candidate": {
+    "name": "MCL Dominant-Book Transport Acceptance Router",
+    "base": "v13 fixed three-tick parity elasticity and failed-auction profit memory, with v15 raw-turn three-horizon velocity breadth",
+    "change": "route only one-to-three-tick continuation responses from direction-signed completed-five-minute MCL-minus-CL basis velocity",
+    "hypothesis": "CL discovers the oil auction, but a trade is financed only when matched-month MCL accepts it: an MCL lag is executable-book refusal and should fade, equal movement is acceptance and should follow, while an MCL lead requires broad raw-turn velocity agreement"
+  },
+  "causal_seed": {
+    "anatomy_evaluator_sha256": "037245375b56705449696a0066e39a2632e9e6a0d77e3dab412cbdf50aafdf68",
+    "anatomy_result_sha256": "1ea87abfdf4a107e36ace60a1417abe4bb3cfda139ce6070f137eb345e3a6f3e",
+    "anatomy_receipt": "backtests/mcl/mcl_cl_mcl_basis_velocity_anatomy.json",
+    "lead_breadth_proxy_discovery_validation_full_usd": [1125.56, 575.76, 1701.32],
+    "lead_breadth_proxy_down_up_usd": [345.08, 1356.24]
+  },
+  "frozen_signal_and_lifecycle": {
+    "engine": "v13 exact macro CL engine and one completed five-minute maturation bar",
+    "matched_mcl_parity": "v13 exact raw-turn and maturation direction agreement",
+    "large_response": "responses above three ticks remain failed-auction fades",
+    "failed_auction_profit_memory": "v13 exact 0.5 percent activation and 25 percent running-MFE retention",
+    "roll_and_costs": "v13 exact dual-volume roll, flat-until-fresh-turn law, and 3.52/5.52 USD round-trip costs",
+    "admission": "every unchanged v13 admission remains an admission; only routed direction may differ"
+  },
+  "basis_velocity": {
+    "clock": "the completed raw-turn five-minute bar, using the prior completed five-minute close",
+    "contracts": "same-suffix matched-month CL discovery and MCL execution contracts",
+    "formula_ticks": "raw_direction * ((MCL close change) - (CL close change)) / 0.01",
+    "negative": "MCL lags CL; fade",
+    "zero": "MCL and CL move equally; follow",
+    "positive": "MCL leads CL; apply the declared lead profile"
+  },
+  "declared_profiles": {
+    "primary_lead_breadth": "when MCL leads, follow only if at least three raw-turn horizon velocities align with direction; otherwise fade",
+    "neighbour_lead_follow": "when MCL leads, always follow",
+    "neighbour_lead_fade": "when MCL leads, always fade"
+  },
+  "controls": [
+    "unchanged v15 raw-turn three-horizon velocity-breadth route",
+    "unchanged v13 parity-only route",
+    "MCL-only signal owner",
+    "fixed-five-session roll",
+    "directionally inverted same holds"
+  ],
+  "proof": {
+    "minimum_trades_per_year": 160,
+    "positive_primary_and_stress_each_available_year": true,
+    "annual_profit_factor_min": 1.1,
+    "full_profit_factor_min": 1.2,
+    "full_primary_net_to_intrabar_drawdown_min": 1.5,
+    "both_directions_and_both_branches_nonnegative": true,
+    "monthly_positive_pnl_concentration_max": 0.4,
+    "future_unseen_evidence_and_missing_first_year": "required before crown"
+  },
+  "selection_law": "primary_lead_breadth is frozen before exact lifecycle outcomes; lead_follow and lead_fade are sensitivity neighbors and cannot replace it from exposed outcomes",
+  "prohibitions": [
+    "no basis, parity, breadth, retention, ATR, stop, target, or timeout threshold sweep",
+    "no abstention, daily quota, synthetic re-entry, added delay, or changed hold",
+    "no session, direction, calendar, or news interaction",
+    "no crown or live authority from exposed history"
+  ],
+  "submitted_orders": 0
+}
