@@ -1,0 +1,64 @@
+{
+  "schema": "mcl.two-speed-auction-relay-preregistration.v13",
+  "frozen_at_utc": "2026-08-03T20:44:35Z",
+  "authority": "posthoc_development_only_no_unseen_validation_no_orders_no_capital",
+  "supersedes": "mcl.two-speed-auction-relay-preregistration.v12",
+  "candidate": {
+    "name": "MCL Failed-Auction Profit Memory",
+    "base": "the exposed v12 three-tick development reference",
+    "change": "add one causal profit-memory owner only to failed-auction reversals",
+    "hypothesis": "a valid oil-auction fade should not surrender a material favorable excursion while waiting for the slow macro turn to acknowledge exhaustion"
+  },
+  "causal_seed": {
+    "v12_receipt_sha256": "6040e778a5acfaf15f819eab8daf9b091c3ee3255ad6a83b86646c2e132dede2",
+    "three_tick_anatomy_evaluator_sha256": "73f7bd953a8efef091be300e5bbbc744507fb8be153287e09abcfe554f30e159",
+    "three_tick_anatomy_result_sha256": "06ac7d2c156b55487f3a7b8e4b0f6207f07fd65e949ff784973cd63ba8d9285f",
+    "drawdown_owner": "one 2026-04 failed-auction long reached +$260 MFE, then surrendered $2,007 from peak and closed -$1,750.52; the next largest giveback was $831"
+  },
+  "frozen_signal_and_route": {
+    "engine": "v12 exact macro CL engine",
+    "maturation": "v12 exact one completed five-minute bar",
+    "route": "follow raw-turn MCL responses at or below three ticks; fade responses above three ticks",
+    "roll": "flat until fresh post-roll turn",
+    "entry_costs": "unchanged"
+  },
+  "profit_memory": {
+    "scope": "failed_auction branch only",
+    "activation": "arm after a completed one-minute bar establishes favorable excursion of at least 0.5 percent of entry price",
+    "primary": "from the next bar onward, retain 25 percent of running MFE",
+    "neighbour_breakeven": "from the next bar onward, retain zero percent of MFE",
+    "neighbour_half_mfe": "from the next bar onward, retain 50 percent of running MFE",
+    "gap_law": "a stop crossed at the next bar open executes at the worse of open and stop",
+    "intrabar_law": "check the previously armed stop before updating MFE from the current bar; a same-bar high cannot create a hindsight stop",
+    "after_exit": "remain flat until the next raw macro turn; never synthesize re-entry"
+  },
+  "fixed_economics": {
+    "multiplier": 100,
+    "primary_round_trip_cost_usd": 3.52,
+    "stress_round_trip_cost_usd": 5.52
+  },
+  "proof": {
+    "minimum_trades_per_year": 160,
+    "positive_primary_and_stress_each_available_year": true,
+    "annual_profit_factor_min": 1.1,
+    "full_profit_factor_min": 1.2,
+    "full_net_to_intrabar_drawdown_min": 1.5,
+    "both_directions_and_both_branches_nonnegative": true,
+    "monthly_positive_pnl_concentration_max": 0.4,
+    "future_unseen_evidence_and_missing_first_year": "required before crown"
+  },
+  "controls": [
+    "v12 three-tick route without profit memory",
+    "profit memory applied to continuation as a falsification control",
+    "fixed-five-session roll",
+    "MCL-only signal owner"
+  ],
+  "prohibitions": [
+    "no activation sweep",
+    "no stop-loss, target, timeout, session, direction, volatility, calendar, or news interaction",
+    "no re-entry after trail",
+    "no daily quota",
+    "no crown or live authority from exposed history"
+  ],
+  "submitted_orders": 0
+}
