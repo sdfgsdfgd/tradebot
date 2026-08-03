@@ -1,0 +1,49 @@
+{
+  "schema": "mcl.two-speed-anchored-auction-relay-early-anatomy.v1",
+  "recorded_at_utc": "2026-08-03T18:48:17Z",
+  "authority": "research_only_no_orders_no_capital",
+  "preregistration_sha256": "be5e1031f4daf322151b44b1e0341d10f8b10a8101fcb5491b92ced28e3e4d25",
+  "evaluator_sha256": "cb7fbe0143fb5bf9223575e8bd24a714152f9c67c50c9029544a913c9aeda571",
+  "partial_result_sha256": "dc79cbe62fde597e18ab21b6643bd35e43e2ed986b87b1272df14016434cfa39",
+  "coverage": {
+    "contract_months": [
+      "U4",
+      "V4",
+      "X4"
+    ],
+    "common_rows": 77075,
+    "approximate_complete_sessions": 56
+  },
+  "best_declared_cell": {
+    "cell_id": "f45_p0.05_a2_v1.00",
+    "trades": 160,
+    "net_after_primary_cost_usd": -389.61844683722353,
+    "raw_net_before_friction_usd": 173.58155316277652,
+    "profit_factor": 0.6499406109639533,
+    "mean_hold_minutes": 13.1625,
+    "acceptance_net_usd": -145.94999999999726,
+    "failure_net_usd": -243.66844683722624,
+    "three_block_session_share": 0.9821428571428571
+  },
+  "structural_verdict": "REVISE_OPPORTUNITY_PERMISSION",
+  "reason": "Anchors stopped the rolling-range explosion but nearly every global block still matured, so block count rather than a genuine onset continued to own cadence. The family has positive raw expectancy but not enough to survive authentic friction.",
+  "causal_anatomy": {
+    "harmonized_width_definition": "opening width above 0.80 and at or below 1.00 times the prior same-block median, with formation efficiency at or below 0.25",
+    "harmonized_width_trades": 30,
+    "harmonized_width_net_usd": 110.56,
+    "harmonized_width_raw_usd": 216.16,
+    "harmonized_width_profit_factor": 2.208,
+    "monthly_net_usd": {
+      "2024-08": 50.00,
+      "2024-09": 11.46,
+      "2024-10": 49.10
+    },
+    "direction_net_usd": {
+      "down": 41.78,
+      "up": 68.78
+    },
+    "interpretation": "A moderately compressed, two-sided opening appears to preserve financing through both directions and all three observed months. The failure branch still loses; this is a successor hypothesis, not a promoted result."
+  },
+  "successor_constraint": "Permission must be decided from prior same-block opening history before the probe. Test a narrow harmony/expanded-balance neighbourhood and require a failed probe to rotate through opening VWAP with an opposite completed five-minute majority before reversal entry.",
+  "submitted_orders": 0
+}

@@ -1,0 +1,88 @@
+{
+  "schema": "mcl.two-speed-auction-relay-preregistration.v3",
+  "frozen_at_utc": "2026-08-03T18:48:17Z",
+  "authority": "research_only_no_orders_no_capital",
+  "supersedes": "mcl.two-speed-auction-relay-preregistration.v2",
+  "candidate": {
+    "name": "MCL Two-Speed Regime-Financed Auction Relay",
+    "fixed_base": "v2 f45_p0.05_a2_v1.00",
+    "signal_owner": "matched-month CL",
+    "transport_proxy": "matched-month MCL",
+    "news_authority": "annotation_only"
+  },
+  "pre_probe_permission": {
+    "history": "prior 20 completed openings for the same Asia, Europe, or U.S. block; abstain until five exist",
+    "harmony": "opening width is inside a narrow fraction of the prior same-block median and opening path efficiency is at most 0.25",
+    "expanded_balance": "opening width exceeds a narrow expansion multiple while opening path efficiency remains below a declared two-sidedness ceiling",
+    "blocked": "any opening in neither regime cannot create a probe or consume an opportunity"
+  },
+  "bounded_cells": {
+    "harmony_width_lower_exclusive": [
+      0.75,
+      0.80
+    ],
+    "harmony_width_upper_inclusive": [
+      1.00,
+      1.05
+    ],
+    "expanded_width_min_exclusive": [
+      1.15,
+      1.25
+    ],
+    "expanded_efficiency_max": [
+      0.20,
+      0.30
+    ],
+    "declared_cell_count": 16,
+    "ranking": "discovery eligibility first, then positive quarter count, worst quarter net, net/intrabar-DD, PF, and net; validation cannot select a cell"
+  },
+  "two_speeds": {
+    "acceptance": "retain v2 completion and MCL parity; target one opening width, stop 0.75 width, deep-reentry/opposite-majority/90-minute exits",
+    "failed_rotation": "within five minutes of the probe, require CL to cross the frozen opening VWAP, the completed five-minute majority to reverse, and MCL to reverse at least one tick from its probe extreme; enter toward the opposite opening boundary with the probe-extreme plus 0.10-width stop and 45-minute timeout",
+    "mutual_exclusion": "first matured decision consumes the eligible block; one position maximum"
+  },
+  "fixed_owners": {
+    "blocks_et": [
+      "18:00-02:00",
+      "02:00-08:00",
+      "08:00-16:25"
+    ],
+    "formation_minutes": 45,
+    "probe_width_fraction": 0.05,
+    "acceptance_closes": 2,
+    "acceptance_volume_ratio": 1.00,
+    "roll": "dual prior-session CL/MCL volume cross, forced three complete sessions before MCL expiry",
+    "costs_usd": {
+      "primary_round_trip": 3.52,
+      "stress_round_trip": 5.52
+    }
+  },
+  "proof_gates": {
+    "minimum_trades_per_complete_year": 160,
+    "positive_primary_and_stress_net_each_year": true,
+    "annual_profit_factor_min": 1.10,
+    "full_profit_factor_min": 1.20,
+    "full_net_to_intrabar_drawdown_min": 1.50,
+    "both_directions_nonnegative": true,
+    "both_speeds_nonnegative": true,
+    "monthly_positive_pnl_concentration_max": 0.40,
+    "three_block_session_share_max": 0.10,
+    "missing_july_2023_to_august_2024": "hard coronation blocker"
+  },
+  "controls": [
+    "MCL-only signal",
+    "MCL-only and fixed-five-session rolls",
+    "acceptance-only and failed-rotation-only attribution",
+    "same-hold direction inversion",
+    "immediate parameter neighbours"
+  ],
+  "prohibitions": [
+    "no news direction",
+    "no time-anchor or exit sweep",
+    "no daily quota",
+    "no live authority",
+    "no validation-selected cell",
+    "no crown without the missing first year"
+  ],
+  "submitted_orders": 0
+}
