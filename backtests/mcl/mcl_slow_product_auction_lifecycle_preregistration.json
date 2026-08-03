@@ -1,0 +1,81 @@
+{
+  "schema": "mcl.slow-product-auction-lifecycle-preregistration.v1",
+  "created_at_utc": "2026-08-03T22:44:28Z",
+  "authority": "research_only_no_orders_no_capital_validation_sealed_until_discovery_selection",
+  "name": "MCL Slow Product Auction Lifecycle",
+  "hypothesis": "A two-hour refinery-margin auction transition has usable MCL expectancy only when the same frozen technical trigger is coupled to a causally owned structural-risk boundary; choosing among three semantic boundaries on discovery and then opening one sealed validation owner tests that claim without threshold rescue.",
+  "inputs": {
+    "cl_mcl_manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "rb_ho_manifest_sha256": "d81a4bcfa889d31739583767af0feff3fe6bd8044cb843be65d95389f31f59ca",
+    "cadence_preregistration_sha256": "cf595866f76e5a620b6300d22da3c0ab3e51098fd8d4b49c258f7e3389c64ec6",
+    "cadence_census_sha256": "3dbb73849ca8bad74c0337abc11a43034c9951e08f9df022ba61669f5e717c74",
+    "stage1_owner_sha256": "a69fdb7b1e8c3e50e1ffc8533a6d492e813610ed0b28d6f90c0ee7b0c4bca7c4",
+    "stage18_transport_owner_sha256": "cf9277e623ed6849bcefc238e82e89f9d3ca4a49647228ab8048e9ff4324f0ef",
+    "evaluator_sha256": "4eda24e03481b7e20013ee945786ca7b30661603b2afc927beab8aaa2a5facd2"
+  },
+  "frozen_signal": {
+    "profile": "crack_120m",
+    "slow_owner": "completed non-overlapping two-hour Globex blocks in which both 42x RB-minus-CL and 42x HO-minus-CL moves agree in sign",
+    "state_transition": "retain the last nonzero slow direction; one opposite transition arms exactly one pending auction",
+    "fast_trigger": "first subsequent completed five-minute CL and same-suffix MCL move aligned with the pending direction",
+    "branch": "completed CL trend state labels acceptance when aligned and failed-auction reversal when opposed",
+    "discovery_events": 709,
+    "validation_events": 699,
+    "discovery_up_down": [362, 347],
+    "validation_up_down": [363, 336],
+    "discovery_acceptance_failure": [352, 357],
+    "validation_acceptance_failure": [356, 343],
+    "fresh_slow_block_fraction": 0.8523573200992556
+  },
+  "execution_law": {
+    "transport": "one matched-suffix MCL contract; CL discovers but never substitutes for MCL execution",
+    "entry": "next continuous one-minute MCL open after the completed five-minute trigger",
+    "same_direction": "retain the incumbent; no add and no reset",
+    "opposite_direction": "close and reverse at the same next one-minute MCL open",
+    "contract_or_clock_reset": "close at the last continuous MCL close, clear pending state, and never synthesize a reopen",
+    "maintenance": "close at the 16:55 ET MCL close; forbid new entry after 16:25 ET until 18:00 ET",
+    "stop_ordering": "after next-open entry, test the current one-minute range before MFE; a gap beyond a structural stop fills at the adverse opening price",
+    "costs": {
+      "multiplier": 100,
+      "primary_round_trip_usd": 3.52,
+      "stress_round_trip_usd": 5.52
+    }
+  },
+  "risk_owners_in_frozen_order": [
+    {
+      "id": "fast_trigger_extreme",
+      "boundary": "completed five-minute MCL trigger-bar low for a long or high for a short"
+    },
+    {
+      "id": "slow_auction_origin",
+      "boundary": "MCL close at the completed two-hour slow-auction transition"
+    },
+    {
+      "id": "state_only",
+      "boundary": "no structural stop; only opposite slow auction, maintenance, clock/contract reset, or dataset boundary exits"
+    }
+  ],
+  "windows": {
+    "discovery": "2024-08-04T22:00:00Z through 2025-08-04T22:00:00Z",
+    "validation": "2025-08-04T22:00:00Z through available tape end, sealed until one discovery owner is frozen",
+    "missing_challenge_prefix": "2023-07 through 2024-08 remains unavailable and blocks a crown"
+  },
+  "discovery_eligibility": {
+    "annualized_trades": ">160 and <=780",
+    "primary_and_stress_net": ">0",
+    "primary_profit_factor": ">=1.10",
+    "stress_profit_factor": ">=1.05",
+    "primary_pnl_to_intrabar_drawdown": ">=1.0",
+    "stress_pnl_to_intrabar_drawdown": ">=0.75",
+    "primary_positive_months": ">=8",
+    "stress_positive_months": ">=7",
+    "largest_positive_month_share": "<=0.35",
+    "cohorts": "both directions and both branches must each contain trades and be positive under primary and stress costs"
+  },
+  "selection_law": "Among discovery-eligible owners maximize stress PnL/DD, then primary PnL/DD, then minimize primary intrabar DD. Open validation and full-period PnL only for that one frozen owner; never inspect nonwinner validation outcomes.",
+  "validation_law": "The selected owner must independently satisfy every discovery eligibility gate on validation. Full available history must then reach primary PnL/DD >=1.5 and stress PnL/DD >=1.0.",
+  "control": "After selection only, invert the selected full-period directions with identical holding intervals and primary costs; the control cannot select or rescue an owner.",
+  "if_no_discovery_owner": "Reject this lifecycle family before validation and design a materially distinct oil-auction owner; do not rescue it with thresholds, timeouts, quotas, or opened validation outcomes.",
+  "if_development_passes": "Preserve as a development reference only. Missing July-2023 history, unseen prospective evidence, runtime parity, native transport, margin, preview, allocation, restart, and safety remain mandatory before any crown or capital authority.",
+  "submitted_orders": 0
+}
