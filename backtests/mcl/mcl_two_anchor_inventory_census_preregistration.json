@@ -1,0 +1,45 @@
+{
+  "schema": "mcl.two-anchor-inventory-auction-census-preregistration.v1",
+  "created_at_utc": "2026-08-03T23:29:23Z",
+  "authority": "outcome_blind_count_only_no_forward_pnl_no_orders_no_capital",
+  "name": "MCL Two-Anchor Inventory Auction Relay",
+  "hypothesis": "The first completed CL/MCL auction around Europe and United States liquidity transfer is more causally stable than an all-session boundary: each anchor compares its first joint excursion with only the inventory accumulated before that anchor, then records exactly one next-bar acceptance or failure verdict.",
+  "inputs": {
+    "cl_mcl_manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "evaluator_sha256": "4d0b75899635426aa75427329c292b730a6a5baa947bfe5497f48956193bd450"
+  },
+  "anchors": {
+    "europe": {
+      "reference": "current Globex session through the last completed five-minute bar before 08:00 Europe/London, DST-aware",
+      "trigger": "first joint CL/MCL close outside that range from 08:05 through 10:00 Europe/London"
+    },
+    "us": {
+      "reference": "current Globex session through the last completed five-minute bar before 09:00 America/New_York",
+      "trigger": "first joint CL/MCL close outside that range from 09:05 through 10:15 America/New_York"
+    }
+  },
+  "verdict": "The immediately next completed five-minute CL/MCL bar must jointly remain outside for acceptance or jointly return inside for failure; disagreement consumes the anchor without a signal.",
+  "direction": "textbook auction control: acceptance follows the boundary side and failure fades it",
+  "execution_projection": "exact next one-minute matched-suffix MCL open; count proof records no fill or PnL",
+  "frequency_law": "maximum one event per anchor and two per Globex session; no quota, second excursion, delayed search, threshold, or missing-event replacement",
+  "eligibility_each_period": {
+    "annualized_events": ">260 and <=520",
+    "directions": ">=80 up and >=80 down",
+    "branches": ">=50 acceptance and >=50 failure",
+    "anchors": ">=80 Europe and >=80 US",
+    "sides": ">=80 high and >=80 low",
+    "active_session_fraction": ">=0.70",
+    "session_distribution": "median 1-2, p95 <=2, maximum <=2"
+  },
+  "if_eligible": "Freeze one compact lifecycle preregistration before opening any forward return, MFE, MAE, or PnL.",
+  "if_ineligible": "Reject the two-anchor relay before outcomes; do not widen clocks, reuse an anchor, alter boundaries, add delayed triggers, or lower the cadence floor.",
+  "closed_interactions": [
+    "news_direction",
+    "product_complex_direction",
+    "prior-session high inversion",
+    "opening-range threshold sweep",
+    "outcome-selected Europe or US anchor"
+  ],
+  "forward_outcomes_opened": 0,
+  "submitted_orders": 0
+}

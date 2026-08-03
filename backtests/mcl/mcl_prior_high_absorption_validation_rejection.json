@@ -1,0 +1,53 @@
+{
+  "schema": "mcl.prior-high-absorption-validation-rejection.v1",
+  "recorded_at_utc": "2026-08-03T23:27:00Z",
+  "authority": "research_only_no_orders_no_capital",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "census_sha256": "eaa5851d8411a633ee4083af9202e01aa19c63fae7561677554a953bc8caa2ed",
+    "preregistration_sha256": "81d8dcca257c05de058c80c8fd35cc48d82b0d2b2dc6344fe3b1ccea0636da05",
+    "evaluator_sha256": "c7c2506fa0d3f1184af627dd42888b3c2a111d14d727f0442f407d55ed7129e4",
+    "result_sha256": "3faa088556b2de9e1b39199ed55d721deb3685fa8a5411c7d5c297bb03f2168d"
+  },
+  "discovery": {
+    "trades": 118,
+    "annualized_trades": 118.080822,
+    "primary_net": 2357.64,
+    "stress_net": 2121.64,
+    "primary_profit_factor": 1.540793,
+    "primary_intrabar_drawdown": 838.16,
+    "primary_pnl_dd": 2.812876,
+    "primary_positive_months": 10
+  },
+  "validation": {
+    "trades": 106,
+    "annualized_trades": 106.382886,
+    "primary_net": -1730.12,
+    "stress_net": -1942.12,
+    "primary_profit_factor": 0.834992,
+    "primary_intrabar_drawdown": 4238.40,
+    "primary_pnl_dd": -0.408201,
+    "primary_positive_months": 5,
+    "directions": {
+      "down": -687.16,
+      "up": -1042.96
+    },
+    "branches": {
+      "acceptance": -687.16,
+      "failure": -1042.96
+    }
+  },
+  "textbook_high_only_control": {
+    "discovery_primary_stress": [-3188.36, -3424.36],
+    "validation_primary_stress": [983.88, 771.88]
+  },
+  "finding": "Prior-high direction semantics reversed across the two available years: the discovery-winning inversion failed both directions and branches in validation while the frozen textbook control changed from sharply negative discovery to positive validation.",
+  "closed_families": [
+    "static_prior_high_inversion",
+    "static_prior_high_textbook_direction",
+    "boundary_side_only_direction_router",
+    "side_direction_threshold_rescue"
+  ],
+  "verdict": "REJECT",
+  "submitted_orders": 0
+}
