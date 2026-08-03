@@ -288,6 +288,33 @@ def _position_mapping(value: object) -> dict[str, float]:
     return positions
 
 
+def _owned_broker_state(
+    sleeve: Mapping[str, object], broker: Mapping[str, object]
+) -> tuple[dict[str, float], list[object]]:
+    """Project account state onto one capital sleeve's declared instruments."""
+
+    positions = _position_mapping(broker.get("positions"))
+    raw_orders = broker.get("open_orders")
+    orders = list(raw_orders) if isinstance(raw_orders, list) else []
+    raw_symbols = sleeve.get("position_symbols")
+    if not isinstance(raw_symbols, Sequence) or isinstance(raw_symbols, (str, bytes)):
+        return positions, orders
+    symbols = sorted({str(symbol or "").strip().upper() for symbol in raw_symbols})
+    if not symbols or any(not symbol for symbol in symbols):
+        raise ValueError("capital sleeve position ownership is invalid")
+    owned = set(symbols)
+    return (
+        {symbol: positions.get(symbol, 0.0) for symbol in symbols},
+        [
+            order
+            for order in orders
+            if not isinstance(order, Mapping)
+            or not str(order.get("symbol") or "").strip()
+            or str(order.get("symbol") or "").strip().upper() in owned
+        ],
+    )
+
+
 def _control_status(run: Mapping[str, object], action: str) -> dict[str, object]:
     normalized = str(action or "").upper()
     if normalized not in LIVE_RUN_CONTROL_ACTIONS:
@@ -492,10 +519,7 @@ class LiveRunCockpit:
             if broker is None and isinstance(selected_broker, Mapping):
                 broker = dict(selected_broker)
             broker = broker or {}
-            selected_positions = broker.get("positions")
-            positions = _position_mapping(selected_positions)
-            open_orders = broker.get("open_orders")
-            open_orders = list(open_orders) if isinstance(open_orders, list) else []
+            positions, open_orders = _owned_broker_state(sleeve, broker)
             timer = dict(self._unit_reader(binding.timer_unit))
             service = dict(self._unit_reader(binding.service_unit))
             pending = list(_pending_order_refs(records))

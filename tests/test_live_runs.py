@@ -9,7 +9,12 @@ from pathlib import Path
 import pytest
 
 from tradebot.live.capital import build_live_capital_plan
-from tradebot.live.runs import LiveRunBinding, LiveRunCockpit, read_systemd_user_unit
+from tradebot.live.runs import (
+    LiveRunBinding,
+    LiveRunCockpit,
+    _owned_broker_state,
+    read_systemd_user_unit,
+)
 from tradebot.research.live_graduation import (
     LIVE_GRADUATION_PREFIX_SCHEMA,
     publish_live_graduation_receipt,
@@ -239,6 +244,26 @@ def test_cockpit_projects_one_official_selected_run_without_broker_authority(
     assert run["controls"]["STOP"]["status"] == "ALLOW"
     assert run["controls"]["REPLACE"]["status"] == "HOLD"
     assert run["controls"]["REBALANCE"]["status"] == "HOLD"
+
+
+def test_sleeve_projection_excludes_unrelated_account_positions_and_orders() -> None:
+    positions, orders = _owned_broker_state(
+        {"position_symbols": ["1OZ"]},
+        {
+            "positions": {"TQQQ": 1, "1OZ": 0},
+            "open_orders": [
+                {"symbol": "TQQQ", "order_ref": "manual"},
+                {"symbol": "1OZ", "order_ref": "gold"},
+                {"order_ref": "unknown-symbol-must-fail-closed"},
+            ],
+        },
+    )
+
+    assert positions == {"1OZ": 0.0}
+    assert orders == [
+        {"symbol": "1OZ", "order_ref": "gold"},
+        {"order_ref": "unknown-symbol-must-fail-closed"},
+    ]
 
 
 def test_selection_drift_quarantines_only_its_allocated_run(tmp_path: Path) -> None:
