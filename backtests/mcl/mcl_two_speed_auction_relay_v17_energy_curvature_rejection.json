@@ -1,0 +1,62 @@
+{
+  "schema": "mcl.two-speed-auction-relay-v17-energy-curvature-rejection.v1",
+  "recorded_at_utc": "2026-08-03T21:18:28Z",
+  "authority": "adaptive_posthoc_research_rejection_no_orders_no_capital",
+  "identity": {
+    "preregistration_sha256": "083d4653d4511a7b5132f770f4a46e4458fec9cd2a7d638f2ef7f5367ab9fa44",
+    "evaluator_sha256": "a3f3f0b0daff74d7f1df0b35ea61c893c74e02828a4c3e803c0df0a53ba7ef86",
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "result_sha256": "c270fe6ad2e82e08a94fd118c7f02a13e4489ce80019e6ed329397ceccfa8d35"
+  },
+  "primary_acceleration": {
+    "full_trades": 338,
+    "discovery_primary_stress_usd": [
+      439.41,
+      105.41
+    ],
+    "validation_primary_stress_usd": [
+      1195.08,
+      853.08
+    ],
+    "full_primary_stress_usd": [
+      1634.49,
+      958.49
+    ],
+    "full_profit_factor": 1.2228355710187915,
+    "full_intrabar_drawdown_usd": 1096.47,
+    "full_primary_net_to_drawdown": 1.490683739637194,
+    "full_stress_net_to_drawdown": 0.6312084293710821,
+    "discovery_failed_auction_net_usd": -202.71,
+    "validation_continuation_net_usd": -8.40
+  },
+  "semantic_neighbours": {
+    "acceleration_or_breadth_full_primary_stress_usd": [
+      1791.49,
+      1115.49
+    ],
+    "acceleration_or_breadth_full_net_to_drawdown": 1.6338705117330978,
+    "acceleration_and_breadth_full_primary_stress_usd": [
+      1808.49,
+      1132.49
+    ],
+    "acceleration_and_breadth_full_net_to_drawdown": 1.5892246720036374,
+    "acceleration_and_breadth_discovery_stress_usd": -80.59
+  },
+  "preserved_v15": {
+    "full_primary_stress_usd": [
+      1965.49,
+      1289.49
+    ],
+    "full_intrabar_drawdown_usd": 883.52,
+    "full_net_to_drawdown": 2.2246129119883973
+  },
+  "interpretation": "ATR acceleration sign identifies a high-quality continuation subset, but rerouting every nonaccelerating response makes the failed-auction branch unstable and does not improve v15. OR/AND breadth interactions remain inferior and one loses under discovery stress. The energy-curvature family is closed as a primary router; positive acceleration may remain attribution only.",
+  "verdict": "REJECT_FAMILY",
+  "closed_branches": [
+    "ATR-acceleration-only continuation routing",
+    "ATR acceleration OR fixed velocity breadth",
+    "ATR acceleration AND fixed velocity breadth",
+    "numeric ATR acceleration, velocity, or ratio rescue"
+  ],
+  "submitted_orders": 0
+}
