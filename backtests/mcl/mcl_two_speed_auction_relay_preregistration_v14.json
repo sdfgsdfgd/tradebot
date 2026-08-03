@@ -1,0 +1,63 @@
+{
+  "schema": "mcl.two-speed-auction-relay-preregistration.v14",
+  "frozen_at_utc": "2026-08-03T20:53:40Z",
+  "authority": "posthoc_development_only_no_unseen_validation_no_orders_no_capital",
+  "supersedes": "mcl.two-speed-auction-relay-preregistration.v13",
+  "candidate": {
+    "name": "MCL Continuation Auction-Origin Surrender",
+    "base": "v13 fixed three-tick route and failed-auction profit memory",
+    "change": "add one causal structural invalidation boundary only to continuation positions",
+    "hypothesis": "an accepted small-response continuation ceases to be financed once matched MCL fully crosses back through the price origin of the raw-turn auction"
+  },
+  "causal_seed": {
+    "v13_receipt_sha256": "66370ca192bb63f966b636f5dae29a2f5d8e4c5b5e3213d7f8fab5af775e7891",
+    "v13_result_sha256": "41d0cf4636218626468412e0876915b0583c6d08e04c3b2c240fd11a636ab314",
+    "continuation_discovery_primary_usd": 753.56,
+    "continuation_validation_primary_usd": -232.24,
+    "failed_auction_full_primary_usd": 1552.17
+  },
+  "frozen_signal_and_failed_auction_owner": {
+    "engine": "v13 exact macro CL engine",
+    "maturation": "v13 exact one completed five-minute bar",
+    "route": "follow raw-turn MCL responses at or below three ticks; fade larger responses",
+    "failed_auction_exit": "v13 exact 0.5 percent activation and 25 percent running-MFE retention",
+    "roll": "flat until fresh post-roll turn",
+    "costs": "unchanged 3.52 primary and 5.52 stress round trip"
+  },
+  "continuation_surrender": {
+    "scope": "continuation branch only",
+    "primary_boundary": "the matched-MCL close immediately preceding the five-minute raw-turn bar",
+    "neighbour_turn_open": "the matched-MCL open of the raw-turn five-minute bar",
+    "neighbour_opposite_extreme": "the raw-turn five-minute low for a long or high for a short",
+    "validity": "the boundary must lie strictly on the risk side of the next-minute entry; otherwise no structural stop exists for that trade",
+    "trigger": "from entry onward, exit when a completed causal one-minute bar trades through the fixed boundary",
+    "gap_law": "execute at the worse of the one-minute open and the fixed boundary",
+    "after_exit": "remain flat until the next raw macro turn; never synthesize re-entry"
+  },
+  "controls": [
+    "unchanged v13 without continuation surrender",
+    "apply the primary origin boundary to failed-auction positions instead of continuation",
+    "fixed-five-session roll",
+    "MCL-only signal owner"
+  ],
+  "proof": {
+    "minimum_trades_per_year": 160,
+    "positive_primary_and_stress_each_available_year": true,
+    "annual_profit_factor_min": 1.1,
+    "full_profit_factor_min": 1.2,
+    "full_primary_net_to_intrabar_drawdown_min": 1.5,
+    "both_directions_and_both_branches_nonnegative": true,
+    "monthly_positive_pnl_concentration_max": 0.4,
+    "future_unseen_evidence_and_missing_first_year": "required before crown"
+  },
+  "selection_law": "auction-origin prior-close is the declared primary; semantic neighbours are sensitivity evidence only and cannot replace it from exposed outcomes",
+  "prohibitions": [
+    "no numeric stop-distance or threshold sweep",
+    "no change to parity routing or failed-auction profit memory",
+    "no target, timeout, session, direction, volatility, calendar, or news interaction",
+    "no re-entry after structural surrender",
+    "no daily quota",
+    "no crown or live authority from exposed history"
+  ],
+  "submitted_orders": 0
+}

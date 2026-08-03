@@ -970,6 +970,9 @@ and stable bootstrap evidence. Neither may be refactored into looking mature.
     positive overall, and zero/50% neighbors were locally coherent. Preserve it
     as the strongest development reference while designing a distinct
     continuation owner; do not reopen parity or profit-retention thresholds.
+    V14 freezes that owner as auction-origin surrender: continuation alone exits
+    if matched MCL fully crosses the raw turn's causal prior-close origin;
+    turn-open/opposite-extreme boundaries are semantic sensitivity neighbors.
     Missing July-2023–August-2024 remains a hard crown blocker; no quota,
     validation-selected cell, order, or capital authority.
 
