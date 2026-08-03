@@ -1,0 +1,134 @@
+{
+  "schema": "mcl.two-speed-auction-relay-preregistration.v1",
+  "frozen_at_utc": "2026-08-03T18:28:00Z",
+  "authority": "research_only_no_orders_no_capital",
+  "candidate": {
+    "name": "MCL Two-Speed Auction Relay",
+    "signal_owner": "matched-month CL completed bars",
+    "transport_proxy": "matched-month MCL next-bar execution",
+    "news_authority": "annotation_only",
+    "purpose": "one mutually exclusive auction state machine targeting ordinary qualified activity without a trade quota"
+  },
+  "causal_data": {
+    "source": "IBKR dated NYMEX CL and MCL futures",
+    "bar_size": "1 min",
+    "requested_start": "2024-08-03",
+    "requested_end": "2026-08-03",
+    "timestamp_semantics": "UTC-naive completed-bar close",
+    "session": "Sunday-Friday 18:00-17:00 America/New_York with the 17:00-18:00 maintenance halt excluded",
+    "common_clock": "exact timestamp inner join after matched-month selection",
+    "missing_challenge_period": "2023-07-01 through the first authentic August-2024 overlap remains a hard coronation blocker",
+    "prohibitions": [
+      "no opaque continuous-future substitutions",
+      "no forward-filled missing CL or MCL bar",
+      "no same-bar signal execution",
+      "no contract-month mismatch",
+      "no outcome-selected roll date"
+    ]
+  },
+  "contract_owner": {
+    "primary_roll": "at the next session boundary after both next-month CL and MCL prior-complete-session volume exceed the current month; force roll no later than three complete NYMEX sessions before MCL expiry",
+    "controls": [
+      "MCL-only prior-session volume cross with the same forced boundary",
+      "fixed five-complete-session pre-expiry roll"
+    ],
+    "invariants": [
+      "never revert to an earlier month after rolling",
+      "CL and MCL always use the same contract month",
+      "flatten and reset auction/indicator state at a contract roll",
+      "record selected conIds, local symbols, source hashes, and all mapping failures"
+    ]
+  },
+  "state_machine": {
+    "states": [
+      "BALANCE",
+      "PROBE_UP",
+      "PROBE_DOWN",
+      "ACCEPT_UP",
+      "ACCEPT_DOWN",
+      "FAIL_UP_TO_DOWN",
+      "FAIL_DOWN_TO_UP"
+    ],
+    "balance": "prior completed 60- or 90-minute CL range with path efficiency at or below 0.35 or 0.45; boundaries and session VWAP exclude the decision bar",
+    "probe": "CL trades beyond the frozen balance boundary by 0.05 or 0.10 of causal 60-minute true range",
+    "acceptance": "two or three consecutive completed one-minute CL closes remain beyond the frozen boundary, completed five-minute direction agrees, and exact-month MCL return agrees",
+    "failure": "within three or five completed one-minute bars after a probe, CL closes back inside the frozen boundary by at least 0.05 true range and exact-month MCL return agrees with reversal",
+    "mutual_exclusion": "a probe can mature into acceptance or failure once, never both; no overlapping position or pyramiding",
+    "entry": "next MCL one-minute open after the completed maturation bar",
+    "acceptance_exit": "first completed close back inside the balance boundary, opposite completed five-minute turn, 1.0 true-range adverse stop, or 60-minute timeout",
+    "failure_exit": "session VWAP touch, probe-extreme violation plus 0.10 true range, opposite completed five-minute turn, or 30-minute timeout",
+    "session_safety": "no entry after 16:25 ET and force flat by 16:55 ET; no position crosses the daily halt or a contract roll",
+    "daily_limit": "at most three new positions per NYMEX trading date; this is a risk ceiling, never a quota"
+  },
+  "bounded_cells": {
+    "primary_dimensions": {
+      "balance_minutes": [
+        60,
+        90
+      ],
+      "balance_efficiency_max": [
+        0.35,
+        0.45
+      ],
+      "probe_true_range_fraction": [
+        0.05,
+        0.10
+      ],
+      "acceptance_closes": [
+        2,
+        3
+      ],
+      "failure_window_minutes": [
+        3,
+        5
+      ]
+    },
+    "evaluation_law": "evaluate the 32 declared cells once; rank on the discovery slice without changing dimensions, then open the single winner and its immediate one-coordinate neighbours on validation",
+    "controls": [
+      "MCL-only signal and execution",
+      "acceptance branch only",
+      "failed-auction branch only",
+      "directionally inverted entries"
+    ]
+  },
+  "economics": {
+    "contract_multiplier": 100,
+    "tick_size": 0.01,
+    "tick_value_usd": 1.0,
+    "ibkr_commission_per_side_usd": 0.25,
+    "nymex_exchange_fee_per_side_usd": 0.50,
+    "regulatory_fee_per_side_usd": 0.01,
+    "primary_adverse_execution_ticks_per_side": 1,
+    "primary_round_trip_cost_usd": 3.52,
+    "stress_adverse_execution_ticks_per_side": 2,
+    "stress_round_trip_cost_usd": 5.52,
+    "execution_semantics": "next-bar MCL open moved adversely by the declared ticks plus explicit per-side fees; every forced flat and roll is costed"
+  },
+  "proof_windows": {
+    "discovery": "first complete year available after common-tape warmup, ending no later than 2025-08-03",
+    "validation": "subsequent untouched period through 2026-08-03",
+    "full_available": "all authentic common tape from August 2024 through 2026-08-03",
+    "future_blind_challenge": "July-2023-to-August-2024 archive, acquired without modifying the frozen candidate"
+  },
+  "gates": {
+    "minimum_trades_per_complete_year": 160,
+    "ordinary_activity_target": "approximately one to two qualified positions per active day without forced entries",
+    "annual_net_after_primary_cost": "positive in every complete available and future blind year",
+    "annual_profit_factor_min": 1.10,
+    "full_available_profit_factor_min": 1.20,
+    "full_available_net_to_max_drawdown_min": 1.50,
+    "stress_cost_net": "positive in each complete year",
+    "directionality": "full-period up and down attribution both nonnegative, with neither branch funding an otherwise losing system",
+    "branch_reliability": "acceptance and failure each report cadence, PnL, PF, MFE, MAE, and drawdown independently",
+    "concentration": "no single month may contribute more than 40 percent of positive full-period PnL",
+    "data_integrity": "zero unexplained common-clock gaps, contract mismatches, roll reversions, lookahead timestamps, or mapping failures",
+    "coronation": "forbidden until the July-2023 challenge, authentic broker preview/cost, runtime parity, capital allocation, restart, reconciliation, and safety gates all pass"
+  },
+  "reporting": [
+    "net PnL, PF, closed and intrabar DD, PnL/DD, trades/year, win rate, average hold, MFE, MAE and giveback",
+    "annual, monthly, direction, branch, NYMEX session-third, volatility-quartile, weekday and roll-neighbour attribution",
+    "CL-to-MCL parity, entry spread stress, missing bars, selected month and state transition census",
+    "TA-only baseline beside news-tagged cohorts; news cannot change these v1 decisions"
+  ],
+  "submitted_orders": 0
+}
