@@ -1,0 +1,26 @@
+[Unit]
+Description=Advance the non-submitting 1OZ gold prospective onset tape
+Wants=network-online.target
+Requires=tradebot-ib-gateway-tunnel.service
+After=network-online.target tradebot-ib-gateway-tunnel.service
+ConditionPathExists=%h/Desktop/py/tradebot/backtests/gold/one_oz_onset_tape_preregistration.json
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/Desktop/py/tradebot
+Environment=PATH=%h/.local/share/tradebot/venv/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONUNBUFFERED=1
+Environment=IBKR_HOST=127.0.0.1
+Environment=IBKR_PORT=4001
+Environment=IBKR_CLIENT_ID=3199
+Environment=IBKR_READONLY=1
+Environment=GOLD_ONSET_LEDGER=%h/.local/state/tradebot/research/gold_onset.jsonl
+ExecCondition=/usr/bin/test -x %h/.local/share/tradebot/venv/bin/python
+ExecStart=/usr/bin/env python3 -m tradebot.research.gold_onset_cli
+TimeoutStartSec=4min
+KillSignal=SIGTERM
+Nice=10
+IOSchedulingClass=idle
+PrivateTmp=true
+NoNewPrivileges=true
+UMask=0077

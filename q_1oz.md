@@ -13,8 +13,27 @@ realistic costs, both directions, useful cadence, stable neighbouring logic,
 concentration control, and drawdown that an indivisible one-ounce transport can
 actually survive.
 
-This is research-only. No selection, broker preview, allocation, service,
-profitability clock, order, or XSP mutation exists or is authorized.
+This is research-only. No selection, broker preview, allocation, profitability
+clock, order, or XSP mutation exists or is authorized. One canonical,
+non-submitting prospective onset observer is authorized; it has no direction,
+transport, capital, or order authority.
+
+## Working mandate through 18:00 AEST, 2026-08-03
+
+- Continue self-sufficient historical sharpening from Stage 22's exact residuals;
+  do not reopen rejected EMA/KAMA/router/threshold sweeps.
+- Target neutral-or-positive annual floors and stronger P&L/DD by identifying
+  causal stale compression, absent financing, shock transition, and ownership
+  failure across weak years with profitable modern/old controls.
+- Preregister every outcome-bearing mechanism before replay. No result may
+  weaken a frozen cost, cadence, concentration, direction, session, or DD gate.
+- Concurrently implement and arm the authorized 1OZ Prospective Onset Tape.
+  Prospective observations may inspire a later generation but cannot rewrite
+  this historical development sample.
+- At 18:00 AEST freeze the strongest lawful signal candidate or honest frontier,
+  all evidence identities, and remaining transport boundary. Transport proof,
+  durable commissioning, and graduation begin only afterward and must coexist
+  with Priority-Zero XSP and MCL work through the shared live architecture.
 
 ## Exact architecture under study
 
@@ -37,11 +56,20 @@ profitability clock, order, or XSP mutation exists or is authorized.
 
 ## Causal data boundary
 
-- XAUUSD H1/H4/D1 history: July 2015 onward; daily closes conservatively
-  normalized to `20:00 ET`.
+- XAUUSD H1/H4/D1 history: July 2015 onward. Broker contract details prove its
+  liquid/trading day is `18:00–17:00 ET`; D1 evidence is therefore normalized
+  centrally to `17:00 ET`, not the generic non-futures `20:00 ET` clock.
 - One provider-absent day, `2022-01-03`, remains absent; it was not synthesized.
 - GC history: September 2022 onward; cache begins February 2023.
 - Native 1OZ 30-minute history: January 2025 onward.
+- COMEX non-professional L1 became API-verified at `2026-08-03T02:03:48Z`:
+  both GC and 1OZ returned live `marketDataType=1`, bid/ask, sizes, and exchange
+  timestamps through a read-only client. In the fuller chain capture, GCZ6
+  carried volume `13,566` with a `$0.40` spread and 1OZZ6 volume `22,157` with
+  a `$0.25` spread. Nearest-expiry GCQ6 had volume `22` and a `$0.90` spread.
+  Therefore prospective parity must bind a shared contract month and explicit
+  basis using liquidity/freshness/spread evidence; generic nearest-expiry
+  selection is forbidden.
 - Causal macro attribution tape: adjusted UUP and TIP daily closes from August
   2015 through July 2026, normalized to completed `16:00 ET` bars. They have no
   signal authority.
@@ -77,6 +105,7 @@ profitability clock, order, or XSP mutation exists or is authorized.
 | 21 | Outcome-exposed causal UUP/TIP 5/21/63-day displacement, velocity, acceleration, and state-age anatomy | fresh 5-day mixed direction + mixed velocity at age one loses `−$99.39` across Years 2/4/7; adjacent ages are non-monotonic | anatomy only; freeze temporal uncertainty hypothesis |
 | 22 | Delay only that long cohort by one/two newly completed common UUP/TIP bars while H4/D1-up persists | both cells reach 8/10 positive years, retain cadence and DD, and improve weak years; both narrowly worsen top-five recent concentration | strongest stability reference; reject coronation under frozen gate |
 | 23 | Residual direction-relative macro anatomy after Stage 22 | total 5/21/63 UUP/TIP neutrality contains 15 old shorts, `−$88.79`, only Years 2/3/6 and none in recent/control years; Year-4 long residual has no equally clean macro signature | prospective cohort only; no historical rule test |
+| 24 | Stage-22 weak-year stale/volatility/path anatomy | Year-2-down + Year-4-up = `−$96.76`; 23 financed givebacks lose `−$279.49`, while 22 other trades earn `+$182.73`. Dual-low amplitude earns `+$59.37`; strict stale compression earns `+$55.24`; losses concentrate outside low amplitude | falsifies blunt low-vol/stale veto; isolate causal post-financing turbulent surrender |
 
 The XSP engine test reused only its portable causal core: normalized
 multihorizon slopes, slope velocities, coherence, ATR ratio/velocity/
@@ -282,6 +311,14 @@ extrapolation. The remaining Year-4 longs span supportive, adverse, and mixed
 macro states. No further historical UUP/TIP rule, horizon, vote, or wait sweep
 is authorized from these outcomes.
 
+Stage 24 then tested the user's stale/quiet-regime suspicion directly. It was a
+valuable falsification: low-amplitude and strict stale-compression trades were
+profitable inside the exact weak-year focus. The mutual failure is state
+ownership after financing in non-low-amplitude paths, not inability to find
+movement in quiet gold. Any successor must therefore react only to strictly
+prior financing plus a confirmed turbulent surrender interaction; it may not
+block quiet entries or use the outcome label `financed_giveback` as a feature.
+
 ## Native 1OZ transport gate
 
 Signal success is insufficient. Before selection:
@@ -313,16 +350,22 @@ we do not pretend fractional futures exist or borrow XSP's reserve.
    coronation because both neighbours miss concentration.
 3. `[DONE]` Stage-23 residual anatomy: preserve total cross-asset neutrality as
    a prospective short cohort only; no clean historical Year-4-long rule.
-4. `[WIP]` Specify the minimum prospective gold onset tape needed to test
-   technical-only versus macro/news-aware admission without contaminating the
-   historical development sample. Any observer/service change needs its own
-   architecture gate before implementation.
-5. `[TODO]` Run native 1OZ execution/roll/liquidity replay and derive the exact
+4. `[WIP]` Deploy the now locally proven canonical, non-submitting 1OZ onset tape:
+   Stage-12/22 counterfactuals, raw/proposed/admitted H4 state and gate,
+   expiry-aware XAUUSD/GC/1OZ parity, UUP/TIP 5/21/63 direction/velocity/
+   acceleration/age/freshness, GC news pressure/delta/velocity, and sealed
+   4h/12h/24h return/MFE/MAE/financing/giveback/reversal outcomes.
+5. `[DONE]` Stage-24 weak-year anatomy: blunt stale/low-vol gating is rejected;
+   financed giveback in turbulent/non-low-amplitude ownership is the exact seam.
+6. `[WIP]` Stage-25 reconstruct the strictly causal post-financing path across
+   weak-year losers and every profitable control; freeze at most a tiny one/two-
+   bar confirmed surrender interaction before replay. Never use outcome labels.
+7. `[TODO]` Run native 1OZ execution/roll/liquidity replay and derive the exact
    capital requirement.
-6. `[TODO]` Crown or reject the signal; if crowned, publish machine declaration,
+8. `[TODO]` Crown or reject the signal; if crowned, publish machine declaration,
    reproducible receipt, runtime parity, and non-submitting durable registration.
-7. `[BLOCKED]` Broker preview waits for signal/transport qualification and live
-   COMEX L1. Capital authority waits for an explicit later graduation boundary.
+9. `[BLOCKED]` Broker preview waits for signal/transport qualification; COMEX L1
+   is now live. Capital authority waits for an explicit later graduation boundary.
 
 ## Evidence identities
 
@@ -448,6 +491,16 @@ we do not pretend fractional futures exist or borrow XSP's reserve.
 - Stage-23 direction-relative down-side macro anatomy:
   `/tmp/gold-stage23-down-macro-anatomy-20260802.json`, SHA-256
   `66c1ea684b9afe724cd8d9bd5815ecb719c2962b37f37771d02092f4fa6bf1e3`.
+- Stage-24 stale/volatility/path anatomy:
+  `/tmp/gold-stage24-stale-regime-anatomy-20260803.json`, SHA-256
+  `e0d1befb7595f04906c6c9e5444120b521ee38f77b8a0e186c49d022324dc9f`.
+- Prospective onset preregistration:
+  `backtests/gold/one_oz_onset_tape_preregistration.json`, SHA-256
+  `697697843a82ad254ca39cb891032a6243ddcc8811919b0e3b0fbda43a8c10be`.
+- Local canonical onset smoke at `2026-08-03T02:27:40Z`: exact 00:00 UTC
+  XAUUSD/GC/1OZ source parity, shared December pair, one content-addressed
+  checkpoint, zero forecasts/results/orders; isolated ledger SHA-256
+  `396159147eb30facf34e65bb46faf7b92a66fabef92dd956f85f0c25d6a23b2b`.
 
 These `/tmp` artifacts are scratch evidence; this file preserves their decisive
 facts across context compaction. Promotion requires canonical repo receipts,

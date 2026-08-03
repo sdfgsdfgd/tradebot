@@ -135,7 +135,8 @@ def normalize_bars_to_close(
 
 
 def _daily_close_time_et(*, symbol: str, use_rth: bool) -> time:
-    if is_future_symbol(str(symbol or "").strip().upper()):
+    normalized = str(symbol or "").strip().upper()
+    if is_future_symbol(normalized) or normalized == "XAUUSD":
         return time(16, 0) if use_rth else time(17, 0)
     return time(16, 0) if use_rth else time(20, 0)
 

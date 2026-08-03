@@ -1,0 +1,56 @@
+{
+  "schema": "gold.1oz-prospective-onset-preregistration.v1",
+  "frozen_at_utc": "2026-08-03T02:12:00Z",
+  "prospective_start_after_utc": "2026-08-03T02:12:00Z",
+  "authority": "prospective_research_only_no_direction_no_transport_no_orders_no_capital",
+  "signal_clock": {
+    "owner": "XAUUSD midpoint",
+    "decision_bar": "completed 4 hour",
+    "hard_context": "completed 1 day EMA 21/50 direction aged at least 6 states",
+    "stage_12": "H4 EMA 8/21 cross plus 1 completed H4 confirmation and Stage-12 hard gate; high-contracting retention is attribution",
+    "stage_22": "Stage-12 plus 2 newly completed common UUP/TIP daily bars after fresh 5-session mixed direction and mixed velocity while H4/D1 up survives"
+  },
+  "exchange_parity": {
+    "symbols": ["GC", "1OZ"],
+    "market_data_type": 1,
+    "shared_contract_month_required": true,
+    "minimum_observed_volume_each": 100,
+    "maximum_spread_usd_each": 2.0,
+    "maximum_quote_age_seconds": 30,
+    "selector": "highest minimum pair volume then lowest combined spread",
+    "raw_basis_required": true,
+    "nearest_expiry_fallback": false
+  },
+  "macro_context": {
+    "symbols": ["UUP", "TIP"],
+    "horizons_sessions": [5, 21, 63],
+    "fields": ["direction", "velocity", "acceleration", "state_age", "freshness"],
+    "authority": "attribution_only"
+  },
+  "news_context": {
+    "symbol": "GC",
+    "fields": ["signed_pressure", "pressure_delta", "pressure_velocity_per_hour", "impact", "confidence", "change", "freshness"],
+    "authority": "attribution_only"
+  },
+  "outcomes": {
+    "horizons_hours": [4, 12, 24],
+    "sources": ["XAUUSD", "GC", "1OZ"],
+    "fields": ["return", "mfe", "mae", "financed", "giveback", "reversal"],
+    "one_oz_financing_usd": 2.32,
+    "settle_only_after_24h_complete": true
+  },
+  "cohorts": {
+    "stage_12_vs_stage_22": true,
+    "total_cross_asset_neutral_short": "down counterfactual while both UUP/TIP direction votes are mixed at 5, 21, and 63 sessions",
+    "matched_controls": "every other causally complete H4 decision checkpoint"
+  },
+  "integrity": {
+    "ledger": "one content-addressed append-only LiveCalibrationLedger",
+    "late_backfill": "forbidden",
+    "duplicate_identity": "idempotent",
+    "orders": 0,
+    "selection": false,
+    "capital_sleeve": "gold-research-only",
+    "promotion_from_this_tape": "forbidden_without_separate_preregistered_out_of_sample_gate"
+  }
+}
