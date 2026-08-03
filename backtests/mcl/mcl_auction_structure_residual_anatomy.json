@@ -1,0 +1,44 @@
+{
+  "schema": "mcl.auction-structure-residual-anatomy-receipt.v1",
+  "recorded_at_utc": "2026-08-03T21:35:00Z",
+  "authority": "posthoc_anatomy_only_no_selection_no_orders_no_capital",
+  "identity": {
+    "source_v18_result_sha256": "b9c64409dcb9cd482427588bb0ae314d870d0350a2100aea6d3f0615ae2f4c15",
+    "evaluator_sha256": "2e69a6506f454ed0ccca3222df79fd3847aefad1ea98930b78a91108f67bef4c",
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "result_sha256": "bc8fcba7eb1fdfe42d94433565426d8b20074c6474d9524dfb34862150b2f2d4"
+  },
+  "micro_participation": {
+    "definition": "MCL barrel-equivalent volume divided by combined CL and MCL barrel-equivalent volume at the completed raw-turn five-minute bar",
+    "causal_context": "compare current share with trailing completed 12-bar and 72-bar medians; no current-bar leakage into either baseline",
+    "below_both": {
+      "trades": 96,
+      "discovery_validation_full_usd": [340.54, 1348.04, 1688.58],
+      "stress_usd": 1496.58
+    },
+    "above_both": {
+      "trades": 111,
+      "discovery_validation_full_usd": [146.99, -99.96, 47.03],
+      "stress_usd": -174.97,
+      "down_up_usd": [247.57, -200.54],
+      "mean_mfe_mae_hold_minutes": [58.57, -64.48, 589.07],
+      "profit_memory_exits_trades_net_usd": [45, 524.35],
+      "raw_turn_exits_trades_net_usd": [65, -518.80]
+    },
+    "interpretation": "Elevated micro participation does not justify direction inversion, because inverted same holds remain negative. It marks crowded transport whose early favorable excursion is frequently surrendered before the next raw turn, especially in the up sleeve. Preserve admission and test a separately bounded capture lifecycle."
+  },
+  "calendar_curve": {
+    "covered_trades": 113,
+    "unavailable_trades": 225,
+    "verdict": "CLOSED_FOR_ROUTING",
+    "reason": "next-month overlap is too sparse and direction-signed curve level largely aliases the long-versus-short sleeve; velocity cohorts are not stable enough to justify a replay"
+  },
+  "verdict": "OPEN_CROWDED_TRANSPORT_CAPTURE_ANATOMY_NO_REPLAY_YET",
+  "prohibitions": [
+    "no micro-share threshold or lookback sweep",
+    "no abstention or direction inversion from this anatomy",
+    "no curve, calendar, session, or news rescue",
+    "no mutation of v18 or live authority"
+  ],
+  "submitted_orders": 0
+}
