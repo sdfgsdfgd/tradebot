@@ -1,0 +1,60 @@
+{
+  "schema": "mcl.prior-session-boundary-auction-lifecycle-preregistration.v1",
+  "created_at_utc": "2026-08-03T23:16:12Z",
+  "authority": "research_only_no_orders_no_capital_validation_sealed_until_discovery_selection",
+  "name": "MCL Prior-Session Boundary Auction Lifecycle",
+  "hypothesis": "Prior-session boundary acceptance and failure have stable after-cost expectancy only under one branch-aware combination of auction ownership, structural invalidation, and failed-auction profit memory; the discovery-selected semantic owner must transfer unchanged to validation.",
+  "inputs": {
+    "cl_mcl_manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "census_preregistration_sha256": "e34fc7218f2c0a0ee7b3b1ae0148c63799bc6041041efeb9e5fee740273331b3",
+    "census_result_sha256": "eaa5851d8411a633ee4083af9202e01aa19c63fae7561677554a953bc8caa2ed",
+    "evaluator_sha256": "ca5b784c644e348a2fd721477d78e0c72da1e8dacf7c5858424c0eac9e2734df"
+  },
+  "signal": "The exact 414 outcome-blind V30 prior-session events; no boundary, side, verdict, direction, clock, or cadence change is allowed.",
+  "portfolio_lifecycle": {
+    "entry": "one matched-suffix MCL contract at the frozen next one-minute open",
+    "same_direction": "retain incumbent without adding",
+    "opposite_direction": "close and reverse at the same next one-minute open",
+    "pre_halt": "flat at the 16:55 ET MCL close; no census entry after 16:25 ET",
+    "clock_or_contract_reset": "close at the last continuous MCL close and never reopen",
+    "costs": {
+      "multiplier": 100,
+      "primary_round_trip_usd": 3.52,
+      "stress_round_trip_usd": 5.52
+    }
+  },
+  "semantic_owners_in_frozen_order": [
+    "state_only",
+    "structural",
+    "failure_profit_memory",
+    "structural_failure_profit_memory"
+  ],
+  "semantic_laws": {
+    "acceptance_structural_stop": "the crossed prior-session MCL high for a long or low for a short",
+    "failure_structural_stop": "the first excursion MCL high for a short or low for a long",
+    "failure_profit_memory": "failed-auction positions only: after a completed one-minute bar establishes 0.5% MFE, protect 25% of running MFE from the next bar",
+    "intrabar_order": "structural stop, then armed profit memory, then MFE/MAE update; adverse gaps fill at the opening price"
+  },
+  "discovery_eligibility": {
+    "annualized_trades": ">160 and <=520",
+    "primary_and_stress_net": ">0",
+    "primary_stress_profit_factor": ">=1.20 / >=1.10",
+    "primary_stress_pnl_to_intrabar_drawdown": ">=1.50 / >=1.00",
+    "primary_stress_positive_months": ">=8 / >=7",
+    "largest_positive_month_share": "<=0.30",
+    "cohorts": "up/down, acceptance/failure, and high/low boundary sides each positive under primary and stress"
+  },
+  "selection_law": "Among discovery-eligible owners maximize stress PnL/DD, then primary PnL/DD, then stress net, then minimize primary DD. Only that owner may open validation and full outcomes.",
+  "validation_law": "The selected owner independently satisfies every discovery eligibility gate on validation.",
+  "full_law": {
+    "annualized_trades": ">160 and <=520",
+    "primary_stress_pnl_to_intrabar_drawdown": ">=2.50 / >=1.50",
+    "primary_stress_positive_months": ">=18 / >=16",
+    "largest_positive_month_share": "<=0.20",
+    "cohorts": "up/down, acceptance/failure, and high/low sides positive under primary and stress"
+  },
+  "control": "After selection only, invert identical selected holds under primary costs; it cannot select or rescue.",
+  "if_no_discovery_owner": "Reject prior-session auction lifecycle before validation; do not sweep boundaries, confirmation, stops, activation, retention, session exit, timeout, or costs.",
+  "if_development_passes": "Preserve as outcome-exposed development only. Missing July-2023 history, unseen prospective evidence, runtime parity, native transport, margin, preview, allocation, restart, and safety remain mandatory before a crown or capital authority.",
+  "submitted_orders": 0
+}

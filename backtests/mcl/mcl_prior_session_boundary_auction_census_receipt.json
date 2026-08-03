@@ -1,0 +1,31 @@
+{
+  "schema": "mcl.prior-session-boundary-auction-census-receipt.v1",
+  "recorded_at_utc": "2026-08-03T23:17:00Z",
+  "authority": "outcome_blind_no_forward_pnl_no_orders_no_capital",
+  "inputs": {
+    "preregistration_sha256": "e34fc7218f2c0a0ee7b3b1ae0148c63799bc6041041efeb9e5fee740273331b3",
+    "evaluator_sha256": "93a987962a0325aa2e3896a8691ba00ee2a29ad4754473f9e00e7fef65464714",
+    "result_sha256": "eaa5851d8411a633ee4083af9202e01aa19c63fae7561677554a953bc8caa2ed"
+  },
+  "discovery": {
+    "events": 213,
+    "annualized": 213.1458904109589,
+    "up_down": [114, 99],
+    "acceptance_failure": [159, 54],
+    "high_low_side": [118, 95],
+    "active_session_fraction": 0.748062015503876,
+    "median_p95_maximum": [1, 2, 2]
+  },
+  "validation": {
+    "events": 201,
+    "annualized": 201.72603884617808,
+    "up_down": [105, 96],
+    "acceptance_failure": [156, 45],
+    "high_low_side": [106, 95],
+    "active_session_fraction": 0.7315175097276264,
+    "median_p95_maximum": [1, 2, 2]
+  },
+  "forward_outcomes_opened": 0,
+  "verdict": "ELIGIBLE_FOR_LIFECYCLE_PREREGISTRATION",
+  "submitted_orders": 0
+}
