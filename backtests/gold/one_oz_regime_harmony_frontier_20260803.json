@@ -51,7 +51,7 @@
   "all_regime_audit": {
     "stage_80_nearest_all_year_result": {
       "annual_net": [61.56, -47.14, 69.98, -3.68, 105.27, 84.44, -0.61, 235.06, 336.06, 1622.20],
-      "positive_annual_slices": 8,
+      "positive_annual_slices": 7,
       "failed_gates": ["cadence", "ten_year_net", "recent_net", "concentration"]
     },
     "stage_83_causal_set_cover_sha256": "4c23ec8561134fd42d9bb4b59ebaf28ae20e0d9cf6d9285380fef42db1ff3e2d",
