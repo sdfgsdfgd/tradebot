@@ -29,6 +29,7 @@ from tradebot.research.gold_live_transport import (
     load_gold_live_selection_from_mapping,
     publish_gold_live_selection,
     select_gold_live_transport,
+    advance_gold_regime_harmony_source,
 )
 from tradebot.research.gold_regime_harmony import (
     GOLD_REGIME_HARMONY_FULL10_LEDGER,
@@ -118,6 +119,57 @@ def test_gold_owner_reconstructs_target_but_cannot_synthesize_entry() -> None:
     assert state["synthetic_midcycle_entry_authority"] == "none"
     assert state["order_authority"] == "none"
     assert state["submitted_orders"] == 0
+
+
+def test_gold_live_source_consumes_canonical_exchange_parity(
+    monkeypatch, tmp_path: Path
+) -> None:
+    class Replay:
+        def __init__(self, _tape: object) -> None:
+            pass
+
+        def converged_window(self, *_args, **_kwargs):
+            return (
+                SimpleNamespace(trades=[]),
+                SimpleNamespace(
+                    state_payload=lambda _result: {
+                        "state_sha256": "f" * 64,
+                        "target_direction": None,
+                    }
+                ),
+                {"stable": True},
+                True,
+            )
+
+    monkeypatch.setattr(
+        "tradebot.research.gold_live_transport.GoldRegimeHarmonyReplay",
+        Replay,
+    )
+    now = datetime(2026, 8, 3, 10, tzinfo=UTC)
+    tape = SimpleNamespace(
+        as_of=now,
+        h1=(),
+        h4=(),
+        daily=(),
+        uup=(),
+        tip=(),
+    )
+    pair = {"usable": True, "contract_month": "2026-12"}
+    output = advance_gold_regime_harmony_source(
+        LiveCalibrationLedger(tmp_path / "source.jsonl"),
+        tape=tape,
+        onset_context={
+            "exchange_parity": pair,
+            "signal": {"usable": True},
+            "macro": {"usable": True},
+            "news": {"authority": "attribution_only"},
+            "source_points": {},
+        },
+        observed_at=now,
+    )
+
+    assert output["checkpoint"]["status"] == "EVALUATED"
+    assert output["checkpoint"]["evidence"]["contract_pair"] == pair
 
 
 def test_gold_hard_state_identity_uses_completed_state_birth() -> None:

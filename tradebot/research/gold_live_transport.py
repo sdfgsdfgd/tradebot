@@ -141,7 +141,7 @@ def advance_gold_regime_harmony_source(
         source_end=end,
         final_session_complete=False,
     )
-    pair = onset_context.get("contract_pair")
+    pair = onset_context.get("exchange_parity")
     signal = onset_context.get("signal")
     usable = bool(
         converged
