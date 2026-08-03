@@ -1,0 +1,24 @@
+{
+  "schema": "mcl.flat-epoch-resumption-lifecycle-rejection.v1",
+  "recorded_at_utc": "2026-08-03T23:09:00Z",
+  "authority": "research_only_no_orders_no_capital_validation_unopened",
+  "inputs": {
+    "preregistration_sha256": "69663445bab8d32685c6d25ea5ba86ba32b941fbc280d4271f408122b3dd4fbd",
+    "evaluator_sha256": "5f08033c9a091f02a5520dac004bdb94665a4449e18cefda8faab4b741f81564",
+    "result_sha256": "aefa549fe9166f53c5cdc4f9c6a83494d681fa78da1074fad12d3149ae05ee5e",
+    "census_result_sha256": "9533e5c5334b903866054a828214cb22f6a662343c1b58504b1859c6e39b09fd"
+  },
+  "discovery": {
+    "state_only_primary_stress": [-2539.840000000013, -3473.840000000012],
+    "structural_primary_stress": [-1134.840000000004, -2068.8400000000033],
+    "profit_memory_primary_stress": [-2085.5900000000156, -3019.5900000000147],
+    "structural_profit_memory_primary_stress": [-1641.3400000000065, -2575.340000000006]
+  },
+  "trades_per_owner": 467,
+  "both_directions_negative_for_every_owner": true,
+  "selected_owner": null,
+  "validation_opened": false,
+  "verdict": "REJECT",
+  "closed_family": "raw-turn flat-epoch pullback/resumption, including structural stop, V18 profit-memory, combined lifecycle, numeric boundary, and timeout rescue",
+  "submitted_orders": 0
+}

@@ -1073,8 +1073,13 @@ and stable bootstrap evidence. Neither may be refactored into looking mature.
     annualized, `88.8%/87.9%` active sessions, median `2`, p95 `4/3`, and both
     directions. V28 freezes a semantic `2x2`: pullback structural boundary
     off/on by unchanged V18 profit-memory off/on. Discovery selects at most one
-    under primary/stress direction/month/PnL-DD gates; only it may open
-    validation. Evaluator `5f08033c…`; no numeric neighbor or rescue.
+    under primary/stress direction/month/PnL-DD gates; all four lost discovery
+    (`-$1,135` to `-$2,540` primary), so validation stayed sealed and the family
+    is closed. V29 now freezes an oil-native compression→liquidity-release
+    clock: new low-efficiency `1h` compression versus completed `6h` context,
+    one `5m` range/volume release, CL/MCL parity, and categorical dominant-book
+    lag routing. `range_volume` precedes `range_only` by count law; evaluator
+    `c74cf299…` cannot read outcomes.
     Missing July-2023–August-2024 remains a hard crown blocker; no quota,
     validation-selected cell, order, or capital authority.
 
@@ -1414,6 +1419,7 @@ and
 | E-411 | outcome-blind V25 census `516e9572…` found exact complete-bar pullback/resumption re-entry clocks for `85/118` V18 profit-memory exits: `32/53` discovery/validation, `46/39` up/down, median/p95 latency `40/226m`; all frozen floors passed with zero forward outcomes. Receipt `mcl_profit_memory_resumption_census_receipt.json`. V26 preregistration `mcl_profit_memory_resumption_lifecycle_preregistration.json` / evaluator `5d78fb36…` binds one next-open same-suffix MCL re-entry, unchanged V18 direction and 0.5%-activation/25%-retention profit memory, next-raw-turn exit, no overlap or recursion, and exact `$3.52/$5.52` costs. It must add positive primary/stress PnL in both periods and directions while reaching 200–300/year, >=3.0/2.0 full primary/stress PnL/DD, bounded DD, >=17/15 positive months, and positive period cohorts; no neighbor may rescue it, and no order, capital, or XSP/Gold authority exists |
 | E-412 | exact V26 lifecycle `7c1d43f…` rejected post-profit resumption despite ideal cadence. Its `85` nonoverlapping re-entries lost `-$200.64/-$264.64` stress in discovery, `-$375.56/-$481.56` in validation, `-$576.20/-$746.20` full, and both directions; same-hold inversion also lost `-$22.20`. Combined cadence rose to `211.95/year`, but net fell from V18's `+$2,886.49` to `+$2,310.29`, DD rose `$883.52->$1,519.95`, and PnL/DD fell `3.267->1.520`. Receipt `mcl_profit_memory_resumption_lifecycle_rejection.json` closes re-entry parameter rescue. V27 preregistration `mcl_flat_epoch_resumption_census_preregistration.json` / evaluator `7a4887d5…` instead freezes one complete-bar pullback/resumption candidate per raw CL turn only while V18 is flat, same session/suffix and before the next turn; count-only cadence precedes any lifecycle outcome, with no order, capital, or XSP/Gold mutation |
 | E-413 | outcome-blind V27 census `9533e5c5…` found `467/423` discovery/validation flat-epoch resumptions (`467.32/424.53` annualized), up/down `245/222` and `207/216`, active on `88.76%/87.94%` of sessions with median `2`, p95 `4/3`, maximum `5/4`, and median/p95 latency `45/200m`. It rejected `200` first resumptions that overlapped immutable V18 rather than searching later. Receipt `mcl_flat_epoch_resumption_census_receipt.json`. V28 preregistration `mcl_flat_epoch_resumption_lifecycle_preregistration.json` / evaluator `5f08033c…` freezes one semantic 2x2: raw-turn state ownership with pullback structural boundary off/on and V18 profit-memory off/on. Discovery may select one owner by stress/primary PnL/DD; only it may expose validation and must improve the unchanged V18 portfolio at 300–780/year with >=3.0/2.0 primary/stress PnL/DD. No numeric neighbor, order, capital, or XSP/Gold mutation |
+| E-414 | V28 lifecycle `aefa549f…` rejected the whole flat raw-turn resumption family in discovery without opening validation. Exact `467`-trade cells made state-only `-$2,539.84`, structural `-$1,134.84`, profit-memory `-$2,085.59`, and structural+memory `-$1,641.34`; stress losses were `-$2,069` to `-$3,474`, and both directions lost in every cell. Receipt `mcl_flat_epoch_resumption_lifecycle_rejection.json` closes stop/memory/timeout rescue. V29 preregistration `mcl_compression_liquidity_release_census_preregistration.json` / evaluator `c74cf299…` freezes one new compression episode from completed `12/72`-bar low-efficiency context, one `2x` range plus volume release before the range-only control, same-bar CL/MCL parity, and dominant-book lag=fade routing. Count-only selection precedes any PnL; no news, order, capital, or XSP/Gold mutation |
 
 ### Decision anchors
 

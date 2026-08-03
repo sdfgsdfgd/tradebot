@@ -1,0 +1,41 @@
+{
+  "schema": "mcl.compression-liquidity-release-census-preregistration.v1",
+  "created_at_utc": "2026-08-03T23:09:02Z",
+  "authority": "outcome_blind_count_only_no_forward_pnl_no_orders_no_capital",
+  "name": "MCL Compression to Liquidity Release",
+  "hypothesis": "Oil may offer a distinct event-driven edge when a completed low-efficiency one-hour auction compresses relative to its completed six-hour context and then releases through a range/volume shock whose dominant CL and executable MCL books agree; CL/MCL basis response categorically distinguishes acceptance from failed-auction fade.",
+  "inputs": {
+    "cl_mcl_manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "evaluator_sha256": "c74cf2996bcf8525ec6eb34f26087f18668754c1e244fd3716f212eb17503a30"
+  },
+  "state_machine": {
+    "clock": "completed five-minute dated CL and matched-suffix MCL bars",
+    "context": "prior 72 completed bars; recent window is the last 12",
+    "compression": "recent median CL true range <= 72-bar median and recent close-path efficiency <=0.35",
+    "arming": "arm only on a new compression episode; after one release, require compression to end before rearming",
+    "release_range": "current completed CL true range >=2x the prior 12-bar median",
+    "release_volume": "current completed CL volume >=2x the prior 12-bar median",
+    "parity": "current CL and MCL open-to-close moves have the same nonzero sign and both bars have positive volume",
+    "entry_readiness": "next one-minute same-suffix MCL open exists outside the 16:25–18:00 ET admission blackout",
+    "direction": "raw release sign when directional MCL-minus-CL basis velocity is nonnegative; fade the raw release when executable MCL lags dominant CL",
+    "branch": "follow is acceptance; fade is failure",
+    "news_authority": "none"
+  },
+  "profiles_in_frozen_order": [
+    "range_volume",
+    "range_only"
+  ],
+  "selection_law": "Choose the first profile clearing every count-only gate in both periods. Range plus volume precedes the range-only sensitivity control. No outcome may select a profile.",
+  "eligibility_each_period": {
+    "annualized_events": ">160 and <=780",
+    "minimum_each_direction": 60,
+    "minimum_each_branch": 30,
+    "minimum_active_session_fraction": 0.45,
+    "median_per_active_session": "1..3",
+    "p95_per_active_session": "<=6"
+  },
+  "if_eligible": "Freeze one exact lifecycle family before opening PnL; the nonselected cadence profile remains a count control and cannot rescue outcomes.",
+  "if_ineligible": "Reject this exact compression-release clock before outcomes; do not sweep efficiency, range, volume, context, refractory, or cadence floors.",
+  "forward_outcomes_opened": 0,
+  "submitted_orders": 0
+}
