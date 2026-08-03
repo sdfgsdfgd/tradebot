@@ -988,6 +988,16 @@ and stable bootstrap evidence. Neither may be refactored into looking mature.
     continuation but destabilized the expanded failed-auction branch; the primary
     ratio was `1.491`, OR/AND neighbors stayed inferior to v15, and one lost
     discovery stress. Close ATR routing; positive acceleration is attribution only.
+    CL/MCL basis-velocity anatomy then overturned the catch-up story: `37` turns
+    where executable MCL lagged dominant-book CL lost `-$514.24` when followed
+    but earned `+$253.76` when faded, positive in both available periods; `32`
+    equal-move turns earned `+$1,023.36` when followed, while the `15` MCL-lead
+    cases were period-ambiguous. Preregistered v18 **Dominant-Book Transport
+    Acceptance Router** freezes lag=fade, equal=follow, and lead=the preserved
+    v15 three-horizon breadth decision. Its same-hold proxy is `+$1,701.32/84`
+    (`+$1,125.56/+$575.76` discovery/validation; both directions positive).
+    Exact lifecycle replay is active; no threshold rescue or outcome-selected
+    lead neighbor is permitted.
     Missing July-2023–August-2024 remains a hard crown blocker; no quota,
     validation-selected cell, order, or capital authority.
 
@@ -1312,6 +1322,7 @@ and
 | E-396 | v16 rejected static maturation-time breadth as a replacement for v15. The frozen primary was excellent in discovery (`+$1,315.66` / `+$981.66` stress, PF `1.417`, DD `$555.08`) but validation fell to `+$686.08` / `+$344.08` stress with continuation `-$516.56` and down `-$42.12`. Full was `+$2,001.74` / `+$1,325.74` stress, PF `1.277`, DD `$1,026.47`, ratio `1.950`. Raw-or-mature produced `+$2,149.49`, ratio `2.027`; raw-and-mature `+$1,817.74`, ratio `2.057`; neither beat v15's `$883.52` DD, `2.225` ratio, and positive validation branch/direction attribution. Receipt `mcl_two_speed_auction_relay_v16_entry_breadth_rejection.json` binds preregistration `bd6fbb49…`, evaluator `c628f974…`, manifest `1085ce89…`, and result `9daf61db…`. Close static temporal compositions; categorical breadth transition may be examined without reopening count thresholds, orders, capital, or XSP/Gold mutation |
 | E-397 | exact posthoc transition anatomy joined all `84` v13 continuation trades to raw/maturation velocity breadth. Rise changed `+$197.72 -> -$350.24` discovery/validation, hold `+$579.68 -> -$32.20`, and decay `-$23.84 -> +$150.20`; every deterministic rise/hold/decay router failed at least one period or direction, so no lifecycle replay was opened. Receipt `mcl_velocity_breadth_transition_anatomy.json` binds evaluator `89d96a37…` and result `4921dc22…`. Preregistration v17 `083d4653…` **Auction Energy-Curvature Router** instead freezes raw-turn ATR-acceleration sign as an independent categorical owner, with OR/AND fixed breadth neighbors; no numeric sweep, abstention, order, capital, or XSP/Gold mutation |
 | E-398 | v17 rejected ATR energy-curvature routing after exact lifecycle replay. The acceleration-only primary made discovery `+$439.41` / `+$105.41` stress and validation `+$1,195.08` / `+$853.08`, but discovery failed auctions were `-$202.71`; full `+$1,634.49` / `+$958.49` stress, PF `1.223`, DD `$1,096.47`, ratio `1.491`. Acceleration-OR-breadth reached `+$1,791.49`, ratio `1.634`; AND reached `+$1,808.49`, ratio `1.589` but lost `-$80.59` discovery stress. All remain inferior to v15 `+$1,965.49`, DD `$883.52`, ratio `2.225`. Receipt `mcl_two_speed_auction_relay_v17_energy_curvature_rejection.json` binds preregistration `083d4653…`, evaluator `a3f3f0b0…`, manifest `1085ce89…`, and result `c270fe6a…`. Close ATR acceleration/velocity/ratio routing and interactions; acceleration remains attribution-only, with no order, capital, or XSP/Gold mutation |
+| E-399 | posthoc basis-velocity anatomy joined all `84` v13 continuation trades to exact matched-month completed-five-minute CL/MCL moves. MCL lagging CL was stable executable-book refusal: follow `-$514.24` versus fade `+$253.76`, positive in discovery/validation when faded. Equal movement was stable acceptance: follow `+$1,023.36` versus fade `-$1,248.64`. MCL lead was period-ambiguous. The frozen v18 lead-breadth composition projects `+$1,701.32`, split `+$1,125.56/+$575.76`, with down/up `+$345.08/+$1,356.24`. Preregistration v18 **Dominant-Book Transport Acceptance Router** binds anatomy evaluator/result `03724537…/1ea87abf…` and freezes lag=fade, equal=follow, lead=v15 breadth before exact lifecycle replay; lead-follow/fade are nonselectable sensitivity neighbors. Receipt `mcl_cl_mcl_basis_velocity_anatomy.json`; no crown, order, capital, or XSP/Gold mutation |
 
 ### Decision anchors
 
