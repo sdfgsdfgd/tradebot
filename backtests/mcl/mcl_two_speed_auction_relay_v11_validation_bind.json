@@ -1,0 +1,27 @@
+{
+  "schema": "mcl.two-speed-auction-relay-v11-validation-bind.v1",
+  "frozen_at_utc": "2026-08-03T20:02:29Z",
+  "authority": "research_only_no_orders_no_capital",
+  "selection": {
+    "cell_id": "retained_state_parity",
+    "discovery_receipt_sha256": "72ade60b92cc2a4f33ff48f5b194780c2e33bffb73dd8859b61b4c9ec04724f9",
+    "discovery_result_sha256": "80baf88909d78aaaab7d53de00d9bdceb3acfb1cd7f62abe7edb5a0967940021",
+    "preregistration_sha256": "169df2023b54f9b18653a4c2f8074734b76b273bc8ba04de0ff49a64168880b2"
+  },
+  "validation_evaluator": {
+    "sha256": "cb33454de6378e33e7cebdde3fde2f2400653d17f3f35d51bdd876e6919746a1",
+    "declared_cells": ["retained_state_parity"],
+    "discovery_start_utc": "2024-08-04T22:00:00Z",
+    "validation_start_utc": "2025-08-04T22:00:00Z",
+    "end_not_after_utc": "2026-08-04T22:00:00Z"
+  },
+  "invariants": [
+    "the complete hydration manifest is hashed before evaluation",
+    "the validation suffix cannot select or rerank a cell",
+    "the exact signal engine, one-bar lifecycle, roll-flat law, costs, controls, and gates remain unchanged",
+    "a failed suffix rejects this cell before any causal anatomy",
+    "the unavailable July 2023 to August 2024 prefix remains a hard crown blocker",
+    "no order, capital, selector, or live authority"
+  ],
+  "submitted_orders": 0
+}
