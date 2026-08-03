@@ -1,0 +1,20 @@
+{
+  "schema": "tradebot.spot.champion.v1",
+  "symbol": "1OZ",
+  "track": "LF",
+  "version": "1",
+  "artifact": "backtests/gold/one_oz_regime_harmony_stage76_77.json",
+  "artifact_sha256": "9720399570921c377fb987146618d00c9a928e625a93b836db998af6ea67c282",
+  "strategy_key": "one-oz-regime-harmony-stage76-77",
+  "promoted_at": "2026-08-03T08:18:54Z",
+  "promotion": {
+    "authority": "user_explicit_historical_research_crown",
+    "eligible": true,
+    "order_authority": "none",
+    "selection_authority": "none",
+    "capital_authority": "none",
+    "profitability_clock": "not_started",
+    "candidate": "1OZ Gold Regime Harmony — Stage 76/77",
+    "reason": "Strongest honest gold development candidate after the bounded Stage-88/89 complementary-owner challenge. It is directionally balanced, strongly GTH-capable, and historically transportable on dated one-ounce futures; disclosed annual-floor and concentration limitations remain live-graduation gates rather than being hidden."
+  }
+}

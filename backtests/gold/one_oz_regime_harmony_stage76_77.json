@@ -1,0 +1,108 @@
+{
+  "schema": "gold.1oz-regime-harmony-stage76-77-crown.v1",
+  "crowned_at_utc": "2026-08-03T08:18:54Z",
+  "authority": "historical_research_crown_only",
+  "order_authority": "none",
+  "selection_authority": "none",
+  "capital_authority": "none",
+  "groups": [
+    {
+      "_key": "one-oz-regime-harmony-stage76-77",
+      "name": "1OZ Gold Regime Harmony — Stage 76/77",
+      "authority": "immutable_historical_candidate_no_runtime_or_order_authority",
+      "filters": [],
+      "entries": []
+    }
+  ],
+  "windows": [
+    {
+      "start": "2016-07-01",
+      "end": "2026-06-30",
+      "signal_instrument": "XAUUSD",
+      "signal_bar_size": "4 hours",
+      "execution_bar_size": "1 hour",
+      "use_rth": false
+    }
+  ],
+  "signal": {
+    "stage": 76,
+    "id": "regime_harmony_winner_veto_full_cycle_surrender",
+    "source_receipt_sha256": "e39a6ad82e51a2428f0c5886477bd537cc4a3b063c42f2fe382beef18c5829ef",
+    "causal_owner": "H4 EMA 8/21 cross with one completed-H4 persistence, D1 EMA 21/50 hard direction aged at least six completed daily states, winner-exhaustion source-epoch veto, and immutable full-cycle record surrender",
+    "cost_usd_per_round_trip": 2.32,
+    "annual_net": [57.36, -105.15, 45.18, -52.16, 53.28, 93.77, -75.61, 199.73, 713.88, 2038.77],
+    "positive_annual_slices": 7,
+    "failed_development_gates": ["annual_floor", "concentration"]
+  },
+  "crown_metrics": {
+    "full_three_year": {
+      "start": "2023-07-01",
+      "end": "2026-06-30",
+      "net_pnl": 3103.52,
+      "trades": 73,
+      "trades_per_year": 24.3278,
+      "profit_factor": 3.9915,
+      "max_drawdown": 690.07,
+      "down_net": 532.40,
+      "up_net": 2571.12,
+      "gth_net": 2644.67,
+      "rth_net": 458.85,
+      "top_five_positive_share": 0.5213778414
+    },
+    "full_ten_year": {
+      "start": "2016-07-01",
+      "end": "2026-06-30",
+      "net_pnl": 3227.82,
+      "trades": 257,
+      "profit_factor": 2.1891,
+      "max_drawdown": 690.07
+    }
+  },
+  "native_transport": {
+    "stage": 77,
+    "instrument": "dated native CME 1OZ futures",
+    "receipt_sha256": "535c92080cbcd74279d313ca4aa250688ac0460677fb9a5698163f177511ba31",
+    "overlap_start": "2025-01-17",
+    "overlap_end": "2026-07-31",
+    "mapped_trades": 40,
+    "mapping_failures": 0,
+    "position_rolls": 6,
+    "net_pnl": 2442.78,
+    "profit_factor": 3.938,
+    "max_intrabar_drawdown": 651.89,
+    "down_net": 326.09,
+    "up_net": 2116.69,
+    "gth_net": 2195.66,
+    "rth_net": 247.12,
+    "harsher_cost_and_roll_neighbors_pass": true
+  },
+  "coronation": {
+    "authority": "user_explicit_first_gold_historical_crown_after_bounded_final_sharpening",
+    "frontier_path": "backtests/gold/one_oz_regime_harmony_frontier_20260803.json",
+    "frontier_sha256": "2f6272bf9b2410142daa46ef8e234cbe4b5220a5b70d9b2a5ccbcf00007e832f",
+    "final_audit_path": "backtests/gold/one_oz_hostile_transition_final_audit_20260803.json",
+    "reason": "Strongest honest balance of aggregate expectancy, modern PnL/DD, both directions, both sessions, GTH capability, cadence, and exact native transport. Coronation accepts the disclosed 7/10 annual breadth as a development limitation; it does not waive live cash, runtime, preview, or graduation gates."
+  },
+  "graduation_enrollment": {
+    "lifecycle_state": "CROWNED",
+    "historical_signal": "PASS_WITH_DISCLOSED_ANNUAL_LIMITATION",
+    "native_historical_transport": "PASS",
+    "prospective_onset_tape": "ACTIVE_NON_SUBMITTING",
+    "runtime_parity": "HOLD",
+    "native_margin_and_cash": "HOLD",
+    "fresh_broker_preview": "HOLD",
+    "immutable_selection": "HOLD",
+    "capital_sleeve": "HOLD",
+    "restart_and_reconciliation": "HOLD",
+    "live_24h": "NOT_STARTED",
+    "live_48h": "NOT_STARTED",
+    "live_five_session_week": "NOT_STARTED",
+    "next_gate": "centralize the exact Stage-76 owner, reproduce every frozen ledger and native overlap, then qualify indivisible-contract cash/margin and a non-transmitting broker preview"
+  },
+  "prospective": {
+    "observer": "1OZ Prospective Onset Tape v2",
+    "generation_fingerprint": "ddbae3ff800ee625635ba55c2dcf53235119c3e6498fe3df9225ab4dccef101a",
+    "first_outcome_due_utc": "2026-08-04T04:00:00Z",
+    "order_authority": "none"
+  }
+}

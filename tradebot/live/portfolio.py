@@ -183,6 +183,7 @@ class LivePortfolioCockpit(LiveRunCockpit):
 
             group = load_champion_group(ref)
             crown_metrics = artifact.get("crown_metrics")
+            qualification = artifact.get("graduation_enrollment")
             full_metrics = (
                 crown_metrics.get("full_three_year")
                 if isinstance(crown_metrics, Mapping)
@@ -216,6 +217,9 @@ class LivePortfolioCockpit(LiveRunCockpit):
                     "stage": stage,
                     "reasons": sorted(set(reasons)),
                     "historical": dict(full_metrics) if isinstance(full_metrics, Mapping) else {},
+                    "qualification": (
+                        dict(qualification) if isinstance(qualification, Mapping) else {}
+                    ),
                     "run_sleeve_id": run.get("sleeve_id") if isinstance(run, Mapping) else None,
                     "run_id": run.get("run_id") if isinstance(run, Mapping) else None,
                     "run_state": run.get("state") if isinstance(run, Mapping) else None,

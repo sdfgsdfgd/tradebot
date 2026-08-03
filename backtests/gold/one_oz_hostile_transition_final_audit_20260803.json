@@ -1,0 +1,58 @@
+{
+  "schema": "gold.1oz-hostile-transition-final-audit.v1",
+  "recorded_at_utc": "2026-08-03T08:18:54Z",
+  "authority": "research_only_no_signal_mutation_no_selection_no_preview_no_orders_no_capital",
+  "source": {
+    "stage": 76,
+    "frontier_path": "backtests/gold/one_oz_regime_harmony_frontier_20260803.json",
+    "frontier_sha256": "2f6272bf9b2410142daa46ef8e234cbe4b5220a5b70d9b2a5ccbcf00007e832f"
+  },
+  "stage_88": {
+    "question": "Can an independent D1 8/21 transition sleeve activate only while prior realized Stage-76 health is hostile?",
+    "preregistration_sha256": "833c27f7822d5824f199708e971ce106ec64c37c0bf4283cf7dcbb14c5d8eae0",
+    "receipt_sha256": "b1262f12c51abb75583882a9b7b3e5f5c0c80b1f3aaed00fbbd70506f08d4f8f",
+    "cells": {
+      "prior_3_hostile": {
+        "complement_net": 2102.31,
+        "complement_profit_factor": 2.24261751,
+        "complement_trades": 64,
+        "combined_positive_annual_slices": 9,
+        "combined_annual_net": [11.16, 4.16, 153.26, 29.52, -202.04, 202.85, 84.57, 382.53, 1374.85, 3289.27],
+        "combined_recent_net": 5046.65,
+        "combined_recent_closed_drawdown": 267.81
+      },
+      "prior_5_hostile": {
+        "complement_net": 318.34,
+        "combined_positive_annual_slices": 6
+      },
+      "prior_8_hostile": {
+        "complement_net": 92.15,
+        "combined_positive_annual_slices": 5
+      }
+    },
+    "verdict": "REJECT_MEMORY_SENSITIVE_COMPLEMENT",
+    "reason": "The spectacular 3-trade cell fails the preregistered adjacent-memory law; 5/8-trade neighbors lose annual breadth and the 3-trade combination merely moves the residual loss into Year 5."
+  },
+  "stage_89": {
+    "question": "Does completed D1 soft direction opposing D1 hard direction isolate the profitable rescue?",
+    "receipt_sha256": "f112ffe5acd5126f710d6826efc2bdeb64580a7978ebe9d1ba8dae214dd9f752",
+    "prior_3_hostile": {
+      "true_transition_net": -16.95,
+      "true_transition_trades": 37,
+      "same_hard_state_continuation_net": 2119.26,
+      "same_hard_state_continuation_trades": 27
+    },
+    "verdict": "FALSIFY_TRANSITION_OWNER_ON_HISTORICAL_SAMPLE",
+    "reason": "The independently profitable result comes from mature continuation, not a soft-against-hard transition. That continuation benefit remains memory-sensitive and cannot be added to the crown."
+  },
+  "final_verdict": "CLOSE_COMPLEMENTARY_HISTORICAL_SHARPENING_CROWN_STAGE_76_77_UNCHANGED",
+  "boundaries": {
+    "broker_queried": false,
+    "service_or_timer_mutated": false,
+    "selection_created": false,
+    "capital_sleeve_created": false,
+    "profitability_clock_created": false,
+    "order_authority": "none",
+    "submitted_orders": 0
+  }
+}

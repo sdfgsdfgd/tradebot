@@ -177,6 +177,20 @@ output belongs in commit/final verification, not in this management brain.
     q; README-only crowns remain visible but research-only. XSP appears first;
     future MCL registers through the same catalog, allocator, control,
     evidence, and graduation contracts after its own transport proof.
+28. `[DONE]` Crown **1OZ Gold Regime Harmony — Stage 76/77** as the first
+    machine-bound gold research champion after the bounded Stage-88/89
+    complementary-owner challenge failed adjacency. It appears in the unified
+    catalog as `CROWNED`, with no executable entry, binding, selection, capital,
+    clock, or order authority.
+29. `[WIP]` **XSP graduation lane:** preserve every selected recurrence and
+    reconcile real execution; issue cutoff-bound 24h/48h/five-session verdicts
+    only when due.
+30. `[WIP]` **1OZ graduation lane:** keep the onset tape non-submitting, settle
+    unseen horizons, centralize/reproduce Stage 76/77, then qualify indivisible
+    native cash/margin, preview, selection, restart, and canary economics.
+31. `[WIP]` **MCL measurement/news lane:** preserve immutable technical onset,
+    price response, and saturation/convexity attribution; no direction or
+    capital authority until unseen evidence and an independent transport pass.
 
 ### Never infer
 

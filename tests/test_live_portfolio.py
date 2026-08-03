@@ -48,6 +48,13 @@ def _write_crown(root: Path, *, symbol: str = "TEST") -> None:
                 "max_drawdown": 9.87,
             }
         },
+        "graduation_enrollment": {
+            "lifecycle_state": "CROWNED",
+            "runtime_parity": "HOLD",
+            "native_margin_and_cash": "HOLD",
+            "live_24h": "NOT_STARTED",
+            "next_gate": "prove runtime",
+        },
     }
     artifact_path = directory / "crown.json"
     artifact_path.write_text(json.dumps(artifact), encoding="utf-8")
@@ -236,6 +243,7 @@ def test_catalog_distinguishes_machine_crown_from_readme_provenance(
     assert candidates[("TEST", "LF")]["machine_authority"] is True
     assert candidates[("TEST", "LF")]["run_id"] == RUN_ID
     assert candidates[("TEST", "LF")]["historical"]["net_pnl"] == 123.45
+    assert candidates[("TEST", "LF")]["qualification"]["next_gate"] == "prove runtime"
     assert candidates[("LEGACY", "LF")]["stage"] == "RESEARCH_ONLY"
     assert candidates[("LEGACY", "LF")]["controls"]["COMMISSION"]["status"] == "HOLD"
     assert "legacy_readme_declaration_is_research_only" in candidates[("LEGACY", "LF")]["reasons"]

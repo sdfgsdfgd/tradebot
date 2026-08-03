@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import hashlib
 import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -18,9 +19,36 @@ from tradebot.research.gold_onset import (
     select_gold_contract_pair,
 )
 from tradebot.research.live_calibration import LiveCalibrationLedger
+from tradebot.spot.champions import discover_current_champions, load_champion_group
 
 
 UTC = timezone.utc
+
+
+def test_gold_crown_is_machine_bound_but_cannot_trade() -> None:
+    root = Path(__file__).resolve().parents[1]
+    refs = discover_current_champions(root=root, symbols=("1OZ",), tracks=("LF",))
+
+    assert len(refs) == 1
+    ref = refs[0]
+    declaration = json.loads(ref.declaration_path.read_text())
+    artifact = json.loads(ref.artifact_path.read_text())
+    group = load_champion_group(ref)
+
+    assert ref.version == "1"
+    assert group is not None
+    assert group["_key"] == "one-oz-regime-harmony-stage76-77"
+    assert hashlib.sha256(ref.artifact_path.read_bytes()).hexdigest() == declaration[
+        "artifact_sha256"
+    ]
+    assert declaration["promotion"]["eligible"] is True
+    assert declaration["promotion"]["order_authority"] == "none"
+    assert artifact["order_authority"] == "none"
+    assert artifact["selection_authority"] == "none"
+    assert artifact["capital_authority"] == "none"
+    assert artifact["graduation_enrollment"]["lifecycle_state"] == "CROWNED"
+    assert artifact["graduation_enrollment"]["live_24h"] == "NOT_STARTED"
+    assert artifact["groups"][0]["entries"] == []
 
 
 def test_xauusd_daily_evidence_closes_at_17_et() -> None:

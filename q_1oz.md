@@ -13,12 +13,12 @@ realistic costs, both directions, useful cadence, stable neighbouring logic,
 concentration control, and drawdown that an indivisible one-ounce transport can
 actually survive.
 
-This is research-only. No selection, broker preview, allocation, profitability
-clock, order, or XSP mutation exists or is authorized. One canonical,
-non-submitting prospective onset observer is authorized; it has no direction,
-transport, capital, or order authority.
+Stage 76/77 is now the explicit historical research crown. No runtime selection,
+broker preview, allocation, profitability clock, order, or XSP mutation exists
+or is authorized. One canonical, non-submitting prospective onset observer is
+authorized; it has no direction, transport, capital, or order authority.
 
-## Working mandate through 18:00 AEST, 2026-08-03
+## Completed historical mandate through 18:00 AEST, 2026-08-03
 
 - Continue self-sufficient historical sharpening from Stage 22's exact residuals;
   do not reopen rejected EMA/KAMA/router/threshold sweeps.
@@ -620,6 +620,41 @@ zero; order authority and submitted orders remained `none / 0`. Its 4h/12h/24h
 outcome is sealed until the full 24-hour horizon completes at
 `2026-08-04T04:00:00Z`; late backfill is forbidden.
 
+### 18:18 AEST coronation and final complementary-owner challenge
+
+Stage 88 preregistered an independent D1 8/21 sleeve that could establish only
+when the prior 3/5/8 fully closed Stage-76 trades had negative net and a losing
+majority. The 3-trade cell was spectacular in isolation: complement
+`+$2,102.31`, PF `2.2426`, and combined 9/10 positive annual slices with former
+Years 2/4/7 all positive. It merely moved the residual loss into Year 5
+(`−$202.04`), while the 5/8-trade neighbours fell to 6/10 and 5/10. The frozen
+adjacency law failed; no rolling-memory value is eligible.
+
+Stage 89 then tested the categorical transition claim. In the best 3-trade
+cell, true D1 soft-against-hard transitions lost `−$16.95/37`; almost all sleeve
+profit came from same-hard-state continuation (`+$2,119.26/27`). The predicted
+transition owner is therefore falsified on history, and the continuation effect
+remains memory-sensitive. Preserve both only on the unseen onset tape.
+
+The user explicitly crowned **1OZ Gold Regime Harmony — Stage 76/77** as the
+first honest gold champion. Machine declaration `backtests/gold/current-lf.json`
+binds immutable artifact `one_oz_regime_harmony_stage76_77.json`; final audit
+`one_oz_hostile_transition_final_audit_20260803.json` closes the last branch.
+This coronation accepts the disclosed 7/10 annual breadth as a development
+limitation. It grants no runtime, preview, selection, capital, profitability, or
+order authority.
+
+### Weekly coordinated handoff
+
+1. `[WIP]` **XSP graduation:** preserve selected recurrence and broker truth;
+   issue only lawful 24h, 48h, and five-session reducer verdicts.
+2. `[WIP]` **1OZ graduation:** settle unseen onset outcomes; centralize and
+   reproduce Stage 76/77; then prove native margin/cash, preview, immutable
+   selection, capital sleeve, restart, and the same 24h/48h/week chain.
+3. `[WIP]` **MCL measurement/news:** continue immutable technical-onset and
+   narrative-saturation evidence; news remains attribution/convexity context
+   until unseen samples and an independent cash transport earn authority.
+
 ## Active work queue
 
 1. `[DONE]` Stage-20 flat-boundary dual-clock census and preregistered 21/42-
@@ -676,15 +711,16 @@ outcome is sealed until the full 24-hour horizon completes at
    Stage 87 is excluded—not rejected—because its first replay failed the causal
    annual-boundary predecessor-seed contract.
 15. `[DONE]` Freeze Stage 76/77 as the strongest honest development frontier in
-   `backtests/gold/one_oz_regime_harmony_frontier_20260803.json`; no false crown.
-16. `[BLOCKED]` A machine declaration requires a future candidate to pass
-   reproducible receipt, runtime parity, and non-submitting durable registration.
-17. `[BLOCKED]` Broker preview waits for signal coronation; COMEX L1 and Stage-77
-   transport economics are ready. Accumulate unseen onset evidence first.
+   `backtests/gold/one_oz_regime_harmony_frontier_20260803.json`.
+16. `[DONE]` Close the Stage-88/89 complementary-owner challenge and publish the
+   explicit Stage-76/77 machine crown with zero runtime/order authority.
+17. `[TODO]` Centralize the exact Stage-76 owner and prove frozen signal/native
+   parity before any cash, preview, selection, or canary transaction.
 18. `[TODO]` Settle the first unseen 4h/12h/24h forecast only when naturally due
    at `2026-08-04T04:00:00Z`; continue canonical non-submitting observations.
-19. `[BLOCKED]` Capital authority waits for signal coronation, exact native
-   margin/cash qualification, and an explicit later graduation boundary.
+19. `[BLOCKED]` Capital authority waits for exact native margin/cash
+   qualification, a fresh non-transmitting preview, immutable selection,
+   restart/reconciliation proof, and explicit canary graduation authority.
 
 ## Evidence identities
 

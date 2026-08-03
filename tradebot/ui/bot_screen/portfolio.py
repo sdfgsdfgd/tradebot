@@ -248,6 +248,20 @@ class BotPortfolioMixin:
         reasons = list(candidate.get("reasons") or ())
         if reasons:
             lines.append(Text("Gates: " + "; ".join(str(value) for value in reasons), style="#f2b36f"))
+        qualification = candidate.get("qualification")
+        if isinstance(qualification, Mapping) and qualification:
+            lines.append(
+                Text(
+                    "Graduation  "
+                    f"lifecycle={qualification.get('lifecycle_state') or '-'}  "
+                    f"runtime={qualification.get('runtime_parity') or '-'}  "
+                    f"cash={qualification.get('native_margin_and_cash') or '-'}  "
+                    f"24h={qualification.get('live_24h') or '-'}",
+                    style="#8fbfff",
+                )
+            )
+            if qualification.get("next_gate"):
+                lines.append(Text(f"Next gate: {qualification['next_gate']}", style="dim"))
         if candidate.get("machine_authority") is not True:
             lines.append(
                 Text(
