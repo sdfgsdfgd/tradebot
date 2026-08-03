@@ -653,16 +653,18 @@ transition through today’s close; no order will be forced merely to populate t
   preregistered `4h/12h/24h` onset tape to ask whether such opposition predicts
   exhaustion, delayed turn, or noise against matched TA-only controls; never
   add a second observer, read a sealed outcome early, or let news pick direction.
-- `[ACTIVE — AUTONOMOUS FOUR-HOUR BLOCK]` **MCL Two-Speed Auction Relay:** sharpen one
+- `[ACTIVE — AUTONOMOUS 24-HOUR CAMPAIGN]` **MCL Two-Speed Auction Relay:** sharpen one
   compact `1–5m` MCL state machine that
   arbitrates mutually exclusive acceptance-continuation and failed-auction
   reversal setups. Let completed `5m` CL discover the auction, causal `1m` CL
   trigger it, and matched-month MCL prove parity and executable transport.
   Target ordinary `1–2+` qualified trades per active day and `>160/year`
   without a quota; TA owns direction, while causal news may classify shock,
-  crowding, convexity, or patience only. The user authorized at least four
-  continuous hours of autonomous acquisition, preregistration, bounded replay,
-  anatomy, and sharpening from `2026-08-03 14:06 ET`, across compactions. Seek
+  crowding, convexity, or patience only. The user authorized a full 24-hour
+  autonomous campaign of acquisition, preregistration, bounded replay, anatomy,
+  and sharpening from `2026-08-03 14:06 ET`, across compactions. Novel oil-specific
+  permission gates, direction profiles, lifecycles, and tight micro-neighbourhoods
+  are explicitly in scope when frozen before outcomes. Seek
   stable after-cost PnL/DD in every July-to-July slice and the full three-year
   challenge, both directions, GTH/RTH, trends, compression, shocks, reversals,
   and roll neighbours. Require genuine NYMEX type-1 execution evidence and full
@@ -683,9 +685,12 @@ transition through today’s close; no order will be forced merely to populate t
   then rejected v3/v4/v5/v6 at `-$209.48/-$204.13/-$283.04/-$740.73` over
   `192–194` trades before validation. Fixed global opening blocks are closed,
   including financing, volume, cost-lock, calendar, and threshold rescue. The
-  active successor is one continuous multihorizon CL auction-state owner:
-  mutually exclusive trend acceptance versus balance reversal, with unchanged
-  matched-MCL parity, rolls, sessions, costs, and no news direction.
+  custom continuous v7 then failed even before costs (`-$833.11` raw; `-$6,359.51`
+  primary over `1,570` trades), closing threshold rescue of that approximation.
+  The active successor invokes the repository's exact centralized directional-
+  impulse/turn owner as the product-neutral control. Its causal anatomy may seed
+  distinct oil-specific trend, balance, shock, or permission profiles, with
+  unchanged matched-MCL parity, rolls, sessions, costs, and no news direction.
 - `[PRESERVED RUNNER-UP]` **Tri-asset narrative-dispersion compression:** test
   whether convergence among easing-negative XSP pressure, weakening-positive
   MCL pressure, and weakly reversing-positive Gold pressure predicts
@@ -923,13 +928,15 @@ and stable bootstrap evidence. Neither may be refactored into looking mature.
     `HOLD_NYMEX_L1_REQUIRED`. Never weaken freshness or backfill. No MCL
     instrument, option, selector, order, or XSP/Gold-clock authority exists.
 24. `[WIP]` Sharpen the MCL Two-Speed Auction Relay through the user-authorized
-    four-hour autonomous block. Complete the dated CL/MCL tape, preserve
+    24-hour autonomous campaign. Complete the dated CL/MCL tape, preserve
     matched-month/roll/session/cost truth, and decide frozen v3/v4 on discovery,
     sealed validation, both directions/speeds, annual cadence, stress costs,
     PnL/DD, concentration, and controls. Anchored-opening v1–v6 are now closed
-    by extended discovery; continue only through the preregistered continuous
-    multihorizon successor. Missing July-2023–August-2024 remains a hard crown
-    blocker; no quota, validation-selected cell, order, or capital authority.
+    by extended discovery; custom continuous proxy v7 is also closed by negative
+    gross expectancy. Continue through preregistered exact-engine control v8,
+    then only outcome-blind oil-specific profiles justified by its causal anatomy.
+    Missing July-2023–August-2024 remains a hard crown blocker; no quota,
+    validation-selected cell, order, or capital authority.
 
 ---
 
@@ -1236,6 +1243,7 @@ and
 | E-380 | scheduled `17:52Z` Hawkeye completed block `6/6` with plan `b4a920b3…`, `$1,318.05` settled USD, and both selected canaries flat/clean: zero relevant positions/orders, fills/trades, realized/open P&L, costs, DD, submissions, or breach; both natural workers exited success. XSP's completed `17:50Z` state retained up with all `5/15/30/60/120m` slopes positive (`+0.01843/+0.00395/+0.01449/+0.01175/+0.00775`) but mixed velocities (`+0.00395/-0.00615/-0.00242/+0.00297/-0.00116`). ATR ratio/velocity/acceleration were `0.7678/-0.006582/-0.000435`, coherence `1.00`; no turn/proposal/admission formed outside the frozen window and transport remained `flat_target`. Long context stayed `5/10/21/63/84 up, 42 down`, hard/soft up, `aligned_up/high_up`; the prior bearish news observation crossed its freshness boundary and became unusable rather than being carried forward. Gold retained its completed `16:00Z` raw-H4/D1-down state, null turn/proposal/target, and the preregistered opposing bullish-news conflict; its first unseen settlement is not yet due and remains sealed. Final ranking is honest: Gold conflict maturation ranks first as `ACCUMULATE` through the existing onset tape, while XSP paired-veto residual-range is rejected because only `29` uncontaminated exact matches survived the frozen `60` total / `5` per-direction-year eligibility floor. No new preregistration or outcome run is lawful from this block. The confirmed MCL Two-Speed Auction Relay now becomes the active `0/6` block; no strategy, selection, capital, service, order, or graduation authority changed |
 | E-381 | the autonomous MCL block established authentic type-1 NYMEX CL/MCL data, matched-month execution ownership, exact `$3.52/$5.52` primary/stress round-trip friction, and a resumable dated-contract hydration beginning August 2024. Rolling-range v1 saturated its opportunity ceiling and lost after cost; anchored-block v2 isolated low-efficiency width-harmony/expansion as genuine financing. Regime-financed v3's first three discovery months produced `+$100.72/59`, PF `1.190`, but `-$17.28` under stress; down was `+$107.71`, up `-$6.99`, acceptance `+$122.90/55`, and correctly exposed failed rotation `-$22.18/4`. Before any later outcome, v4 `1bc354e6…` froze only `30/60m` slow-direction financing × `2x/3x` maturation-volume caps for that weak speed, leaving the v3 acceptance law, sessions, rolls, targets, stops, costs, and news authority unchanged. Missing July-2023–August-2024 is an explicit crown blocker. XSP/Gold live owners and all order/capital authority remained unchanged |
 | E-382 | expanded discovery through ten dated CL/MCL pairs and May 2025 rejected the entire anchored-opening family before validation: v3 `-$209.48/194`, PF `0.879`; v4 `-$204.13/194`, PF `0.883`; v5 `-$283.04/192`; v6 `-$740.73/194`. The early three-month profit was regime-local, not durable. Compact receipt `mcl_two_speed_auction_relay_v3_v6_extended_discovery_rejection.json` binds `425,606/413,514` raw CL/MCL rows, exact manifest/evaluator/result hashes, and closes threshold, failure-financing, maturation-volume, cost-lock, calendar, and validation-selected rescue. The successor must use one continuous multihorizon auction state rather than fixed global opening blocks, while preserving matched-MCL parity, rolls, sessions, costs, no quota, no news direction, and no capital authority. XSP/Gold remained untouched |
+| E-383 | custom continuous proxy v7 produced authentic cadence but disproved its own signal: `1,570` trades lost `-$833.11` before fees, `-$6,359.51` at primary friction, and `-$9,499.51` under stress; PF `0.383`, DD `$6,414.54`, both branches/directions and every month were negative, and every active session exceeded the opportunity-integrity ceiling. Receipt `mcl_two_speed_auction_relay_v7_continuous_proxy_rejection.json` binds preregistration `a0a9b667…`, evaluator `abad9b6c…`, and result `42b746b6…`; no threshold rescue or validation was opened. The user extended the autonomous MCL block to 24 hours and authorized genuinely new preregistered oil-specific gates and direction profiles. Exact-engine control v8 now invokes the centralized `DirectionalImpulseEngine`/turn lifecycle over completed CL five-minute bars with matched-MCL parity, full costs and rolls; it cannot adopt the initial state or submit capital. XSP/Gold remain durable and only material capital/safety events preempt MCL research |
 
 ### Decision anchors
 

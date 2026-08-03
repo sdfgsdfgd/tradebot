@@ -1,0 +1,76 @@
+{
+  "schema": "mcl.two-speed-auction-relay-preregistration.v8",
+  "frozen_at_utc": "2026-08-03T19:26:11Z",
+  "authority": "research_only_no_orders_no_capital",
+  "supersedes": "mcl.two-speed-auction-relay-preregistration.v7",
+  "candidate": {
+    "name": "MCL Exact Directional-Impulse Flipper Control",
+    "purpose": "Measure the repository's actual product-neutral turn owner before inventing oil-specific gates",
+    "signal_owner": "completed matched-month CL five-minute bars",
+    "transport_proxy": "matched-month MCL one-minute bars",
+    "news_authority": "annotation_only"
+  },
+  "engine": {
+    "owner": "tradebot.engines.directional_impulse.DirectionalImpulseEngine",
+    "horizons_bars": [1, 3, 6, 12, 24],
+    "bar_minutes": 5,
+    "minimum_direction_score": 0.2,
+    "minimum_coherence": 0.6,
+    "smooth_alpha": 0.9,
+    "initial_score": 0.075,
+    "minimum_state_bars": 3,
+    "cooldown_bars": 3,
+    "minimum_observed_horizons": 3,
+    "entry_window_et": "00:00-23:59 excluding exchange closures through tape availability",
+    "initial_state": "observe_only; only a subsequent turn_event may open risk"
+  },
+  "bounded_cells": {
+    "turn_score": [0.02, 0.03],
+    "retrace_atr": [0.75, 1.0],
+    "declared_cell_count": 4,
+    "ranking": "discovery eligibility, positive quarter count, worst-quarter primary and stress net, stress net/intrabar-DD, stress PF, then primary net; validation cannot select a cell"
+  },
+  "lifecycle": {
+    "entry": "next available MCL one-minute open after a completed CL turn, only when the latest completed MCL five-minute move confirms direction",
+    "same_direction": "hold",
+    "opposite_turn": "close then flip at the same next MCL one-minute open, charging a round trip to each completed trade",
+    "maintenance": "retain position and state across the ordinary daily halt",
+    "roll": "close the old active MCL contract at its last available close and reopen the same direction at the next matched contract open; cost both legs and reset CL turn state for the new suffix",
+    "stop_target_timeout": "none in this exact flipper control",
+    "end_of_tape": "close at the final MCL close"
+  },
+  "fixed_owners": {
+    "roll": "dual prior-session CL/MCL volume cross, forced three complete sessions before MCL expiry",
+    "multiplier": 100,
+    "min_tick": 0.01,
+    "primary_round_trip_cost_usd": 3.52,
+    "stress_round_trip_cost_usd": 5.52
+  },
+  "proof_gates": {
+    "minimum_trades_per_complete_year": 160,
+    "positive_primary_and_stress_net_each_complete_year": true,
+    "annual_profit_factor_min": 1.1,
+    "full_profit_factor_min": 1.2,
+    "full_net_to_intrabar_drawdown_min": 1.5,
+    "both_directions_nonnegative_with_trades": true,
+    "monthly_positive_pnl_concentration_max": 0.4,
+    "three_or_more_trade_session_share_max": 0.15,
+    "missing_july_2023_to_august_2024": "hard coronation blocker"
+  },
+  "controls": [
+    "MCL-only signal engine",
+    "fixed-five-session roll",
+    "same-hold direction inversion",
+    "rejected v7 custom continuous proxy"
+  ],
+  "successor_law": "If this exact control fails, use its causal proposal/veto/MFE/MAE anatomy to preregister distinct oil-specific direction or permission profiles; never threshold-rescue it from outcomes.",
+  "prohibitions": [
+    "no daily quota",
+    "no XSP RTH admission policy",
+    "no news direction",
+    "no validation-selected cell",
+    "no live authority",
+    "no crown without the missing first challenge year"
+  ],
+  "submitted_orders": 0
+}

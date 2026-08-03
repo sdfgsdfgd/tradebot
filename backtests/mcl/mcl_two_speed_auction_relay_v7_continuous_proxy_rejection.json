@@ -1,0 +1,45 @@
+{
+  "schema": "mcl.two-speed-auction-relay-v7-continuous-proxy-rejection.v1",
+  "recorded_at_utc": "2026-08-03T19:26:11Z",
+  "authority": "research_only_no_orders_no_capital",
+  "coverage": {
+    "manifest_sha256": "7d8807579796522bd4a0866e2ff73779c9c8524948010040b388ed50e5f9489c",
+    "contract_pairs": 10,
+    "first_utc": "2024-08-04T22:01:00Z",
+    "last_utc": "2025-05-19T21:00:00Z",
+    "cl_rows": 425606,
+    "mcl_rows": 413514,
+    "validation_opened": false
+  },
+  "identity": {
+    "preregistration_sha256": "a0a9b66774bc57d88b703a82ab1dc29c4923480069e6135b7a1e450b4b81d8e3",
+    "evaluator_sha256": "abad9b6cba256e0c5b237787fc23710f9ddf6cedfd8da7cc8f2c0a2e09c65d13",
+    "result_sha256": "42b746b6d98ef97100c4d9a7a81bc884612300277f4943ee73841dc1d4a1e24b"
+  },
+  "winner": {
+    "cell_id": "te0.40_be0.15",
+    "trades": 1570,
+    "raw_net_usd": -833.11,
+    "primary_net_usd": -6359.51,
+    "stress_net_usd": -9499.51,
+    "primary_profit_factor": 0.383268,
+    "primary_intrabar_drawdown_usd": 6414.54,
+    "mean_hold_minutes": 6.7783,
+    "acceptance_net_usd": -5641.90,
+    "failure_net_usd": -717.61,
+    "down_net_usd": -3439.55,
+    "up_net_usd": -2919.96,
+    "positive_months": 0,
+    "three_or_more_trade_session_share": 1.0
+  },
+  "verdict": "REJECT_NAIVE_CONTINUOUS_PROXY",
+  "reason": "The custom breakout/reversion approximation had negative gross expectancy before fees, then failed both directions, both speeds, every month, stress friction, drawdown, and opportunity-integrity gates. It is not a faithful substitute for the repository's centralized directional-impulse lifecycle.",
+  "closed_rescues": [
+    "threshold expansion within the custom proxy",
+    "cost-blind cadence celebration",
+    "branch-only or direction-only rescue",
+    "validation-selected rescue"
+  ],
+  "next_architecture": "Run the exact product-neutral DirectionalImpulseEngine and DirectionalTurnPolicy over completed matched-month CL five-minute bars, with matched MCL parity and transport economics; only outcome-blind oil-specific profiles may follow that control.",
+  "submitted_orders": 0
+}
