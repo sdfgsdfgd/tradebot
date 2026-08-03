@@ -133,10 +133,7 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
     )
     parser.add_argument(
         "--graduation-capital-stability",
-        default=(
-            "backtests/xsp/"
-            "opening_edge_v3_capital_owner_stability_manifest_20260802.json"
-        ),
+        default="backtests/portfolio_capital_owner_stability_20260803.json",
     )
     parser.add_argument("--graduation-output")
     args = parser.parse_args(argv)

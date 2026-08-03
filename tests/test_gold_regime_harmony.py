@@ -148,6 +148,7 @@ def test_gold_live_source_consumes_canonical_exchange_parity(
         Replay,
     )
     now = datetime(2026, 8, 3, 10, tzinfo=UTC)
+    decision_bar = now - timedelta(hours=2)
     tape = SimpleNamespace(
         as_of=now,
         h1=(),
@@ -162,7 +163,10 @@ def test_gold_live_source_consumes_canonical_exchange_parity(
         tape=tape,
         onset_context={
             "exchange_parity": pair,
-            "signal": {"usable": True},
+            "signal": {
+                "usable": True,
+                "decision_bar_end_utc": decision_bar.isoformat(),
+            },
             "macro": {"usable": True},
             "news": {"authority": "attribution_only"},
             "source_points": {},
@@ -172,6 +176,10 @@ def test_gold_live_source_consumes_canonical_exchange_parity(
 
     assert output["checkpoint"]["status"] == "EVALUATED"
     assert output["checkpoint"]["evidence"]["contract_pair"] == pair
+    assert (
+        output["checkpoint"]["evidence"]["decision_bar_end_utc"]
+        == decision_bar.isoformat()
+    )
 
 
 def test_gold_hard_state_identity_uses_completed_state_birth() -> None:

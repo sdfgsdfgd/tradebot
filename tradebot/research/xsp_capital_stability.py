@@ -8,6 +8,10 @@ import math
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
+from ..live.capital_stability import (
+    PORTFOLIO_CAPITAL_STABILITY_SCHEMA,
+    portfolio_capital_owner_stability_gate,
+)
 from .live_graduation import live_calibration_logical_prefix
 
 
@@ -163,6 +167,14 @@ def xsp_capital_owner_stability_graduation_gate(
             "INVALID",
             ["capital_owner_manifest_unreadable"],
             {"path": str(path), "error": str(exc)},
+        )
+    if proof.get("schema") == PORTFOLIO_CAPITAL_STABILITY_SCHEMA:
+        return portfolio_capital_owner_stability_gate(
+            path,
+            repo_root=repo_root,
+            sleeve_id="xsp-upro-spxu-rth-cash",
+            selection_id=selection_id,
+            selection_file_sha256=selection_file_sha256,
         )
     reasons = []
     root = repo_root.resolve()

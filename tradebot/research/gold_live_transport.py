@@ -152,19 +152,31 @@ def advance_gold_regime_harmony_source(
     )
     pair = onset_context.get("exchange_parity")
     signal = onset_context.get("signal")
+    try:
+        decision_bar = (
+            gold_utc(signal["decision_bar_end_utc"])
+            if isinstance(signal, Mapping)
+            else None
+        )
+    except (KeyError, TypeError, ValueError):
+        decision_bar = None
     usable = bool(
         converged
         and isinstance(pair, Mapping)
         and pair.get("usable") is True
         and isinstance(signal, Mapping)
         and signal.get("usable") is True
+        and decision_bar is not None
+        and decision_bar <= now
     )
     target = _open_target(result)
     state = owner.state_payload(result)
     evidence = {
         "schema": "gold.1oz-regime-harmony-source-checkpoint.v1",
         "strategy_version": GOLD_REGIME_HARMONY_VERSION,
-        "decision_bar_end_utc": tape.as_of.isoformat(),
+        "decision_bar_end_utc": (
+            decision_bar.isoformat() if decision_bar is not None else None
+        ),
         "target": target,
         "owner_state": state,
         "converged": converged,

@@ -2,11 +2,37 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+import hashlib
+import json
+import math
+from collections.abc import Mapping, Sequence
 from datetime import datetime, timezone
 
-from ..engines.execution import EXECUTION_POLICY, execution_price
+from ..engines.execution import (
+    EXECUTION_POLICY,
+    execution_policy_contract,
+    execution_price,
+)
+from .capital import validate_live_capital_decision
 from .execution import order_ids
+
+
+def _evidence_sha256(value: object) -> str:
+    return hashlib.sha256(
+        json.dumps(
+            value, allow_nan=False, separators=(",", ":"), sort_keys=True
+        ).encode()
+    ).hexdigest()
+
+
+def _gate(
+    status: str, reasons: Sequence[str], evidence: Mapping[str, object]
+) -> dict[str, object]:
+    return {
+        "status": status,
+        "reasons": sorted(set(reasons)),
+        "evidence": dict(evidence),
+    }
 
 
 def broker_trade_snapshot(trade: object) -> dict[str, object]:
@@ -77,6 +103,217 @@ def terminal_broker_snapshot_complete(snapshot: Mapping[str, object]) -> bool:
     except (KeyError, TypeError, ValueError):
         return False
     return filled >= 0 and abs(fill_total - filled) <= 1e-9 and fills_complete
+
+
+def single_contract_execution_graduation_gate(
+    rows: Sequence[Mapping[str, object]],
+    *,
+    selection_id: str,
+    sleeve_id: str,
+    symbol: str,
+    con_id: int,
+    order_ref_prefix: str,
+    ladder_schema: str,
+    max_commission_usd: float,
+) -> dict[str, object]:
+    """Grade one restart-safe, centrally admitted futures execution prefix."""
+
+    order_rows = [
+        row
+        for row in rows
+        if isinstance(row.get("evidence"), Mapping)
+        and str(row["evidence"].get("order_ref") or "")
+    ]
+    if not order_rows:
+        return _gate(
+            "HOLD", ["execution_not_observed"], {"orders": 0, "fills": 0}
+        )
+    groups: dict[str, list[Mapping[str, object]]] = {}
+    for row in order_rows:
+        evidence = row["evidence"]
+        assert isinstance(evidence, Mapping)
+        groups.setdefault(str(evidence["order_ref"]), []).append(evidence)
+    invalid: list[str] = []
+    failures: list[str] = []
+    pending: list[str] = []
+    stops: list[str] = []
+    terminal_orders = fills = 0
+    commission = 0.0
+    exec_ids: set[str] = set()
+    timeout = float(execution_policy_contract()["auto_timeout_seconds"])
+    for order_ref, evidence_rows in groups.items():
+        plans = [row.get("plan") for row in evidence_rows]
+        if not plans or not isinstance(plans[0], Mapping) or any(
+            _evidence_sha256(plan) != _evidence_sha256(plans[0])
+            for plan in plans[1:]
+        ):
+            invalid.append("order_plan_missing_or_changed")
+            continue
+        plan = plans[0]
+        assert isinstance(plan, Mapping)
+        transition = str(plan.get("transition_id") or "")
+        phases = [str(row.get("phase") or "") for row in evidence_rows]
+        phase_rank = {"PREPARED": 0, "SUBMITTED": 1, "TERMINAL": 2}
+        if len(transition) != 64 or order_ref != f"{order_ref_prefix}-{transition[:24]}":
+            invalid.append("order_transition_identity_invalid")
+        if (
+            phases[0] != "PREPARED"
+            or any(phase not in phase_rank for phase in phases)
+            or any(
+                phase_rank[current] < phase_rank[prior]
+                for prior, current in zip(phases, phases[1:])
+                if prior in phase_rank and current in phase_rank
+            )
+            or phases.count("PREPARED") != 1
+            or phases.count("TERMINAL") > 1
+        ):
+            invalid.append("order_lifecycle_prefix_invalid")
+        submissions = [int(row.get("submitted_orders") or 0) for row in evidence_rows]
+        if any(value not in {0, 1} for value in submissions) or 1 not in submissions:
+            stops.append("duplicate_or_unauthorized_submission")
+        leg = plan.get("leg")
+        try:
+            admission = validate_live_capital_decision(plan["capital_admission"])
+            valid_leg = bool(
+                isinstance(leg, Mapping)
+                and leg.get("symbol") == symbol
+                and str(leg.get("action") or "").upper() in {"BUY", "SELL"}
+                and int(leg.get("quantity") or 0) == 1
+                and admission.get("status") == "ALLOW"
+                and admission.get("run_id") == selection_id
+                and admission.get("sleeve_id") == sleeve_id
+            )
+        except (KeyError, TypeError, ValueError):
+            valid_leg = False
+        if not valid_leg:
+            invalid.append("order_leg_or_capital_admission_invalid")
+            continue
+        previews = [row.get("what_if_preview") for row in evidence_rows]
+        preview = previews[0]
+        try:
+            if not isinstance(preview, Mapping) or any(
+                not isinstance(value, Mapping)
+                or _evidence_sha256(value) != _evidence_sha256(preview)
+                for value in previews[1:]
+            ):
+                raise TypeError
+            preview_values = [
+                float(preview[key])
+                for key in ("commission", "min_commission", "max_commission")
+                if preview.get(key) is not None
+            ]
+            preview_valid = bool(
+                preview.get("status") == "PreSubmitted"
+                and str(preview.get("commission_currency") or "").upper()
+                == "USD"
+                and preview_values
+                and all(
+                    math.isfinite(value) and value >= 0 for value in preview_values
+                )
+                and max(preview_values) <= max_commission_usd
+                and not str(preview.get("warning_text") or "")
+            )
+        except (KeyError, TypeError, ValueError):
+            preview_valid = False
+        if not preview_valid:
+            failures.append("fresh_preview_boundary_breached")
+        for transition_row in (
+            row.get("ladder_transition") for row in evidence_rows
+        ):
+            if transition_row is None:
+                continue
+            try:
+                elapsed = float(transition_row["elapsed_seconds"])
+            except (KeyError, TypeError, ValueError):
+                elapsed = math.nan
+            if (
+                not isinstance(transition_row, Mapping)
+                or transition_row.get("schema") != ladder_schema
+                or transition_row.get("event") != "ladder_mode_transition"
+                or transition_row.get("active_mode")
+                not in {"OPT", "MID", "AGG", "CROSS", "RLT"}
+                or str(transition_row.get("action") or "").upper()
+                != str(leg.get("action") or "").upper()
+                or not math.isfinite(elapsed)
+                or not 0 <= elapsed <= timeout + 1e-9
+            ):
+                failures.append("execution_ladder_contract_breached")
+        terminal = next(
+            (row for row in evidence_rows if row.get("phase") == "TERMINAL"),
+            None,
+        )
+        if terminal is None:
+            pending.append("terminal_execution_pending")
+            continue
+        snapshot = terminal.get("broker_order")
+        try:
+            complete = bool(
+                isinstance(snapshot, Mapping)
+                and terminal_broker_snapshot_complete(snapshot)
+                and snapshot.get("order_ref") == order_ref
+                and snapshot.get("symbol") == symbol
+                and int(snapshot.get("con_id") or 0) == con_id
+                and float(snapshot.get("filled") or 0) == 1
+                and float(snapshot.get("remaining") or 0) == 0
+                and int(float(snapshot.get("quantity") or 0)) == 1
+                and str(snapshot.get("action") or "").upper()
+                == str(leg.get("action") or "").upper()
+            )
+        except (KeyError, TypeError, ValueError):
+            complete = False
+        if not complete:
+            failures.append("terminal_fill_invalid")
+            continue
+        terminal_orders += 1
+        action = str(leg.get("action") or "").upper()
+        try:
+            limit_price = float(snapshot["limit_price"])
+        except (KeyError, TypeError, ValueError):
+            limit_price = math.nan
+        for fill in snapshot["fills"]:
+            exec_id = str(fill.get("exec_id") or "")
+            try:
+                fill_price = float(fill["price"])
+                fill_valid = bool(
+                    fill.get("symbol") == symbol
+                    and str(fill.get("side") or "").upper()
+                    in ({"BOT", "BUY"} if action == "BUY" else {"SLD", "SELL"})
+                    and math.isfinite(limit_price)
+                    and (
+                        fill_price <= limit_price + 1e-9
+                        if action == "BUY"
+                        else fill_price >= limit_price - 1e-9
+                    )
+                )
+            except (KeyError, TypeError, ValueError):
+                fill_valid = False
+            if not fill_valid:
+                failures.append("terminal_fill_execution_boundary_breached")
+            if exec_id in exec_ids:
+                stops.append("duplicate_fill_attribution")
+            exec_ids.add(exec_id)
+            fills += 1
+            commission += float(fill["commission"])
+        if commission > terminal_orders * max_commission_usd + 1e-9:
+            failures.append("commission_limit_breached")
+    return _gate(
+        "STOP"
+        if stops
+        else "INVALID"
+        if invalid
+        else "FAIL"
+        if failures
+        else "HOLD"
+        if pending
+        else "PASS",
+        [*stops, *invalid, *failures, *pending],
+        {
+            "orders": len(groups),
+            "terminal_orders": terminal_orders,
+            "fills": fills,
+            "commission_usd": commission,
+        },
+    )
 
 
 def execution_price_for_ticker(contract: object, ticker: object):
