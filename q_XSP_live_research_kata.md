@@ -979,6 +979,9 @@ and stable bootstrap evidence. Neither may be refactored into looking mature.
     and primary PnL/DD `2.225`, with both years/directions/branches positive.
     Preserve it as the stability reference; the stronger exposed two-horizon
     neighbor is not selectable. Next compare raw-turn with maturation-time breadth.
+    V16 freezes that temporal comparison at the lawful entry boundary: the
+    completed maturation snapshot is primary; raw-or-mature and raw-and-mature
+    profiles are semantic neighbors. Breadth remains fixed at three.
     Missing July-2023–August-2024 remains a hard crown blocker; no quota,
     validation-selected cell, order, or capital authority.
 

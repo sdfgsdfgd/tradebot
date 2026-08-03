@@ -1,0 +1,61 @@
+{
+  "schema": "mcl.two-speed-auction-relay-preregistration.v16",
+  "frozen_at_utc": "2026-08-03T21:07:11Z",
+  "authority": "adaptive_posthoc_development_only_no_unseen_validation_no_orders_no_capital",
+  "supersedes": "mcl.two-speed-auction-relay-preregistration.v15",
+  "candidate": {
+    "name": "MCL Entry-Time Velocity-Breadth Router",
+    "base": "v15 categorical three-horizon velocity breadth plus v13 failed-auction profit memory",
+    "change": "decide small-response routing from the completed maturation snapshot nearest entry rather than the five-minute-old raw-turn snapshot",
+    "hypothesis": "because v13 deliberately waits one completed five-minute bar, the continuation-versus-exhaustion decision should use velocity financing at that lawful entry boundary; stale raw-turn breadth should remain context, not sole direction authority"
+  },
+  "causal_seed": {
+    "v15_receipt_sha256": "9975286ab26483d045269f66304fd8e87402b14ad43cc8a4b77435295d6bc441",
+    "v15_result_sha256": "cff58d78770cc22275d330a5238b682a686501666c0a300362efd6c424d17c74",
+    "v15_primary_full_primary_stress_usd": [
+      1965.49,
+      1289.49
+    ],
+    "v15_primary_full_net_to_drawdown": 2.2246129119883973
+  },
+  "frozen_signal_and_lifecycle": {
+    "engine": "v15 exact macro CL engine with 6/12/24/48/96 completed five-minute horizons",
+    "raw_turn_and_maturation": "v15 exact raw turn plus exactly one completed five-minute maturation bar",
+    "matched_mcl_parity": "v15 exact direction-aligned raw-turn and maturation responses",
+    "large_response": "responses above three ticks remain failed-auction fades",
+    "failed_auction_profit_memory": "v13 exact 0.5 percent activation and 25 percent running-MFE retention",
+    "roll_and_costs": "v15 exact dual-volume roll, flat-until-fresh-turn law, and 3.52/5.52 costs"
+  },
+  "temporal_profiles": {
+    "primary_maturation": "for one-to-three-tick responses, follow when at least three horizon velocities in the completed maturation snapshot align with the raw direction; otherwise fade",
+    "neighbour_either": "follow when either raw-turn or maturation breadth reaches three",
+    "neighbour_both": "follow only when raw-turn and maturation breadth both reach three",
+    "admission": "every unchanged v15 admission remains an admission; only routed direction may differ"
+  },
+  "controls": [
+    "v15 raw-turn-only three-horizon route",
+    "unchanged v13 parity-only route",
+    "MCL-only signal owner",
+    "fixed-five-session roll",
+    "directionally inverted same holds"
+  ],
+  "proof": {
+    "minimum_trades_per_year": 160,
+    "positive_primary_and_stress_each_available_year": true,
+    "annual_profit_factor_min": 1.1,
+    "full_profit_factor_min": 1.2,
+    "full_primary_net_to_intrabar_drawdown_min": 1.5,
+    "both_directions_and_both_branches_nonnegative": true,
+    "monthly_positive_pnl_concentration_max": 0.4,
+    "future_unseen_evidence_and_missing_first_year": "required before crown"
+  },
+  "selection_law": "maturation-only breadth is the declared primary; either/both temporal compositions are sensitivity neighbors and cannot replace it from exposed outcomes",
+  "prohibitions": [
+    "no breadth-count, parity, velocity-value, retention, or stop sweep",
+    "no added delay beyond the existing one-bar maturation",
+    "no abstention, daily quota, or synthetic re-entry",
+    "no target, timeout, session, direction, volatility, calendar, or news interaction",
+    "no crown or live authority from exposed history"
+  ],
+  "submitted_orders": 0
+}
