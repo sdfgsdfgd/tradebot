@@ -1,0 +1,80 @@
+{
+  "schema": "mcl.opening-drive-branch-maturation-census-preregistration.v1",
+  "registered_at_utc": "2026-08-03T23:54:00Z",
+  "authority": "outcome_blind_count_only_no_forward_pnl_no_orders_no_capital",
+  "campaign": "mcl.two-speed-auction-relay.v37",
+  "hypothesis": "Opening-auction absorption can act immediately, while apparent initiative requires one completed causal auction-acceptance bar before follow or fade. Separating those clocks can retain frequent genuine rejection trades without paying immediately for unresolved drive noise.",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "source_census_sha256": "e387fba3f2ef6e6114b858a6f5fc1e94b463c602cad1eb19329b4bc2b4526abb",
+    "rejected_lifecycle_sha256": "1ef514f1186fd922833f6d7a3b66394663be4395dafa8e693d6bf0f2fcd1a177",
+    "discovery_anatomy_sha256": "66688e37b68ea6c17181fa019f9e97de8dc6051c0e7bb2cb469c8b044db81b12",
+    "evaluator_path": "/tmp/mcl_stage37_branch_maturation_census.py",
+    "evaluator_sha256": "189cc954644135b73d36705a63f5d800c046b4bbf26bd2084c4b4efb71a94736"
+  },
+  "profiles_in_frozen_selection_order": [
+    {
+      "profile": "mature_1x5m",
+      "initiative_verdict": "first completed five-minute CL/MCL bar after the opening auction"
+    },
+    {
+      "profile": "mature_2x5m",
+      "initiative_verdict": "second completed five-minute CL/MCL bar after the opening auction",
+      "role": "count-eligibility neighbor only if the one-bar primary is ineligible"
+    }
+  ],
+  "branch_clock": {
+    "absorption": "retain the exact V35 immediate next-open direction and timestamp",
+    "initiative_acceptance_up": "both CL and MCL verdict closes exceed their own opening-auction closes; retain up",
+    "initiative_acceptance_down": "both CL and MCL verdict closes are below their own opening-auction closes; retain down",
+    "initiative_failure_after_up": "both verdict closes are below their own opening-auction midpoints; propose down",
+    "initiative_failure_after_down": "both verdict closes are above their own opening-auction midpoints; propose up",
+    "ambiguous_or_disagreed": "exclude",
+    "entry": "next matched-contract MCL one-minute open after the verdict"
+  },
+  "periods": {
+    "discovery": "2024-08-04T22:00:00Z through 2025-08-04T22:00:00Z exclusive",
+    "validation_count_only": "2025-08-04T22:00:00Z through 2026-08-04T22:00:00Z exclusive"
+  },
+  "eligibility_required_in_each_period": {
+    "annualized_events": {
+      "exclusive_minimum": 160,
+      "inclusive_maximum": 520
+    },
+    "minimum_up": 50,
+    "minimum_down": 50,
+    "minimum_absorption": 100,
+    "minimum_initiative_acceptance": 20,
+    "minimum_initiative_failure": 20,
+    "minimum_europe": 60,
+    "minimum_us": 60,
+    "minimum_high_side": 60,
+    "minimum_low_side": 60,
+    "minimum_active_session_fraction": 0.6,
+    "active_session_median_events": [
+      1,
+      2
+    ],
+    "maximum_p95_events": 2,
+    "maximum_events": 2
+  },
+  "selection_law": "Select the first profile in frozen order that passes every count gate in both periods. Only that profile may receive a later lifecycle preregistration.",
+  "outcome_firewall": {
+    "forward_return": false,
+    "mfe": false,
+    "mae": false,
+    "pnl": false,
+    "costed_lifecycle": false,
+    "validation_outcome": false,
+    "news": false,
+    "orders": false,
+    "capital": false
+  },
+  "prohibitions": [
+    "no third maturation bar",
+    "no midpoint or auction-close threshold sweep",
+    "no branch deletion after counts",
+    "no outcome-based profile selection",
+    "no stop or timeout rescue in the census"
+  ]
+}
