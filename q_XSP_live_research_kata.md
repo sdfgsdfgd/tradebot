@@ -738,11 +738,13 @@ transition through today’s close; no order will be forced merely to populate t
   and `-$606.60` stress over `305` trades, while exact structural invalidation
   lost `-$429/-$1,029`. Discovery anatomy also rejected static side inversion
   and existing trend/slope/velocity permissions on stress PnL/DD, cadence,
-  direction, or month stability. V35 is materially distinct: one completed
-  `15m` opening auction after each DST-aware anchor, CL volume effort versus its
-  immediately preceding four `15m` bars, and matched-MCL result classify
-  mutually exclusive initiative or absorption. Preregistration `934efddb…` and
-  evaluator `d52e606d…` permit count proof only; forward outcomes remain sealed.
+  direction, or month stability. V35's materially distinct opening-drive census
+  passed without outcomes: discovery/validation-count produced `348/309`
+  events (`348.24/310.12` annualized), `89.9%/84.8%` active sessions, median
+  `2/1`, p95/max `2`, and deep coverage of both anchors, directions, sides, and
+  initiative/absorption branches. V36 preregistration `66c295e1…` / evaluator
+  `8fa754ec…` freezes only clock-state, native structural, and joint completed-
+  `5m` invalidation ownership. Discovery may select one before validation opens.
   Rolls, costs, news authority, and live XSP/Gold owners remain unchanged.
 - `[PRESERVED RUNNER-UP]` **Tri-asset narrative-dispersion compression:** test
   whether convergence among easing-negative XSP pressure, weakening-positive
@@ -1139,10 +1141,15 @@ and stable bootstrap evidence. Neither may be refactored into looking mature.
     (`934efddb…`) / evaluator `d52e606d…` replaces range chasing with one exact
     completed `15m` auction after each anchor. Dominant CL effort must meet the
     preceding-four-bar median; matched MCL confirms mutually exclusive
-    initiative or boundary absorption. Both periods must independently clear
-    `>160/year`, active-session, anchor/direction/branch/side, and max-two count
-    floors before any lifecycle outcome opens. Missing July-2023–August-2024
-    remains a hard crown blocker; no quota, order, or capital authority.
+    initiative or boundary absorption. Count proof passed at `348.24/310.12`
+    annualized, `89.9%/84.8%` active sessions, median `2/1`, p95/max `2`, with
+    every frozen cohort deeply populated. V36 preregistration
+    `mcl_opening_drive_effort_result_lifecycle_preregistration.json`
+    (`66c295e1…`) / evaluator `8fa754ec…` freezes three categorical owners:
+    anchor clock-state, branch-specific native structure, or joint completed-
+    `5m` invalidation. Discovery may select one; only it may open validation.
+    Missing July-2023–August-2024 remains a hard crown blocker; no quota, order,
+    or capital authority.
 
 ---
 
@@ -1487,6 +1494,7 @@ and
 | E-418 | V32 validation `3faa0885…` rejected static prior-high absorption: the discovery reference `+$2,357.64/+$2,121.64` stress reversed to `-$1,730.12/106` and `-$1,942.12` stress, PF `.835`, DD `$4,238.40`, only `5` positive months, and both directions/branches negative. The exact textbook high-only control simultaneously changed from `-$3,188.36/-$3,424.36` stress in discovery to `+$983.88/+$771.88` in validation, proving a causal regime owner would be required and closing side-only inversion/follow rescue. Receipt `mcl_prior_high_absorption_validation_rejection.json`. V33 preregistration `mcl_two_anchor_inventory_census_preregistration.json` / evaluator `4d0b7589…` now freezes two non-overlapping liquidity-transfer auctions: DST-aware Europe and US open, each against only completed pre-anchor CL/MCL inventory, first joint excursion, and one next-bar verdict; maximum two/session. Count proof requires `>260/year`, both anchors/directions/branches/sides, and no forward outcomes, orders, capital, or XSP/Gold mutation |
 | E-419 | outcome-blind V33 count proof `b0008042…` advanced the two-anchor relay: discovery `305` events (`305.21/year`), `85.27%` active sessions, Europe/US `185/120`; validation `273` (`273.99/year`), `79.77%` active, Europe/US `170/103`. Both periods have median `1`, p95/max `2`, balanced directions and sides, and >=`50` failures; zero forward outcomes opened. Receipt `mcl_two_anchor_inventory_census_receipt.json` binds preregistration/evaluator/result `2c3762bf…/4d0b7589…/b0008042…`. V34 preregistration `mcl_two_anchor_inventory_lifecycle_preregistration.json` / evaluator `56e1ff25…` freezes exact next-open MCL execution, Europe cutoff `08:55 ET`, US cutoff `10:25 ET`, `$3.52/$5.52` costs, and only anchor-state versus exact range invalidation. Discovery may select one owner; only it opens validation. No news, order, capital, or XSP/Gold mutation |
 | E-420 | V34 lifecycle `af845ca6…` rejected both exact owners in discovery and kept validation sealed: anchor-state made only `+$3.40/305` primary and `-$606.60` stress, PF `1.0005`, DD `$1,102.96`, and `6` positive months; structural invalidation lost `-$429/-$1,029`, PF `.880`, DD `$1,045.52`, and `5` positive months. Side/direction anatomy `7ff06ce1…` and actual product-neutral multitimeframe anatomy `760f7ab4…` could not meet stress PnL/DD, cadence, month, and direction/branch transfer together. Receipt `mcl_two_anchor_inventory_lifecycle_rejection.json` (`a78427bc…`) closes threshold rescue of those direction owners while preserving the useful clocks. V35 preregistration `mcl_opening_drive_effort_result_census_preregistration.json` / evaluator `d52e606d…` instead freezes the first completed `15m` auction after each DST-aware Europe/US anchor, preceding-four-bar CL median-volume effort, matched-MCL result, and mutually exclusive initiative/absorption classification. It may count both periods only; no forward return, MFE/MAE, PnL, news, order, capital, or XSP/Gold authority opens |
+| E-421 | outcome-blind V35 count proof `e387fba3…` advanced the opening-drive relay: effort-gated discovery produced `348` events (`348.24/year`), `89.92%` active sessions, median/p95/max `2/2/2`, initiative/absorption `204/144`, up/down `180/168`, Europe/US `180/168`; validation count produced `309` (`310.12/year`), `84.82%` active, median/p95/max `1/2/2`, initiative/absorption `158/151`, up/down `163/146`, Europe/US `146/163`. The ungated count control was only slightly larger, proving volume did not manufacture scarcity; zero outcomes opened. Receipt `mcl_opening_drive_effort_result_census_receipt.json` (`5fc6ba72…`). V36 preregistration `mcl_opening_drive_effort_result_lifecycle_preregistration.json` / evaluator `8fa754ec…` freezes exact next-open MCL execution, `$3.52/$5.52` costs, existing anchor cutoffs, and only clock-state, branch-specific native structure, or joint completed-5m invalidation. Discovery may select one exact owner; only it opens validation. No news, order, capital, or XSP/Gold mutation |
 
 ### Decision anchors
 

@@ -1,0 +1,73 @@
+{
+  "schema": "mcl.opening-drive-effort-result-census-receipt.v1",
+  "recorded_at_utc": "2026-08-03T23:50:00Z",
+  "authority": "outcome_blind_count_only_no_forward_pnl_no_orders_no_capital",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "preregistration_sha256": "934efddbbdd5e01a0f39161c6ae1c2d1a933c71d8119303f71346689064d3e95",
+    "evaluator_sha256": "d52e606d5c928b8ee5fd34e3f0aed3d9c506f2feafe67cdcb1d651b53d3a48f9",
+    "result_sha256": "e387fba3f2ef6e6114b858a6f5fc1e94b463c602cad1eb19329b4bc2b4526abb"
+  },
+  "primary_effort_gated": {
+    "discovery": {
+      "events": 348,
+      "annualized": 348.238356,
+      "active_session_fraction": 0.899225,
+      "median_p95_max": [
+        2,
+        2,
+        2
+      ],
+      "up_down": [
+        180,
+        168
+      ],
+      "initiative_absorption": [
+        204,
+        144
+      ],
+      "europe_us": [
+        180,
+        168
+      ],
+      "high_low": [
+        178,
+        170
+      ]
+    },
+    "validation_count_only": {
+      "events": 309,
+      "annualized": 310.116149,
+      "active_session_fraction": 0.848249,
+      "median_p95_max": [
+        1,
+        2,
+        2
+      ],
+      "up_down": [
+        163,
+        146
+      ],
+      "initiative_absorption": [
+        158,
+        151
+      ],
+      "europe_us": [
+        146,
+        163
+      ],
+      "high_low": [
+        148,
+        161
+      ]
+    }
+  },
+  "ungated_count_control_events": {
+    "discovery": 352,
+    "validation_count_only": 326
+  },
+  "forward_outcomes_opened": 0,
+  "eligible_for_lifecycle_preregistration": true,
+  "verdict": "ELIGIBLE_FOR_PREREGISTRATION",
+  "submitted_orders": 0
+}
