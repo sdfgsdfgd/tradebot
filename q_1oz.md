@@ -164,6 +164,7 @@ and hashes below are historical provenance only; they cannot support a crown.
 | 84 | Same-D1 epoch trailing/total loss memory after two/three losses | Year 7 can reach `+$62.09` and DD `$170.36`, but cadence collapses to 5/year and other annual slices turn negative; trailing-three retains more net but only 15.33/year | repeated loss is informative, but admission circuit-breaking is economically destructive |
 | 85 | Separate UUP/TIP macro-polarity sleeve; three direction definitions × one/two completed-day persistence | five cells lose `−$418.42` to `−$1,151.46`; least-bad cell is `−$1.08` over 10y, 6/10 positive years, recent PF `1.0131`, and only 6.33 trades/year | reject independent macro direction; retain UUP/TIP as context/financing only |
 | 86 | Same macro-polarity sleeve holding through neutral states until qualified opposition | one cell reaches `+$3,232.35`, but only 6/10 years, 3.0 recent trades/year, Year 4 `−$442.62`, and 100% top-five concentration; neighbours span only 3–6/10 | reject apparent modern-trend jackpot; independent macro direction is closed |
+| 87 | Rolling 3/5/8 closed-trade health with one-H4 maturation | first replay reset rolling predecessor memory at annual-window starts, so annual slices and full-ten-year state were not composable | invalid before strategy judgment; any revisit must seed exact prior closed trades across every cutoff |
 
 The XSP engine test reused only its portable causal core: normalized
 multihorizon slopes, slope velocities, coherence, ATR ratio/velocity/
@@ -672,6 +673,8 @@ outcome is sealed until the full 24-hour horizon completes at
    branches, plus a separately owned macro-polarity sleeve. No tested rule makes
    all ten years positive while preserving cadence, net, concentration, and
    recursive Stage-76 ownership.
+   Stage 87 is excluded—not rejected—because its first replay failed the causal
+   annual-boundary predecessor-seed contract.
 15. `[DONE]` Freeze Stage 76/77 as the strongest honest development frontier in
    `backtests/gold/one_oz_regime_harmony_frontier_20260803.json`; no false crown.
 16. `[BLOCKED]` A machine declaration requires a future candidate to pass
@@ -965,6 +968,12 @@ outcome is sealed until the full 24-hour horizon completes at
   SHA-256 `28cea8bc2f4d3c09f53b63be4d7f2acdbe4caf26c6b923b2add7d1e3dd80df2f` /
   `e11a2d8912f19f2970246b9462b5e6dc28df2c0299b1317a30a68e30f9db7cf2`;
   the spectacular center is a six-year/cadence/concentration failure.
+- Stage-87 rolling-health preregistration SHA-256
+  `25d0da22b116837b5fa6c0b0c7cbaa972db484c2cd5d65fb6fe7635bdf3f7d4c`;
+  first receipt SHA-256
+  `858a1769f3460926db9e37b527c81518172054c97fbacf9269888ac520957af3`
+  is invalid for strategy inference because causal predecessor seeding was not
+  preserved across annual cutoffs.
 - Canonical frozen frontier:
   `backtests/gold/one_oz_regime_harmony_frontier_20260803.json`; research-only,
   not crowned, not selected, and no capital/order authority.
