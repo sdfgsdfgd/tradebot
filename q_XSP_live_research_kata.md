@@ -1,14 +1,14 @@
 # XSP Mastery — Live Research Kata
 
 - **Status:** `[ACTIVE] Opening Edge v3 is the frozen historical crown and
-  clean Tiered UPRO/SPXU RTH selection `b4799fa6…` is live-capable. Fresh
-  SMART/direct-ARCA books, quote-derived `6 UPRO / 23 SPXU`, cash, effective
-  Tiered commission, flat broker state, immutable identity, and restart proof
-  passed. Its first restart and natural `09:47 ET` recurrence remained flat
-  with zero submissions; the five-minute capital owner is active and the first
+  package-sized Tiered UPRO/SPXU RTH selection `1083c181…` is live-capable. Fresh
+  SMART books, quote-derived `5 UPRO / 21 SPXU`, cash, conservative Tiered
+  commission range, flat broker state, immutable identity, and restart proof
+  passed. Its cold start, immediate restart, and natural `12:47Z` recurrence
+  remained flat with zero submissions; the five-minute capital owner is active and the first
   read-only dwell capture is terminally audited `ACCUMULATE`. GTH cash
   authority remains disabled. Gold Stage 76/77 is separately armed on q as
-  flat one-contract 1OZ canary `12b15bd2…`; only a fresh causal admission may
+  flat one-contract 1OZ canary `62344ce2…`; only a fresh causal admission may
   enter during GTH or RTH, and operational graduation remains pending`
 - **Authority:** canonical resume state, active task tree, critical evidence
   index, and promotion contract
@@ -24,15 +24,15 @@
   scope is explicitly accepted for the first canary. GTH cash execution remains
   separately unqualified
 - **Capital premise:** the position-preserving successor binds IBKR Australia's
-  immediate stock-sale proceeds. Shared plan `6950eb11…` preserves the exact
-  `$900.46` XSP cash ceiling and `$417.59` unallocated reserve while adding one
-  exclusive 1OZ futures-margin sleeve; neither spare cash nor futures margin is
-  interchangeable entry authority. `[WIP]` A v3 successor will replace only
-  that cross-product exclusivity with one generic minimum-executable-package
-  allocation: reserve every active champion's declared minimum first, then
-  distribute residual capacity, or emit an exact aggregate-capacity HOLD. The
-  current mutex remains authoritative until that successor passes both entry
-  orderings and is published immutably. The
+  immediate stock-sale proceeds. Shared plan `b4a920b3…` reserves every active
+  champion's generic minimum executable package before weighted residual
+  allocation. It assigns one 1OZ contract plus XSP's `$800.46` package and
+  leaves `$516.93` settled USD unallocated; the same account envelope reserves
+  `A$600/A$520` gold initial/maintenance margin, an `A$300` minimum buffer, and
+  full-gross stress for the unrelated TQQQ share. Either entry order is lawful;
+  every new entry re-evaluates all promised packages from fresh broker state,
+  and aggregate insufficiency returns an exact pre-order HOLD. Neither spare
+  cash nor futures margin is interchangeable entry authority. The
   selected transport retains a conservative
   maximum completed-ticket commission of `$0.45034925`. The first round trip
   bought `23 SPXU @ $39.10` for `$0.318126`, then sold all `23 @ $38.56` for
@@ -50,18 +50,18 @@ output belongs in commit/final verification, not in this management brain.
 
 | Authority | Current truth |
 |---|---|
-| Broker/order strategy | XSP: Tiered UPRO/SPXU RTH cash pair. Gold: one `1OZZ6` limit-only canary, fresh Stage-76 admissions in GTH or RTH. One account lock and one-directional-sleeve mutex govern both |
-| Selected live run | `b4799fa6…` / file `eb6aad41…`, frozen `13:42:55Z` from source `09adbda2…` and preview `62edc222…`; baseline flat, zero inherited fills/P&L/DD. Invalid `daf1609b…` and earlier identities remain archived evidence only |
-| Gold live canary | `12b15bd2…` / file `f7800a0f…`, selected flat at `10:23:51Z` from source `ea91ded2…`; `1OZZ6` execution and `GCZ6` corroboration, zero inherited fills/P&L/DD, no synthetic midcycle entry |
+| Broker/order strategy | XSP: Tiered UPRO/SPXU RTH cash pair. Gold: one `1OZZ6` limit-only canary, fresh Stage-76 admissions in GTH or RTH. One account lock serializes broker mutation; generic minimum-first packages permit both directional sleeves concurrently when fresh aggregate capacity passes |
+| Selected live run | `1083c181…` / file `d5f616e4…`, selected flat at `12:41:13Z` as the package-sized successor to `b4799fa6…`; XSP owns `xsp-usd-800`, zero inherited fills/P&L/DD. Invalid `daf1609b…` and earlier identities remain archived evidence only |
+| Gold live canary | `62344ce2…` / file `5fc9048d…`, selected flat at `12:41:13Z` as the package-bound successor to `12b15bd2…`; `1OZZ6` execution and `GCZ6` corroboration, zero inherited fills/P&L/DD, no synthetic midcycle entry |
 | Research crown | **Opening Edge v3 — Regime Harmony 24/5**; `xsp.opening-edge-v3-regime-harmony-24x5.v1` |
 | Runtime parity | Central v3 owner reproduces RTH `40708a28…` exactly over `425/425` trades; unchanged GTH Down Sleeve reproduces `9e04807f…` over `179/179`; combined `604`, `+291.1756`, PF `2.0919`, DD `17.63` |
-| Runtime source anchor | q/origin are synchronized at gold commissioning `da3afd45…` plus canonical parity fix `a359bd44…`; XSP central owner `643b6a…`, crown `d47eb39…`, pure graduation owner `f5b1cc3…`, and prior capital manifest `59a6a555…` remain bound |
-| Observer cadence | Five-minute timer active with tracked writable drop-in `c831b847…`. Mandatory restart proof at `09:45:33 ET` and first natural `09:47 ET` recurrence both returned `flat_target`, null leg, flat holdings, and zero submissions. The first read-only entry-dwell tape completed cleanly at `11:35 ET`; zero admissions means the cohort remains `ACCUMULATE` |
+| Runtime source anchor | q/origin are synchronized at minimum-package generation `fa9443a…`; XSP central owner `643b6a…`, crown `d47eb39…`, pure graduation owner `f5b1cc3…`, and gold commissioning/parity `da3afd45…/a359bd44…` remain bound |
+| Observer cadence | Both five-minute timers are active. After the immutable package migration, XSP and Gold each passed cold start, immediate restart, and natural `12:47Z` recurrence: `flat_target` / `flat_no_target`, flat holdings, and zero submissions. The earlier XSP read-only entry-dwell tape completed cleanly; zero admissions means the cohort remains `ACCUMULATE` |
 | RTH signal freshness | **cleared:** after the user activated `CBOE Streaming Market Indexes`, zero-order receipt `acce7ed3…` returned live type-1 XSP, current five-minute history, and real-time `TRADES` bars without a Gateway restart; the natural `10:07 ET` centralized v2 checkpoint then evaluated with both XSP and SPY through `10:05` and `120s` age |
-| Order/capital authority | XSP `b4799fa6…` retains `rth_cash_pair_limit_only`. Gold `12b15bd2…` has `one_oz_limit_canary`, maximum one contract and `A$600/A$520` initial/maintenance limits. Plan `6950eb11…` preserves XSP's cash pool/reserve and forbids concurrent directional sleeves, borrowing, or automatic reallocation. Risk reduction is unconditional |
-| Profitability clock | XSP remains active from `13:42:55Z` with its lawful Monday/Tuesday/Friday cutoff chain. Gold canary evidence begins `10:23:51Z`; 24h/48h/five-session verdicts remain not due and cannot pass without authentic after-cost execution. No missing slot is backfilled and no trade is forced |
+| Order/capital authority | XSP `1083c181…` retains `rth_cash_pair_limit_only` under package `xsp-usd-800`. Gold `62344ce2…` retains `one_oz_limit_canary` under package `gold-one-contract`. Plan `b4a920b3…` reserves both minima before residual allocation, permits concurrent ownership, forbids borrowing/unproved reallocation, and rechecks the complete portfolio envelope before either entry. Risk reduction is unconditional |
+| Profitability clock | Both successor prefixes begin `12:41:13Z`; predecessor flat prefixes remain immutable evidence only. Their 24h/48h/five-session verdicts are not due and cannot pass without authentic after-cost execution. No missing slot is backfilled and no trade is forced |
 | Execution verdict | `LIVE_FLAT` for both selected runs: XSP has zero clean-run fills/P&L/DD and gold has zero fills/trades/P&L/DD, no relevant position/order, and no breach. Archived XSP predecessor loss `-$13.079007` transfers to neither clean identity |
-| Next irreversible evidence | either a newly admitted v3 RTH direction or a fresh Stage-76 gold admission may create the next capital event, but the account mutex permits only one directional sleeve. MCL remains measurement-only |
+| Next irreversible evidence | either a newly admitted v3 RTH direction or a fresh Stage-76 gold admission may create the next capital event; the other package remains reserved and may enter later if the fresh full-portfolio recheck passes. MCL remains measurement-only |
 | First active work | preserve both selected recurrence streams; review proposal/veto, slope/velocity/ATR, long context, economics, MFE/MAE, safety, and TA/news attribution at 20-minute cadence; reconcile any real fill immediately; continue the preregistered MCL TA-onset/news-convexity prefix; run graduation reducers only at lawful cutoffs |
 
 ### Immediate sequence
@@ -197,21 +197,21 @@ output belongs in commit/final verification, not in this management brain.
     only when due.
 30. `[WIP]` **1OZ graduation lane:** exact Stage-76 runtime/native parity, COMEX
     L1, shared-month books, margin/cash, two-sided preview, immutable flat
-    selection `12b15bd2…`, plan `6950eb11…`, cold restart, and first natural GTH
+    selection `62344ce2…`, plan `b4a920b3…`, cold restart, and natural GTH
     recurrence passed. Preserve authentic execution from the first fresh
     post-selection admission; no RTH wait, inherited entry, or forced trade.
     Operational crown requires positive after-cost 24h/48h/five-session proof.
 31. `[WIP]` **MCL measurement/news lane:** preserve immutable technical onset,
     price response, and saturation/convexity attribution; no direction or
     capital authority until unseen evidence and an independent transport pass.
-32. `[WIP]` **Generic concurrent-capital lane:** supersede the v2 account mutex
-    with one product-neutral minimum-executable-package contract. Cash lots,
-    futures contracts, and later defined-risk packages declare minimum/maximum
-    units plus frozen cash, margin, and stress envelopes; the account owner
-    reserves all active minima before weighted residual allocation. Prove
-    XSP-first and gold-first entry, aggregate stress, settlement, restart,
-    unconditional reduction, and explicit oversubscription HOLD before any
-    live plan or selection migration.
+32. `[DONE]` **Generic concurrent-capital lane:** plan `b4a920b3…` supersedes
+    the v2 account mutex with one product-neutral minimum-executable-package
+    contract. Cash lots, futures contracts, and later defined-risk packages
+    declare monotonic ladders with cash, margin, stress, and FX envelopes; the
+    account owner reserves all active minima before weighted residual
+    allocation. XSP-first, gold-first, aggregate stress, settlement, cold
+    restart, unconditional reduction, generic third-product extensibility, and
+    explicit oversubscription HOLD passed before immutable migration.
 
 ### Never infer
 
@@ -1128,6 +1128,7 @@ and
 | E-363 | durable cockpit `78fa72d…` makes the capital plan the sole run registry and projects exact selection SHA, q timer/service, selected-ledger health, holdings/orders, cash, P&L/cost/DD, graduation, safety, and persisted Hawkeye anatomy into Bot Trade. A mounted real-artifact smoke rendered the original `5/15/30/60/120m` slope angles/velocities and ATR ratio/velocity/acceleration plus gate, `5/10/21/42/63/84` regime and news pressure/delta/velocity, while preserving local Presets/Instances/Orders/Logs. Core imports no broker/order owner; Start/flat-safe Stop can touch only the bound timer, while Replace/Rebalance require immutable successors. Review caught and reversed an initial binding placement so frozen `xsp_live_capital.py` remains exact SHA `8dc86cf0…`. q snapshot is `READY/RUNNING`, plan `f34751af…`, selection `b4799fa6…/eb6aad41…`, `80` rows, flat, no open/pending order, `$1,318.05` cash, and zero fills/trades/P&L/DD. Permanent mode-`0600` cutoff receipt `cfdbcfbc…` is visible as honest `24h HOLD`; identity/runtime/capital/restart/safety/attribution pass, execution and profitability remain immature. Full proof `1048` passed / `4` deselected; no broker query, order, selection, strategy, sizing, risk, clock, or economics mutation |
 | E-364 | unified portfolio owner `61728ed8…` supersedes only E-363's UI coexistence boundary: active Bot Trade no longer imports or exposes the in-memory Preset -> local signal/order -> broker path. Machine crown identity and artifact SHA gate commissioning; README crowns are research-only; missing immutable selection/capital proof returns persisted HOLD. Mac uses one explicit SSH q endpoint with no local-state fallback; q persists linked control request/result receipts before/after any timer mutation. The same timeline projects exact source Hawkeye context, execution-ladder dwell/reprices, previews, broker refs, fills, commissions, holdings, risk, P&L/DD, and graduation without recalculation. Legacy UI code is quarantined regression-only. Architecture/full proof is `1054` passed / `4` deselected; current q selection, capital plan, worker, ledger, broker, order, strategy, clock, and economics were untouched |
 | E-365 | gold commissioning `da3afd45…` plus canonical parity fix `a359bd44…` centralizes exact Stage-76 H4/D1 ownership, dated GC/1OZ parity, selection, futures risk, and execution through the shared capital/order-evidence/ladder owners. Runtime reproduces 10y `257/+3227.82/PF 2.1891/DD 690.07` and recent `73/+3103.52/PF 3.9915/DD 690.07`; native Stage 77 maps `40/40` with six rolls and `+2442.78/PF 3.938/DD 651.89`. Live type-1 `GCZ6/1OZZ6`, `$0.66/side` previews, maximum `A$561.12/A$487.70` initial/maintenance change, immutable flat selection `12b15bd2…/f7800a0f…`, and plan `6950eb11…/c9206803…` passed. The plan preserves XSP's `$900.46/$417.59` cash boundary and permits only one directional sleeve. Two cold starts and first natural GTH checkpoint `4bcf4627…` were flat, zero-order, zero-P&L/DD. Receipt `one_oz_stage76_canary_commissioning_20260803.json` / `37a0ab19…`; `1079` passed / `4` deselected. Gold is `CANARY_LIVE`, not graduated |
+| E-366 | minimum-package owner `797e2fdd…` plus premarket-preview, commission-range, and account-FX corrections through `fa9443a…` supersede E-365's cross-sleeve mutex without product hardcoding. Every active sleeve declares a monotonic indivisible package ladder over cash debit, initial/maintenance margin, stressed loss, and FX stress; one pure allocator reserves all minima before weighted residual upgrades, while every entry re-evaluates the complete promised portfolio from fresh broker state. Frozen XSP `$400…$900` replays preserve `426/426` trades and positive annual slices; Gold uses maximum single-open-position stress `$256.17`, not cumulative run DD. Fresh zero-transmission type-1 previews generated plan `b4a920b3…`: Gold `gold-one-contract`, XSP `xsp-usd-800`, `$516.93` unallocated settled cash, `A$329.95` post-reservation available funds above the `A$300` floor, and `A$1005.39` post-stress excess liquidity after full-gross TQQQ stress. Immutable successors `62344ce2…/5fc9048d…` and `1083c181…/d5f616e4…` passed XSP-first, Gold-first, oversubscription HOLD, generic third-product, cold/restart, and first natural recurrence proofs with flat holdings, zero orders/fills/P&L/DD, and no breach. Full proof `1091` passed / `4` deselected |
 
 ### Decision anchors
 
@@ -1180,7 +1181,8 @@ and
 | D-185 | v3 may reuse only the existing selected cash-pair execution owner. Selection must bind fresh SMART and direct-ARCA books, exact quote-derived whole shares, effective Tiered what-if economics, current contract/cash identity, strict T+1 risk, and explicit acceptance of the below-global-cadence RTH-first scope. A historical pass, pricing request, stale internal book, preselection state, or missing GTH qualification cannot create authority |
 | D-186 | transport follows the crowned lifecycle's three states exactly: hold incumbent; sell to flat when the source surrenders but no opposite entry is admitted; or fully SELL then BUY when the opposite direction is admitted. Immediate sale proceeds may finance the latter only after terminal full-sale and fresh broker reconciliation. Never invent signal context for a flat liquidation, infer a long from raw up bias, or let an inherited-position continuity identity start a clean profitability prefix |
 | D-187 | Bot Trade has one live meaning: request q to validate or control an immutable candidate/run through the shared capital and graduation owners. It may never construct a mutable local strategy instance, submit/cancel a broker order, recompute Hawkeye evidence, or fall back from q to local state. New products register bindings and product workers behind the same catalog/control/evidence contracts; active positions retain product-worker risk-reduction ownership |
-| D-188 | gold may establish one native 1OZ contract only from a fresh post-selection Stage-76 admission; neither the historical incumbent, weekend tape, RTH boundary, deadline, nor raw direction may synthesize entry. Signal ownership remains XAUUSD/GC 24x5; 1OZ transport may execute or reduce risk 24x7 subject to maintenance. Gold and XSP share one account lock and one-directional-sleeve mutex. Canary authority is not an operational crown: authentic after-cost 24h/48h/five-session evidence remains mandatory |
+| D-188 | gold may establish one native 1OZ contract only from a fresh post-selection Stage-76 admission; neither the historical incumbent, weekend tape, RTH boundary, deadline, nor raw direction may synthesize entry. Signal ownership remains XAUUSD/GC 24x5; 1OZ transport may execute or reduce risk 24x7 subject to maintenance. Canary authority is not an operational crown: authentic after-cost 24h/48h/five-session evidence remains mandatory |
+| D-189 | concurrent capital is minimum-package first, never naïve equal percentages or first-arrival privilege. Every active immutable selection reserves one product-declared executable minimum; only residual resources follow weights and package ladders. Before any new risk, fresh account state must still support all allocated packages, margin, stressed loss, FX stress, unrelated positions, and buffer. Aggregate insufficiency is a pre-order HOLD; risk reduction never requires plan capacity. One account lock serializes mutation without forbidding concurrent cross-product ownership |
 
 ---
 
@@ -1256,18 +1258,17 @@ the frozen `40708a28…` RTH ledger exactly; the `9e04807f…` GTH lane remains
 unchanged. There is no date router, news authority, generic stop/trail, quota,
 or sizing change.
 
-Tiered UPRO/SPXU RTH cash execution is live-capable under clean selection
-`b4799fa6…` / `eb6aad41…`. Its July 31 preview proved fresh SMART and direct
-ARCA books, effective Tiered commissions, `$1,318.05` settled cash, exact
-quote-derived `6 UPRO / 23 SPXU` quantities, flat broker state, and zero
-orders. The first selected restart at `09:45:33 ET` and natural `09:47 ET`
-recurrence both remained `flat_target` with null leg and zero submissions; an
-independent broker census remained flat. The clock is active from selection
-`13:42:55Z`, with selected coverage beginning gap-free. No order is forced.
-Shared plan `6950eb11…` preserves that qualified `$900.46` managed pool and
-`$417.59` reserve while adding an exclusive one-contract 1OZ futures-margin
-sleeve. Cash debit and futures margin are not interchangeable, and the account
-may own only one selected directional sleeve at a time.
+Tiered UPRO/SPXU RTH cash execution is live-capable under package-sized
+selection `1083c181…` / `d5f616e4…`. Fresh type-1 SMART books and conservative
+Tiered what-if ranges proved `5 UPRO / 21 SPXU` inside the allocated `$800.46`
+package, flat broker state, and zero orders. Its cold start, immediate restart,
+and first natural recurrence remained `flat_target` with null leg and zero
+submissions. Shared plan `b4a920b3…` first reserves Gold's indivisible one-
+contract package, then assigns weighted residual capacity to XSP; `$516.93`
+settled USD remains unallocated. The full portfolio also preserves
+`A$600/A$520` Gold margin, `A$300` minimum buffer, stressed loss, FX stress,
+and full-gross unrelated-position exposure. Cash debit and futures margin are
+not interchangeable, but both sleeves may now coexist. No order is forced.
 Bot Trade is now only the q-owned durable portfolio cockpit. Immutable machine
 crowns, cash/preview/selection proof, capital sleeves, product workers,
 append-only evidence, and graduation form one chain; README crowns remain
@@ -1281,7 +1282,7 @@ transport qualification.
 1OZ Gold Regime Harmony Stage 76/77 is now a real, bounded live canary—not yet
 an operational crown. Exact runtime and cold-restart parity, live COMEX L1,
 shared-month `GCZ6/1OZZ6` books, two-sided `$0.66` what-if economics, margin,
-immutable flat selection `12b15bd2…/f7800a0f…`, and the first natural GTH
+immutable flat selection `62344ce2…/5fc9048d…`, and the first natural GTH
 recurrence passed. It may enter one contract on the first fresh post-selection
 Stage-76 admission in GTH or RTH; it may not inherit the historical position or
 manufacture a deadline/weekend entry. Its prefix is flat with zero orders,
@@ -1299,6 +1300,7 @@ authority is separately unqualified.
 
 **Predictive observation:** both selected owners should remain flat until their
 own complete causal admission survives. Whichever arrives first may create the
-next capital event; the account mutex will hold the other sleeve out. Hawkeye
+next capital event without consuming the other's reserved minimum; the second
+may then enter only after the same fresh full-portfolio capacity proof. Hawkeye
 and MCL onset evidence may sharpen future generations, but cannot alter either
 selected strategy, synthesize a trade, or accelerate graduation.
