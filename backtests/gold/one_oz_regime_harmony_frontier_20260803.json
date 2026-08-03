@@ -1,0 +1,70 @@
+{
+  "schema": "gold.1oz-regime-harmony-development-frontier.v1",
+  "frozen_at_utc": "2026-08-03T07:46:00Z",
+  "authority": "research_only_no_crown_no_selection_no_preview_no_orders_no_capital",
+  "status": "FROZEN_DEVELOPMENT_FRONTIER_NOT_CROWNED",
+  "signal": {
+    "stage": 76,
+    "id": "regime_harmony_winner_veto_full_cycle_surrender",
+    "receipt_sha256": "e39a6ad82e51a2428f0c5886477bd537cc4a3b063c42f2fe382beef18c5829ef",
+    "annual_net": [57.36, -105.15, 45.18, -52.16, 53.28, 93.77, -75.61, 199.73, 713.88, 2038.77],
+    "positive_annual_slices": 7,
+    "ten_year": {
+      "net": 3227.82,
+      "profit_factor": 2.1891,
+      "max_drawdown": 690.07,
+      "trades": 257
+    },
+    "recent_three_year": {
+      "net": 3103.52,
+      "profit_factor": 3.9915,
+      "max_drawdown": 690.07,
+      "trades": 73,
+      "trades_per_year": 24.3278,
+      "down_net": 532.40,
+      "up_net": 2571.12,
+      "gth_net": 2644.67,
+      "rth_net": 458.85,
+      "top_five_positive_share": 0.5213778414
+    },
+    "failed_frozen_gates": ["annual_floor", "concentration"],
+    "coronation_eligible": false
+  },
+  "native_transport": {
+    "stage": 77,
+    "receipt_sha256": "535c92080cbcd74279d313ca4aa250688ac0460677fb9a5698163f177511ba31",
+    "instrument": "dated native CME 1OZ futures",
+    "primary_cell": "roll_5__cost_2_32",
+    "mapped_trades": 40,
+    "mapping_failures": 0,
+    "position_rolls": 6,
+    "net": 2442.78,
+    "profit_factor": 3.9380,
+    "max_intrabar_drawdown": 651.89,
+    "down_net": 326.09,
+    "up_net": 2116.69,
+    "gth_net": 2195.66,
+    "rth_net": 247.12,
+    "harsher_cost_and_roll_neighbours_pass": true,
+    "historically_executable": true
+  },
+  "all_regime_audit": {
+    "stage_80_nearest_all_year_result": {
+      "annual_net": [61.56, -47.14, 69.98, -3.68, 105.27, 84.44, -0.61, 235.06, 336.06, 1622.20],
+      "positive_annual_slices": 8,
+      "failed_gates": ["cadence", "ten_year_net", "recent_net", "concentration"]
+    },
+    "stage_83_causal_set_cover_sha256": "4c23ec8561134fd42d9bb4b59ebaf28ae20e0d9cf6d9285380fef42db1ff3e2d",
+    "stage_85_independent_macro_polarity_sha256": "5f7bd240acfaef0d856619e112f4f0ab6cf5fdce701a10049ce97cb23a14e019",
+    "stage_86_macro_polarity_hold_sha256": "e11a2d8912f19f2970246b9462b5e6dc28df2c0299b1317a30a68e30f9db7cf2",
+    "conclusion": "No tested static union of strictly prior categorical clauses made all ten years positive while preserving modern cadence. Separately owned UUP/TIP macro-polarity sleeves failed both frozen ownership semantics; the apparent modern winner had only three recent trades per year and complete top-five concentration. Entry vetoes and macro direction transfer rather than remove regime risk."
+  },
+  "prospective_boundary": {
+    "observer": "1OZ Prospective Onset Tape v2",
+    "generation_fingerprint": "ddbae3ff800ee625635ba55c2dcf53235119c3e6498fe3df9225ab4dccef101a",
+    "first_unseen_receipt_sha256": "c0dbcfbf985e17ba007b0672d3d0c2c5edcd7d890b3b426dd5175dd7b7250db3",
+    "first_outcome_due_utc": "2026-08-04T04:00:00Z",
+    "order_authority": "none"
+  },
+  "next_lawful_step": "Accumulate unseen gold onset, macro, news, and native parity evidence. Seek a separately positive complementary state owner or prospectively proven proof burden; do not mine another historical veto."
+}

@@ -1,0 +1,101 @@
+{
+  "schema": "gold.1oz-first-unseen-onset-receipt.v1",
+  "authority": "prospective_research_only_no_direction_no_transport_no_orders_no_capital",
+  "preregistration": {
+    "path": "backtests/gold/one_oz_onset_tape_preregistration_v2.json",
+    "sha256": "d0cd85aa88f454a002958bda29f5bcd9213a8f63895f5360a23215ad638904a7",
+    "prospective_start_after_utc": "2026-08-03T03:30:17Z"
+  },
+  "generation": {
+    "commit": "e4dde9db48e797a72d5070934f9c47f1f61cfd59",
+    "config_fingerprint": "ddbae3ff800ee625635ba55c2dcf53235119c3e6498fe3df9225ab4dccef101a"
+  },
+  "first_unseen_checkpoint": {
+    "checkpoint_id": "f87bea4d09b0a5f7f8fbaec94e53272b1db3385e57bc2497734bf615ce49cb8c",
+    "checkpoint_canonical_sha256": "266ee71919d3f5850dbf658705b72687fd3eafecada5f70087657e0c98c57c3e",
+    "forecast_id": "dadf0983748450f9416f9924a8d44de760b10d6a366cde30f2dc6a6e65b5e316",
+    "forecast_canonical_sha256": "d28d30f835240970e2051063232e1e9f6e0cb5d933032f8a77b5336659293c7c",
+    "recorded_at_utc": "2026-08-03T04:07:14.568311+00:00",
+    "decision_bar_end_utc": "2026-08-03T04:00:00+00:00",
+    "strategy_version": "gold.1oz-prospective-onset.v2",
+    "decision": "NO_TRADE",
+    "stage_12": "flat",
+    "stage_22": "flat",
+    "raw_direction": "down",
+    "raw_turn": null,
+    "proposed_direction": null,
+    "submitted_orders": 0,
+    "order_authority": "none"
+  },
+  "technical_context": {
+    "daily_hard_direction": "down",
+    "daily_soft_direction": "down",
+    "daily_hard_age": 148,
+    "h4_hard_direction": "down",
+    "h4_financing_clock": "beyond_24h",
+    "h4_signed_fast_slope_dollars": -0.39794615925529797,
+    "h4_signed_spread_velocity_dollars": -0.356302909938222,
+    "h4_signed_fast_acceleration_dollars": 2.9336989026446645,
+    "h4_atr14_dollars": 28.19928571428571,
+    "h4_atr_velocity_dollars": -0.7257142857142753
+  },
+  "exchange_parity": {
+    "usable": true,
+    "contract_month": "2026-12",
+    "basis_usd": 0.1000000000003638,
+    "gc": {
+      "local_symbol": "GCZ6",
+      "con_id": 462941472,
+      "expiry": "20261229",
+      "market_data_type": 1,
+      "bid": 4122.4,
+      "ask": 4122.9,
+      "spread": 0.5,
+      "volume": 18161.0
+    },
+    "one_oz": {
+      "local_symbol": "1OZZ6",
+      "con_id": 753716608,
+      "expiry": "20261125",
+      "market_data_type": 1,
+      "bid": 4122.5,
+      "ask": 4123.0,
+      "spread": 0.5,
+      "volume": 24189.0
+    }
+  },
+  "macro_and_news": {
+    "macro_authority": "attribution_only",
+    "macro_total_direction_neutral": false,
+    "macro_trigger": false,
+    "news_authority": "attribution_only",
+    "news_signed_pressure": -0.4512,
+    "news_pressure_delta": 0.0,
+    "news_pressure_velocity_per_hour": 0.0,
+    "news_impact": 48,
+    "news_confidence": 0.94,
+    "news_usable": true
+  },
+  "sealed_outcome": {
+    "status": "PENDING",
+    "outcome_not_before_utc": "2026-08-04T04:00:00+00:00",
+    "horizons_hours": [
+      4,
+      12,
+      24
+    ],
+    "late_backfill": "forbidden"
+  },
+  "ledger_prefix": {
+    "path_on_q": "/home/x/.local/state/tradebot/research/gold_onset.jsonl",
+    "rows": 3,
+    "sha256": "2522ba1e7dc2335fe341361fbb04cb24631f9a69d48d52f7b5ddad726e5ad711"
+  },
+  "service_proof": {
+    "result": "success",
+    "exit_status": 0,
+    "timer": "active_waiting",
+    "next_checkpoint_aest": "2026-08-03T18:07:00+10:00"
+  },
+  "verdict": "FIRST_UNSEEN_CHECKPOINT_VALID_OUTCOME_PENDING"
+}

@@ -65,9 +65,14 @@ transport, capital, or order authority.
   timestamps through a read-only client. In the fuller chain capture, GCZ6
   carried volume `13,566` with a `$0.40` spread and 1OZZ6 volume `22,157` with
   a `$0.25` spread. Nearest-expiry GCQ6 had volume `22` and a `$0.90` spread.
-  Therefore prospective parity must bind a shared contract month and explicit
-  basis using liquidity/freshness/spread evidence; generic nearest-expiry
-  selection is forbidden.
+  A second read-only capture at `2026-08-03T03:38:36Z` independently retained
+  `Z6` as the joint liquidity centre: GCZ6 volume `17,437`, 1OZZ6 volume
+  `23,904`, and both spreads `$0.50`. Shared month means the December delivery
+  code `Z6`, not an equal last-trade date: GCZ6 reports `2026-12-29`, whereas
+  1OZZ6 reports `2026-11-25`. Prospective parity must therefore join the
+  delivery code, record both dated contract identities and basis explicitly,
+  and require liquidity/freshness/spread evidence. Generic nearest-expiry or
+  equal-expiry selection is forbidden.
 - Causal macro attribution tape: adjusted UUP and TIP daily closes from August
   2015 through July 2026, normalized to completed `16:00 ET` bars. They have no
   signal authority.
@@ -133,6 +138,32 @@ and hashes below are historical provenance only; they cannot support a crown.
 | 31 | D1 path-quality and acceleration anatomy | Year-4 post-winner longs have state/21d/63d efficiency medians `0.252/0.255/0.275`, overlapping modern `0.246/0.239/0.234`; fast-vs-medium deceleration occurs in both. Year-2 shorts have much weaker 63d efficiency (`0.020` median), but profitable modern shorts also inhabit low-efficiency states | reject generic efficiency/deceleration gate; inspect only categorical slow-state financing interactions |
 | 32 | Fixed-cost financing-velocity anatomy | entries whose signed H4 EMA velocity can finance `$2.32` within 12h earn `+$2,736.99`; 12–24h earns `+$57.31`; slower-than-24h loses `−$128.05`. But removal would erase `+$37.54 / +$183.71 / +$25.72` in Years 1/5/7 and reduce annual breadth | retain cost clock in prospective attribution; reject blanket gate |
 | 33 | Completed-H4 local path coherence over 2/5/10 gold days | Year-4 post-winner failures have lower median 5/10-day efficiency, but overlap both modern winners and losers; flip counts and directional occupancy overlap too | reject generic H4 churn/efficiency gate |
+| 34 | Outcome-blind dated-contract/roll census | IBKR returned all dated 1OZ histories from J5 onward. Strictly-prior 1/3/5-session volume owners produce the identical `J5→M5→Q5→Z5→G6→J6→M6→Q6→Z6` sequence across 402 sessions, deliberately skipping illiquid V5/V6; selected sessions have zero missing or zero-volume paths | dated transport is feasible; preregister pre-expiry roll stress before any P&L replay; continuous cache is parity-only |
+| 35–36 | Dated 1OZ transport with mechanical COMEX maintenance/weekend mapping | all 42 overlap trades map; primary `+$1,824.64`, PF `3.0296`, Year 10 `+$1,544.15`; roll-3 and `$3.32` stress remain positive | native expectancy/roll/cost pass; original DD calculation later superseded |
+| 37 | Broad extreme-convexity surrender | all broad giveback/deterioration variants lose `$631–$857` versus Stage 7 | reject generic tail exit |
+| 38–39 | `15/20/25` entry-H4-ATR extreme excursion, two-ATR giveback, triple H4 deterioration | exact signal replay improves all three neighbours; after Stage-48 true-incumbent rebase, 15/20 pass individually but 25 fails strict DD improvement | useful development frontier; frozen three-neighbour gate fails |
+| 40–42 | Chronological dated-1OZ tail transport | fixes impossible MFE/MAE ordering: baseline DD `$946.17`; 15/20-ATR tails DD `$662.67` and positive under roll/cost stress; 25-ATR misses the `24.09`-ATR Jan event and retains `$946.17` DD | frozen native three-neighbour gate fails; do not shift threshold |
+| 43 | Categorical prior 12/30/60-H4 range expansion before the tail | one/two/three-vote proxies lose `−$956 / −$468 / −$409` | reject volatility-expansion category |
+| 44–45 | New MFE record versus prior 12/24/48 completed trades | proxy improves; exact 12/24 cells lose 10y/recent net and 48 reaches `+$3,066.62` but falls from 7/10 to 6/10 positive years under the true-incumbent audit | reject arbitrary rolling-lookback family |
+| 46–47 | New MFE record inside the same causal D1 hard-state epoch after 1/2/3 prior trades | exact cells reduce DD to `$436–$446`, but lose `$448–$801` versus the true Stage-7 10y net and fail recent/floor gates | reject same-epoch record exit; record magnitude alone cannot own surrender |
+| 48 | Pure verdict audit binding exact Stage-7 winner cell and ledger hash | Stages 39/45/47 executed correct trades but compared gates to the older row named `incumbent`; corrected verdicts retain no crown | bind future reducers to exact incumbent identity, never a semantic label |
+| 49 | Corrected stale/compression and fixed-cost financing anatomy on independently warmed Stage-7 annual ledgers | Literal stale compression contributes `+$44.97` in Years 2/4/7, so blocking quiet gold would worsen weak years. The middle-speed cohort—directional H4 velocity finances `$2.32` within 24h but not 12h—contains 27 trades, loses `−$78.56`, and is negative in both directions | stale veto falsified; permit one exact admission-maturation family only |
+| 50 | Preserve source-flip exit; mature only cost-valley admission for one/two observed H4 states | Corrected wait-two passes every individual gate: 10y `+$2,744.58`, recent `+$2,660.66`, PF `3.4263`, DD `$822.53`, Years 2/4/7 `−$97.89/−$98.91/−$62.28`. Wait-one reaches 10y `+$2,763.42` but Year 2 falls to `−$111.54`, missing the frozen floor by `$6.35` | reject family under mandatory adjacent-neighbour gate; no native replay or cost/wait sweep |
+| 51 | Financed categorical H4 structure surrender | prior-extreme breach, two adverse closes plus spread deterioration, and their strict conjunction improve weak years but lose `−$1.71k–−$2.26k` in modern controls; `78–130` events precede eventual MFE | reject structural surrender; it is another generic trail |
+| 52 | Mature only admissions whose prospective H1 fill lands at the 17:00 ET COMEX maintenance boundary | one/two-H4 neighbours improve weak years, but reduce 10y to `+$2,226.88 / +$2,474.94`, recent to `+$2,140.63 / +$2,295.72`, and cadence to `22.33 / 22.66` per year | reject session-wide proof burden; preserve boundary as attribution only |
+| 53–65 | Rebased financing, persistence, macro-neutral, fast-vote, and spent-state interactions | several cells improve the weak years, but every exact replay either transfers modern P&L, misses cadence, raises DD, or fails annual floor; total macro-neutral wait-two reaches `+$2,918.78` 10y but only `23.9945` recent trades/year | close one-dimensional persistence, vote, and generic macro-rearm families |
+| 66–70 | Conditional H1 stop, re-establishment rearm, and prior-winner source-epoch veto | only Stage 70 advances every then-frozen signal gate: `+$2,871.84` 10y, `+$2,719.82` recent, PF `3.6216`, DD `$822.53`, 24.33/year | retain Stage 70 as causal signal evidence; no capital because native DD later fails |
+| 71 | Exact dated-1OZ Stage-70 transport | `+$1,885.78`, PF `3.268`, but native DD `$935.39` | transport ineligible |
+| 72–76 | Exact native-DD attribution and immutable full-cycle source-record surrender | Stage 76 reaches `+$3,227.82` 10y, recent `+$3,103.52`, PF `3.9915`, DD `$690.07`, 24.33/year; annual `+57.36/−105.15/+45.18/−52.16/+53.28/+93.77/−75.61/+199.73/+713.88/+2,038.77` | strongest development frontier; annual-floor and concentration gates fail, so no crown |
+| 77 | Exact Stage-76 dated native transport | all four roll/cost neighbours pass; primary `40/40` mapped, six in-position rolls, `+$2,442.78`, PF `3.938`, DD `$651.89`, both directions and GTH/RTH positive | native economics proven for the development frontier; signal coronation still absent |
+| 78–79 | Diverse causal residual and prior-seven-H1 onset anatomy | future fill-bar extrema were quarantined as diagnostic-only; strictly prior outer-range starts expose loss pockets but also carry `+$1,852.03` modern P&L | attribution only; no future-bar authority |
+| 80 | Total macro-neutral wait-two plus prior-H1 outer-range wait-one | nearest annual-uniform result: `+61.56/−47.14/+69.98/−3.68/+105.27/+84.44/−0.61/+235.06/+336.06/+1,622.20`; only 8/10 and recent cadence falls to 19.33/year with 60.95% concentration | real interaction, not promotable; broad onset maturation hollows the engine |
+| 81 | Preserve non-neutral shorts; mature only outer-range longs; macro wait-two/three | Year 7 falls back to `−$49.23` or `−$170.18`; every cell loses cadence/net/concentration | directional shortcut falsified |
+| 82 | Enter first, then surrender failed onset probation through centralized flip authority | implementation audit first proved `entry_dir=None` alone cannot close ownership; the corrected lifecycle converges to weaker Stage 70 and erases Stage-76 tail memory | close probation; outcome-dependent predecessor memory cannot be mutated safely |
+| 83 | Causal categorical set-cover over 35 prior-only clauses and unions | no rule makes all weak years positive while touching at most one modern trade; even allowing five modern trades reaches at most 8/10 | static-veto route exhausted under the 24/year cadence law |
+| 84 | Same-D1 epoch trailing/total loss memory after two/three losses | Year 7 can reach `+$62.09` and DD `$170.36`, but cadence collapses to 5/year and other annual slices turn negative; trailing-three retains more net but only 15.33/year | repeated loss is informative, but admission circuit-breaking is economically destructive |
+| 85 | Separate UUP/TIP macro-polarity sleeve; three direction definitions × one/two completed-day persistence | five cells lose `−$418.42` to `−$1,151.46`; least-bad cell is `−$1.08` over 10y, 6/10 positive years, recent PF `1.0131`, and only 6.33 trades/year | reject independent macro direction; retain UUP/TIP as context/financing only |
+| 86 | Same macro-polarity sleeve holding through neutral states until qualified opposition | one cell reaches `+$3,232.35`, but only 6/10 years, 3.0 recent trades/year, Year 4 `−$442.62`, and 100% top-five concentration; neighbours span only 3–6/10 | reject apparent modern-trend jackpot; independent macro direction is closed |
 
 The XSP engine test reused only its portable causal core: normalized
 multihorizon slopes, slope velocities, coherence, ATR ratio/velocity/
@@ -430,6 +461,164 @@ One 1OZ future is indivisible. If authentic DD cannot fit the available sleeve,
 we reject or use a separately qualified defined-risk gold option/ETF transport;
 we do not pretend fractional futures exist or borrow XSP's reserve.
 
+### Stage 35/36 dated native-transport result
+
+The first replay correctly rejected seven signal timestamps that did not have a
+dated 1OZ bar within its generic 30-minute mapping allowance. Inspection showed
+six were the exact `17:00 -> 18:00 ET` COMEX maintenance boundary and one was
+the exact `Friday 17:00 -> Sunday 18:00 ET` weekend boundary. Stage 36 froze
+those two mechanical clock exceptions before computing their outcomes and kept
+every other delay fail-closed.
+
+The primary five-session-pre-expiry / `$2.32` round-trip cell then mapped all
+`42/42` overlap trades with zero failures: `+$1,824.64`, PF `3.0296`, Year 10
+`+$1,544.15`, launch-partial `+$443.59`, up/down `+$1,498.55 / +$326.09`, and
+legacy GTH/RTH `+$1,577.52 / +$247.12`. Its adjacent three-session roll and
+`$3.32` cost-stress cells remain strongly positive (`+$1,813.64`, `+$1,776.64`,
+and `+$1,765.64`). This proves dated native expectancy and roll/cost stability;
+it does not prove capital fitness.
+
+Stage 36 originally reported `$1,194.18` intrabar DD. Stage 41 later proved that
+number violated chronology: terminal aggregation compared each trade's
+eventual MFE with an earlier MAE as though the low followed the high. Preserve
+Stage 36's economics/mapping evidence, but supersede its DD only. Under dated
+30-minute chronology with conservative high-before-low ordering inside each
+bar, Stage-7 native DD is `$946.17`. A Jan-2026 up trade reached `+$1,178.52`
+MFE but realized `+$562.11`, then two February up trades lost
+`−$183.82 / −$88.82`. Generic Stage-8 trails already reduced DD only by
+destroying annual breadth and net, so the remaining lawful seam was outcome-
+exposed extreme-convexity/state-transition anatomy—not another broad trail.
+
+Stage 37 falsified the broad extreme-convexity rescue. After merely five entry-
+H4 ATRs of MFE, one/two-ATR giveback plus H4 slope/velocity deterioration loses
+`−$857.29 / −$631.08` versus the incumbent; adding nonpositive ATR velocity
+still loses `−$641.42`. The Jan-2026 trade first met that broad condition on
+Jan 21, before more than doubling its eventual MFE, exactly reproducing the
+generic-trail failure.
+
+Stage 38 isolated a narrower outcome-exposed tail: after `15/20/25` entry-H4
+ATRs of MFE, require at least two ATRs of giveback and simultaneous nonpositive
+directional H4 fast slope, EMA-spread velocity, and fast-slope acceleration.
+The three proxy neighbours improve `+$146.65 / +$286.26 / +$108.36`; the
+20-ATR version changes only 11 trades and would realize about `+$761.41` on the
+Jan-2026 trade versus `+$628.95`. It still costs Year 5 `−$107.15`, and these
+thresholds were inspected in outcome-exposed anatomy. Treat this as a candidate
+for one explicitly ancestry-bound exact lifecycle challenge—not a crown, live
+exit, or permission to mine more tail thresholds.
+
+Stage 39 ran that exact lifecycle through the existing centralized state-owner
+seam. Its immutable ledgers are correct, but Stage 48 found its verdict reducer
+compared them to the older row named `incumbent` instead of the actual Stage-7
+winner. Against the true `hard_maturation_5_complete__h4_persistence_1` ledger
+(`+$2,740.41`, 7/10, recent `+$2,665.90`, DD `$822.53`), 15/20 ATR still pass
+individually and improve 10y by `+$166.69 / +$290.68`. The 20-ATR center reaches
+recent `+$2,988.91`, PF `3.7387`, and DD `$690.07`. The 25-ATR neighbour improves
+10y by `+$112.38` but leaves DD exactly `$822.53`, failing the frozen strict-DD
+gate. The three-neighbour family therefore does not advance.
+
+Stage 40 initially propagated Stage 36's nonchronological DD bug. Independent
+Stage-41 event reconstruction located the real post-tail high-water on Jan 28
+and the later chronological trough on Apr 22, yielding `$662.67`, not
+`$1,194.18`. Stage 42 replayed every baseline/tail/roll/cost cell with that law.
+Stage-7 DD is `$946.17`; the 15- and 20-ATR tails reduce it to `$662.67`
+(`$668.67` under harsher cost stress) and pass every native gate. The 25-ATR
+neighbour remains profitable but does not activate on January's `24.09`-ATR
+excursion, leaving DD at `$946.17`; the frozen all-three-neighbour transport
+gate therefore fails. Do not move the threshold after seeing this.
+
+Stages 43–47 then tested categorical replacements for that threshold. Prior
+12/30/60-H4 range expansion failed outright. A rolling recent-trade MFE record
+looked useful in proxy anatomy, but the true-incumbent audit shows the 48-trade
+cell also falls from 7/10 to 6/10 positive years; its 12/24 neighbours lose old
+and recent expectancy. Binding the record to the causal D1 hard-state epoch
+removed that arbitrary horizon, but exact one/two/three-prior-trade neighbours
+lose 10y net by `−$801.09 / −$447.58 / −$504.83` and fail recent/floor gates
+despite reducing DD to `$435.92–$446.08`. Magnitude records are therefore closed
+as a tail owner. Stage 48 establishes a permanent reducer law: bind the exact
+incumbent cell ID plus ledger hash; never resolve a baseline by the human label
+`incumbent`.
+
+Stage 49 reproduced every independently warmed Stage-7 annual net to the cent
+and falsified the intuitive quiet-market veto: strict stale compression is
+slightly negative overall (`−$25.35`) but contributes `+$44.97` to Years 2/4/7.
+The cleaner defect is a fixed-cost velocity valley. Signals fast enough to
+finance `$2.32` within 12 hours earn `+$2,266.92`; signals needing 12–24 hours
+lose `−$78.56`; still-slower signals recover `+$338.99`. The middle cohort is
+negative for both up and down entries rather than one narrative side.
+
+Stage 50 separated exit from admission exactly: raw/proposed direction retained
+incumbent-surrender authority, while only admitted direction/re-entry waited for
+one/two newly observed H4 states, supporting D1 hard state, and a directionally
+higher/lower close. The first replay incorrectly counted cache-only maintenance
+fragments that the aligned Stage-7/H1 evaluator never consumes; receipt
+`b5feccf…` is retained as superseded. Corrected wait-two passes all individual
+gates and improves the three named weak years, but wait-one breaches the annual
+floor by `$6.35`; the frozen all-neighbour law therefore closes the family.
+
+Stage 51 tested whether financing plus categorical H4 price-structure failure
+could surrender ownership without another high-water threshold. Prior-extreme
+breach, two adverse closes plus EMA-spread deterioration, and their stricter
+fast-slope conjunction each improve the combined weak years by
+`+$199.91 / +$205.61 / +$275.09`; however, they destroy the modern control by
+`−$2,160.24 / −$2,260.64 / −$1,705.73`. They trigger on `195–217` of
+`271` trades and `78–130` times before eventual MFE. Structural surrender is
+therefore the generic trailing-exit failure in categorical clothing and is
+closed.
+
+Stage 52 tested the real COMEX discontinuity without conflating decision and
+execution clocks. Its first preregistration classified the preceding H4
+decision and fired zero events; both candidate ledgers were byte-identical to
+Stage 7, so v30 lawfully superseded it before any candidate outcome. The
+corrected owner classified the first later H1 fill under the unchanged
+`next_tradable_bar / tradable_24x5` policy. One/two-H4 maturation improves the
+weak years, but cuts recent cadence below 24/year, loses `$513.53 / $265.47`
+of 10y net, and worsens recent concentration. Maintenance-boundary entries
+contain modern alpha too; the session-wide proof-burden family is closed.
+
+The next lawful seam must explain residual weak-year lifecycle directly—not
+disguise another high-water, cost-clock, or quiet-regime threshold.
+
+### 18:00 AEST freeze — strongest honest frontier
+
+The historical sharpening window is closed. Stage 76 is frozen as the strongest
+**development frontier**, not crowned. Its signal and native economics are
+exceptional, but three annual slices remain negative and the original annual-
+floor/concentration gates fail. Stage 77 proves that this exact frontier maps to
+dated one-ounce futures with realistic rolls/costs and `$651.89` native DD; it
+does not repair signal eligibility.
+
+Canonical compact receipt:
+`backtests/gold/one_oz_regime_harmony_frontier_20260803.json`. It binds Stage 76
+SHA `e39a6ad8…`, Stage 77 SHA `535c9208…`, the Stage-83 all-regime impossibility
+audit, prospective generation `ddbae3ff…`, and zero authority. No machine crown,
+selection, preview, capital sleeve, profitability clock, or order was created.
+
+The all-positive-year ambition remains active, but historical static vetoes and
+an independent UUP/TIP macro-direction sleeve are now exhausted. The lawful
+next source of information is unseen onset evidence:
+gold-specific news pressure/transition, UUP/TIP financing, prior-H1 path, live
+XAUUSD/GC/1OZ parity, and subsequent 4h/12h/24h ownership. A new generation may
+either prove a narrowly complementary state owner or falsify it prospectively;
+it may not rewrite Stages 1–84.
+
+### First unseen prospective checkpoint
+
+The first post-v2 completed-H4 decision landed naturally at `04:00 UTC` and
+published at `04:07:14Z`, after the frozen `03:30:17Z` cutoff. Both Stage 12 and
+Stage 22 remained flat: raw H4 direction was down, but there was no raw turn,
+proposal, or admission. The tape correctly created one sealed `NO_TRADE`
+forecast rather than manufacturing a signal.
+
+Exchange parity was genuinely live and usable: GCZ6 `18,161` volume at a
+`$0.50` spread and 1OZZ6 `24,189` volume at a `$0.50` spread, sharing delivery
+month `2026-12` while preserving their distinct expiries; raw mid basis was
+`$0.10`. Macro and news remained attribution-only. The checkpoint recorded
+slow H4 financing (`beyond_24h`), non-neutral UUP/TIP context, and bearish but
+unchanged GC news pressure `−0.4512` with confidence `0.94`. Service exit was
+zero; order authority and submitted orders remained `none / 0`. Its 4h/12h/24h
+outcome is sealed until the full 24-hour horizon completes at
+`2026-08-04T04:00:00Z`; late backfill is forbidden.
+
 ## Active work queue
 
 1. `[DONE]` Stage-20 flat-boundary dual-clock census and preregistered 21/42-
@@ -462,18 +651,37 @@ we do not pretend fractional futures exist or borrow XSP's reserve.
    24-hour financing clock is predictive in aggregate but damages annual
    controls; local H4 efficiency/churn overlaps. Preserve both on the onset
    tape, not as historical gates.
-10. `[WIP]` Audit the first unseen 14:07 AEST onset checkpoint; it must preserve
-   shared-month parity, source freshness, attribution-only news, and zero order
-   authority.
-11. `[TODO]` Run native 1OZ execution/roll/liquidity replay and derive the exact
-   capital requirement.
-12. `[TODO]` At 18:00 freeze the lawful Stage-7 incumbent plus strongest honest
-   post-clock frontier; crown only if a correctly bound neighbour-stable proof
-   actually passes.
-13. `[TODO]` If crowned, publish machine declaration,
+10. `[DONE]` First unseen 14:07 AEST onset passed: lawful post-cutoff v2
+   identity, shared-month live parity, exact source timing, attribution-only
+   macro/news, one sealed NO_TRADE forecast, zero orders. Await its naturally
+   complete 24-hour settlement; do not backfill.
+11. `[DONE]` Native dated execution/roll/cost replay is positive and stable;
+   corrected Stage-7 DD is `$946.17`, not `$1,194.18`. Stage 37 closes broad
+   trails; Stage 39/42 prove the 15/20-ATR tail is signal- and native-positive
+   with `$662.67` DD, but the frozen 25-ATR neighbour misses the event and fails
+   DD. Stages 43–47 close range-expansion, rolling-record, and same-D1-epoch
+   record activations. No threshold shift, preview, selection, or capital.
+12. `[DONE]` Stage-48 pure verdict rebase: immutable candidate ledgers were
+   correct, but Stages 39/45/47 used the wrong comparison row. Tail 15/20 retain
+   real value; tail 25 and every record family fail the exact Stage-7 boundary.
+13. `[DONE]` Stage-49/50 corrected fixed-cost valley anatomy and exact
+   one/two-H4 admission maturation: wait-two passes individually, wait-one
+   misses the floor; mandatory neighbour stability fails and closes the family.
+14. `[DONE]` Stages 53–86 exhaust the remaining historical establishment,
+   macro-neutral, local-onset, set-cover, probation, and epoch-loss-memory
+   branches, plus a separately owned macro-polarity sleeve. No tested rule makes
+   all ten years positive while preserving cadence, net, concentration, and
+   recursive Stage-76 ownership.
+15. `[DONE]` Freeze Stage 76/77 as the strongest honest development frontier in
+   `backtests/gold/one_oz_regime_harmony_frontier_20260803.json`; no false crown.
+16. `[BLOCKED]` A machine declaration requires a future candidate to pass
    reproducible receipt, runtime parity, and non-submitting durable registration.
-14. `[BLOCKED]` Broker preview waits for signal/transport qualification; COMEX L1
-   is now live. Capital authority waits for an explicit later graduation boundary.
+17. `[BLOCKED]` Broker preview waits for signal coronation; COMEX L1 and Stage-77
+   transport economics are ready. Accumulate unseen onset evidence first.
+18. `[TODO]` Settle the first unseen 4h/12h/24h forecast only when naturally due
+   at `2026-08-04T04:00:00Z`; continue canonical non-submitting observations.
+19. `[BLOCKED]` Capital authority waits for signal coronation, exact native
+   margin/cash qualification, and an explicit later graduation boundary.
 
 ## Evidence identities
 
@@ -625,6 +833,13 @@ we do not pretend fractional futures exist or borrow XSP's reserve.
   `1062 passed, 4 deselected`; q ledger after the read-only smoke contains one
   EVALUATED checkpoint and zero forecasts/results/orders, SHA-256
   `9962e99198b2e59af856e7d18d94ff38420a542b0b99f2756e5e677624b5e470`.
+- Published/deployed onset-v2 context generation: commit
+  `e4dde9db48e797a72d5070934f9c47f1f61cfd59`; generation fingerprint
+  `ddbae3ff800ee625635ba55c2dcf53235119c3e6498fe3df9225ab4dccef101a`;
+  complete repository proof remains `1062 passed, 4 deselected`. It was frozen
+  before the first unseen `04:00 UTC` H4 decision and adds only attribution-only
+  financing/path context; direction, transport, capital, and order authority
+  remain absent.
 - Stage-25 financed-surrender anatomy:
   `/tmp/gold-stage25-financed-surrender-anatomy-20260803.json`, SHA-256
   `e6c278288094750c91aa02e5f626cb0040fda31084849ae1b0a19c32fcf333b2`.
@@ -660,6 +875,104 @@ we do not pretend fractional futures exist or borrow XSP's reserve.
 - Stage-33 local H4 path-coherence anatomy:
   `/tmp/gold-stage33-h4-path-coherence-anatomy-20260803.json`, SHA-256
   `f67ab668dbb445a76cb550e34dd37ca135514b4a647e8a0e72a5c4d64c1ea749`.
+- Dated 1OZ contract bars and Stage-34 outcome-blind roll census:
+  `/tmp/gold-1oz-dated-contract-bars-20260803.json` and
+  `/tmp/gold-stage34-dated-roll-census-20260803.json`, SHA-256
+  `752b2344cfba528f02b644df860cdcb3bd3645d338ca8f3548d46d6474808332` /
+  `df17c665c6ca909aeaa6b9507ed7df1e7dd95a1342736dd1a941d9de04be7af8`.
+- Stage-35 generic-clock transport replay and Stage-36 session-aware replay:
+  `/tmp/gold-stage35-native-transport-20260803.json` and
+  `/tmp/gold-stage36-session-aware-native-transport-20260803.json`, SHA-256
+  `bc8a3705f4265875242cdde9383e18d87d2b2f4eb3182f07d098effe3f24ddcd` /
+  `bc971486e7470b74bbf14c24c4e6b4628035f23c227854b7f3cdb96c9a355e99`.
+- Stage-36 session-clock preregistration:
+  `/tmp/1oz-gold-native-transport-preregistration-v2.json`, SHA-256
+  `c5f12dcaad051aef43efe85a565d6fc91eb4d051dd5bb8b641389de06ab27309`.
+- Stage-37 broad extreme-convexity and Stage-38 parabolic-tail anatomies:
+  `/tmp/gold-stage37-extreme-convexity-anatomy-20260803.json` and
+  `/tmp/gold-stage38-parabolic-tail-anatomy-20260803.json`, SHA-256
+  `d3481ced54eb34c5a6b8a79df99c0beff8367241fe6ea1572111de0d511e32ce` /
+  `ebdcdd7df297b228327b00a2c91b1b5d957a7c44a0f4af1cddd863f4da22c669`.
+- Stage-39 exact tail lifecycle preregistration and receipt:
+  `/tmp/1oz-gold-regime-harmony-preregistration-v25.json` and
+  `/tmp/gold-stage39-parabolic-tail-lifecycle-20260803.json`, SHA-256
+  `bc0709c64b702125212ada9aefe84e404cd77f7a7c5919dc2db9a049a0e0eb07` /
+  `3a397587d72342fb48462ee8fe60213e8edf5eea35fc304ab3aed29c6e9870c5`.
+- Stage-40 pre-correction native replay, independent Stage-41 chronological
+  attribution, and Stage-42 corrected native replay: SHA-256
+  `5952cb296659c12349cd19fcdcf65c64ffcd81b5bbae7247a173f88da966c2fc` /
+  `ccacb0c2e6f6f4169394903170ae2ecf16d7b4abd186b289db15695adc146778` /
+  `463875857528b4b0092756b262177859c28276c898a45b6129601465fcc043f1`.
+- Stage-43 range-expansion and Stage-44 rolling-record anatomies: SHA-256
+  `6b588c6bae0208b602aa2a96a3ea1967ff25e5ae434c6a72defdc72148f96635` /
+  `050bf5d2e78f2b591790e61ea319200c2eaeb26d8d98bcfe76d1c2b9a5a7dad8`.
+- Stage-45 rolling-record preregistration and exact receipt: SHA-256
+  `8f6d45242d1f2e042f3ec7d8e8b8d254fd3dd33053bddcf571cebb99ef5a5bb0` /
+  `46c63d72bd7c3ddae90a4c77b7b5de2911c84f0d4fd0c900419311c178a032f2`.
+- Stage-46 same-hard-epoch anatomy, Stage-47 preregistration, and exact receipt:
+  SHA-256 `6b9f1c97c174c30c2960d5647e76b655f2324f72c8d2eafb254d50de9a8c8109` /
+  `cec7bffe7ffd93d62d7205dc460e90a08012f2bbc527301286b06d0e30e77caa` /
+  `4aa9a97f09414048caae8759a36c421e7af0b55663c6e463d58f4a5688e7c543`.
+- Stage-48 exact-incumbent pure verdict audit:
+  `/tmp/gold-stage48-true-incumbent-verdict-audit-20260803.json`, SHA-256
+  `c9db369d87cfcacd0283274f44c494afae075727a00fcbd162689b5ccdf658f3`;
+  true incumbent ledger `de1fd2a0…`.
+- Stage-49 corrected stale/financing anatomy:
+  `/tmp/gold-stage49-corrected-stale-financing-anatomy-20260803.json`, SHA-256
+  `559da623e2f3e89f7109d32649f197902fe7abe0237a38f9a6a813a93f8ec073`.
+- Stage-50 cost-valley preregistration and corrected exact receipt:
+  `/tmp/1oz-gold-regime-harmony-preregistration-v28.json` and
+  `/tmp/gold-stage50-cost-valley-maturation-v2-20260803.json`, SHA-256
+  `3a0367b2f2789797606d35cf719d62c4633383224d831cbb9aef7ef91fbc448b` /
+  `8570c9a611f573bfba2c732873403ac663762c014ae1a94da22c53aafae9045c`.
+  Superseded cache-index clock receipt SHA-256:
+  `b5feccf71b6278d63306fd107daff7573f4cba62caabeb7a4681c495ff540bde`.
+- Stage-51 financed-structure anatomy:
+  `/tmp/gold-stage51-financed-structure-anatomy-20260803.json`, SHA-256
+  `01292cbb93642b4e2a2480e65a418cc59de79ceb3675a9023d50a6c66c93062d`.
+- Stage-52 maintenance-reopen preregistrations, zero-event clock receipt, and
+  corrected exact receipt: SHA-256
+  `01df739900520901d212adcc8981583640ba347dbe44711f8349075a197df7ad` /
+  `72dea3e813299d9c1fb876fab58d060eae7e8caaa09677c93da4bc3d26ae23be` /
+  `568a52fe2750d73dbf55df0eb53016ec9e7a29feef0ef34f8a4fef692084452a` /
+  `5a23096aeb04d773a43d543dca1afcf9d2ede4baddaff2c1db5fbaf00b61409e`.
+- Stage-60 total macro-neutral maturity SHA-256
+  `7ddac1344b545a8b706b4e8a9802885bff9737e53d3d0e2a455db4c1095c8ed6`; wait-two 10y
+  `+$2,918.78`, recent `+$2,678.68`, but cadence `23.9945/year`.
+- Stage-70 winner-exhaustion source-epoch receipt SHA-256
+  `a26dd4994fc365c29f694e994a6f049a1d765fb99944276761c77425d1f33105`; every
+  frozen signal gate passed, but Stage-71 native receipt SHA-256
+  `baa2016fe8e5749e98a9c40a102b4c0c06e0b9485fa3346faf376698d54da52e`
+  retained `$935.39` DD.
+- Stage-76 source-record frontier and Stage-77 exact native transport:
+  `/tmp/gold-stage76-source-record-champion-20260803.json` and
+  `/tmp/gold-stage77-native-transport-20260803.json`, SHA-256
+  `e39a6ad82e51a2428f0c5886477bd537cc4a3b063c42f2fe382beef18c5829ef` /
+  `535c92080cbcd74279d313ca4aa250688ac0460677fb9a5698163f177511ba31`.
+- Stage-80 residual harmony and Stage-81 directional neighbor receipts:
+  SHA-256 `d198a91cea7d8b9e2d07223b4f39f4cbc2db93ecfdf6a712901a5505c57e5439` /
+  `7fed334d878f6ebb5efed90c7274cb49f033147e70542785cea0e3cab8045acb`.
+- Stage-82 corrected onset-probation lifecycle, Stage-83 causal set-cover, and
+  Stage-84 epoch-loss memory receipts: SHA-256
+  `d2d60878c66baf85961bdea53e278b26660b6d3d2d7394f793b826f573c360a3` /
+  `4c23ec8561134fd42d9bb4b59ebaf28ae20e0d9cf6d9285380fef42db1ff3e2d` /
+  `2093c506071e4bb3d7f95696571525d30c6f4834fa5614a2b1492049a7294f3c`.
+- Stage-85 independent UUP/TIP macro-polarity preregistration and receipt:
+  SHA-256 `40b9dcb15dca8f4b67382651a0164bfd739bf4dbca5c6b7c3658b498e5dc3eb0` /
+  `5f7bd240acfaef0d856619e112f4f0ab6cf5fdce701a10049ce97cb23a14e019`;
+  all six cells reject standalone macro direction.
+- Stage-86 hold-through-neutral macro-polarity preregistration and receipt:
+  SHA-256 `28cea8bc2f4d3c09f53b63be4d7f2acdbe4caf26c6b923b2add7d1e3dd80df2f` /
+  `e11a2d8912f19f2970246b9462b5e6dc28df2c0299b1317a30a68e30f9db7cf2`;
+  the spectacular center is a six-year/cadence/concentration failure.
+- Canonical frozen frontier:
+  `backtests/gold/one_oz_regime_harmony_frontier_20260803.json`; research-only,
+  not crowned, not selected, and no capital/order authority.
+- First unseen onset receipt:
+  `backtests/gold/one_oz_first_unseen_onset_receipt.json`, SHA-256
+  `c0dbcfbf985e17ba007b0672d3d0c2c5edcd7d890b3b426dd5175dd7b7250db3`;
+  checkpoint `f87bea4d…`, forecast `dadf0983…`, three-row q ledger prefix
+  `2522ba1e…`, outcome pending until `2026-08-04T04:00:00Z`.
 
 These `/tmp` artifacts are scratch evidence; this file preserves their decisive
 facts across context compaction. Promotion requires canonical repo receipts,
