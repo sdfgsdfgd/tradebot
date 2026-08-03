@@ -1,0 +1,50 @@
+{
+  "schema": "mcl.two-speed-auction-relay-early-falsification.v1",
+  "recorded_at_utc": "2026-08-03T18:39:47Z",
+  "authority": "research_only_no_orders_no_capital",
+  "candidate_preregistration_sha256": "50a27d928dd445b5a93bbfe6e3d0bbc3a3363a1d3d16cdf45ae3ba0d34a26d39",
+  "evaluator_sha256": "a69fdb7b1e8c3e50e1ffc8533a6d492e813610ed0b28d6f90c0ee7b0c4bca7c4",
+  "partial_manifest_sha256": "bb1321d872b7a10c23100cabc0f37f35221d2275c1211f0b2071d129dd13f30a",
+  "result_sha256": "bbcaa8de6f8c2b5ea5c1a6446ccc694603627d27c5de4c811e323001945438fc",
+  "coverage": {
+    "contract_months": [
+      "U4",
+      "V4",
+      "X4"
+    ],
+    "common_rows": 77075,
+    "cl_rows_without_exact_mcl_timestamp": 1371,
+    "duplicate_timestamps": 0,
+    "unexplained_common_clock_gaps": 0
+  },
+  "declared_cells_evaluated": 32,
+  "trade_count_census": {
+    "unique_trade_counts": [
+      168
+    ],
+    "interpretation": "every cell saturated the three-position daily safety ceiling across approximately 56 sessions"
+  },
+  "best_cell": {
+    "cell_id": "b90_e0.45_p0.10_a3_f3",
+    "trades": 168,
+    "net_after_primary_cost_usd": -639.6649272661375,
+    "profit_factor": 0.13171001867509077,
+    "win_rate": 0.07142857142857142,
+    "acceptance_net_usd": -296.0333333333311,
+    "failure_net_usd": -343.6315939328064,
+    "up_net_usd": -324.57501954543125,
+    "down_net_usd": -315.08990772070626,
+    "adverse_stop_count": 98,
+    "adverse_stop_net_usd": -538.1266666666653
+  },
+  "worst_cell": {
+    "cell_id": "b60_e0.35_p0.05_a3_f5",
+    "trades": 168,
+    "net_after_primary_cost_usd": -782.1064547640827,
+    "profit_factor": 0.04745048317823896
+  },
+  "verdict": "REJECT_ROLLING_RANGE_OWNER",
+  "reason": "The rolling boundary manufactures probes continuously, makes the daily safety ceiling the de facto cadence owner, and leaves the declared dimensions almost non-identifying. This is structural failure, not a threshold near-miss; the full tape and wider sweeps are unnecessary.",
+  "successor_constraint": "Use immutable time-anchored oil auctions whose opportunity count is determined before price outcomes; each block may mature into at most one acceptance or one failure trade.",
+  "submitted_orders": 0
+}

@@ -1,0 +1,111 @@
+{
+  "schema": "mcl.two-speed-auction-relay-preregistration.v2",
+  "frozen_at_utc": "2026-08-03T18:39:47Z",
+  "authority": "research_only_no_orders_no_capital",
+  "supersedes": "mcl.two-speed-auction-relay-preregistration.v1",
+  "causal_reason": "v1 was falsified because rolling ranges saturated the risk ceiling; v2 fixes opportunity ownership before changing any threshold",
+  "candidate": {
+    "name": "MCL Two-Speed Anchored Auction Relay",
+    "signal_owner": "matched-month CL completed bars",
+    "transport_proxy": "matched-month MCL next-bar execution",
+    "news_authority": "annotation_only",
+    "daily_opportunity_law": "three immutable global oil auctions, each permitting at most one matured decision"
+  },
+  "auction_blocks_et": [
+    {
+      "name": "asia",
+      "start": "18:00",
+      "end": "02:00"
+    },
+    {
+      "name": "europe",
+      "start": "02:00",
+      "end": "08:00"
+    },
+    {
+      "name": "united_states",
+      "start": "08:00",
+      "end": "16:25"
+    }
+  ],
+  "state_machine": {
+    "formation": "freeze each block's first 30 or 45 completed CL one-minute bars as opening high, low, volume-weighted mean, width, and path efficiency",
+    "probe": "after formation, CL trades 0.05 or 0.10 frozen opening-width beyond either boundary",
+    "acceptance": "two or three consecutive completed CL closes remain beyond the frozen boundary; the latest completed five-minute 1/3/6-bar majority agrees; current CL one-minute volume is at least 1.00 or 1.25 times the causal median of the previous 20 bars; matched-month MCL moves in the same direction",
+    "failure": "only when formation efficiency is at most 0.55; within five completed minutes after a probe, CL closes at least 0.05 opening-width back inside and MCL reverses by at least one tick from its probe extreme",
+    "mutual_exclusion": "the first matured acceptance or failure consumes that auction block even if admission later fails; no other decision can be manufactured in the block",
+    "entry": "next exact-month MCL one-minute open after maturation",
+    "acceptance_exit": "1.00 opening-width favorable target, 0.25 opening-width close back inside the boundary, opposite completed five-minute majority, 0.75 opening-width adverse stop, or 90-minute timeout",
+    "failure_exit": "frozen opening VWAP target, probe-extreme plus 0.10 opening-width adverse stop, opposite completed five-minute majority, or 45-minute timeout",
+    "safety": "one open position maximum; a later block cannot enter until flat; no entry after 16:25 ET; force flat by 16:55 ET and at any roll or clock discontinuity"
+  },
+  "bounded_cells": {
+    "formation_minutes": [
+      30,
+      45
+    ],
+    "probe_width_fraction": [
+      0.05,
+      0.10
+    ],
+    "acceptance_closes": [
+      2,
+      3
+    ],
+    "acceptance_volume_ratio": [
+      1.00,
+      1.25
+    ],
+    "declared_cell_count": 16,
+    "ranking": "on discovery only: pass 160-trade/PF/net floor, then maximize positive quarter count, worst quarter net, net/intrabar-DD, PF, and net in that order; validation cannot select or tune a cell"
+  },
+  "data_and_roll": {
+    "owner": "IBKR dated NYMEX CL and MCL one-minute bars with exact timestamp and contract-month parity",
+    "primary_roll": "dual prior-complete-session CL and MCL next/current volume cross, forced no later than three complete sessions before MCL expiry",
+    "controls": [
+      "MCL-only volume cross",
+      "fixed five-session pre-expiry roll",
+      "MCL-only signal",
+      "acceptance-only and failure-only attribution",
+      "same-hold direction inversion"
+    ],
+    "reset": "flatten and clear all block/indicator state at roll; never basis-splice a signal",
+    "missing_challenge": "July-2023 through authentic August-2024 overlap remains a coronation blocker"
+  },
+  "economics": {
+    "primary_round_trip_cost_usd": 3.52,
+    "stress_round_trip_cost_usd": 5.52,
+    "components_per_side_usd": {
+      "ibkr_commission": 0.25,
+      "nymex_exchange": 0.50,
+      "regulatory": 0.01,
+      "primary_adverse_tick": 1.00
+    },
+    "multiplier": 100,
+    "tick_value_usd": 1.00,
+    "all_entries_and_causal_exits": "next-bar MCL; stops and touched targets use their declared price; all receive explicit round-trip friction"
+  },
+  "proof_gates": {
+    "minimum_trades_per_complete_year": 160,
+    "ordinary_activity": "approximately one to two qualified positions per active day without a quota or saturated safety ceiling",
+    "annual_primary_net": "positive in every complete available and future blind year",
+    "annual_profit_factor_min": 1.10,
+    "full_profit_factor_min": 1.20,
+    "full_net_to_intrabar_drawdown_min": 1.50,
+    "stress_net": "positive in every complete year",
+    "both_directions": "nonnegative full-period attribution",
+    "both_branches": "nonnegative full-period attribution and neither branch merely finances the other",
+    "monthly_concentration_max": 0.40,
+    "opportunity_integrity": "fewer than 10 percent of active sessions may consume all three auction decisions",
+    "coronation": "forbidden until the missing year, native broker preview/cost, runtime parity, capital, restart, reconciliation, and safety gates pass"
+  },
+  "prohibitions": [
+    "no rolling range or daily-count-owned cadence",
+    "no time-anchor sweep",
+    "no outcome-selected event window",
+    "no forced trade",
+    "no news direction",
+    "no live order or capital authority"
+  ],
+  "submitted_orders": 0
+}
