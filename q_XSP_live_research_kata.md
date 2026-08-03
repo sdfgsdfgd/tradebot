@@ -687,10 +687,14 @@ transition through today’s close; no order will be forced merely to populate t
   including financing, volume, cost-lock, calendar, and threshold rescue. The
   custom continuous v7 then failed even before costs (`-$833.11` raw; `-$6,359.51`
   primary over `1,570` trades), closing threshold rescue of that approximation.
-  The active successor invokes the repository's exact centralized directional-
-  impulse/turn owner as the product-neutral control. Its causal anatomy may seed
-  distinct oil-specific trend, balance, shock, or permission profiles, with
-  unchanged matched-MCL parity, rolls, sessions, costs, and no news direction.
+  Exact fast-profile control v8 then produced `9,124` turns and `7,699` trades:
+  `-$268` raw, `-$27,368.48` primary, both directions and every month negative.
+  That closes direct reuse of XSP's fast configuration without rejecting its
+  centralized engine. An outcome-blind cadence census selected macro-auction v9:
+  `30/60/120/240/480m` horizons, slower memory, and four frozen maturity/retrace
+  neighbours producing `408–433` admissions over the current prefix—median two
+  per active session, p95 four—before any PnL was read. This is the active
+  successor, with unchanged matched-MCL parity, rolls, costs, and no news direction.
 - `[PRESERVED RUNNER-UP]` **Tri-asset narrative-dispersion compression:** test
   whether convergence among easing-negative XSP pressure, weakening-positive
   MCL pressure, and weakly reversing-positive Gold pressure predicts
@@ -933,8 +937,10 @@ and stable bootstrap evidence. Neither may be refactored into looking mature.
     sealed validation, both directions/speeds, annual cadence, stress costs,
     PnL/DD, concentration, and controls. Anchored-opening v1–v6 are now closed
     by extended discovery; custom continuous proxy v7 is also closed by negative
-    gross expectancy. Continue through preregistered exact-engine control v8,
-    then only outcome-blind oil-specific profiles justified by its causal anatomy.
+    gross expectancy; exact fast-XSP control v8 is closed by negative raw and
+    after-cost expectancy. Continue through preregistered macro-auction memory v9,
+    selected from an outcome-blind cadence census, then only oil-specific profiles
+    justified by causal anatomy.
     Missing July-2023–August-2024 remains a hard crown blocker; no quota,
     validation-selected cell, order, or capital authority.
 
@@ -1244,6 +1250,7 @@ and
 | E-381 | the autonomous MCL block established authentic type-1 NYMEX CL/MCL data, matched-month execution ownership, exact `$3.52/$5.52` primary/stress round-trip friction, and a resumable dated-contract hydration beginning August 2024. Rolling-range v1 saturated its opportunity ceiling and lost after cost; anchored-block v2 isolated low-efficiency width-harmony/expansion as genuine financing. Regime-financed v3's first three discovery months produced `+$100.72/59`, PF `1.190`, but `-$17.28` under stress; down was `+$107.71`, up `-$6.99`, acceptance `+$122.90/55`, and correctly exposed failed rotation `-$22.18/4`. Before any later outcome, v4 `1bc354e6…` froze only `30/60m` slow-direction financing × `2x/3x` maturation-volume caps for that weak speed, leaving the v3 acceptance law, sessions, rolls, targets, stops, costs, and news authority unchanged. Missing July-2023–August-2024 is an explicit crown blocker. XSP/Gold live owners and all order/capital authority remained unchanged |
 | E-382 | expanded discovery through ten dated CL/MCL pairs and May 2025 rejected the entire anchored-opening family before validation: v3 `-$209.48/194`, PF `0.879`; v4 `-$204.13/194`, PF `0.883`; v5 `-$283.04/192`; v6 `-$740.73/194`. The early three-month profit was regime-local, not durable. Compact receipt `mcl_two_speed_auction_relay_v3_v6_extended_discovery_rejection.json` binds `425,606/413,514` raw CL/MCL rows, exact manifest/evaluator/result hashes, and closes threshold, failure-financing, maturation-volume, cost-lock, calendar, and validation-selected rescue. The successor must use one continuous multihorizon auction state rather than fixed global opening blocks, while preserving matched-MCL parity, rolls, sessions, costs, no quota, no news direction, and no capital authority. XSP/Gold remained untouched |
 | E-383 | custom continuous proxy v7 produced authentic cadence but disproved its own signal: `1,570` trades lost `-$833.11` before fees, `-$6,359.51` at primary friction, and `-$9,499.51` under stress; PF `0.383`, DD `$6,414.54`, both branches/directions and every month were negative, and every active session exceeded the opportunity-integrity ceiling. Receipt `mcl_two_speed_auction_relay_v7_continuous_proxy_rejection.json` binds preregistration `a0a9b667…`, evaluator `abad9b6c…`, and result `42b746b6…`; no threshold rescue or validation was opened. The user extended the autonomous MCL block to 24 hours and authorized genuinely new preregistered oil-specific gates and direction profiles. Exact-engine control v8 now invokes the centralized `DirectionalImpulseEngine`/turn lifecycle over completed CL five-minute bars with matched-MCL parity, full costs and rolls; it cannot adopt the initial state or submit capital. XSP/Gold remain durable and only material capital/safety events preempt MCL research |
+| E-384 | exact centralized-engine control v8 rejected direct reuse of XSP's fast profile on oil: winner `turn .03/retrace .75` emitted `9,124` turns and completed `7,699` trades for `-$268` raw, `-$27,368.48` primary, `-$42,766.48` stress, PF `0.602`, and DD `$27,432.44`; both directions, all four cells, and all ten months were negative. The best simple causal onset pair made `+$349.48/176` but only `3/10` months, so no filtered or interactive rescue was opened. Receipt `mcl_two_speed_auction_relay_v8_exact_impulse_rejection.json` binds exact engine/evaluator/result/anatomy hashes. A separate outcome-blind `108`-cell cadence census then read no returns or PnL and selected macro-auction memory v9: exact shared engine, `30/60/120/240/480m` horizons, alpha `.15`, turn `.06`, and four `1x/2x` retrace × `12/24`-bar maturity neighbours. They yield `408–433` parity-confirmed admissions (`517.5–549.2/year`), balanced directions, median `2`, p95 `4`, maximum `6` per active session. Preregistration v9 freezes the lifecycle before outcome replay; no order/capital authority or XSP/Gold mutation |
 
 ### Decision anchors
 

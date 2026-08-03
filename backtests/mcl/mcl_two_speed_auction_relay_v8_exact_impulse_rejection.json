@@ -1,0 +1,45 @@
+{
+  "schema": "mcl.two-speed-auction-relay-v8-exact-impulse-rejection.v1",
+  "recorded_at_utc": "2026-08-03T19:43:00Z",
+  "authority": "research_only_no_orders_no_capital",
+  "coverage": {
+    "manifest_sha256": "7d8807579796522bd4a0866e2ff73779c9c8524948010040b388ed50e5f9489c",
+    "contract_pairs": 10,
+    "first_utc": "2024-08-04T22:01:00Z",
+    "last_utc": "2025-05-19T21:00:00Z",
+    "validation_opened": false
+  },
+  "identity": {
+    "preregistration_sha256": "3bcf7b7fb5591700d86e5196d0714ed0c6ddfdda833269891465e2a41f5e869d",
+    "evaluator_sha256": "bc56ae03a4daebb9f9a119360bda4c71191457290c4fc3e61f55ce8b96212c35",
+    "result_sha256": "8a00a3304bb58eeceb52af3ff2227b870302d18d492651eb2d828ba0793abcae",
+    "causal_anatomy_sha256": "55a0b04f87d18d45a6548dbd5cc2b3f8e0ff41b5341c3cbfdf6e1bff85664ae8"
+  },
+  "winner": {
+    "cell_id": "turn0.03_retrace0.75",
+    "turns": 9124,
+    "matched_mcl_parity_vetoes": 795,
+    "trades": 7699,
+    "raw_net_usd": -268.00,
+    "primary_net_usd": -27368.48,
+    "stress_net_usd": -42766.48,
+    "primary_profit_factor": 0.602063,
+    "primary_intrabar_drawdown_usd": 27432.44,
+    "mean_hold_minutes": 53.4076,
+    "down_net_usd": -13438.48,
+    "up_net_usd": -13930.00,
+    "positive_months": 0
+  },
+  "anatomy": {
+    "all_four_cells_raw_net_negative": true,
+    "raw_net_range_usd": [-1294.00, -268.00],
+    "best_simple_onset_pair": "120-minute angle at least 10 degrees plus long-to-short turn sequence",
+    "best_simple_onset_pair_trades": 176,
+    "best_simple_onset_pair_primary_net_usd": 349.48,
+    "best_simple_onset_pair_positive_months": 3,
+    "interpretation": "The shared sensor is reusable, but the fast XSP profile has no oil admission edge. The apparent filtered onset is month-concentrated and is not an interactive lifecycle proof."
+  },
+  "verdict": "REJECT_FAST_XSP_PROFILE_FOR_MCL",
+  "next_architecture": "Keep the centralized engine but replace its fast horizon and memory profile with an outcome-blind macro-auction cadence profile selected before PnL.",
+  "submitted_orders": 0
+}
