@@ -1,0 +1,63 @@
+{
+  "authority": "frozen_portfolio_package_generation",
+  "boundaries": {
+    "broker_queried": false,
+    "profitability_clock_mutated": false,
+    "selection_mutated": false,
+    "service_or_timer_mutated": false,
+    "submitted_orders": 0
+  },
+  "capital_semantic_surface": {
+    "tradebot/live/capital.py": "1b98e64eaa646d8bce9bded7b6a8cddc595cdacb0632c519bac3c1180290fdc8",
+    "tradebot/live/capital_packages.py": "ad2e06dbf6090c417eca310eac3fb364747b3410366af41f171606d6025bc045",
+    "tradebot/live/capital_stability.py": "3f0aa11d11fc2b8e26eec823e3beeef052bcdcb0f13d1948777321c9b0954c59",
+    "tradebot/research/gold_live_cli.py": "a925bb5b30ef0608e79536dd7d24b825fe6cb9c175785a68d23804fb8b60bdb1",
+    "tradebot/research/gold_live_runtime.py": "6451ff42361bbfb2e9c96de1c9beddec333521d97c80d9abefa53d34cf547a43",
+    "tradebot/research/gold_live_state.py": "05d4d42d990424a70729916dff5338dde3436e1015885f943bd10e6a342f82c4",
+    "tradebot/research/gold_live_transport.py": "5ae6ac57af231e436e4cf7b7f510c62dd357e0d61ec1201f3c5f24c4d6d299c3",
+    "tradebot/research/gold_profitability.py": "3476ce9ebf56c18abd4b90a0614c9ca208e3ffbfcbd8b0d3e85b201164cb028e",
+    "tradebot/research/live_graduation.py": "60afcda1f6f5dbb82f6301b1a5a7af0732394a38d2be0cfcb46a104839b9118e",
+    "tradebot/research/live_portfolio_packages.py": "ffcd5b5b5c1e85df2d86084a08ba34d943949e51c1195ba467fe24dff0260a87",
+    "tradebot/research/xsp_capital_stability.py": "a3e2d7068964941df2b55c2547b8000ad3203f94781464625b85f75281c910c3",
+    "tradebot/research/xsp_live_capital.py": "581eda032bd22dec041d908b7a5a14aea72a5cda5d2e176ff0367ebe3bb32cd5",
+    "tradebot/research/xsp_live_transport.py": "a3283320aeecea3ea70372be16d8875a262a4f89d0268aabe46ca1bca7c5a789",
+    "tradebot/research/xsp_live_transport_runtime.py": "719ae132ddfb63c27b2296a1bf9fa60c3972bf3d09aef49bbaea616b3d727e43",
+    "tradebot/research/xsp_live_transport_state.py": "69e96bec04267ba90f33f5bc0b75b8b1be0810539c9da15b9ed8770f25642626",
+    "tradebot/research/xsp_live_transport_v3.py": "f9d7594ae4fd88ab7e6f195c8ec382ae8e470b087c91f3db9ff7060ccb4e418a",
+    "tradebot/research/xsp_profitability.py": "f8736aa0e0a03ea2580dab72dae50b7180598bb37848eab5d790fb113e16d592",
+    "tradebot/research/xsp_shadow_cli.py": "317d3d1694134c46d2e3d5ef2db3176ae498e7a70aa26c8fdd5433a3dc8a7fc7"
+  },
+  "checks": {
+    "concurrent_gold_xsp_orderings_passed": true,
+    "full_repository_tests_green": true,
+    "generation_sha256_bound": true,
+    "live_capital_plan_v3_validated": true,
+    "minimum_packages_reserved_first": true,
+    "package_generation_schema_valid": true,
+    "product_consumers_share_one_capital_owner": true,
+    "selected_packages_content_addressed": true
+  },
+  "generation": {
+    "path": "db/calibration/portfolio_generations/b4a920b3b8531d4c41037247e97e69cc922e470479d5b314ee27cd8306262330.json",
+    "plan_id": "b4a920b3b8531d4c41037247e97e69cc922e470479d5b314ee27cd8306262330",
+    "sha256": "863bb1bea7a381b5930b5145783b668b1e80087a7762d5696c85115ef75c349b"
+  },
+  "observed_at_utc": "2026-08-03T13:27:53Z",
+  "schema": "live.portfolio-capital-owner-stability-manifest.v1",
+  "selections": {
+    "gold-1oz-stage76-margin": {
+      "allocated_package_id": "gold-one-contract",
+      "selection_file_sha256": "5fc9048d37a42e00da621862dac02ebeea1f14f66e55ab2c17cad5bda90e81c8",
+      "selection_id": "62344ce21bf7c6f01095abab14b6ca8ef79c9806abb35294859fc9574a5f7574",
+      "selection_path": "db/calibration/selections/62344ce21bf7c6f01095abab14b6ca8ef79c9806abb35294859fc9574a5f7574.json"
+    },
+    "xsp-upro-spxu-rth-cash": {
+      "allocated_package_id": "xsp-usd-800",
+      "selection_file_sha256": "d5f616e43adb26f06534fbaa0c513358b70078a9755f3a9ecdcd81dc9cebc35d",
+      "selection_id": "1083c1813e6b0ca4cf5777a5275e06be651622bc6e6207e718b549296a9bdd87",
+      "selection_path": "db/calibration/selections/1083c1813e6b0ca4cf5777a5275e06be651622bc6e6207e718b549296a9bdd87.json"
+    }
+  },
+  "source_revision": "0777ab1a65090a54bab5d83f748c1a479aa710f5",
+  "verdict": "PASS_CAPITAL_OWNER_STABLE"
+}
