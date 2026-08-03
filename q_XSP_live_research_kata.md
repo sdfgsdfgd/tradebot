@@ -646,6 +646,14 @@ transition through today’s close; no order will be forced merely to populate t
   preregistered `4h/12h/24h` onset tape to ask whether such opposition predicts
   exhaustion, delayed turn, or noise against matched TA-only controls; never
   add a second observer, read a sealed outcome early, or let news pick direction.
+- `[NEXT BLOCK — CONFIRMED]` **MCL Two-Speed Auction Relay:** after the current
+  XSP/Gold block closes, sharpen one compact `1–5m` MCL state machine that
+  arbitrates mutually exclusive acceptance-continuation and failed-auction
+  reversal setups. Target roughly `1–2` qualified trades per active day without
+  a quota; TA owns direction, while causal news may classify shock, crowding,
+  convexity, or patience only. Require genuine NYMEX type-1 tape, full futures
+  friction/roll/session accounting, every annual slice, both directions, and
+  shock plus compression stability before any crown, transport, or capital.
 - `[PRESERVED RUNNER-UP]` **Tri-asset narrative-dispersion compression:** test
   whether convergence among easing-negative XSP pressure, weakening-positive
   MCL pressure, and weakly reversing-positive Gold pressure predicts
