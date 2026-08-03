@@ -1,0 +1,42 @@
+{
+  "schema": "mcl.two-speed-auction-relay-v10-velocity-financed-development.v1",
+  "recorded_at_utc": "2026-08-03T20:15:00Z",
+  "authority": "research_only_no_orders_no_capital",
+  "coverage": {
+    "manifest_sha256": "7d8807579796522bd4a0866e2ff73779c9c8524948010040b388ed50e5f9489c",
+    "contract_pairs": 10,
+    "first_utc": "2024-08-04T22:01:00Z",
+    "last_utc": "2025-05-19T21:00:00Z",
+    "validation_opened": false
+  },
+  "identity": {
+    "preregistration_sha256": "e7eae76e077da2114bac17a92eae001853f5137a7207aa5a9251ec9ae78eac58",
+    "evaluator_sha256": "ba702b83eb564f0b3805a52b0d02b5776e6bf22dec4fb0998bc3f2b0931b288d",
+    "result_sha256": "a9316168cfe1264a0f759b72394b816df3b8918695d6584f6db15845fd4e7312"
+  },
+  "immediate": {
+    "trades": 296,
+    "raw_net_usd": 898.00,
+    "primary_net_usd": -143.92,
+    "stress_net_usd": -735.92,
+    "profit_factor": 0.983502,
+    "verdict": "REJECT_IMMEDIATE_PERMISSION"
+  },
+  "one_bar_maturation": {
+    "trades": 76,
+    "annualized_trades": 96.4,
+    "raw_net_usd": 1037.00,
+    "primary_net_usd": 769.48,
+    "stress_net_usd": 617.48,
+    "profit_factor": 1.328439,
+    "intrabar_drawdown_usd": 538.24,
+    "positive_months": 6,
+    "worst_month_usd": -221.16,
+    "down_net_usd": 361.68,
+    "up_net_usd": 407.80,
+    "verdict": "ADVANCE_MECHANISM_CADENCE_FAIL"
+  },
+  "interpretation": "A raw macro turn is not enough; one completed bar of auction acceptance creates a large, stress-positive, direction-balanced edge. The exact strict confirmation is too sparse for the greater-than-160 annual trade requirement.",
+  "next_architecture": "Keep one-bar timing fixed and vary only which categorical evidence owns the second-bar confirmation; do not tune numeric thresholds or read validation.",
+  "submitted_orders": 0
+}
