@@ -1,0 +1,62 @@
+{
+  "schema": "mcl.two-speed-auction-relay-v16-entry-breadth-rejection.v1",
+  "recorded_at_utc": "2026-08-03T21:11:05Z",
+  "authority": "adaptive_posthoc_research_rejection_no_orders_no_capital",
+  "identity": {
+    "preregistration_sha256": "bd6fbb49d0f3c053627ca4fa456684543a39cea619eff0eabbd27db7638726e4",
+    "evaluator_sha256": "c628f974a86ccaa49b542d65c6753bd50a5d4c0a8f98f3dd12ba3fc9a4aa8b54",
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "result_sha256": "9daf61dbda39c1f51c9efafa37dea343aeb2f071359938604f764d2cf8d9bdcf"
+  },
+  "primary_maturation_breadth": {
+    "full_trades": 338,
+    "discovery_primary_stress_usd": [
+      1315.66,
+      981.66
+    ],
+    "validation_primary_stress_usd": [
+      686.08,
+      344.08
+    ],
+    "full_primary_stress_usd": [
+      2001.74,
+      1325.74
+    ],
+    "full_profit_factor": 1.2774968254232293,
+    "full_intrabar_drawdown_usd": 1026.47,
+    "full_primary_net_to_drawdown": 1.950120315255186,
+    "full_stress_net_to_drawdown": 1.111126010979319,
+    "validation_continuation_net_usd": -516.56,
+    "validation_down_net_usd": -42.12
+  },
+  "temporal_neighbours": {
+    "either_full_primary_stress_usd": [
+      2149.49,
+      1473.49
+    ],
+    "either_full_net_to_drawdown": 2.0265971488912227,
+    "both_full_primary_stress_usd": [
+      1817.74,
+      1141.74
+    ],
+    "both_full_net_to_drawdown": 2.0573840999637683
+  },
+  "preserved_v15": {
+    "full_primary_stress_usd": [
+      1965.49,
+      1289.49
+    ],
+    "full_intrabar_drawdown_usd": 883.52,
+    "full_net_to_drawdown": 2.2246129119883973,
+    "validation_continuation_and_down_positive": true
+  },
+  "interpretation": "Maturation-time breadth is highly profitable in discovery but does not own continuation consistently in validation. Raw-only v15 remains the more stable branch-balanced profile; either/both temporal compositions do not improve its PnL/DD tradeoff. Static selection of raw or maturation time is closed as a replacement. Breadth change may be examined as a categorical transition, not as a new numeric threshold sweep.",
+  "verdict": "REJECT_AS_V15_REPLACEMENT",
+  "closed_branches": [
+    "maturation-only three-horizon routing as the primary owner",
+    "raw-or-maturation three-horizon routing",
+    "raw-and-maturation three-horizon routing",
+    "breadth-count rescue from the exposed temporal neighbours"
+  ],
+  "submitted_orders": 0
+}
