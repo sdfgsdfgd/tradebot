@@ -1,0 +1,68 @@
+{
+  "schema": "mcl.two-speed-auction-relay-v3-v6-extended-discovery-rejection.v1",
+  "recorded_at_utc": "2026-08-03T19:16:00Z",
+  "authority": "research_only_no_orders_no_capital",
+  "coverage": {
+    "manifest_sha256": "7d8807579796522bd4a0866e2ff73779c9c8524948010040b388ed50e5f9489c",
+    "contract_pairs": 10,
+    "first_utc": "2024-08-04T22:01:00Z",
+    "last_utc": "2025-05-19T21:00:00Z",
+    "cl_rows": 425606,
+    "mcl_rows": 413514,
+    "validation_opened": false
+  },
+  "results": {
+    "v3_regime_financed": {
+      "evaluator_sha256": "326360d62dfbca7d6da4c89de6589695a03a09f2c76d2a76e0e33636354e9eb3",
+      "result_sha256": "ad1e55f1596e690a05102ef26a840a5c35b5db40b883fab893b46b85864f070f",
+      "trades": 194,
+      "net_usd": -209.48,
+      "profit_factor": 0.878512,
+      "intrabar_drawdown_usd": 601.58,
+      "down_net_usd": 49.58,
+      "up_net_usd": -259.06,
+      "acceptance_net_usd": -171.74,
+      "failed_rotation_net_usd": -37.74
+    },
+    "v4_slow_financed_failure": {
+      "evaluator_sha256": "a6bcfff82f4e234001f5acc02977c1f6e161d94da5cd932060d7fd3b6df4ea73",
+      "result_sha256": "e508476d83d373dbbb648db2f0f57e22718b6224236d099d09d3e34b32a1ae5c",
+      "trades": 194,
+      "net_usd": -204.13,
+      "profit_factor": 0.882747,
+      "intrabar_drawdown_usd": 587.58,
+      "down_net_usd": 16.79,
+      "up_net_usd": -220.92,
+      "acceptance_net_usd": -211.57,
+      "failed_rotation_net_usd": 7.44
+    },
+    "v5_dual_financed": {
+      "evaluator_sha256": "bf1568de1a563c5223d25a094151cceefe7982622f4991d4d47ee144e60fa1ef",
+      "result_sha256": "9e5b66c0ffa4607457764e5aff5ab27bbe32def59d79d046952cb2afa7d4d3ab",
+      "trades": 192,
+      "net_usd": -283.04,
+      "profit_factor": 0.825206,
+      "intrabar_drawdown_usd": 584.47
+    },
+    "v6_stress_cost_lock": {
+      "evaluator_sha256": "a4c6b96b7e6dc5bebe3abf3feb6e4f45683fa237b0e876fecce0b95a8a1488ba",
+      "result_sha256": "411c840510dc911824e60add1dd6b765e6adefe2ec78c729339b1083fa89edca",
+      "trades": 194,
+      "net_usd": -740.73,
+      "profit_factor": 0.408613,
+      "intrabar_drawdown_usd": 762.57
+    }
+  },
+  "verdict": "REJECT_ANCHORED_OPENING_FAMILY",
+  "reason": "The initial August-October profit did not survive the expanded discovery prefix. Fixed Asia, Europe, and U.S. opening blocks produced authentic cadence but did not continuously represent oil auction state; every preregistered financing or lifecycle neighbour remained decisively negative before validation.",
+  "closed_rescues": [
+    "opening-width threshold expansion",
+    "failure-only slow-direction and volume gating",
+    "acceptance maturation-volume filtering",
+    "early stress-cost profit lock",
+    "calendar or month routing",
+    "validation-selected parameter rescue"
+  ],
+  "next_architecture": "one continuous multihorizon CL auction-state owner with mutually exclusive trend acceptance and balance reversal; matched-month MCL remains transport parity and all existing roll/session/cost controls remain fixed",
+  "submitted_orders": 0
+}

@@ -1,0 +1,91 @@
+{
+  "schema": "mcl.two-speed-auction-relay-preregistration.v7",
+  "frozen_at_utc": "2026-08-03T19:16:39Z",
+  "authority": "research_only_no_orders_no_capital",
+  "supersedes": "mcl.two-speed-auction-relay-preregistration.v6",
+  "candidate": {
+    "name": "MCL Continuous Multihorizon Auction Relay",
+    "signal_owner": "matched-month CL",
+    "transport_proxy": "matched-month MCL",
+    "news_authority": "annotation_only",
+    "structural_change": "replace fixed Asia/Europe/U.S. opening ownership with one continuously recomputed completed-five-minute auction state"
+  },
+  "causal_clock": {
+    "source": "one-minute matched CL/MCL tape aggregated into completed five-minute bars",
+    "decision": "only after a completed five-minute bar",
+    "entry": "next available MCL one-minute open",
+    "history": "strictly prior 24 completed five-minute bars; reset on contract roll or non-maintenance discontinuity",
+    "entry_hours_et": "18:00 through 16:25; no entry during maintenance or the final pre-halt interval",
+    "pre_halt": "flat before 17:00 ET"
+  },
+  "shared_state": {
+    "direction_votes": "sign of CL close changes over 15, 30, 60, and 120 minutes",
+    "coherence": "at least three of four votes agree",
+    "path_efficiency": "absolute 60-minute CL displacement divided by the sum of absolute completed-five-minute changes",
+    "atr_ratio": "30-minute completed-five-minute true range mean divided by the 120-minute mean",
+    "matched_parity": "the latest completed five-minute MCL move must agree with the proposed direction",
+    "mutual_exclusion": "trend and balance efficiency bands cannot overlap; one position maximum"
+  },
+  "two_speeds": {
+    "trend_acceptance": "coherence agrees, 60-minute efficiency is at least the declared trend threshold, ATR ratio is at least 0.90, and the completed CL close exceeds the prior 30-minute extreme by 0.05 slow ATR; target one slow ATR, initial stop 0.75 slow ATR, maximum hold 60 minutes",
+    "balance_reversal": "60-minute efficiency is at most the declared balance threshold, ATR ratio is at most 1.05, and the completed CL bar probes beyond the prior 60-minute extreme by 0.10 slow ATR but closes back inside; reverse toward the causal 60-minute CL volume-weighted typical price, stop 0.25 slow ATR beyond the probe, maximum hold 45 minutes",
+    "shared_exit": "target or stop first under conservative bar ordering; otherwise exit next MCL open when at least three of four completed horizons oppose the position",
+    "rearm": "after exit, wait three completed five-minute bars and require the prior entry-direction coherence to dissolve; this is state reset, not a quota"
+  },
+  "bounded_cells": {
+    "trend_efficiency_min": [
+      0.3,
+      0.4
+    ],
+    "balance_efficiency_max": [
+      0.15,
+      0.2
+    ],
+    "declared_cell_count": 4,
+    "ranking": "discovery eligibility first, then positive quarter count, worst quarter primary and stress net, stress net/intrabar-DD, stress profit factor, and primary net; validation cannot select a cell"
+  },
+  "fixed_owners": {
+    "roll": "dual prior-session CL/MCL volume cross, forced three complete sessions before MCL expiry",
+    "multiplier": 100,
+    "min_tick": 0.01,
+    "costs_usd": {
+      "primary_round_trip": 3.52,
+      "stress_round_trip": 5.52
+    }
+  },
+  "proof_windows": {
+    "discovery": "available dated tape before 2025-08-04T22:00:00Z",
+    "sealed_validation": "2025-08-04T22:00:00Z through 2026-08-04T22:00:00Z",
+    "missing_challenge_prefix": "2023-07 through 2024-08 remains a hard coronation blocker"
+  },
+  "proof_gates": {
+    "minimum_trades_per_complete_year": 160,
+    "positive_primary_and_stress_net_each_complete_year": true,
+    "annual_profit_factor_min": 1.10,
+    "full_profit_factor_min": 1.20,
+    "full_net_to_intrabar_drawdown_min": 1.50,
+    "both_directions_nonnegative_with_trades": true,
+    "both_speeds_nonnegative_with_trades": true,
+    "monthly_positive_pnl_concentration_max": 0.40,
+    "three_or_more_trade_session_share_max": 0.15,
+    "missing_july_2023_to_august_2024": "hard coronation blocker"
+  },
+  "controls": [
+    "rejected v3 anchored-opening relay",
+    "trend-only and balance-only attribution",
+    "MCL-only signal",
+    "MCL-only and fixed-five-session rolls",
+    "same-hold direction inversion",
+    "immediate efficiency neighbours"
+  ],
+  "prohibitions": [
+    "no fixed session-block permission or calendar routing",
+    "no daily quota",
+    "no news direction",
+    "no target, stop, timeout, horizon, or coherence sweep",
+    "no validation-selected cell",
+    "no live authority",
+    "no crown without the missing first challenge year"
+  ],
+  "submitted_orders": 0
+}
