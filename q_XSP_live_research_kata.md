@@ -693,8 +693,14 @@ transition through today’s close; no order will be forced merely to populate t
   centralized engine. An outcome-blind cadence census selected macro-auction v9:
   `30/60/120/240/480m` horizons, slower memory, and four frozen maturity/retrace
   neighbours producing `408–433` admissions over the current prefix—median two
-  per active session, p95 four—before any PnL was read. This is the active
-  successor, with unchanged matched-MCL parity, rolls, costs, and no news direction.
+  per active session, p95 four—before any PnL was read. Its winner produced
+  `+$1,314` raw and `+$219.28` primary but `-$402.72` stress, only `3/10`
+  positive months, and a weak up sleeve. Crucially, fresh-turn positions were
+  `+$663.96` primary / `+$59.96` stress while nine blind post-roll reopens lost
+  `-$444.68`; source-reset carry is closed. Active v10 separates risk reduction
+  from successor admission: every raw turn may flatten, but only direction-aligned
+  `30m` velocity plus MCL parity may establish the next side, immediately or after
+  one bar. Rolls now wait flat for a fresh turn. Costs and news authority remain fixed.
 - `[PRESERVED RUNNER-UP]` **Tri-asset narrative-dispersion compression:** test
   whether convergence among easing-negative XSP pressure, weakening-positive
   MCL pressure, and weakly reversing-positive Gold pressure predicts
@@ -938,9 +944,10 @@ and stable bootstrap evidence. Neither may be refactored into looking mature.
     PnL/DD, concentration, and controls. Anchored-opening v1–v6 are now closed
     by extended discovery; custom continuous proxy v7 is also closed by negative
     gross expectancy; exact fast-XSP control v8 is closed by negative raw and
-    after-cost expectancy. Continue through preregistered macro-auction memory v9,
-    selected from an outcome-blind cadence census, then only oil-specific profiles
-    justified by causal anatomy.
+    after-cost expectancy; macro-auction v9 advanced gross edge and cadence but
+    failed stress/month/direction stability. Continue through preregistered v10's
+    velocity-financed immediate/one-bar permission lifecycle and flat post-roll law,
+    then only oil-specific profiles justified by causal anatomy.
     Missing July-2023–August-2024 remains a hard crown blocker; no quota,
     validation-selected cell, order, or capital authority.
 
@@ -1251,6 +1258,7 @@ and
 | E-382 | expanded discovery through ten dated CL/MCL pairs and May 2025 rejected the entire anchored-opening family before validation: v3 `-$209.48/194`, PF `0.879`; v4 `-$204.13/194`, PF `0.883`; v5 `-$283.04/192`; v6 `-$740.73/194`. The early three-month profit was regime-local, not durable. Compact receipt `mcl_two_speed_auction_relay_v3_v6_extended_discovery_rejection.json` binds `425,606/413,514` raw CL/MCL rows, exact manifest/evaluator/result hashes, and closes threshold, failure-financing, maturation-volume, cost-lock, calendar, and validation-selected rescue. The successor must use one continuous multihorizon auction state rather than fixed global opening blocks, while preserving matched-MCL parity, rolls, sessions, costs, no quota, no news direction, and no capital authority. XSP/Gold remained untouched |
 | E-383 | custom continuous proxy v7 produced authentic cadence but disproved its own signal: `1,570` trades lost `-$833.11` before fees, `-$6,359.51` at primary friction, and `-$9,499.51` under stress; PF `0.383`, DD `$6,414.54`, both branches/directions and every month were negative, and every active session exceeded the opportunity-integrity ceiling. Receipt `mcl_two_speed_auction_relay_v7_continuous_proxy_rejection.json` binds preregistration `a0a9b667…`, evaluator `abad9b6c…`, and result `42b746b6…`; no threshold rescue or validation was opened. The user extended the autonomous MCL block to 24 hours and authorized genuinely new preregistered oil-specific gates and direction profiles. Exact-engine control v8 now invokes the centralized `DirectionalImpulseEngine`/turn lifecycle over completed CL five-minute bars with matched-MCL parity, full costs and rolls; it cannot adopt the initial state or submit capital. XSP/Gold remain durable and only material capital/safety events preempt MCL research |
 | E-384 | exact centralized-engine control v8 rejected direct reuse of XSP's fast profile on oil: winner `turn .03/retrace .75` emitted `9,124` turns and completed `7,699` trades for `-$268` raw, `-$27,368.48` primary, `-$42,766.48` stress, PF `0.602`, and DD `$27,432.44`; both directions, all four cells, and all ten months were negative. The best simple causal onset pair made `+$349.48/176` but only `3/10` months, so no filtered or interactive rescue was opened. Receipt `mcl_two_speed_auction_relay_v8_exact_impulse_rejection.json` binds exact engine/evaluator/result/anatomy hashes. A separate outcome-blind `108`-cell cadence census then read no returns or PnL and selected macro-auction memory v9: exact shared engine, `30/60/120/240/480m` horizons, alpha `.15`, turn `.06`, and four `1x/2x` retrace × `12/24`-bar maturity neighbours. They yield `408–433` parity-confirmed admissions (`517.5–549.2/year`), balanced directions, median `2`, p95 `4`, maximum `6` per active session. Preregistration v9 freezes the lifecycle before outcome replay; no order/capital authority or XSP/Gold mutation |
+| E-385 | outcome-blind macro-auction v9 materially improved the signal scale but did not earn a crown: winner `retrace 2/state 24` made `+$1,314` raw and `+$219.28/311` primary, but `-$402.72` stress, PF `1.019`, DD `$1,615.12`, only `3/10` positive months, down `+$323.84`, up `-$104.56`, and 43.35% positive-month concentration. Causal decomposition found fresh-turn trades were `+$663.96` primary / `+$59.96` stress, while nine blind post-roll reopens lost `-$444.68`; carrying risk across a suffix-reset source is therefore closed. The direction-aligned 30m-velocity onset cohort was `+$1,076.08/221`, with both sides positive but only `5/10` months, so it is hypothesis evidence rather than claimed PnL. Receipt `mcl_two_speed_auction_relay_v9_macro_memory_development.json` binds all identities. Preregistered v10 now makes raw turns authoritative for flattening, requires direction-aligned 30m velocity plus MCL parity for successor admission, compares immediate with one-bar maturation, and remains flat after roll until a fresh turn. No validation, order, capital, or XSP/Gold mutation |
 
 ### Decision anchors
 

@@ -1,0 +1,50 @@
+{
+  "schema": "mcl.two-speed-auction-relay-v9-macro-memory-development.v1",
+  "recorded_at_utc": "2026-08-03T20:01:00Z",
+  "authority": "research_only_no_orders_no_capital",
+  "coverage": {
+    "manifest_sha256": "7d8807579796522bd4a0866e2ff73779c9c8524948010040b388ed50e5f9489c",
+    "contract_pairs": 10,
+    "first_utc": "2024-08-04T22:01:00Z",
+    "last_utc": "2025-05-19T21:00:00Z",
+    "validation_opened": false
+  },
+  "identity": {
+    "preregistration_sha256": "76b54a27865bdfdecc3553d0461c5c267aff79b0b309b3f2a680174c31ab8aa6",
+    "evaluator_sha256": "e7f9ae6b8027564ae4706dadd22b82a87fbc8e2e8dfb85a546d76a74a2e74b3c",
+    "result_sha256": "fb4929c52a545bc17c51c18b790c47468cb835294b56a5d39f81b288bf7c82e9",
+    "causal_anatomy_sha256": "70c1669c90a3b39a5b675b2ef0ea2c2f5bd099889baa29daca34d8f86101138a"
+  },
+  "winner": {
+    "cell_id": "retrace2.00_state24",
+    "turns": 605,
+    "trades": 311,
+    "raw_net_usd": 1314.00,
+    "primary_net_usd": 219.28,
+    "stress_net_usd": -402.72,
+    "primary_profit_factor": 1.019184,
+    "primary_intrabar_drawdown_usd": 1615.12,
+    "mean_hold_minutes": 1321.5916,
+    "down_net_usd": 323.84,
+    "up_net_usd": -104.56,
+    "positive_months": 3,
+    "largest_positive_month_share": 0.433474
+  },
+  "causal_anatomy": {
+    "fresh_turn_trades": 302,
+    "fresh_turn_primary_net_usd": 663.96,
+    "fresh_turn_stress_net_usd": 59.96,
+    "roll_reopen_trades": 9,
+    "roll_reopen_primary_net_usd": -444.68,
+    "roll_reopen_stress_net_usd": -462.68,
+    "thirty_minute_velocity_aligned_onsets": 221,
+    "thirty_minute_velocity_aligned_primary_net_usd": 1076.08,
+    "thirty_minute_velocity_aligned_down_net_usd": 606.12,
+    "thirty_minute_velocity_aligned_up_net_usd": 469.96,
+    "thirty_minute_velocity_aligned_positive_months": 5,
+    "interpretation": "Macro auction memory creates gross edge and correct daily-scale cadence, but unconditional reversals, source-invalid roll carry, stress friction, and month concentration prevent coronation."
+  },
+  "verdict": "ADVANCE_LIFECYCLE_NO_CROWN",
+  "next_architecture": "Close inherited risk at every raw turn, admit the new side only when shortest macro-horizon velocity finances it, and go flat across a source-contract reset until a fresh post-roll turn.",
+  "submitted_orders": 0
+}

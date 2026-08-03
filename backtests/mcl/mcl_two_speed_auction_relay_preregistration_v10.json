@@ -1,0 +1,76 @@
+{
+  "schema": "mcl.two-speed-auction-relay-preregistration.v10",
+  "frozen_at_utc": "2026-08-03T20:01:00Z",
+  "authority": "research_only_no_orders_no_capital",
+  "supersedes": "mcl.two-speed-auction-relay-preregistration.v9",
+  "candidate": {
+    "name": "MCL Velocity-Financed Macro Auction Relay",
+    "signal_owner": "completed matched-month CL five-minute bars through the exact macro-auction directional engine",
+    "transport_proxy": "matched-month MCL one-minute bars",
+    "news_authority": "annotation_only",
+    "structural_change": "separate raw direction invalidation from permission to establish the successor side"
+  },
+  "frozen_engine": {
+    "horizons_bars": [6, 12, 24, 48, 96],
+    "smooth_alpha": 0.15,
+    "initial_score": 0.075,
+    "turn_score": 0.06,
+    "retrace_atr": 2.0,
+    "minimum_state_and_cooldown_bars": 24,
+    "minimum_direction_score": 0.2,
+    "minimum_coherence": 0.6
+  },
+  "permission": {
+    "owner": "the 30-minute horizon's causal slope velocity at the raw turn",
+    "law": "the velocity sign must agree with the proposed direction; MCL's latest completed five-minute move must also agree",
+    "risk_reduction": "every raw opposite turn closes an existing position at the next MCL one-minute open even when successor admission is vetoed",
+    "veto": "remain flat; never retain the invalidated predecessor and never open the unfinanced successor"
+  },
+  "bounded_cells": {
+    "immediate": "admit at the next MCL one-minute open when velocity and parity agree at the raw turn",
+    "one_bar_maturation": "close existing risk at the next open, then admit only after one further completed five-minute bar retains the new state and velocity/parity agreement",
+    "declared_cell_count": 2,
+    "ranking": "discovery eligibility, positive month count, worst-month primary and stress net, stress net/intrabar-DD, stress PF, both directions, then primary net; validation cannot select"
+  },
+  "roll_law": {
+    "boundary": "dual prior-session CL/MCL volume cross, forced three complete sessions before MCL expiry",
+    "position": "close the old MCL contract at its last available close and remain flat",
+    "source": "reset by suffix and require a fresh post-roll turn; no blind position reopen because the contract-specific source state was reset"
+  },
+  "fixed_economics": {
+    "multiplier": 100,
+    "min_tick": 0.01,
+    "primary_round_trip_cost_usd": 3.52,
+    "stress_round_trip_cost_usd": 5.52
+  },
+  "proof_gates": {
+    "minimum_trades_per_complete_year": 160,
+    "positive_primary_and_stress_net_each_complete_year": true,
+    "annual_profit_factor_min": 1.1,
+    "full_profit_factor_min": 1.2,
+    "full_net_to_intrabar_drawdown_min": 1.5,
+    "both_directions_nonnegative_with_trades": true,
+    "monthly_positive_pnl_concentration_max": 0.4,
+    "median_admissions_per_active_session_range": [1, 3],
+    "p95_admissions_per_active_session_max": 6,
+    "busiest_session_admission_share_max": 0.02,
+    "missing_july_2023_to_august_2024": "hard coronation blocker"
+  },
+  "controls": [
+    "v9 unconditional macro flipper",
+    "permission-veto holds predecessor instead of flattening",
+    "v9 blind roll reopen",
+    "fixed-five-session roll",
+    "MCL-only signal"
+  ],
+  "successor_law": "If both cells fail gross expectancy, close this macro-flipper branch. If gross survives but month stability does not, use fixed-horizon and curve/participation anatomy to preregister a distinct two-speed auction owner rather than adding another threshold.",
+  "prohibitions": [
+    "no daily quota",
+    "no outcome-selected velocity magnitude",
+    "no news direction",
+    "no validation-selected cell",
+    "no live authority",
+    "no crown without the missing first challenge year"
+  ],
+  "submitted_orders": 0
+}
