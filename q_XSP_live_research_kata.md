@@ -62,7 +62,7 @@ output belongs in commit/final verification, not in this management brain.
 | Profitability clock | Both successor prefixes begin `12:41:13Z`. First immutable `13:44:04Z` 24h judgments are honest `HOLD`: identity, shared capital ownership, parity, restart, safety, and attribution PASS; execution and elapsed/session profitability remain immature. Predecessor prefixes remain immutable evidence only; no slot is backfilled and no trade is forced |
 | Execution verdict | `LIVE_FLAT` for both selected runs: XSP has zero clean-run fills/P&L/DD and gold has zero fills/trades/P&L/DD, no relevant position/order, and no breach. Archived XSP predecessor loss `-$13.079007` transfers to neither clean identity |
 | Next irreversible evidence | either a newly admitted v3 RTH direction or a fresh Stage-76 gold admission may create the next capital event; the other package remains reserved and may enter later if the fresh full-portfolio recheck passes. MCL remains measurement-only |
-| First active work | preserve both selected recurrence streams; review proposal/veto, slope/velocity/ATR, long context, economics, MFE/MAE, safety, and TA/news attribution at 20-minute cadence; reconcile any real fill immediately. The completed six-checkpoint block preregistered one bounded XSP financed-cold-start replay at `3e9ee381…`; it has no live authority. MCL generation remains `HOLD_NYMEX_L1_REQUIRED`; never weaken its five-minute causal clock or use delayed bars. Run graduation reducers only at lawful cutoffs |
+| First active work | preserve both selected recurrence streams; review proposal/veto, slope/velocity/ATR, long context, economics, MFE/MAE, safety, and TA/news attribution at 20-minute cadence; reconcile any real fill immediately. The completed six-checkpoint block rejected XSP financed cold-start adoption at `11c19f32…`; preserve v3's initial-state non-adoption and do not sweep that closed family. MCL generation remains `HOLD_NYMEX_L1_REQUIRED`; never weaken its five-minute causal clock or use delayed bars. Run graduation reducers only at lawful cutoffs |
 
 ### Immediate sequence
 
@@ -618,19 +618,14 @@ transition through today’s close; no order will be forced merely to populate t
   and type-1/five-minute market clock. Every forecast/result carries that
   identity; owner drift or a foreign unsettled generation fails closed. No new
   module, timer, service, ledger, instrument, or order authority exists.
-- `[PREREGISTERED]` **XSP financed cold-start adoption:** prospectively
-  distinguish a genuinely financed RTH state already established while the
-  flat owner is underwarmed from the broad opening/premarket chase that prior
-  studies rejected. The first specimen gained `1.24` SPY close-path points in
-  `35m`; four horizons remained aligned enough to retain `up`, but no fresh
-  turn/proposal/admission formed. Compare matched MFE/MAE and after-cost
-  movement without changing v3 or inventing midcycle authority. The first
-  specimen then emitted a rejected `15:10Z` down turn followed by a rejected
-  `15:25Z` up turn before v3's `12`-bar minimum ownership would have released a
-  hypothetical adoption. Complete lifecycle giveback—not merely entry MFE—is
-  therefore the decisive replay burden. Six checkpoints rank this the winner;
-  preregistration `3e9ee381…` freezes one primary and three semantic neighbors
-  before historical outcomes, with no midcycle live authority.
+- `[REJECTED]` **XSP financed cold-start adoption:** preregistration
+  `3e9ee381…` froze one primary and three semantic neighbors before outcomes.
+  Exact replay reproduced baseline `425 / +280.97 / PF 2.2887 / DD 17.43 /
+  40708a28…`. The primary added `13` admissions but regressed to `+268.02 / PF
+  2.2122 / DD 19.68`; all three neighbors also reduced full P&L and enlarged
+  drawdown. Preserve v3's initial-state non-adoption: a direction already under
+  way is context, not a synthetic entry. Receipt `11c19f32…` closes financing,
+  maturity, coherence, direction, date, news, and premarket rescue sweeps.
 - `[PRESERVED RUNNER-UP]` **Tri-asset narrative-dispersion compression:** test
   whether convergence among easing-negative XSP pressure, weakening-positive
   MCL pressure, and weakly reversing-positive Gold pressure predicts
@@ -1164,6 +1159,7 @@ and
 | E-371 | the `15:12Z` checkpoint and complete Friday/Monday turn census disprove a runtime-warmup miss. The directional engine separates five-horizon `ready` from three-horizon `turn_ready`: Friday emitted `10:25 up` with `3` horizons (blocked ATR velocity), `11:10 down` with `4` (blocked retrace), and `11:40 up` with `5` (blocked time); Monday emitted `11:10 down` with `4`, retrace `1.09254 ATR`, and the same down-retrace veto. Current row simultaneously records static `abstain_reason=not_ready`, `turn_ready=true`, `turn_event=down`, and `proposed_direction=down`; transport saw the proposal and submitted zero for the named crown gate. Thursday's real `10:55` admission with `1/3/6/12` horizons independently proves early turn execution. Cold/restart parity remains exact `425/425`. The actual research seam is intentional non-adoption of an initialized RTH state, whose first specimen peaked `757.87` then turned before a hypothetical v3 `12`-bar minimum hold would release; candidate block advances to `4/6`. Gold remained flat H4/D1 down; no live authority changed |
 | E-372 | scheduled `15:32Z` Hawkeye isolated a causal paired-veto specimen with both canaries flat/clean, `$1,318.05` settled USD, and zero relevant holdings/orders, fills/trades, P&L/DD, or breach. After the `15:10Z` down proposal was rejected solely at `1.09254 ATR < 1.25`, SPY rose `757.40 -> 758.06`; at `15:25Z` the four-horizon owner emitted a genuine opposite up turn/proposal with smoothed score `+0.328719`, retrace `2.03148 ATR`, coherence `1.0`, and all slopes positive. The centralized admission trace rejected it specifically at `directional_impulse_admission:block:atr_velocity` because velocity was `-0.006615 < 0`; the next close fell to `757.54`. At `15:30Z` the retained up state was age `1`, slopes split two/two and every observed slope velocity was negative, with no new turn/proposal/admission. Gold remained D1 hard-down age `148` / H4 raw-down with no fresh target and its causal H4-frozen context unchanged. The evidence supports two protective refusals, not a gate edit; both bounded candidates advance to `5/6`, and no strategy, selection, capital, order, or graduation authority changed |
 | E-373 | scheduled `15:52Z` Hawkeye completed the six-checkpoint/two-hour block with both canaries flat/clean, `$1,318.05` settled USD, and zero relevant positions/orders, fills/trades, P&L/DD, or breach. XSP recovered from the `15:30Z` post-veto close `757.54` to `758.47` at `15:50Z`: retained up state age `5`, all five slopes positive, `4/5` slope velocities positive, coherence `1.0`, ATR velocity `-0.000897`, and acceleration `+0.019353`; no new turn/proposal/admission formed, so neither the immediate protection nor later missed recovery alone decides the gate. News remained easing-bearish attribution `-0.432/+0.1403/+0.033576h^-1`. Gold remained flat on causal H4 source `ed849610…`, D1/H4 down and no target, with no relevant position/order or breach. XSP financed cold-start adoption ranks first because it is materially distinct and fully replayable; tri-asset narrative-dispersion remains runner-up because MCL still lacks genuine type-1 five-minute data and Gold changes only on H4. Preregistration `opening_edge_v3_financed_cold_start_preregistration.json` / `3e9ee381…` freezes the exact primary, three neighbors, exclusion, acceptance, and no-authority boundary before historical outcomes |
+| E-374 | exact frozen replay rejected financed cold-start adoption without a follow-on sweep. Baseline reproduced `58,560` bars / `425` trades / `+280.97` / PF `2.2887` / DD `17.43` / ledger `40708a28…`. The preselected one-bar cell added `13` admissions but fell to `430 / +268.02 / PF 2.2122 / DD 19.68`; Year 1 declined `63.98 -> 50.57` and down expectancy `177.71 -> 165.64`. Immediate adoption was worse at `463 / +245.03 / PF 1.9958 / DD 20.75`; the `2x` financing neighbors repeated the same adverse structure. Every preregistered economic gate failed except two-direction cohort coverage, so no GTH combination or cash replay was warranted. Receipt `opening_edge_v3_financed_cold_start_rejection_receipt.json` / `11c19f32…` preserves initial-state non-adoption and forbids threshold, confirmation, coherence, date, direction, news, or premarket rescue. No strategy, crown, selection, capital, GTH, order, or profitability authority changed |
 
 ### Decision anchors
 
