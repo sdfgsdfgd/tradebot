@@ -63,7 +63,7 @@ output belongs in commit/final verification, not in this management brain.
 | Profitability clock | Both successor prefixes begin `12:41:13Z`. First immutable `13:44:04Z` 24h judgments are honest `HOLD`: identity, shared capital ownership, parity, restart, safety, and attribution PASS; execution and elapsed/session profitability remain immature. Predecessor prefixes remain immutable evidence only; no slot is backfilled and no trade is forced |
 | Execution verdict | `LIVE_FLAT` for both selected runs: XSP has zero clean-run fills/P&L/DD and gold has zero fills/trades/P&L/DD, no relevant position/order, and no breach. Archived XSP predecessor loss `-$13.079007` transfers to neither clean identity |
 | Next irreversible evidence | either a newly admitted v3 RTH direction or a fresh Stage-76 gold admission may create the next capital event; the other package remains reserved and may enter later if the fresh full-portfolio recheck passes. MCL remains measurement-only |
-| First active work | preserve both selected recurrence streams; review proposal/veto, slope/velocity/ATR, long context, economics, MFE/MAE, safety, and TA/news attribution at 20-minute cadence; reconcile any real fill immediately. The completed XSP/Gold block rejected paired-veto residual-range attribution before outcomes and preserves Gold TA/news conflict maturation as `ACCUMULATE`. Open MCL Two-Speed Auction Relay as the active `0/6` block; establish genuine type-1 tape, causal clocks, sessions, rolls, and costs before any outcome sweep. Run graduation reducers only at lawful cutoffs |
+| First active work | preserve both selected recurrence streams; review proposal/veto, slope/velocity/ATR, long context, economics, MFE/MAE, safety, and TA/news attribution at 20-minute cadence; reconcile any real fill immediately. The completed XSP/Gold block rejected paired-veto residual-range attribution before outcomes and preserves Gold TA/news conflict maturation as `ACCUMULATE`. Run the user-authorized MCL Two-Speed Auction Relay quest continuously for at least four hours from `2026-08-03 14:06 ET`, surviving compactions: establish the genuine CL-discovery / matched-month-MCL-execution tape, causal clocks, sessions, rolls, costs, and frozen proof plan before outcomes; then sharpen toward a lawful crown, transport proof, and canary without skipping authority gates. Run graduation reducers only at lawful cutoffs |
 
 ### Immediate sequence
 
@@ -656,11 +656,20 @@ transition through today’s close; no order will be forced merely to populate t
 - `[INCUBATING 0/6 — CONFIRMED]` **MCL Two-Speed Auction Relay:** sharpen one
   compact `1–5m` MCL state machine that
   arbitrates mutually exclusive acceptance-continuation and failed-auction
-  reversal setups. Target roughly `1–2` qualified trades per active day without
-  a quota; TA owns direction, while causal news may classify shock, crowding,
-  convexity, or patience only. Require genuine NYMEX type-1 tape, full futures
-  friction/roll/session accounting, every annual slice, both directions, and
-  shock plus compression stability before any crown, transport, or capital.
+  reversal setups. Let completed `5m` CL discover the auction, causal `1m` CL
+  trigger it, and matched-month MCL prove parity and executable transport.
+  Target ordinary `1–2+` qualified trades per active day and `>160/year`
+  without a quota; TA owns direction, while causal news may classify shock,
+  crowding, convexity, or patience only. The user authorized at least four
+  continuous hours of autonomous acquisition, preregistration, bounded replay,
+  anatomy, and sharpening from `2026-08-03 14:06 ET`, across compactions. Seek
+  stable after-cost PnL/DD in every July-to-July slice and the full three-year
+  challenge, both directions, GTH/RTH, trends, compression, shocks, reversals,
+  and roll neighbours. Require genuine NYMEX type-1 execution evidence and full
+  futures friction/roll/session accounting before a crown; then require native
+  margin, preview, immutable selection, shared allocation, restart, and safety
+  proof before canary capital. Duration is not permission to force an outcome,
+  weaken a gate, or submit an unproved strategy.
 - `[PRESERVED RUNNER-UP]` **Tri-asset narrative-dispersion compression:** test
   whether convergence among easing-negative XSP pressure, weakening-positive
   MCL pressure, and weakly reversing-positive Gold pressure predicts
