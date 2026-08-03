@@ -1,0 +1,56 @@
+{
+  "schema": "mcl.two-anchor-inventory-auction-lifecycle-preregistration.v1",
+  "created_at_utc": "2026-08-03T23:33:18Z",
+  "authority": "research_only_no_orders_no_capital_validation_sealed_until_discovery_selection",
+  "name": "MCL Two-Anchor Inventory Auction Lifecycle",
+  "hypothesis": "A DST-aware Europe inventory transfer and a United States opening transfer can form one high-cadence oil state machine when each anchor has exclusive finite ownership: Europe exits before the US handoff and US exits before the 10:30 ET inventory-risk window. Exact range invalidation is the only semantic risk alternative.",
+  "inputs": {
+    "cl_mcl_manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "census_preregistration_sha256": "2c3762bf5160d92d720916241cfe917a5540d3e9457f5832aef770bbe121bbbc",
+    "census_result_sha256": "b000804276fca10dd53ba78cd89e340fe805c7a032c320f9c7c73776d538a5f9",
+    "evaluator_sha256": "56e1ff25c78e40fa2bca1355daccea5814690a6ab12082fdf1dc47e047a32bd5"
+  },
+  "signal": "exact 578 outcome-blind V33 events; no anchor, range, excursion, verdict, direction, clock, cadence, or event replacement may change",
+  "execution": {
+    "entry": "one matched-suffix MCL contract at the frozen next one-minute open",
+    "europe_ownership": "exit at the first completed one-minute close at or after 08:55 America/New_York",
+    "us_ownership": "exit at the first completed one-minute close at or after 10:25 America/New_York",
+    "next_anchor": "unexpected overlap closes the incumbent at the next anchor entry open before replacement",
+    "clock_or_contract_reset": "close at the last continuous MCL close and never synthesize a reopen",
+    "costs": {
+      "multiplier": 100,
+      "primary_round_trip_usd": 3.52,
+      "stress_round_trip_usd": 5.52
+    }
+  },
+  "semantic_owners_in_frozen_order": [
+    "anchor_state",
+    "anchor_structural"
+  ],
+  "structural_law": {
+    "acceptance": "the crossed pre-anchor MCL high for a long or low for a short",
+    "failure": "the first excursion MCL high for a short or low for a long",
+    "intrabar_order": "structural stop, then MFE/MAE update, then anchor cutoff; adverse gaps fill at the opening price"
+  },
+  "discovery_and_validation_eligibility": {
+    "annualized_trades": ">160 and <=520",
+    "primary_stress_net": ">0 / >0",
+    "primary_stress_profit_factor": ">=1.20 / >=1.10",
+    "primary_stress_pnl_to_intrabar_drawdown": ">=1.50 / >=1.00",
+    "primary_stress_positive_months": ">=8 / >=7",
+    "largest_positive_month_share": "<=0.30",
+    "cohorts": "up/down, acceptance/failure, Europe/US, and high/low each positive under primary and stress"
+  },
+  "selection_law": "Among discovery-eligible owners maximize stress PnL/DD, then primary PnL/DD, then stress net, then minimize primary DD. Only that owner opens validation and full outcomes.",
+  "full_law": {
+    "annualized_trades": ">160 and <=520",
+    "primary_stress_pnl_to_intrabar_drawdown": ">=2.50 / >=1.50",
+    "primary_stress_positive_months": ">=18 / >=16",
+    "largest_positive_month_share": "<=0.20",
+    "cohorts": "up/down, acceptance/failure, Europe/US, and high/low each positive under primary and stress"
+  },
+  "control": "selected lifecycle's identical entry and exit clocks with every raw hold inverted; it cannot select or rescue",
+  "if_no_discovery_owner": "Reject the two-anchor lifecycle before validation; do not sweep anchor clocks, reference windows, verdict delay, stop distance, targets, timeouts, EIA exceptions, or costs.",
+  "if_development_passes": "Preserve as outcome-exposed development only. Missing July-2023 history, unseen evidence, runtime parity, live signal tape, native transport, margin, preview, allocation, restart, and safety remain mandatory before crown or capital.",
+  "submitted_orders": 0
+}

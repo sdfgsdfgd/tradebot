@@ -732,8 +732,12 @@ transition through today’s close; no order will be forced merely to populate t
   closed. V33 instead freezes a materially distinct two-anchor inventory relay:
   one DST-aware Europe auction and one US-open auction per session, each using
   only its causal pre-anchor CL/MCL range and one next-bar verdict. Count proof
-  under evaluator `4d0b7589…` precedes all outcomes. Rolls, costs, news authority,
-  and live XSP/Gold owners remain unchanged.
+  advanced at `305/274` annualized, `85.3%/79.8%` active sessions, median `1`
+  and p95/max `2`, with both anchors/directions/branches/sides. V34 freezes
+  finite ownership—Europe to `08:55 ET`, US to `10:25 ET`—and exactly two
+  semantic risk owners under evaluator `56e1ff25…`; discovery chooses one before
+  validation opens. Rolls, costs, news authority, and live XSP/Gold owners remain
+  unchanged.
 - `[PRESERVED RUNNER-UP]` **Tri-asset narrative-dispersion compression:** test
   whether convergence among easing-negative XSP pressure, weakening-positive
   MCL pressure, and weakly reversing-positive Gold pressure predicts
@@ -1117,10 +1121,13 @@ and stable bootstrap evidence. Neither may be refactored into looking mature.
     positive. Static side routing is closed. V33 freezes one event around the
     DST-aware `08:00 Europe/London` transfer and one around `09:00 ET`, each
     against only its completed pre-anchor CL/MCL inventory range and with one
-    next-bar acceptance/failure verdict. Evaluator `4d0b7589…` must first prove
-    `>260/year`, both anchors/directions/branches/sides, and maximum two/session
-    without PnL. Missing July-2023–August-2024 remains a hard crown blocker; no
-    quota, order, or capital authority.
+    next-bar acceptance/failure verdict. Evaluator `4d0b7589…` passed count proof
+    at `305/274` annualized, `85.3%/79.8%` active sessions, median `1`, p95/max
+    `2`, and both anchors/directions/branches/sides. V34 evaluator `56e1ff25…`
+    freezes Europe ownership through `08:55 ET`, US ownership through `10:25 ET`,
+    and only anchor-state versus exact structural invalidation. Discovery may
+    select one owner before validation opens. Missing July-2023–August-2024
+    remains a hard crown blocker; no quota, order, or capital authority.
 
 ---
 
@@ -1463,6 +1470,7 @@ and
 | E-416 | outcome-blind V30 count proof `eaa5851d…` advanced the prior-session auction with `213/201` discovery/validation events (`213.15/201.73` annualized), active-session fractions `74.81%/73.15%`, median `1`, p95/max `2`, up/down `114/99` and `105/96`, acceptance/failure `159/54` and `156/45`, and high/low sides `118/95` and `106/95`; zero forward outcomes opened. Receipt `mcl_prior_session_boundary_auction_census_receipt.json` binds preregistration/evaluator/result `e34fc721…/93a98796…/eaa5851d…`. V31 preregistration `mcl_prior_session_boundary_auction_lifecycle_preregistration.json` / evaluator `ca5b784c…` freezes exactly four branch-aware semantic owners—state only, structural invalidation, failed-auction profit memory, or both—under next-open execution, opposite-verdict reversal, `16:55 ET` flat, and exact `$3.52/$5.52` costs. Discovery may select one owner; only it may open validation. No news, order, capital, or XSP/Gold mutation |
 | E-417 | V31 lifecycle `345e9f70…` rejected every frozen owner in discovery, leaving validation unopened: state only `-$2,632.68/209`, structural `-$1,345.76/213`, failed-auction memory `-$2,543.70/210`, and structural+memory `-$1,367.26/213`; stress losses were `-$1,772` to `-$3,051`, and both directions/branches lost in every cell. Receipt `mcl_prior_session_boundary_auction_lifecycle_rejection.json` closes textbook acceptance-follow/failure-fade plus stop/memory interactions. Discovery-only categorical side anatomy `fb7039bf…` found a distinct asymmetry: exact high-side verdict inversion under state ownership earned `+$2,357.64/+$2,121.64` stress over `118` trades, PF `1.541`, DD `$838.16`, PnL/DD `2.813`, `10/13` positive months, and positive transformed directions/branches; exact low-side textbook stress was `-$120.40`. V32 preregistration `mcl_prior_high_absorption_validation_preregistration.json` / evaluator `c7c2506f…` freezes only that high-absorption component and exact textbook control before opening validation. A pass permits one later flat-only V18 composition preregistration, never a standalone crown; no order, capital, or XSP/Gold mutation |
 | E-418 | V32 validation `3faa0885…` rejected static prior-high absorption: the discovery reference `+$2,357.64/+$2,121.64` stress reversed to `-$1,730.12/106` and `-$1,942.12` stress, PF `.835`, DD `$4,238.40`, only `5` positive months, and both directions/branches negative. The exact textbook high-only control simultaneously changed from `-$3,188.36/-$3,424.36` stress in discovery to `+$983.88/+$771.88` in validation, proving a causal regime owner would be required and closing side-only inversion/follow rescue. Receipt `mcl_prior_high_absorption_validation_rejection.json`. V33 preregistration `mcl_two_anchor_inventory_census_preregistration.json` / evaluator `4d0b7589…` now freezes two non-overlapping liquidity-transfer auctions: DST-aware Europe and US open, each against only completed pre-anchor CL/MCL inventory, first joint excursion, and one next-bar verdict; maximum two/session. Count proof requires `>260/year`, both anchors/directions/branches/sides, and no forward outcomes, orders, capital, or XSP/Gold mutation |
+| E-419 | outcome-blind V33 count proof `b0008042…` advanced the two-anchor relay: discovery `305` events (`305.21/year`), `85.27%` active sessions, Europe/US `185/120`; validation `273` (`273.99/year`), `79.77%` active, Europe/US `170/103`. Both periods have median `1`, p95/max `2`, balanced directions and sides, and >=`50` failures; zero forward outcomes opened. Receipt `mcl_two_anchor_inventory_census_receipt.json` binds preregistration/evaluator/result `2c3762bf…/4d0b7589…/b0008042…`. V34 preregistration `mcl_two_anchor_inventory_lifecycle_preregistration.json` / evaluator `56e1ff25…` freezes exact next-open MCL execution, Europe cutoff `08:55 ET`, US cutoff `10:25 ET`, `$3.52/$5.52` costs, and only anchor-state versus exact range invalidation. Discovery may select one owner; only it opens validation. No news, order, capital, or XSP/Gold mutation |
 
 ### Decision anchors
 

@@ -1,0 +1,40 @@
+{
+  "schema": "mcl.two-anchor-inventory-auction-census-receipt.v1",
+  "recorded_at_utc": "2026-08-03T23:31:00Z",
+  "authority": "outcome_blind_no_forward_pnl_no_orders_no_capital",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "preregistration_sha256": "2c3762bf5160d92d720916241cfe917a5540d3e9457f5832aef770bbe121bbbc",
+    "evaluator_sha256": "4d0b75899635426aa75427329c292b730a6a5baa947bfe5497f48956193bd450",
+    "result_sha256": "b000804276fca10dd53ba78cd89e340fe805c7a032c320f9c7c73776d538a5f9"
+  },
+  "discovery": {
+    "events": 305,
+    "annualized": 305.208904,
+    "active_session_fraction": 0.852713,
+    "median_p95_maximum": [1, 2, 2],
+    "up_down": [161, 144],
+    "acceptance_failure": [238, 67],
+    "europe_us": [185, 120],
+    "high_low_side": [168, 137]
+  },
+  "validation": {
+    "events": 273,
+    "annualized": 273.986112,
+    "active_session_fraction": 0.797665,
+    "median_p95_maximum": [1, 2, 2],
+    "up_down": [134, 139],
+    "acceptance_failure": [223, 50],
+    "europe_us": [170, 103],
+    "high_low_side": [128, 145]
+  },
+  "exclusions": {
+    "europe_no_joint_excursion": 138,
+    "europe_verdict_disagreed": 22,
+    "us_no_joint_excursion": 278,
+    "us_verdict_disagreed": 14
+  },
+  "forward_outcomes_opened": 0,
+  "verdict": "ELIGIBLE_FOR_LIFECYCLE_PREREGISTRATION",
+  "submitted_orders": 0
+}
