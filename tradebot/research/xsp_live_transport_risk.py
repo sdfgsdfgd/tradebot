@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, time, timedelta, timezone
 
 from ..engines.market import is_trading_day, xsp_trading_date
+from ..time_utils import ET_ZONE
 from .live_calibration import (
     SELECTED_CASH_EQUITY_SCHEMA,
     calibration_fingerprint,
@@ -263,6 +264,13 @@ def xsp_transport_risk_state(
         )
 
     trading_day = xsp_trading_date(observed_at)
+    observed_et = observed_at.astimezone(ET_ZONE)
+    if (
+        trading_day is None
+        and time(9, 25) <= observed_et.time() < time(9, 30)
+        and is_trading_day(observed_et.date())
+    ):
+        trading_day = observed_et.date()
     if trading_day is None or not is_trading_day(trading_day):
         raise ValueError("risk observation is outside an XSP trading day")
     mature(trading_day)

@@ -535,6 +535,29 @@ def _v3_selection(tmp_path: Path) -> dict[str, object]:
     )
 
 
+def test_xsp_risk_accounting_survives_the_weekday_opening_book_gap(
+    tmp_path: Path,
+) -> None:
+    selection = _v3_selection(tmp_path)
+    state = xsp_transport_risk_state(
+        selection=selection,
+        records=(),
+        observed_at=datetime(2026, 8, 3, 13, 27, tzinfo=timezone.utc),
+        liquidation_bids={},
+    )
+
+    assert state["trading_date"] == "2026-08-03"
+    assert state["holdings_from_fills"] == {"SPXU": 0.0, "UPRO": 0.0}
+
+    with pytest.raises(ValueError, match="outside an XSP trading day"):
+        xsp_transport_risk_state(
+            selection=selection,
+            records=(),
+            observed_at=datetime(2026, 8, 2, 13, 27, tzinfo=timezone.utc),
+            liquidation_bids={},
+        )
+
+
 def _v3_rotation_selection(
     tmp_path: Path,
     *,
