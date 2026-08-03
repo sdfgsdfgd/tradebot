@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import hashlib
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from datetime import datetime
 from pathlib import Path
 
@@ -79,6 +79,8 @@ def apply_xsp_live_capital(
     selection: Mapping[str, object],
     selection_file_sha256: str,
     available_cash_usd: float,
+    account_positions: Sequence[Mapping[str, object]] | None = None,
+    account_open_orders: Sequence[Mapping[str, object]] | None = None,
 ) -> dict[str, object]:
     """Attach one allocation receipt and fail a new BUY closed."""
 
@@ -118,6 +120,14 @@ def apply_xsp_live_capital(
         projected_capital_usd=projected_capital,
         cash_debit_usd=cash_debit,
         available_cash_usd=available_cash_usd,
+        resource_state=(
+            {
+                "account_positions": [dict(row) for row in account_positions],
+                "account_open_orders": [dict(row) for row in account_open_orders],
+            }
+            if account_positions is not None and account_open_orders is not None
+            else None
+        ),
     )
     admitted = {**plan, "capital_admission": decision}
     if decision["status"] == "ALLOW":

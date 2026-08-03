@@ -1830,8 +1830,9 @@ def test_shadow_systemd_cadence_is_bounded_and_runtime_gated() -> None:
         "ExecCondition=/usr/bin/test -x %h/.local/share/tradebot/venv/bin/python"
     ) in service
     assert (
-        "ExecStart=/usr/bin/env python3 -m tradebot.research.xsp_shadow "
-        "--mode opening-edge-v3"
+        "ExecStart=/usr/bin/flock --exclusive --wait 180 "
+        "%t/tradebot-live-account.lock /usr/bin/env python3 "
+        "-m tradebot.research.xsp_shadow --mode opening-edge-v3"
     ) in service
     assert "TimeoutStartSec=8min" in service
     assert "Environment=IBKR_READONLY=1" in service

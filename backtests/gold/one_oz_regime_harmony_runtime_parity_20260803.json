@@ -1,0 +1,117 @@
+{
+  "schema": "gold.1oz-regime-harmony-runtime-parity.v1",
+  "created_at_utc": "2026-08-03T09:25:36Z",
+  "authority": "immutable_signal_runtime_parity_only_no_selection_no_capital_no_orders",
+  "crown": {
+    "strategy_version": "gold.1oz-regime-harmony-stage76.v1",
+    "strategy_key": "one-oz-regime-harmony-stage76-77",
+    "declaration_path": "backtests/gold/current-lf.json",
+    "declaration_sha256": "6b449d807980043c5f90afb93ecdb1398cf4a11e48e9b040fd831cd15a6b2d8e",
+    "artifact_path": "backtests/gold/one_oz_regime_harmony_stage76_77.json",
+    "artifact_sha256": "9720399570921c377fb987146618d00c9a928e625a93b836db998af6ea67c282"
+  },
+  "owners": {
+    "shared_completed_bar_context": {
+      "path": "tradebot/research/gold_context.py",
+      "sha256": "6198eaebc2f2497d4e36c99b71bbb1dbb1b45c2edfe455938972c4413a41dfff"
+    },
+    "stage76_replay": {
+      "path": "tradebot/research/gold_regime_harmony.py",
+      "sha256": "d1be0d4aaf1bb498596d449af4667382f62aff490983811d6c3e4cd52f50fd9a"
+    },
+    "prospective_onset_adapter": {
+      "path": "tradebot/research/gold_onset.py",
+      "sha256": "9027f1f6ce6ccd1563b412bb9d4347a7a670d58f62fb7519da8812625a72af97"
+    }
+  },
+  "frozen_tape": {
+    "last_completed_h4_utc": "2026-08-01T00:00:00+00:00",
+    "normalized_rows": {
+      "xauusd_h1": 65402,
+      "xauusd_h4": 19892,
+      "xauusd_d1": 2858,
+      "uup_d1": 2763,
+      "tip_d1": 2764,
+      "common_macro_states": 2698
+    },
+    "inputs": {
+      "db/XAUUSD/XAUUSD_2015-07-01_2016-06-30_1hour_full24.csv": "6f95b158662fe6209facc8a045288aaf58aa8fb38d7a453d74e2a1d27d559160",
+      "db/XAUUSD/XAUUSD_2016-07-01_2026-08-02_1hour_full24.csv": "14636d5906f5e089f44c862dee2953db170c252e399c653ee53648628b8b652a",
+      "db/XAUUSD/XAUUSD_2015-07-01_2016-06-30_4hours_full24.csv": "ac71fcf10b58b53caad5f1843d7916285ba1209b09da5983eee56f240c24ce04",
+      "db/XAUUSD/XAUUSD_2016-01-01_2026-08-02_4hours_full24.csv": "12a6c2d8a3110b4896d41a10959285a643cf5aaf1981ed5c39e5a4026ebc76a6",
+      "db/XAUUSD/XAUUSD_2015-07-01_2016-06-30_1day_full24.csv": "4a6cfbbc2896e3657b8e13172ae9b36ac1962f5a9eef9169258d501482919f96",
+      "db/XAUUSD/XAUUSD_2016-01-01_2026-08-02_1day_full24.csv": "82cb02d362e033530dc6a2b8535b59831bb277037339d57add41b5f7a5829fbe",
+      "db/UUP/UUP_2015-07-01_2026-08-02_1day_rth.csv": "fc56c00ec241115c973f6e05d59465f226d6bab09943b7b61560da0dea7de9a7",
+      "db/TIP/TIP_2015-07-01_2026-08-02_1day_rth.csv": "9efb96f1808cd89db9c160e67b5a87cb040d2db53a1ea5ef0afd6e22d3d20936"
+    }
+  },
+  "context_parity": {
+    "daily_rows_compared": 2858,
+    "h4_rows_compared": 19892,
+    "macro_rows_compared": 2698,
+    "daily_hard_direction_and_age_exact": true,
+    "h4_fast_slope_spread_velocity_acceleration_and_atr_exact": true,
+    "macro_5_21_63_direction_velocity_acceleration_exact": true
+  },
+  "historical_parity": {
+    "full_three_year": {
+      "start": "2023-07-01",
+      "end": "2026-06-30",
+      "converged": true,
+      "iterations": 2,
+      "trades": 73,
+      "net_pnl": 3103.52,
+      "profit_factor": 3.9914887464,
+      "max_drawdown": 690.07,
+      "ledger_sha256": "c3add7cde287718b895de70936aa9aeab18b465bd6e68d3b8140c262650a3733",
+      "winner_exhaustion_vetoes": 2,
+      "full_cycle_surrenders": 8
+    },
+    "full_ten_year": {
+      "start": "2016-07-01",
+      "end": "2026-06-30",
+      "converged": true,
+      "iterations": 4,
+      "trades": 257,
+      "net_pnl": 3227.82,
+      "profit_factor": 2.1891248688,
+      "max_drawdown": 690.07,
+      "ledger_sha256": "f5c212b19b9c5b6f697f01b6162a2f4382d8503afa4ebaa3844add45326a35a5",
+      "stage7_seed_ledger_sha256": "de1fd2a0ff4124e23d0c3870ee95f88e4dc2b0c8f94077e0c5c12db3a1862171",
+      "winner_exhaustion_vetoes": 14,
+      "full_cycle_surrenders": 22
+    }
+  },
+  "prospective_prefix": {
+    "start": "2016-07-01",
+    "cutoff": "2026-08-02",
+    "final_session_complete": false,
+    "cold_replays": 2,
+    "cold_replay_equal": true,
+    "converged": true,
+    "closed_trades": 261,
+    "ledger_sha256": "1ccaebb76cef60e5aae9643c72275a6d216be27ac29ea7b6ba3223ecc1b9396b",
+    "state_sha256": "d6fd0cdcb646ef7cebb41e238078af41e86990399f9260f72469a15a91d3f012",
+    "target_direction": null,
+    "broker_position": "not_consulted",
+    "synthetic_midcycle_entry_authority": "none",
+    "order_authority": "none",
+    "submitted_orders": 0
+  },
+  "gates": {
+    "machine_crown_identity": "PASS",
+    "shared_context_math": "PASS",
+    "full_three_year_ledger": "PASS",
+    "full_ten_year_ledger": "PASS",
+    "cold_replay_and_restart_identity": "PASS",
+    "flat_current_prefix": "PASS",
+    "native_1oz_margin_and_cash": "HOLD",
+    "fresh_nontransmitting_broker_preview": "HOLD",
+    "immutable_selection_and_capital_sleeve": "HOLD",
+    "native_restart_and_reconciliation": "HOLD",
+    "live_24h": "NOT_STARTED",
+    "live_48h": "NOT_STARTED",
+    "live_five_sessions": "NOT_STARTED"
+  },
+  "verdict": "SIGNAL_RUNTIME_PARITY_PASS_LIVE_TRANSPORT_HOLD"
+}

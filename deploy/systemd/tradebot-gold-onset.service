@@ -1,5 +1,5 @@
 [Unit]
-Description=Advance the non-submitting 1OZ gold prospective onset tape
+Description=Advance the non-submitting 1OZ onset and Stage-76 source owners
 Wants=network-online.target
 Requires=tradebot-ib-gateway-tunnel.service
 After=network-online.target tradebot-ib-gateway-tunnel.service

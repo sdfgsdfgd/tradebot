@@ -4,19 +4,26 @@ from __future__ import annotations
 
 import bisect
 import json
-import math
 import re
-import statistics
-from collections import deque
 from collections.abc import Mapping, Sequence
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from ..engines.signals import EmaDecisionEngine
 from ..news.contract import (
     NewsError,
     observe_news_signal,
     select_news_snapshot_at,
+)
+from .gold_context import (
+    gold_bar_time as _bar_time,
+    gold_bar_value as _bar_value,
+    gold_complete_bars as _complete_bars,
+    gold_daily_timeline as _daily_timeline,
+    gold_finite as _finite,
+    gold_h4_timeline,
+    gold_latest_index as _latest_index,
+    gold_macro_timeline as _macro_timeline,
+    gold_utc as _utc,
 )
 from .live_calibration import LiveCalibrationLedger, calibration_fingerprint
 
@@ -38,62 +45,6 @@ _MONTHS = {
     code: month
     for month, code in enumerate("FGHJKMNQUVXZ", 1)
 }
-
-
-def _utc(value: object) -> datetime:
-    if isinstance(value, datetime):
-        parsed = value
-    else:
-        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
-    return (
-        parsed.replace(tzinfo=timezone.utc)
-        if parsed.tzinfo is None
-        else parsed.astimezone(timezone.utc)
-    )
-
-
-def _finite(value: object) -> float | None:
-    try:
-        parsed = float(value)
-    except (TypeError, ValueError):
-        return None
-    return parsed if math.isfinite(parsed) else None
-
-
-def _field(row: object, name: str) -> object:
-    return row.get(name) if isinstance(row, Mapping) else getattr(row, name)
-
-
-def _bar_time(row: object) -> datetime:
-    for name in ("end", "ts"):
-        try:
-            value = _field(row, name)
-        except (AttributeError, KeyError):
-            continue
-        if value is not None:
-            return _utc(value)
-    raise ValueError("gold bars require an end or ts timestamp")
-
-
-def _bar_value(row: object, name: str) -> float:
-    value = _finite(_field(row, name))
-    if value is None:
-        raise ValueError(f"gold bar has invalid {name}")
-    return value
-
-
-def _complete_bars(
-    rows: Sequence[object], *, as_of: datetime
-) -> list[object]:
-    cutoff = _utc(as_of)
-    return sorted(
-        (row for row in rows if _bar_time(row) <= cutoff),
-        key=_bar_time,
-    )
-
-
-def _latest_index(times: Sequence[datetime], at: datetime) -> int:
-    return bisect.bisect_right(times, _utc(at)) - 1
 
 
 def gold_news_context(
@@ -166,71 +117,6 @@ def gold_news_context(
     }
 
 
-def _macro_timeline(
-    uup_rows: Sequence[object], tip_rows: Sequence[object], *, as_of: datetime
-) -> list[dict[str, object]]:
-    sources = {
-        "UUP": _complete_bars(uup_rows, as_of=as_of),
-        "TIP": _complete_bars(tip_rows, as_of=as_of),
-    }
-    by_time = {
-        symbol: {_bar_time(row): row for row in rows}
-        for symbol, rows in sources.items()
-    }
-    common = sorted(set(by_time["UUP"]).intersection(by_time["TIP"]))
-    closes = {
-        symbol: [_bar_value(by_time[symbol][stamp], "close") for stamp in common]
-        for symbol in sources
-    }
-    ages = {horizon: {"state": None, "age": 0} for horizon in (5, 21, 63)}
-    output = []
-    for index, stamp in enumerate(common):
-        horizons: dict[str, object] = {}
-        for horizon in (5, 21, 63):
-            if index < horizon + 2:
-                continue
-            symbols: dict[str, object] = {}
-            votes = {"direction": 0, "velocity": 0, "acceleration": 0}
-            for symbol, values in closes.items():
-                multiplier = -1.0 if symbol == "UUP" else 1.0
-                displacement = multiplier * (values[index] / values[index - horizon] - 1.0)
-                prior_displacement = multiplier * (
-                    values[index - 1] / values[index - horizon - 1] - 1.0
-                )
-                older_displacement = multiplier * (
-                    values[index - 2] / values[index - horizon - 2] - 1.0
-                )
-                velocity = displacement - prior_displacement
-                acceleration = velocity - (prior_displacement - older_displacement)
-                symbols[symbol] = {
-                    "gold_oriented_displacement": displacement,
-                    "gold_oriented_velocity": velocity,
-                    "gold_oriented_acceleration": acceleration,
-                    "direction": "supportive" if displacement > 0 else "adverse" if displacement < 0 else "flat",
-                }
-                votes["direction"] += displacement > 0
-                votes["velocity"] += velocity > 0
-                votes["acceleration"] += acceleration > 0
-
-            def label(count: int) -> str:
-                return "supportive" if count == 2 else "adverse" if count == 0 else "mixed"
-
-            direction = label(votes["direction"])
-            state = ages[horizon]
-            state["age"] = int(state["age"]) + 1 if state["state"] == direction else 1
-            state["state"] = direction
-            horizons[str(horizon)] = {
-                "direction": direction,
-                "velocity": label(votes["velocity"]),
-                "acceleration": label(votes["acceleration"]),
-                "state_age": state["age"],
-                "symbols": symbols,
-            }
-        if len(horizons) == 3:
-            output.append({"end": stamp, "horizons": horizons})
-    return output
-
-
 def gold_macro_context(
     uup_rows: Sequence[object],
     tip_rows: Sequence[object],
@@ -262,55 +148,6 @@ def gold_macro_context(
     }
 
 
-def _daily_timeline(rows: Sequence[object], *, as_of: datetime) -> list[dict[str, object]]:
-    hard = EmaDecisionEngine(ema_preset="21/50", ema_entry_mode="trend")
-    soft = EmaDecisionEngine(ema_preset="8/21", ema_entry_mode="trend")
-    state = None
-    age = 0
-    prior_close = None
-    prior_atr14 = None
-    ranges: deque[float] = deque(maxlen=63)
-    output = []
-    for bar in _complete_bars(rows, as_of=as_of):
-        close = _bar_value(bar, "close")
-        hard_snapshot = hard.update(close)
-        soft_snapshot = soft.update(close)
-        current = hard_snapshot.state if hard_snapshot.ema_ready else None
-        age = 0 if current is None else age + 1 if current == state else 1
-        state = current
-        high, low = _bar_value(bar, "high"), _bar_value(bar, "low")
-        true_range = high - low
-        if prior_close is not None:
-            true_range = max(true_range, abs(high - prior_close), abs(low - prior_close))
-        prior_close = close
-        ranges.append(true_range)
-        atr14 = statistics.fmean(list(ranges)[-14:]) if len(ranges) >= 14 else None
-        atr63 = statistics.fmean(ranges) if len(ranges) >= 63 else None
-        velocity = (
-            (atr14 - prior_atr14) / close
-            if atr14 is not None and prior_atr14 is not None
-            else None
-        )
-        if atr14 is not None:
-            prior_atr14 = atr14
-        ratio = atr14 / atr63 if atr14 is not None and atr63 else None
-        output.append(
-            {
-                "end": _bar_time(bar),
-                "hard_direction": current,
-                "hard_age": age if current is not None else None,
-                "soft_direction": soft_snapshot.state if soft_snapshot.ema_ready else None,
-                "atr14": atr14,
-                "atr_ratio_14_63": ratio,
-                "atr_velocity": velocity,
-                "high_contracting": bool(
-                    ratio is not None and ratio >= 1.0 and velocity is not None and velocity <= 0.0
-                ),
-            }
-        )
-    return output
-
-
 def gold_signal_context(
     h4_rows: Sequence[object],
     daily_rows: Sequence[object],
@@ -327,68 +164,16 @@ def gold_signal_context(
         return {"usable": False, "reason": "daily_underwarmed"}
     daily_times = [row["end"] for row in daily]
     macro_times = [row["end"] for row in macro]
-    engine = EmaDecisionEngine(
-        ema_preset="8/21", ema_entry_mode="cross", entry_confirm_bars=1
-    )
     pending_macro_index = None
-    closes: list[float] = []
-    hard_states: list[str | None] = []
-    prior_close = None
-    prior_atr14 = None
-    prior_fast_slope = None
-    prior_spread = None
-    ranges: deque[float] = deque(maxlen=63)
     latest = None
-    for bar in _complete_bars(h4_rows, as_of=as_of):
-        stamp = _bar_time(bar)
-        close = _bar_value(bar, "close")
-        snapshot = engine.update(close)
-        current_state = snapshot.state if snapshot.ema_ready else None
-        high, low = _bar_value(bar, "high"), _bar_value(bar, "low")
-        true_range = high - low
-        if prior_close is not None:
-            true_range = max(
-                true_range,
-                abs(high - prior_close),
-                abs(low - prior_close),
-            )
-        prior_close = close
-        ranges.append(true_range)
-        atr14 = statistics.fmean(list(ranges)[-14:]) if len(ranges) >= 14 else None
-        atr_velocity = (
-            atr14 - prior_atr14
-            if atr14 is not None and prior_atr14 is not None
-            else None
-        )
-        if atr14 is not None:
-            prior_atr14 = atr14
-        fast_slope = (
-            float(snapshot.ema_fast) - float(snapshot.prev_ema_fast)
-            if snapshot.ema_fast is not None and snapshot.prev_ema_fast is not None
-            else None
-        )
-        spread = (
-            float(snapshot.ema_fast) - float(snapshot.ema_slow)
-            if snapshot.ema_fast is not None and snapshot.ema_slow is not None
-            else None
-        )
-        spread_velocity = (
-            spread - prior_spread
-            if spread is not None and prior_spread is not None
-            else None
-        )
-        fast_acceleration = (
-            fast_slope - prior_fast_slope
-            if fast_slope is not None and prior_fast_slope is not None
-            else None
-        )
-        if fast_slope is not None:
-            prior_fast_slope = fast_slope
-        if spread is not None:
-            prior_spread = spread
-        closes.append(close)
-        hard_states.append(current_state)
+    for h4 in gold_h4_timeline(h4_rows, as_of=as_of):
+        stamp = _utc(h4["end"])
+        close = float(h4["close"])
+        current_state = h4["raw_direction"]
         sign = 1.0 if current_state == "up" else -1.0 if current_state == "down" else None
+        fast_slope = _finite(h4["fast_slope_dollars"])
+        spread_velocity = _finite(h4["spread_velocity_dollars"])
+        fast_acceleration = _finite(h4["fast_acceleration_dollars"])
         signed_fast = sign * fast_slope if sign is not None and fast_slope is not None else None
         signed_spread = (
             sign * spread_velocity
@@ -414,66 +199,30 @@ def gold_signal_context(
             if signed_fast >= GOLD_ONSET_FINANCING_USD / 6.0
             else "beyond_24h"
         )
-        path = {}
-        for horizon in (12, 30, 60):
-            if sign is None or len(closes) <= horizon:
-                continue
-            window_closes = closes[-(horizon + 1) :]
-            window_states = hard_states[-horizon:]
-            travelled = sum(
-                abs(right / left - 1.0)
-                for left, right in zip(
-                    window_closes,
-                    window_closes[1:],
-                    strict=False,
-                )
-            )
-            displacement = sign * (close / window_closes[0] - 1.0)
-            path[str(horizon)] = {
-                "signed_return": displacement,
-                "efficiency": (
-                    abs(close / window_closes[0] - 1.0) / travelled
-                    if travelled > 0.0
-                    else None
-                ),
-                "direction_occupancy": sum(
-                    state == current_state for state in window_states
-                )
-                / len(window_states),
-                "flip_count": sum(
-                    left in ("up", "down")
-                    and right in ("up", "down")
-                    and left != right
-                    for left, right in zip(
-                        window_states,
-                        window_states[1:],
-                        strict=False,
-                    )
-                ),
-            }
         h4_context = {
             "authority": "attribution_only",
             "hard_direction": current_state,
             "signed_fast_slope_dollars": signed_fast,
             "signed_spread_velocity_dollars": signed_spread,
             "signed_fast_acceleration_dollars": signed_acceleration,
-            "atr14_dollars": atr14,
-            "atr_velocity_dollars": atr_velocity,
+            "atr14_dollars": h4["atr14_dollars"],
+            "atr_velocity_dollars": h4["atr_velocity_dollars"],
             "cost_per_atr14": (
-                GOLD_ONSET_FINANCING_USD / atr14
-                if atr14 is not None and atr14 > 0.0
+                GOLD_ONSET_FINANCING_USD / float(h4["atr14_dollars"])
+                if h4["atr14_dollars"] is not None
+                and float(h4["atr14_dollars"]) > 0.0
                 else None
             ),
             "fast_bars_to_finance": financing_bars,
             "financing_clock": financing_clock,
-            "path": path,
+            "path": h4["path"],
         }
         daily_index = _latest_index(daily_times, stamp)
         macro_index = _latest_index(macro_times, stamp)
         if daily_index < 0:
             continue
         day = daily[daily_index]
-        proposed = snapshot.entry_dir
+        proposed = h4["proposed_direction"]
         hard_supports = bool(
             proposed in ("up", "down")
             and day["hard_direction"] == proposed
@@ -491,7 +240,7 @@ def gold_signal_context(
         stage22_source = "stage12"
         if pending_macro_index is not None:
             still_up = bool(
-                snapshot.state == "up"
+                current_state == "up"
                 and day["hard_direction"] == "up"
                 and day["hard_age"] is not None
                 and int(day["hard_age"]) >= 6
@@ -523,9 +272,9 @@ def gold_signal_context(
         latest = {
             "usable": True,
             "decision_bar_end_utc": stamp.isoformat(),
-            "decision_close": _bar_value(bar, "close"),
-            "raw_direction": snapshot.state,
-            "raw_turn": "up" if snapshot.cross_up else "down" if snapshot.cross_down else None,
+            "decision_close": close,
+            "raw_direction": current_state,
+            "raw_turn": h4["raw_turn"],
             "proposed_direction": proposed,
             "stage_12": {
                 "admitted_direction": stage12,

@@ -8,6 +8,7 @@ import pytest
 from tradebot.live.capital import (
     admit_live_capital,
     build_live_capital_plan,
+    build_live_capital_plan_v2,
     load_live_capital_plan,
     publish_live_capital_plan,
     usd_to_cents,
@@ -17,6 +18,8 @@ from tradebot.live.capital import (
 
 RUN_ID = "a" * 64
 SELECTION_SHA = "b" * 64
+GOLD_RUN_ID = "c" * 64
+GOLD_SELECTION_SHA = "d" * 64
 
 
 def _sleeve(*, weight_bps: int = 10_000) -> dict[str, object]:
@@ -62,6 +65,85 @@ def _admit(plan: dict[str, object] | None, **changes: object) -> dict[str, objec
         "projected_capital_usd": "900.45034925",
         "cash_debit_usd": "900.45034925",
         "available_cash_usd": "1318.05",
+    }
+    values.update(changes)
+    return admit_live_capital(plan, **values)
+
+
+def _portfolio_plan() -> dict[str, object]:
+    return build_live_capital_plan_v2(
+        account_id="U123",
+        account_type="CASH",
+        cash_currency="USD",
+        base_currency="AUD",
+        observed_settled_cash_usd="1318.05",
+        managed_capital_usd="900.45034925",
+        sleeves=[
+            {
+                **_sleeve(),
+                "position_symbols": ["UPRO", "SPXU"],
+            },
+            {
+                "sleeve_id": "gold-1oz-stage76-margin",
+                "strategy_id": "gold.1oz-regime-harmony-stage76.v1",
+                "run_id": GOLD_RUN_ID,
+                "selection_path": "db/calibration/gold_selected_live_transport.json",
+                "selection_file_sha256": GOLD_SELECTION_SHA,
+                "capital_kind": "FUTURES_MARGIN",
+                "weight_bps": 0,
+                "position_symbols": ["1OZ"],
+                "margin": {
+                    "base_currency": "AUD",
+                    "max_contracts": 1,
+                    "max_initial_margin_change_cents": 60_000,
+                    "max_maintenance_margin_change_cents": 52_000,
+                    "max_stressed_loss_usd_cents": 70_000,
+                    "fx_stress_bps": 11_000,
+                    "minimum_post_stress_excess_liquidity_cents": 30_000,
+                },
+            },
+        ],
+        reserve_reasons=["outside_selected_cash_authority"],
+        created_at_utc="2026-08-03T09:40:00+00:00",
+        supersedes_plan_id="e" * 64,
+    )
+
+
+def _margin_state(**changes: object) -> dict[str, object]:
+    state: dict[str, object] = {
+        "base_currency": "AUD",
+        "quantity": 1,
+        "initial_margin_change": 560.27,
+        "maintenance_margin_change": 487.19,
+        "initial_margin_after": 593.98,
+        "maintenance_margin_after": 516.04,
+        "equity_with_loan_after": 2105.62,
+        "available_funds_before": 2072.91,
+        "unrelated_position_gross": 93.65,
+        "usd_to_base_rate": 1.43,
+        "account_positions": [
+            {"symbol": "TQQQ", "quantity": 1},
+        ],
+        "account_open_orders": [],
+    }
+    state.update(changes)
+    return state
+
+
+def _admit_gold(plan: dict[str, object], **changes: object) -> dict[str, object]:
+    values: dict[str, object] = {
+        "intent": "ENTER",
+        "account_id": "U123",
+        "account_type": "CASH",
+        "currency": "USD",
+        "sleeve_id": "gold-1oz-stage76-margin",
+        "run_id": GOLD_RUN_ID,
+        "selection_file_sha256": GOLD_SELECTION_SHA,
+        "capital_kind": "FUTURES_MARGIN",
+        "projected_capital_usd": 0,
+        "cash_debit_usd": 0,
+        "available_cash_usd": 1318.05,
+        "resource_state": _margin_state(),
     }
     values.update(changes)
     return admit_live_capital(plan, **values)
@@ -119,6 +201,40 @@ def test_weights_split_only_managed_capital_and_cannot_borrow_reserve() -> None:
     assert decision["reasons"] == ["capital_sleeve_limit_exceeded"]
     assert decision["allocation"]["sleeve_limit_cents"] == 67_534
     assert decision["allocation"]["unallocated_reserve_cents"] == 41_759
+
+
+def test_v2_keeps_cash_and_futures_margin_as_distinct_resources() -> None:
+    plan = _portfolio_plan()
+    decision = _admit_gold(plan)
+
+    assert plan["schema"] == "live.capital-plan.v2"
+    assert plan["capital"]["managed_capital_cents"] == 90_046
+    assert plan["capital"]["unallocated_reserve_cents"] == 41_759
+    assert [row["weight_bps"] for row in plan["sleeves"]] == [0, 10_000]
+    assert decision["status"] == "ALLOW"
+    assert decision["allocation"]["post_stress_excess_liquidity_cents"] == 39_483
+
+
+def test_v2_blocks_overlap_and_margin_or_stress_boundary_failures() -> None:
+    plan = _portfolio_plan()
+    occupied = _admit_gold(
+        plan,
+        resource_state=_margin_state(
+            account_positions=[{"symbol": "UPRO", "quantity": 6}]
+        ),
+    )
+    oversized = _admit_gold(
+        plan,
+        resource_state=_margin_state(initial_margin_change=600.01),
+    )
+    stressed = _admit_gold(
+        plan,
+        resource_state=_margin_state(equity_with_loan_after=1900.0),
+    )
+
+    assert "concurrent_directional_sleeve_active" in occupied["reasons"]
+    assert "initial_margin_limit_exceeded" in oversized["reasons"]
+    assert "post_stress_excess_liquidity_below_floor" in stressed["reasons"]
 
 
 def test_entry_requires_exact_account_run_selection_kind_cap_and_cash() -> None:

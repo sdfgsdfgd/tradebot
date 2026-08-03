@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import math
 import os
@@ -15,12 +16,23 @@ from ib_insync import Contract, Future, IB, Stock
 from ..chart_data.history import normalize_bars_to_close, read_cache
 from ..chart_data.series import OhlcvBar
 from ..news.contract import load_news_history
+from ..live.capital import load_live_capital_plan, publish_live_capital_plan
+from .gold_live_transport import (
+    GOLD_LIVE_LEDGER_PATH,
+    GOLD_LIVE_SELECTION_PATH,
+    advance_gold_regime_harmony_source,
+    build_gold_portfolio_capital_plan,
+    gold_selection_preview,
+    publish_gold_live_selection,
+    select_gold_live_transport,
+)
 from .gold_onset import (
     advance_gold_onset_tape,
     build_gold_onset_context,
     gold_signal_context,
     select_gold_contract_pair,
 )
+from .gold_regime_harmony import GoldRegimeHarmonyTape
 from .live_calibration import LiveCalibrationLedger
 
 
@@ -224,7 +236,17 @@ def _news_history(path: Path) -> list[dict[str, object]]:
     ]
 
 
-def main() -> None:
+def main(argv: Sequence[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(
+        description="Advance the causal gold onset and Stage-76 source owners."
+    )
+    parser.add_argument("--commission-canary", action="store_true")
+    parser.add_argument("--live-ledger", default=str(GOLD_LIVE_LEDGER_PATH))
+    parser.add_argument("--selection", default=str(GOLD_LIVE_SELECTION_PATH))
+    parser.add_argument(
+        "--capital-plan", default="db/calibration/live_capital_plan.json"
+    )
+    args = parser.parse_args(argv)
     request_started_at = datetime.now(timezone.utc)
     ib = IB()
     ib.connect(
@@ -320,6 +342,69 @@ def main() -> None:
         outcome_bars={"XAUUSD": xau_h1, "GC": gc_h1, "1OZ": one_m30},
         observed_at=observed_at,
     )
+    live_ledger = LiveCalibrationLedger(Path(args.live_ledger).expanduser())
+    source = advance_gold_regime_harmony_source(
+        live_ledger,
+        tape=GoldRegimeHarmonyTape(
+            h1=tuple(xau_h1),
+            h4=tuple(xau_h4),
+            daily=tuple(xau_d1),
+            uup=tuple(uup_d1),
+            tip=tuple(tip_d1),
+        ),
+        onset_context=context,
+        observed_at=observed_at,
+    )
+    output["stage76_source"] = source
+    if args.commission_canary:
+        selection_path = Path(args.selection).expanduser()
+        capital_path = Path(args.capital_plan).expanduser()
+        if selection_path.exists():
+            raise ValueError("gold canary selection already exists")
+        preview_ib = IB()
+        preview_ib.connect(
+            os.environ.get("IBKR_HOST", "127.0.0.1"),
+            int(os.environ.get("IBKR_PORT", "4001")),
+            clientId=int(os.environ.get("IBKR_CLIENT_ID", "3199")) + 2,
+            readonly=True,
+            timeout=12,
+        )
+        try:
+            preview_quotes, preview_contracts = _chain_quotes(
+                preview_ib, now=datetime.now(timezone.utc)
+            )
+            preview_pair = select_gold_contract_pair(
+                preview_quotes,
+                observed_at=datetime.now(timezone.utc),
+            )
+            preview = gold_selection_preview(
+                preview_ib,
+                pair=preview_pair,
+                contracts=preview_contracts,
+                observed_at=datetime.now(timezone.utc),
+            )
+        finally:
+            preview_ib.disconnect()
+        selection = select_gold_live_transport(
+            source_checkpoint=source["checkpoint"],
+            preview=preview,
+            selected_at_utc=datetime.now(timezone.utc),
+            root=ROOT,
+        )
+        publish_gold_live_selection(selection_path, selection)
+        capital = build_gold_portfolio_capital_plan(
+            selection,
+            selection_path=selection_path,
+            current_plan=load_live_capital_plan(capital_path),
+        )
+        publish_live_capital_plan(capital_path, capital)
+        output["commissioning"] = {
+            "selection_id": selection["selection_id"],
+            "capital_plan_id": capital["plan_id"],
+            "order_authority": selection["order_authority"],
+            "submitted_orders": 0,
+            "verdict": "CANARY_SELECTED_FLAT_AWAITING_FRESH_STAGE76_ADMISSION",
+        }
     print(json.dumps(output, indent=2, sort_keys=True, allow_nan=False))
 
 

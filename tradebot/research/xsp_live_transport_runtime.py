@@ -12,9 +12,14 @@ from datetime import datetime, timezone
 from ib_insync import Stock
 
 from ..backtest.quotes import contract_from_ticker
-from ..engines.execution import EXECUTION_POLICY, execution_price, quote_health
+from ..engines.execution import EXECUTION_POLICY, quote_health
 from ..engines.market import xsp_trading_date
 from ..live.execution import LiveOrderExecution, order_ids
+from ..live.order_evidence import (
+    broker_trade_snapshot,
+    execution_price_for_ticker,
+    terminal_broker_snapshot_complete,
+)
 from .live_calibration import LiveCalibrationLedger, calibration_fingerprint
 from .xsp_live_capital import (
     apply_xsp_live_capital,
@@ -84,73 +89,6 @@ def _prior_execution(
     return None
 
 
-def _trade_snapshot(trade: object) -> dict[str, object]:
-    order = getattr(trade, "order", None)
-    status = getattr(trade, "orderStatus", None)
-    contract = getattr(trade, "contract", None)
-    order_id, perm_id = order_ids(trade)
-    symbol = str(getattr(contract, "symbol", "") or "")
-    fills = []
-    for fill in getattr(trade, "fills", ()) or ():
-        execution = getattr(fill, "execution", None)
-        commission = getattr(fill, "commissionReport", None)
-        fill_time = getattr(fill, "time", None)
-        fills.append(
-            {
-                "exec_id": str(getattr(execution, "execId", "") or ""),
-                "time_utc": (
-                    fill_time.astimezone(timezone.utc).isoformat()
-                    if isinstance(fill_time, datetime) and fill_time.tzinfo is not None
-                    else None
-                ),
-                "side": str(getattr(execution, "side", "") or "").upper(),
-                "symbol": symbol,
-                "shares": getattr(execution, "shares", None),
-                "price": getattr(execution, "price", None),
-                "commission": getattr(commission, "commission", None),
-                "commission_currency": getattr(commission, "currency", None),
-            }
-        )
-    return {
-        "order_id": order_id,
-        "perm_id": perm_id,
-        "order_ref": str(getattr(order, "orderRef", "") or ""),
-        "symbol": symbol,
-        "con_id": int(getattr(contract, "conId", 0) or 0),
-        "action": str(getattr(order, "action", "") or "").upper(),
-        "quantity": getattr(order, "totalQuantity", None),
-        "limit_price": getattr(order, "lmtPrice", None),
-        "status": str(getattr(status, "status", "") or ""),
-        "filled": getattr(status, "filled", None),
-        "remaining": getattr(status, "remaining", None),
-        "average_fill_price": getattr(status, "avgFillPrice", None),
-        "done": bool(getattr(trade, "isDone", lambda: False)()),
-        "fills": fills,
-    }
-
-
-def _terminal_snapshot_complete(snapshot: Mapping[str, object]) -> bool:
-    """Require terminal broker state plus exact fill economics."""
-
-    if snapshot.get("done") is not True:
-        return False
-    try:
-        filled = float(snapshot.get("filled") or 0.0)
-        fills = snapshot["fills"]
-        fill_total = sum(float(fill["shares"]) for fill in fills)
-        fills_complete = all(
-            str(fill.get("exec_id") or "")
-            and str(fill.get("time_utc") or "")
-            and float(fill["price"]) > 0
-            and float(fill["commission"]) >= 0
-            and str(fill.get("commission_currency") or "").upper() == "USD"
-            for fill in fills
-        )
-    except (KeyError, TypeError, ValueError):
-        return False
-    return filled >= 0 and abs(fill_total - filled) <= 1e-9 and fills_complete
-
-
 def _checkpoint(
     ledger: LiveCalibrationLedger,
     *,
@@ -199,7 +137,7 @@ def _checkpoint(
             "order_ref": order_ref,
             "plan": dict(plan),
             "what_if_preview": dict(preview) if preview is not None else None,
-            "broker_order": _trade_snapshot(trade) if trade is not None else None,
+            "broker_order": broker_trade_snapshot(trade) if trade is not None else None,
             "risk_state": dict(risk_state) if risk_state is not None else None,
             "broker_state": (dict(broker_state) if broker_state is not None else None),
             "ladder_transition": (
@@ -215,52 +153,6 @@ def _checkpoint(
         },
         recorded_at=observed_at,
     )
-
-
-def _price_for_mode(contract: object, ticker: object):
-    def price(
-        mode: str,
-        action: str,
-        *,
-        bid: float | None = None,
-        ask: float | None = None,
-        last: float | None = None,
-        ticker: object | None = None,
-        elapsed_sec: float = 0.0,
-        quote_stale: bool = False,
-        open_shock: bool = False,
-        no_progress_reprices: int = 0,
-        arrival_ref: float | None = None,
-        delay_recoveries: int = 0,
-        delay_anchor_price: float | None = None,
-        delay_sweep_anchor_price: float | None = None,
-        delay_locked_price_dir: float | None = None,
-    ) -> float | None:
-        active_ticker = ticker or ticker_ref
-        return execution_price(
-            contract,
-            active_ticker,
-            mode,
-            action,
-            bid=bid if bid is not None else getattr(active_ticker, "bid", None),
-            ask=ask if ask is not None else getattr(active_ticker, "ask", None),
-            last=last if last is not None else getattr(active_ticker, "last", None),
-            fallback_price=getattr(active_ticker, "close", None),
-            custom_price=None,
-            policy=EXECUTION_POLICY,
-            elapsed_sec=elapsed_sec,
-            quote_stale=quote_stale,
-            open_shock=open_shock,
-            no_progress_reprices=no_progress_reprices,
-            arrival_ref=arrival_ref,
-            delay_recoveries=delay_recoveries,
-            delay_anchor_price=delay_anchor_price,
-            delay_sweep_anchor_price=delay_sweep_anchor_price,
-            delay_locked_price_dir=delay_locked_price_dir,
-        )
-
-    ticker_ref = ticker
-    return price
 
 
 async def execute_xsp_transport_plan(
@@ -402,7 +294,7 @@ async def execute_xsp_transport_plan(
         else None
     )
     submitted_orders = 0
-    price_for_mode = _price_for_mode(contract, ticker)
+    price_for_mode = execution_price_for_ticker(contract, ticker)
     initial_mode = str(leg.get("initial_mode") or "")
     initial_price = price_for_mode(initial_mode, action)
     if initial_price is None or not math.isfinite(float(initial_price)):
@@ -565,8 +457,8 @@ async def execute_xsp_transport_plan(
     )
     if isinstance(reconciled, Mapping) and reconciled.get("trade") is not None:
         trade = reconciled["trade"]
-    broker_order = _trade_snapshot(trade)
-    if not _terminal_snapshot_complete(broker_order):
+    broker_order = broker_trade_snapshot(trade)
+    if not terminal_broker_snapshot_complete(broker_order):
         pending = _checkpoint(
             ledger,
             selection_id=str(selected["selection_id"]),
@@ -859,6 +751,15 @@ async def advance_xsp_live_transport(
             selection=selected,
             selection_file_sha256=selection_file_sha256,
             available_cash_usd=broker_cash,
+            account_positions=[
+                *unrelated_positions,
+                *(
+                    {"symbol": symbol, "quantity": quantity}
+                    for symbol, quantity in positions.items()
+                    if abs(float(quantity)) > 1e-9
+                ),
+            ],
+            account_open_orders=open_rows,
         )
     if selected["schema"] in XSP_V3_TRANSPORT_SELECTION_SCHEMAS:
         state_context = plan.get("execution_state_context")

@@ -9,6 +9,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from ..research.gold_live_transport import (
+    GOLD_LIVE_EXECUTION_VERSION,
+    load_gold_live_selection_from_mapping,
+)
+from ..research.gold_regime_harmony import GOLD_REGIME_HARMONY_VERSION
 from ..research.xsp_live_transport import XSP_V3_TRANSPORT_EXECUTION_VERSION
 from ..research.xsp_live_transport_v3 import (
     load_xsp_v3_transport_selection_from_mapping,
@@ -29,6 +34,17 @@ LIVE_STRATEGY_BINDINGS = (
         service_unit="tradebot-xsp-shadow.service",
         selection_validator=load_xsp_v3_transport_selection_from_mapping,
         champion_symbol="XSP",
+        champion_track="LF",
+    ),
+    LiveRunBinding(
+        strategy_id=GOLD_REGIME_HARMONY_VERSION,
+        label="1OZ Stage 76 Regime Harmony · GTH/24x7 transport",
+        execution_strategy_version=GOLD_LIVE_EXECUTION_VERSION,
+        ledger_path="db/calibration/gold_live_calibration.jsonl",
+        timer_unit="tradebot-gold-live.timer",
+        service_unit="tradebot-gold-live.service",
+        selection_validator=load_gold_live_selection_from_mapping,
+        champion_symbol="1OZ",
         champion_track="LF",
     ),
 )

@@ -271,6 +271,22 @@ def _positions_flat(positions: Mapping[str, object]) -> bool:
         return False
 
 
+def _position_mapping(value: object) -> dict[str, float]:
+    if isinstance(value, Mapping):
+        return {str(key): float(quantity or 0) for key, quantity in value.items()}
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
+        return {}
+    positions: dict[str, float] = {}
+    for row in value:
+        if not isinstance(row, Mapping):
+            raise ValueError("durable broker position row is invalid")
+        symbol = str(row.get("symbol") or "").upper()
+        quantity = float(row.get("quantity") or 0)
+        if symbol:
+            positions[symbol] = positions.get(symbol, 0.0) + quantity
+    return positions
+
+
 def _control_status(run: Mapping[str, object], action: str) -> dict[str, object]:
     normalized = str(action or "").upper()
     if normalized not in LIVE_RUN_CONTROL_ACTIONS:
@@ -476,11 +492,7 @@ class LiveRunCockpit:
                 broker = dict(selected_broker)
             broker = broker or {}
             selected_positions = broker.get("positions")
-            positions = (
-                dict(selected_positions)
-                if isinstance(selected_positions, Mapping)
-                else {}
-            )
+            positions = _position_mapping(selected_positions)
             open_orders = broker.get("open_orders")
             open_orders = list(open_orders) if isinstance(open_orders, list) else []
             timer = dict(self._unit_reader(binding.timer_unit))
@@ -510,6 +522,18 @@ class LiveRunCockpit:
             )
             weight_bps = int(sleeve["weight_bps"])
             allocation_cents = managed_capital_cents * weight_bps // 10_000
+            allocation = {
+                "weight_bps": weight_bps,
+                "limit_cents": allocation_cents,
+            }
+            margin = sleeve.get("margin")
+            if isinstance(margin, Mapping):
+                allocation = {
+                    **allocation,
+                    "capital_kind": sleeve.get("capital_kind"),
+                    "limit_cents": None,
+                    "margin": dict(margin),
+                }
             graduation = _latest_graduation(
                 _repo_path(self.repository_root, self.graduation_directory),
                 run_id=run_id,
@@ -530,10 +554,7 @@ class LiveRunCockpit:
                 "errors": [],
                 "selection_path": str(selection_path.relative_to(self.repository_root)),
                 "selection_file_sha256": selection_sha,
-                "allocation": {
-                    "weight_bps": weight_bps,
-                    "limit_cents": allocation_cents,
-                },
+                "allocation": allocation,
                 "timer": timer,
                 "service": service,
                 "ledger_path": str(ledger_path.relative_to(self.repository_root)),
@@ -557,7 +578,10 @@ class LiveRunCockpit:
                 "positions": positions,
                 "open_orders": open_orders,
                 "settled_cash_usd": (
-                    risk.get("settled_cash_usd", broker.get("cash_balance_usd"))
+                    risk.get(
+                        "settled_cash_usd",
+                        broker.get("settled_cash_usd", broker.get("cash_balance_usd")),
+                    )
                 ),
                 "economics": {
                     "run_net_usd": risk.get("run_net_usd"),
