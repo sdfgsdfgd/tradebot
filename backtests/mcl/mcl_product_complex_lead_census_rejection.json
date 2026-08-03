@@ -1,0 +1,45 @@
+{
+  "schema": "mcl.product-complex-lead-census-rejection.v1",
+  "generated_at_utc": "2026-08-03T22:35:57Z",
+  "authority": "outcome_blind_rejection_no_pnl_no_selection_no_orders_no_capital",
+  "hypothesis": "RB and HO may resolve only V18's ambiguous one-to-three-tick MCL-lead cohort without changing any proven lag, equal, mature-response, signal, or lifecycle law.",
+  "inputs": {
+    "cl_mcl_manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "rb_ho_manifest_sha256": "d81a4bcfa889d31739583767af0feff3fe6bd8044cb843be65d95389f31f59ca",
+    "v18_result_sha256": "b9c64409dcb9cd482427588bb0ae314d870d0350a2100aea6d3f0615ae2f4c15",
+    "evaluator_sha256": "33e5a89da5f6896fd38eb7a8f2a67bb5fa89877d597a547a2665d8ad081e9c06",
+    "result_sha256": "a61b7d160078bc3c802596ecbdd92a5071e5c4e9743cb37126bf3d19c1eb0ebd"
+  },
+  "data": {
+    "pairs": 25,
+    "roots": [
+      "RB",
+      "HO"
+    ],
+    "freshness": "both completed five-minute product bars require positive volume",
+    "admissions": 338,
+    "mapped_fresh_admissions": 324
+  },
+  "frozen_eligibility": {
+    "minimum_total": 30,
+    "minimum_per_period": 10,
+    "minimum_per_raw_direction": 5,
+    "minimum_fresh_coverage_fraction": 0.9
+  },
+  "observed_without_pnl": {
+    "eligible_total": 15,
+    "discovery": 7,
+    "validation": 8,
+    "raw_up": 8,
+    "raw_down": 7,
+    "fresh": 13,
+    "fresh_fraction": 0.8666666666666667,
+    "fresh_states": {
+      "confirm": 5,
+      "oppose": 1,
+      "split_or_flat": 7
+    }
+  },
+  "verdict": "REJECT_BEFORE_PNL",
+  "closed_family": "Do not route the sparse V18 lead seam through RB/HO, broaden the eligible V18 cohort, loosen freshness, or inspect product-aware trade outcomes."
+}

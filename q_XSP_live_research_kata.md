@@ -63,7 +63,7 @@ output belongs in commit/final verification, not in this management brain.
 | Profitability clock | Both successor prefixes begin `12:41:13Z`. First immutable `13:44:04Z` 24h judgments are honest `HOLD`: identity, shared capital ownership, parity, restart, safety, and attribution PASS; execution and elapsed/session profitability remain immature. Predecessor prefixes remain immutable evidence only; no slot is backfilled and no trade is forced |
 | Execution verdict | `LIVE_FLAT` for both selected runs: XSP has zero clean-run fills/P&L/DD and gold has zero fills/trades/P&L/DD, no relevant position/order, and no breach. Archived XSP predecessor loss `-$13.079007` transfers to neither clean identity |
 | Next irreversible evidence | either a newly admitted v3 RTH direction or a fresh Stage-76 gold admission may create the next capital event; the other package remains reserved and may enter later if the fresh full-portfolio recheck passes. MCL remains measurement-only |
-| First active work | preserve both selected five-minute recurrence streams and reconcile any real fill immediately. Suspend manual 20-minute Hawkeye reviews from `2026-08-03 14:06 ET` through at least `18:06 ET` under the user's time-bounded MCL quest exception; only a fill, order/reconciliation event, or safety breach interrupts. Run the MCL Two-Speed Auction Relay continuously across compactions: establish the genuine CL-discovery / matched-month-MCL-execution tape, causal clocks, sessions, rolls, costs, and frozen proof plan before outcomes; then sharpen toward a lawful crown, transport proof, and canary without skipping authority gates. Resume Hawkeye after this deep-work block and run graduation reducers only at lawful cutoffs |
+| First active work | preserve both selected five-minute recurrence streams and reconcile any real fill immediately. Suspend manual 20-minute Hawkeye reviews from `2026-08-03 14:06 ET` through `2026-08-04 14:06 ET` under the user's authorized 24-hour MCL campaign; only a fill, order/reconciliation event, or safety breach interrupts. Run the MCL Two-Speed Auction Relay continuously across compactions: establish genuine CL discovery / matched-month MCL execution, causal clocks, sessions, rolls, costs, oil-specific financing states, and frozen proof plans before outcomes; then sharpen toward a lawful crown, transport proof, and canary without skipping authority gates. Resume Hawkeye after this deep-work block and run graduation reducers only at lawful cutoffs |
 
 ### Immediate sequence
 
@@ -701,10 +701,20 @@ transition through today’s close; no order will be forced merely to populate t
   from successor admission. Immediate permission failed, but exactly one completed
   maturation bar produced `+$769.48` primary / `+$617.48` stress, PF `1.328`, DD
   `$538.24`, both directions positive, and `6/10` positive months. Its `76` trades
-  annualize to only ~`96`, below the lawful cadence floor. Active v11 holds that
-  one-bar timing fixed and compares four categorical owners: retained state;
-  retained state plus velocity; retained state plus parity; or financing that
-  emerges only after the turn. Rolls remain flat; thresholds, costs, and news stay fixed.
+  annualize to only ~`96`, below the lawful cadence floor. V11 subsequently
+  failed its sealed year. V12–V18 isolated parity elasticity, failed-auction
+  profit memory, velocity breadth, and dominant-book transport acceptance;
+  v18 is the strongest unchanged development reference at `338` trades,
+  `+$2,886.49`, PF `1.429`, DD `$883.52`, and PnL/DD `3.267`, with both periods,
+  directions, and branches positive. V19 timeout rescue degraded PnL/DD and is
+  closed. The complete `25`-month RB/HO tape now binds manifest `d81a4bcf…`.
+  A surgical product router failed its frozen eligibility floor at only `15`
+  events, while overlapping five-minute product pulses failed the opposite way:
+  even the least-active crack epoch exceeded `3,000/year` and median `12/session`.
+  Both closed before PnL. Active census `1b934eb5…` now tests only completed,
+  non-overlapping `30/60/120m` Globex-session product/crack auctions followed by
+  the first aligned `5m` CL+MCL trigger. Rolls, costs, news authority, and live
+  XSP/Gold owners remain unchanged.
 - `[PRESERVED RUNNER-UP]` **Tri-asset narrative-dispersion compression:** test
   whether convergence among easing-negative XSP pressure, weakening-positive
   MCL pressure, and weakly reversing-positive Gold pressure predicts
@@ -1018,6 +1028,15 @@ and stable bootstrap evidence. Neither may be refactored into looking mature.
     rose to `$1,195.41` and PnL/DD fell to `2.346`; `30/120` minutes reached
     `2.746/2.857`, still below unchanged v18's `3.267`. Preserve v18 and close
     timeout rescue; micro participation remains attribution-only.
+    Product-complex hydration is now complete and hash-clean across `25` matched
+    RB/HO contract months under manifest `d81a4bcf…`. Outcome-blind v20 lead
+    routing failed at `15` eligible events versus `30` required and never opened
+    PnL. Outcome-blind continuous product pulses also failed before PnL: the
+    least-active crack epoch produced `3,110/3,054` annualized events with median
+    `12` and p95 `18` per session. Preregistered v21/v22 **Slow Product Auction
+    to Fast WTI Trigger** freezes completed non-overlapping `30/60/120m`
+    session-anchored crack/outright states and one first aligned `5m` CL+MCL
+    trigger; count-only law selects cadence before any lifecycle outcome.
     Missing July-2023–August-2024 remains a hard crown blocker; no quota,
     validation-selected cell, order, or capital authority.
 
@@ -1348,6 +1367,9 @@ and
 | E-402 | preregistration v19 **MCL Crowded-Transport One-Hour Capture** freezes v18 signal/direction/risk unchanged and marks a raw turn crowded only when MCL barrel-equivalent share exceeds both its prior completed `12/72` five-minute medians. A still-open crowded position closes after `60` executable one-minute bars; existing profit-memory, raw-turn, and roll exits retain precedence. `30/120` bars are nonselectable semantic neighbours. No veto, inversion, added admission, quota, threshold sweep, curve/calendar/news interaction, order, capital, or XSP/Gold mutation |
 | E-403 | exact v19 replay rejected fixed crowded-transport capture as a stability successor. The frozen `60`-bar primary retained `338` trades and earned discovery `+$1,066.16` / `+$732.16` stress, validation `+$1,738.33` / `+$1,396.33` stress, and full `+$2,804.49` / `+$2,128.49` stress with PF `1.539`; however DD rose to `$1,195.41` and primary/stress PnL/DD fell to `2.346/1.585` versus unchanged v18's `$883.52` and `3.267/2.344`. The `30/120` neighbors reached `+$2,993.74/+$3,577.74` but DD `$1,090.41/$1,252.39` and ratios `2.746/2.857`; neither beats v18, and 120 cannot select itself. Receipt `mcl_two_speed_auction_relay_v19_crowded_capture_rejection.json` binds preregistration/evaluator/result `870dd690…/7ff3fb89…/041d5168…`. Close 30/60/120 timeout rescue; micro share remains attribution only, with no order, capital, or XSP/Gold mutation |
 | E-404 | Gold's natural `21:32Z` selected-worker recurrence failed closed before planning because the selected 1OZ contract lacked a fresh streaming NBBO. It submitted zero orders and held no position. The next two untouched timer recurrences at `21:37Z/21:42Z` recovered with fresh type-1 books, `HOLD/flat_no_target`, valid risk, zero fills/trades/P&L/DD, and no safety breach; XSP also remained flat/clean. Treat this as one transient quote-freshness/restart observation, not permission to weaken the NBBO gate or refactor after a self-healed event |
+| E-405 | the first natural post-NYMEX-L1 MCL settlement completed without backfill. Forecast `302fcf07…` was a research-only TA-down counterfactual against positive-but-nonextreme news pressure `+0.5742`; result `642412d6…` observed MCLU6 returns `-0.9043%/-1.0173%/-0.5024%` at `30/60/240m`, zero economic drift, and no order authority. The same run excluded one late and `14` stale-clock candidates; current news subsequently weakened to bullish impact `46`. Ledger/latest hashes are `19c15733…/d84e8d71…`. This is one successful timing observation—not a news gate or profitability claim |
+| E-406 | the IBKR-only RB/HO product-complex tape completed all `25` dated months with zero missing files, SHA/row mismatches, or orders; frozen manifest is `d81a4bcf…`. Outcome-blind V18 lead census `a61b7d1…` rejected routing before PnL: only `15` events survived (`7/8` discovery/validation, `8/7` up/down, `13` fresh) versus floors `30` total, `10` per period, and `90%` freshness. Receipt `mcl_product_complex_lead_census_rejection.json`; broad classifications remain nonselectable and their PnL was never read |
+| E-407 | outcome-blind continuous product-pulse census `d42d1c8…` mapped `137,430/139,937` completed bars and found `125,000` fresh two-book observations, but all eight outright/crack profiles were structurally hyperactive. The least-active `crack_epoch_flip` still produced `3,110/3,054` annualized events, median `12`, p95 `18`; outright/fast profiles reached `5,909–26,571/year`. Every cell failed the frozen `1–3` median / `<=6` p95 law before PnL. Receipt `mcl_continuous_product_pulse_cadence_rejection.json` closes overlapping pulse and quota rescue. Preregistration `mcl_slow_product_auction_census_preregistration.json` / evaluator `1b934eb5…` now freezes non-overlapping `30/60/120m` Globex product/crack epochs and the first aligned `5m` CL+MCL trigger; outcomes remain unopened |
 
 ### Decision anchors
 

@@ -1,0 +1,43 @@
+{
+  "schema": "mcl.slow-product-auction-census-preregistration.v1",
+  "created_at_utc": "2026-08-03T22:35:57Z",
+  "authority": "outcome_blind_cadence_census_no_pnl_no_selection_no_orders_no_capital",
+  "name": "MCL Slow Product Auction to Fast WTI Trigger",
+  "hypothesis": "Non-overlapping, Globex-session-anchored RB/HO refinery-complex auction epochs may remove five-minute flicker while the first causal aligned CL and MCL five-minute move supplies executable timing.",
+  "inputs": {
+    "cl_mcl_manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "rb_ho_manifest_sha256": "d81a4bcfa889d31739583767af0feff3fe6bd8044cb843be65d95389f31f59ca",
+    "directional_impulse_sha256": "bad78a5d4cf6b472c5a1687bc1dda50cf947a1f1968693a8aae3ee599322ceb2",
+    "evaluator_sha256": "1b934eb5d4995817b7899af2516dddf37eecc66bd4764ca6d5e7f01a0d987085"
+  },
+  "causal_law": {
+    "slow_clock": "completed non-overlapping blocks anchored to the 18:00 ET Globex session",
+    "slow_state": "both RB and HO outright moves or both 42x product-minus-CL crack-spread moves must agree in sign",
+    "state_transition": "retain the last nonzero slow direction; one new opposite direction arms one pending auction",
+    "fast_trigger": "the first subsequent completed five-minute CL and matched-MCL move aligned with the pending direction triggers exactly once",
+    "direction_owner": "technical product-complex state proposes direction; completed CL trend labels acceptance versus failed-auction reversal; news has no direction authority",
+    "cold_start": "seed the first state per session and contract without an event",
+    "freshness": "both product endpoints must map and the current RB and HO slow-block closes must have positive volume",
+    "orders": 0
+  },
+  "profiles_in_frozen_order": [
+    "crack_120m",
+    "outright_120m",
+    "crack_60m",
+    "outright_60m",
+    "crack_30m",
+    "outright_30m"
+  ],
+  "selection_law": "Choose the first profile clearing every count-only gate. Slower refinery-margin state precedes faster state and outright controls. No price outcome may select a profile.",
+  "eligibility": {
+    "annualized_per_period": ">160 and <=780",
+    "minimum_each_period_direction": 30,
+    "minimum_each_period_branch": 15,
+    "minimum_active_session_fraction": 0.45,
+    "median_per_active_session": "1..3",
+    "p95_per_active_session": "<=6",
+    "minimum_fresh_slow_block_fraction": 0.75
+  },
+  "if_eligible": "Freeze one exact financing-epoch lifecycle before opening PnL; neighbors remain cadence controls and cannot replace the primary from outcomes.",
+  "if_ineligible": "Close block-horizon product routing before PnL and design a materially distinct owner; do not sweep overlapping windows, thresholds, clocks, or quotas."
+}
