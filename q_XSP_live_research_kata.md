@@ -974,6 +974,10 @@ and stable bootstrap evidence. Neither may be refactored into looking mature.
     oil retests, the primary made discovery continuation `-$21.44` and discovery
     stress `-$33.34`, and `77` structural exits lost `-$824.04`. Close the full
     boundary/stop-distance family; v13 remains the development reference.
+    V15 now freezes one categorical direction profile without suppressing trades:
+    a `1–3` tick continuation follows only with at least three raw-turn horizon
+    velocities aligned; otherwise it fades under unchanged v13 profit memory.
+    Two/four-horizon cells are sensitivity neighbors, never selectors.
     Missing July-2023–August-2024 remains a hard crown blocker; no quota,
     validation-selected cell, order, or capital authority.
 
