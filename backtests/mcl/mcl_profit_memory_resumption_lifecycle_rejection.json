@@ -1,0 +1,37 @@
+{
+  "schema": "mcl.profit-memory-resumption-lifecycle-rejection.v1",
+  "recorded_at_utc": "2026-08-03T23:00:00Z",
+  "authority": "research_only_no_orders_no_capital",
+  "inputs": {
+    "preregistration_sha256": "1918540026b63c845c022c5c64da8813dbf8c51868787606488fc148e5cb966c",
+    "evaluator_sha256": "5d78fb3691b1861494aea21bd25adffbcf3e860496186209086bd2b8d95b760e",
+    "result_sha256": "7c1d43f5491303cc5ac693bb5cb945b2e255f71dd9a67e065c1eeb5ff1200856",
+    "v18_result_sha256": "b9c64409dcb9cd482427588bb0ae314d870d0350a2100aea6d3f0615ae2f4c15",
+    "census_result_sha256": "516e95727172f0e896d0fad53ffcdcd60a3f27587dd747f5bab41bdde0b63752"
+  },
+  "incremental": {
+    "trades": 85,
+    "discovery_primary_stress": [-200.63999999999885, -264.6399999999988],
+    "validation_primary_stress": [-375.55999999999517, -481.55999999999506],
+    "full_primary_stress": [-576.199999999994, -746.1999999999939],
+    "up_down_primary": [-130.1699999999983, -446.0299999999957],
+    "inverted_same_holds_primary": -22.20000000000604
+  },
+  "combined": {
+    "annualized_trades": 211.9539625424063,
+    "primary_net": 2310.2900000000004,
+    "stress_net": 1464.290000000001,
+    "profit_factor": 1.249938334645976,
+    "intrabar_drawdown": 1519.9499999999998,
+    "primary_pnl_to_intrabar_drawdown": 1.5199776308431203
+  },
+  "baseline_v18": {
+    "primary_net": 2886.489999999995,
+    "intrabar_drawdown": 883.5199999999998,
+    "primary_pnl_to_intrabar_drawdown": 3.2670341361825375
+  },
+  "zero_baseline_overlap": true,
+  "verdict": "REJECT",
+  "closed_family": "post-profit pullback/resumption re-entry, including pullback-count, breakout-distance, activation, retention, stop, target, and timeout rescue",
+  "submitted_orders": 0
+}
