@@ -1,6 +1,6 @@
 # 1OZ Gold Leaderboard
 
-Updated: 2026-08-03 AEST / 2026-08-02 ET
+Updated: 2026-08-03 AEST / 2026-08-03 ET
 
 This is the durable gold crown registry, exact research lineage, evidence
 ledger, failure boundary, and ongoing sharpening journal. New crown records
@@ -24,7 +24,7 @@ An historical crown cannot grant the second authority.
 | Rank | Track | Crown | Identity | Version | State |
 |---:|---|---|---|---:|---|
 | 1 | H4/D1 regime harmony, native dated `1OZ` transport | **1OZ Gold Regime Harmony — Stage 76/77** | `gold.1oz-regime-harmony-stage76-77-crown.v1` | 1 | Frozen historical research crown; prospective onset tape active |
-| — | Operational canary | **Stage 76/77 one-contract canary** | selection `12b15bd2…` / plan `6950eb11…` | 1 | `CANARY_LIVE`, selected flat; awaiting a fresh Stage-76 admission and 24h → 48h → five-session graduation |
+| — | Operational canary | **Stage 76/77 one-contract canary** | selection `62344ce2…` / plan `b4a920b3…` | 1 | `CANARY_LIVE`, selected flat; first 24h judgment `HOLD`, awaiting fresh Stage-76 admission and authentic profitability |
 
 Machine pointer: `backtests/gold/current-lf.json`, bound to immutable artifact
 `backtests/gold/one_oz_regime_harmony_stage76_77.json` with SHA-256
@@ -44,9 +44,11 @@ concentration control, and drawdown that an indivisible one-ounce transport can
 actually survive.
 
 Stage 76/77 is the historical research crown and q now owns immutable flat
-selection `12b15bd2…` under one-contract `1OZZ6` canary authority. Runtime
+selection `62344ce2…` under one-contract `1OZZ6` canary authority. Runtime
 parity, live COMEX L1, shared-month GC/1OZ parity, margin/cash, two-sided broker
-preview, allocation, cold restart, and the first natural GTH recurrence passed.
+preview, minimum-first portfolio allocation, cold restart, and natural GTH/RTH
+recurrences passed. Gold's indivisible minimum remains reserved while XSP may
+consume only its separately allocated residual package.
 No inherited or forced entry exists: only a fresh post-selection Stage-76
 admission may create risk. The prospective onset tape remains attribution-only.
 
@@ -680,8 +682,8 @@ order authority.
 
 1. `[WIP]` **XSP graduation:** preserve selected recurrence and broker truth;
    issue only lawful 24h, 48h, and five-session reducer verdicts.
-2. `[WIP]` **1OZ graduation:** selection `12b15bd2…` is armed flat on q with a
-   one-contract margin sleeve and shared account mutex. Preserve every natural
+2. `[WIP]` **1OZ graduation:** selection `62344ce2…` is armed flat on q with a
+   reserved one-contract package that may coexist with XSP. Preserve every natural
    recurrence and authentic fill; issue 24h/48h/week verdicts only when due.
 3. `[WIP]` **MCL measurement/news:** continue immutable technical-onset and
    narrative-saturation evidence; news remains attribution/convexity context
@@ -751,12 +753,17 @@ order authority.
 18. `[TODO]` Settle the first unseen 4h/12h/24h forecast only when naturally due
    at `2026-08-04T04:00:00Z`; continue canonical non-submitting observations.
 19. `[DONE]` Qualify exact native margin/cash, live shared-month books, two-sided
-   non-transmitting preview, immutable flat selection, shared capital/mutex,
+   non-transmitting preview, immutable flat selection, shared minimum-package capital,
    cold restart, and first natural GTH recurrence. Receipt:
    `one_oz_stage76_canary_commissioning_20260803.json`.
-20. `[WIP]` Preserve the gap-free canary prefix from `10:23:51Z`. Do not force
+20. `[WIP]` Preserve the clean package successor prefix from `12:41:13Z`. Do not force
    an entry; the first fresh Stage-76 admission may trade in GTH or RTH. An
    operational crown still requires positive after-cost 24h/48h/week evidence.
+21. `[DONE]` Reuse the common graduation reducer through one Gold clock/economics
+   adapter. First immutable `13:44:04Z` 24h receipt `75426258…` / file SHA
+   `3f29b44e…` is `HOLD`: identity, parity, shared capital owner, restart,
+   safety, and attribution PASS; execution and elapsed/session evidence remain
+   immature. No broker query, order, strategy, selection, or clock mutation.
 
 ## Evidence identities
 
