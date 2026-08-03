@@ -674,9 +674,10 @@ transition through today’s close; no order will be forced merely to populate t
   weaken a gate, or submit an unproved strategy. During this block, the durable
   XSP/Gold workers continue but scheduled manual Hawkeye reviews are paused;
   only a real fill/order/reconciliation or safety event preempts MCL research.
-  Live NYMEX L1 is now proven. The dated matched-month IBKR hydration is
-  advancing from August 2024 while the unavailable July-2023–August-2024
-  prefix remains a hard crown blocker. Rolling-range v1 was decisively
+  Live NYMEX L1 is now proven. The dated matched-month IBKR CL/MCL and RB/HO
+  tapes are hash-clean from August 2024 through August 2026, while the
+  unavailable July-2023–August-2024 prefix remains a hard crown blocker.
+  Rolling-range v1 was decisively
   cost-negative. Anchored-block v2 found a genuinely positive low-efficiency
   opening cohort. Regime-financed v3's initial three-month discovery slice is
   `+$100.72/59`, PF `1.190`, but `-$17.28` under two-tick stress; acceptance is
@@ -1033,10 +1034,16 @@ and stable bootstrap evidence. Neither may be refactored into looking mature.
     routing failed at `15` eligible events versus `30` required and never opened
     PnL. Outcome-blind continuous product pulses also failed before PnL: the
     least-active crack epoch produced `3,110/3,054` annualized events with median
-    `12` and p95 `18` per session. Preregistered v21/v22 **Slow Product Auction
+    `12` and p95 `18` per session. Preregistered v22 **Slow Product Auction
     to Fast WTI Trigger** freezes completed non-overlapping `30/60/120m`
     session-anchored crack/outright states and one first aligned `5m` CL+MCL
-    trigger; count-only law selects cadence before any lifecycle outcome.
+    trigger; its count-only law selected `crack_120m` before any lifecycle
+    outcome: `709/699` discovery/validation events, `709.49/701.52` annualized,
+    median `3`, p95 `5`, and both directions/branches in each period. V23 now
+    freezes exactly three semantic risk owners—completed trigger extreme,
+    completed slow-auction origin, or state-only ownership—under evaluator
+    `4eda24e0…` / preregistration `86307e1e…`. Discovery chooses at most one
+    owner by stress then primary PnL/DD; only that owner may open validation.
     Missing July-2023–August-2024 remains a hard crown blocker; no quota,
     validation-selected cell, order, or capital authority.
 
@@ -1370,6 +1377,7 @@ and
 | E-405 | the first natural post-NYMEX-L1 MCL settlement completed without backfill. Forecast `302fcf07…` was a research-only TA-down counterfactual against positive-but-nonextreme news pressure `+0.5742`; result `642412d6…` observed MCLU6 returns `-0.9043%/-1.0173%/-0.5024%` at `30/60/240m`, zero economic drift, and no order authority. The same run excluded one late and `14` stale-clock candidates; current news subsequently weakened to bullish impact `46`. Ledger/latest hashes are `19c15733…/d84e8d71…`. This is one successful timing observation—not a news gate or profitability claim |
 | E-406 | the IBKR-only RB/HO product-complex tape completed all `25` dated months with zero missing files, SHA/row mismatches, or orders; frozen manifest is `d81a4bcf…`. Outcome-blind V18 lead census `a61b7d1…` rejected routing before PnL: only `15` events survived (`7/8` discovery/validation, `8/7` up/down, `13` fresh) versus floors `30` total, `10` per period, and `90%` freshness. Receipt `mcl_product_complex_lead_census_rejection.json`; broad classifications remain nonselectable and their PnL was never read |
 | E-407 | outcome-blind continuous product-pulse census `d42d1c8…` mapped `137,430/139,937` completed bars and found `125,000` fresh two-book observations, but all eight outright/crack profiles were structurally hyperactive. The least-active `crack_epoch_flip` still produced `3,110/3,054` annualized events, median `12`, p95 `18`; outright/fast profiles reached `5,909–26,571/year`. Every cell failed the frozen `1–3` median / `<=6` p95 law before PnL. Receipt `mcl_continuous_product_pulse_cadence_rejection.json` closes overlapping pulse and quota rescue. Preregistration `mcl_slow_product_auction_census_preregistration.json` / evaluator `1b934eb5…` now freezes non-overlapping `30/60/120m` Globex product/crack epochs and the first aligned `5m` CL+MCL trigger; outcomes remain unopened |
+| E-408 | outcome-blind slow-auction census `3dbb7384…` selected `crack_120m` by the frozen count-only order before any PnL: `709/699` discovery/validation triggers (`709.49/701.52` annualized), active-session fractions `96.12%/98.44%`, median `3`, p95 `5`, and balanced up/down plus acceptance/failure coverage in both periods. All `1,408` trigger clocks are unique and `85.24%` of slow blocks passed the frozen two-book freshness law. Preregistration `mcl_slow_product_auction_lifecycle_preregistration.json` (`86307e1e…`) / evaluator `4eda24e0…` now bind next-open same-suffix MCL execution, `$3.52/$5.52` costs, maintenance/roll-flat laws, and exactly three semantic risk owners. Discovery may select at most one owner; only that frozen owner may open validation. Missing July-2023 history and unseen/runtime/transport proof remain mandatory; no order, capital, or XSP/Gold mutation |
 
 ### Decision anchors
 
