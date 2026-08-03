@@ -1,0 +1,68 @@
+{
+  "schema": "mcl.nymex-l1-readiness.v1",
+  "observed_at_utc": "2026-08-03T18:16:09.374589+00:00",
+  "authority": "read_only_market_data_no_orders",
+  "status": "READY_TYPE_1",
+  "supersedes": "backtests/mcl/mcl_narrative_live_feed_readiness_20260803.json",
+  "contract": {
+    "con_id": 661016525,
+    "local_symbol": "MCLU6",
+    "expiry": "20260819",
+    "exchange": "NYMEX",
+    "currency": "USD",
+    "multiplier": 100,
+    "min_tick": 0.01
+  },
+  "quote": {
+    "market_data_type": 1,
+    "bid": 79.69,
+    "bid_size": 3.0,
+    "ask": 79.70,
+    "ask_size": 3.0,
+    "last": 79.68,
+    "volume": 175621.0,
+    "spread": 0.01
+  },
+  "natural_prospective_run": {
+    "recorded_at_utc": "2026-08-03T18:13:36.165731+00:00",
+    "generation_id": "2c4c543aef726c50bbabcb422e0b59c391685ecfb561e6b22cd23ab2910e3c32",
+    "generation_manifest_sha256": "793520c84e35249cc1ac3b16bf0cee576eb3c11f3eae1ec6d2e4bf8f96aaac6e",
+    "ledger_sha256": "9a5b194bea4cf802355d20c744cb850de16f2dae57d14f867b7bfb4de233b267",
+    "forecast_id": "302fcf07dca75ee98e018a4938152690b87b7e5952e60d0002c414c7109a00b2",
+    "decision_bar_end_utc": "2026-08-03T18:10:00+00:00",
+    "decision_bar_age_seconds": 207.0,
+    "decision_close": 79.62,
+    "ta_only_direction": "down",
+    "pre4h_pct": 0.34026465028356156,
+    "last30_pct": -0.5495878091431372,
+    "news_signed_pressure": 0.5742,
+    "news_pressure_delta": 0.0,
+    "news_extreme": false,
+    "news_direction_authority": false,
+    "forecast_decision": "NO_TRADE",
+    "outcome_not_before_utc": "2026-08-03T22:13:27+00:00"
+  },
+  "contract_census": {
+    "available_cl_contracts": 150,
+    "available_mcl_contracts": 64,
+    "earliest_cl_expiry": "20240820",
+    "earliest_mcl_expiry": "20240819",
+    "interpretation": "IBKR exposes the dated CL/MCL chain from August 2024 onward under the expired-futures retention boundary; this proves live and recent research authority but not the complete July-2023-to-now challenge."
+  },
+  "broker_messages": [
+    {
+      "code": 2119,
+      "message": "Market data farm is connecting:usfuture",
+      "classification": "informational_connection_state",
+      "disposition": "type-1 quote and fresh history subsequently received"
+    }
+  ],
+  "submitted_orders": 0,
+  "remaining_gates": [
+    "canonical dated CL-discovery and matched-month MCL-execution tape",
+    "July-2023-to-August-2024 archive coverage",
+    "preregistered two-speed auction relay replay",
+    "stable after-cost economics in every annual slice and full challenge",
+    "native transport, margin, preview, allocation, selection, restart, and safety proof"
+  ]
+}

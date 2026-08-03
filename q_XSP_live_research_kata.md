@@ -63,7 +63,7 @@ output belongs in commit/final verification, not in this management brain.
 | Profitability clock | Both successor prefixes begin `12:41:13Z`. First immutable `13:44:04Z` 24h judgments are honest `HOLD`: identity, shared capital ownership, parity, restart, safety, and attribution PASS; execution and elapsed/session profitability remain immature. Predecessor prefixes remain immutable evidence only; no slot is backfilled and no trade is forced |
 | Execution verdict | `LIVE_FLAT` for both selected runs: XSP has zero clean-run fills/P&L/DD and gold has zero fills/trades/P&L/DD, no relevant position/order, and no breach. Archived XSP predecessor loss `-$13.079007` transfers to neither clean identity |
 | Next irreversible evidence | either a newly admitted v3 RTH direction or a fresh Stage-76 gold admission may create the next capital event; the other package remains reserved and may enter later if the fresh full-portfolio recheck passes. MCL remains measurement-only |
-| First active work | preserve both selected recurrence streams; review proposal/veto, slope/velocity/ATR, long context, economics, MFE/MAE, safety, and TA/news attribution at 20-minute cadence; reconcile any real fill immediately. The completed XSP/Gold block rejected paired-veto residual-range attribution before outcomes and preserves Gold TA/news conflict maturation as `ACCUMULATE`. Run the user-authorized MCL Two-Speed Auction Relay quest continuously for at least four hours from `2026-08-03 14:06 ET`, surviving compactions: establish the genuine CL-discovery / matched-month-MCL-execution tape, causal clocks, sessions, rolls, costs, and frozen proof plan before outcomes; then sharpen toward a lawful crown, transport proof, and canary without skipping authority gates. Run graduation reducers only at lawful cutoffs |
+| First active work | preserve both selected five-minute recurrence streams and reconcile any real fill immediately. Suspend manual 20-minute Hawkeye reviews from `2026-08-03 14:06 ET` through at least `18:06 ET` under the user's time-bounded MCL quest exception; only a fill, order/reconciliation event, or safety breach interrupts. Run the MCL Two-Speed Auction Relay continuously across compactions: establish the genuine CL-discovery / matched-month-MCL-execution tape, causal clocks, sessions, rolls, costs, and frozen proof plan before outcomes; then sharpen toward a lawful crown, transport proof, and canary without skipping authority gates. Resume Hawkeye after this deep-work block and run graduation reducers only at lawful cutoffs |
 
 ### Immediate sequence
 
@@ -669,7 +669,9 @@ transition through today’s close; no order will be forced merely to populate t
   futures friction/roll/session accounting before a crown; then require native
   margin, preview, immutable selection, shared allocation, restart, and safety
   proof before canary capital. Duration is not permission to force an outcome,
-  weaken a gate, or submit an unproved strategy.
+  weaken a gate, or submit an unproved strategy. During this block, the durable
+  XSP/Gold workers continue but scheduled manual Hawkeye reviews are paused;
+  only a real fill/order/reconciliation or safety event preempts MCL research.
 - `[PRESERVED RUNNER-UP]` **Tri-asset narrative-dispersion compression:** test
   whether convergence among easing-negative XSP pressure, weakening-positive
   MCL pressure, and weakly reversing-positive Gold pressure predicts
