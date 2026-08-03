@@ -1,0 +1,54 @@
+{
+  "schema": "mcl.two-anchor-inventory-auction-lifecycle-rejection.v1",
+  "recorded_at_utc": "2026-08-03T23:38:00Z",
+  "authority": "research_only_validation_unopened_no_orders_no_capital",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "census_sha256": "b000804276fca10dd53ba78cd89e340fe805c7a032c320f9c7c73776d538a5f9",
+    "preregistration_sha256": "d8baf20c0630ebf2aea83efa4192d7904c91d6f3caf40cf75333895a6a3f6b59",
+    "evaluator_sha256": "56e1ff25c78e40fa2bca1355daccea5814690a6ab12082fdf1dc47e047a32bd5",
+    "result_sha256": "af845ca6835c20fe7e1d3eca7b890e9e860a6ba1d71c319b95424b499ab7549c"
+  },
+  "discovery": [
+    {
+      "owner": "anchor_state",
+      "trades": 305,
+      "primary_net": 3.40,
+      "stress_net": -606.60,
+      "primary_profit_factor": 1.000542,
+      "primary_intrabar_drawdown": 1102.96,
+      "primary_positive_months": 6
+    },
+    {
+      "owner": "anchor_structural",
+      "trades": 300,
+      "primary_net": -429.00,
+      "stress_net": -1029.00,
+      "primary_profit_factor": 0.880429,
+      "primary_intrabar_drawdown": 1045.52,
+      "primary_positive_months": 5
+    }
+  ],
+  "discovery_anatomy": {
+    "side_direction_evaluator_sha256": "4f647323175ccec9ae28c3e64d6ede1769d2b2c0c9a9569ed62c0f81362e1dfe",
+    "side_direction_result_sha256": "7ff06ce141573cadc924544835bf3b60487a1a8f276c497e8bcfce584f897c42",
+    "multitimeframe_evaluator_sha256": "3a402b3605ba65fd4d69377a1b408db6932f23df35f384e6ffea602c641503dc",
+    "multitimeframe_result_sha256": "760f7ab4dbbf5acf50f6bf90a8fd435e408d16747f5d0077570a2a07ab8dfc32",
+    "low_side_inversion_primary_stress": [965.40, 355.40],
+    "low_side_inversion_primary_stress_pnl_dd": [1.087848, 0.362121],
+    "velocity_majority_trades_primary_stress": [218, 644.64, 208.64],
+    "velocity_majority_primary_stress_pnl_dd": [0.790155, 0.198735],
+    "dual_majority_trades_primary_stress": [152, 533.96, 229.96]
+  },
+  "finding": "The two-anchor clock creates positive gross expectancy but not enough edge to clear MCL friction. Exact structural invalidation worsens it; categorical side inversion and the existing multitimeframe trend/slope/velocity permission profiles either miss cadence, stress PnL/DD, month stability, or direction/branch transfer.",
+  "validation_opened": false,
+  "closed_families": [
+    "two_anchor_textbook_direction",
+    "two_anchor_structural_stop",
+    "two_anchor_static_side_inversion",
+    "two_anchor_existing_trend_slope_velocity_permission",
+    "anchor_clock_and_cost_threshold_rescue"
+  ],
+  "verdict": "REJECT",
+  "submitted_orders": 0
+}
