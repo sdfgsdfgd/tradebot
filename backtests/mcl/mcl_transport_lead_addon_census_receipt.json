@@ -1,0 +1,49 @@
+{
+  "schema": "mcl.transport-lead-addon-census-receipt.v1",
+  "recorded_at_utc": "2026-08-04T00:54:40Z",
+  "authority": "outcome_blind_validation_count_no_new_trade_outcomes_no_orders_no_capital",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "source_census_sha256": "1a8a5f0e8705cbbd76a71cedf6f3ba232ab93ed2c96278644a6156598040554f",
+    "immutable_v18_result_sha256": "b9c64409dcb9cd482427588bb0ae314d870d0350a2100aea6d3f0615ae2f4c15",
+    "preregistration_sha256": "6c853668c067d8bee2205437129ba77f173b0a1057a6d0ae11ad595448100489",
+    "evaluator_sha256": "e31296294aa9c7573a4d90ee634fb71e54bf4740a862f53893f25a22da5847f3",
+    "result_sha256": "ace2681e0b38e1f69a8818e927c07b2a4b022aae52a92a5120bca108964ffcbf"
+  },
+  "discovery_identity": {
+    "addon_events": 25,
+    "addon_annualized": 25.02,
+    "addon_active_sessions": 24,
+    "addon_active_session_fraction": 0.093023,
+    "addon_session_median_p95_max": [1, 1, 2],
+    "absorption_failure": [21, 4],
+    "up_down": [17, 8],
+    "europe_us": [12, 13],
+    "high_low": [8, 17],
+    "combined_annualized": 192.13
+  },
+  "validation_count": {
+    "addon_events": 25,
+    "addon_annualized": 25.09,
+    "addon_active_sessions": 25,
+    "addon_active_session_fraction": 0.097276,
+    "addon_session_median_p95_max": [1, 1, 1],
+    "absorption_failure": [22, 3],
+    "up_down": [11, 14],
+    "europe_us": [15, 10],
+    "high_low": [14, 11],
+    "primary_entries": 171,
+    "combined_entries": 196,
+    "combined_annualized": 196.71,
+    "combined_session_median_p95_max": [1, 3, 4]
+  },
+  "exclusions": {
+    "mcl_transport_not_leading_proposed_direction": 80
+  },
+  "finding": "The exact transport-leading basis-change sign repeats with 25 events in both periods and preserves every branch, direction, anchor, and side without clustering or a magnitude threshold. Discovery economics remain explicitly exposed; zero sealed-period trade outcomes were opened.",
+  "discovery_outcome_status": "previously_exposed_in_post_rejection_anatomy",
+  "validation_trade_outcomes_opened": 0,
+  "eligible_for_validation_lifecycle_preregistration": true,
+  "verdict": "ELIGIBLE_FOR_VALIDATION_PREREGISTRATION",
+  "submitted_orders": 0
+}

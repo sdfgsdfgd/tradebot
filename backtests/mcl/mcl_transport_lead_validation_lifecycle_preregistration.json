@@ -1,0 +1,73 @@
+{
+  "schema": "mcl.transport-lead-validation-lifecycle-preregistration.v1",
+  "registered_at_utc": "2026-08-04T00:54:40Z",
+  "authority": "research_only_sealed_validation_not_yet_opened_no_orders_no_capital",
+  "campaign": "mcl.two-speed-auction-relay.v50",
+  "hypothesis": "The MCL-transport-leading basis-change sign is a recurring oil inventory-financing state rather than a discovery accident. A sealed validation year should independently produce a positive, cost-stable add-on and improve immutable V18 without weakening its risk or temporal breadth.",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "immutable_v18_result_sha256": "b9c64409dcb9cd482427588bb0ae314d870d0350a2100aea6d3f0615ae2f4c15",
+    "transport_lead_census_preregistration_sha256": "6c853668c067d8bee2205437129ba77f173b0a1057a6d0ae11ad595448100489",
+    "transport_lead_census_evaluator_sha256": "e31296294aa9c7573a4d90ee634fb71e54bf4740a862f53893f25a22da5847f3",
+    "transport_lead_census_result_sha256": "ace2681e0b38e1f69a8818e927c07b2a4b022aae52a92a5120bca108964ffcbf",
+    "shared_lifecycle_owner_sha256": "0d89fcfbfe2960338bc769bcd57ba1376c54d40a24810288be08666dd5708e28",
+    "validation_evaluator_path": "/tmp/mcl_stage50_transport_lead_validation_lifecycle.py",
+    "validation_evaluator_sha256": "e7d2b87c6f25cbf8a38435db31fefa2ce2a5a8574145fe2e0dc709c0cc1cdeac"
+  },
+  "ownership": {
+    "primary": "immutable V18 basis_breadth trade ledger",
+    "addon": "exact V49 transport-leading event set",
+    "lifecycle": "reuse V44 one-position branch-state owner without duplication",
+    "priority": "V18 entry closes any add-on at that exact MCL open before V18 begins",
+    "discovery_status": "development-exposed reference only; cannot gate or validate transfer"
+  },
+  "execution": {
+    "instrument": "matched-expiry MCL dated future",
+    "entry": "unchanged frozen next one-minute MCL open",
+    "multiplier": 100,
+    "primary_round_trip_cost_usd": 3.52,
+    "stress_round_trip_cost_usd": 5.52,
+    "maximum_concurrent_contracts": 1
+  },
+  "sealed_validation_gate": {
+    "combined_annualized_trades": {
+      "exclusive_minimum": 190,
+      "inclusive_maximum": 520
+    },
+    "addon": {
+      "positive_primary_and_stress_net": true,
+      "minimum_primary_profit_factor": 1.20,
+      "minimum_stress_profit_factor": 1.10,
+      "minimum_primary_pnl_to_intrabar_drawdown": 1.50,
+      "minimum_stress_pnl_to_intrabar_drawdown": 1.00,
+      "minimum_primary_positive_months": 7,
+      "minimum_stress_positive_months": 6,
+      "maximum_largest_positive_month_share": 0.40,
+      "all_directions_branches_anchors_and_sides_positive_under_both_costs": true
+    },
+    "combined_relative_to_immutable_v18_validation_slice": {
+      "strictly_higher_net_under_both_costs": true,
+      "profit_factor_not_lower_under_both_costs": true,
+      "pnl_to_intrabar_drawdown_not_lower_under_both_costs": true,
+      "positive_month_count_not_lower_under_both_costs": true,
+      "largest_positive_month_share_not_higher_under_both_costs": true
+    }
+  },
+  "full_prefix_law": {
+    "if_validation_fails": "reject without computing a selectable full-prefix result",
+    "if_validation_passes": "compute the exact discovery-plus-validation prefix; it must independently pass the identical gate"
+  },
+  "prohibitions": [
+    "no discovery gate or claim that discovery selection was blind",
+    "no basis magnitude, geometry companion, neighbor, or rerouting",
+    "no V18 or shared lifecycle mutation",
+    "no concurrent MCL position, scaling, stop, timeout, or exit memory",
+    "no full-prefix selection unless sealed validation passes first",
+    "no order, capital, XSP, or Gold authority"
+  ],
+  "downstream_hold_even_on_pass": [
+    "missing July 2023 through August 2024 dated-contract history",
+    "unseen runtime parity and prospective signal tape",
+    "native MCL spread, liquidity, margin, commission, roll, preview, restart, reconciliation, shared-capital, and graduation proof"
+  ]
+}
