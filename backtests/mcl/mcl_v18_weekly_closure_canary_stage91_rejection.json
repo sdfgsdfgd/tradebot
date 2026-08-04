@@ -1,0 +1,52 @@
+{
+  "schema": "mcl.v18-weekly-closure-canary-stage91-rejection.v1",
+  "recorded_at_utc": "2026-08-04T08:28:35Z",
+  "authority": "historical_safety_overlay_only_no_orders_no_capital",
+  "inputs": {
+    "stage90_rejection_sha256": "822f5ee2972e9d0daffa856ef517c111626c426770949e8970b2aab5f04e6208",
+    "preregistration_sha256": "931d2ddd0d0e2a232b60ec8deefd620d132e8b07d2bbac713b5d4acdfd467577",
+    "evaluator_sha256": "247a914a6f46a500732cfa5268713c199a52f944710c9c99272002918dd2692c",
+    "result_sha256": "795f97d5de52db6dd4d26156a7a4e40130a0d6cb58006275cf85c573cbea5f2a"
+  },
+  "primary_300": {
+    "source_trades": 338,
+    "bounded_stops": 8,
+    "weekly_closures": 19,
+    "maximum_observed_loss_usd": 300.0,
+    "full_primary_net": 2389.49,
+    "full_stress_net": 1713.49,
+    "full_primary_profit_factor": 1.3552,
+    "full_stress_profit_factor": 1.2477,
+    "full_primary_pnl_dd": 3.4941,
+    "full_stress_pnl_dd": 2.3803,
+    "primary_net_retention": 0.8278,
+    "stress_net_retention": 0.7752,
+    "discovery_primary_stress_net": [985.91, 651.91],
+    "validation_primary_stress_net": [1403.58, 1061.58],
+    "validation_down_primary_stress_net": [216.46, 62.46]
+  },
+  "adjacent_250": {
+    "bounded_stops": 12,
+    "weekly_closures": 19,
+    "maximum_observed_loss_usd": 250.0,
+    "full_primary_net": 2066.49,
+    "full_stress_net": 1390.49
+  },
+  "passed_checks": [
+    "exact_source_trade_count",
+    "both_safety_actions_exercised",
+    "no_gap_beyond_resource_envelope",
+    "all_periods_positive_both_costs",
+    "full_profit_factor",
+    "full_pnl_dd",
+    "period_directions_and_full_branches_positive",
+    "adjacent_250_positive"
+  ],
+  "failed_check": {
+    "name": "net_retention",
+    "cause": "stress net retained 77.52% of unchanged V18 versus the frozen 80% floor"
+  },
+  "verdict": "REJECT_NO_POST_OUTCOME_GATE_CHANGE",
+  "decision": "The categorical weekly-closure flatten fixes Stage 90's USD 667 reopen loss and makes all periods and directions positive under both cost models, but it misses one frozen efficacy gate. Preserve it as the strongest safety reference; do not lower the 80% floor after seeing the result. Any next cap must be derived from freshly observed account capacity, not selected from an outcome sweep.",
+  "submitted_orders": 0
+}

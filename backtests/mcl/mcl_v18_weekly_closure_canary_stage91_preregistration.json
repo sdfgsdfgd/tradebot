@@ -1,0 +1,45 @@
+{
+  "schema": "mcl.v18-weekly-closure-canary-stage91-preregistration.v1",
+  "registered_at_utc": "2026-08-04T08:28:00Z",
+  "authority": "historical_safety_overlay_only_no_orders_no_capital",
+  "thesis": "The only Stage-90 loss-cap breach crossed the weekly market closure. Preserve the USD 300 bounded canary, but flatten at the last executable completed minute before a greater-than-24-hour native tape gap and suppress re-entry until the next original V18 admission.",
+  "source": {
+    "stage90_rejection_sha256": "822f5ee2972e9d0daffa856ef517c111626c426770949e8970b2aab5f04e6208",
+    "v18_result_sha256": "b9c64409dcb9cd482427588bb0ae314d870d0350a2100aea6d3f0615ae2f4c15",
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55"
+  },
+  "unchanged": [
+    "all 338 V18 source admissions, directions, routes, and original handoff intervals",
+    "daily maintenance exposure and every ordinary intraday/GTH/RTH minute",
+    "raw-turn risk reduction, one-bar maturation, failed-auction memory, and roll ownership"
+  ],
+  "overlay": {
+    "primary_loss_cap_usd": 300.0,
+    "adjacent_sensitivity_loss_cap_usd": 250.0,
+    "weekly_closure_law": "if the next native matched MCL minute is more than 24 hours away and the unchanged source position crosses that gap, flatten at the current completed-minute close",
+    "post_flatten_law": "remain broker-flat until the next unchanged original V18 admission"
+  },
+  "decision_law": {
+    "maximum_observed_stop_loss_usd": 300.0,
+    "minimum_primary_profit_factor": 1.20,
+    "minimum_stress_profit_factor": 1.10,
+    "minimum_primary_pnl_dd": 1.50,
+    "minimum_stress_pnl_dd": 1.0,
+    "minimum_primary_net_retention": 0.80,
+    "minimum_stress_net_retention": 0.80,
+    "requires_positive_discovery_validation_full_under_both_costs": true,
+    "requires_both_directions_each_period_and_both_branches_full_under_both_costs": true,
+    "requires_250_neighbour_positive_in_discovery_validation_full": true,
+    "no_threshold_selection_after_outcomes": true
+  },
+  "limitations": [
+    "The 24-hour distinction is categorical weekly/holiday closure detection, not a fitted price threshold.",
+    "A historical pass opens runtime safety implementation and fresh broker preview only; it grants no selection, capital, order, or profitability authority.",
+    "An exceptional intraweek halt or gap may still exceed the cap and remains subject to broker and account safety checks."
+  ],
+  "evaluator": {
+    "path": "/tmp/mcl_stage91_weekly_closure_canary.py",
+    "sha256": "247a914a6f46a500732cfa5268713c199a52f944710c9c99272002918dd2692c"
+  },
+  "submitted_orders": 0
+}
