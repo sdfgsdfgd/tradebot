@@ -1,0 +1,54 @@
+{
+  "schema": "mcl.phase-bounded-reclaim-lifecycle-rejection.v1",
+  "generated_at_utc": "2026-08-04T03:25:40Z",
+  "authority": "research_rejection_no_orders_no_capital",
+  "preregistration_sha256": "510338898f9833114c05e4c6a24b9d6424b61cdb89513be19bd3cd5ab4acc31c",
+  "evaluator_sha256": "5ed84c73691553bfc06b2b8f4ceff5d01a9041574ec32a06d48a7cd56661bdef",
+  "census_sha256": "0564f7311393116e5d012e7602ab78d362ad26fe329d11fe0b0eb4fd912388e0",
+  "result_sha256": "518baa5d103d99cabb16b93033becdd7acb9ae2cc0a12ab9667b12b46129282f",
+  "verdict": "REJECT_DISCOVERY",
+  "validation_opened": false,
+  "profiles": {
+    "signal_body": {
+      "trades": 406,
+      "gross_net": -810.0,
+      "primary_net": -2239.12,
+      "stress_net": -3051.12,
+      "stress_profit_factor": 0.569775,
+      "stress_intrabar_drawdown": 3203.0,
+      "acceptance_stress": -1531.04,
+      "failure_reversal_stress": -1520.08
+    },
+    "signal_close": {
+      "trades": 441,
+      "gross_net": -1058.0,
+      "primary_net": -2610.32,
+      "stress_net": -3492.32,
+      "stress_profit_factor": 0.543091,
+      "stress_intrabar_drawdown": 3634.68,
+      "acceptance_stress": -1531.04,
+      "failure_reversal_stress": -1961.28
+    },
+    "signal_range": {
+      "trades": 375,
+      "gross_net": -1116.0,
+      "primary_net": -2436.0,
+      "stress_net": -3186.0,
+      "stress_profit_factor": 0.537354,
+      "stress_intrabar_drawdown": 3307.48,
+      "acceptance_stress": -1531.04,
+      "failure_reversal_stress": -1654.96
+    }
+  },
+  "invariants": {
+    "count_entry_parity": true,
+    "all_directions_negative_under_stress": true,
+    "all_phases_negative_under_stress": true,
+    "all_lanes_negative_under_stress": true,
+    "all_quarters_negative_under_stress": true,
+    "validation_economics_sealed": true
+  },
+  "display_correction": "The generic summary exposed only legacy acceptance/failure keys. Exact immutable-ledger grouping proves the unshown failure_reversal branch was also negative in every cell; the verdict is unchanged.",
+  "decision": "Close phase-bounded close/body/range reclaim, static phase-clock agreement, and risk-overlay rescue. Every cell was negative before costs, so no permission gate can create an honest edge. Return to the positive-energy V18 lineage and test a predeclared multiscale state-transition owner in which fast onset, medium ownership, slow financing, and counter-auction sequence have distinct causal roles.",
+  "submitted_orders": 0
+}

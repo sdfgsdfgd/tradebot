@@ -982,7 +982,15 @@ transition through today’s close; no order will be forced merely to populate t
   preregistration `51033889…` / evaluator `5ed84c73…` binds exact count-ledger
   parity, next-minute matched-MCL execution, phase/macro/opposition flats, and
   `$3.52/$5.52` discovery-first economics before one validation cell can open.
-  Rolls, costs, news authority, and live XSP/Gold owners remain unchanged.
+  V70 result `518baa5d…` rejected all three cells before validation: body/close/
+  range lost `-$810/-$1,058/-$1,116` gross and `-$3,051.12/-$3,492.32/
+  -$3,186.00` stress over `406/441/375` trades. Acceptance and true failure-
+  reversal branches, both directions, every phase/lane, and every quarter lost.
+  Receipt `mcl_phase_bounded_reclaim_lifecycle_rejection.json` closes static
+  reclaim and risk-overlay rescue. The next frozen lane returns to V18's
+  positive-energy process and tests ordered fast-onset/medium-ownership/slow-
+  financing transitions, never another static vote. Rolls, costs, news
+  authority, and live XSP/Gold owners remain unchanged.
 - `[PRESERVED RUNNER-UP]` **Tri-asset narrative-dispersion compression:** test
   whether convergence among easing-negative XSP pressure, weakening-positive
   MCL pressure, and weakly reversing-positive Gold pressure predicts
@@ -1635,7 +1643,13 @@ and stable bootstrap evidence. Neither may be refactored into looking mature.
     `mcl_phase_bounded_reclaim_census_receipt.json` (`d6605bab…`). V70
     preregistration `mcl_phase_bounded_reclaim_lifecycle_preregistration.json`
     (`51033889…`) / evaluator `5ed84c73…` requires exact count-entry parity and
-    strict discovery-before-validation economics without a risk knob.
+    strict discovery-before-validation economics without a risk knob. V70
+    result `518baa5d…` rejected body/close/range in discovery at `-$810/
+    -$1,058/-$1,116` gross and `-$3,051.12/-$3,492.32/-$3,186.00` stress;
+    every branch, direction, phase, lane, and quarter lost. Receipt
+    `mcl_phase_bounded_reclaim_lifecycle_rejection.json` closes reclaim/exit/
+    risk rescue. Continue from V18's positive-energy owner with an outcome-
+    blind census of ordered multiscale state transitions, not static consensus.
     Missing July-2023–August-2024 remains a hard crown blocker; no quota, order,
     or capital authority.
 
@@ -2020,6 +2034,7 @@ and
 | E-456 | Gold live safety audit found two actual startup-book misses at `2026-08-04 07:32:05` and `13:02:05 AEST` (an initial grep count of four double-counted traceback source and terminal lines). Both invocations failed closed with flat broker/ledger position, zero orders/fills/P&L/DD/breaches and recovered on the next natural five-minute recurrence; XSP remained healthy. Root cause is a transient missing initial streaming 1OZ NBBO inside the three-second oneshot startup, not Stage-76 state. The minimal operational repair adds systemd-bounded `Restart=on-failure`, five-second delay, and `3/60s` start limit to the already idempotent/restart-proven gold worker; signal, selection, sizing, quote freshness, execution, and capital authority remain unchanged |
 | E-457 | V69 count preregistration `mcl_phase_bounded_reclaim_census_preregistration.json` (`f4ca9654…`) / evaluator `f6f0229c…` repairs the exact Stage-68 semantic error without a threshold rescue. The shared phase clock is physically flat at Asia/Europe/US, macro-state, contract, and period boundaries. An aligned phase turn plus matched-MCL movement is immediate acceptance. An opposing CL turn flattens and arms one challenge but cannot enter; only a later same-phase close/body/range reclaim under unchanged macro and same-sign MCL movement may enter the retained macro direction as failure reversal. The three categorical anchors must independently pass `>160–520/year`, `>=40` each direction, `>=20` each branch/phase, `>=30` each lane, and natural density in discovery and validation before any outcome opens. No risk knob, continuous timing/threshold sweep, quota, news authority, order, or capital authority |
 | E-458 | V69 count `0564f731…` passed all three categorical failed-auction reclaim cells in both independent periods without outcomes. Close reclaim produced `441/409` entries (`441.30/410.48/year`), body `406/359` (`406.28/360.30`), range `375/328` (`375.26/329.18`); every cell retained both directions, acceptance/failure-reversal, Asia/Europe/US, GTH/RTH, and median two entries per active session with p95 `3–4` and max `4–6`. Receipt `mcl_phase_bounded_reclaim_census_receipt.json` (`d6605bab…`). V70 preregistration `mcl_phase_bounded_reclaim_lifecycle_preregistration.json` (`51033889…`) / evaluator `5ed84c73…` binds every economic entry byte-for-byte to that frozen count ledger, executes target changes at next matched-MCL minute open, flattens phase/macro/opposition/contract/period boundaries, charges `$3.52/$5.52`, and permits no stop/target/timeout/profit memory. Discovery must pass net/PF/PnL-DD, direction/branch/phase/lane, month/quarter, concentration, and density laws; only the strongest complete passer may expose validation. No order or capital authority |
+| E-459 | V70 lifecycle `518baa5d…` rejected every phase-bounded reclaim cell before validation. Body/close/range made `406/441/375` trades but lost `-$810/-$1,058/-$1,116` gross, `-$2,239.12/-$2,610.32/-$2,436.00` primary, and `-$3,051.12/-$3,492.32/-$3,186.00` stress, with PF `.570/.543/.537` and DD `$3,203.00/$3,634.68/$3,307.48`. Exact immutable-ledger grouping corrects a display-only legacy branch key: acceptance lost `-$1,531.04` stress in every cell and failure-reversal lost `-$1,520.08/-$1,961.28/-$1,654.96`; both directions, Asia/Europe/US, GTH/RTH, and all quarters were negative. Validation stayed sealed. Receipt `mcl_phase_bounded_reclaim_lifecycle_rejection.json` closes close/body/range reclaim, static phase agreement, and risk-overlay rescue. The successor must begin with V18's positive gross energy and outcome-blindly test ordered fast-onset, medium-owner, slow-financing, and counter-auction state transitions; no static ATR/slope vote, threshold rescue, order, or capital authority |
 
 ### Decision anchors
 
