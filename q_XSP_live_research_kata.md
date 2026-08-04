@@ -1820,8 +1820,18 @@ and stable bootstrap evidence. Neither may be refactored into looking mature.
     `mcl_dual_book_hostile_acceptance_census_rejection.json` and
     `mcl_dual_book_hostile_onset_lifecycle_rejection.json` (`e2240020…`) close hostile-entry
     surrender and every timing/effort/subset rescue. The next historical owner
-    must require a distinct completed adverse-then-reclaimed transition and may
-    alter only post-recovery ownership after count proof; the prospective live
+    V80 therefore froze a distinct failed-auction sequence: exact early hostile
+    onset, joint CL/MCL entry reclaim, then joint entry-level re-loss inside the
+    same Globex session. Count-only proof passed at `35/28` transitions with
+    both directions/lanes and every ownership state. V81 preserved every V18
+    admission and exited only that sequence; it failed discovery before
+    validation. Stress net/PF/DD/PnL-DD became
+    `+$577.16/1.199/$570.72/1.011` versus unchanged V18
+    `+$929.91/1.293/$501.64/1.854`. Receipts
+    `mcl_failed_auction_reclaim_revocation_census_receipt.json` and
+    `mcl_failed_auction_reclaim_revocation_lifecycle_rejection.json` close
+    post-reclaim revocation and historical one-minute abort rescue. The next
+    historical owner moves upstream to raw-turn/maturation auction shape; the prospective live
     tape remains the only lawful sub-minute fake-versus-authentic classifier.
     Missing July-2023–August-2024 remains a hard crown blocker; no quota, classifier,
     order, or capital authority.
@@ -2223,6 +2233,8 @@ and
 | E-472 | MCL Turn Authenticity Microstructure generation `b3805c9f…` is published and running continuously on q under read-only service `tradebot-mcl-turn-tape.service`, exact recorder `3eb97510…`, preregistration `dcd783c1…`, matched August `CLU6` conId `304037484` / `MCLU6` conId `661016525`, and isolated client pool `3211–3213`. A pre-deployment audit corrected one crucial clock label: ib_insync stores q-local UTC TCP-packet receipt time with microseconds, not the exchange/broker event timestamp; the immutable generation narrows that semantics before first recording. Direct ticker update ownership prevents unrelated broker streams from duplicating events; per-symbol capture sequence preserves same-packet quote/trade order; equal-receipt cross-book changes are grouped so they cannot fabricate leadership or basis spikes. Frozen prefix `e6e224f1…` contains `13/13` valid type-1 content-addressed rows from `04:49:34–04:50:08Z`, `39/1` CL and `43/10` MCL BidAsk/AllLast events, zero late rows, hash failures, restarts, or submitted orders. Receipt `mcl_turn_authenticity_microstructure_commissioning_receipt.json`; V18 direction, XSP/Gold, news, classifier, order, and capital authority remain unchanged |
 | E-473 | V78 preregistration `mcl_dual_book_hostile_acceptance_census_preregistration.json` (`9db10e40…`) / evaluator `f6c8c73c…` froze progressive joint adverse CL/MCL closes, adverse close-location, and causal prior-12-minute range/volume effort before outcomes. The unbounded primary appeared in `120/115` of `167/171` V18 trades, above the `80` maximum, so PnL/MFE/MAE stayed sealed. Outcome-blind timing anatomy selected only the semantic first two completed V18 clocks: ten-minute onset retained `51/46` events with both directions, GTH/RTH, and fast/mature/slow ownership. Receipt `mcl_dual_book_hostile_acceptance_census_rejection.json` (`678b277e…`) closes unbounded effort/count and outcome-selected timing rescue |
 | E-474 | V79 preregistration `mcl_dual_book_hostile_onset_lifecycle_preregistration.json` (`5790ad85…`) / evaluator `c787372f…` preserved every V18 entry/direction and froze next-minute surrender only after the exact early V78 onset. Result `ba905a35…` rejected discovery with exact action/control/surrender identity; validation remained sealed. Ten-minute primary stress net/PF/DD/PnL-DD fell to `+$227.91/1.084/$792.22/.288` from unchanged V18 `+$929.91/1.293/$501.64/1.854`; up and failure cohorts turned negative. Five-/fifteen-minute neighbours also failed. Receipt `mcl_dual_book_hostile_onset_lifecycle_rejection.json` closes early hostile surrender, timing/effort/subset rescue, and confirms adverse entry effort is ordinary profitable-turn retest noise unless a separate completed recovery transition earns ownership |
+| E-475 | V80 preregistration `mcl_failed_auction_reclaim_revocation_census_preregistration.json` (`b7e35cab…`) / evaluator `486fd225…` froze one exact failed-auction state: early V78 hostile onset, joint CL/MCL entry reclaim, then joint entry-level re-loss in the same suffix/session before unchanged V18 exit. Count `ed4d7144…` passed every outcome-blind gate at `35/28` transitions; directions were down/up `15/20` and `19/9`, GTH/RTH `26/9` and `24/4`, fast/mature/slow `8/9/18` and `7/9/12`, with `34/22` events leading original exit by >=30m. Receipt `mcl_failed_auction_reclaim_revocation_census_receipt.json`; no PnL/MFE/MAE opened before lifecycle preregistration |
+| E-476 | V81 preregistration `mcl_failed_auction_reclaim_revocation_lifecycle_preregistration.json` (`a2feb2b0…`) / evaluator `52389f76…` preserved every V18 admission, direction, profit memory, and ordinary exit, changing only next-minute surrender after an exact V80 sequence. Result `84adb28a…` rejected discovery with exact action/control/revocation identity; validation remained sealed. Candidate stress net/PF/DD/PnL-DD was `+$577.16/1.199/$570.72/1.011` versus V18 `+$929.91/1.293/$501.64/1.854`; failure and slow-financed cohorts became negative. Receipt `mcl_failed_auction_reclaim_revocation_lifecycle_rejection.json` closes post-reclaim revocation and, together with V77/V79, historical one-minute-OHLC abort rescue. Authenticity sharpening moves upstream to pre-entry raw-turn/maturation auction shape; live sub-minute authority remains prospective |
 
 ### Decision anchors
 

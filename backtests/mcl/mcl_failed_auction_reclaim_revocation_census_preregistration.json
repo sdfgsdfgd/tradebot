@@ -1,0 +1,68 @@
+{
+  "schema": "mcl.failed-auction-reclaim-revocation-census-preregistration.v1",
+  "registered_at_utc": "2026-08-04T05:08:12Z",
+  "authority": "outcome_blind_count_only_no_pnl_no_orders_no_capital",
+  "campaign": "mcl.two-speed-auction-relay.v80",
+  "candidate": "MCL Failed-Auction Reclaim Revocation",
+  "hypothesis": "An early high-effort extension against a V18 failed-auction position is normal oil retest noise. If that extension is then jointly reclaimed by CL discovery and MCL transport but both books subsequently lose their entry levels again inside the same Globex auction, the completed hostile-reclaim-reloss sequence may identify revoked ownership without suppressing or delaying any V18 admission.",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "v18_result_sha256": "b9c64409dcb9cd482427588bb0ae314d870d0350a2100aea6d3f0615ae2f4c15",
+    "event_time_source_census_sha256": "511ac3b8b87c01a9d7d81cb19e5cf01e63b33f0d98647fd62af5d9ec227235d7",
+    "hostile_census_sha256": "1f425021d551c31fc49d997c2ebb77ebc3c2a9f55b3a2733e56e4d91892c52a5",
+    "hostile_lifecycle_rejection_sha256": "ba905a353ce059eab66b248c35bba0c4c6e555b9dff4a12e4bf8bb34ca9e8d1a",
+    "evaluator_path": "/tmp/mcl_stage80_failed_auction_reclaim_revocation_census.py",
+    "evaluator_sha256": "486fd225d04c46e639ee7a8b7bee4c20b64977f1b2dca907a02e4f8f2b02a957"
+  },
+  "frozen_state_machine": {
+    "opportunity_set": "every exact V18 admission remains immediate and unchanged",
+    "eligible_branch": "failed_auction only",
+    "hostile_onset": "the exact V78 two-step result plus three-of-four effort event observed within the first ten executable minutes",
+    "reclaim": "after hostile onset, the first completed minute where both CL and MCL close on the V18-direction side of their exact entry-minute opens",
+    "revocation": "after reclaim, the first completed minute where both CL and MCL close back on the adverse side of those same entry levels",
+    "scope": "same dated-contract suffix and same Globex session, before the unchanged V18 exit",
+    "future_action_if_count_passes": "one separately preregistered lifecycle may surrender at the next matched-MCL minute open after revocation",
+    "unchanged": [
+      "V18 direction and admission",
+      "one-bar maturation and basis-breadth router",
+      "failed-auction 0.5 percent activation and 25 percent profit memory before any lawful revocation",
+      "raw-turn, roll, period, cost, and execution law"
+    ]
+  },
+  "periods": {
+    "discovery": "2024-08-04T22:00:00Z through 2025-08-04T22:00:00Z exclusive",
+    "validation_count_only": "2025-08-04T22:00:00Z through 2026-08-04T22:00:00Z exclusive"
+  },
+  "required_in_each_period": {
+    "annualized_v18_admissions": {
+      "exclusive_minimum": 160,
+      "inclusive_maximum": 520
+    },
+    "revocation_transitions": {
+      "inclusive_minimum": 12,
+      "inclusive_maximum": 60
+    },
+    "minimum_each_direction": 3,
+    "minimum_each_gth_rth_lane": 2,
+    "minimum_each_fast_mature_slow_ownership": 2,
+    "minimum_transitions_leading_original_exit_by_30_minutes": 8
+  },
+  "decision_law": "Only if exact V18 identity and every count/breadth/lead gate pass independently in both periods may one discovery-first lifecycle be preregistered. Otherwise reject the sequence without PnL, MFE, MAE, or validation economics.",
+  "outcome_firewall": {
+    "pnl": false,
+    "mfe": false,
+    "mae": false,
+    "validation_economics": false,
+    "news": false,
+    "orders": false,
+    "capital": false
+  },
+  "prohibitions": [
+    "no alternate hostile timing, effort count, reclaim level, persistence, magnitude, book subset, or session window",
+    "no continuation-branch rescue",
+    "no delayed entry, suppression, reversal, add-on, re-entry, stop, target, timeout, or profit-memory threshold change",
+    "no outcome-selected direction, lane, ownership, month, or regime subset",
+    "no live microstructure classifier before unseen prospective cohorts"
+  ],
+  "submitted_orders": 0
+}

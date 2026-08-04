@@ -1,0 +1,109 @@
+{
+  "schema": "mcl.failed-auction-reclaim-revocation-lifecycle-preregistration.v1",
+  "registered_at_utc": "2026-08-04T05:11:00Z",
+  "authority": "research_discovery_first_no_orders_no_capital",
+  "campaign": "mcl.two-speed-auction-relay.v81",
+  "candidate": "MCL Failed-Auction Reclaim Revocation",
+  "hypothesis": "A V18 failed-auction fade should retain its ordinary profitable retest and exact profit memory. Only when an early hostile extension is jointly reclaimed and then both CL discovery and MCL transport lose their entry levels again has the same-session recovery itself failed; surrendering at the next executable minute may remove second-failure damage without filtering genuine first-adverse turns.",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "v18_result_sha256": "b9c64409dcb9cd482427588bb0ae314d870d0350a2100aea6d3f0615ae2f4c15",
+    "event_time_source_census_sha256": "511ac3b8b87c01a9d7d81cb19e5cf01e63b33f0d98647fd62af5d9ec227235d7",
+    "count_preregistration_sha256": "b7e35cab2b5dea14729314d814f2ce64a5cd1a9e4b8d24ab952839e34ee06bc4",
+    "count_evaluator_sha256": "486fd225d04c46e639ee7a8b7bee4c20b64977f1b2dca907a02e4f8f2b02a957",
+    "count_result_sha256": "ed4d7144e77db6d6af9dc970618ce4e66b3c7e1ec7e189297bf5b9336826ec4a",
+    "lifecycle_evaluator_path": "/tmp/mcl_stage81_failed_auction_reclaim_revocation_lifecycle.py",
+    "lifecycle_evaluator_sha256": "52389f76190b31b6b25ee13372791deacfc9d340d7cbd437e0c84ee4a3fe6dc5"
+  },
+  "count_proof": {
+    "discovery_transitions": 35,
+    "validation_count_transitions": 28,
+    "discovery_direction_up_down": [
+      20,
+      15
+    ],
+    "validation_count_direction_up_down": [
+      9,
+      19
+    ],
+    "discovery_gth_rth": [
+      26,
+      9
+    ],
+    "validation_count_gth_rth": [
+      24,
+      4
+    ],
+    "discovery_fast_mature_slow": [
+      8,
+      9,
+      18
+    ],
+    "validation_count_fast_mature_slow": [
+      7,
+      9,
+      12
+    ],
+    "meaningful_lead_30m": [
+      34,
+      22
+    ],
+    "median_minutes_before_original_exit": [
+      248,
+      117
+    ],
+    "all_frozen_count_gates_passed": true
+  },
+  "frozen_lifecycle": {
+    "entry": "every exact V18 admission executes at the unchanged next matched-MCL minute open",
+    "ordinary_state": "unchanged V18 direction, failed-auction profit memory, raw-turn invalidation, roll, and period law",
+    "sole_change": "an exact V80 completed hostile-reclaim-reloss transition closes its still-owning position at the next matched-MCL minute open",
+    "after_revocation": "remain flat until a fresh ordinary V18 admission; no reversal, add-on, or synthetic re-entry",
+    "costs": {
+      "multiplier": 100,
+      "primary_round_trip_usd": 3.52,
+      "stress_round_trip_usd": 5.52
+    }
+  },
+  "discovery_gate": {
+    "annualized_trades": {
+      "exclusive_minimum": 160,
+      "inclusive_maximum": 520
+    },
+    "minimum_primary_stress_profit_factor": [
+      1.2,
+      1.1
+    ],
+    "minimum_primary_stress_pnl_to_intrabar_drawdown": [
+      1.5,
+      1.0
+    ],
+    "stress_cohorts_positive": "both directions, both V18 source branches, GTH/RTH, and fast/mature/slow ownership",
+    "minimum_stress_positive_months": 8,
+    "minimum_stress_positive_quarters": 3,
+    "maximum_positive_month_concentration": 0.4,
+    "relative_to_unchanged_v18": {
+      "minimum_primary_and_stress_net_retention": 0.85,
+      "profit_factor_not_lower": true,
+      "minimum_pnl_dd_improvement": 0.2,
+      "minimum_intrabar_drawdown_reduction": 0.2
+    }
+  },
+  "validation_law": {
+    "if_discovery_fails": "reject and leave all validation economics sealed",
+    "if_discovery_passes": "open this exact lifecycle only; validation and full prefix must retain at least 85 percent of control net, remain positive in every costed cohort, and have no lower PF/PnL-DD or higher drawdown than their unchanged V18 controls"
+  },
+  "prohibitions": [
+    "no alternate onset, reclaim, revocation, timing, persistence, magnitude, or book threshold",
+    "no direction, branch, lane, ownership, month, or regime subset rescue",
+    "no stop, target, timeout, delayed admission, suppression, reversal, add-on, re-entry, or profit-memory change",
+    "no validation outcome if discovery fails",
+    "no news, live classifier, order, or capital authority"
+  ],
+  "downstream_hold_even_on_pass": [
+    "missing July 2023 through August 2024 dated-contract challenge year",
+    "unseen prospective microstructure classification evidence",
+    "runtime, native MCL transport, margin, preview, restart, reconciliation, shared allocation, and graduation proof"
+  ],
+  "submitted_orders": 0
+}

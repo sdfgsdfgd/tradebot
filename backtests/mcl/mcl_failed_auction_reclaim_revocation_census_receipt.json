@@ -1,0 +1,67 @@
+{
+  "schema": "mcl.failed-auction-reclaim-revocation-census-receipt.v1",
+  "recorded_at_utc": "2026-08-04T05:09:00Z",
+  "authority": "outcome_blind_count_only_no_pnl_no_orders_no_capital",
+  "inputs": {
+    "preregistration_sha256": "b7e35cab2b5dea14729314d814f2ce64a5cd1a9e4b8d24ab952839e34ee06bc4",
+    "evaluator_sha256": "486fd225d04c46e639ee7a8b7bee4c20b64977f1b2dca907a02e4f8f2b02a957",
+    "result_sha256": "ed4d7144e77db6d6af9dc970618ce4e66b3c7e1ec7e189297bf5b9336826ec4a"
+  },
+  "exact_v18_identity": true,
+  "periods": {
+    "discovery": {
+      "v18_opportunities": 167,
+      "early_failed_auction_hostile_onsets": 44,
+      "transitions": 35,
+      "directions_down_up": [
+        15,
+        20
+      ],
+      "gth_rth": [
+        26,
+        9
+      ],
+      "fast_mature_slow": [
+        8,
+        9,
+        18
+      ],
+      "meaningful_lead_30m": 34,
+      "median_minutes_before_original_exit": 248,
+      "density_median_p95_max": [
+        1,
+        1,
+        1
+      ]
+    },
+    "validation_count": {
+      "v18_opportunities": 171,
+      "early_failed_auction_hostile_onsets": 42,
+      "transitions": 28,
+      "directions_down_up": [
+        19,
+        9
+      ],
+      "gth_rth": [
+        24,
+        4
+      ],
+      "fast_mature_slow": [
+        7,
+        9,
+        12
+      ],
+      "meaningful_lead_30m": 22,
+      "median_minutes_before_original_exit": 117,
+      "density_median_p95_max": [
+        1,
+        2,
+        2
+      ]
+    }
+  },
+  "all_frozen_count_gates_passed": true,
+  "pnl_mfe_mae_exposed": false,
+  "verdict": "ELIGIBLE_FOR_PREREGISTERED_LIFECYCLE",
+  "submitted_orders": 0
+}
