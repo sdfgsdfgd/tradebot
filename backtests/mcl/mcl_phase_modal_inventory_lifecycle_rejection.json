@@ -1,0 +1,49 @@
+{
+  "schema": "mcl.phase-modal-inventory-lifecycle-rejection.v1",
+  "recorded_at_utc": "2026-08-04T02:35:00Z",
+  "authority": "research_only_discovery_failed_validation_unopened_no_orders_no_capital",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "census_sha256": "e75b4a60b7eaafd9a5addae9d3c74f8feb502f57e588efee1da955b70bb48cd5",
+    "census_receipt_sha256": "d71250f093ca96cf95cc82cc925bde2990f897330f109065e67490f3409c617e",
+    "preregistration_sha256": "7347828acf035d7e34739ce49b9f50d2406b1e7f09912d61bb8f051a94c3542c",
+    "evaluator_sha256": "135c11a582fb276ccfc4b0638e7a31b3bc3476b2d000c9169743bec7c61ed0a8",
+    "result_sha256": "3cccb288ade9a441cfbcaacadba59e515595fdef59cc52cff1862618e555e5f3"
+  },
+  "discovery": {
+    "trades": 326,
+    "annualized": 326.223908,
+    "gross_before_primary_cost": -1340.00,
+    "primary_net": -2487.52,
+    "stress_net": -3139.52,
+    "primary_stress_profit_factor": [0.795404, 0.751388],
+    "primary_stress_pnl_to_intrabar_drawdown": [-0.825114, -0.874333],
+    "primary_stress_positive_months": [2, 2],
+    "stress_quarter_nets": [-527.28, -1451.04, -1080.56, -80.64],
+    "down_up_primary_net": [-1473.08, -1014.44],
+    "acceptance_failure_primary_net": [-1829.84, -657.68],
+    "gth_rth_primary_net": [-2749.24, 261.72],
+    "gth_rth_stress_net": [-3123.24, -16.28],
+    "weekend_gth_other_stress_net": [-1471.88, -1667.64],
+    "median_p95_maximum_per_active_session": [1, 2, 2],
+    "mean_hold_minutes": 555.794479,
+    "mean_mfe_mae": [68.625767, -47.917178],
+    "position_occupied_events_skipped": 69,
+    "ordinary_session_roll_exits": [211, 109, 6]
+  },
+  "failed_gates": [
+    "positive raw, primary, and stress expectancy",
+    "primary and stress PF and PnL/DD",
+    "both directions and both acceptance/failure branches",
+    "both GTH/RTH phases and weekend/nonweekend cohorts",
+    "positive-month, quarter, and concentration stability"
+  ],
+  "finding": "The prior-phase modal-price proxy produced excellent natural cadence and density but had negative gross expectancy before fees. RTH was only marginally primary-positive and became stress-negative; GTH, both directions, both branches, every quarter, and nearly every month failed. This is not an execution or threshold defect. Prior physical-phase modal inventory does not own the next oil auction direction or lifecycle.",
+  "validation_opened": false,
+  "closed_families": [
+    "prior-phase completed close-volume modal-price acceptance/failure lifecycle",
+    "mode-bin, magnitude, hold, stop, target, timeout, threshold, or exit rescue of that lifecycle"
+  ],
+  "verdict": "REJECT_AND_CLOSE_PHASE_MODAL_INVENTORY_FAMILY",
+  "submitted_orders": 0
+}
