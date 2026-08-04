@@ -1,0 +1,40 @@
+{
+  "schema": "mcl.phase-modular-impulse-lifecycle-rejection.v1",
+  "generated_at_utc": "2026-08-04T03:09:35Z",
+  "authority": "research_rejection_no_orders_no_capital",
+  "preregistration_sha256": "3799e772b9d74703c26c718b6f573fcc85ed3251cbde40dffce7fad72e4c7a71",
+  "evaluator_sha256": "b23bbb94fa862b7dcd0ea58164b3f201c10b6530ce496ed1440a8116aac59cf4",
+  "result_sha256": "aee21803a1092522ab921dfb36577ddaf48dc13563ebd690748eda536c3d33dc",
+  "verdict": "REJECT_DISCOVERY",
+  "validation_opened": false,
+  "profiles": {
+    "one_step_slower": {
+      "trades": 403,
+      "gross_net": -2127.0,
+      "primary_net": -3545.56,
+      "stress_net": -4351.56,
+      "stress_profit_factor": 0.735542,
+      "stress_intrabar_drawdown": 5020.52
+    },
+    "shared_macro_control": {
+      "trades": 354,
+      "gross_net": -841.0,
+      "primary_net": -2087.08,
+      "stress_net": -2795.08,
+      "stress_profit_factor": 0.814002,
+      "stress_intrabar_drawdown": 4501.56,
+      "acceptance": {
+        "trades": 109,
+        "stress_net": 360.32,
+        "stress_profit_factor": 1.09142
+      },
+      "failure": {
+        "trades": 245,
+        "stress_net": -3155.4,
+        "stress_profit_factor": 0.715374
+      }
+    }
+  },
+  "decision": "Close one lifecycle for aligned acceptance and opposed phase turns. Do not threshold-rescue either clock profile. A successor must treat opposition as an armed challenge and require an independently counted failed-auction reclaim before trading the retained macro direction.",
+  "submitted_orders": 0
+}

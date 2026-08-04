@@ -792,3 +792,7 @@ def test_gold_and_xsp_live_workers_share_one_account_execution_lock() -> None:
     assert "/usr/bin/flock --exclusive --wait 180" in xsp
     assert "Environment=IBKR_READONLY=0" in gold
     assert "tradebot.research.gold_live_cli" in gold
+    assert "StartLimitIntervalSec=60s" in gold
+    assert "StartLimitBurst=3" in gold
+    assert "Restart=on-failure" in gold
+    assert "RestartSec=5s" in gold
