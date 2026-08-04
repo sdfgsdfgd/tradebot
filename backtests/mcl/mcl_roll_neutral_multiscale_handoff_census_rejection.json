@@ -1,0 +1,30 @@
+{
+  "schema": "mcl.roll-neutral-multiscale-handoff-census-rejection.v1",
+  "generated_at_utc": "2026-08-04T03:42:51Z",
+  "authority": "research_count_rejection_no_outcomes_no_orders_no_capital",
+  "preregistration_sha256": "12d27306e498cdd2da1bc584bd16d86a8767054a033f364408a89fffcffebf93",
+  "evaluator_sha256": "3f8da2afaf8f9672c842dac5d5f02fcf517cd7f9dacf0f9933d22f2d86ab657c",
+  "result_sha256": "bee711acc22f7bd43b851f097855ef6f72d33b4d6f5febe2bb1958b2fd24f88c",
+  "verdict": "REJECT_COUNT",
+  "exact_v18_trade_identity": true,
+  "outcomes_exposed": false,
+  "periods": {
+    "discovery": {
+      "opportunities": 167,
+      "slow_ready_fraction": 0.766467,
+      "fast_transport_owned": 38,
+      "mature_handoff": 36,
+      "projected_down_up": [85, 82]
+    },
+    "validation_count": {
+      "opportunities": 171,
+      "slow_ready_fraction": 0.777778,
+      "fast_transport_owned": 33,
+      "mature_handoff": 50,
+      "projected_down_up": [69, 102]
+    }
+  },
+  "passed_except_readiness": true,
+  "decision": "Do not lower the frozen 85 percent readiness floor. The zero-roll-basis index fixed contract-reset loss and produced broad mature handoff cohorts, but real elapsed-time horizons still underwarm for many post-maintenance and post-weekend opportunities. Close wall-time slow ownership. A successor may use a completed-traded-bar event clock: real weekend price gaps remain one causal shock return, roll basis remains zero, and real timestamps continue to own sessions and execution.",
+  "submitted_orders": 0
+}

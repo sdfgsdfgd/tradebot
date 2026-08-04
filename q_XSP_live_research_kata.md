@@ -1005,8 +1005,17 @@ transition through today’s close; no order will be forced merely to populate t
   that seam: zero synthetic return at contract change, causal within-contract
   CL returns otherwise, unchanged V18 opportunities, fast-wave priority, and
   one mature nonpropagating handoff to slow direction. Both periods face count-
-  only readiness/cohort/cadence proof before economics. Rolls, costs, news
-  authority, and live XSP/Gold owners remain unchanged.
+  only readiness/cohort/cadence proof before economics. V72 result `bee711ac…`
+  passed every cohort/cadence gate except readiness: mature handoffs were broad
+  at `36/50`, but wall-time maintenance/weekend gaps left readiness only
+  `76.6%/77.8%` versus `85%`. Receipt
+  `mcl_roll_neutral_multiscale_handoff_census_rejection.json` closes gate
+  relaxation. The next distinct clock may advance once per completed traded bar,
+  preserving the weekend shock return but not nonexistent bars. V73
+  preregistration `db045831…` / evaluator `2af9ad0c…` freezes that event clock,
+  the same zero-roll-basis index, exact V18 identity, and unchanged ownership/
+  breadth law with a `95%` readiness floor. Both periods remain count-only.
+  Rolls, costs, news authority, and live XSP/Gold owners remain unchanged.
 - `[PRESERVED RUNNER-UP]` **Tri-asset narrative-dispersion compression:** test
   whether convergence among easing-negative XSP pressure, weakening-positive
   MCL pressure, and weakly reversing-positive Gold pressure predicts
@@ -1679,7 +1688,15 @@ and stable bootstrap evidence. Neither may be refactored into looking mature.
     `mcl_roll_neutral_multiscale_handoff_census_preregistration.json`
     (`12d27306…`) / evaluator `3f8da2af…` binds zero roll-basis return, unchanged
     V18 identity, fast-wave priority, and exactly one mature-slow route. Both
-    periods remain outcome-sealed until readiness and cohort breadth pass.
+    periods remained outcome-sealed; V72 `bee711ac…` passed every gate except
+    slow readiness at `76.6%/77.8%<85%`. Receipt
+    `mcl_roll_neutral_multiscale_handoff_census_rejection.json` closes wall-time
+    handoff. Test one event-time completed-bar clock without changing price,
+    roll, session, or execution truth. V73 preregistration
+    `mcl_event_time_roll_neutral_handoff_census_preregistration.json`
+    (`db045831…`) / evaluator `2af9ad0c…` advances exactly one virtual step per
+    real completed bar, inserts none, preserves reopen shock return, and keeps
+    real time authoritative everywhere outside slow state.
     Missing July-2023–August-2024 remains a hard crown blocker; no quota, order,
     or capital authority.
 
@@ -2068,6 +2085,8 @@ and
 | E-460 | V71 preregistration `mcl_multiscale_auction_handoff_census_preregistration.json` (`192870a6…`) / evaluator `20c1d80…` freezes a genuinely different high-energy architecture before counts. Every exact V18 `basis_breadth` admission remains the opportunity set. Fast onset is categorical sentinel turn propagation (`short_to_long`, `long_to_short`, mixed, unresolved); medium ownership is unchanged V18 `6/12/24/48/96` CL discovery plus matched-MCL transport routing; slow financing is one nested `24/48/96/192/384` engine using V18's exact policy and existing 24-bar state-maturity boundary. V18/slow agreement remains unchanged; fast propagating takeover remains V18; only a mature slow conflict without propagation may route to slow or abstain. Both periods must independently preserve exact V18 identity, `>160–520/year`, >=80% slow readiness, financed/takeover/counter-auction cohort floors, directions/branches/lanes, and natural density before any PnL. No horizon/policy/age/sequence/ATR/slope/parity/time sweep, outcome union, news, stop, quota, order, or capital authority |
 | E-461 | V71 count `49244a82…` rejected suffix-reset multiscale handoff with zero outcomes exposed. Exact V18 identity remained `167/171` opportunities and raw propagating wavefronts were broad at `38/33`, but monthly contract resets left the nested slow state ready for only `70.7%/74.3%`. Mature conflicts were powered at `39/60`, yet propagation inside that exact conflict was only `1/2` versus `15`; abstention collapsed cadence to `128.09/111.40/year`; routing retained `167.11/171.62/year` but validation acceptance was `18<20`. Receipt `mcl_multiscale_auction_handoff_census_rejection.json` closes gate relaxation, suffix-reset slow ownership, and conflict hold. The causal successor is a roll-neutral CL return index that carries state across dated-contract changes while assigning zero return to the roll gap; matched-month MCL still owns execution/parity. This is a reusable futures-state seam, not a V18 threshold rescue; count proof must precede economics, with no order or capital authority |
 | E-462 | V72 preregistration `mcl_roll_neutral_multiscale_handoff_census_preregistration.json` (`12d27306…`) / evaluator `3f8da2af…` freezes the roll-neutral successor before counts. Its synthetic CL index starts at `100`, compounds exact completed-five-minute within-contract OHLC ratios, and at a contract change keeps prior synthetic close as new open while retaining only the new bar's intrabar ratios—exactly zero roll-basis return. The nested `24/48/96/192/384` engine never resets by suffix but keeps the unchanged V18 policy and 65-minute anchor law, so real maintenance/weekend gaps can still underwarm. Every exact V18 admission remains; any raw short-to-long propagation protects V18's transport route, slow agreement preserves it, and only mature nonpropagating slow opposition routes to slow direction. Both periods must independently retain exact identity, `160–520/year`, >=85% slow readiness, >=25 fast-owned and 20–120 mature-handoff events with direction/branch/lane breadth, projected directions, and natural density before any PnL. No back-adjustment neighbor, horizon/policy/age/wave/ATR/slope/parity/time sweep, abstention, news, stop, quota, order, or capital authority |
+| E-463 | V72 count `bee711ac…` rejected wall-time roll-neutral handoff with zero outcomes exposed. Every gate except readiness passed: exact V18 `167/171` identity and cadence; fast transport-owned `38/33`; mature handoff `36/50` with both directions, acceptance/failure, GTH/RTH; projected directions `85/82` and `69/102`; natural `1/2–3/3` density. Carrying state across rolls raised readiness to `76.6%/77.8%`, but real elapsed-time maintenance/weekend gaps still caused post-gap underwarm below the frozen `85%` law. Receipt `mcl_roll_neutral_multiscale_handoff_census_rejection.json` closes readiness relaxation and wall-time slow ownership. The next causal clock may advance exactly once per completed traded five-minute bar: weekend reopen price remains one shock return, missing closed-market bars are not invented, roll basis remains zero, and real timestamps still own session/execution. Count proof remains mandatory before economics; no order or capital authority |
+| E-464 | V73 preregistration `mcl_event_time_roll_neutral_handoff_census_preregistration.json` (`db045831…`) / evaluator `2af9ad0c…` freezes the completed-traded-bar successor before counts. It advances one virtual five-minute step per real completed CL five-minute bar and inserts zero bars; a same-contract maintenance/weekend reopen compounds the full real gap as one causal shock observation, while contract change still contributes exactly zero roll-basis return. Real timestamps continue to own V18 opportunity identity, independent periods, Globex sessions, GTH/RTH, dated MCL parity/cost/roll/execution. The exact V72 slow engine and ownership hierarchy remain unchanged; readiness now must exceed `95%`, with the same fast-owned/mature-handoff/direction/branch/lane/cadence/density laws before any PnL. No gap cap/weekend flag/virtual speed/roll adjustment/horizon/policy/age/wave/ATR/slope/parity/time sweep, news, stop, quota, order, or capital authority |
 
 ### Decision anchors
 
