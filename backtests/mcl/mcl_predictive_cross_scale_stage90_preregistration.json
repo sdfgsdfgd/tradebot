@@ -1,0 +1,62 @@
+{
+  "schema": "mcl.predictive-cross-scale-stage90-preregistration.v1",
+  "frozen_at_utc": "2026-08-04T10:38:29Z",
+  "authority": "prospective_cross_scale_morphology_only_no_outcomes_no_orders_no_capital",
+  "campaign": "mcl.two-speed-auction-relay.v90",
+  "candidate": "MCL V18 Fast-to-Slow Causal Onset Atlas",
+  "hypothesis": "Seconds-tight ignition/refusal morphology becomes more discriminating when it is joined without scoring to exact completed 5m path and TR, sparse same-contract 4h slope/TR energy, completed 15m curvature, prior finalized five-session regime, 30m CL-MCL basis curvature, and the latest causally published oil-news pressure. Each clock keeps one job; no slow context may invent direction or erase an otherwise valid fast treatment.",
+  "immutable_inputs": {
+    "v18_owner_sha256": "03d0c958dab724a9e1b8f36070a1cbbb8df700e4d37683ffd6977061d5b866b7",
+    "completed_bar_event_owner_sha256": "71373f19591486ce4fe8f2d8d9d29ae31b9f37dddd7e40d5ccef0ed812390b3f",
+    "velocity_jerk_owner_sha256": "b69f02225b8ae4ecbe7dc99d339fd54d5e5b24c2d9aa8ec06af6e5d380fd69ec",
+    "stage88_result_sha256": "d571f6cda47e6ce155b660f26df0bdad92a0ec88fff54a4dc72263f5d7f33371",
+    "stage89_result_sha256": "8ef53f7da72831f1cb4ec4ce9a33c18c48ac263688d49afc02c7070badab6c0b",
+    "historical_manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "recent_snapshot_sha256": "e2c90b8bad87febf9f05b18242ad22090c9259395f1954ca4086ec8c8f84184d",
+    "event_prefix_sha256": "031f6605f1725591026258e80cea55a09a39d584005825b587e4d88955a536d4",
+    "generation_sha256": "b3805c9f95713a13c26cb0ada08dc043f00069f42177212d3c575abe28c3ee7f"
+  },
+  "eligible_treatments": [
+    "2026-08-04T07:05:00+00:00",
+    "2026-08-04T09:05:00+00:00"
+  ],
+  "exact_join_law": {
+    "identity": "replay the unchanged centralized V18 owner over the complete matched dated tape plus only finalized common CL/MCL minutes from snapshot e2c90b8b; treatment time and raw direction must match Stage 88 and Stage 89 exactly",
+    "five_minute": "use the completed raw-turn bar only for direction-signed path efficiency and current-minus-prior true-range velocity",
+    "fifteen_minute": "use the last three completed same-contract five-minute CL closes for slope velocity and acceleration",
+    "four_hour": "use finalized_sparse: the last three actual same-contract V18 horizon-48 observations, divided by real elapsed hours; never interpolate, carry across a roll, or make missing 4h context a treatment veto",
+    "weekly": "use only the most recent five fully finalized trading sessions strictly before the treatment and the immediately preceding five-session neighbor for return velocity and mean-TR velocity; preserve state age",
+    "basis": "use the last six completed same-contract MCL-minus-CL closes in ticks for 30-minute linear slope velocity and acceleration",
+    "news_availability": "snapshot_as_of_utc is the earliest safe publication availability time; signal_as_of_utc cannot make a later publication causal",
+    "news_pressure": "direction times impact divided by 100; delta is current pressure minus the immediately prior publication pressure; velocity is that delta divided by elapsed snapshot_as_of hours; freshness is treatment age no greater than the publication horizon_hours",
+    "join": "combine the completed-bar projection and exact Stage-88 event projection at one timestamp, then attach the Stage-89 velocity-jerk projection; preserve every family independently with no score, union, priority, or winner"
+  },
+  "frozen_families": [
+    "one_second_to_four_hour_temporal_torsion",
+    "five_minute_to_four_hour_volatility_phase",
+    "one_second_to_fifteen_minute_to_one_week_phase_locking",
+    "one_second_dual_book_to_thirty_minute_basis_to_news_shock",
+    "liquidity_elasticity_cascade",
+    "velocity_jerk_cross_book_handoff"
+  ],
+  "missingness_law": {
+    "fast_event": "incomplete event evidence excludes the treatment",
+    "four_hour": "record unavailable without excluding other families",
+    "weekly": "record unavailable without fabricating a session",
+    "news": "record absent or stale explicitly; never backfill from a later publication"
+  },
+  "future_action_boundary": {
+    "current": "derive and count morphology only",
+    "after_stage89_count_gate": "freeze matched admitted-treatment controls and economic settlement before any timing action",
+    "never": [
+      "invent or reverse V18 direction",
+      "suppress unconditional raw-turn risk reduction",
+      "interpolate unfinished slow bars or cross a contract roll",
+      "let news own direction",
+      "threshold-mine magnitudes or crown the rarest combination",
+      "change chase, maturation, order, sizing, capital, or graduation authority from morphology"
+    ]
+  },
+  "outcomes_exposed": false,
+  "submitted_orders": 0
+}

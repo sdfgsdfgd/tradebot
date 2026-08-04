@@ -200,6 +200,14 @@ or classifier may be fitted until the frozen cohort has at least `30` complete
 raw turns, `10` each direction, `20` admissions, `5` each route, `20` resolved
 handoffs, and repeated actionable shapes.
 
+Stage 90 preregistration
+`mcl_predictive_cross_scale_stage90_preregistration.json` (`db9c73c3…`)
+freezes the missing fast-to-slow join before revealing either treatment's slow
+morphology: exact completed 5m/15m, sparse same-contract 4h, prior finalized
+five-session regime, 30m basis curvature, and causally available news by
+`snapshot_as_of_utc`. Slow clocks preserve missingness and cannot veto a fast
+treatment; news cannot own direction.
+
 The first lawful unseen prefix is now durable. Stage-88 receipt
 `mcl_predictive_closing_ignition_stage88_accumulation_r2.json` (`d571f6cd…`)
 contains `16,471` identity-clean seconds and two complete post-generation raw
