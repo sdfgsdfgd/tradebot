@@ -53,6 +53,7 @@ from .mcl_shock_crest import (
     MclShockObservation,
 )
 from .mcl_turn_tape import MCL_TURN_TAPE_SCHEMA, MCL_TURN_TAPE_STATE_DIR
+from .mcl_two_speed_auction import MclAuctionMinute, MclTwoSpeedAuctionLifecycle
 
 
 MCL_SHOCK_ACCUMULATOR_VERSION = "mcl.shock-crest-accumulator.v1"
@@ -278,6 +279,7 @@ def _minute_resets(
     bars: Mapping[str, Mapping[datetime, OhlcvBar]], *, contract_key: str
 ) -> list[dict[str, object]]:
     engine = MclMinuteShockEngine()
+    v18 = MclTwoSpeedAuctionLifecycle()
     resets: defaultdict[datetime, set[str]] = defaultdict(set)
     common = sorted(set(bars["CL"]) & set(bars["MCL"]))
     maintenance = set()
@@ -294,6 +296,11 @@ def _minute_resets(
             cursor += timedelta(days=1)
     previous: datetime | None = None
     for stamp in common:
+        auction_minute = MclAuctionMinute(
+            contract_key,
+            bars["CL"][stamp],
+            bars["MCL"][stamp],
+        )
         transition = engine.update(
             MclShockMinute(
                 contract_key,
@@ -301,6 +308,12 @@ def _minute_resets(
                 bars["MCL"][stamp],
             )
         )
+        v18_transition = v18.update(auction_minute)
+        if (
+            v18_transition.decision is not None
+            and v18_transition.decision.phase == "RAW_TURN"
+        ):
+            resets[stamp].add("stage112_v18_raw_turn")
         if transition.exit_reason is not None:
             resets[stamp].add(
                 f"stage112_minute_release:{transition.exit_reason}"

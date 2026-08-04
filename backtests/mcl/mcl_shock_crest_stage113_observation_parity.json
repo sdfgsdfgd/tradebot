@@ -1,5 +1,5 @@
 {
-  "accumulator_owner_sha256": "e3c1ee7d0b2479e61d01343ddf61a95e7eca15dbba7d357a867c94ac7cf1732c",
+  "accumulator_owner_sha256": "ba9c1f4771dbed0c986b01b65a45e79778f3f3c720a0918e71bcf0d76169d646",
   "actual_observations": 2167,
   "actual_sha256": "a004b91f692b1fc35dda823c95fc22f61cba7c95507ea16eb4e23d37aa63099f",
   "authority": "architecture_parity_only_no_outcomes_no_orders_no_capital",

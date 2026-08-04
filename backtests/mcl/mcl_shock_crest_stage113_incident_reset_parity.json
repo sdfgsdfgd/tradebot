@@ -1,0 +1,43 @@
+{
+  "schema": "mcl.shock-crest-stage113-incident-reset-parity.v1",
+  "recorded_at_utc": "2026-08-04T21:28:35+00:00",
+  "authority": "architecture_parity_only_no_outcomes_no_orders_no_capital",
+  "inputs": {
+    "accumulator_owner_sha256": "ba9c1f4771dbed0c986b01b65a45e79778f3f3c720a0918e71bcf0d76169d646",
+    "evidence_owner_sha256": "f435f744fb7db453230300685675122885e4277d0517cbb2f1ce15909088f803",
+    "evaluator_sha256": "d6c439614d9e3b5e2d400a324d4d31684a42e3a98ca99ff4a65d43fb834afec3",
+    "event_generation_sha256": "b3805c9f95713a13c26cb0ada08dc043f00069f42177212d3c575abe28c3ee7f",
+    "bar_snapshot_sha256": "0cf0996d83d20e8c3e7fbac1e750e33092b784b0bf91e789e5fd69a78b7ea865",
+    "window_start_utc": "2026-08-04T10:40:00+00:00",
+    "window_end_utc": "2026-08-04T12:40:00+00:00"
+  },
+  "episode": {
+    "started_at_utc": "2026-08-04T10:44:27+00:00",
+    "terminal_at_utc": "2026-08-04T11:10:00+00:00",
+    "terminal_reasons": [
+      "stage112_v18_raw_turn"
+    ],
+    "maximum_level": "REGIME_20X_PLUS",
+    "maximum_volume_multiple": 29.59550561797753,
+    "shock_direction": -1,
+    "phases": [
+      "SHOCK_LATCHED",
+      "SHOCK_LATCHED",
+      "SHOCK_LATCHED",
+      "SHOCK_LATCHED",
+      "CREST_CONFIRMED",
+      "CONTINUATION",
+      "ROTATION_ARMED"
+    ]
+  },
+  "proof": {
+    "known_incident_direction": "down",
+    "causal_crest_detected": true,
+    "post_crest_continuation_detected": true,
+    "unconditional_v18_raw_turn_split_exact": true,
+    "second_episode_open_after_raw_turn": false,
+    "reason_second_episode_absent": "The completed-minute 11:15 shock reacquisition did not independently cross the frozen seconds 5x attention law after the exact 11:10 reset; it remains minute-lane evidence rather than a fabricated seconds episode."
+  },
+  "outcomes_exposed": false,
+  "submitted_orders": 0
+}

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -444,7 +445,7 @@ def test_stage113_generation_binds_one_shared_observer_service() -> None:
     ).read_text()
 
     assert generation["generation_id"] == (
-        "4199c1329d5726489f1c5052ec0c053f80710a24dac44875bb203028518a8d23"
+        "fd2dd70f9238a0ea423d9e7fe4c7317ca80aab93ba79488ab163223cfe6b3756"
     )
     assert generation["frozen_levels"] == {
         "attention": 5.0,
@@ -519,3 +520,32 @@ def test_stage113_slow_clock_never_bridges_maintenance() -> None:
     )
 
     assert context is None
+
+
+def test_stage113_unconditional_v18_raw_turn_is_an_episode_reset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class RawTurnLifecycle:
+        def __init__(self) -> None:
+            self.count = 0
+
+        def update(self, _minute: object) -> SimpleNamespace:
+            self.count += 1
+            decision = SimpleNamespace(phase="RAW_TURN") if self.count == 2 else None
+            return SimpleNamespace(decision=decision)
+
+    monkeypatch.setattr(
+        "tradebot.research.mcl_shock_accumulator.MclTwoSpeedAuctionLifecycle",
+        RawTurnLifecycle,
+    )
+    first = datetime(2026, 8, 4, 10, 0, tzinfo=timezone.utc)
+
+    assert _minute_resets(
+        _reset_bars((first, first + timedelta(minutes=1))),
+        contract_key="202608",
+    ) == [
+        {
+            "at_utc": first + timedelta(minutes=1),
+            "reasons": ["stage112_v18_raw_turn"],
+        }
+    ]

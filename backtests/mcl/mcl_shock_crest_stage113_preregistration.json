@@ -1,6 +1,6 @@
 {
   "schema": "mcl.shock-crest-accumulator-generation.v1",
-  "generation_id": "4199c1329d5726489f1c5052ec0c053f80710a24dac44875bb203028518a8d23",
+  "generation_id": "fd2dd70f9238a0ea423d9e7fe4c7317ca80aab93ba79488ab163223cfe6b3756",
   "registered_at_utc": "2026-08-04T21:11:52.159396+00:00",
   "eligible_start_utc": "2026-08-04T21:11:52.159396+00:00",
   "authority": "prospective_morphology_only_no_outcomes_no_orders_no_capital",
@@ -18,7 +18,9 @@
     "correction": "Replay the preceding session, close at the known 17:00 ET maintenance boundary, and place unscheduled-gap resets at the first missing minute. Thresholds, morphology algebra, cohort law, outcomes, and live authority are unchanged.",
     "slow_clock_defect": "Intraday 15m, 30m, and 240m labels could consume real finalized bars from both sides of a maintenance or data gap and thereby misstate trading-bar count as elapsed clock time.",
     "slow_clock_correction": "Require contiguous finalized-minute tails for every intraday slow clock; retain the strictly prior five-session context as an explicitly session-based clock.",
-    "evidence": "Three exact reset/clock tests pass and the frozen 2,167-observation payload remains byte-identical at a004b91f."
+    "raw_turn_reset_defect": "The initial reset projection joined the completed-minute shock owner but omitted V18's unconditional raw-turn risk boundary, which would merge the incident's first shock leg with any later seconds reacquisition.",
+    "raw_turn_reset_correction": "Replay the unchanged durable V18 lifecycle only to emit raw-turn episode terminals; it cannot score shock direction, outcomes, timing, orders, or capital.",
+    "evidence": "Four exact reset/clock tests pass, the frozen 2,167-observation payload remains byte-identical at a004b91f, and the preserved crash episode closes exactly at the 11:10Z V18 raw turn."
   },
   "frozen_levels": {
     "attention": 5.0,
@@ -30,7 +32,7 @@
     "attention": "A causal partial-minute volume multiple at or above 5x opens an observation episode but never enters the treatment cohort by itself.",
     "eligibility": "An episode enters the frozen cohort only after its latched level reaches at least 10x.",
     "tradeable_and_regime_labels": "12x and 20x remain categorical morphology labels only; they have no prospective order, timing, sizing, or capital authority.",
-    "terminal": "The seconds owner NORMALIZED transition or the exact Stage-112 completed-minute release, roll, gap, maintenance, or Friday-flat boundary closes an episode.",
+    "terminal": "The seconds owner NORMALIZED transition or the exact Stage-112 V18 raw turn, completed-minute release, roll, gap, maintenance, or Friday-flat boundary closes an episode.",
     "reset_precedence": "An external Stage-112 reset closes the old episode before an observation at the same timestamp, permitting a genuinely new second-wave episode without inheriting state.",
     "clock": "IBKR TCP packet receipt UTC for seconds evidence; finalized broker close UTC for completed-minute and slower context. No exchange timestamp is inferred."
   },
@@ -63,7 +65,7 @@
   "artifacts": {
     "accumulator_owner": {
       "path": "tradebot/research/mcl_shock_accumulator.py",
-      "sha256": "e3c1ee7d0b2479e61d01343ddf61a95e7eca15dbba7d357a867c94ac7cf1732c"
+      "sha256": "ba9c1f4771dbed0c986b01b65a45e79778f3f3c720a0918e71bcf0d76169d646"
     },
     "evidence_owner": {
       "path": "tradebot/research/mcl_shock_evidence.py",
@@ -80,6 +82,10 @@
     "stage112_arbiter_owner": {
       "path": "tradebot/research/mcl_shock_arbiter.py",
       "sha256": "e4b217c61c4cc51b813a20ff20741a11ea26d09f5d2223a88925a981f2bcddff"
+    },
+    "v18_signal_lifecycle_owner": {
+      "path": "tradebot/research/mcl_two_speed_auction.py",
+      "sha256": "03d0c958dab724a9e1b8f36070a1cbbb8df700e4d37683ffd6977061d5b866b7"
     },
     "live_selection_contract_owner": {
       "path": "tradebot/research/mcl_live_transport.py",
@@ -107,7 +113,11 @@
     },
     "observation_owner_parity": {
       "path": "backtests/mcl/mcl_shock_crest_stage113_observation_parity.json",
-      "sha256": "b900b86e49dbdefa006fe718a8966aad4ed69dbfc244f55d1e6d8ac425d88376"
+      "sha256": "d7542013e8c8469c669a385a3560650aa3cb21dce5b394156eae7b848e296e8d"
+    },
+    "incident_reset_parity": {
+      "path": "backtests/mcl/mcl_shock_crest_stage113_incident_reset_parity.json",
+      "sha256": "1457471481b5654359f49b08553575cbfd8ad9030284331ccafab97e6cd14bbf"
     },
     "shared_predictive_service": {
       "path": "deploy/systemd/tradebot-mcl-predictive-onset.service",
