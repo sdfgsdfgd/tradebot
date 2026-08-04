@@ -1,0 +1,60 @@
+{
+  "schema": "mcl.shock-crest-stage112-prospective-prefix-accumulation.v1",
+  "recorded_at_utc": "2026-08-04T20:14:45.566908+00:00",
+  "authority": "count_and_morphology_only_no_outcomes_no_orders_no_capital",
+  "selection": {
+    "selection_id": "083ecba8798ea6e60f32b1c42d4896e1a016703a77eeac2f32ac7ce3f5d54a91",
+    "predictive_generation_id": "d0443eb0ff2c18714579d23d9e3eeb44fc5bc2a596e4daebbe25683c08b71fc8",
+    "eligible_start_utc": "2026-08-04T19:10:47.020477+00:00"
+  },
+  "inputs": {
+    "evaluator_path_on_q": "/var/tmp/mcl_shock_prospective_prefix_census.py",
+    "evaluator_sha256": "5250703ff780492b05d68aefbd90812bfbf79d99388a4395dfecf3b487111af5",
+    "result_path_on_q": "/var/tmp/mcl-stage112-prospective-shock-census-r2.json",
+    "result_sha256": "f5c9568fa6dce9f861d1d20e9fcf722e217a0056018d575aff2bf23051146e0c",
+    "event_prefix_path_on_q": "/var/tmp/mcl-turn-prefix-stage112-prospective-r1.jsonl",
+    "event_prefix_sha256": "d100d8a9113e8e3d9e4f45dbe62d0137d95cc52c1c8cd3d4ff804893a98883c8",
+    "bar_snapshot_path_on_q": "/var/tmp/mcl-stage112-prospective-bars-r1.json",
+    "bar_snapshot_sha256": "0cf0996d83d20e8c3e7fbac1e750e33092b784b0bf91e789e5fd69a78b7ea865",
+    "bar_snapshot_id": "38e082ca1d20db5509829a9486e84be02b99ea73cd4e3ec066a6d98a6b1d038e",
+    "event_generation_sha256": "b3805c9f95713a13c26cb0ada08dc043f00069f42177212d3c575abe28c3ee7f",
+    "shock_owner_sha256": "0363b3416b4ca5771e0d7a6947f9a01a76eb99c9cae0e6c1904d0b88205c6019"
+  },
+  "coverage": {
+    "cutoff_utc": "2026-08-04T20:12:00+00:00",
+    "source_records": 2835,
+    "eligible_observations": 2167,
+    "maximum_volume_multiple": 4.828571428571428,
+    "phase_counts": {
+      "STATE": 2167
+    },
+    "transitions": []
+  },
+  "receipt_vs_finalized_volume_clock": {
+    "semantics": "The live seconds owner uses IB TCP packet receipt time and the frozen partial-minute volume law. Broker historical bars use finalized bar timestamps. Boundary prints may therefore move between adjacent minute buckets; aggregate agreement is evidence, not per-minute exchange-time identity.",
+    "common_completed_minutes": 62,
+    "exact_minutes": 40,
+    "mismatched_minutes": 22,
+    "tape_volume_total": 4347.0,
+    "broker_volume_total": 4348.0,
+    "median_positive_volume_ratio": 1.0,
+    "maximum_absolute_minute_difference": 20.0
+  },
+  "implementation_boundary": {
+    "legacy_builder_status": "research_only_quadratic_prefix_replay",
+    "required_successor": "one rolling O(n) consumer with bounded CL/MCL interval deques, cached finalized-minute context, and exact Stage-112 exit/roll/gap/maintenance resets",
+    "service_law": "reuse the existing predictive-onset timer and immutable turn tape; do not add a recorder, polling service, or profitability engine",
+    "ledger_law": "use a separate append-only shock-episode ledger; never mix shock episodes into the V18 onset cohort"
+  },
+  "verdict": "ACCUMULATE_NO_ELIGIBLE_SHOCK",
+  "decision": "No post-selection observation reached the frozen 5x attention level, so no shock episode or threshold evidence exists in this prefix. Preserve the prefix as ordinary-state control evidence and do not fit random seconds. Durable observer implementation remains behind the architecture decision gate.",
+  "invariants": {
+    "live_stage112_unchanged": true,
+    "v18_predictive_ledger_unchanged": true,
+    "outcomes_exposed": false,
+    "classifier_authority": "none",
+    "order_authority": "none",
+    "capital_authority": "none"
+  },
+  "submitted_orders": 0
+}
