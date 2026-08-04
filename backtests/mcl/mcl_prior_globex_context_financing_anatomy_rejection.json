@@ -1,0 +1,57 @@
+{
+  "schema": "mcl.prior-globex-context-financing-anatomy-rejection.v1",
+  "recorded_at_utc": "2026-08-04T02:51:15Z",
+  "authority": "research_discovery_anatomy_validation_counts_only_no_orders_no_capital",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "preregistration_sha256": "8e9fcd7aa216455b0deec4426974b9c7cff677b2a7ba17201fc8e79271654191",
+    "evaluator_sha256": "d6c6001ed4bf2f3ad409a2f55b4839ef6e35de805ee2ad120dbef770b8698300",
+    "result_sha256": "a9e932b3978d1542305ae79dcb8604c117cc7cb0778bca2e617f1bbdbbdd04c6",
+    "natural_union_evaluator_sha256": "a0caf2aab4dca710731adc8ce7df1daa7b06fb3041e40d3e261f162730feda8e",
+    "natural_union_result_sha256": "4aa0f4ca958e2cc3d7fd681f821d2f29fd428331e10a374ca9a27b1839f1a379"
+  },
+  "discovery": {
+    "trades": 251,
+    "validation_count_only_entries": 373,
+    "gross_net": -1033.00,
+    "primary_net": -1916.52,
+    "stress_net": -2418.52,
+    "primary_stress_profit_factor": [0.809814, 0.767196],
+    "primary_stress_pnl_to_intrabar_drawdown": [-0.720865, -0.872281],
+    "down_up_stress_net": [-1142.52, -1276.00],
+    "primary_stress_positive_months": [3, 2],
+    "contract_roll_flat_same_direction_hold": [12, 81]
+  },
+  "strongest_single_category": {
+    "field_category": "tr_phase=low_down",
+    "discovery_trades": 48,
+    "validation_count": 80,
+    "primary_stress_net": [774.04, 678.04],
+    "stress_profit_factor": 1.549465,
+    "stress_pnl_to_intrabar_drawdown": 2.078857,
+    "down_up_stress_net": [677.04, 1.00],
+    "stress_positive_months": 5,
+    "stress_concentration": 0.373411,
+    "status": "UNDERPOWERED_BELOW_60_DISCOVERY_TRADES_AND_SIX_MONTHS"
+  },
+  "other_near_categories": {
+    "direction_votes_0": [52, 68, 312.96, 1.194680, 0.591473, -641.48, 954.44],
+    "acceleration_votes_4": [51, 82, 440.48, 1.260849, 0.756371, -8.04, 448.52]
+  },
+  "natural_unions": {
+    "tr_phase_down": [90, 118, 244.20, 1.087699, 0.433994, 299.12, -54.92, 4],
+    "acceleration_votes_3_4": [107, 144, 448.36, 1.122460, 0.404001, 754.48, -306.12, 5],
+    "eligible_unions": 0
+  },
+  "finding": "The unchanged raw auction retained excellent prospective cadence, but this discovery segment was negative before fees. No preregistered single category or natural adjacent union met breadth, both-direction, month, concentration, PF, and PnL/DD together. Low and falling session TR is a strong but underpowered prospective financing seed; it cannot become a permission gate from this result.",
+  "validation_trade_outcomes_opened": false,
+  "closed_families": [
+    "prior-session direction-vote permission for the high-cadence macro auction",
+    "prior-session velocity/acceleration-vote permission",
+    "prior-session transition, gap-bias, damage-phase, or TR-phase permission on available history",
+    "cross-field conjunction or continuous-threshold rescue"
+  ],
+  "preserved_runner_up": "Observe tr_phase=low_down prospectively or against genuinely new historical coverage only; do not deploy or combine it retrospectively.",
+  "verdict": "REJECT_LONG_CONTEXT_PERMISSION_PRESERVE_UNDERPOWERED_TR_SEED",
+  "submitted_orders": 0
+}

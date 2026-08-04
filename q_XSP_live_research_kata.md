@@ -947,7 +947,16 @@ transition through today’s close; no order will be forced merely to populate t
   raw CL/MCL direction unchanged and opens discovery anatomy only across
   predefined direction-vote, pair-consensus, transition, TR-phase,
   velocity/acceleration-vote, gap-bias, and damage-phase categories; validation
-  contributes counts only. At most one broad relation may seed another census.
+  contributes counts only. No category or natural adjacent union passed. The
+  unchanged raw lifecycle itself lost `-$1,033` gross / `-$2,418.52` stress
+  over `251` discovery trades. Low/falling session TR was the strongest seed at
+  `+$678.04` stress, PF `1.549`, PnL/DD `2.079`, but only `48` trades/five
+  positive months and essentially zero up-sleeve edge; receipt `80a3581e…`
+  preserves it as underpowered only. V67 preregistration `1acc8241…` /
+  evaluator `75c829a0…` now freezes a truly distinct phase-modular sensor:
+  separate Asia/Europe/US impulse clocks plus one continuous macro state that
+  labels agreement acceptance and opposition failure. Three physical/slow/
+  shared-clock profiles face count-only proof before any lifecycle outcome.
   Rolls, costs, news authority, and live XSP/Gold owners remain unchanged.
 - `[PRESERVED RUNNER-UP]` **Tri-asset narrative-dispersion compression:** test
   whether convergence among easing-negative XSP pressure, weakening-positive
@@ -1572,8 +1581,15 @@ and stable bootstrap evidence. Neither may be refactored into looking mature.
     `mcl_prior_globex_context_financing_anatomy_preregistration.json`
     (`8e9fcd7a…`) / evaluator `d6c6001e…` preserves raw direction and flat-roll
     lifecycle, opens discovery-only category economics, and keeps validation at
-    causal counts. No production refactor before one broad category earns a
-    separate count census.
+    causal counts. The base lost `-$1,033` gross / `-$2,418.52` stress over
+    `251`; no single category or frozen natural union passed. Low/falling TR
+    made `+$678.04` stress over `48` but failed breadth. Rejection receipt
+    `mcl_prior_globex_context_financing_anatomy_rejection.json` (`80a3581e…`)
+    closes long-context permission and preserves that seed as prospective only.
+    V67 preregistration `mcl_phase_modular_impulse_census_preregistration.json`
+    (`1acc8241…`) / evaluator `75c829a0…` count-tests three phase-local impulse
+    architectures, exact matched-MCL parity, and continuous-macro acceptance/
+    failure labels across both periods before economics.
     Missing July-2023–August-2024 remains a hard crown blocker; no quota, order,
     or capital authority.
 
@@ -1952,6 +1968,7 @@ and
 | E-450 | V64 discovery `3cccb288…` killed phase-modal inventory before validation despite textbook cadence. Its `326` trades (`326.22/year`, median/p95/max `1/2/2`) made `-$1,340` gross, `-$2,487.52/-$3,139.52` primary/stress, PF `.795/.751`, PnL/DD `-.825/-.874`; down/up were `-$1,473.08/-$1,014.44`, acceptance/failure `-$1,829.84/-$657.68`, GTH/RTH stress `-$3,123.24/-$16.28`, weekend/other stress `-$1,471.88/-$1,667.64`, every quarter lost, and only two stress-positive months survived. Validation remained sealed. Receipt `mcl_phase_modal_inventory_lifecycle_rejection.json` (`11eff900…`) closes modal-bin/magnitude/hold/exit/stop/target/timeout/threshold rescue. The next distinct lane is a strictly prior completed-Globex-session `5/10/21/42/63/84` context census around the high-cadence macro-auction owner, with validation economics sealed and no production/order/capital authority |
 | E-451 | V65 preregistration `mcl_prior_globex_regime_router_census_preregistration.json` (`a4c70f4f…`) / evaluator `83ee2b37…` freezes one count-only causal long-session test before observing its event counts. Exact v9 `retrace2/state24` CL turns plus same-sign matched-MCL parity form the raw event. Context uses `94` strictly prior finalized CL Globex sessions and the existing centralized `5/10/21/42/63/84` return/velocity/acceleration/TR law, never current-session data or XSP's session/admission policy. Three categorical profiles are fixed: 3-of-4 majority over `5/21/63/84`, `5/21` consensus, and `63/84` consensus; consensus opposition routes a failed-auction fade, otherwise raw acceptance survives. Both periods must independently retain `>160–520/year`, `>=25` each direction, `>=20` each branch/lane, six masks, and median/p95/max `1–3/<=6/<=10` before any trade outcome. Missing first challenge year, production extraction, news, order, and capital authority remain blocked |
 | E-452 | V65 count `88031911…` rejected all three context-owned direction profiles before any PnL. Of `1,493` raw turns, `481` failed matched-MCL parity, `198` were context-underwarm, and `814` were eligible. Four-horizon majority collapsed to `52/91` entries (`82.72/91.59/year`) with only `10/7` fades; `5/21` consensus reached `99/137` (`157.48/137.89`) with `10/12` fades; `63/84` consensus made `70/83` (`111.35/83.54`) with `9/3` fades. Density and direction breadth were generally healthy, proving persistence—not noise—caused the failure. Receipt `mcl_prior_globex_regime_router_census_rejection.json` (`552d7f92…`) closes direct vote/pair routing and threshold rescue. V66 preregistration `mcl_prior_globex_context_financing_anatomy_preregistration.json` (`8e9fcd7a…`) / evaluator `d6c6001e…` keeps raw direction and exact next-open/flip/flat-roll lifecycle, opens discovery economics only across predefined context mask/votes/pairs/transition/TR/velocity/acceleration/gap/damage categories, and exposes validation counts only. A successor needs `>=60` discovery trades and validation entries, both directions/lanes, six months, positive stress net, PF `>=1.10`, PnL/DD `>=1.00`, and `<=40%` concentration; at most one relation may seed a separate count census. No cross-field search, continuous threshold, outcome rescue, order, or capital authority |
+| E-453 | V66 anatomy `a9e932b3…` found no lawful long-context permission successor. The unchanged raw-turn/flat-roll discovery made `251` trades and lost `-$1,033` gross, `-$1,916.52/-$2,418.52` primary/stress, PF `.810/.767`, with both directions and seven of nine months negative; validation contributed `373` counts and no outcomes. Strongest `tr_phase=low_down` made `+$678.04` stress, PF `1.549`, PnL/DD `2.079`, but had only `48` discovery trades/five positive months and up net `+$1`; direction-vote zero and acceleration-vote four were also underpowered/directionally asymmetric. Frozen natural-union audit `4aa0f4ca…` found zero eligible unions: TR-down made `+$244.20/90` but PF `1.088`, PnL/DD `.434`, up `-$54.92`; acceleration 3+4 made `+$448.36/107` but PnL/DD `.404`, up `-$306.12`. Rejection receipt `mcl_prior_globex_context_financing_anatomy_rejection.json` (`80a3581e…`) closes long-context permission while preserving low/falling TR prospectively. V67 preregistration `mcl_phase_modular_impulse_census_preregistration.json` (`1acc8241…`) / evaluator `75c829a0…` freezes three count-only phase-modular sensors: physical Asia/Europe/US clocks, one-step-slower clocks, and a shared-macro control. Phase-local turns require matched-MCL parity; continuous macro agreement labels acceptance and opposition labels failure. Both periods need `160–520/year`, `>=40` each direction, `>=20` each branch/phase, `>=30` each lane, and natural density before any outcomes. No phase/horizon/state/retrace/score/time sweep, validation PnL, order, or capital authority |
 
 ### Decision anchors
 
