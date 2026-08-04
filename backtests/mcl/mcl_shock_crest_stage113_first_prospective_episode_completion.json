@@ -1,0 +1,130 @@
+{
+  "schema": "mcl.shock-crest-stage113-first-prospective-episode-completion.v1",
+  "recorded_at_utc": "2026-08-04T23:37:00Z",
+  "authority": "prospective_morphology_only_no_outcomes_no_orders_no_capital",
+  "hawkeye_checkpoint": "4_of_6_terminal_addendum",
+  "generation_id": "fd2dd70f9238a0ea423d9e7fe4c7317ca80aab93ba79488ab163223cfe6b3756",
+  "selection_id": "083ecba8798ea6e60f32b1c42d4896e1a016703a77eeac2f32ac7ce3f5d54a91",
+  "natural_accumulation": {
+    "cutoff_utc": "2026-08-04T23:35:00+00:00",
+    "bar_rows": 5615,
+    "bar_sha256": "9f19d426e0005b613a0c9568a62775f3b8870b3ed988e93c27efcac7374de8b0",
+    "event_records": 2088,
+    "event_record_ids_sha256": "cdfb8ee4ccec643805533f019b4842a56d1ff933f4877a77ba1749df5484b045",
+    "last_event_bucket_utc": "2026-08-04T23:35:36+00:00",
+    "appended": 1,
+    "complete_episodes": 1,
+    "causal_crests": 1,
+    "resolved_directions": {
+      "down": 1
+    },
+    "tradeable_12x_episodes": 0,
+    "regime_20x_episodes": 0,
+    "continuations": 0,
+    "open_episode": null,
+    "verdict": "ACCUMULATE"
+  },
+  "episode": {
+    "checkpoint_id": "ce7d3e5a0fa10a2c0dcf94d4cebf0604bd8c37cf96ca0e627a8951c1e706d9fa",
+    "episode_id": "5cb52d2138a8d5871844d8fd1295157d471c186820d0d70fa28fa1c2595d117f",
+    "episode_sha256": "f53b95e7e7da477929f09fdae28d177828ce17474f3f263050c14f0b96d065dc",
+    "started_at_utc": "2026-08-04T23:15:28+00:00",
+    "terminal_at_utc": "2026-08-04T23:34:51+00:00",
+    "duration_seconds": 1163.0,
+    "shock_direction": "down",
+    "maximum_level": "MAJOR_PROTECT_10_TO_12X",
+    "maximum_volume_multiple": 11.666666666666666,
+    "reached_tradeable_12x": false,
+    "reached_regime_20x": false,
+    "continuation_emitted": false,
+    "source_records": 116,
+    "source_record_ids_sha256": "1b5b2fbac7e392ea2f6e29262ab59ef4a780b7c7ea93b3a9dd48c8332ead3e95",
+    "terminal_reasons": [
+      "seconds_owner_normalized"
+    ],
+    "transitions": [
+      {
+        "observed_at_utc": "2026-08-04T23:15:28+00:00",
+        "phase": "SHOCK_LATCHED",
+        "level": "ELEVATED_5_TO_10X",
+        "volume_multiple": 8.733333333333333,
+        "mcl_microprice": 75.114,
+        "cl_mcl_velocity_5s": [-1.5238095238096605, -1.792857142856974],
+        "cl_mcl_velocity_15s": [-0.9735772357723859, -0.9285714285713961],
+        "cl_mcl_velocity_60s": [-0.5022956841138397, -0.2830357142856954],
+        "cl_mcl_velocity_15m": [-0.013858344161939613, -0.017332751614513864],
+        "cl_mcl_signed_flow_15s": [-115.0, -119.0]
+      },
+      {
+        "observed_at_utc": "2026-08-04T23:15:39+00:00",
+        "phase": "SHOCK_LATCHED",
+        "level": "MAJOR_PROTECT_10_TO_12X",
+        "volume_multiple": 10.133333333333333,
+        "mcl_microprice": 75.14333333333333,
+        "opposing_position_must_flatten_morphology": true
+      },
+      {
+        "observed_at_utc": "2026-08-04T23:16:05+00:00",
+        "phase": "CREST_CONFIRMED",
+        "reason": "running_fast_velocity_peak_causally_confirmed",
+        "volume_multiple": 0.95,
+        "mcl_microprice": 75.12307692307692
+      },
+      {
+        "observed_at_utc": "2026-08-04T23:34:51+00:00",
+        "phase": "NORMALIZED",
+        "reason": "persistent_volume_and_velocity_normalization",
+        "volume_multiple": 0.9491525423728814,
+        "mcl_microprice": 75.25181818181818,
+        "cl_mcl_velocity_5s": [0.6666666666667709, 0.4242424242420384],
+        "cl_mcl_velocity_15s": [0.19444444444438602, 0.048701298701254406],
+        "cl_mcl_velocity_60s": [0.13289760348581078, 0.12121212121212242],
+        "cl_mcl_velocity_15m": [0.0035484582610356705, 0.005484711367064558],
+        "cl_mcl_signed_flow_15s": [4.0, 3.0]
+      }
+    ]
+  },
+  "append_only_ledger": {
+    "path_on_q": "/home/x/.local/state/tradebot/research/mcl_shock_crest.jsonl",
+    "rows": 1,
+    "sha256": "f18e4cc18767c325de0f0fbbe62a528b8897b4081dee60724f4bbd32f957811a",
+    "idempotence_replay": {
+      "bar_rows": 5616,
+      "bar_sha256": "825963271cc534eb02b5375c887f43e2b31f00a8ac882d0c4b24c5e3e0bb9138",
+      "event_records": 2102,
+      "event_record_ids_sha256": "7947cacd81f0c543194acb6d80d13efa9d3e0151632b73e999e1ecaa5e0424e8",
+      "appended": 0,
+      "rows_before": 1,
+      "rows_after": 1,
+      "sha256_before": "f18e4cc18767c325de0f0fbbe62a528b8897b4081dee60724f4bbd32f957811a",
+      "sha256_after": "f18e4cc18767c325de0f0fbbe62a528b8897b4081dee60724f4bbd32f957811a"
+    }
+  },
+  "concurrent_stage112_live": {
+    "source_checkpoint_id": "c63eef921135c151e1b38b8821be0eaa56752565216937c5149917c14b2f8d59",
+    "execution_checkpoint_id": "59951f96048e50a057903aa86d3f14f7b5daf3da22cc7a08c328291c2720a4bb",
+    "target": null,
+    "position": 0,
+    "open_orders": 0,
+    "fills": 0,
+    "closed_trades": 0,
+    "run_net_usd": 0.0,
+    "drawdown_usd": 0.0,
+    "safety_breaches": [],
+    "submitted_orders": 0
+  },
+  "invariants": {
+    "stage112_live_changed": false,
+    "stage113_thresholds_changed": false,
+    "twelve_x_rounded_or_lowered": false,
+    "future_return_exposed": false,
+    "pnl_exposed": false,
+    "market_orders_permitted": false,
+    "direction_authority": "none",
+    "timing_authority": "none",
+    "order_authority": "none",
+    "capital_authority": "none"
+  },
+  "outcomes_exposed": false,
+  "submitted_orders": 0
+}
