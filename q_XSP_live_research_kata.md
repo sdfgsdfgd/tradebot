@@ -1099,6 +1099,27 @@ transition through today’s close; no order will be forced merely to populate t
   news shock context when available. Freeze categorical shapes and controls before
   outcomes; never mine a threshold grid, infer depth/intent from L1, let the fast
   layer invent direction, or confuse random active seconds with an onset.
+  Protect V18's proven essence while sharpening: one-bar maturation,
+  multihorizon velocity breadth, dominant-CL versus matched-MCL transport routing,
+  failed-auction profit memory, and unconditional raw-turn risk reduction. Search
+  efficiently across genuinely different onset mechanisms, with special attention
+  to **delta, acceleration, divergence, re-convergence, persistence, and fakeout**
+  structure across pre-turn, response, and maturation windows. Seek the earliest
+  causal precision the feed can honestly support—seconds when evidence permits,
+  one/five minutes when it does not—and pursue ultimate directional control rather
+  than maximum reaction speed. A later proven fast layer may select chase,
+  maturation, patience, or execution-dwell mode; it may not create direction,
+  suppress risk reduction, resize capital, or claim exchange-colocated HFT.
+  Deliberately include a few **eclectic cross-scale onset atlases**, with each
+  clock assigned one causal job rather than blended into an opaque score:
+  `1s↔4h temporal torsion` (second-bucket slope/TR acceleration against completed
+  four-hour energy); `5m↔4h volatility phase` (local compression/expansion versus
+  slow financing/exhaustion); `1s↔15m↔1w phase locking` (completed weekly prior,
+  15-minute transition curvature, then CL→MCL event timing); and
+  `1s CL/MCL↔30m basis↔causal-news shock` (acceptance, absorption, or crowding).
+  Freeze exact completed-bar alignment, categorical shapes, controls, and adjacent
+  formulations before outcomes. These are competing hypotheses, never permission
+  to interpolate unfinished slow bars or crown the luckiest threshold.
 - `[PRESERVED RUNNER-UP]` **Tri-asset narrative-dispersion compression:** test
   whether convergence among easing-negative XSP pressure, weakening-positive
   MCL pressure, and weakly reversing-positive Gold pressure predicts
