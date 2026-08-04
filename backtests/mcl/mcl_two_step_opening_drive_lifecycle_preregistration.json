@@ -1,0 +1,68 @@
+{
+  "schema": "mcl.two-step-opening-drive-lifecycle-preregistration.v1",
+  "registered_at_utc": "2026-08-04T00:05:00Z",
+  "authority": "research_only_no_orders_no_capital",
+  "campaign": "mcl.two-speed-auction-relay.v40",
+  "hypothesis": "Removing unresolved initiative acceptances while retaining immediate absorption and two-bar failures should let the exact anchor-state owner clear friction, drawdown, month, concentration, and branch-transfer gates without changing exits.",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "census_preregistration_sha256": "c6b97df2affb65a137081d449a4fd24032f5db41e790e327e5e114f72559195c",
+    "census_evaluator_sha256": "e9917fe54708fbb6aea34d0bf197dcefe2af0ee90b51148137f1a6fe9d480558",
+    "census_result_sha256": "ccf52fd2db48292c149c0c659fc690c69ca6aff19b92b4793e9598e3f0e10ca9",
+    "lifecycle_evaluator_path": "/tmp/mcl_stage40_two_step_drive_lifecycle.py",
+    "lifecycle_evaluator_sha256": "e880e6e35ed334afbd66b0bbe3107b4e1375af37a73df44639c8ea67656ea312"
+  },
+  "selected_signal_profile": "monotonic_price",
+  "sole_owner": "exact branch-state ownership to Europe 08:55 ET or US 10:25 ET cutoff",
+  "execution": {
+    "instrument": "matched-expiry MCL dated future",
+    "entry": "frozen next one-minute MCL open",
+    "multiplier": 100,
+    "primary_round_trip_cost_usd": 3.52,
+    "stress_round_trip_cost_usd": 5.52,
+    "contract_or_clock_discontinuity": "flatten at last valid matched-MCL close",
+    "next_anchor": "flatten incumbent at successor entry open before admission"
+  },
+  "discovery_gate": {
+    "annualized_trades": {
+      "exclusive_minimum": 160,
+      "inclusive_maximum": 520
+    },
+    "minimum_primary_profit_factor": 1.2,
+    "minimum_stress_profit_factor": 1.1,
+    "minimum_primary_pnl_to_intrabar_drawdown": 1.5,
+    "minimum_stress_pnl_to_intrabar_drawdown": 1.0,
+    "minimum_primary_positive_months": 8,
+    "minimum_stress_positive_months": 7,
+    "maximum_largest_positive_month_share": 0.3,
+    "cohorts": "both directions, absorption/initiative-acceptance/initiative-failure, both anchors, and both boundary sides positive under primary and stress costs"
+  },
+  "validation_law": {
+    "if_discovery_fails": "reject and leave validation unopened",
+    "if_discovery_passes": "open this exact owner only; validation must independently pass the discovery gate",
+    "full_period_extra_gate": {
+      "minimum_primary_profit_factor": 1.25,
+      "minimum_stress_profit_factor": 1.15,
+      "minimum_primary_pnl_to_intrabar_drawdown": 2.5,
+      "minimum_stress_pnl_to_intrabar_drawdown": 1.5,
+      "minimum_primary_positive_months": 18,
+      "minimum_stress_positive_months": 16,
+      "maximum_largest_positive_month_share": 0.2,
+      "all_costed_cohorts_positive": true
+    }
+  },
+  "controls": {
+    "same_holds_inverted_direction": "report only after discovery passes; never selectable"
+  },
+  "prohibitions": [
+    "no alternative hold, stop, trail, or timeout",
+    "no acceptance threshold or volume rescue",
+    "no branch, anchor, side, direction, month, or regime router",
+    "no news, order, or capital authority"
+  ],
+  "downstream_hold_even_on_pass": [
+    "missing July 2023 through August 2024 dated-contract history",
+    "unseen runtime parity and prospective signal tape",
+    "native MCL spread, liquidity, margin, commission, roll, preview, restart, reconciliation, shared-capital, and graduation proof"
+  ]
+}

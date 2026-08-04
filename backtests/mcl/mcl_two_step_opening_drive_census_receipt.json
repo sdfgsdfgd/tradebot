@@ -1,0 +1,80 @@
+{
+  "schema": "mcl.two-step-opening-drive-census-receipt.v1",
+  "recorded_at_utc": "2026-08-04T00:05:00Z",
+  "authority": "outcome_blind_count_only_no_forward_pnl_no_orders_no_capital",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "source_census_sha256": "929b32245f5fc46816c0bc6f1624056d18a087f1749ca0832f46adb496abde9c",
+    "preregistration_sha256": "c6b97df2affb65a137081d449a4fd24032f5db41e790e327e5e114f72559195c",
+    "evaluator_sha256": "e9917fe54708fbb6aea34d0bf197dcefe2af0ee90b51148137f1a6fe9d480558",
+    "result_sha256": "ccf52fd2db48292c149c0c659fc690c69ca6aff19b92b4793e9598e3f0e10ca9"
+  },
+  "profiles": {
+    "monotonic_price_effort": {
+      "discovery_events_acceptance": [
+        192,
+        19
+      ],
+      "validation_events_acceptance": [
+        189,
+        14
+      ],
+      "eligible": false,
+      "reason": "initiative acceptance was below the frozen twenty-event floor in both periods"
+    },
+    "monotonic_price": {
+      "discovery": {
+        "events": 213,
+        "annualized": 213.145890,
+        "active_session_fraction": 0.624031,
+        "median_p95_max": [
+          1,
+          2,
+          2
+        ],
+        "absorption_acceptance_failure": [
+          144,
+          40,
+          29
+        ],
+        "up_down": [
+          115,
+          98
+        ],
+        "europe_us": [
+          108,
+          105
+        ]
+      },
+      "validation_count_only": {
+        "events": 204,
+        "annualized": 204.736875,
+        "active_session_fraction": 0.630350,
+        "median_p95_max": [
+          1,
+          2,
+          2
+        ],
+        "absorption_acceptance_failure": [
+          151,
+          29,
+          24
+        ],
+        "up_down": [
+          106,
+          98
+        ],
+        "europe_us": [
+          98,
+          106
+        ]
+      },
+      "eligible": true
+    }
+  },
+  "selected_profile": "monotonic_price",
+  "forward_outcomes_opened": 0,
+  "eligible_for_lifecycle_preregistration": true,
+  "verdict": "ELIGIBLE_FOR_PREREGISTRATION",
+  "submitted_orders": 0
+}
