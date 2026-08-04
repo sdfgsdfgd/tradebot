@@ -1,0 +1,75 @@
+{
+  "schema": "mcl.maturation-closing-rejection-census-preregistration.v1",
+  "registered_at_utc": "2026-08-04T05:18:11Z",
+  "authority": "outcome_blind_count_only_no_pnl_no_orders_no_capital",
+  "campaign": "mcl.two-speed-auction-relay.v82",
+  "candidate": "MCL Maturation Closing-Rejection Recovery",
+  "hypothesis": "V18 should keep its noisy high-energy turns, but a pre-entry maturation bar that finishes with a joint CL/MCL adverse close-location and expanding range/volume effort is a distinct auction rejection. Observing exactly the original entry minute before risking capital may separate a recovered retest from an unrecovered fake turn without applying a post-entry stop.",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "v18_result_sha256": "b9c64409dcb9cd482427588bb0ae314d870d0350a2100aea6d3f0615ae2f4c15",
+    "event_time_source_census_sha256": "511ac3b8b87c01a9d7d81cb19e5cf01e63b33f0d98647fd62af5d9ec227235d7",
+    "v77_rejection_sha256": "43a2789f1281c1772478af49ece4297f4c12d1664d3db5601902882d6c09eaa4",
+    "v81_rejection_sha256": "84adb28a2701d8d4b7ab5e3be126d59bb47cf3399d8ad4f20c2ec88b3506feb8",
+    "evaluator_path": "/tmp/mcl_stage82_maturation_closing_rejection_census.py",
+    "evaluator_sha256": "051055d78c1e596027c9dcd8a533515d2debfef05d97fdf681b6ece177c0a3d2",
+    "pre_outcome_correction": "The first invocation stopped before writing output because the in-memory effort-floor map used integer keys while the primary lookup used a string. Only that key type was corrected; signal, count, gate, period, and authority semantics are unchanged."
+  },
+  "frozen_state_machine": {
+    "opportunity_set": "every exact V18 admission before any changed action",
+    "observation_block": "the five completed one-minute rows ending one minute before the unchanged V18 entry",
+    "closing_rejection": "the final maturation minute moves both CL and MCL against V18 direction and closes in the adverse half of both one-minute ranges",
+    "effort_channels": [
+      "CL true range above the causal median of the preceding four maturation minutes",
+      "MCL true range above that causal median",
+      "CL volume above that causal median",
+      "MCL volume above that causal median"
+    ],
+    "primary": "closing rejection plus at least three of four effort channels",
+    "count_only_neighbours": [
+      "at least two of four effort channels",
+      "all four effort channels"
+    ],
+    "recovery": "the original entry minute moves both books in V18 direction and closes both in favorable range-halves",
+    "projected_action": "unflagged V18 entries remain exact; a recovered flag enters one minute late at the next matched-MCL open; an unrecovered flag remains flat until the next ordinary V18 admission"
+  },
+  "periods": {
+    "discovery": "2024-08-04T22:00:00Z through 2025-08-04T22:00:00Z exclusive",
+    "validation_count_only": "2025-08-04T22:00:00Z through 2026-08-04T22:00:00Z exclusive"
+  },
+  "primary_required_in_each_period": {
+    "annualized_projected_admissions": {
+      "exclusive_minimum": 160,
+      "inclusive_maximum": 520
+    },
+    "flagged_events": {
+      "inclusive_minimum": 8,
+      "inclusive_maximum": 60
+    },
+    "minimum_recovered_delayed": 4,
+    "minimum_unrecovered_skipped": 2,
+    "minimum_each_direction": 3,
+    "minimum_each_source_branch": 2,
+    "minimum_each_gth_rth_lane": 2,
+    "minimum_each_fast_mature_slow_ownership": 2
+  },
+  "decision_law": "Only the three-of-four primary may advance, and only if exact V18 identity plus every cadence, recovered/skipped, direction, branch, lane, and ownership gate passes independently in both periods. Two-of-four and four-of-four are count sensitivity only and cannot replace it. Failure exposes no PnL/MFE/MAE or validation economics.",
+  "outcome_firewall": {
+    "pnl": false,
+    "mfe": false,
+    "mae": false,
+    "validation_economics": false,
+    "news": false,
+    "orders": false,
+    "capital": false
+  },
+  "prohibitions": [
+    "no effort magnitude, baseline length, close-location band, timing, persistence, or book subset sweep",
+    "no neighbour substitution after counts",
+    "no direction, branch, lane, ownership, month, or regime rescue",
+    "no post-entry abort, reversal, add-on, re-entry, stop, target, timeout, or profit-memory change",
+    "no claim that one-minute volume/TR reconstructs sub-minute top-of-book pressure",
+    "no live classifier, order, or capital authority"
+  ],
+  "submitted_orders": 0
+}

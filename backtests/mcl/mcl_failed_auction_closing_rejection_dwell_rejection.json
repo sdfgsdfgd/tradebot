@@ -1,0 +1,68 @@
+{
+  "schema": "mcl.failed-auction-closing-rejection-dwell-rejection.v1",
+  "recorded_at_utc": "2026-08-04T05:26:34Z",
+  "authority": "research_rejection_validation_unopened_no_orders_no_capital",
+  "inputs": {
+    "closing_census_result_sha256": "e6cdacf08a0a466f9b95f9d0bf6a5902c05c6a97c8ac9a005f2e11d3540cd8ba",
+    "preregistration_sha256": "5ea5ea04418655a00bc7ffa54d5a09e9510298c5152a0f09700b5a9b1efc0335",
+    "evaluator_sha256": "a3a223a5d7201ac42d3aaadd5e44cd52829c4640a3a9edcc1e8d79a51b37863b",
+    "result_sha256": "98760852aa9ecf50ec906b81f4a20c3c56875fbb44c785fccb1c8ba60711f417"
+  },
+  "verdict": "REJECT_DISCOVERY",
+  "action_identity": true,
+  "delay_identity": true,
+  "control_discovery_parity": true,
+  "discovery_timing_identity": true,
+  "delayed_actions": {
+    "discovery": 19,
+    "validation_count": 31
+  },
+  "validation_opened": false,
+  "discovery": {
+    "trades": 167,
+    "annualized_trades": 167.114702,
+    "unchanged_v18_control": {
+      "primary_net": 1263.91,
+      "stress_net": 929.91,
+      "primary_profit_factor": 1.410766,
+      "stress_profit_factor": 1.293073,
+      "primary_intrabar_drawdown": 487.64,
+      "stress_intrabar_drawdown": 501.64,
+      "primary_stress_pnl_to_intrabar_drawdown": [2.591892, 1.85374]
+    },
+    "candidate": {
+      "primary_net": 1163.41,
+      "stress_net": 829.41,
+      "primary_profit_factor": 1.37835,
+      "stress_profit_factor": 1.261564,
+      "primary_intrabar_drawdown": 490.89,
+      "stress_intrabar_drawdown": 504.89,
+      "primary_stress_pnl_to_intrabar_drawdown": [2.370001, 1.642754],
+      "stress_down_up_net": [578.92, 250.49],
+      "stress_acceptance_failure_net": [972.52, -143.11],
+      "stress_gth_rth_net": [482.08, 347.33],
+      "stress_fast_mature_slow_unresolved_net": [767.74, 281.48, -192.29, -27.52]
+    }
+  },
+  "failed_gates": [
+    "material_net_improvement",
+    "profit_factor_and_pnl_dd_not_below_control",
+    "drawdown_not_above_control",
+    "stress_source_branches",
+    "stress_ownership"
+  ],
+  "decision": "Close one-minute failed-auction entry dwell after high-effort closing rejection. Preserving every V18 admission while moving only the flagged entries one minute later reduced net and PF, raised drawdown, and left failed-auction and slow-financed stress cohorts negative. Historical minute OHLC cannot distinguish authentic from fake V18 turns; only the already-running prospective event tape may test sub-minute quote morphology without hindsight.",
+  "closed_families": [
+    "one-minute delayed entry after high-effort closing rejection",
+    "recovery, effort, direction, lane, ownership, or regime subset rescue",
+    "historical minute-bar fake-turn classification",
+    "validation outcome exposure after failed discovery"
+  ],
+  "invariants": {
+    "exact_v18_admission_and_direction_identity": true,
+    "exact_control_lifecycle_and_economics": true,
+    "validation_economics_sealed": true,
+    "missing_july_2023_to_august_2024": true
+  },
+  "submitted_orders": 0
+}

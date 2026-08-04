@@ -1,0 +1,85 @@
+{
+  "schema": "mcl.failed-auction-closing-rejection-dwell-preregistration.v1",
+  "registered_at_utc": "2026-08-04T05:22:33Z",
+  "authority": "research_discovery_first_no_orders_no_capital",
+  "campaign": "mcl.two-speed-auction-relay.v83",
+  "candidate": "MCL Failed-Auction Closing-Rejection Dwell",
+  "hypothesis": "The V82 count proves high-effort closing rejection is overwhelmingly a failed-auction phenomenon, not a general direction veto. Preserve every V18 signal and failed-auction direction, but let the exact adverse maturation burst complete for one additional minute before entry; this may improve oil turn landing without sacrificing cadence or inventing a post-entry stop.",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "v18_result_sha256": "b9c64409dcb9cd482427588bb0ae314d870d0350a2100aea6d3f0615ae2f4c15",
+    "event_time_source_census_sha256": "511ac3b8b87c01a9d7d81cb19e5cf01e63b33f0d98647fd62af5d9ec227235d7",
+    "closing_census_preregistration_sha256": "b61e9d903267153252eafe2d92cd1d12b7630df784c5bfecfe77675fb2b91e88",
+    "closing_census_evaluator_sha256": "051055d78c1e596027c9dcd8a533515d2debfef05d97fdf681b6ece177c0a3d2",
+    "closing_census_result_sha256": "e6cdacf08a0a466f9b95f9d0bf6a5902c05c6a97c8ac9a005f2e11d3540cd8ba",
+    "lifecycle_evaluator_path": "/tmp/mcl_stage83_failed_auction_closing_rejection_dwell.py",
+    "lifecycle_evaluator_sha256": "a3a223a5d7201ac42d3aaadd5e44cd52829c4640a3a9edcc1e8d79a51b37863b"
+  },
+  "count_evidence": {
+    "primary_effort_channels": 3,
+    "discovery_flags": 20,
+    "validation_count_flags": 32,
+    "failed_auction_flags": [
+      19,
+      31
+    ],
+    "continuation_flags": [
+      1,
+      1
+    ],
+    "permission_projection_rejected": "conditional recovery would reduce annual cadence to 155.11 and 152.55",
+    "two_and_four_channel_neighbours": "count sensitivity only; neither may replace the frozen primary"
+  },
+  "frozen_lifecycle": {
+    "unflagged_entries": "exact unchanged V18 next-minute MCL open",
+    "flagged_entries": "only failed-auction entries with exact V82 three-of-four closing rejection move from the unchanged entry open to the immediately following MCL minute open",
+    "admission_and_direction": "every V18 admission and routed direction retained; no recovery test or skip",
+    "exit": "unchanged V18 failed-auction profit memory, raw-turn invalidation, roll, and period law, causally recomputed from the actual delayed entry",
+    "costs": {
+      "multiplier": 100,
+      "primary_round_trip_usd": 3.52,
+      "stress_round_trip_usd": 5.52
+    }
+  },
+  "discovery_gate": {
+    "annualized_trades": {
+      "exclusive_minimum": 160,
+      "inclusive_maximum": 520
+    },
+    "minimum_primary_stress_profit_factor": [
+      1.2,
+      1.1
+    ],
+    "minimum_primary_stress_pnl_to_intrabar_drawdown": [
+      1.5,
+      1.0
+    ],
+    "stress_cohorts_positive": "both directions, both V18 source branches, GTH/RTH, and fast/mature/slow ownership",
+    "minimum_stress_positive_months": 8,
+    "minimum_stress_positive_quarters": 3,
+    "maximum_positive_month_concentration": 0.4,
+    "relative_to_unchanged_v18": {
+      "minimum_primary_and_stress_net_improvement": 0.05,
+      "primary_profit_factor_and_pnl_dd_not_lower": true,
+      "primary_intrabar_drawdown_not_higher": true
+    }
+  },
+  "validation_law": {
+    "if_discovery_fails": "reject and leave validation economics sealed",
+    "if_discovery_passes": "open this exact timing owner only; validation and full prefix must remain positive in every costed cohort and have primary PF/PnL-DD no lower than unchanged V18"
+  },
+  "prohibitions": [
+    "no recovery requirement, skipped entry, continuation delay, or alternate dwell",
+    "no two-/four-channel neighbour substitution",
+    "no volume/TR magnitude, baseline length, close-location, time, direction, lane, ownership, month, or regime sweep",
+    "no signal suppression, reversal, add-on, re-entry, stop, target, timeout, or profit-memory parameter change",
+    "no validation outcome after failed discovery",
+    "no live classifier, order, or capital authority"
+  ],
+  "downstream_hold_even_on_pass": [
+    "missing July 2023 through August 2024 dated-contract challenge year",
+    "prospective top-of-book fake-versus-authentic evidence",
+    "runtime, transport, margin, preview, restart, reconciliation, allocation, and graduation proof"
+  ],
+  "submitted_orders": 0
+}

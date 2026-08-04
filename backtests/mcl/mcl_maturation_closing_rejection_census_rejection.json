@@ -1,0 +1,51 @@
+{
+  "schema": "mcl.maturation-closing-rejection-census-rejection.v1",
+  "recorded_at_utc": "2026-08-04T05:26:34Z",
+  "authority": "outcome_blind_count_rejection_no_pnl_no_orders_no_capital",
+  "inputs": {
+    "preregistration_sha256": "b61e9d903267153252eafe2d92cd1d12b7630df784c5bfecfe77675fb2b91e88",
+    "evaluator_sha256": "051055d78c1e596027c9dcd8a533515d2debfef05d97fdf681b6ece177c0a3d2",
+    "result_sha256": "e6cdacf08a0a466f9b95f9d0bf6a5902c05c6a97c8ac9a005f2e11d3540cd8ba"
+  },
+  "primary_effort_channels": 3,
+  "periods": {
+    "discovery": {
+      "v18_opportunities": 167,
+      "flagged": 20,
+      "recovered_delayed": 8,
+      "skipped": 12,
+      "projected_admissions": 155,
+      "annualized_projected_admissions": 155.106459,
+      "acceptance_failure_flags": [1, 19],
+      "directions_down_up": [7, 13],
+      "gth_rth": [10, 10],
+      "fast_mature_slow_unresolved": [9, 3, 7, 1]
+    },
+    "validation_count": {
+      "v18_opportunities": 171,
+      "flagged": 32,
+      "recovered_delayed": 13,
+      "skipped": 19,
+      "projected_admissions": 152,
+      "annualized_projected_admissions": 152.549044,
+      "acceptance_failure_flags": [1, 31],
+      "directions_down_up": [11, 21],
+      "gth_rth": [21, 11],
+      "fast_mature_slow": [5, 6, 21]
+    }
+  },
+  "neighbours": {
+    "two_channels": "lower projected cadence in both periods",
+    "four_channels": "barely exceeded 160/year but retained only one discovery and zero validation-count acceptance flags"
+  },
+  "pnl_mfe_mae_exposed": false,
+  "verdict": "REJECT_COUNT",
+  "decision": "Do not use high-effort final-maturation closing rejection as a permission gate. The frozen primary falls below the required cadence in both periods and is overwhelmingly a failed-auction state rather than a branch-balanced classifier. The frozen neighbours are sensitivity evidence only and cannot replace it.",
+  "closed_families": [
+    "conditional recovery-or-skip after final-maturation closing rejection",
+    "two-/four-channel threshold substitution",
+    "branch-relaxed count rescue",
+    "outcome exposure after failed count proof"
+  ],
+  "submitted_orders": 0
+}

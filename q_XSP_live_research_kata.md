@@ -1070,7 +1070,19 @@ transition through today’s close; no order will be forced merely to populate t
   persistence, threshold, and subset rescue. The categorical lesson is that
   initial disagreement is normal profitable oil microstructure. Preserve V18
   unchanged and prospectively record the sub-minute CL/MCL event sequence before
-  defining any fake-turn permission law.
+  defining any fake-turn permission law. V82 then moved upstream to the final
+  maturation minute and froze joint adverse close location plus elevated
+  CL/MCL range-volume effort. Its exact three-of-four primary flagged `20/32`
+  discovery/validation-count admissions, but recovery-or-skip projected only
+  `155.11/152.55` annual trades and almost exclusively selected failed auctions
+  (`19/31` versus `1/1` acceptance). PnL stayed sealed. V83 therefore preserved
+  every V18 admission and delayed only those failed-auction flags by one minute.
+  It also failed discovery: stress net/PF/DD/PnL-DD moved from unchanged V18's
+  `+$929.91/1.293/$501.64/1.854` to
+  `+$829.41/1.262/$504.89/1.643`; failed-auction and slow-financed stress stayed
+  negative. Historical one-minute entry-path permission, abort, revocation, and
+  dwell are closed. V18 remains unchanged; only the live event tape may
+  prospectively test sub-minute quote morphology.
 - `[PRESERVED RUNNER-UP]` **Tri-asset narrative-dispersion compression:** test
   whether convergence among easing-negative XSP pressure, weakening-positive
   MCL pressure, and weakly reversing-positive Gold pressure predicts
@@ -1830,9 +1842,18 @@ and stable bootstrap evidence. Neither may be refactored into looking mature.
     `+$929.91/1.293/$501.64/1.854`. Receipts
     `mcl_failed_auction_reclaim_revocation_census_receipt.json` and
     `mcl_failed_auction_reclaim_revocation_lifecycle_rejection.json` close
-    post-reclaim revocation and historical one-minute abort rescue. The next
-    historical owner moves upstream to raw-turn/maturation auction shape; the prospective live
-    tape remains the only lawful sub-minute fake-versus-authentic classifier.
+    post-reclaim revocation and historical one-minute abort rescue. V82 next
+    froze pre-entry final-maturation closing rejection. Its three-of-four primary
+    failed outcome-blind cadence at `155.11/152.55/year` and was almost entirely
+    failed-auction (`19/31` flags); recovery-or-skip is closed without PnL.
+    V83 retained every V18 admission and delayed only those failed-auction flags
+    one minute. It failed discovery: candidate stress net/PF/DD/PnL-DD was
+    `+$829.41/1.262/$504.89/1.643` versus unchanged V18
+    `+$929.91/1.293/$501.64/1.854`; validation stayed sealed. Receipts
+    `mcl_maturation_closing_rejection_census_rejection.json` and
+    `mcl_failed_auction_closing_rejection_dwell_rejection.json` close historical
+    one-minute entry-path gating/dwell. The prospective live tape remains the
+    only lawful sub-minute fake-versus-authentic classifier.
     Missing July-2023–August-2024 remains a hard crown blocker; no quota, classifier,
     order, or capital authority.
 
@@ -2235,6 +2256,8 @@ and
 | E-474 | V79 preregistration `mcl_dual_book_hostile_onset_lifecycle_preregistration.json` (`5790ad85…`) / evaluator `c787372f…` preserved every V18 entry/direction and froze next-minute surrender only after the exact early V78 onset. Result `ba905a35…` rejected discovery with exact action/control/surrender identity; validation remained sealed. Ten-minute primary stress net/PF/DD/PnL-DD fell to `+$227.91/1.084/$792.22/.288` from unchanged V18 `+$929.91/1.293/$501.64/1.854`; up and failure cohorts turned negative. Five-/fifteen-minute neighbours also failed. Receipt `mcl_dual_book_hostile_onset_lifecycle_rejection.json` closes early hostile surrender, timing/effort/subset rescue, and confirms adverse entry effort is ordinary profitable-turn retest noise unless a separate completed recovery transition earns ownership |
 | E-475 | V80 preregistration `mcl_failed_auction_reclaim_revocation_census_preregistration.json` (`b7e35cab…`) / evaluator `486fd225…` froze one exact failed-auction state: early V78 hostile onset, joint CL/MCL entry reclaim, then joint entry-level re-loss in the same suffix/session before unchanged V18 exit. Count `ed4d7144…` passed every outcome-blind gate at `35/28` transitions; directions were down/up `15/20` and `19/9`, GTH/RTH `26/9` and `24/4`, fast/mature/slow `8/9/18` and `7/9/12`, with `34/22` events leading original exit by >=30m. Receipt `mcl_failed_auction_reclaim_revocation_census_receipt.json`; no PnL/MFE/MAE opened before lifecycle preregistration |
 | E-476 | V81 preregistration `mcl_failed_auction_reclaim_revocation_lifecycle_preregistration.json` (`a2feb2b0…`) / evaluator `52389f76…` preserved every V18 admission, direction, profit memory, and ordinary exit, changing only next-minute surrender after an exact V80 sequence. Result `84adb28a…` rejected discovery with exact action/control/revocation identity; validation remained sealed. Candidate stress net/PF/DD/PnL-DD was `+$577.16/1.199/$570.72/1.011` versus V18 `+$929.91/1.293/$501.64/1.854`; failure and slow-financed cohorts became negative. Receipt `mcl_failed_auction_reclaim_revocation_lifecycle_rejection.json` closes post-reclaim revocation and, together with V77/V79, historical one-minute-OHLC abort rescue. Authenticity sharpening moves upstream to pre-entry raw-turn/maturation auction shape; live sub-minute authority remains prospective |
+| E-477 | V82 preregistration `mcl_maturation_closing_rejection_census_preregistration.json` (`b61e9d90…`) / evaluator `051055d7…` moved outcome-blind anatomy upstream to the final V18 maturation minute. The frozen three-of-four joint adverse close-location plus range/volume-effort primary flagged `20/32` discovery/validation-count admissions, but recovery-or-skip projected only `155.11/152.55` annual admissions below the strict `>160` floor. Flags were almost exclusively failed-auction (`19/31`) rather than branch-balanced (`1/1` acceptance). Two-channel cadence was worse; four-channel barely retained cadence but had `1/0` acceptance and could not replace the primary. Receipt `mcl_maturation_closing_rejection_census_rejection.json` (`209aeb93…`) closes recovery/skip, threshold substitution, and branch-floor relaxation without opening PnL/MFE/MAE |
+| E-478 | V83 preregistration `mcl_failed_auction_closing_rejection_dwell_preregistration.json` (`5ea5ea04…`) / evaluator `a3a223a5…` preserved every V18 admission and direction, moving only the exact `19` discovery failed-auction V82 flags to the immediately following MCL minute open. Identity and unchanged-control parity passed, but result `98760852…` rejected discovery and sealed validation: candidate primary/stress net `+$1,163.41/+$829.41` versus control `+$1,263.91/+$929.91`; PF `1.378/1.262` versus `1.411/1.293`; DD `$490.89/$504.89` versus `$487.64/$501.64`; PnL/DD `2.370/1.643` versus `2.592/1.854`. Failed-auction stress was `-$143.11` and slow-financed `-$192.29`. Receipt `mcl_failed_auction_closing_rejection_dwell_rejection.json` (`a890e6b1…`) closes one-minute entry dwell and all historical minute-bar fake-turn rescue. V18 remains unchanged; generation `b3805c9f…` is the sole lawful prospective sub-minute morphology source |
 
 ### Decision anchors
 
@@ -2289,6 +2312,7 @@ and
 | D-187 | Bot Trade has one live meaning: request q to validate or control an immutable candidate/run through the shared capital and graduation owners. It may never construct a mutable local strategy instance, submit/cancel a broker order, recompute Hawkeye evidence, or fall back from q to local state. New products register bindings and product workers behind the same catalog/control/evidence contracts; active positions retain product-worker risk-reduction ownership |
 | D-188 | gold may establish one native 1OZ contract only from a fresh post-selection Stage-76 admission; neither the historical incumbent, weekend tape, RTH boundary, deadline, nor raw direction may synthesize entry. Signal ownership remains XAUUSD/GC 24x5; 1OZ transport may execute or reduce risk 24x7 subject to maintenance. Canary authority is not an operational crown: authentic after-cost 24h/48h/five-session evidence remains mandatory |
 | D-189 | concurrent capital is minimum-package first, never naïve equal percentages or first-arrival privilege. Every active immutable selection reserves one product-declared executable minimum; only residual resources follow weights and package ladders. Before any new risk, fresh account state must still support all allocated packages, margin, stressed loss, FX stress, unrelated positions, and buffer. Aggregate insufficiency is a pre-order HOLD; risk reduction never requires plan capacity. One account lock serializes mutation without forbidding concurrent cross-product ownership |
+| D-190 | preserve V18 admission and direction after V77/V79/V81/V83: historical one-minute OHLC adversity, effort, reclaim, reloss, or one-minute dwell may not classify an MCL turn as fake. Any future sub-minute permission/dwell law must be frozen prospectively from the one canonical CL/MCL event tape, must compare eligible authentic/fake and matched-control cohorts without quote-depth claims, and cannot gain order or capital authority from historical minute-bar anatomy |
 
 ---
 
