@@ -386,8 +386,23 @@ def test_portfolio_stability_publisher_binds_current_generation_once(
 
     assert repeated == (relative, digest)
     assert hashlib.sha256(current.read_bytes()).hexdigest() == digest
-    assert relative.endswith(f"{plan['plan_id']}.json")
+    assert relative.endswith(f"{digest}.json")
     assert gate["status"] == "PASS"
+
+    prior = tmp_path / relative
+    owner = tmp_path / PORTFOLIO_CAPITAL_SEMANTIC_SURFACE[0]
+    owner.write_text(owner.read_text() + "CHANGED = True\n", encoding="utf-8")
+    successor, successor_digest = publish_portfolio_capital_owner_stability(
+        tmp_path,
+        generation_path=generation["path"],
+        generation_sha256=generation["sha256"],
+        observed_at_utc=START.isoformat(),
+    )
+
+    assert successor != relative
+    assert successor.endswith(f"{successor_digest}.json")
+    assert hashlib.sha256(prior.read_bytes()).hexdigest() == digest
+    assert hashlib.sha256(current.read_bytes()).hexdigest() == successor_digest
 
 
 def test_runtime_parity_rehashes_selected_crown_and_owners(

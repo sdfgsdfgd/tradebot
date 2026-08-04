@@ -201,7 +201,7 @@ def publish_portfolio_capital_owner_stability(
     }
     payload = json.dumps(proof, allow_nan=False, indent=2, sort_keys=True).encode() + b"\n"
     digest = hashlib.sha256(payload).hexdigest()
-    relative = PORTFOLIO_CAPITAL_STABILITY_DIRECTORY / f"{plan['plan_id']}.json"
+    relative = PORTFOLIO_CAPITAL_STABILITY_DIRECTORY / f"{digest}.json"
     immutable = _resolved(root, relative)
     current = _resolved(root, current_path)
     immutable.parent.mkdir(parents=True, exist_ok=True)
