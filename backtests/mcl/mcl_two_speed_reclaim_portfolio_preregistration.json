@@ -1,0 +1,72 @@
+{
+  "schema": "mcl.two-speed-v18-europe-deep-reclaim-portfolio-preregistration.v1",
+  "registered_at_utc": "2026-08-04T01:32:24Z",
+  "authority": "research_only_discovery_then_sealed_validation_no_orders_no_capital",
+  "campaign": "mcl.two-speed-auction-relay.v56",
+  "hypothesis": "The immutable V18 turn owner supplies sparse slow auction direction, while the count-qualified Europe/deep-clearance owner fills physically distinct inventory opportunities. V18 always preempts; a fast event cannot enter during a V18 holding; only one MCL contract exists. The fast owner must be independently profitable and improve V18's net, PF, PnL/DD, month breadth, and concentration under both costs before validation opens.",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "immutable_v18_result_sha256": "b9c64409dcb9cd482427588bb0ae314d870d0350a2100aea6d3f0615ae2f4c15",
+    "fast_census_preregistration_sha256": "44fedd920b51bd7e4c70d3b284f5ef1e3842fd4dc7eabc08fb780ea062861431",
+    "fast_census_result_sha256": "70f8216356681460c9622cbd2c86326ed83f72c3adc4840962be5b7271ea9492",
+    "fast_census_receipt_sha256": "c2f5a27402900a13138861cfd0d04318238984f86b095c9adb91c61450c50e2b",
+    "portfolio_summary_owner_sha256": "0d89fcfbfe2960338bc769bcd57ba1376c54d40a24810288be08666dd5708e28",
+    "fast_lifecycle_context_owner_sha256": "c2e8a0934a352fdf9bc2082fb24f2d5547dda37fdddace3c661cc6c58c48f9d8",
+    "lifecycle_evaluator_path": "/tmp/mcl_stage56_two_speed_reclaim_portfolio.py",
+    "lifecycle_evaluator_sha256": "f7ac4e9385d6dd79d1480aafe4adb4b56b7d30b7161a6e62139b50bdb104243b"
+  },
+  "ownership": {
+    "slow_primary": "consume immutable V18 basis_breadth trade ledger byte-for-economics; never replay or change its signal, entry, exit, cost, or outcome",
+    "fast_owner": "exact V55 Europe-rotation else decisive-clearance events with V53 next-open entry, joint-adverse-VWAP ordinary exit, retained-state risk exit, and hard boundary flat",
+    "priority": "skip a fast entry throughout an inclusive V18 holding; an exact V18 entry closes any incumbent fast position at the same matched-MCL open before V18 begins",
+    "capital": "one mutually exclusive MCL position and one contract maximum"
+  },
+  "execution": {
+    "instrument": "matched-expiry MCL dated future",
+    "multiplier": 100,
+    "primary_round_trip_cost_usd": 3.52,
+    "stress_round_trip_cost_usd": 5.52,
+    "discovery_cutoff": "fast owner flat; immutable V18 ledger unchanged",
+    "contract_session_gap": "exact V53 fail-closed boundary law"
+  },
+  "period_gate": {
+    "combined_annualized_trades": {
+      "exclusive_minimum": 250,
+      "inclusive_maximum": 520
+    },
+    "fast_owner": {
+      "positive_primary_and_stress_net": true,
+      "minimum_primary_profit_factor": 1.20,
+      "minimum_stress_profit_factor": 1.10,
+      "minimum_primary_pnl_to_intrabar_drawdown": 1.50,
+      "minimum_stress_pnl_to_intrabar_drawdown": 1.00,
+      "minimum_primary_positive_months": 7,
+      "minimum_stress_positive_months": 6,
+      "minimum_positive_equal_duration_stress_quarters": 3,
+      "maximum_stress_largest_positive_month_share": 0.40,
+      "each_branch_and_direction_minimum_trades_and_positive_net_under_both_costs": [20, true]
+    },
+    "combined_relative_to_immutable_v18": {
+      "strictly_higher_net_under_both_costs": true,
+      "profit_factor_not_lower_under_both_costs": true,
+      "pnl_to_intrabar_drawdown_not_lower_under_both_costs": true,
+      "positive_month_count_not_lower_under_both_costs": true,
+      "largest_positive_month_share_not_higher_under_both_costs": true
+    }
+  },
+  "validation_law": {
+    "discovery": "simulate only fast-owner discovery outcomes beside immutable V18 and test every independent/relative gate",
+    "if_discovery_fails": "reject and leave every fast validation outcome unopened",
+    "if_discovery_passes": "open the exact same owner and priority law in sealed validation; validation and full prefix must independently pass the identical gate"
+  },
+  "prohibitions": [
+    "no V18 mutation, overlapping position, additive contract, alternate branch, lane, clearance, maturity, volatility, volume, direction, exit, stop, target, timeout, cooldown, news, or quota",
+    "no validation fast outcome unless discovery passes every gate",
+    "no order, capital, XSP, or Gold authority"
+  ],
+  "downstream_hold_even_on_pass": [
+    "missing July 2023 through August 2024 dated-contract history",
+    "unseen runtime parity and prospective signal tape",
+    "native MCL spread, liquidity, margin, commission, roll, preview, restart, reconciliation, shared-capital, and graduation proof"
+  ]
+}
