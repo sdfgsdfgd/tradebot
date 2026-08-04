@@ -315,11 +315,18 @@ def test_event_atlas_uses_complete_identity_clean_window_and_combines_all_famili
     assert event["windows"]["persistence_30_60s"]["active_seconds"] == 2
     ladder = event["event_shapes"]["velocity_ignition_ladder"]
     assert tuple(ladder) == (
+        "closing_baseline_60_30s",
+        "closing_acceleration_30_15s",
+        "closing_commitment_15_5s",
+        "closing_trigger_5_0s",
         "spark_0_5s",
         "acceptance_5_15s",
         "propagation_15_30s",
         "persistence_30_60s",
     )
+    assert [
+        event["windows"][name]["active_seconds"] for name in tuple(ladder)[:4]
+    ] == [2, 1, 0, 1]
     assert ladder["spark_0_5s"]["books"]["CL"]["top_size_pressure"] == (
         "WITH_RAW_DIRECTION"
     )

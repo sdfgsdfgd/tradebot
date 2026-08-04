@@ -665,6 +665,26 @@ def project_mcl_event_onset(
         ),
     }
     ignition_intervals = (
+        (
+            "closing_baseline_60_30s",
+            turn - timedelta(seconds=60),
+            turn - timedelta(seconds=30),
+        ),
+        (
+            "closing_acceleration_30_15s",
+            turn - timedelta(seconds=30),
+            turn - timedelta(seconds=15),
+        ),
+        (
+            "closing_commitment_15_5s",
+            turn - timedelta(seconds=15),
+            turn - timedelta(seconds=5),
+        ),
+        (
+            "closing_trigger_5_0s",
+            turn - timedelta(seconds=5),
+            turn,
+        ),
         ("spark_0_5s", turn, turn + timedelta(seconds=5)),
         (
             "acceptance_5_15s",

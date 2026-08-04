@@ -1,0 +1,72 @@
+{
+  "schema": "mcl.predictive-closing-ignition-stage88-preregistration.v1",
+  "frozen_at_utc": "2026-08-04T06:43:02Z",
+  "eligible_treatment_start_utc": "2026-08-04T06:45:00+00:00",
+  "authority": "prospective_count_and_morphology_only_no_outcomes_no_orders_no_capital",
+  "campaign": "mcl.two-speed-auction-relay.v88",
+  "candidate": "MCL V18 Closing-Second Ignition Funnel",
+  "hypothesis": "The final minute before an exact V18 close can reveal an ordered velocity ignition early enough to pre-arm execution: ordinary baseline, acceleration, directional commitment, and closing trigger. Genuine turns should preserve the subsequent CL-to-MCL handoff; fake turns should recoil, lose transport acceptance, diverge in basis, or expand spread after the closing trigger.",
+  "supersedes": {
+    "stage87_preregistration_sha256": "63cde9e426c1a51e8dc9049df1ec446eb909c5d10c0f0dc605ca78ef1ad18c70",
+    "stage87_accumulation_sha256": "f77a833baa465f8f5f3b4cd5e482a37fc5ddcb98fc58cf6a38d51e425f341607",
+    "reason": "Stage 87 found zero live treatments and exposed no event morphology or outcome, so the pre-close mirror is lawfully frozen before its first eligible turn."
+  },
+  "immutable_owners": {
+    "historical_manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "v18_owner_path": "tradebot/research/mcl_two_speed_auction.py",
+    "v18_owner_sha256": "0a8d182c7a437c918fe24f8d5775a14192b55bf0791adeb28de582bec7f66b7b",
+    "event_owner_path": "tradebot/research/mcl_predictive_onset.py",
+    "event_owner_sha256": "71373f19591486ce4fe8f2d8d9d29ae31b9f37dddd7e40d5ccef0ed812390b3f",
+    "evaluator_path": "/tmp/mcl_stage87_predictive_event_join.py",
+    "evaluator_sha256": "089afb9ee4429b34d636ae4667bec51c100d9f7561fd732c767cc09a569e5d3d",
+    "generation_sha256": "b3805c9f95713a13c26cb0ada08dc043f00069f42177212d3c575abe28c3ee7f"
+  },
+  "service_invocation": {
+    "unit": "tradebot-mcl-turn-tape.service",
+    "invocation_id": "60d5377f917c4edaa980b3aed89bf9e8",
+    "exec_main_start_utc": "2026-08-04T04:49:31+00:00",
+    "restarts_at_freeze": 0,
+    "state_at_freeze": "active/running"
+  },
+  "frozen_preclose_funnel": {
+    "closing_baseline_60_30s": "ordinary pressure and liquidity state",
+    "closing_acceleration_30_15s": "first velocity/TR/quote-intensity change",
+    "closing_commitment_15_5s": "directional CL pressure persistence and MCL response",
+    "closing_trigger_5_0s": "last causal bucket before the completed V18 decision",
+    "postclose_control": "retain Stage 87's 0-5, 5-15, 15-30, and 30-60 second handoff ladder plus unchanged one-bar maturation",
+    "evidence": [
+      "directional microprice displacement and slope-velocity",
+      "microprice true-range velocity",
+      "quote-intensity acceleration",
+      "same-price top-size pressure and signed-print proxies",
+      "spread elasticity",
+      "CL/MCL receipt leadership and basis response"
+    ]
+  },
+  "future_prefix_law": {
+    "input": "the next immutable same-generation event prefix and exact-conId completed-minute snapshot, each hashed before evaluation",
+    "eligibility": "only V18 raw turns at or after 06:45Z whose complete -60s through +5m window exists",
+    "identity": "zero invalid, late, hash-failed, or generation-drifted rows; exact 1493 historical raw turns and 338 admissions",
+    "minimum_complete_raw_turns": 30,
+    "minimum_each_raw_direction": 10,
+    "minimum_admitted_turns": 20,
+    "minimum_each_admitted_route": 5
+  },
+  "future_action_boundary": {
+    "potential_after_unseen_proof": [
+      "pre-arm broker quote and non-transmitting preview",
+      "CHASE_NOW at exact V18 close",
+      "KEEP_ONE_BAR_MATURATION",
+      "REJECT_FAKE"
+    ],
+    "never": [
+      "submit before the completed V18 direction exists",
+      "invent or reverse direction",
+      "suppress raw-turn risk reduction",
+      "infer depth, queue, identified cancellation, intent, or colocated HFT",
+      "change sizing, capital, order, or crown authority from morphology alone"
+    ]
+  },
+  "outcomes_exposed": false,
+  "submitted_orders": 0
+}
