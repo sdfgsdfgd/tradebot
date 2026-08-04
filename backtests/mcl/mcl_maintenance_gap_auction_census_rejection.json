@@ -1,0 +1,40 @@
+{
+  "schema": "mcl.maintenance-gap-auction-census-rejection.v1",
+  "recorded_at_utc": "2026-08-04T02:04:00Z",
+  "authority": "outcome_blind_count_failed_no_trade_outcomes_no_orders_no_capital",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "preregistration_sha256": "2ac23b41517a53dbe18c3d197699524c581024a026d74b5a7ae4f39408749dfb",
+    "evaluator_sha256": "39c1e9fbb5684004f5d261c9cc59aa0bc55262325bec8b9b3e33bc192444b1b7",
+    "result_sha256": "afee107df2cb9694d8d1962e2de8d2bb2b531768d9af90dde0d086cc7412b871"
+  },
+  "discovery": {
+    "events": 140,
+    "annualized": 140.095890,
+    "active_session_fraction": 0.571429,
+    "up_down": [74, 66],
+    "gap_up_down": [88, 52],
+    "acceptance_failure": [92, 48],
+    "weekday_weekend": [98, 42],
+    "median_p95_maximum": [1, 1, 1]
+  },
+  "validation": {
+    "events": 157,
+    "annualized": 157.567105,
+    "active_session_fraction": 0.640816,
+    "up_down": [79, 78],
+    "gap_up_down": [99, 58],
+    "acceptance_failure": [121, 36],
+    "weekday_weekend": [110, 47],
+    "median_p95_maximum": [1, 1, 1]
+  },
+  "failed_gates": [
+    "annualized events above 160 in each period",
+    "active eligible-session fraction at least 65% in each period"
+  ],
+  "finding": "Direction, acceptance/failure, weekend, and exact one-per-session breadth are healthy, but requiring the lower-liquidity MCL opening print to co-author CL's information gap excluded 166 sessions and violated the frozen cadence floor. No outcome opened. A separately preregistered dominant-book count may let CL define the gap while retaining completed CL/MCL verdict parity.",
+  "forward_outcomes_opened": 0,
+  "validation_outcomes_opened": 0,
+  "verdict": "REJECT_SHARED_OPENING_GAP_ADVANCE_CL_DISCOVERY_CENSUS",
+  "submitted_orders": 0
+}
