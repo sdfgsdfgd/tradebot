@@ -1,0 +1,68 @@
+{
+  "schema": "mcl.atr-acceleration-portfolio-lifecycle-rejection.v1",
+  "recorded_at_utc": "2026-08-04T00:42:17Z",
+  "authority": "research_only_validation_unopened_no_orders_no_capital",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "census_sha256": "7e4fb2d59b9c73a24675b13570eee02583bc0e06685de13a674bf5521eb5f46d",
+    "primary_result_sha256": "b9c64409dcb9cd482427588bb0ae314d870d0350a2100aea6d3f0615ae2f4c15",
+    "preregistration_sha256": "b417027aa14b378819ab0f6712f9ec050d685b6b3f21e7ee8d4d638f7b115516",
+    "evaluator_sha256": "979cda838e199da66af4d9580d72fa19e3fe02dc2c76656a2a8913f7f82affd3",
+    "result_sha256": "d1a590ddde95ad94baca4b74c3d90c7f434babc88171a58999de810ee268542f",
+    "residual_anatomy_evaluator_sha256": "8fdbfbd484471658f1f7405e22a51171413512a9d91c7867475f3837cdea7be0",
+    "residual_anatomy_result_sha256": "2a0d2a336f99326bbe85568ecb1dea18a4d72f6c0bc3599743e558d0144f3c0d",
+    "giveback_anatomy_evaluator_sha256": "c1b982d268da2f968384fc5b7da4476f4f4b5a1a26d64e7f11bfaf205515c962",
+    "giveback_anatomy_result_sha256": "f11b8f672cbeac49f1425074c8010bf1f61b27abb5810d8f4fef7560aa086261"
+  },
+  "discovery": {
+    "combined_trades": 198,
+    "combined_annualized": 198.135616,
+    "combined_primary_net": 2239.79,
+    "combined_stress_net": 1843.79,
+    "combined_primary_profit_factor": 1.656707,
+    "combined_stress_profit_factor": 1.522889,
+    "combined_primary_pnl_to_intrabar_drawdown": 4.927814,
+    "combined_stress_pnl_to_intrabar_drawdown": 4.038793,
+    "combined_primary_stress_positive_months": [9, 9],
+    "combined_primary_stress_concentration": [0.207069, 0.217685],
+    "addon_trades": 31,
+    "addon_primary_net": 975.88,
+    "addon_stress_net": 913.88,
+    "addon_primary_profit_factor": 3.924598,
+    "addon_stress_profit_factor": 3.587429,
+    "addon_primary_pnl_to_intrabar_drawdown": 5.510956,
+    "addon_stress_pnl_to_intrabar_drawdown": 4.937757,
+    "addon_primary_stress_positive_months": [8, 8],
+    "addon_primary_stress_concentration": [0.292971, 0.301372],
+    "addon_stress_branches": {
+      "absorption": [26, 876.48],
+      "initiative_failure": [5, 37.40]
+    }
+  },
+  "failed_gates": [
+    "combined positive months 9 below immutable V18's 10 under both cost schedules"
+  ],
+  "post_rejection_anatomy": {
+    "velocity_expanding": [30, 902.40],
+    "velocity_contracting": [1, 11.48],
+    "mature_state_age_24_95": [16, 812.68],
+    "ordinary_coherence": [13, 800.24],
+    "winner_count_and_stress_net": [21, 1267.08],
+    "winner_mean_mfe_mae": [104.90, -20.24],
+    "immediate_error_count_and_stress_net": [10, -353.20],
+    "immediate_error_mean_mfe_mae": [17.70, -45.30],
+    "financed_giveback_count": 0
+  },
+  "finding": "Positive ATR acceleration produced an exceptional independent add-on and improved every immutable V18 aggregate metric except month breadth. Validation remains sealed because the combined ledger lost one positive month. Exact post-rejection anatomy proves the residual is entry permission rather than exit ownership: every losing add-on failed to reach the existing 0.5% profit-memory activation, while all financed trades were winners. ATR velocity adds no material separation, and state-age/coherence subsets are too sparse and still do not solve July.",
+  "validation_opened": false,
+  "closed_families": [
+    "positive ATR acceleration as a selectable portfolio add-on",
+    "ATR acceleration plus ATR velocity sign",
+    "state-age or coherence threshold rescue",
+    "profit-memory, trailing, or giveback exit rescue for this residual",
+    "relaxing immutable V18 positive-month breadth"
+  ],
+  "preserved_seam": "Replace derivative permission with one directly observed post-trigger result: outcome-blind count-test the full aligned V18-flat rejection cohort after exactly one completed one-minute CL and MCL bar agrees with the proposed direction, then enter at the next minute only while V18 remains flat.",
+  "verdict": "REJECT_PRESERVE_JOINT_RESULT_CONFIRMATION_CENSUS",
+  "submitted_orders": 0
+}

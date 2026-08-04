@@ -1,0 +1,65 @@
+{
+  "schema": "mcl.joint-result-confirmation-addon-census-preregistration.v1",
+  "registered_at_utc": "2026-08-04T00:42:17Z",
+  "authority": "outcome_blind_one_confirmation_bar_only_no_trade_outcomes_no_orders_no_capital",
+  "campaign": "mcl.two-speed-auction-relay.v47",
+  "hypothesis": "A trend-aligned rejection during a V18-flat interval becomes an executable auction result only when the first complete minute after its trigger produces movement in the proposed direction in both dominant CL price discovery and matched-month MCL transport. This direct result should reject immediate errors without relying on a volatility derivative or reducing the relay below useful cadence.",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "flat_addon_census_sha256": "1a8a5f0e8705cbbd76a71cedf6f3ba232ab93ed2c96278644a6156598040554f",
+    "immutable_v18_result_sha256": "b9c64409dcb9cd482427588bb0ae314d870d0350a2100aea6d3f0615ae2f4c15",
+    "acceleration_lifecycle_result_sha256": "d1a590ddde95ad94baca4b74c3d90c7f434babc88171a58999de810ee268542f",
+    "giveback_anatomy_sha256": "f11b8f672cbeac49f1425074c8010bf1f61b27abb5810d8f4fef7560aa086261",
+    "census_evaluator_path": "/tmp/mcl_stage47_joint_result_confirmation_census.py",
+    "census_evaluator_sha256": "353a4a8c444a1e8726e7750968598d4c3019b7edef2452120575e2f9e0157335"
+  },
+  "profile": {
+    "source": "exact V43 trend-aligned rejection events while immutable V18 is flat",
+    "confirmation_clock": "the one-minute MCL entry bar originally projected by V43, observed only after that bar completes",
+    "confirmation": "proposed_direction * (close - open) > 0 independently for matched CL and MCL",
+    "entry": "next one-minute MCL open after confirmation; require same contract, session, contiguous clock, and V18 still flat",
+    "direction": "unchanged source rejection direction",
+    "priority": "unchanged V18 primary always preempts",
+    "neighbor_policy": "none; exactly one minute, strict sign, and no magnitude threshold"
+  },
+  "count_gate_per_period": {
+    "minimum_addon_events": 25,
+    "minimum_each_direction": 8,
+    "minimum_absorption": 20,
+    "minimum_initiative_failure": 2,
+    "minimum_each_anchor": 8,
+    "minimum_each_boundary_side": 8,
+    "minimum_addon_active_session_fraction": 0.08,
+    "combined_annualized_trades": {
+      "exclusive_minimum": 190,
+      "inclusive_maximum": 520
+    },
+    "combined_session_distribution": {
+      "median_minimum": 1,
+      "median_maximum": 3,
+      "p95_maximum": 4,
+      "maximum": 6
+    }
+  },
+  "frozen_order": [
+    "load the unchanged V43 aligned and V18-flat event set and immutable V18 intervals",
+    "inspect only the first complete one-minute CL and MCL bar at each event's originally projected entry",
+    "retain the event only when both open-to-close moves have the proposed sign",
+    "shift entry exactly one minute and reject any contract/session/clock discontinuity or V18 incumbent",
+    "count discovery and validation periods without reading return, MFE, MAE, exit, PnL, or validation outcome",
+    "advance only if both periods independently pass every breadth, density, and combined-cadence floor"
+  ],
+  "if_eligible": "Preregister one reuse of the exact V44 non-overlapping lifecycle with the delayed frozen events. Discovery must independently pass add-on net, PF, PnL/DD, month, concentration, all-cohort, and combined-no-weaker-than-V18 gates under both costs before validation opens.",
+  "prohibitions": [
+    "no confirmation magnitude, bar-count, CL-only, MCL-only, or bar-shape sweep",
+    "no ATR acceleration, ATR level, ATR velocity, coherence, state-age, slope, month, anchor, side, branch, or direction companion gate",
+    "no V18 mutation or concurrent MCL position",
+    "no trade outcome before count eligibility and a separate lifecycle preregistration",
+    "no order, capital, XSP, or Gold authority"
+  ],
+  "downstream_hold_even_on_pass": [
+    "missing July 2023 through August 2024 dated-contract history",
+    "unseen runtime parity and prospective signal tape",
+    "native MCL spread, liquidity, margin, commission, roll, preview, restart, reconciliation, shared-capital, and graduation proof"
+  ]
+}

@@ -786,7 +786,17 @@ transition through today’s close; no order will be forced merely to populate t
   It passed at `31/40` add-on events and combined `198.14/211.76` per year,
   retaining all frozen cohorts with controlled session density. V46
   preregistration `b417027a…` / thin adapter `979cda83…` reuses V44's exact
-  one-position lifecycle and strict relative-to-V18 economics.
+  one-position lifecycle and strict relative-to-V18 economics. Its discovery
+  add-on was exceptional at `+$975.88/+$913.88` stress, PF `3.925/3.587`, and
+  PnL/DD `5.511/4.938`; combined cadence was `198.14/year`, combined stress net
+  `+$1,843.79`, PF `1.523`, and PnL/DD `4.039`. It still reduced immutable
+  V18's positive months from `10` to `9`, so validation stayed sealed. Exact
+  anatomy found `21` financed winners at `+$1,267.08` stress and `10` immediate
+  errors at `-$353.20`; none of the losers reached existing profit-memory
+  activation. V47 preregistration `15217597…` / evaluator `353a4a8c…` therefore
+  count-tests one direct result owner across the full V43 cohort: exactly one
+  completed minute must move both CL and MCL in the proposed direction before
+  a next-minute entry. No magnitude, bar-count, or companion gate is allowed.
   Rolls, costs, news authority, and live XSP/Gold owners remain unchanged.
 - `[PRESERVED RUNNER-UP]` **Tri-asset narrative-dispersion compression:** test
   whether convergence among easing-negative XSP pressure, weakening-positive
@@ -1261,7 +1271,17 @@ and stable bootstrap evidence. Neither may be refactored into looking mature.
     Receipt `mcl_atr_acceleration_addon_census_receipt.json` (`4737e476…`). V46
     preregistration `mcl_atr_acceleration_portfolio_lifecycle_preregistration.json`
     (`b417027a…`) / adapter `979cda83…` reuses the unchanged V44 lifecycle owner;
-    discovery must pass the same independent-add-on and no-weaker-V18 law.
+    discovery earned `+$913.88` stress independently and improved combined net,
+    PF, PnL/DD, and concentration, but reduced V18's positive-month breadth from
+    `10` to `9`; validation remained sealed. Giveback anatomy proved all `10`
+    losers were immediate errors and zero were financed givebacks. Rejection
+    receipt `mcl_atr_acceleration_portfolio_lifecycle_rejection.json`
+    (`4b93e25e…`). V47 preregistration
+    `mcl_joint_result_confirmation_addon_census_preregistration.json`
+    (`15217597…`) / evaluator `353a4a8c…` freezes one completed one-minute joint
+    CL/MCL result confirmation on the full V43 cohort before any shifted-entry
+    outcome opens. Both periods must retain `>=25` add-ons, every frozen cohort,
+    and combined `>190/year`; no threshold or timing sweep.
     Missing July-2023–August-2024 remains a hard crown blocker; no quota, order,
     or capital authority.
 
@@ -1619,6 +1639,7 @@ and
 | E-429 | outcome-blind V43 composition count `1a8a5f0e…` passed both periods without one add-on return: immutable V18 contributes `167/171` entries; aligned V18-flat rejection contributes `69/61`, producing combined `236.16/232.84` per year. Add-on discovery/validation-count spans absorption/failure `58/11` and `55/6`, up/down `43/26` and `29/32`, Europe/US `29/40` and `31/30`, high/low `26/43` and `32/29`; add-on session median/p95/max is `1/2/2`, combined `1/3/3` and `1/3/4`. Exact overlap law excluded `26` candidate entries with a V18 incumbent. Receipt `mcl_v18_flat_rejection_addon_census_receipt.json` (`b0371a98…`). V44 preregistration `mcl_v18_rejection_portfolio_lifecycle_preregistration.json` (`2e1588d1…`) / evaluator `0d89fcfb…` freezes one non-overlapping position: unchanged V18 primary; V42 branch-state add-on; exact V18-entry preemption. Add-on discovery must independently pass net/PF/PnL-DD/month/concentration and all costed cohorts, while the combined ledger must strictly improve V18 net and not weaken its PF, PnL-DD, positive-month count, or concentration under either cost schedule. Failure leaves validation sealed; no order or capital authority |
 | E-430 | V44 combined lifecycle `27528870…` preserved every V18 trade and made a large discovery advance: `236` combined trades at `236.16/year`, `+$2,091.03/+$1,619.03` stress, PF `1.494/1.369`, PnL/DD `4.578/3.368`; the add-on independently made `+$827.12/+$689.12`, PF `1.718/1.567`, PnL/DD `3.043/2.283`, with both branches/directions/anchors/sides positive. It still failed the frozen temporal law: add-on positive months were only `6/6`, concentration `46.70/47.01%`, and combined positive months fell from immutable V18's `10/10` to `8/8`; validation remained unopened. Post-rejection anatomy `e3e1f17c…` isolated a physical volatility-curvature split: exact positive ATR acceleration made `+$975.88/+$913.88` stress over `31`, PF `3.925/3.587`, PnL/DD `5.511/4.938`, eight positive months, concentration `29.30/30.14%`; `38` decelerating events lost `-$148.76/-$224.76`. Receipt `mcl_v18_rejection_portfolio_lifecycle_rejection.json` (`411577e5…`). V45 preregistration `mcl_atr_acceleration_addon_census_preregistration.json` (`78c6ee99…`) / evaluator `51e0c370…` freezes only the natural acceleration sign inside the existing aligned/V18-flat set. Both periods must retain at least `20` events, both speeds/directions/anchors/sides, and combined `>190/year` before any lifecycle or validation outcome reopens; magnitude sweeps and companion gates are prohibited |
 | E-431 | outcome-blind V45 acceleration count `7e4fb2d5…` passed both periods before any validation PnL opened. Discovery has `31` add-on events (`31.02/year`) across `31` sessions, absorption/failure `26/5`, up/down `22/9`, Europe/US `14/17`, high/low `9/22`; immutable V18 raises combined cadence to `198.14/year`, session median/p95/max `1/2/3`. Validation count has `40` (`40.14/year`) across `38` sessions, `36/4`, `19/21`, `23/17`, `21/19`; combined cadence `211.76/year`, median/p95/max `1/3/3`. Receipt `mcl_atr_acceleration_addon_census_receipt.json` (`4737e476…`). V46 preregistration `mcl_atr_acceleration_portfolio_lifecycle_preregistration.json` (`b417027a…`) / adapter `979cda83…` reuses the exact V44 one-position owner rather than duplicating logic: immutable V18 primary, exact V45 add-on, V18 preemption, `$3.52/$5.52` costs. Discovery must independently pass add-on net/PF/PnL-DD/month/concentration/all-cohort gates and improve V18 without weakening PF, PnL-DD, positive-month breadth, or concentration under either cost schedule; only then may validation open |
+| E-432 | V46 discovery `d1a590dd…` made the acceleration add-on independently exceptional over `31` trades: `+$975.88/+$913.88` stress, PF `3.925/3.587`, PnL/DD `5.511/4.938`, eight positive months, `29.30/30.14%` concentration, and both branches/directions/anchors/sides positive. Combined `198` trades made `+$2,239.79/+$1,843.79` stress, PF `1.657/1.523`, PnL/DD `4.928/4.039`, and improved concentration to `20.71/21.77%`; it nevertheless reduced immutable V18's positive months from `10` to `9`, so validation stayed sealed. Residual `2a0d2a33…` and giveback `f11b8f67…` anatomy prove the only material defect is admission: `21` winners made `+$1,267.08` stress with mean MFE/MAE `$104.90/-$20.24`, while `10` immediate errors lost `-$353.20` with `$17.70/-$45.30`; zero losing trade reached the existing `0.5%` profit-memory activation. ATR-velocity, state-age, coherence, and exit rescue are closed. Rejection receipt `mcl_atr_acceleration_portfolio_lifecycle_rejection.json` (`4b93e25e…`). V47 preregistration `mcl_joint_result_confirmation_addon_census_preregistration.json` (`15217597…`) / evaluator `353a4a8c…` freezes one materially different direct-result profile: from the full aligned V18-flat V43 cohort, observe exactly the originally projected entry minute and retain only when both CL and MCL move open-to-close in the proposed direction; enter the next minute only if contract/session/clock continuity and V18-flat ownership survive. Both periods must retain `>=25` add-ons, every cohort, and combined `>190/year` before any trade outcome opens. No magnitude, timing, derivative, outcome, order, or capital authority |
 
 ### Decision anchors
 
