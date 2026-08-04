@@ -814,10 +814,15 @@ transition through today’s close; no order will be forced merely to populate t
   and then full prefix must each pass the unchanged strict V44 economics. It
   failed brutally: `+$898` discovery stress became `-$587` sealed stress, with
   both branches/directions/anchors/sides negative. V43–V50 rejection geometry
-  is closed. V51 preregistration `c1d86abc…` / evaluator `173fa743…` starts an
-  independent session-inventory profile: exact retained CL direction plus a
-  joint CL/MCL adverse-to-favorable Globex-session VWAP reclaim, with raw-state
-  agreement separating continuation from failed-auction reclaim before outcomes.
+  is closed. V51's outcome-blind session-inventory census then rejected the raw
+  joint VWAP reclaim at `1,340/1,350` events per year, median `5`, p95 `11`,
+  without opening a return. The reclaim is a real contested state but repeated
+  same-direction crosses are churn; raw turn absence cannot label a reversal.
+  Receipt `74533bb2…`. V52 preregistration `1a287a31…` / evaluator `2d45ccaa…`
+  consumes only the first reclaim for each Globex-session and retained-direction
+  identity. A genuine retained-direction flip creates one new auction right;
+  no time, PnL, quota, threshold, or outcome can rearm it. Count both periods
+  before any lifecycle economics.
   Rolls, costs, news authority, and live XSP/Gold owners remain unchanged.
 - `[PRESERVED RUNNER-UP]` **Tri-asset narrative-dispersion compression:** test
   whether convergence among easing-negative XSP pressure, weakening-positive
@@ -1327,12 +1332,15 @@ and stable bootstrap evidence. Neither may be refactored into looking mature.
     any full-prefix result opens. It failed at `-$537/-$587` stress over `25`,
     with every major cohort negative; full prefix remained unopened. Rejection
     receipt `mcl_transport_lead_validation_lifecycle_rejection.json`
-    (`49463a21…`) closes all V43–V50 rejection geometry. V51 preregistration
-    `mcl_session_vwap_reclaim_census_preregistration.json` (`c1d86abc…`) /
-    evaluator `173fa743…` begins a materially independent high-cadence profile:
-    exact retained CL direction plus joint CL/MCL session-VWAP reclaim; count
-    both raw-aligned continuation and raw-opposed failed-auction branches before
-    any lifecycle outcome.
+    (`49463a21…`) closes all V43–V50 rejection geometry. V51 direct joint
+    session-VWAP reclaim was outcome-blind rejected at `1,340/1,350` annual
+    events and median/p95 `5/11`; receipt
+    `mcl_session_vwap_reclaim_census_rejection.json` (`74533bb2…`). V52
+    preregistration `mcl_first_session_reclaim_census_preregistration.json`
+    (`1a287a31…`) / evaluator `2d45ccaa…` freezes the semantic first reclaim per
+    session and retained direction. It must preserve `>160/year`, both
+    directions, `>=55%` active sessions, and natural median/p95/max `1–2/2/2`
+    in both periods before any lifecycle outcome.
     Missing July-2023–August-2024 remains a hard crown blocker; no quota, order,
     or capital authority.
 
@@ -1695,6 +1703,7 @@ and
 | E-434 | V48 lifecycle `1a846ffd…` proved a favorable first minute was late chase, not confirmation. Its `25` add-ons lost `-$135.00/-$185.00` stress, PF `.766/.696`, PnL/DD `-.503/-.606`, with absorption `-$50.92`, initiative failure `-$134.08`, up `-$205.84`, and only four positive months. Combined net/PF/PnL-DD and month breadth all fell below immutable V18; validation remained sealed. Trigger-geometry anatomy `de8dd5df…` examined only five natural completed-trigger families across the full discovery V43 cohort. The clean physical split was CL-minus-MCL basis change: `25` events where MCL moved farther in the proposed direction than CL made `+$898.00` stress, PF `3.943`, PnL/DD `5.699`, both directions positive; `21` unchanged-basis events made `+$276.08`; `23` CL-leading events lost `-$484.96`. Rejection receipt `mcl_joint_result_confirmation_portfolio_lifecycle_rejection.json` (`8acb869e…`). V49 preregistration `mcl_transport_lead_addon_census_preregistration.json` (`6c853668…`) / evaluator `e3129629…` freezes only the natural transport-leading sign on unchanged next-open entries. Discovery is explicitly outcome-exposed; only sealed-period count breadth may advance it to a separately preregistered validation lifecycle. Both periods must retain `>=20` events, both branches/directions/anchors/sides, and combined `>190/year`; no magnitude, geometry companion, outcome, order, or capital authority |
 | E-435 | outcome-blind V49 count `ace2681e…` showed transport-leading basis ownership repeats almost perfectly before sealed PnL opened. Discovery identity is `25` events (`25.02/year`) across `24` sessions, absorption/failure `21/4`, up/down `17/8`, Europe/US `12/13`, high/low `8/17`; combined cadence `192.13/year`. Validation count independently has `25` (`25.09/year`) across `25` sessions, `22/3`, `11/14`, `15/10`, `14/11`; immutable V18 raises combined cadence to `196.71/year`, median/p95/max `1/3/4`. Eighty events lacked the exact transport-leading sign. Receipt `mcl_transport_lead_addon_census_receipt.json` (`ef470349…`). V50 preregistration `mcl_transport_lead_validation_lifecycle_preregistration.json` (`83647cf1…`) / evaluator `e7d2b87c…` binds one honest transfer test: discovery is outcome-exposed reference only; the sealed validation year must independently pass positive add-on net/PF/PnL-DD/month/concentration/all-cohort gates and improve its immutable V18 slice under both costs. Only a validation pass may compute the full prefix, which must pass the identical gate. No parameter, outcome reuse, order, or capital authority |
 | E-436 | V50 sealed transfer `104f921a…` decisively rejected the visually stable transport-lead state: discovery `+$898.00` stress inverted to validation `-$587.00` over the same `25` events, PF `.283`, PnL/DD `-.553`, only five positive months, absorption/failure `-$412.44/-$174.56`, down/up `-$383.28/-$203.72`, and both anchors/sides negative. Combined validation fell from immutable V18's `+$1,280.58` stress / PF `1.342` / PnL-DD `1.387` to `+$693.58` / `1.152` / `.509`; full-prefix selection remained unopened. Receipt `mcl_transport_lead_validation_lifecycle_rejection.json` (`49463a21…`) closes V43–V50 rejection-add-on geometry and all basis/shape/regime rescue. V51 preregistration `mcl_session_vwap_reclaim_census_preregistration.json` (`c1d86abc…`) / evaluator `173fa743…` freezes a materially independent high-cadence oil state: exact V18 retained CL trend direction, causal cumulative Globex-session HLC3-volume VWAP per CL/MCL, and one completed joint adverse-to-favorable reclaim. Raw direction aligned with retained state labels acceptance continuation; raw opposition/absence labels failed-auction reclaim. Both periods must independently produce `>160` and `<=520/year`, both branches/directions, `>=45%` active sessions, median `1–3`, p95 `<=6`, max `<=10` before any outcome opens; no VWAP band, time, volume, ATR, quota, order, or capital authority |
+| E-437 | V51 outcome-blind census `f29cb9a1…` rejected direct joint session-VWAP reclaim before any return opened: discovery/validation produced `1,340/1,350` annual events, `96.1/94.9%` active sessions, median/p95/max `5/11/16` and `5/11/15`, far above the frozen `520` and density ceilings. Both directions were broad, proving a real contested-inventory state, but only `3/1` events coincided with a raw turn; raw absence between transitions cannot honestly define a failed-auction branch. Receipt `mcl_session_vwap_reclaim_census_rejection.json` (`74533bb2…`). V52 preregistration `mcl_first_session_reclaim_census_preregistration.json` (`1a287a31…`) / evaluator `2d45ccaa…` freezes a semantic owner, not a fitted cooldown: consume the chronologically first joint reclaim for each Globex-session and retained-direction identity; a genuine retained-state flip alone creates the second same-session auction right. Both periods must retain `>160` and `<=520/year`, `>=50` each direction, `>=55%` active sessions, and median/p95/max `1–2/2/2` before any lifecycle economics. No time, threshold, quota, outcome, order, or capital authority |
 
 ### Decision anchors
 

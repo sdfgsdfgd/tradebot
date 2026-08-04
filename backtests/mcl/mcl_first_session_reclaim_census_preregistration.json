@@ -1,0 +1,59 @@
+{
+  "schema": "mcl.first-session-direction-vwap-reclaim-census-preregistration.v1",
+  "registered_at_utc": "2026-08-04T01:06:33Z",
+  "authority": "outcome_blind_state_consumption_only_no_trade_outcomes_no_orders_no_capital",
+  "campaign": "mcl.two-speed-auction-relay.v52",
+  "hypothesis": "The first completed joint CL/MCL adverse-to-favorable session-VWAP reclaim in each retained-direction epoch resolves a contested oil auction. Later same-direction recrosses within that Globex session are already-consumed inventory churn. A retained-direction flip creates one new auction right, yielding naturally bounded one-to-two-event sessions without a daily quota.",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "source_v51_census_sha256": "f29cb9a169769ff9feb9c7eeb98336b068413ffc90944db65836e025a6be028e",
+    "v51_rejection_sha256": "74533bb2e39c4ef29970a06179aac00792966921648e1239eed3bb7e23d5ebe3",
+    "census_evaluator_path": "/tmp/mcl_stage52_first_session_reclaim_census.py",
+    "census_evaluator_sha256": "2d45ccaa06c85cde27dad3a74db0271acbf85def54d87c3a88990ddd5574cb1b"
+  },
+  "profile": {
+    "direction_owner": "exact unchanged V18 DirectionalImpulse breadth engine retained trend state on completed 5m CL",
+    "inventory_owner": "exact V51 causal cumulative HLC3-volume Globex-session VWAP independently for CL and matched MCL",
+    "trigger": "exact V51 completed joint adverse-to-favorable reclaim",
+    "consumption_identity": [
+      "canonical Globex trading session",
+      "retained trend direction"
+    ],
+    "consumption_law": "accept only the chronologically first trigger for each identity; later same-session same-direction triggers remain consumed regardless of position or outcome",
+    "natural_rearm": "new Globex session or a genuine retained-direction flip; never elapsed time, PnL, stop, or event count",
+    "projected_entry": "unchanged V51 next one-minute matched MCL open in the same contract and session outside maintenance"
+  },
+  "count_gate_per_period": {
+    "annualized_events": {
+      "exclusive_minimum": 160,
+      "inclusive_maximum": 520
+    },
+    "minimum_each_direction": 50,
+    "minimum_active_session_fraction": 0.55,
+    "session_distribution": {
+      "median_minimum": 1,
+      "median_maximum": 2,
+      "p95_maximum": 2,
+      "maximum": 2
+    }
+  },
+  "frozen_order": [
+    "load the exact V51 event identities without reading any forward outcome",
+    "sort only by projected entry timestamp",
+    "retain the first event for each session and retained-direction identity",
+    "count discovery and validation independently",
+    "advance only if both periods pass every cadence, direction, active-session, and density gate"
+  ],
+  "if_eligible": "Before opening outcomes, preregister one position lifecycle: enter at the frozen next-open MCL projection; retained-state flip always reduces risk; ordinary exit occurs on the first completed joint adverse VWAP close; maintenance, contract, or session discontinuity forces flat; a consumed same-direction identity cannot reenter until its natural rearm. Discovery must pass strict after-cost economics before sealed validation opens.",
+  "prohibitions": [
+    "no VWAP band, lookback, price source, direction-engine, ATR, coherence, state-age, time-of-day, volume, news, or threshold sweep",
+    "no daily quota, arbitrary cap, cooldown, timeout, stop, target, or PnL-dependent rearm",
+    "no second same-session same-direction entry after exit",
+    "no forward return, MFE, MAE, trade cost, validation outcome, order, capital, XSP, or Gold authority"
+  ],
+  "downstream_hold_even_on_pass": [
+    "missing July 2023 through August 2024 dated-contract history",
+    "unseen runtime parity and prospective signal tape",
+    "native MCL spread, liquidity, margin, commission, roll, preview, restart, reconciliation, shared-capital, and graduation proof"
+  ]
+}

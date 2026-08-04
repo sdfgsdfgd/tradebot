@@ -1,0 +1,44 @@
+{
+  "schema": "mcl.session-vwap-reclaim-census-rejection.v1",
+  "recorded_at_utc": "2026-08-04T01:06:33Z",
+  "authority": "outcome_blind_cadence_only_no_trade_outcomes_no_orders_no_capital",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "preregistration_sha256": "c1d86abcff7e21e4f901c18ff57badffdfc5e2b7d0e86145fe6fccf15a8ef68e",
+    "evaluator_sha256": "173fa7437ea95d39d852068fe1e0760be0480ad6d9f0ad1d5041ea57b853e5d7",
+    "result_sha256": "f29cb9a169769ff9feb9c7eeb98336b068413ffc90944db65836e025a6be028e"
+  },
+  "cadence": {
+    "discovery": {
+      "events": 1340,
+      "annualized": 1340.917808,
+      "active_session_fraction": 0.961240,
+      "median_per_active_session": 5,
+      "p95_per_active_session": 11,
+      "maximum_per_active_session": 16,
+      "up_down": [708, 632],
+      "raw_aligned_unavailable_or_opposed": [3, 1337]
+    },
+    "validation": {
+      "events": 1350,
+      "annualized": 1354.876380,
+      "active_session_fraction": 0.949416,
+      "median_per_active_session": 5,
+      "p95_per_active_session": 11,
+      "maximum_per_active_session": 15,
+      "up_down": [699, 651],
+      "raw_aligned_unavailable_or_opposed": [1, 1349]
+    }
+  },
+  "failed_gates": [
+    "annualized frequency exceeded the frozen inclusive maximum of 520 in both periods",
+    "median, p95, and maximum session density exceeded every frozen bound",
+    "the raw DirectionalImpulse turn is normally null between transitions, so its absence cannot honestly label a failed-auction branch"
+  ],
+  "finding": "A joint CL/MCL session-VWAP reclaim is a real contested-inventory state, but it recurs about five times per active session and cannot directly own entries. The retained trend state remains valid; repeated same-direction recrosses are auction churn, not independent opportunities. No trade return, MFE, MAE, cost, or validation outcome was opened.",
+  "preserved_seam": "Consume only the first joint reclaim for each Globex-session and retained-direction identity. A retained-direction flip creates a distinct second auction right; same-direction recrosses remain consumed until the next session. Count this semantic owner outcome-blind before freezing any lifecycle.",
+  "verdict": "REJECT_DIRECT_RECLAIM_PRESERVE_FIRST_SESSION_DIRECTION_CENSUS",
+  "forward_outcomes_opened": 0,
+  "validation_outcomes_opened": 0,
+  "submitted_orders": 0
+}
