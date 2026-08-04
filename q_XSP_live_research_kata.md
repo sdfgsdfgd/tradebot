@@ -760,8 +760,11 @@ transition through today’s close; no order will be forced merely to populate t
   and failure `29/24`. V40 remained positive at `+$947.24/+$521.24` stress over
   `213` but again failed PnL/DD (`.952/.453`); monotonic acceptance alone lost
   `-$443.80` stress. V41 preregistration `c12f0bda…` / evaluator `3f4ec9a3…`
-  count-tests one exact rejection-only relay: immediate absorption plus delayed
-  initiative failure, with continuation closed.
+  count-tested one exact rejection-only relay: immediate absorption plus delayed
+  initiative failure. It passed at `173.12/175.63` annualized, `53.1%/55.3%`
+  active sessions, median `1`, p95/max `2`, with both directions/anchors/sides.
+  V42 preregistration `66e33e4b…` / evaluator `2ee4a2e0…` freezes one exact
+  costed branch-state lifecycle; discovery alone decides whether validation opens.
   Rolls, costs, news authority, and live XSP/Gold owners remain unchanged.
 - `[PRESERVED RUNNER-UP]` **Tri-asset narrative-dispersion compression:** test
   whether convergence among easing-negative XSP pressure, weakening-positive
@@ -1198,8 +1201,13 @@ and stable bootstrap evidence. Neither may be refactored into looking mature.
     sealed. Receipt `mcl_two_step_opening_drive_lifecycle_rejection.json`
     (`390d0dd6…`). V41 preregistration
     `mcl_rejection_relay_census_preregistration.json` (`c12f0bda…`) / evaluator
-    `3f4ec9a3…` count-tests the exact absorption-plus-delayed-failure relay before
-    its combined PnL/DD or any validation outcome may open.
+    `3f4ec9a3…` count-tested the exact absorption-plus-delayed-failure relay. It
+    passed at `173.12/175.63` annualized, `53.1%/55.3%` active sessions, median
+    `1`, p95/max `2`, up/down `91/82` and `93/82`, Europe/US `87/86` and `83/92`.
+    Receipt `mcl_rejection_relay_census_receipt.json` (`ffdc9570…`). V42
+    preregistration `mcl_rejection_relay_lifecycle_preregistration.json`
+    (`66e33e4b…`) / evaluator `2ee4a2e0…` freezes one exact branch-state owner;
+    discovery PnL/DD is now permitted, validation only after every gate passes.
     Missing July-2023–August-2024 remains a hard crown blocker; no quota, order,
     or capital authority.
 
@@ -1552,6 +1560,7 @@ and
 | E-424 | V38 lifecycle `de77229b…` materially improved the family but rejected both owners before validation. Plain branch-state made `+$1,089.84` primary / `+$573.84` stress over `258`, PF `1.203/1.102`, DD `$1,119.84/$1,253.84`, PnL/DD `.973/.458`, only `7/6` positive months, and `39.43%` primary month concentration; exact failure-memory reduced it to `+$1,043.84/+$527.84`. Under stress, absorption made `+$866.12`, initiative failure `+$98.92`, and initiative acceptance lost `-$391.20`; Europe was `-$82.12` while US was `+$655.96`. Receipt `mcl_opening_drive_branch_maturation_lifecycle_rejection.json` (`6d7f7e6e…`) closes profit-memory/exit rescue while preserving the two-speed clock. V39 preregistration `mcl_two_step_opening_drive_census_preregistration.json` / evaluator `e9917fe5…` keeps absorption/failure unchanged and requires initiative acceptance on the first completed `5m` bar plus farther joint CL/MCL extension on the second; second-step CL effort is the primary profile, price-only the count fallback. No outcomes, news, order, capital, or XSP/Gold mutation |
 | E-425 | outcome-blind V39 count `ccf52fd2…` rejected its effort primary before PnL because only `19/14` initiative acceptances survived, below the frozen `20` floor. The price-only fallback then passed in frozen order: discovery `213` (`213.15/year`), `62.40%` active sessions, median/p95/max `1/2/2`, absorption/acceptance/failure `144/40/29`, up/down `115/98`, Europe/US `108/105`; validation count `204` (`204.74/year`), `63.04%` active, `151/29/24`, up/down `106/98`, Europe/US `98/106`. Zero outcomes opened. Receipt `mcl_two_step_opening_drive_census_receipt.json` (`e7ed8fc1…`). V40 preregistration `mcl_two_step_opening_drive_lifecycle_preregistration.json` / evaluator `e880e6e3…` binds the exact next-open MCL entries, anchor cutoffs, `$3.52/$5.52` costs, and one plain branch-state owner only. Discovery must pass every profitability/DD/month/concentration/cohort gate before validation opens. No news, order, capital, or XSP/Gold mutation |
 | E-426 | V40 lifecycle `9711eee8…` remained after-cost positive but rejected before validation: `213` trades made `+$947.24/+$521.24` stress, PF `1.202/1.106`, DD `$995.16/$1,150.48`, PnL/DD `.952/.453`, `7/7` positive months, and `42.90%` primary month concentration. Absorption made `+$866.12` stress, delayed failure `+$98.92`, but monotonic two-step acceptance lost `-$443.80`; up stress was only `+$5.20`, though both anchors/sides stayed positive. Receipt `mcl_two_step_opening_drive_lifecycle_rejection.json` (`390d0dd6…`) closes continuation, volume, inversion, and exit rescue. V41 preregistration `mcl_rejection_relay_census_preregistration.json` / evaluator `3f4ec9a3…` projects exactly immediate absorption plus selected two-bar initiative failure, with zero acceptance or replacement branch. Both periods must independently preserve `>160/year`, both directions/anchors/sides, and ordinary one-to-two event cadence before combined discovery PnL/DD or validation may open. No news, order, capital, or XSP/Gold mutation |
+| E-427 | outcome-blind V41 rejection-relay count `b92de419…` passed both periods: discovery `173` events (`173.12/year`), `53.10%` active sessions, median/p95/max `1/2/2`, absorption/failure `144/29`, up/down `91/82`, Europe/US `87/86`, high/low `82/91`; validation count `175` (`175.63/year`), `55.25%` active, `151/24`, up/down `93/82`, Europe/US `83/92`, high/low `82/93`. Zero outcomes opened. Receipt `mcl_rejection_relay_census_receipt.json` (`ffdc9570…`). V42 preregistration `mcl_rejection_relay_lifecycle_preregistration.json` / evaluator `2ee4a2e0…` binds those exact next-open MCL events, anchor cutoffs, `$3.52/$5.52` costs, and one branch-state owner with no continuation, stop, memory, or timeout. Discovery may now compute combined economics; validation remains sealed unless every discovery profitability/DD/month/concentration/cohort gate passes. No news, order, capital, or XSP/Gold mutation |
 
 ### Decision anchors
 

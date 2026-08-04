@@ -1,0 +1,71 @@
+{
+  "schema": "mcl.rejection-relay-lifecycle-preregistration.v1",
+  "registered_at_utc": "2026-08-04T00:10:30Z",
+  "authority": "research_only_no_orders_no_capital",
+  "campaign": "mcl.two-speed-auction-relay.v42",
+  "hypothesis": "The exact rejection-only relay can meet stability gates because immediate absorption and delayed initiative failure are independently positive discovery mechanisms whose combined cadence remains above 160 per year without weak continuation.",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "census_preregistration_sha256": "c12f0bda093ca06ba1735ddc120492e19469fb927a0f02187c7d09ca6b907c07",
+    "census_evaluator_sha256": "3f4ec9a30e44dabbee98d7108b9fd13a831699e8bb61c7db181e413c082aa4b9",
+    "census_result_sha256": "b92de419131f50176b1fd247448e8d301f3230775f946353e609bb364715960f",
+    "lifecycle_evaluator_path": "/tmp/mcl_stage42_rejection_relay_lifecycle.py",
+    "lifecycle_evaluator_sha256": "2ee4a2e0eb6865a14b4b85ba171ba85530af8abb86a0e573547dbf9c418f8fc0"
+  },
+  "sole_owner": "exact branch-state ownership to Europe 08:55 ET or US 10:25 ET cutoff",
+  "branches": [
+    "immediate opening-auction absorption",
+    "two-completed-five-minute initiative failure"
+  ],
+  "execution": {
+    "instrument": "matched-expiry MCL dated future",
+    "entry": "frozen next one-minute MCL open",
+    "multiplier": 100,
+    "primary_round_trip_cost_usd": 3.52,
+    "stress_round_trip_cost_usd": 5.52,
+    "contract_or_clock_discontinuity": "flatten at last valid matched-MCL close",
+    "next_anchor": "flatten incumbent at successor entry open before admission"
+  },
+  "discovery_gate": {
+    "annualized_trades": {
+      "exclusive_minimum": 160,
+      "inclusive_maximum": 360
+    },
+    "minimum_primary_profit_factor": 1.2,
+    "minimum_stress_profit_factor": 1.1,
+    "minimum_primary_pnl_to_intrabar_drawdown": 1.5,
+    "minimum_stress_pnl_to_intrabar_drawdown": 1.0,
+    "minimum_primary_positive_months": 8,
+    "minimum_stress_positive_months": 7,
+    "maximum_largest_positive_month_share": 0.3,
+    "cohorts": "both directions, both actual branches, both anchors, and both boundary sides positive under primary and stress costs"
+  },
+  "validation_law": {
+    "if_discovery_fails": "reject and leave validation unopened",
+    "if_discovery_passes": "open this exact owner only; validation must independently pass the discovery gate",
+    "full_period_extra_gate": {
+      "minimum_primary_profit_factor": 1.25,
+      "minimum_stress_profit_factor": 1.15,
+      "minimum_primary_pnl_to_intrabar_drawdown": 2.5,
+      "minimum_stress_pnl_to_intrabar_drawdown": 1.5,
+      "minimum_primary_positive_months": 18,
+      "minimum_stress_positive_months": 16,
+      "maximum_largest_positive_month_share": 0.2,
+      "all_costed_cohorts_positive": true
+    }
+  },
+  "controls": {
+    "same_holds_inverted_direction": "report only after discovery passes; never selectable"
+  },
+  "prohibitions": [
+    "no continuation branch",
+    "no alternate hold, stop, trail, timeout, or failure maturation",
+    "no branch, anchor, side, direction, month, or regime router",
+    "no news, order, or capital authority"
+  ],
+  "downstream_hold_even_on_pass": [
+    "missing July 2023 through August 2024 dated-contract history",
+    "unseen runtime parity and prospective signal tape",
+    "native MCL spread, liquidity, margin, commission, roll, preview, restart, reconciliation, shared-capital, and graduation proof"
+  ]
+}
