@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
@@ -20,6 +21,13 @@ from tradebot.research.mcl_live_transport import (
     build_mcl_live_selection,
     load_mcl_live_selection_from_mapping,
     mcl_source_snapshot,
+)
+from tradebot.research.mcl_profitability import (
+    mcl_live_evaluation_slots,
+    mcl_live_profitability_receipt,
+    mcl_market_open,
+    mcl_runtime_parity_graduation_gate,
+    normalize_mcl_risk,
 )
 
 
@@ -270,10 +278,17 @@ def test_mcl_actual_fill_risk_uses_failed_auction_memory_and_raw_cap() -> None:
     assert risk["position_from_fills"] == 1
     assert risk["mfe_usd"] == 50.0
     assert risk["profit_memory_stop"] == 80.125
+    assert risk["exit_triggers"] == ["failed_auction_profit_memory"]
     assert set(risk["safety_breaches"]) == {
-        "failed_auction_profit_memory",
         "raw_loss_cap",
+        "run_drawdown_limit_breached",
     }
+    assert risk["run_gross_usd"] == -310.0
+    assert risk["run_cost_usd"] == 1.52
+    assert risk["run_net_usd"] == -311.52
+    assert risk["drawdown_usd"] == 311.52
+    assert risk["fill_count"] == 1
+    assert risk["attribution_complete"] is True
 
 
 def test_mcl_live_worker_is_shared_locked_limit_only_and_maintenance_aware() -> None:
@@ -305,3 +320,195 @@ def test_mcl_live_binding_uses_the_one_durable_worker() -> None:
     assert binding.timer_unit == "tradebot-mcl-live.timer"
     assert binding.service_unit == "tradebot-mcl-live.service"
     assert binding.champion_track == "HF"
+
+
+def _profitability_risk(
+    *, net: float = 0.0, fills: int = 0, trades: int = 0
+) -> dict[str, object]:
+    return {
+        "valid": True,
+        "attribution_complete": True,
+        "position_from_fills": 0.0,
+        "run_realized_gross_usd": net,
+        "run_realized_cost_usd": 0.0,
+        "run_realized_net_usd": net,
+        "open_mark_gross_usd": 0.0,
+        "open_mark_cost_usd": 0.0,
+        "open_mark_net_usd": 0.0,
+        "run_gross_usd": net,
+        "run_cost_usd": 0.0,
+        "run_net_usd": net,
+        "peak_run_net_usd": max(0.0, net),
+        "drawdown_usd": max(0.0, -net),
+        "closed_trades": trades,
+        "gross_wins_usd": max(0.0, net),
+        "top_five_gross_wins_usd": max(0.0, net),
+        "fill_count": fills,
+        "exit_triggers": [],
+        "safety_breaches": [],
+    }
+
+
+def _profitability_state(
+    selected: dict[str, object],
+    evaluated: datetime,
+    *,
+    net: float = 0.0,
+    fills: int = 0,
+    trades: int = 0,
+) -> dict[str, object]:
+    recorded = evaluated + timedelta(seconds=10)
+    checkpoint = hashlib.sha256(evaluated.isoformat().encode()).hexdigest()
+    return {
+        "kind": "checkpoint",
+        "checkpoint_id": checkpoint,
+        "recorded_at_utc": recorded.isoformat(),
+        "evaluation_as_of_utc": recorded.isoformat(),
+        "strategy_id": selected["strategy_version"],
+        "strategy_version": MCL_LIVE_EXECUTION_VERSION,
+        "status": "EVALUATED",
+        "evidence": {
+            "selection_id": selected["selection_id"],
+            "phase": "STATE",
+            "submitted_orders": 0,
+            "plan": {"held_direction": None, "leg": None},
+            "broker_state": {"positions": [], "open_orders": []},
+            "risk_state": _profitability_risk(
+                net=net, fills=fills, trades=trades
+            ),
+        },
+    }
+
+
+def test_mcl_clock_owns_gth_and_excludes_daily_and_weekend_closures() -> None:
+    assert mcl_market_open("2026-08-03T20:59:00+00:00")
+    assert not mcl_market_open("2026-08-03T21:00:00+00:00")
+    assert not mcl_market_open("2026-08-02T21:59:00+00:00")
+    assert mcl_market_open("2026-08-02T22:00:00+00:00")
+    slots = mcl_live_evaluation_slots(
+        "2026-08-03T20:58:00+00:00", "2026-08-03T22:01:00+00:00"
+    )
+    assert [row.isoformat() for row in slots] == [
+        "2026-08-03T20:59:00+00:00",
+        "2026-08-03T22:00:00+00:00",
+        "2026-08-03T22:01:00+00:00",
+    ]
+
+
+def test_mcl_legacy_zero_prefix_normalizes_but_nonzero_history_cannot() -> None:
+    legacy = {
+        "schema": "mcl.two-speed-auction-risk-state.v1",
+        "position_from_fills": 0,
+        "open_exec_id": None,
+        "entry_time_utc": None,
+        "entry_price": None,
+        "run_realized_net_usd": 0.0,
+        "closed_trades": 0,
+        "unrealized_raw_usd": 0.0,
+        "fill_ledger_fingerprint": (
+            "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+        ),
+        "safety_breaches": [],
+    }
+    normalized = normalize_mcl_risk(legacy)
+    assert normalized["valid"] is True
+    assert normalized["run_net_usd"] == 0.0
+    assert normalized["fill_count"] == 0
+    with pytest.raises(ValueError, match="cannot be normalized"):
+        normalize_mcl_risk({**legacy, "position_from_fills": 1})
+
+
+def test_mcl_positive_24h_requires_complete_minutes_and_authentic_fill() -> None:
+    selected = _selection()
+    baseline = datetime(2026, 8, 4, 8, 32, tzinfo=timezone.utc)
+    end = baseline + timedelta(hours=24)
+    rows = [_profitability_state(selected, baseline)]
+    rows.extend(
+        _profitability_state(selected, slot, net=4.0, fills=2, trades=1)
+        for slot in mcl_live_evaluation_slots(baseline, end)
+    )
+    receipt = mcl_live_profitability_receipt(
+        rows,
+        selection=selected,
+        as_of=end + timedelta(seconds=55),
+    )
+    assert receipt["status"] == "ACTIVE"
+    assert receipt["milestones"]["24h"]["passed"] is True
+    assert receipt["milestones"]["48h"]["passed"] is False
+    assert receipt["economics"]["net_usd"] == 4.0
+    assert receipt["economics"]["fills"] == 2
+
+
+def test_mcl_runtime_gate_rehashes_the_selected_v18_owner() -> None:
+    passed = mcl_runtime_parity_graduation_gate(
+        selection=_selection(), repo_root=ROOT
+    )
+    assert passed["status"] == "PASS"
+    changed = _selection()
+    changed["evidence"]["lifecycle_parity"]["sha256"] = "0" * 64
+    rejected = mcl_runtime_parity_graduation_gate(
+        selection=changed, repo_root=ROOT
+    )
+    assert rejected["status"] == "INVALID"
+
+
+def test_mcl_cli_graduation_never_loads_broker_config(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from tradebot.research import mcl_live_cli
+
+    selected = _selection()
+    selection_path = tmp_path / "selection.json"
+    selection_path.write_text(json.dumps(selected), encoding="utf-8")
+    output = tmp_path / "graduation.json"
+    monkeypatch.setattr(mcl_live_cli, "load_live_capital_plan", lambda _path: {})
+    monkeypatch.setattr(
+        mcl_live_cli,
+        "load_allocated_live_selection",
+        lambda *_args, **_kwargs: (selected, selection_path, "0" * 64),
+    )
+    monkeypatch.setattr(
+        mcl_live_cli,
+        "LiveCalibrationLedger",
+        lambda _path: type("Ledger", (), {"records": lambda self: ()})(),
+    )
+    monkeypatch.setattr(
+        mcl_live_cli, "live_calibration_logical_prefix", lambda *_args, **_kwargs: ({}, ())
+    )
+    monkeypatch.setattr(
+        mcl_live_cli, "mcl_live_profitability_receipt", lambda *_args, **_kwargs: {}
+    )
+    monkeypatch.setattr(
+        mcl_live_cli, "mcl_live_graduation_inputs", lambda **_kwargs: {}
+    )
+    monkeypatch.setattr(
+        mcl_live_cli,
+        "reduce_live_graduation",
+        lambda **_kwargs: {"verdict": "HOLD"},
+    )
+    monkeypatch.setattr(
+        mcl_live_cli,
+        "publish_live_graduation_receipt",
+        lambda path, receipt: path.write_text(json.dumps(receipt)),
+    )
+    monkeypatch.setattr(
+        mcl_live_cli,
+        "load_config",
+        lambda: pytest.fail("graduation queried broker configuration"),
+    )
+    code = asyncio.run(
+        mcl_live_cli._main_async(
+            [
+                "--capital-plan",
+                str(tmp_path / "capital.json"),
+                "--graduation-target",
+                "24h",
+                "--graduation-cutoff",
+                "2026-08-04T10:00:00+00:00",
+                "--graduation-output",
+                str(output),
+            ]
+        )
+    )
+    assert code == 0
+    assert json.loads(output.read_text()) == {"verdict": "HOLD"}

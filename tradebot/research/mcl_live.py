@@ -24,6 +24,7 @@ from .mcl_live_transport import (
     MCL_LIVE_EXECUTION_SCHEMA,
     MCL_LIVE_EXECUTION_VERSION,
     MCL_LIVE_MAX_COMMISSION_USD,
+    MCL_LIVE_MAX_RUN_DRAWDOWN_USD,
     MCL_LIVE_ORDER_AUTHORITY,
     MCL_LIVE_ORDER_REF_PREFIX,
     MCL_LIVE_PLAN_SCHEMA,
@@ -151,8 +152,8 @@ def mcl_transport_risk_state(
     position = 0
     entry_price = entry_commission = entry_time = route = admission_id = None
     open_exec_id = None
-    realized_net = 0.0
-    closed_trades = 0
+    realized_gross = realized_cost = 0.0
+    closed_trade_gross: list[float] = []
     canonical = []
     for fill in sorted(
         fills.values(), key=lambda row: (str(row.get("time_utc") or ""), row["exec_id"])
@@ -189,14 +190,12 @@ def mcl_transport_risk_state(
                 raise ValueError("MCL opening fill lacks its V18 admission")
         elif position + signed == 0:
             assert entry_price is not None and entry_commission is not None
-            realized_net += (
-                position
-                * (price - entry_price)
-                * MCL_TWO_SPEED_AUCTION_MULTIPLIER
-                - entry_commission
-                - commission
+            gross = (
+                position * (price - entry_price) * MCL_TWO_SPEED_AUCTION_MULTIPLIER
             )
-            closed_trades += 1
+            realized_gross += gross
+            realized_cost += entry_commission + commission
+            closed_trade_gross.append(gross)
             position = 0
             entry_price = entry_commission = entry_time = route = admission_id = None
             open_exec_id = None
@@ -217,7 +216,8 @@ def mcl_transport_risk_state(
         mfe = _number(prior.get("mfe_usd"), name="MCL prior MFE")
         mae = _number(prior.get("mae_usd"), name="MCL prior MAE")
         marked_through = _utc(prior.get("marked_through_utc"))
-    breaches = []
+    safety_breaches = []
+    exit_triggers = []
     profit_memory_stop = None
     if position and entry_price is not None and entry_time is not None:
         for bar in sorted(completed_mcl_bars, key=lambda row: row.ts):
@@ -232,7 +232,7 @@ def mcl_transport_risk_state(
                 ) or (position < 0 and float(bar.high) >= stop)
                 if crossed:
                     profit_memory_stop = stop
-                    breaches.append("failed_auction_profit_memory")
+                    exit_triggers.append("failed_auction_profit_memory")
                     marked_through = bar_at
                     break
             favorable = (
@@ -250,16 +250,36 @@ def mcl_transport_risk_state(
             marked_through = bar_at
         unrealized = position * (mark - entry_price) * MCL_TWO_SPEED_AUCTION_MULTIPLIER
         if unrealized <= -MCL_LIVE_RAW_LOSS_CAP_USD:
-            breaches.append("raw_loss_cap")
+            safety_breaches.append("raw_loss_cap")
         if _weekly_flat_due(now):
-            breaches.append("weekly_closure")
+            exit_triggers.append("weekly_closure")
     else:
         unrealized = 0.0
         marked_through = None
+    open_cost = (
+        float(entry_commission or 0.0) + MCL_LIVE_MAX_COMMISSION_USD
+        if position
+        else 0.0
+    )
+    run_gross = realized_gross + unrealized
+    run_cost = realized_cost + open_cost
+    run_net = run_gross - run_cost
+    peak = max(
+        0.0,
+        run_net,
+        *(float(row.get("peak_run_net_usd") or 0.0) for row in prior_risks),
+    )
+    drawdown = peak - run_net
+    if drawdown > MCL_LIVE_MAX_RUN_DRAWDOWN_USD:
+        safety_breaches.append("run_drawdown_limit_breached")
+    wins = sorted((value for value in closed_trade_gross if value > 0), reverse=True)
     return {
         "schema": "mcl.two-speed-auction-risk-state.v1",
+        "valid": True,
+        "attribution_complete": True,
         "selection_id": selected["selection_id"],
         "observed_at_utc": now.isoformat(),
+        "as_of_utc": now.isoformat(),
         "position_from_fills": position,
         "open_exec_id": open_exec_id,
         "entry_time_utc": entry_time.isoformat() if entry_time is not None else None,
@@ -275,10 +295,24 @@ def mcl_transport_risk_state(
             marked_through.isoformat() if marked_through is not None else None
         ),
         "profit_memory_stop": profit_memory_stop,
-        "run_realized_net_usd": round(realized_net, 8),
-        "closed_trades": closed_trades,
+        "run_realized_gross_usd": round(realized_gross, 8),
+        "run_realized_cost_usd": round(realized_cost, 8),
+        "run_realized_net_usd": round(realized_gross - realized_cost, 8),
+        "open_mark_gross_usd": round(unrealized, 8),
+        "open_mark_cost_usd": round(open_cost, 8),
+        "open_mark_net_usd": round(unrealized - open_cost, 8),
+        "run_gross_usd": round(run_gross, 8),
+        "run_cost_usd": round(run_cost, 8),
+        "run_net_usd": round(run_net, 8),
+        "peak_run_net_usd": round(peak, 8),
+        "drawdown_usd": round(drawdown, 8),
+        "closed_trades": len(closed_trade_gross),
+        "gross_wins_usd": round(sum(wins), 8),
+        "top_five_gross_wins_usd": round(sum(wins[:5]), 8),
+        "fill_count": len(canonical),
         "fill_ledger_fingerprint": _identity(canonical),
-        "safety_breaches": sorted(set(breaches)),
+        "exit_triggers": sorted(set(exit_triggers)),
+        "safety_breaches": sorted(set(safety_breaches)),
     }
 
 
@@ -323,15 +357,24 @@ def project_mcl_transport_plan(
             raise ValueError("MCL source target identity is invalid")
     held_direction = 1 if held > 0 else -1 if held < 0 else None
     breaches = risk_state.get("safety_breaches")
+    exit_triggers = risk_state.get("exit_triggers", [])
     if not isinstance(breaches, Sequence) or isinstance(breaches, (str, bytes)):
         raise ValueError("MCL risk state is invalid")
+    if not isinstance(exit_triggers, Sequence) or isinstance(
+        exit_triggers, (str, bytes)
+    ):
+        raise ValueError("MCL risk exit triggers are invalid")
+    breaches = [str(value) for value in breaches]
+    exit_triggers = [str(value) for value in exit_triggers]
     action = reason = None
-    if held_direction is not None and breaches:
+    if held_direction is not None and (breaches or exit_triggers):
         action = "SELL" if held_direction > 0 else "BUY"
-        reason = str(breaches[0])
+        reason = (breaches or exit_triggers)[0]
     elif held_direction is not None and held_direction != target_direction:
         action = "SELL" if held_direction > 0 else "BUY"
         reason = "raw_turn_or_source_flatten"
+    elif held_direction is None and breaches:
+        reason = breaches[0]
     elif held_direction is None and target_direction is not None:
         assert target_at is not None and admission_id is not None
         due_at = target_at + timedelta(minutes=1)

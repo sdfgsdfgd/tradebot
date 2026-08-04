@@ -4,16 +4,22 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import tempfile
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 from .capital import validate_live_capital_plan
+from .capital_packages import load_allocated_live_selection
 
 
 PORTFOLIO_CAPITAL_STABILITY_SCHEMA = (
     "live.portfolio-capital-owner-stability-manifest.v1"
 )
 PORTFOLIO_PACKAGE_GENERATION_SCHEMA = "live.portfolio-package-generation.v1"
+PORTFOLIO_PACKAGE_GENERATION_DIRECTORY = Path(
+    "db/calibration/portfolio_generations"
+)
 
 
 def _sha256(path: Path) -> str:
@@ -36,6 +42,67 @@ def _gate(
         "reasons": sorted(set(reasons)),
         "evidence": dict(evidence),
     }
+
+
+def publish_portfolio_package_generation(
+    repository_root: Path, plan: Mapping[str, object]
+) -> tuple[str, str]:
+    """Publish the plan and every immutable selected run as one generation."""
+
+    validated = validate_live_capital_plan(plan)
+    if validated.get("schema") != "live.capital-plan.v3":
+        raise ValueError("portfolio package generation requires a v3 plan")
+    root = repository_root.resolve()
+    selections = {}
+    for sleeve in validated["sleeves"]:
+        sleeve_id = str(sleeve["sleeve_id"])
+        selected, path, digest = load_allocated_live_selection(
+            validated, sleeve_id=sleeve_id, repository_root=root
+        )
+        successor = selected.get("allocation_successor")
+        if (
+            not isinstance(successor, Mapping)
+            or successor.get("package_id") != sleeve["allocated_package_id"]
+        ):
+            raise ValueError("selected run and allocated package disagree")
+        selections[sleeve_id] = {
+            "selection_id": selected["selection_id"],
+            "path": path.relative_to(root).as_posix(),
+            "sha256": digest,
+        }
+    generation = {
+        "schema": PORTFOLIO_PACKAGE_GENERATION_SCHEMA,
+        "authority": "zero-transmission-successor-and-capital-switch",
+        "plan": validated,
+        "selections": selections,
+        "submitted_orders": 0,
+    }
+    payload = json.dumps(
+        generation, allow_nan=False, indent=2, sort_keys=True
+    ).encode() + b"\n"
+    relative = PORTFOLIO_PACKAGE_GENERATION_DIRECTORY / (
+        f"{validated['plan_id']}.json"
+    )
+    path = (root / relative).resolve()
+    if root not in path.parents:
+        raise ValueError("portfolio package generation escaped the repository")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as handle:
+            temporary = Path(handle.name)
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+        try:
+            os.link(temporary, path)
+        except FileExistsError:
+            if path.read_bytes() != payload:
+                raise ValueError("immutable portfolio package generation changed")
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+    return relative.as_posix(), hashlib.sha256(payload).hexdigest()
 
 
 def portfolio_capital_owner_stability_gate(

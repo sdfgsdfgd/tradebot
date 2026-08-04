@@ -16,7 +16,13 @@ from ..live.capital_packages import (
     load_allocated_live_selection,
     publish_immutable_live_selection,
 )
+from ..live.capital_stability import publish_portfolio_package_generation
 from .live_calibration import LiveCalibrationLedger
+from .live_graduation import (
+    live_calibration_logical_prefix,
+    publish_live_graduation_receipt,
+    reduce_live_graduation,
+)
 from .live_portfolio_packages import build_xsp_gold_mcl_portfolio_package_plan
 from .mcl_live import (
     advance_mcl_live_transport,
@@ -28,6 +34,10 @@ from .mcl_live_transport import (
     build_mcl_live_selection,
     capture_mcl_commissioning_preview,
     load_mcl_live_selection_from_mapping,
+)
+from .mcl_profitability import (
+    mcl_live_graduation_inputs,
+    mcl_live_profitability_receipt,
 )
 from .gold_live_transport import GOLD_LIVE_CAPITAL_SLEEVE
 from .xsp_live_transport import XSP_V3_TRANSPORT_CAPITAL_SLEEVE
@@ -102,6 +112,9 @@ async def _commission(
         created_at_utc=selected["selected_at_utc"],
         supersedes_plan_id=str(predecessor["plan_id"]),
     )
+    generation_path, generation_sha = publish_portfolio_package_generation(
+        repository_root, plan
+    )
     publish_live_capital_plan(capital_path, plan)
     receipt = {
         "schema": "mcl.two-speed-auction-live-commissioning.v1",
@@ -110,6 +123,8 @@ async def _commission(
         "selection_path": mcl_path,
         "selection_file_sha256": mcl_sha,
         "capital_plan_id": plan["plan_id"],
+        "portfolio_generation_path": generation_path,
+        "portfolio_generation_sha256": generation_sha,
         "supersedes_plan_id": predecessor["plan_id"],
         "preview_fingerprint": selected["allocation_successor"][
             "broker_preview_fingerprint"
@@ -140,12 +155,71 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
     )
     parser.add_argument("--commission", action="store_true")
     parser.add_argument("--observe-only", action="store_true")
+    parser.add_argument(
+        "--graduation-target", choices=("24h", "48h", "five-session")
+    )
+    parser.add_argument("--graduation-cutoff")
+    parser.add_argument(
+        "--graduation-capital-stability",
+        default="backtests/portfolio_capital_owner_stability_20260804_mcl.json",
+    )
+    parser.add_argument("--graduation-output")
     args = parser.parse_args(argv)
     if args.commission and args.observe_only:
         raise ValueError("commission and observe-only are separate phases")
     root = Path(__file__).resolve().parents[2]
     capital_path = Path(args.capital_plan).expanduser().resolve()
     ledger = LiveCalibrationLedger(Path(args.ledger).expanduser())
+    graduation_requested = any(
+        (args.graduation_target, args.graduation_cutoff, args.graduation_output)
+    )
+    if graduation_requested:
+        if args.commission or args.observe_only or not all(
+            (args.graduation_target, args.graduation_cutoff, args.graduation_output)
+        ):
+            raise ValueError(
+                "graduation requires target, cutoff, and output as a read-only phase"
+            )
+        cutoff = datetime.fromisoformat(
+            str(args.graduation_cutoff).replace("Z", "+00:00")
+        )
+        if cutoff.tzinfo is None:
+            raise ValueError("graduation cutoff must be timezone-aware")
+        plan = load_live_capital_plan(capital_path)
+        selection, selection_path, _ = load_allocated_live_selection(
+            plan,
+            sleeve_id=MCL_LIVE_CAPITAL_SLEEVE,
+            repository_root=root,
+        )
+        selected = load_mcl_live_selection_from_mapping(selection)
+        records = tuple(ledger.records())
+        _, graduation_records = live_calibration_logical_prefix(
+            records, cutoff_utc=cutoff
+        )
+        profitability = mcl_live_profitability_receipt(
+            graduation_records, selection=selected, as_of=cutoff
+        )
+        inputs = mcl_live_graduation_inputs(
+            selection=selected,
+            selection_path=selection_path,
+            records=records,
+            cutoff_utc=cutoff,
+            profitability_receipt=profitability,
+            capital_owner_stability_path=Path(
+                args.graduation_capital_stability
+            ).expanduser(),
+            repo_root=root,
+        )
+        output = reduce_live_graduation(
+            target_milestone=args.graduation_target,
+            cutoff_utc=cutoff,
+            **inputs,
+        )
+        publish_live_graduation_receipt(
+            Path(args.graduation_output).expanduser(), output
+        )
+        print(json.dumps(output, indent=2, sort_keys=True, allow_nan=False))
+        return 2 if output["verdict"] in {"QUARANTINE", "STOP"} else 0
     config = auxiliary_client_config(load_config(), 94)
     if config.readonly and not args.observe_only:
         raise ValueError("MCL commissioning/live worker requires broker what-if authority")

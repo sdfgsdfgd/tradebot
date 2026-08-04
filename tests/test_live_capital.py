@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from copy import deepcopy
 from pathlib import Path
 
@@ -20,6 +21,7 @@ from tradebot.live.capital_packages import (
     load_allocated_live_selection,
     publish_immutable_live_selection,
 )
+from tradebot.live.capital_stability import publish_portfolio_package_generation
 
 
 RUN_ID = "a" * 64
@@ -557,6 +559,48 @@ def test_v3_plan_is_the_atomic_pointer_to_immutable_selected_runs(
             sleeve_id="xsp-upro-spxu-rth-cash",
             repository_root=tmp_path,
         )
+
+
+def test_portfolio_generation_immutably_binds_every_selected_sleeve(
+    tmp_path: Path,
+) -> None:
+    sleeves = deepcopy(_package_sleeves())
+    preview = _package_plan(sleeves=sleeves)
+    packages = {
+        sleeve["sleeve_id"]: sleeve["allocated_package_id"]
+        for sleeve in preview["sleeves"]
+    }
+    for sleeve in sleeves:
+        selection = {
+            "selection_id": sleeve["run_id"],
+            "strategy_version": sleeve["strategy_id"],
+            "allocation_successor": {
+                "package_id": packages[sleeve["sleeve_id"]]
+            },
+        }
+        relative, digest = publish_immutable_live_selection(tmp_path, selection)
+        sleeve["selection_path"] = relative
+        sleeve["selection_file_sha256"] = digest
+    plan = _package_plan(sleeves=sleeves)
+
+    relative, digest = publish_portfolio_package_generation(tmp_path, plan)
+    path = tmp_path / relative
+    generation = json.loads(path.read_text())
+
+    assert publish_portfolio_package_generation(tmp_path, plan) == (
+        relative,
+        digest,
+    )
+    assert generation["plan"] == plan
+    assert set(generation["selections"]) == {
+        "gold-1oz-stage76-margin",
+        "xsp-upro-spxu-rth-cash",
+    }
+    assert generation["submitted_orders"] == 0
+
+    path.write_text("{}\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="generation changed"):
+        publish_portfolio_package_generation(tmp_path, plan)
 
 
 def test_v3_allows_both_entry_orderings_without_reusing_promised_resources() -> None:
