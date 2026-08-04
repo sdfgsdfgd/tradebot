@@ -1,0 +1,60 @@
+{
+  "schema": "mcl.phase-modular-impulse-lifecycle-preregistration.v1",
+  "recorded_at_utc": "2026-08-04T02:59:11Z",
+  "authority": "research_discovery_first_no_orders_no_capital",
+  "question": "Do either count-qualified phase-modular oil sensors own a naturally frequent, after-cost, directionally and temporally stable one-position lifecycle?",
+  "inputs": {
+    "manifest_path": "/var/tmp/mcl-v11-full-manifest-1085ce89.json",
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "census_preregistration_sha256": "1acc824190c93ac6c4e509bebac5438a04d4149d6cba968afd950e909a46d613",
+    "census_result_sha256": "02b21c267b55cb6df6af11e2d0fcc5d92c29fc70435ca78d69890ac7f86d72eb",
+    "census_receipt_sha256": "c414757d1bdcf339dda0cc679e4f4dc8b1e5f302197b2428566a703a076168fe",
+    "census_evaluator_sha256": "75c829a0553a0481e6354e84af5e407ddf8cef55507f1e554f5e2c3a8f970858",
+    "lifecycle_evaluator_path": "/tmp/mcl_stage68_phase_modular_impulse_lifecycle.py",
+    "lifecycle_evaluator_sha256": "b23bbb94fa862b7dcd0ea58164b3f201c10b6530ce496ed1440a8116aac59cf4"
+  },
+  "windows": {
+    "discovery": "2024-08-04T22:00:00Z/2025-08-04T22:00:00Z",
+    "validation": "2025-08-04T22:00:00Z/2026-08-04T22:00:00Z",
+    "validation_law": "unopened unless one frozen profile passes every discovery gate; selected discovery profile only"
+  },
+  "eligible_profiles": [
+    "one_step_slower",
+    "shared_macro_control"
+  ],
+  "rejected_control": "physical_phase_clocks is permanently count-rejected above 767 entries/year and cannot enter economics",
+  "lifecycle": {
+    "entry": "next matched-MCL minute open after completed phase-local CL turn, same-sign completed MCL parity, and resolved continuous macro state",
+    "acceptance": "phase-local turn agrees with continuous macro state",
+    "failure": "phase-local turn opposes continuous macro state",
+    "same_direction": "hold without re-entry or branch relabel",
+    "opposite_direction": "close and flip at the same next MCL open",
+    "contract_roll": "close old matched MCL at its final common close and remain flat until a fresh post-roll event",
+    "period_boundary": "flat",
+    "stop_target_timeout_profit_memory": null,
+    "multiplier": 100,
+    "primary_stress_round_trip_usd": [3.52, 5.52]
+  },
+  "discovery_and_validation_gates": {
+    "annualized_trades": ">160 and <=520",
+    "raw_primary_stress_net": "all positive",
+    "primary_stress_profit_factor": [1.20, 1.10],
+    "primary_stress_pnl_to_intrabar_drawdown": [1.50, 1.00],
+    "directions": "up and down each >=20 and stress-positive",
+    "branches": "acceptance and failure each >=20 and stress-positive",
+    "physical_phases": "Asia, Europe, and US each >=20 and stress-positive",
+    "lanes": "GTH and RTH each >=30 and stress-positive",
+    "temporal": ">=8 stress-positive months and >=3 of four stress-positive equal-duration quarters per year",
+    "concentration": "largest stress-positive month share <=35%",
+    "density": "median 1-3, p95 <=6, maximum <=10 trades per active session"
+  },
+  "selection_law": "Only profiles passing every discovery gate compete; select maximum stress PnL/DD, then stress PF, then stress net. If neither passes, validation remains sealed. If one passes, only its validation may open and must repeat every gate unchanged.",
+  "full_law": "Only independently passing discovery and validation ledgers may combine; require the same economic/cohort/density gates plus >=16 stress-positive months and >=6 of eight stress-positive equal-duration quarters. Missing July-2023-August-2024 still blocks a crown.",
+  "prohibitions": [
+    "no phase, horizon, state, retrace, parity, macro, branch, time, or profile change after this freeze",
+    "no stop, target, timeout, profit memory, sizing, quota, news, companion, or outcome rescue",
+    "no validation selection",
+    "no production refactor, order, or capital authority"
+  ],
+  "status": "FROZEN_BEFORE_DISCOVERY_LIFECYCLE_OUTCOMES"
+}

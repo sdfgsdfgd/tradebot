@@ -957,6 +957,14 @@ transition through today’s close; no order will be forced merely to populate t
   separate Asia/Europe/US impulse clocks plus one continuous macro state that
   labels agreement acceptance and opposition failure. Three physical/slow/
   shared-clock profiles face count-only proof before any lifecycle outcome.
+  V67 count `02b21c26…` advanced the one-step-slower and shared-clock profiles
+  at `403/376` and `354/311` independent-period entries with complete direction,
+  branch, phase, lane, and density breadth; the fast physical profile was
+  rejected near `770/year`. Receipt `c414757d…`. V68 preregistration
+  `3799e772…` / evaluator `b23bbb94…` freezes only those two profiles into one
+  exact next-open/hold/flip/flat-roll lifecycle under `$3.52/$5.52`; discovery
+  must pass every after-cost, cohort, temporal, concentration, and DD gate
+  before one selected validation ledger may open.
   Rolls, costs, news authority, and live XSP/Gold owners remain unchanged.
 - `[PRESERVED RUNNER-UP]` **Tri-asset narrative-dispersion compression:** test
   whether convergence among easing-negative XSP pressure, weakening-positive
@@ -1589,7 +1597,14 @@ and stable bootstrap evidence. Neither may be refactored into looking mature.
     V67 preregistration `mcl_phase_modular_impulse_census_preregistration.json`
     (`1acc8241…`) / evaluator `75c829a0…` count-tests three phase-local impulse
     architectures, exact matched-MCL parity, and continuous-macro acceptance/
-    failure labels across both periods before economics.
+    failure labels across both periods before economics. One-step-slower and
+    shared clocks passed at `403/376` and `354/311` entries; the physical-fast
+    control failed near `770/year`. Receipt
+    `mcl_phase_modular_impulse_census_receipt.json` (`c414757d…`). V68
+    preregistration `mcl_phase_modular_impulse_lifecycle_preregistration.json`
+    (`3799e772…`) / evaluator `b23bbb94…` freezes the two eligible profiles,
+    exact next-open/hold/flip/flat-roll economics, and strict discovery-before-
+    validation gates with no risk knob.
     Missing July-2023–August-2024 remains a hard crown blocker; no quota, order,
     or capital authority.
 
@@ -1969,6 +1984,7 @@ and
 | E-451 | V65 preregistration `mcl_prior_globex_regime_router_census_preregistration.json` (`a4c70f4f…`) / evaluator `83ee2b37…` freezes one count-only causal long-session test before observing its event counts. Exact v9 `retrace2/state24` CL turns plus same-sign matched-MCL parity form the raw event. Context uses `94` strictly prior finalized CL Globex sessions and the existing centralized `5/10/21/42/63/84` return/velocity/acceleration/TR law, never current-session data or XSP's session/admission policy. Three categorical profiles are fixed: 3-of-4 majority over `5/21/63/84`, `5/21` consensus, and `63/84` consensus; consensus opposition routes a failed-auction fade, otherwise raw acceptance survives. Both periods must independently retain `>160–520/year`, `>=25` each direction, `>=20` each branch/lane, six masks, and median/p95/max `1–3/<=6/<=10` before any trade outcome. Missing first challenge year, production extraction, news, order, and capital authority remain blocked |
 | E-452 | V65 count `88031911…` rejected all three context-owned direction profiles before any PnL. Of `1,493` raw turns, `481` failed matched-MCL parity, `198` were context-underwarm, and `814` were eligible. Four-horizon majority collapsed to `52/91` entries (`82.72/91.59/year`) with only `10/7` fades; `5/21` consensus reached `99/137` (`157.48/137.89`) with `10/12` fades; `63/84` consensus made `70/83` (`111.35/83.54`) with `9/3` fades. Density and direction breadth were generally healthy, proving persistence—not noise—caused the failure. Receipt `mcl_prior_globex_regime_router_census_rejection.json` (`552d7f92…`) closes direct vote/pair routing and threshold rescue. V66 preregistration `mcl_prior_globex_context_financing_anatomy_preregistration.json` (`8e9fcd7a…`) / evaluator `d6c6001e…` keeps raw direction and exact next-open/flip/flat-roll lifecycle, opens discovery economics only across predefined context mask/votes/pairs/transition/TR/velocity/acceleration/gap/damage categories, and exposes validation counts only. A successor needs `>=60` discovery trades and validation entries, both directions/lanes, six months, positive stress net, PF `>=1.10`, PnL/DD `>=1.00`, and `<=40%` concentration; at most one relation may seed a separate count census. No cross-field search, continuous threshold, outcome rescue, order, or capital authority |
 | E-453 | V66 anatomy `a9e932b3…` found no lawful long-context permission successor. The unchanged raw-turn/flat-roll discovery made `251` trades and lost `-$1,033` gross, `-$1,916.52/-$2,418.52` primary/stress, PF `.810/.767`, with both directions and seven of nine months negative; validation contributed `373` counts and no outcomes. Strongest `tr_phase=low_down` made `+$678.04` stress, PF `1.549`, PnL/DD `2.079`, but had only `48` discovery trades/five positive months and up net `+$1`; direction-vote zero and acceleration-vote four were also underpowered/directionally asymmetric. Frozen natural-union audit `4aa0f4ca…` found zero eligible unions: TR-down made `+$244.20/90` but PF `1.088`, PnL/DD `.434`, up `-$54.92`; acceleration 3+4 made `+$448.36/107` but PnL/DD `.404`, up `-$306.12`. Rejection receipt `mcl_prior_globex_context_financing_anatomy_rejection.json` (`80a3581e…`) closes long-context permission while preserving low/falling TR prospectively. V67 preregistration `mcl_phase_modular_impulse_census_preregistration.json` (`1acc8241…`) / evaluator `75c829a0…` freezes three count-only phase-modular sensors: physical Asia/Europe/US clocks, one-step-slower clocks, and a shared-macro control. Phase-local turns require matched-MCL parity; continuous macro agreement labels acceptance and opposition labels failure. Both periods need `160–520/year`, `>=40` each direction, `>=20` each branch/phase, `>=30` each lane, and natural density before any outcomes. No phase/horizon/state/retrace/score/time sweep, validation PnL, order, or capital authority |
+| E-454 | V67 outcome-blind count `02b21c26…` produced the first new high-cadence architecture with complete independent-period breadth. One-step-slower Asia/Europe/US clocks retained `403/376` entries (`403.28/377.36/year`), down/up `202/201` and `189/187`, acceptance/failure `137/266` and `131/245`, phases `32/137/234` and `35/118/223`, GTH/RTH `201/202` and `187/189`, density `2/4/6` in both years. Shared `30/60/120/240m` clocks retained `354/311` (`354.24/312.12/year`), balanced directions, branches `109/245` and `96/215`, all phases/lanes, density `2/3/4`. Fast physical clocks were rejected at `775/765` entries near `770/year`, not outcome-rescued. Receipt `mcl_phase_modular_impulse_census_receipt.json` (`c414757d…`). V68 preregistration `mcl_phase_modular_impulse_lifecycle_preregistration.json` (`3799e772…`) / evaluator `b23bbb94…` freezes only the two eligible profiles: next-open matched MCL, one position across phases, same-direction hold, opposite turn flip, roll/period flat, no stop/target/timeout/profit memory. Discovery needs positive raw/primary/stress, PF `1.20/1.10`, PnL/DD `1.50/1.00`, positive directions/branches/phases/lanes, 8 months, 3 quarters, <=35% concentration, and frozen cadence/density. Only a complete discovery passer may open selected validation; no order or capital authority |
 
 ### Decision anchors
 
