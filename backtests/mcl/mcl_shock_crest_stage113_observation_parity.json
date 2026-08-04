@@ -4,7 +4,7 @@
   "actual_sha256": "a004b91f692b1fc35dda823c95fc22f61cba7c95507ea16eb4e23d37aa63099f",
   "authority": "architecture_parity_only_no_outcomes_no_orders_no_capital",
   "bar_snapshot_sha256": "0cf0996d83d20e8c3e7fbac1e750e33092b784b0bf91e789e5fd69a78b7ea865",
-  "evidence_owner_sha256": "dc95127cd1e07ac44c9570188c546e2962a64ea69155239252733f577c84958b",
+  "evidence_owner_sha256": "f435f744fb7db453230300685675122885e4277d0517cbb2f1ce15909088f803",
   "exact_observation_parity": true,
   "expected_observations": 2167,
   "expected_result_sha256": "f5c9568fa6dce9f861d1d20e9fcf722e217a0056018d575aff2bf23051146e0c",

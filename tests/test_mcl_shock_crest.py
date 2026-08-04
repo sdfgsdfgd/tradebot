@@ -25,6 +25,7 @@ from tradebot.research.mcl_shock_crest import (
     MclShockCrestPolicy,
     MclShockObservation,
 )
+from tradebot.research.mcl_shock_evidence import _slow_context
 from tradebot.research.mcl_minute_shock import MclMinuteShockEngine, MclShockMinute
 
 
@@ -443,7 +444,7 @@ def test_stage113_generation_binds_one_shared_observer_service() -> None:
     ).read_text()
 
     assert generation["generation_id"] == (
-        "5305c37a169dc09228aaaf36f0c2f094d2aa2eb46a0104cc02ab810fd1670d29"
+        "4199c1329d5726489f1c5052ec0c053f80710a24dac44875bb203028518a8d23"
     )
     assert generation["frozen_levels"] == {
         "attention": 5.0,
@@ -500,3 +501,21 @@ def test_stage113_unscheduled_gap_resets_at_first_missing_minute() -> None:
             "reasons": ["unscheduled_minute_gap"],
         }
     ]
+
+
+def test_stage113_slow_clock_never_bridges_maintenance() -> None:
+    maintenance = datetime(2026, 8, 4, 21, 0, tzinfo=timezone.utc)
+    stamps = tuple(
+        maintenance - timedelta(minutes=index) for index in range(17, -1, -1)
+    ) + (maintenance + timedelta(hours=1, minutes=1),)
+    bars = _reset_bars(stamps)
+
+    context = _slow_context(
+        bars,
+        {symbol: sorted(bars[symbol]) for symbol in ("CL", "MCL")},
+        symbol="MCL",
+        when=maintenance + timedelta(hours=1, minutes=1, seconds=15),
+        price=80.0,
+    )
+
+    assert context is None

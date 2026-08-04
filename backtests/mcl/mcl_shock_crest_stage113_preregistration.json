@@ -1,6 +1,6 @@
 {
   "schema": "mcl.shock-crest-accumulator-generation.v1",
-  "generation_id": "5305c37a169dc09228aaaf36f0c2f094d2aa2eb46a0104cc02ab810fd1670d29",
+  "generation_id": "4199c1329d5726489f1c5052ec0c053f80710a24dac44875bb203028518a8d23",
   "registered_at_utc": "2026-08-04T21:11:52.159396+00:00",
   "eligible_start_utc": "2026-08-04T21:11:52.159396+00:00",
   "authority": "prospective_morphology_only_no_outcomes_no_orders_no_capital",
@@ -16,7 +16,9 @@
     "recorded_before_first_eligible_observation": true,
     "defect": "The initial replay window could discard an unclosed pre-maintenance episode and place a generic gap reset at the first returning bar, one minute after a fresh reopen episode could begin.",
     "correction": "Replay the preceding session, close at the known 17:00 ET maintenance boundary, and place unscheduled-gap resets at the first missing minute. Thresholds, morphology algebra, cohort law, outcomes, and live authority are unchanged.",
-    "evidence": "Two exact reset-clock tests pass and the frozen 2,167-observation payload remains byte-identical at a004b91f."
+    "slow_clock_defect": "Intraday 15m, 30m, and 240m labels could consume real finalized bars from both sides of a maintenance or data gap and thereby misstate trading-bar count as elapsed clock time.",
+    "slow_clock_correction": "Require contiguous finalized-minute tails for every intraday slow clock; retain the strictly prior five-session context as an explicitly session-based clock.",
+    "evidence": "Three exact reset/clock tests pass and the frozen 2,167-observation payload remains byte-identical at a004b91f."
   },
   "frozen_levels": {
     "attention": 5.0,
@@ -65,7 +67,7 @@
     },
     "evidence_owner": {
       "path": "tradebot/research/mcl_shock_evidence.py",
-      "sha256": "dc95127cd1e07ac44c9570188c546e2962a64ea69155239252733f577c84958b"
+      "sha256": "f435f744fb7db453230300685675122885e4277d0517cbb2f1ce15909088f803"
     },
     "seconds_state_owner": {
       "path": "tradebot/research/mcl_shock_crest.py",
@@ -105,7 +107,7 @@
     },
     "observation_owner_parity": {
       "path": "backtests/mcl/mcl_shock_crest_stage113_observation_parity.json",
-      "sha256": "9ca9c3d9eca64188f83588f732093ffb1ffed071ac10d0e03a8bd7c22864143e"
+      "sha256": "b900b86e49dbdefa006fe718a8966aad4ed69dbfc244f55d1e6d8ac425d88376"
     },
     "shared_predictive_service": {
       "path": "deploy/systemd/tradebot-mcl-predictive-onset.service",

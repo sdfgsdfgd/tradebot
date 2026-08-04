@@ -119,6 +119,15 @@ def _slope(values: Sequence[float], bars: int, end: int = 0) -> float:
     return 100.0 * ((values[stop - 1] / values[start]) - 1.0) / bars
 
 
+def _contiguous_tail(values: Sequence[datetime]) -> list[datetime]:
+    if not values:
+        return []
+    start = len(values) - 1
+    while start > 0 and values[start] - values[start - 1] == timedelta(minutes=1):
+        start -= 1
+    return list(values[start:])
+
+
 def _slow_context(
     maps: Mapping[str, Mapping[datetime, OhlcvBar]],
     stamps: Mapping[str, Sequence[datetime]],
@@ -130,13 +139,18 @@ def _slow_context(
     minute = when.replace(second=0, microsecond=0)
     values = stamps[symbol]
     index = bisect_right(values, minute)
+    selected = values[max(0, index - 18):index]
+    if (
+        len(selected) < 18
+        or minute - selected[-1] > timedelta(minutes=1)
+        or len(_contiguous_tail(selected)) != len(selected)
+    ):
+        return None
     closes = [
         float(maps[symbol][stamp].close)
-        for stamp in values[max(0, index - 18):index]
+        for stamp in selected
     ]
     closes.append(float(price))
-    if len(closes) < 18:
-        return None
     current = _slope(closes, 15)
     previous = _slope(closes, 15, -1)
     velocity = current - previous
@@ -265,9 +279,10 @@ def project_mcl_shock_cross_scale(
     minute = when.replace(second=0, microsecond=0)
     common = sorted(set(bars["CL"]) & set(bars["MCL"]))
     selected = common[:bisect_right(common, minute)]
+    contiguous = _contiguous_tail(selected)
     books = {}
     for symbol in ("CL", "MCL"):
-        values = [float(bars[symbol][stamp].close) for stamp in selected]
+        values = [float(bars[symbol][stamp].close) for stamp in contiguous]
         slope = velocity = acceleration = None
         if len(values) >= 243:
             slope = _slope(values, 240)
@@ -276,7 +291,7 @@ def project_mcl_shock_cross_scale(
             acceleration = velocity - (previous - _slope(values, 240, -2))
         ranges = [
             _true_range(bars[symbol][right], float(bars[symbol][left].close))
-            for left, right in zip(selected, selected[1:])
+            for left, right in zip(contiguous, contiguous[1:])
         ]
         tr_velocity = tr_acceleration = None
         if len(ranges) >= 720:
@@ -299,9 +314,9 @@ def project_mcl_shock_cross_scale(
             ),
         }
     basis = None
-    if len(selected) >= 32:
-        cl = [float(bars["CL"][stamp].close) for stamp in selected]
-        mcl = [float(bars["MCL"][stamp].close) for stamp in selected]
+    if len(contiguous) >= 32:
+        cl = [float(bars["CL"][stamp].close) for stamp in contiguous]
+        mcl = [float(bars["MCL"][stamp].close) for stamp in contiguous]
         current = 100.0 * ((mcl[-1] / mcl[-31]) - (cl[-1] / cl[-31]))
         previous = 100.0 * ((mcl[-2] / mcl[-32]) - (cl[-2] / cl[-32]))
         basis = {
@@ -336,7 +351,7 @@ def project_mcl_shock_cross_scale(
             "median_minute_tr": median(ranges) if ranges else None,
         }
     return {
-        "clock": "completed_minute_rolling_240m_and_prior_five_sessions",
+        "clock": "contiguous_completed_minute_rolling_240m_and_prior_five_sessions",
         "books": books,
         "basis": basis,
         "weekly_prior": weekly,
