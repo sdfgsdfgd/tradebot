@@ -1,0 +1,64 @@
+{
+  "schema": "mcl.predictive-velocity-jerk-stage89-preregistration.v1",
+  "frozen_at_utc": "2026-08-04T06:49:20Z",
+  "eligible_treatment_start_utc": "2026-08-04T06:55:00+00:00",
+  "authority": "prospective_derived_morphology_only_no_outcomes_no_orders_no_capital",
+  "campaign": "mcl.two-speed-auction-relay.v89",
+  "candidate": "MCL V18 Cross-Book Velocity-Jerk Handoff",
+  "hypothesis": "A fast authentic onset is distinguished by the ordered rise in directional microprice slope-velocity, not its absolute speed: CL jerk becomes aligned first, MCL jerk accepts, and TR/quote activity propagates without a contemporaneous spread-liquidity failure. Fake turns exhibit missing handoff, MCL-first transport noise, alternating jerk, or post-trigger collapse.",
+  "immutable_inputs": {
+    "stage88_preregistration_sha256": "cc694029267a5024b42eab5c4e8086a1c771aa4032a3961d3862bfb4e78f3bec",
+    "event_owner_sha256": "71373f19591486ce4fe8f2d8d9d29ae31b9f37dddd7e40d5ccef0ed812390b3f",
+    "v18_owner_sha256": "0a8d182c7a437c918fe24f8d5775a14192b55bf0791adeb28de582bec7f66b7b",
+    "generation_sha256": "b3805c9f95713a13c26cb0ada08dc043f00069f42177212d3c575abe28c3ee7f",
+    "service_invocation_id": "60d5377f917c4edaa980b3aed89bf9e8"
+  },
+  "frozen_interval_order": [
+    "closing_baseline_60_30s",
+    "closing_acceleration_30_15s",
+    "closing_commitment_15_5s",
+    "closing_trigger_5_0s",
+    "spark_0_5s",
+    "acceptance_5_15s",
+    "propagation_15_30s",
+    "persistence_30_60s"
+  ],
+  "exact_derived_law": {
+    "directional_velocity": "the Stage-88 direction-signed microprice slope-velocity for one symbol and interval",
+    "velocity_jerk": "current interval directional velocity minus the immediately preceding interval directional velocity",
+    "tr_acceleration": "current interval microprice-TR velocity minus the immediately preceding interval microprice-TR velocity",
+    "quote_jerk": "current interval quote-intensity acceleration minus the immediately preceding interval quote-intensity acceleration",
+    "spread_failure": "spread elasticity becomes positive while directional velocity-jerk is non-positive",
+    "first_alignment_interval": "the first post-baseline interval with positive direction-signed displacement and positive direction-signed slope-velocity; missing evidence remains unresolved",
+    "handoff": "CL_LEADS when CL aligns in an earlier interval than MCL; SAME_INTERVAL when equal; MCL_LEADS when MCL aligns first; UNRESOLVED otherwise",
+    "sequence_shape": "retain every jerk/TR/quote sign in frozen interval order; no magnitude threshold, score, union, or winner"
+  },
+  "categorical_hypotheses": {
+    "ORDERED_IGNITION": "CL_LEADS or SAME_INTERVAL, non-negative MCL acceptance jerk, no trigger-to-acceptance spread failure, and no directional sign reversal through propagation",
+    "TRANSPORT_REFUSAL": "CL aligns but MCL remains unresolved or becomes adverse through acceptance",
+    "TRANSPORT_NOISE": "MCL_LEADS before any CL alignment",
+    "WHIPSAW": "directional velocity-jerk alternates sign across trigger, spark, and acceptance",
+    "EXHAUSTION": "closing trigger is aligned but spark or acceptance jerk collapses while TR/spread expands"
+  },
+  "count_gate": {
+    "minimum_complete_raw_turns": 30,
+    "minimum_each_raw_direction": 10,
+    "minimum_admitted_turns": 20,
+    "minimum_each_admitted_route": 5,
+    "minimum_non_unresolved_handoffs": 20,
+    "minimum_repeated_occurrences_per_actionable_shape": 5
+  },
+  "future_action_boundary": {
+    "current": "derive and count shapes only",
+    "after_count_pass": "freeze matched controls and economic settlement before any chase, maturation, or fake-rejection action",
+    "never": [
+      "submit before completed V18 direction",
+      "threshold-mine speed magnitudes",
+      "invent direction or suppress risk reduction",
+      "infer depth, queue priority, identified cancellation, or colocated HFT",
+      "change order, sizing, capital, or crown authority from count morphology"
+    ]
+  },
+  "outcomes_exposed": false,
+  "submitted_orders": 0
+}
