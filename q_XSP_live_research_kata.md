@@ -1038,8 +1038,15 @@ transition through today’s close; no order will be forced merely to populate t
   `opposition_surrendered` (opposed to aligned). It may only shorten at the next
   minute; it cannot change direction, suppress, reverse, add, or re-enter. Both
   independent periods must pass transition, direction, branch, lane, ownership,
-  meaningful-lead, cadence, and density floors before any outcome opens. Rolls,
-  costs, news authority, and live XSP/Gold owners remain unchanged.
+  meaningful-lead, cadence, and density floors before any outcome opens. V75
+  count `2dd0014e…` rejected before outcomes: all gates passed except the frozen
+  >=8/period `opposition_surrendered` floor, which had only `7/6`; financing loss
+  was broad at `29/20`, total transitions `36/26`, and median original-exit lead
+  remained `515/380m`. Receipt
+  `mcl_event_time_slow_epoch_surrender_census_rejection.json` (`1227ca61…`)
+  closes threshold
+  relaxation, one-type subset rescue, and slow-flip exit tuning. Rolls, costs,
+  news authority, and live XSP/Gold owners remain unchanged.
 - `[PRESERVED RUNNER-UP]` **Tri-asset narrative-dispersion compression:** test
   whether convergence among easing-negative XSP pressure, weakening-positive
   MCL pressure, and weakly reversing-positive Gold pressure predicts
@@ -1739,7 +1746,12 @@ and stable bootstrap evidence. Neither may be refactored into looking mature.
     (`5656b7ff…`) / evaluator `da4435df…` freezes exactly two first-turn labels:
     aligned-to-opposed financing loss and opposed-to-aligned surrender. It keeps
     every V18 admission/direction and can only shorten, never reverse or re-enter;
-    both periods face count/breadth/lead/cadence gates before any PnL.
+    both periods face count/breadth/lead/cadence gates before any PnL. V75 count
+    `2dd0014e…` rejected without outcomes: financing loss had `29/20` events, but
+    opposition surrender had only `7/6<8`; every other gate passed. Receipt
+    `mcl_event_time_slow_epoch_surrender_census_rejection.json` (`1227ca61…`)
+    closes a
+    one-type subset, floor relaxation, and slow-flip timing rescue.
     Missing July-2023–August-2024 remains a hard crown blocker; no quota, order,
     or capital authority.
 
@@ -2133,6 +2145,7 @@ and
 | E-465 | V73 event-time count `511ac3b8…` passed every frozen law with zero outcomes exposed. Exact V18 identity/cadence stayed `167/171` (`167.11/171.62/year`); slow readiness rose to `99.4%/100%` without inserted bars; fast transport-owned remained `38/33`; mature handoff expanded to `51/56` with down/up `24/27` and `31/25`, acceptance/failure `12/39` and `9/47`, GTH/RTH `39/12` and `39/17`; projected directions were `82/85` and `71/100`; density stayed `1/2/3` and `1/3/3`. Receipt `mcl_event_time_roll_neutral_handoff_census_receipt.json` (`9a38ca43…`). V74 preregistration `mcl_event_time_roll_neutral_handoff_lifecycle_preregistration.json` (`27345bc1…`) / evaluator `85904f6f…` freezes unchanged V18 control and one exact candidate: every V18 admission executes next matched-MCL open; only mature handoff changes direction; every V18 raw turn/roll/period boundary flattens; unchanged failure positions retain exact `0.5%/25%` profit memory but handoffs inherit none; minute MFE/MAE and `$3.52/$5.52` remain exact. Candidate discovery must pass absolute stability and improve V18 net >=5% without lower PF/PnL-DD or higher DD before validation opens. Missing first challenge year remains a crown blocker; no sweep, news, order, or capital authority |
 | E-466 | V74 lifecycle `dd1669b0…` rejected slow-direction substitution in discovery with exact action identity and unchanged-V18 parity; validation remained sealed. V18 control made `+$1,263.91/+$929.91` primary/stress, PF `1.293`, DD `$501.64`, while the candidate made `-$326.84/-$660.84`, PF `.849`, DD `$1,118.55`. The decisive attribution is causal and categorical: the exact `51` mature slow-opposition admissions made `+$283.23` stress when V18 remained contrarian but `-$1,307.52` when slow direction took ownership, a `-$1,590.75` delta; GTH moved from `+$471.58` to `-$1,456.42`. Receipt `mcl_event_time_roll_neutral_handoff_lifecycle_rejection.json` (`a9403baf…`) closes slow takeover and static multitimeframe consensus. New architectural law: preserve V18's noisy high-energy admissions and direction; independent slower state may govern only permission, dwell, or surrender after an outcome-blind transition census. Missing first challenge year, order, capital, XSP, Gold, and news authority remain unchanged |
 | E-467 | V75 preregistration `mcl_event_time_slow_epoch_surrender_census_preregistration.json` (`5656b7ff…`) / evaluator `da4435df…` freezes a materially distinct lifecycle sensor before counts. Every exact V18 admission, direction, branch, next-minute entry, raw-turn/roll/period boundary, and natural density remains. A ready event-time slow owner is labeled aligned or opposed at entry; its first completed-bar flip while the V18 position is still open becomes `financing_lost` or `opposition_surrendered`. The future candidate may only exit at the next matched-MCL minute; it cannot suppress, reverse, add, re-enter, or inherit slow direction. Discovery and validation-count must independently retain `160–520/year`, >=95% readiness, `20–100` transitions, both types/directions/branches/lanes/entry ownership, >=30m meaningful lead, and unchanged density before any PnL opens. No transition subset, delay, horizon, state, price, indicator, cost, news, quota, order, or capital sweep |
+| E-468 | V75 count `2dd0014e…` rejected the symmetric slow-epoch exit before any PnL/MFE/MAE opened. Exact V18 identity/cadence remained `167/171`; readiness was `99.4%/100%`; total transitions were `36/26`; directions, branches, GTH/RTH, aligned/opposed ownership, >=30m lead, and density all passed. Financing loss was broad at `29/20`, but the separately required opposition-surrender cohort had only `7/6<8`; median transition-to-original-exit lead was still `515/380m`. Receipt `mcl_event_time_slow_epoch_surrender_census_rejection.json` (`1227ca61…`) closes floor relaxation, financing-only subset rescue, transition delay/persistence/age/horizon tuning, and slow-flip exit economics. The asymmetry is evidence, not authority: preserve V18 unchanged and seek a materially distinct causal state owner. Orders/capital and live XSP/Gold/news remain unchanged |
 
 ### Decision anchors
 

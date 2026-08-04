@@ -1,0 +1,75 @@
+{
+  "schema": "mcl.event-time-slow-epoch-surrender-census-rejection.v1",
+  "generated_at_utc": "2026-08-04T04:05:40Z",
+  "authority": "research_count_rejection_no_outcomes_no_orders_no_capital",
+  "preregistration_sha256": "5656b7ff2b44db39b8fe275dea9027b1b85233b0577686effdc0c72ef2c1ec94",
+  "evaluator_sha256": "da4435dff04965c84ed1c49e4197a01323c43812431b22926c7a5a3d3ffb6340",
+  "source_event_time_census_sha256": "511ac3b8b87c01a9d7d81cb19e5cf01e63b33f0d98647fd62af5d9ec227235d7",
+  "result_sha256": "2dd0014ef5792b74d28f145dc2407266315a75cf2842a37fac63951b60b9e44b",
+  "verdict": "REJECT_COUNT",
+  "exact_v18_trade_identity": true,
+  "outcomes_exposed": false,
+  "periods": {
+    "discovery": {
+      "opportunities": 167,
+      "annualized_admissions": 167.114702,
+      "slow_ready_fraction": 0.994012,
+      "transitions": 36,
+      "financing_lost": 29,
+      "opposition_surrendered": 7,
+      "directions_down_up": [
+        18,
+        18
+      ],
+      "branches_acceptance_failure": [
+        7,
+        29
+      ],
+      "lanes_gth_rth": [
+        29,
+        7
+      ],
+      "meaningful_lead_30m_financing_lost_surrendered": [
+        29,
+        7
+      ],
+      "median_minutes_after_entry": 170,
+      "median_minutes_before_original_exit": 515
+    },
+    "validation_count": {
+      "opportunities": 171,
+      "annualized_admissions": 171.617675,
+      "slow_ready_fraction": 1.0,
+      "transitions": 26,
+      "financing_lost": 20,
+      "opposition_surrendered": 6,
+      "directions_down_up": [
+        15,
+        11
+      ],
+      "branches_acceptance_failure": [
+        5,
+        21
+      ],
+      "lanes_gth_rth": [
+        18,
+        8
+      ],
+      "meaningful_lead_30m_financing_lost_surrendered": [
+        20,
+        6
+      ],
+      "median_minutes_after_entry": 105,
+      "median_minutes_before_original_exit": 380
+    }
+  },
+  "gate_failure": "The frozen opposition_surrendered floor required at least eight events in each independent period; only seven and six occurred. Every other readiness, transition-total, direction, branch, lane, ownership, meaningful-lead, cadence, and density gate passed.",
+  "decision": "Reject the symmetric slow-epoch exit candidate before economics. Do not lower the eight-event floor, select financing_lost alone, union another category, or inspect PnL. The count asymmetry is informative but not authority: slow financing breaks often inside V18 holds, while opposed slow state rarely capitulates before V18's own exit. Preserve V18 unchanged and seek a materially distinct causal state owner rather than rescuing this transition subset.",
+  "closed_families": [
+    "symmetric aligned-to-opposed and opposed-to-aligned slow-epoch exit",
+    "single transition-type subset rescue",
+    "transition-count floor relaxation",
+    "slow-flip delay, persistence, age, horizon, or exit-threshold sweep"
+  ],
+  "submitted_orders": 0
+}
