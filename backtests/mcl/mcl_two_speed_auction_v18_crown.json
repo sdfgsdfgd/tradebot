@@ -1,0 +1,152 @@
+{
+  "schema": "mcl.two-speed-auction-relay-v18-research-crown.v1",
+  "crowned_at_utc": "2026-08-04T07:01:27Z",
+  "authority": "historical_research_crown_only",
+  "order_authority": "none",
+  "selection_authority": "none",
+  "capital_authority": "none",
+  "groups": [
+    {
+      "_key": "mcl-two-speed-auction-relay-v18",
+      "name": "MCL Two-Speed Auction Relay — V18",
+      "authority": "immutable_historical_candidate_no_runtime_or_order_authority",
+      "entries": [],
+      "filters": []
+    }
+  ],
+  "coronation": {
+    "authority": "user_explicit_mcl_history_exception_and_research_crown",
+    "reason": "V18 is the strongest honest MCL development candidate after eighty-plus bounded causal experiments. It clears the user-authorized MCL bar on the complete available matched native tape: both annual periods, directions, auction branches, primary and stressed aggregate economics, cadence, concentration, controls, and exact signal-owner parity. Coronation preserves its outcome-exposed origin and does not grant broker or capital authority.",
+    "history_exception": {
+      "generic_july_2023_requirement": "waived_for_mcl_research_coronation",
+      "available_native_start_utc": "2024-08-04T22:01:00+00:00",
+      "available_native_end_utc": "2026-08-03T20:26:00+00:00",
+      "missing_july_2023_to_august_2024": "disclosed_not_a_crown_blocker",
+      "does_not_waive": [
+        "outcome-exposed-development disclosure",
+        "prospective unseen onset evidence",
+        "exact execution-runtime parity",
+        "native MCL quote, cost, margin, preview, and sizing proof",
+        "immutable selection, allocation, restart, reconciliation, and safety",
+        "positive after-cost 24h, 48h, and five-session graduation"
+      ]
+    },
+    "source_preregistration": "backtests/mcl/mcl_two_speed_auction_relay_preregistration_v18.json",
+    "source_preregistration_sha256": "6cf6aec637e075a06a7b1b9ddf851ec955069ec09904946f3145054a59e92969",
+    "source_development_receipt": "backtests/mcl/mcl_two_speed_auction_relay_v18_transport_acceptance_development.json",
+    "source_development_receipt_sha256": "d852cae56dd64bd30fa376c5c6efd6862fe916d0d704deb003cbaeb033d83e43",
+    "signal_owner_parity_receipt": "backtests/mcl/mcl_two_speed_auction_v18_signal_owner_parity.json",
+    "signal_owner_parity_receipt_sha256": "3147fa0ed02d5a88e7b78775986ecbc4ddd97b8879fde0042e9ea4ca04e48eb6"
+  },
+  "signal": {
+    "strategy_version": "mcl.two-speed-auction-relay.v18",
+    "causal_owner": "completed five-minute dominant CL discovery with matched-month MCL executable transport",
+    "horizons_five_minute_bars": [
+      6,
+      12,
+      24,
+      48,
+      96
+    ],
+    "maturation": "exactly one completed five-minute bar",
+    "routing": "MCL lag fades; equality follows; MCL lead follows only with at least three direction-aligned raw-turn velocity horizons",
+    "failed_auction_exit": "0.5 percent favorable activation and 25 percent running-MFE retention",
+    "risk_reduction": "every raw turn retains unconditional invalidation authority",
+    "round_trip_cost_usd": 3.52,
+    "stressed_round_trip_cost_usd": 5.52,
+    "roll": "matched dated CL/MCL contracts under strictly prior dual-volume ownership; remain flat until a fresh post-roll turn"
+  },
+  "crown_metrics": {
+    "catalog": {
+      "coverage": "complete_available_native_history_2024-08-04_to_2026-08-03",
+      "net_pnl": 2886.49,
+      "stressed_net_pnl": 2210.49,
+      "profit_factor": 1.4289066075,
+      "max_drawdown": 883.52,
+      "net_to_drawdown": 3.2670341362,
+      "stressed_net_to_drawdown": 2.3440790660,
+      "trades": 338,
+      "annualized_trades_range": [
+        167.1147,
+        171.6177
+      ]
+    },
+    "discovery": {
+      "net_pnl": 1263.91,
+      "stressed_net_pnl": 929.91,
+      "profit_factor": 1.4108,
+      "max_drawdown": 487.64,
+      "net_to_drawdown": 2.5919,
+      "annualized_trades": 167.1147
+    },
+    "validation": {
+      "net_pnl": 1622.58,
+      "stressed_net_pnl": 1280.58,
+      "profit_factor": 1.4442,
+      "max_drawdown": 883.52,
+      "net_to_drawdown": 1.8365,
+      "annualized_trades": 171.6177
+    },
+    "attribution": {
+      "down_net": 1031.88,
+      "up_net": 1854.61,
+      "continuation_net": 1259.16,
+      "failed_auction_net": 1627.33,
+      "stressed_down_net": 719.88,
+      "stressed_up_net": 1490.61,
+      "stressed_continuation_net": 1175.16,
+      "stressed_failed_auction_net": 1035.33,
+      "positive_months": 15,
+      "largest_positive_month_share": 0.1721316427,
+      "active_sessions": 258,
+      "mean_admissions_per_active_session": 1.3101,
+      "median_admissions_per_active_session": 1,
+      "p95_admissions_per_active_session": 2,
+      "maximum_admissions_per_active_session": 3,
+      "mean_hold_minutes": 530.2692
+    }
+  },
+  "controls": {
+    "lead_follow_primary_net": 2566.49,
+    "lead_fade_primary_net": 2344.49,
+    "v13_primary_net": 2073.49,
+    "v15_primary_net": 1965.49,
+    "mcl_only_primary_net": 1075.36,
+    "fixed_roll_primary_net": 2098.16,
+    "directionally_inverted_same_holds_net": -5266.01
+  },
+  "limitations": [
+    "The transport-acceptance law was inspired by outcome-exposed anatomy; the research crown is an immutable incumbent for prospective falsification, not unseen validation.",
+    "Discovery failed-auction attribution is slightly negative under the harsher cost even though discovery total stress and full-period failed-auction stress remain positive.",
+    "Historical admissions average 0.67 per active market date and 1.31 per trading session containing an admission; this is not a guaranteed daily quota.",
+    "True seconds-level quote morphology is available only prospectively from the immutable CL/MCL event tape."
+  ],
+  "prospective": {
+    "observer": "Predictive Intelligence Sharpening of Onsets — Stages 87/88/89",
+    "state": "ACCUMULATE",
+    "event_generation": "b3805c9f95713a13c26cb0ada08dc043f00069f42177212d3c575abe28c3ee7f",
+    "latest_count_receipt": "backtests/mcl/mcl_predictive_closing_ignition_stage88_accumulation.json",
+    "latest_count_receipt_sha256": "946ad75a10d21a5d54cb2b2f65ec2df9de97e44b7e1c681634098545d54be0c9",
+    "velocity_jerk_preregistration": "backtests/mcl/mcl_predictive_velocity_jerk_stage89_preregistration.json",
+    "velocity_jerk_preregistration_sha256": "1514046f150b93f9f32ff12cff50df23d60ebab4c27957902571640d46b26f85",
+    "complete_unseen_raw_turns": 0,
+    "order_authority": "none"
+  },
+  "graduation_enrollment": {
+    "lifecycle_state": "CROWNED",
+    "historical_signal": "PASS_USER_AUTHORIZED_TWO_YEAR_MCL_EXCEPTION",
+    "signal_owner_parity": "PASS",
+    "execution_runtime_parity": "HOLD",
+    "prospective_onset_tape": "ACTIVE_NON_SUBMITTING",
+    "native_margin_and_cash": "HOLD",
+    "fresh_broker_preview": "HOLD",
+    "immutable_selection": "HOLD",
+    "capital_sleeve": "HOLD",
+    "restart_and_reconciliation": "HOLD",
+    "live_24h": "NOT_STARTED",
+    "live_48h": "NOT_STARTED",
+    "live_five_session_week": "NOT_STARTED",
+    "next_gate": "centralize exact costed V18 lifecycle and matched MCL transport runtime, then prove fresh quote, commission, margin, sizing, non-transmitting broker preview, restart, and reconciliation before any bounded canary selection"
+  },
+  "submitted_orders": 0
+}

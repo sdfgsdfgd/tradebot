@@ -185,7 +185,7 @@ class LivePortfolioCockpit(LiveRunCockpit):
             crown_metrics = artifact.get("crown_metrics")
             qualification = artifact.get("graduation_enrollment")
             full_metrics = (
-                crown_metrics.get("full_three_year")
+                crown_metrics.get("catalog", crown_metrics.get("full_three_year"))
                 if isinstance(crown_metrics, Mapping)
                 else None
             )

@@ -42,6 +42,12 @@ def _write_crown(root: Path, *, symbol: str = "TEST") -> None:
     artifact = {
         "groups": [{"_key": "test-crown", "name": "Test Crown", "entries": []}],
         "crown_metrics": {
+            "catalog": {
+                "coverage": "complete_available_history",
+                "net_pnl": 234.56,
+                "profit_factor": 2.2,
+                "max_drawdown": 8.76,
+            },
             "full_three_year": {
                 "net_pnl": 123.45,
                 "profit_factor": 2.1,
@@ -242,7 +248,12 @@ def test_catalog_distinguishes_machine_crown_from_readme_provenance(
     assert candidates[("TEST", "LF")]["stage"] == "CANARY"
     assert candidates[("TEST", "LF")]["machine_authority"] is True
     assert candidates[("TEST", "LF")]["run_id"] == RUN_ID
-    assert candidates[("TEST", "LF")]["historical"]["net_pnl"] == 123.45
+    assert candidates[("TEST", "LF")]["historical"] == {
+        "coverage": "complete_available_history",
+        "net_pnl": 234.56,
+        "profit_factor": 2.2,
+        "max_drawdown": 8.76,
+    }
     assert candidates[("TEST", "LF")]["qualification"]["next_gate"] == "prove runtime"
     assert candidates[("LEGACY", "LF")]["stage"] == "RESEARCH_ONLY"
     assert candidates[("LEGACY", "LF")]["controls"]["COMMISSION"]["status"] == "HOLD"

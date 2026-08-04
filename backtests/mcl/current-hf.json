@@ -1,0 +1,20 @@
+{
+  "schema": "tradebot.spot.champion.v1",
+  "symbol": "MCL",
+  "track": "HF",
+  "version": "18",
+  "artifact": "backtests/mcl/mcl_two_speed_auction_v18_crown.json",
+  "artifact_sha256": "6d21b6d97e5b1a651e1d684c5c6f1261a7744df407913d606b63cd75dac1a455",
+  "strategy_key": "mcl-two-speed-auction-relay-v18",
+  "promoted_at": "2026-08-04T07:01:27Z",
+  "promotion": {
+    "authority": "user_explicit_mcl_history_exception_and_research_crown",
+    "eligible": true,
+    "order_authority": "none",
+    "selection_authority": "none",
+    "capital_authority": "none",
+    "profitability_clock": "not_started",
+    "candidate": "MCL Two-Speed Auction Relay — V18",
+    "reason": "Strongest honest MCL development candidate on the complete available matched native tape. The user explicitly waived the unavailable July-2023–August-2024 prefix for MCL research coronation; outcome-exposed origin, prospective evidence, runtime, transport, capital, and graduation remain disclosed downstream gates."
+  }
+}

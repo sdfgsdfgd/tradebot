@@ -9,13 +9,17 @@
   read-only dwell capture is terminally audited `ACCUMULATE`. GTH cash
   authority remains disabled. Gold Stage 76/77 is separately armed on q as
   flat one-contract 1OZ canary `62344ce2…`; only a fresh causal admission may
-  enter during GTH or RTH, and operational graduation remains pending`
+  enter during GTH or RTH, and operational graduation remains pending. MCL V18
+  is now the immutable HF research crown; its predictive onset tape remains
+  non-submitting and operational graduation has not started`
 - **Authority:** canonical resume state, active task tree, critical evidence
   index, and promotion contract
 - **Cold history:** [`q_XSP_live_research_kata-archive.md`](q_XSP_live_research_kata-archive.md)
 - **Leaderboard:** [`backtests/xsp/leaderboard.md`](backtests/xsp/leaderboard.md)
-- **Scope:** Priority-Zero XSP mastery with coordinated gold graduation and MCL
-  measurement. Opening Edge v3 supersedes v2 as the historical
+- **MCL leaderboard:** [`backtests/mcl/leaderboard.md`](backtests/mcl/leaderboard.md)
+- **Scope:** Priority-Zero XSP mastery with coordinated gold graduation, the
+  V18 MCL research crown, and predictive-onset accumulation. Opening Edge v3
+  supersedes v2 as the historical
   crown after the E-259→E-280 regime-harmony lineage improved every annual
   slice, full net/PF/DD, both directions, and both lanes. Its authentic
   UPRO/SPXU RTH cash mapping is positive under complete spread crossing.
@@ -53,7 +57,8 @@ output belongs in commit/final verification, not in this management brain.
 | Broker/order strategy | XSP: Tiered UPRO/SPXU RTH cash pair. Gold: one `1OZZ6` limit-only canary, fresh Stage-76 admissions in GTH or RTH. One account lock serializes broker mutation; generic minimum-first packages permit both directional sleeves concurrently when fresh aggregate capacity passes |
 | Selected live run | `1083c181…` / file `d5f616e4…`, selected flat at `12:41:13Z` as the package-sized successor to `b4799fa6…`; XSP owns `xsp-usd-800`, zero inherited fills/P&L/DD. Invalid `daf1609b…` and earlier identities remain archived evidence only |
 | Gold live canary | `62344ce2…` / file `5fc9048d…`, selected flat at `12:41:13Z` as the package-bound successor to `12b15bd2…`; `1OZZ6` execution and `GCZ6` corroboration, zero inherited fills/P&L/DD, no synthetic midcycle entry |
-| Research crown | **Opening Edge v3 — Regime Harmony 24/5**; `xsp.opening-edge-v3-regime-harmony-24x5.v1` |
+| XSP research crown | **Opening Edge v3 — Regime Harmony 24/5**; `xsp.opening-edge-v3-regime-harmony-24x5.v1` |
+| MCL research crown | **MCL Two-Speed Auction Relay — V18**; machine pointer `backtests/mcl/current-hf.json`, crown artifact `6d21b6d9…`; user-authorized complete-available-native-history exception; zero order/selection/capital authority |
 | Runtime parity | Central v3 owner reproduces RTH `40708a28…` exactly over `425/425` trades; unchanged GTH Down Sleeve reproduces `9e04807f…` over `179/179`; combined `604`, `+291.1756`, PF `2.0919`, DD `17.63` |
 | Runtime source anchor | q/origin remain synchronized; deployed runtime code anchor `f925257…`, shared portfolio-capital manifest `0b243adb…`, XSP central owner `643b6a…`, crown `d47eb39…`, exact Gold/XSP graduation adapters, MCL news generation `2c4c543a…`, and prospective turn-tape generation `b3805c9f…` remain bound |
 | Goal snapshot | `q_XSP_goal_objective.md` is the byte-identical tracked backup of the active inline Goal at SHA `86636416…`; it preserves rather than replaces the attachment-owned Goal, while this kata remains the detailed resume authority |
@@ -62,8 +67,8 @@ output belongs in commit/final verification, not in this management brain.
 | Order/capital authority | XSP `1083c181…` retains `rth_cash_pair_limit_only` under package `xsp-usd-800`. Gold `62344ce2…` retains `one_oz_limit_canary` under package `gold-one-contract`. Plan `b4a920b3…` reserves both minima before residual allocation, permits concurrent ownership, forbids borrowing/unproved reallocation, and rechecks the complete portfolio envelope before either entry. Risk reduction is unconditional |
 | Profitability clock | Both successor prefixes begin `12:41:13Z`. First immutable `13:44:04Z` 24h judgments are honest `HOLD`: identity, shared capital ownership, parity, restart, safety, and attribution PASS; execution and elapsed/session profitability remain immature. Predecessor prefixes remain immutable evidence only; no slot is backfilled and no trade is forced |
 | Execution verdict | `LIVE_FLAT` for both selected runs: XSP has zero clean-run fills/P&L/DD and gold has zero fills/trades/P&L/DD, no relevant position/order, and no breach. Archived XSP predecessor loss `-$13.079007` transfers to neither clean identity |
-| Next irreversible evidence | either a newly admitted v3 RTH direction or a fresh Stage-76 gold admission may create the next capital event; the other package remains reserved and may enter later if the fresh full-portfolio recheck passes. MCL remains measurement-only |
-| First active work | preserve both selected five-minute recurrence streams and reconcile any real fill immediately. Suspend manual 20-minute Hawkeye reviews from `2026-08-03 14:06 ET` through `2026-08-04 14:06 ET` under the user's authorized 24-hour MCL campaign; only a fill, order/reconciliation event, or safety breach interrupts. Keep generation `b3805c9f…` continuously recording matched `CLU6/MCLU6` type-1 TBT evidence while sharpening the MCL Two-Speed Auction Relay through distinct, preregistered historical architectures; never let the tape classify a turn before an unseen eligible cohort. Resume Hawkeye after this deep-work block and run graduation reducers only at lawful cutoffs |
+| Next irreversible evidence | either a newly admitted v3 RTH direction or a fresh Stage-76 gold admission may create the next capital event; the other package remains reserved and may enter later if the fresh full-portfolio recheck passes. MCL is research-crowned but remains measurement-only until its downstream runtime/transport commissioning passes |
+| First active work | preserve both selected five-minute recurrence streams and reconcile any real fill immediately. Suspend manual 20-minute Hawkeye reviews from `2026-08-03 14:06 ET` through `2026-08-04 14:06 ET` under the user's authorized 24-hour MCL campaign; only a fill, order/reconciliation event, or safety breach interrupts. Keep generation `b3805c9f…` continuously recording matched `CLU6/MCLU6` type-1 TBT evidence. V18 is frozen as the incumbent research crown; Stage 87/88/89 is the sole active predictive challenger and must accumulate the first complete post-`06:55Z` raw-turn window without threshold fitting or empty short-interval replay. Resume Hawkeye after this deep-work block and run graduation reducers only at lawful cutoffs |
 
 ### Immediate sequence
 
@@ -665,9 +670,12 @@ transition through today’s close; no order will be forced merely to populate t
   and sharpening from `2026-08-03 14:06 ET`, across compactions. Novel oil-specific
   permission gates, direction profiles, lifecycles, and tight micro-neighbourhoods
   are explicitly in scope when frozen before outcomes. Seek
-  stable after-cost PnL/DD in every July-to-July slice and the full three-year
-  challenge, both directions, GTH/RTH, trends, compression, shocks, reversals,
-  and roll neighbours. Require genuine NYMEX type-1 execution evidence and full
+  stable after-cost PnL/DD across the complete available matched native history,
+  both directions, GTH/RTH, trends, compression, shocks, reversals, and roll
+  neighbours. The user explicitly waived the unavailable July-2023–August-2024
+  prefix for MCL research coronation only; no missing bar is synthesized and no
+  runtime, transport, capital, or graduation proof is waived. Require genuine
+  NYMEX type-1 execution evidence and full
   futures friction/roll/session accounting before a crown; then require native
   margin, preview, immutable selection, shared allocation, restart, and safety
   proof before canary capital. Duration is not permission to force an outcome,
@@ -675,8 +683,8 @@ transition through today’s close; no order will be forced merely to populate t
   XSP/Gold workers continue but scheduled manual Hawkeye reviews are paused;
   only a real fill/order/reconciliation or safety event preempts MCL research.
   Live NYMEX L1 is now proven. The dated matched-month IBKR CL/MCL and RB/HO
-  tapes are hash-clean from August 2024 through August 2026, while the
-  unavailable July-2023–August-2024 prefix remains a hard crown blocker.
+  tapes are hash-clean from August 2024 through August 2026; that complete
+  available native interval now owns the MCL research-crown decision.
   Rolling-range v1 was decisively
   cost-negative. Anchored-block v2 found a genuinely positive low-efficiency
   opening cohort. Regime-financed v3's initial three-month discovery slice is
@@ -1928,8 +1936,16 @@ and stable bootstrap evidence. Neither may be refactored into looking mature.
     zero exact post-generation raw turns; continue accumulation without fitting
     random seconds. The initial mislabeled historical count is preserved as an
     invalid q artifact and corrected before any morphology or outcome exposure.
-    Missing July-2023–August-2024 remains a hard crown blocker; no quota, classifier,
-    order, or capital authority.
+    Stages 85/86 subsequently proved broad historical cross-scale morphology but
+    closed fabricated slow-clock rescue; Stages 87/88 froze one pre/post-close
+    seconds ladder, and Stage 89 froze velocity jerk, TR/quote acceleration,
+    ordered ignition, and CL→MCL handoff before its first eligible treatment.
+    The first eligible prefix remained identity-clean with zero unseen turns.
+    V18 is now the machine-bound HF research crown under the explicit MCL-only
+    complete-available-history exception. Resume from
+    `backtests/mcl/leaderboard.md`: preserve V18, let generation `b3805c9f…`
+    accumulate naturally, and open no classifier economics before the frozen
+    bidirectional/route cohort. No quota, order, selection, or capital authority.
 
 ---
 
@@ -2342,6 +2358,7 @@ and
 | E-486 | Stage 89 preregistration `mcl_predictive_velocity_jerk_stage89_preregistration.json` (`1514046f…`) freezes the exact mathematical form of a seconds-tight velocity rise before its first eligible `06:55Z` treatment. In the fixed Stage-88 interval order, per-book directional velocity jerk, TR acceleration, quote jerk, spread failure, and first positive displacement-plus-velocity alignment produce `CL_LEADS / SAME_INTERVAL / MCL_LEADS / UNRESOLVED` plus `ORDERED_IGNITION / TRANSPORT_REFUSAL / TRANSPORT_NOISE / WHIPSAW / EXHAUSTION`. No magnitude threshold or outcome is visible; Stage 89 must first accumulate `30` complete turns, `10` each direction, `20` admissions, `5` each route, `20` resolved handoffs, and repeated shapes before controls/economics may open |
 | E-487 | read-only receipt `mcl_ibkr_deep_wti_identity_rejection.json` (`58815f20…`) closes the suspected XAUUSD-like deep-oil seam inside the current IBKR universe: `XTIUSD` and `USOIL` have no contract; NYMEX `CL` index `17340715` and `MCL` index `500567051` are derivative-underlying placeholders with zero recent TRADES/MIDPOINT and zero end-anchored history (`No data of type DayChart`); ICE `WTI` index `37813650` is separately unentitled and could not replace native NYMEX roll/execution truth. Do not buy ICE speculatively or relabel USO/ICE context as dated CL/MCL history. The July-2023–August-2024 native prefix remains a hard crown blocker |
 | E-488 | Stage 88's first eligible immutable count receipt `mcl_predictive_closing_ignition_stage88_accumulation.json` (`946ad75a…`) joined snapshot `b150879e…` through `06:52Z` and event prefix `cf7e8206…` through `06:54:56Z`: `565` appended common minutes, `5,498` valid seconds, exact `1,493/338` historical V18 identity, zero invalid/late/hash/generation failures, and zero post-`06:45Z` raw turns. Verdict remains `ACCUMULATE`; no closing funnel, morphology, outcome, control, action, order, or capital authority opened. With historical median raw-turn interarrival `390m`, stop empty short-interval replay and let the unchanged service accumulate naturally |
+| E-489 | the user explicitly waived the unavailable July-2023–August-2024 prefix for **MCL research coronation only** and requested a first champion. Machine declaration `backtests/mcl/current-hf.json` promotes **MCL Two-Speed Auction Relay — V18** against crown artifact `mcl_two_speed_auction_v18_crown.json` (`6d21b6d9…`), while `backtests/mcl/leaderboard.md` becomes the compact product resume authority. The crown binds complete native manifest `1085ce89…`, frozen development result `b9c64409…`, exact `2,247`-event signal parity `531c2679…`, `338` trades, `+$2,886.49/+$2,210.49` primary/stress, PF `1.429`, DD `$883.52`, PnL/DD `3.267`, `167.11/171.62` annualized, and positive full-tape direction/branch attribution. It explicitly preserves outcome-exposed origin, zero unseen Stage-89 treatments, and every runtime/quote/cost/margin/preview/selection/restart/reconciliation/graduation gate; order, selection, capital, and profitability-clock authority remain absent |
 
 ### Decision anchors
 
@@ -2400,6 +2417,7 @@ and
 | D-191 | `mcl_two_speed_auction.py` is the sole V18 signal-state owner. Historical execution/economics, prospective event recording, broker transport, and UI projection remain separate consumers. Eclectic cross-scale atlases may join only completed causal clocks to this exact identity and may eventually choose chase, maturation, patience, or dwell after unseen proof; they may not duplicate or retune V18, interpolate slow bars, suppress raw-turn risk reduction, create direction, resize capital, or claim HFT/depth authority |
 | D-192 | completed 4h context is optional evidence, not a universal V18 treatment gate. Preserve exact same-contract observations and missingness; never carry across a roll, interpolate a maintenance/weekend gap, lower a frozen readiness floor, or erase otherwise eligible fast/15m/weekly/basis/news evidence. No atlas category gains action authority until the V84 prospective event cohort and matched controls pass their frozen bidirectional/route/economic law |
 | D-193 | the Stage-87/88 velocity-ignition ladder is the sole seconds-tight onset timing hypothesis. Fixed pre-close 60/30/15/5/0-second and post-close 5/15/30/60-second intervals may eventually pre-arm quote/preview or choose chase, unchanged maturation, or fake-turn rejection only after unseen bidirectional/route cohorts, matched controls, and sealed economics pass. It may never submit before completed V18 direction, invent direction, suppress raw-turn risk reduction, infer depth/intent from L1, resize capital, or claim colocated HFT authority |
+| D-194 | for MCL only, the complete matched native August-2024–August-2026 tape is sufficient for a disclosed research crown; the unavailable July-2023–August-2024 prefix is no longer a coronation blocker and must not be synthesized or repeatedly reopened. This exception does not convert outcome-exposed development into unseen evidence and does not waive prospective onset, exact costed runtime, native broker transport, margin/capital, restart/reconciliation, safety, or `24h/48h/five-session` profitability gates. V18 is the immutable incumbent; Stage 87/88/89 may eventually alter timing only after its frozen unseen law passes |
 
 ---
 
