@@ -1,0 +1,60 @@
+{
+  "schema": "mcl.two-step-opening-drive-lifecycle-rejection.v1",
+  "recorded_at_utc": "2026-08-04T00:08:00Z",
+  "authority": "research_only_validation_unopened_no_orders_no_capital",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "census_sha256": "ccf52fd2db48292c149c0c659fc690c69ca6aff19b92b4793e9598e3f0e10ca9",
+    "preregistration_sha256": "3c3480117d0ef9ce3e18e52e7eeb5fa4bb20eab3c0456d1007d44110a6f0ce44",
+    "evaluator_sha256": "e880e6e35ed334afbd66b0bbe3107b4e1375af37a73df44639c8ea67656ea312",
+    "result_sha256": "9711eee84968aed5059827516bf9805e99dc822926cfe1a613010f423a7189a5"
+  },
+  "discovery": {
+    "trades": 213,
+    "primary_net": 947.24,
+    "stress_net": 521.24,
+    "primary_profit_factor": 1.202267,
+    "stress_profit_factor": 1.106349,
+    "primary_intrabar_drawdown": 995.16,
+    "stress_intrabar_drawdown": 1150.48,
+    "primary_pnl_to_intrabar_drawdown": 0.951847,
+    "stress_pnl_to_intrabar_drawdown": 0.453063,
+    "primary_stress_positive_months": [
+      7,
+      7
+    ],
+    "largest_positive_month_share": 0.429020,
+    "stress_branches": {
+      "absorption": [
+        144,
+        866.12
+      ],
+      "initiative_acceptance": [
+        40,
+        -443.80
+      ],
+      "initiative_failure": [
+        29,
+        98.92
+      ]
+    },
+    "stress_directions_up_down": [
+      5.20,
+      516.04
+    ],
+    "stress_anchors_europe_us": [
+      44.84,
+      476.40
+    ]
+  },
+  "finding": "Monotonic two-step initiative acceptance was more negative than the broader matured acceptance cohort. Absorption and delayed failure alone exceed the annual cadence floor and remain positive across aggregate directions and anchors, so continuation is closed and a rejection-only relay earns an outcome-blind count proof.",
+  "validation_opened": false,
+  "closed_families": [
+    "opening_drive_initiative_acceptance",
+    "monotonic_two_step_acceptance",
+    "acceptance_volume_effort_rescue",
+    "acceptance_hold_exit_or_inversion_rescue"
+  ],
+  "verdict": "REJECT",
+  "submitted_orders": 0
+}

@@ -1,0 +1,67 @@
+{
+  "schema": "mcl.rejection-relay-census-preregistration.v1",
+  "registered_at_utc": "2026-08-04T00:08:00Z",
+  "authority": "outcome_blind_count_only_no_forward_pnl_no_orders_no_capital",
+  "campaign": "mcl.two-speed-auction-relay.v41",
+  "hypothesis": "At Europe and US inventory transfers, oil pays for rejection rather than continuation: immediate opening-auction absorption and a ten-minute failed initiative are one coherent reversal relay, while initiative acceptance has now failed two distinct discovery definitions.",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "source_census_sha256": "929b32245f5fc46816c0bc6f1624056d18a087f1749ca0832f46adb496abde9c",
+    "rejected_two_step_lifecycle_sha256": "9711eee84968aed5059827516bf9805e99dc822926cfe1a613010f423a7189a5",
+    "evaluator_path": "/tmp/mcl_stage41_rejection_relay_census.py",
+    "evaluator_sha256": "3f4ec9a30e44dabbee98d7108b9fd13a831699e8bb61c7db181e413c082aa4b9"
+  },
+  "exact_projection": {
+    "retain": [
+      "V35 immediate absorption with exact timestamp and direction",
+      "selected V37 two-bar initiative failure with exact timestamp and faded direction"
+    ],
+    "exclude": "initiative acceptance",
+    "maximum_events_per_session": 2,
+    "entry_outcome": "not read in this census"
+  },
+  "periods": {
+    "discovery": "2024-08-04T22:00:00Z through 2025-08-04T22:00:00Z exclusive",
+    "validation_count_only": "2025-08-04T22:00:00Z through 2026-08-04T22:00:00Z exclusive"
+  },
+  "eligibility_required_in_each_period": {
+    "annualized_events": {
+      "exclusive_minimum": 160,
+      "inclusive_maximum": 360
+    },
+    "minimum_up": 50,
+    "minimum_down": 50,
+    "minimum_absorption": 100,
+    "initiative_acceptance": 0,
+    "minimum_initiative_failure": 20,
+    "minimum_europe": 60,
+    "minimum_us": 60,
+    "minimum_high_side": 60,
+    "minimum_low_side": 60,
+    "minimum_active_session_fraction": 0.5,
+    "active_session_median_events": [
+      1,
+      2
+    ],
+    "maximum_p95_events": 2,
+    "maximum_events": 2
+  },
+  "decision_law": "If both periods pass every count gate, preregister one exact branch-state lifecycle before calculating its combined discovery PnL/DD or any validation outcome. Otherwise reject the branch-deletion profile.",
+  "outcome_firewall": {
+    "combined_discovery_pnl_dd": false,
+    "forward_return": false,
+    "mfe": false,
+    "mae": false,
+    "validation_outcome": false,
+    "news": false,
+    "orders": false,
+    "capital": false
+  },
+  "prohibitions": [
+    "no replacement continuation branch",
+    "no alternate failure maturation",
+    "no acceptance re-entry",
+    "no anchor, side, direction, month, or regime routing",
+    "no threshold or count-floor rescue"
+  ]
+}

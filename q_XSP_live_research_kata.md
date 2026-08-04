@@ -757,8 +757,11 @@ transition through today’s close; no order will be forced merely to populate t
   primary on count but selected the frozen price-only fallback: `213/204`
   events (`213.15/204.74` annualized), `62.4%/63.0%` active sessions, median
   `1`, p95/max `2`, with absorption `144/151`, true two-step acceptance `40/29`,
-  and failure `29/24`. V40 preregistration `3c348011…` / evaluator `e880e6e3…`
-  opens one exact branch-state lifecycle only.
+  and failure `29/24`. V40 remained positive at `+$947.24/+$521.24` stress over
+  `213` but again failed PnL/DD (`.952/.453`); monotonic acceptance alone lost
+  `-$443.80` stress. V41 preregistration `c12f0bda…` / evaluator `3f4ec9a3…`
+  count-tests one exact rejection-only relay: immediate absorption plus delayed
+  initiative failure, with continuation closed.
   Rolls, costs, news authority, and live XSP/Gold owners remain unchanged.
 - `[PRESERVED RUNNER-UP]` **Tri-asset narrative-dispersion compression:** test
   whether convergence among easing-negative XSP pressure, weakening-positive
@@ -1188,8 +1191,15 @@ and stable bootstrap evidence. Neither may be refactored into looking mature.
     absorption/acceptance/failure `144/40/29` and `151/29/24`. Receipt
     `mcl_two_step_opening_drive_census_receipt.json` (`e7ed8fc1…`). V40
     preregistration `mcl_two_step_opening_drive_lifecycle_preregistration.json`
-    (`3c348011…`) / evaluator `e880e6e3…` freezes the exact plain branch-state
-    owner only; discovery must pass before validation opens.
+    (`3c348011…`) / evaluator `e880e6e3…` froze the exact plain branch-state
+    owner only. V40 made `+$947.24/+$521.24` stress over `213`, PF `1.202/1.106`,
+    DD `$995.16/$1,150.48`, PnL/DD `.952/.453`, and `7/7` positive months;
+    monotonic acceptance alone lost `-$443.80` stress, so validation stayed
+    sealed. Receipt `mcl_two_step_opening_drive_lifecycle_rejection.json`
+    (`390d0dd6…`). V41 preregistration
+    `mcl_rejection_relay_census_preregistration.json` (`c12f0bda…`) / evaluator
+    `3f4ec9a3…` count-tests the exact absorption-plus-delayed-failure relay before
+    its combined PnL/DD or any validation outcome may open.
     Missing July-2023–August-2024 remains a hard crown blocker; no quota, order,
     or capital authority.
 
@@ -1541,6 +1551,7 @@ and
 | E-423 | outcome-blind V37 maturation count `929b3224…` rejected the one-bar primary solely because its validation-count period had `8` initiative failures below the frozen `20` floor. The two-bar neighbor then passed in frozen order: discovery `258` events (`258.18/year`), `71.71%` active sessions, median/p95/max `1/2/2`, absorption/acceptance/failure `144/85/29`, up/down `142/116`, Europe/US `131/127`; validation count `246` (`246.89/year`), `73.15%` active, `151/71/24`, up/down `126/120`, Europe/US `120/126`. Zero outcomes opened. Receipt `mcl_opening_drive_branch_maturation_census_receipt.json` (`f4785ffe…`). V38 preregistration `mcl_opening_drive_branch_maturation_lifecycle_preregistration.json` / evaluator `fc62205c…` binds next-open matched MCL, `$3.52/$5.52` costs, anchor cutoffs, and only plain branch-state versus the unchanged V13 `0.5%`-activation/`25%`-retention profit memory on initiative-failure positions. Discovery may select one exact owner; only it opens validation. No news, order, capital, or XSP/Gold mutation |
 | E-424 | V38 lifecycle `de77229b…` materially improved the family but rejected both owners before validation. Plain branch-state made `+$1,089.84` primary / `+$573.84` stress over `258`, PF `1.203/1.102`, DD `$1,119.84/$1,253.84`, PnL/DD `.973/.458`, only `7/6` positive months, and `39.43%` primary month concentration; exact failure-memory reduced it to `+$1,043.84/+$527.84`. Under stress, absorption made `+$866.12`, initiative failure `+$98.92`, and initiative acceptance lost `-$391.20`; Europe was `-$82.12` while US was `+$655.96`. Receipt `mcl_opening_drive_branch_maturation_lifecycle_rejection.json` (`6d7f7e6e…`) closes profit-memory/exit rescue while preserving the two-speed clock. V39 preregistration `mcl_two_step_opening_drive_census_preregistration.json` / evaluator `e9917fe5…` keeps absorption/failure unchanged and requires initiative acceptance on the first completed `5m` bar plus farther joint CL/MCL extension on the second; second-step CL effort is the primary profile, price-only the count fallback. No outcomes, news, order, capital, or XSP/Gold mutation |
 | E-425 | outcome-blind V39 count `ccf52fd2…` rejected its effort primary before PnL because only `19/14` initiative acceptances survived, below the frozen `20` floor. The price-only fallback then passed in frozen order: discovery `213` (`213.15/year`), `62.40%` active sessions, median/p95/max `1/2/2`, absorption/acceptance/failure `144/40/29`, up/down `115/98`, Europe/US `108/105`; validation count `204` (`204.74/year`), `63.04%` active, `151/29/24`, up/down `106/98`, Europe/US `98/106`. Zero outcomes opened. Receipt `mcl_two_step_opening_drive_census_receipt.json` (`e7ed8fc1…`). V40 preregistration `mcl_two_step_opening_drive_lifecycle_preregistration.json` / evaluator `e880e6e3…` binds the exact next-open MCL entries, anchor cutoffs, `$3.52/$5.52` costs, and one plain branch-state owner only. Discovery must pass every profitability/DD/month/concentration/cohort gate before validation opens. No news, order, capital, or XSP/Gold mutation |
+| E-426 | V40 lifecycle `9711eee8…` remained after-cost positive but rejected before validation: `213` trades made `+$947.24/+$521.24` stress, PF `1.202/1.106`, DD `$995.16/$1,150.48`, PnL/DD `.952/.453`, `7/7` positive months, and `42.90%` primary month concentration. Absorption made `+$866.12` stress, delayed failure `+$98.92`, but monotonic two-step acceptance lost `-$443.80`; up stress was only `+$5.20`, though both anchors/sides stayed positive. Receipt `mcl_two_step_opening_drive_lifecycle_rejection.json` (`390d0dd6…`) closes continuation, volume, inversion, and exit rescue. V41 preregistration `mcl_rejection_relay_census_preregistration.json` / evaluator `3f4ec9a3…` projects exactly immediate absorption plus selected two-bar initiative failure, with zero acceptance or replacement branch. Both periods must independently preserve `>160/year`, both directions/anchors/sides, and ordinary one-to-two event cadence before combined discovery PnL/DD or validation may open. No news, order, capital, or XSP/Gold mutation |
 
 ### Decision anchors
 
