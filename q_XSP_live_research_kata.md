@@ -891,9 +891,17 @@ transition through today’s close; no order will be forced merely to populate t
   `65389fc3…` / evaluator `e5e019b3…` restores dominant-book ownership: CL alone
   defines the gap; MCL's opening mismatch is attribution, while both completed
   books must still confirm the 15-minute accept/fail verdict. The unchanged
-  count gates precede every return. There is no gap magnitude, MCL-open selector,
-  alternate clock, volume, flow, VWAP, retained-state, news, stop, target,
-  timeout, cooldown, replacement, or quota.
+  count gates precede every return. It passed at `203/214` events/year,
+  `82.9/87.3%` coverage, balanced directions/branches/weekends, and exact
+  `1/1/1` density; `63/57` valid events began with MCL opening opposed or zero.
+  Receipt `bc627f5f…`. V62 preregistration `50ce1125…` / evaluator `ef3f87cb…`
+  freezes next-open MCL and one symmetric structural origin: both completed
+  books crossing their own pre-maintenance close against the position exits;
+  session/contract/gap/period boundaries force flat. Discovery must pass strict
+  after-cost, PnL/DD, direction, branch, weekday/weekend, month, quarter,
+  concentration, and one/session gates before validation. There is no gap
+  magnitude, MCL-open selector, alternate clock, volume, flow, VWAP,
+  retained-state, news, stop, target, timeout, cooldown, replacement, or quota.
   Rolls, costs, news authority, and live XSP/Gold owners remain unchanged.
 - `[PRESERVED RUNNER-UP]` **Tri-asset narrative-dispersion compression:** test
   whether convergence among easing-negative XSP pressure, weakening-positive
@@ -1478,7 +1486,13 @@ and stable bootstrap evidence. Neither may be refactored into looking mature.
     V61 preregistration `mcl_dominant_gap_auction_census_preregistration.json`
     (`65389fc3…`) / evaluator `e5e019b3…` lets dominant CL alone define the gap,
     relegates MCL's noisy opening print to attribution, and still requires both
-    completed books to confirm the same 15-minute acceptance/failure verdict.
+    completed books to confirm the same 15-minute acceptance/failure verdict. It
+    passed at `203/214` annual events, `82.9/87.3%` coverage, all cohorts, and
+    exact one/session density; receipt `mcl_dominant_gap_auction_census_receipt.json`
+    (`bc627f5f…`). V62 preregistration
+    `mcl_dominant_gap_auction_lifecycle_preregistration.json` (`50ce1125…`) /
+    evaluator `ef3f87cb…` freezes next-open MCL, symmetric pre-maintenance-close
+    invalidation, hard boundaries, `$3.52/$5.52`, and discovery-first stability.
     Missing July-2023–August-2024 remains a hard crown blocker; no quota, order,
     or capital authority.
 
@@ -1851,6 +1865,7 @@ and
 | E-444 | V58 phase-owned outcome-blind count `85ba57ec…` passed every frozen law before opening a return. Discovery/validation produced `516/513` events (`516.35/514.85` per year), `100%` active sessions, up/down `298/218` and `276/237`, acceptance/absorption `402/114` and `398/115`, exact GTH/RTH `258/258` and `256/257`, and `2/2/2` density. Receipt `mcl_phase_flow_reacquisition_census_receipt.json` (`a342404f…`). V59 preregistration `mcl_phase_flow_reacquisition_lifecycle_preregistration.json` (`81d4b2a5…`) / evaluator `95767b3d…` freezes one standalone lifecycle: next-open matched MCL entry; next-open ordinary exit only when both completed five-minute books lose direction-signed flow; retained-state disagreement reduces risk; session/contract/gap and independent-period boundaries force flat; later phase events skip while occupied. Discovery must pass `160–520/year`, positive primary/stress net, PF `1.20/1.10`, PnL/DD `1.50/1.00`, positive stress directions/branches/GTH/RTH, 8 months, 3 quarters, <=35% concentration, and natural density before validation may open; validation and full prefix face the same plus stricter combined stability. No parameter neighbor, exit rescue, V18 composition, order, or capital authority |
 | E-445 | V59 exact discovery `cfc272a1…` rejected signed-flow reacquisition even before friction: `516` trades made `-$152` raw, `-$1,968.32/-$3,000.32` stress, PF `.492/.361`, PnL/DD about `-1`, both directions and both GTH/RTH phases negative, every equal-duration quarter negative, and only one positive month. Validation remained sealed. Direct immutable-ledger reconstruction corrected a display-only legacy branch-key mismatch: price acceptance lost `-$550` raw / `-$2,769.04` stress over `402`; flow absorption made `+$398` raw but `-$3.28/-$231.28` stress over `114`, so no branch survives authentic costs. Receipt `mcl_phase_flow_reacquisition_lifecycle_rejection.json` (`db44ab68…`) closes signed-flow ownership, magnitude/body threshold, stop, timeout, and exit rescue. V60 preregistration `mcl_maintenance_gap_auction_census_preregistration.json` (`2ac23b41…`) / evaluator `39c1e9fb…` freezes a physically independent GTH profile: last completed pre-maintenance close, shared nonzero CL/MCL reopen gap, exactly the first completed 15-minute accept/fail verdict, follow acceptance or fade failure, and one next-open MCL projection per session. Both periods must pass `160–300/year`, proposed and gap directions, acceptance/failure, weekend, `>=65%` eligible-session coverage, and exact one/session before any outcome. No gap magnitude, alternate clock, volume, flow, VWAP, Europe/US anchor, retained-state gate, news, risk overlay, quota, order, or capital authority |
 | E-446 | V60 shared-gap count `afee107d…` rejected before outcomes: discovery/validation produced `140/157` events (`140.10/157.57` per year) and `57.14/64.08%` eligible-session coverage, below the frozen `>160` and `>=65%` laws. Direction, CL-gap side, acceptance/failure, weekend, and exact `1/1/1` density were otherwise broad; zero return opened. The decisive exclusion was `166` sessions where MCL's lower-liquidity opening print did not share CL's gap direction. Receipt `mcl_maintenance_gap_auction_census_rejection.json` (`e2649aba…`). V61 preregistration `mcl_dominant_gap_auction_census_preregistration.json` (`65389fc3…`) / evaluator `e5e019b3…` applies the platform's actual discovery/transport law: dominant CL alone defines the nonzero maintenance gap; MCL's opening sign is attribution only, but both completed books must still agree on the exact 15-minute acceptance/failure verdict relative to their own prior closes. The unchanged `160–300/year`, direction, branch, weekend, coverage, and one/session gates precede outcomes. No gap magnitude, MCL-opening selector, alternate clock, volume, flow, VWAP, retained-state/news/risk overlay, quota, order, or capital authority |
+| E-447 | V61 dominant-gap count `2fc9ee67…` passed every frozen law before outcomes: discovery/validation produced `203/214` events (`203.14/214.77` per year), `82.86/87.35%` eligible-session coverage, up/down `97/106` and `102/112`, CL gap up/down `117/86` and `123/91`, acceptance/failure `131/72` and `151/63`, weekday/weekend `154/49` and `164/50`, and exact `1/1/1` density. MCL's opening gap was opposed or zero in `63/57` valid events, proving it belongs in transport attribution rather than CL discovery. Receipt `mcl_dominant_gap_auction_census_receipt.json` (`bc627f5f…`). V62 preregistration `mcl_dominant_gap_auction_lifecycle_preregistration.json` (`50ce1125…`) / evaluator `ef3f87cb…` freezes next-open matched MCL, follow-acceptance/fade-failure direction, and one symmetric origin: exit next-open only after both completed books cross their own pre-maintenance close against the position; hard session/contract/gap/independent-period boundaries flatten. Discovery must pass `160–300/year`, positive primary/stress net, PF `1.20/1.10`, PnL/DD `1.50/1.00`, positive directions/branches/weekdays/weekends, 8 months, 3 quarters, <=35% concentration, and exact one/session before validation. No magnitude, alternate clock, MCL-open selector, added gate, exit rescue, V18 composition, order, or capital authority |
 
 ### Decision anchors
 

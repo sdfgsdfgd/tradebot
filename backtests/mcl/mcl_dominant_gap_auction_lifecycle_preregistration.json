@@ -1,0 +1,62 @@
+{
+  "schema": "mcl.dominant-gap-auction-lifecycle-preregistration.v1",
+  "registered_at_utc": "2026-08-04T02:09:25Z",
+  "authority": "research_only_discovery_first_validation_sealed_no_orders_no_capital",
+  "campaign": "mcl.two-speed-auction-relay.v62",
+  "hypothesis": "A completed maintenance-gap acceptance or failure may own direction until both CL and matched MCL cross their frozen pre-maintenance closes against that position. The same origin is symmetric for follow-acceptance and fade-failure; one event and one position per session prevent churn.",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "census_preregistration_sha256": "65389fc31b2439fc8bcb9004a43b7d05d311dc3e8c2fc46b52d01980c2f14c7e",
+    "census_receipt_sha256": "bc627f5fe8060e547a9304c031b5d711a78fae1820d4aa14adc894be44ce921f",
+    "census_result_sha256": "2fc9ee675ddb22bcbf3172b3ad90a22aa9d38e5e5fc7b6184c5429fba05972f2",
+    "evaluator_path": "/tmp/mcl_stage62_dominant_gap_auction_lifecycle.py",
+    "evaluator_sha256": "ef3f87cb3e13fd0cb4f5c996344a862018472f0fa493409812c244f6ab11f2ab"
+  },
+  "frozen_lifecycle": {
+    "signal": "exact V61 dominant-CL maintenance-gap and completed joint fifteen-minute acceptance/failure verdict",
+    "direction": "follow CL gap acceptance; fade CL gap failure",
+    "entry": "next executable matched-suffix MCL minute open",
+    "ordinary_exit": "next minute open after both completed five-minute CL and MCL closes cross their own frozen pre-maintenance close against the position",
+    "forced_exit": "last available close before session or contract boundary; first open after unexpected same-session gap; independent discovery/validation period flat",
+    "overlap_reentry": "one MCL position and maximum one frozen event per session",
+    "stop_target_timeout_cooldown": "none"
+  },
+  "costs": {
+    "multiplier": 100,
+    "primary_round_trip_usd": 3.52,
+    "stress_round_trip_usd": 5.52
+  },
+  "period_gate": {
+    "annualized_trades": {"exclusive_minimum": 160, "inclusive_maximum": 300},
+    "primary_and_stress_net": "positive",
+    "minimum_primary_stress_profit_factor": [1.20, 1.10],
+    "minimum_primary_stress_pnl_to_intrabar_drawdown": [1.50, 1.00],
+    "directions_and_branches": "each >=20 trades and stress net positive",
+    "weekday_weekend": "weekday >=50 and weekend >=20 trades; each stress net positive",
+    "minimum_stress_positive_months": 8,
+    "minimum_stress_positive_equal_duration_quarters": 3,
+    "maximum_stress_largest_positive_month_share": 0.35,
+    "session_distribution": {"median": 1, "p95": 1, "maximum": 1}
+  },
+  "full_prefix_additional_gate": {
+    "both_july_to_july_periods_stress_net": "positive",
+    "minimum_primary_stress_pnl_to_intrabar_drawdown": [2.0, 1.5],
+    "minimum_stress_positive_months": 16,
+    "maximum_stress_largest_positive_month_share": 0.20
+  },
+  "outcome_order": [
+    "replay discovery only from a flat period boundary and evaluate every frozen gate",
+    "seal validation if any discovery gate fails",
+    "only after a complete pass replay untouched validation independently from flat",
+    "evaluate validation and combined-prefix gates without changing signal, direction, origin, or exit"
+  ],
+  "prohibitions": [
+    "no gap/origin magnitude, MCL-opening selector, alternate verdict clock, volume, flow, VWAP, retained state, ATR, news, stop, target, timeout, cooldown, branch inversion, replacement, or parameter neighbor",
+    "no validation exposure after discovery failure, V18 composition, order, capital, XSP, or Gold authority"
+  ],
+  "hold_even_on_pass": [
+    "missing July 2023 through August 2024 dated-contract challenge year",
+    "unseen runtime/backtest parity and prospective signal tape",
+    "native MCL liquidity, spread, commission, roll, margin, preview, restart, reconciliation, shared-capital, and graduation proof"
+  ]
+}

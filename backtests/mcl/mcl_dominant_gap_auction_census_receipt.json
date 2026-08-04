@@ -1,0 +1,38 @@
+{
+  "schema": "mcl.dominant-gap-auction-census-receipt.v1",
+  "recorded_at_utc": "2026-08-04T02:09:00Z",
+  "authority": "outcome_blind_count_pass_no_trade_outcomes_no_orders_no_capital",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "preregistration_sha256": "65389fc31b2439fc8bcb9004a43b7d05d311dc3e8c2fc46b52d01980c2f14c7e",
+    "evaluator_sha256": "e5e019b3fba0595b0c28d9b8bb0c567a06edf11353d23e7a469dcbd0bdab5f42",
+    "result_sha256": "2fc9ee675ddb22bcbf3172b3ad90a22aa9d38e5e5fc7b6184c5429fba05972f2"
+  },
+  "discovery": {
+    "events": 203,
+    "annualized": 203.139041,
+    "active_session_fraction": 0.828571,
+    "up_down": [97, 106],
+    "gap_up_down": [117, 86],
+    "acceptance_failure": [131, 72],
+    "weekday_weekend": [154, 49],
+    "mcl_open_aligned_opposed_or_zero": [140, 63],
+    "median_p95_maximum": [1, 1, 1]
+  },
+  "validation": {
+    "events": 214,
+    "annualized": 214.772997,
+    "active_session_fraction": 0.873469,
+    "up_down": [102, 112],
+    "gap_up_down": [123, 91],
+    "acceptance_failure": [151, 63],
+    "weekday_weekend": [164, 50],
+    "mcl_open_aligned_opposed_or_zero": [157, 57],
+    "median_p95_maximum": [1, 1, 1]
+  },
+  "finding": "Dominant CL gap ownership restores stable daily opportunity while completed CL/MCL verdict parity remains strict. MCL opening disagreement occurs in 63/57 valid events, confirming that its thin reopen print is useful attribution but not a reliable discovery veto.",
+  "forward_outcomes_opened": 0,
+  "validation_outcomes_opened": 0,
+  "verdict": "PASS_PREREGISTER_SINGLE_LIFECYCLE",
+  "submitted_orders": 0
+}
