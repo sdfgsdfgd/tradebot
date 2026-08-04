@@ -1,0 +1,157 @@
+{
+  "authority": "cutoff_bound_evidence_reduction_only",
+  "boundaries": {
+    "broker_queried": false,
+    "order_authority_mutated": false,
+    "profitability_clock_mutated": false,
+    "selection_mutated": false,
+    "service_or_timer_mutated": false,
+    "submitted_orders": 0
+  },
+  "gates": {
+    "attribution": {
+      "evidence": {
+        "attribution_complete": true,
+        "state_rows": 44
+      },
+      "reasons": [],
+      "status": "PASS"
+    },
+    "capital_owner_stability": {
+      "evidence": {
+        "generation_path": "/home/x/Desktop/py/tradebot/db/calibration/portfolio_generations/955967b275b5eddfe3e05b7665124b225fb8257ddf71d9ef50e888a4263a2542.json",
+        "generation_sha256": "2d186702917b3fa1d9115b032815afbd527882435b1c9f12adcfaaf60065c0fd",
+        "path": "backtests/portfolio_capital_owner_stability_20260804_mcl.json",
+        "plan_id": "955967b275b5eddfe3e05b7665124b225fb8257ddf71d9ef50e888a4263a2542",
+        "sha256": "8f7c04dfd3f2a8f07e2bc96c35569ead3a1149429c50368f2c8f22d3e32a77c9",
+        "sleeves": 3,
+        "source_revision": "84344829b7495e2d47b6a0a5bb54b79e1e7e148b"
+      },
+      "reasons": [],
+      "status": "PASS"
+    },
+    "cash_risk_safety": {
+      "evidence": {
+        "closed_trades": 0,
+        "drawdown_usd": 0.0,
+        "fill_count": 0,
+        "latest_risk_fingerprint": "12ea171a13b338a54b0fe70d371bcb76e78064c6e92909ef6587cf944a347370",
+        "state_rows": 44
+      },
+      "reasons": [],
+      "status": "PASS"
+    },
+    "execution": {
+      "evidence": {
+        "fills": 0,
+        "orders": 0
+      },
+      "reasons": [
+        "execution_not_observed"
+      ],
+      "status": "HOLD"
+    },
+    "identity": {
+      "evidence": {
+        "ledger_prefix_records": 55,
+        "ledger_prefix_sha256": "313ba10b08abc0c90fb3d1fb428dfef6722e78f9d3f3337ed8277b74d5804f80",
+        "selection_file_sha256": "61e502020e6bc0896e2a73e252ea1628afac24a40de18d327bf2651d40513b24",
+        "selection_id": "591db0104449f4388b9063bd613ffd8c9b076dcb281c46fb45545080e28898b2"
+      },
+      "reasons": [],
+      "status": "PASS"
+    },
+    "profitability": {
+      "evidence": {
+        "milestones": {
+          "24h": {
+            "evidence_as_of_utc": "2026-08-05T09:32:55+00:00",
+            "passed": false
+          }
+        },
+        "required_milestones": [
+          "24h"
+        ],
+        "target": "24h"
+      },
+      "reasons": [
+        "elapsed_time_incomplete",
+        "eligible_sessions_incomplete"
+      ],
+      "status": "HOLD"
+    },
+    "restart": {
+      "evidence": {
+        "first_natural_checkpoint_id": "f3ead573c5ff04f9c2ceb40462c667cd7ecf9a245f914cb8f9770ce95f93d848",
+        "restart_checkpoint_id": "a9813a915e5b2c64fc4f5210e58bb62ff0847c1b84214ae8982daa05d6b7abff"
+      },
+      "reasons": [],
+      "status": "PASS"
+    },
+    "runtime_parity": {
+      "evidence": {
+        "lifecycle_sha256": "05dccd2b7cf563703acd6ba6006d248779cdedee576dd4900c94b32413428bfe",
+        "owner_sha256": "03d0c958dab724a9e1b8f36070a1cbbb8df700e4d37683ffd6977061d5b866b7",
+        "signal_events": 2247,
+        "signal_sha256": "3147fa0ed02d5a88e7b78775986ecbc4ddd97b8879fde0042e9ea4ca04e48eb6",
+        "source_shadow_sha256": "05221fb1b2be1499587aba0f9c1aeff4b7f8458a7f8ad383419c642e11c80bea",
+        "trades": 338
+      },
+      "reasons": [],
+      "status": "PASS"
+    }
+  },
+  "identity": {
+    "ledger_prefix": {
+      "candidate_records": 55,
+      "clock_regressions": 0,
+      "cutoff_utc": "2026-08-04T10:15:11.305192+00:00",
+      "excluded_for_dependency": 0,
+      "first_record_id": "b601bdafd500e2796b61313f704930ab4ddece193c3c645ac92fc6e7d1e87272",
+      "included_records": 55,
+      "last_record_id": "9a53dcae8874a55768753cfb2bdf33dc532c4ca650b6434b8f7ace3207eb5510",
+      "schema": "live.calibration-logical-prefix.v1",
+      "sha256": "313ba10b08abc0c90fb3d1fb428dfef6722e78f9d3f3337ed8277b74d5804f80"
+    },
+    "selection": {
+      "capital_sleeve": "mcl-two-speed-auction-margin",
+      "execution_strategy_version": "mcl.two-speed-auction-live-execution.v1",
+      "path": "/home/x/Desktop/py/tradebot/db/calibration/selections/591db0104449f4388b9063bd613ffd8c9b076dcb281c46fb45545080e28898b2.json",
+      "run_id": "591db0104449f4388b9063bd613ffd8c9b076dcb281c46fb45545080e28898b2",
+      "run_started_at_utc": "2026-08-04T09:32:35.416127+00:00",
+      "selected_at_utc": "2026-08-04T09:32:35.416127+00:00",
+      "selection_file_sha256": "61e502020e6bc0896e2a73e252ea1628afac24a40de18d327bf2651d40513b24",
+      "selection_id": "591db0104449f4388b9063bd613ffd8c9b076dcb281c46fb45545080e28898b2",
+      "signal_strategy_version": "mcl.two-speed-auction-relay.v18"
+    },
+    "selection_file_sha256": "61e502020e6bc0896e2a73e252ea1628afac24a40de18d327bf2651d40513b24"
+  },
+  "reasons": [
+    "execution:execution_not_observed",
+    "profitability:elapsed_time_incomplete",
+    "profitability:eligible_sessions_incomplete"
+  ],
+  "receipt_id": "281a3bd227df3658dcfee9c750c581f03e114aeda818aa9c98d47117b332a129",
+  "remaining_requirements": [
+    "execution:execution_not_observed",
+    "profitability:elapsed_time_incomplete",
+    "profitability:eligible_sessions_incomplete"
+  ],
+  "schema": "live.strategy-graduation.v1",
+  "subject": {
+    "account_fingerprint": "bddaf5682a861c6e5fb3ef815a84b8e64c366bf94a6cfe2d459040603badaced",
+    "capital_sleeve": "mcl-two-speed-auction-margin",
+    "execution_sleeve": "MCL",
+    "run_id": "591db0104449f4388b9063bd613ffd8c9b076dcb281c46fb45545080e28898b2",
+    "selection_id": "591db0104449f4388b9063bd613ffd8c9b076dcb281c46fb45545080e28898b2",
+    "signal_instrument": "CL",
+    "strategy_id": "mcl.two-speed-auction-relay.v18",
+    "strategy_version": "mcl.two-speed-auction-live-execution.v1"
+  },
+  "target": {
+    "cutoff_utc": "2026-08-04T10:15:11.305192+00:00",
+    "milestone": "24h",
+    "required_predecessors": []
+  },
+  "verdict": "HOLD"
+}
