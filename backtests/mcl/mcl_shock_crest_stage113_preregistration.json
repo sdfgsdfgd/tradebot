@@ -1,0 +1,124 @@
+{
+  "schema": "mcl.shock-crest-accumulator-generation.v1",
+  "generation_id": "41717060839653e5f18ff36dc0533c92d1afeacc7c8d397ea56ee60129742a67",
+  "registered_at_utc": "2026-08-04T21:11:52.159396+00:00",
+  "eligible_start_utc": "2026-08-04T21:11:52.159396+00:00",
+  "authority": "prospective_morphology_only_no_outcomes_no_orders_no_capital",
+  "strategy_version": "mcl.two-speed-shock-arbiter.v112",
+  "selection_id": "083ecba8798ea6e60f32b1c42d4896e1a016703a77eeac2f32ac7ce3f5d54a91",
+  "selection_file_sha256": "3ffcdd1d7471456095f34ff1a7251679edd56b1898227f869e8112f41af16f7a",
+  "capital_plan_id": "851714c27f22abca7652d7df762ccfd464daff0ce4001fed6888079d54829f37",
+  "predictive_generation_id": "d0443eb0ff2c18714579d23d9e3eeb44fc5bc2a596e4daebbe25683c08b71fc8",
+  "predictive_generation_file_sha256": "2a7e478dc02952226099a68f5b525d9dd2bd57810302dd730e1c428ec9001db4",
+  "turn_tape_generation_sha256": "b3805c9f95713a13c26cb0ada08dc043f00069f42177212d3c575abe28c3ee7f",
+  "seconds_owner_version": "mcl.shock-crest-continuation-relay.v2",
+  "frozen_levels": {
+    "attention": 5.0,
+    "major": 10.0,
+    "tradeable": 12.0,
+    "regime": 20.0
+  },
+  "episode_law": {
+    "attention": "A causal partial-minute volume multiple at or above 5x opens an observation episode but never enters the treatment cohort by itself.",
+    "eligibility": "An episode enters the frozen cohort only after its latched level reaches at least 10x.",
+    "tradeable_and_regime_labels": "12x and 20x remain categorical morphology labels only; they have no prospective order, timing, sizing, or capital authority.",
+    "terminal": "The seconds owner NORMALIZED transition or the exact Stage-112 completed-minute release, roll, gap, maintenance, or Friday-flat boundary closes an episode.",
+    "reset_precedence": "An external Stage-112 reset closes the old episode before an observation at the same timestamp, permitting a genuinely new second-wave episode without inheriting state.",
+    "clock": "IBKR TCP packet receipt UTC for seconds evidence; finalized broker close UTC for completed-minute and slower context. No exchange timestamp is inferred."
+  },
+  "context_law": {
+    "scoring_owner": "Only the frozen seconds crest owner determines levels, direction, crest, continuation, rotation, reversal eligibility, and normalization.",
+    "non_scoring_annotations": [
+      "CL and MCL 5s, 15s, and 60s velocity plus 15m slope velocity and acceleration",
+      "rolling completed-minute 240m slope velocity and acceleration",
+      "rolling 240m true-range velocity and acceleration",
+      "30m CL-to-MCL basis divergence and velocity",
+      "strictly prior five-session MCL return and median minute true range",
+      "causal MCL news pressure, delta, velocity, and treatment age"
+    ],
+    "volume_clock_audit": "Receipt-bucket trade volume is compared with finalized broker-minute volume as an audit; minute identity is not asserted across the two timestamp domains."
+  },
+  "cohort_gate": {
+    "complete_episodes": 30,
+    "each_resolved_direction": 10,
+    "tradeable_episodes": 10,
+    "regime_episodes": 5,
+    "causal_crests": 20,
+    "continuations": 10,
+    "each_continuation_direction": 5
+  },
+  "settlement_law": {
+    "before_gate": "Record only immutable morphology and categorical counts. Do not expose returns, MFE, MAE, PnL, matched-control labels, or a winner.",
+    "after_gate": "Freeze matched controls and economic settlement in a successor preregistration before exposing any treatment outcome.",
+    "thresholds": "Do not refit 5x, 10x, 12x, 20x, crest persistence, continuation, reversal, or reset thresholds from the prospective cohort."
+  },
+  "artifacts": {
+    "accumulator_owner": {
+      "path": "tradebot/research/mcl_shock_accumulator.py",
+      "sha256": "2649e2b81e2e8d75776a75a615a945ca2f4f382f5bfbb8c8f2ff5e2a102f570f"
+    },
+    "evidence_owner": {
+      "path": "tradebot/research/mcl_shock_evidence.py",
+      "sha256": "dc95127cd1e07ac44c9570188c546e2962a64ea69155239252733f577c84958b"
+    },
+    "seconds_state_owner": {
+      "path": "tradebot/research/mcl_shock_crest.py",
+      "sha256": "0363b3416b4ca5771e0d7a6947f9a01a76eb99c9cae0e6c1904d0b88205c6019"
+    },
+    "completed_minute_owner": {
+      "path": "tradebot/research/mcl_minute_shock.py",
+      "sha256": "d9f170ddce49a48d3868c0c23f797ba0544d635aa4804f6534139a6679b17f64"
+    },
+    "stage112_arbiter_owner": {
+      "path": "tradebot/research/mcl_shock_arbiter.py",
+      "sha256": "e4b217c61c4cc51b813a20ff20741a11ea26d09f5d2223a88925a981f2bcddff"
+    },
+    "live_selection_contract_owner": {
+      "path": "tradebot/research/mcl_live_transport.py",
+      "sha256": "8b204647072bfe91ae2f29425c34c5c581c2305fa25022c4270360cab8a97add"
+    },
+    "news_contract_owner": {
+      "path": "tradebot/news/contract.py",
+      "sha256": "8f59b02ae8e65bcf23117f610d226f4a549bf708c53140af75dd718e4610a431"
+    },
+    "turn_tape_generation": {
+      "path": "backtests/mcl/mcl_turn_authenticity_microstructure_generation.json",
+      "sha256": "b3805c9f95713a13c26cb0ada08dc043f00069f42177212d3c575abe28c3ee7f"
+    },
+    "stage112_crown": {
+      "path": "backtests/mcl/mcl_v18_shock_stage112_executable_crown.json",
+      "sha256": "c1e7aad0391a6a4ab1cd6cf2065af023d2c36058e411a464dae939599b0dd63f"
+    },
+    "stage112_owner_parity": {
+      "path": "backtests/mcl/mcl_v18_shock_stage112_durable_owner_parity.json",
+      "sha256": "aedda4a31b734fe3ac6ba857d9dc33e39758006f7f25d6fed2930bcc5e4e6204"
+    },
+    "pre_registration_prefix": {
+      "path": "backtests/mcl/mcl_shock_crest_stage112_prospective_prefix_accumulation.json",
+      "sha256": "a21d62df528ac82800f99ed7f554311523e980c920fd13594adbeb004ad3af25"
+    },
+    "observation_owner_parity": {
+      "path": "backtests/mcl/mcl_shock_crest_stage113_observation_parity.json",
+      "sha256": "6e89578ab5ae04a7e768d3a8d99076d28164280cb8b64e1ead4b9946b8e7c535"
+    },
+    "shared_predictive_service": {
+      "path": "deploy/systemd/tradebot-mcl-predictive-onset.service",
+      "sha256": "00d004a459fa494f5ee6c1d2e12c24f12555f8da00a0792d199e52b4222229b7"
+    }
+  },
+  "invariants": {
+    "stage112_live_signal_changed": false,
+    "stage112_live_lifecycle_changed": false,
+    "stage112_live_risk_changed": false,
+    "stage112_live_execution_changed": false,
+    "separate_append_only_ledger": true,
+    "empty_cycles_append_nothing": true,
+    "classifier_authority": "none",
+    "timing_authority": "none",
+    "direction_authority": "none",
+    "order_authority": "none",
+    "capital_authority": "none"
+  },
+  "outcomes_exposed": false,
+  "submitted_orders": 0
+}

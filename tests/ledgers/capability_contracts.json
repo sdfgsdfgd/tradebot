@@ -273,7 +273,9 @@
         "tradebot/research/mcl_predictive_velocity.py",
         "tradebot/research/mcl_minute_shock.py",
         "tradebot/research/mcl_shock_arbiter.py",
+        "tradebot/research/mcl_shock_accumulator.py",
         "tradebot/research/mcl_shock_crest.py",
+        "tradebot/research/mcl_shock_evidence.py",
         "tradebot/research/mcl_two_speed_auction.py",
         "tradebot/spot_engine.py"
       ],

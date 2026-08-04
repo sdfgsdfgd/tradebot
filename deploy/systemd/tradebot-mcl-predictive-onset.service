@@ -1,8 +1,9 @@
 [Unit]
-Description=Accumulate exact non-submitting MCL V18 onset morphology across live selections
+Description=Accumulate exact non-submitting MCL onset and shock morphology
 Wants=network-online.target tradebot-ib-gateway-tunnel.service
 After=network-online.target tradebot-ib-gateway-tunnel.service tradebot-mcl-turn-tape.service
 ConditionPathExists=%h/Desktop/py/tradebot/db/calibration/mcl_predictive_onset_generation.json
+ConditionPathExists=%h/Desktop/py/tradebot/backtests/mcl/mcl_shock_crest_stage113_preregistration.json
 ConditionPathExists=%h/Desktop/py/tradebot/db/calibration/mcl_live_calibration.jsonl
 StartLimitIntervalSec=5min
 StartLimitBurst=3
@@ -21,10 +22,12 @@ Environment=IBKR_CLIENT_ID_POOL_END=3216
 Environment=IBKR_CLIENT_ID_STATE_FILE=%t/tradebot-mcl-predictive-client-ids.json
 Environment=IBKR_READONLY=1
 Environment=MCL_PREDICTIVE_LEDGER=%h/.local/state/tradebot/research/mcl_predictive_onset.jsonl
+Environment=MCL_SHOCK_LEDGER=%h/.local/state/tradebot/research/mcl_shock_crest.jsonl
 Environment=MCL_TURN_TAPE_DIR=%h/.local/state/tradebot/research/mcl_turn_tape
 Environment=MCL_NEWS_HISTORY_DIR=%h/.local/state/tradebot/news/history
 ExecCondition=/usr/bin/test -x %h/.local/share/tradebot/venv/bin/python
 ExecStart=/usr/bin/env python3 -m tradebot.research.mcl_predictive_accumulator --generation db/calibration/mcl_predictive_onset_generation.json
+ExecStart=/usr/bin/env python3 -m tradebot.research.mcl_shock_accumulator --generation backtests/mcl/mcl_shock_crest_stage113_preregistration.json
 TimeoutStartSec=4min
 Restart=on-failure
 RestartSec=30s
