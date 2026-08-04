@@ -517,6 +517,90 @@ def test_mcl_positive_24h_requires_complete_minutes_and_authentic_fill() -> None
     assert receipt["economics"]["fills"] == 2
 
 
+def test_mcl_same_minute_receipt_noise_collapses_by_economic_state() -> None:
+    selected = _selection()
+    baseline = datetime(2026, 8, 4, 8, 32, tzinfo=timezone.utc)
+    first = _profitability_state(selected, baseline + timedelta(minutes=1))
+    duplicate = deepcopy(first)
+    duplicate["checkpoint_id"] = "d" * 64
+    duplicate["recorded_at_utc"] = (baseline + timedelta(minutes=1, seconds=30)).isoformat()
+    duplicate["evaluation_as_of_utc"] = duplicate["recorded_at_utc"]
+    duplicate["evidence"]["source_checkpoint_id"] = "e" * 64
+    duplicate["evidence"]["quote"] = {"bid": 75.81, "ask": 75.82}
+    duplicate["evidence"]["broker_state"]["observed_at_utc"] = duplicate[
+        "recorded_at_utc"
+    ]
+    duplicate["evidence"]["risk_state"].update(
+        {
+            "as_of_utc": duplicate["recorded_at_utc"],
+            "liquidation_price": 75.81,
+            "observed_at_utc": duplicate["recorded_at_utc"],
+        }
+    )
+
+    receipt = mcl_live_profitability_receipt(
+        [
+            _profitability_state(selected, baseline),
+            first,
+            duplicate,
+        ],
+        selection=selected,
+        as_of=baseline + timedelta(minutes=2),
+    )
+
+    assert receipt["status"] == "ACTIVE"
+    assert receipt["reasons"] == []
+    assert receipt["clock"]["evaluated_slots"] == 1
+
+
+@pytest.mark.parametrize(
+    "change",
+    ("fill", "position", "safety", "order"),
+)
+def test_mcl_same_minute_material_state_change_remains_a_conflict(
+    change: str,
+) -> None:
+    selected = _selection()
+    baseline = datetime(2026, 8, 4, 8, 32, tzinfo=timezone.utc)
+    first = _profitability_state(selected, baseline + timedelta(minutes=1))
+    changed = deepcopy(first)
+    changed["checkpoint_id"] = "f" * 64
+    changed["recorded_at_utc"] = (baseline + timedelta(minutes=1, seconds=30)).isoformat()
+    changed["evaluation_as_of_utc"] = changed["recorded_at_utc"]
+    if change == "fill":
+        changed["evidence"]["risk_state"]["fill_count"] = 1
+    elif change == "position":
+        changed["evidence"]["broker_state"]["positions"] = [
+            {"symbol": "MCL", "con_id": selected["contracts"]["MCL"]["con_id"], "quantity": 1.0}
+        ]
+    elif change == "safety":
+        changed["evidence"]["risk_state"]["safety_breaches"] = [
+            "raw_loss_cap"
+        ]
+    else:
+        changed["evidence"]["broker_state"]["open_orders"] = [
+            {
+                "symbol": "MCL",
+                "con_id": selected["contracts"]["MCL"]["con_id"],
+                "order_ref": "MCLV18-test",
+                "status": "Submitted",
+            }
+        ]
+
+    receipt = mcl_live_profitability_receipt(
+        [
+            _profitability_state(selected, baseline),
+            first,
+            changed,
+        ],
+        selection=selected,
+        as_of=baseline + timedelta(minutes=2),
+    )
+
+    assert receipt["status"] == "INVALID_EVIDENCE"
+    assert "conflicting_session_coverage" in receipt["reasons"]
+
+
 def test_mcl_runtime_gate_rehashes_the_selected_stage112_owners() -> None:
     passed = mcl_runtime_parity_graduation_gate(
         selection=_selection(), repo_root=ROOT

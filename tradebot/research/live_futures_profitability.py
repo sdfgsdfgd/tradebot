@@ -12,6 +12,7 @@ from .live_graduation import evidence_sha256
 
 
 RiskProjection = Callable[[Mapping[str, object]], Mapping[str, object]]
+CoverageSignature = Callable[[Mapping[str, object]], object]
 EvaluationSlots = Callable[[datetime, datetime, bool], tuple[datetime, ...]]
 NaturalSlot = Callable[[datetime], bool]
 HeldDirection = Callable[[float], object]
@@ -34,6 +35,7 @@ class FuturesProfitabilitySpec:
     natural_slot: NaturalSlot
     held_direction: HeldDirection
     risk_projection: RiskProjection = dict
+    coverage_signature: CoverageSignature | None = None
     excluded_clock_field: str = "excluded_clock_slots"
     excluded_slots: ExcludedSlots = lambda _start, _end: 0
 
@@ -119,6 +121,7 @@ def _aligned_state(
     slot: datetime,
     *,
     tolerance_seconds: float,
+    coverage_signature: CoverageSignature | None,
 ) -> tuple[Mapping[str, object] | None, bool]:
     candidates = []
     signatures = set()
@@ -133,7 +136,13 @@ def _aligned_state(
             and abs((recorded - slot).total_seconds()) <= tolerance_seconds
         ):
             candidates.append((recorded, evaluated, row))
-            signatures.add(evidence_sha256(row.get("evidence")))
+            signatures.add(
+                evidence_sha256(
+                    coverage_signature(row)
+                    if coverage_signature is not None
+                    else row.get("evidence")
+                )
+            )
     if len(signatures) > 1:
         return None, True
     return (
@@ -264,7 +273,10 @@ def single_contract_profitability_receipt(
         second=0, microsecond=0
     )
     baseline, conflict = _aligned_state(
-        rows, coverage_start, tolerance_seconds=tolerance
+        rows,
+        coverage_start,
+        tolerance_seconds=tolerance,
+        coverage_signature=spec.coverage_signature,
     )
     errors: set[str] = set()
     if baseline is None or conflict:
@@ -301,7 +313,12 @@ def single_contract_profitability_receipt(
     missing = []
     conflicts = []
     for slot in due_slots:
-        row, conflict = _aligned_state(rows, slot, tolerance_seconds=tolerance)
+        row, conflict = _aligned_state(
+            rows,
+            slot,
+            tolerance_seconds=tolerance,
+            coverage_signature=spec.coverage_signature,
+        )
         if conflict:
             conflicts.append(slot.isoformat())
         elif row is None:

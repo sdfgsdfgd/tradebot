@@ -146,7 +146,72 @@ def normalize_mcl_risk(risk: Mapping[str, object]) -> Mapping[str, object]:
     }
 
 
-def _spec(strategy_id: str) -> FuturesProfitabilitySpec:
+def _mcl_coverage_signature(
+    row: Mapping[str, object], *, con_id: int
+) -> Mapping[str, object]:
+    """Ignore receipt-time marks while preserving every material MCL state change."""
+
+    evidence = row.get("evidence")
+    evidence = evidence if isinstance(evidence, Mapping) else {}
+    risk = evidence.get("risk_state")
+    risk = risk if isinstance(risk, Mapping) else {}
+    plan = evidence.get("plan")
+    plan = plan if isinstance(plan, Mapping) else {}
+    broker = evidence.get("broker_state")
+    broker = broker if isinstance(broker, Mapping) else {}
+    positions = broker.get("positions")
+    positions = positions if isinstance(positions, list) else []
+    orders = broker.get("open_orders")
+    orders = orders if isinstance(orders, list) else []
+    return {
+        "risk_state": {
+            key: value
+            for key, value in risk.items()
+            if key
+            not in {
+                "as_of_utc",
+                "liquidation_price",
+                "marked_through_utc",
+                "observed_at_utc",
+            }
+        },
+        "held_direction": plan.get("held_direction"),
+        "positions": sorted(
+            (
+                {
+                    key: value
+                    for key, value in position.items()
+                    if key != "market_value_base_cents"
+                }
+                for position in positions
+                if isinstance(position, Mapping)
+                and (
+                    position.get("symbol") == "MCL"
+                    or str(position.get("con_id") or "") == str(con_id)
+                )
+            ),
+            key=lambda value: json.dumps(value, sort_keys=True),
+        ),
+        "open_orders": sorted(
+            (
+                dict(order)
+                for order in orders
+                if isinstance(order, Mapping)
+                and (
+                    order.get("symbol") == "MCL"
+                    or str(order.get("con_id") or "") == str(con_id)
+                    or str(order.get("order_ref") or "").startswith(
+                        f"{MCL_LIVE_ORDER_REF_PREFIX}-"
+                    )
+                )
+            ),
+            key=lambda value: json.dumps(value, sort_keys=True),
+        ),
+        "submitted_orders": evidence.get("submitted_orders"),
+    }
+
+
+def _spec(strategy_id: str, con_id: int) -> FuturesProfitabilitySpec:
     return FuturesProfitabilitySpec(
         receipt_schema=MCL_LIVE_PROFITABILITY_SCHEMA,
         authority="selected_reconciled_mcl_risk_state_only",
@@ -163,6 +228,9 @@ def _spec(strategy_id: str) -> FuturesProfitabilitySpec:
         ),
         held_direction=_direction,
         risk_projection=normalize_mcl_risk,
+        coverage_signature=lambda row: _mcl_coverage_signature(
+            row, con_id=con_id
+        ),
         excluded_clock_field="closed_minutes_excluded",
         excluded_slots=_excluded_slots,
     )
@@ -180,7 +248,10 @@ def mcl_live_profitability_receipt(
         selection_id=str(selected["selection_id"]),
         run_started_at=str(selected["run_started_at_utc"]),
         con_id=int(selected["contracts"]["MCL"]["con_id"]),
-        spec=_spec(str(selected["strategy_version"])),
+        spec=_spec(
+            str(selected["strategy_version"]),
+            int(selected["contracts"]["MCL"]["con_id"]),
+        ),
         as_of=as_of,
     )
 
@@ -296,22 +367,23 @@ def mcl_live_graduation_inputs(
     cutoff = _utc(cutoff_utc)
     selection_sha = _sha256(selection_path)
     prefix, projected = live_calibration_logical_prefix(records, cutoff_utc=cutoff)
+    con_id = int(selected["contracts"]["MCL"]["con_id"])
+    spec = _spec(str(selected["strategy_version"]), con_id)
     rows = selected_futures_rows(
         projected,
         selection_id=str(selected["selection_id"]),
-        spec=_spec(str(selected["strategy_version"])),
+        spec=spec,
     )
-    con_id = int(selected["contracts"]["MCL"]["con_id"])
     restart = single_contract_restart_gate(
         selected_at_utc=str(selected["selected_at_utc"]),
         rows=rows,
         con_id=con_id,
-        spec=_spec(str(selected["strategy_version"])),
+        spec=spec,
     )
     risk, attribution = single_contract_risk_gates(
         rows=rows,
         con_id=con_id,
-        spec=_spec(str(selected["strategy_version"])),
+        spec=spec,
     )
     broker = selected.get("broker_at_selection")
     account_id = str(broker.get("account_id") or "") if isinstance(broker, Mapping) else ""
