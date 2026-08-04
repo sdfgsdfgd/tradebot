@@ -1,0 +1,62 @@
+{
+  "schema": "mcl.transport-lead-validation-lifecycle-rejection.v1",
+  "recorded_at_utc": "2026-08-04T00:59:38Z",
+  "authority": "research_only_sealed_validation_opened_no_orders_no_capital",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "census_sha256": "ace2681e0b38e1f69a8818e927c07b2a4b022aae52a92a5120bca108964ffcbf",
+    "primary_result_sha256": "b9c64409dcb9cd482427588bb0ae314d870d0350a2100aea6d3f0615ae2f4c15",
+    "preregistration_sha256": "83647cf1c6db59ae923838d80206704e86355969f4eb1e3ec88e3b44d53339f0",
+    "evaluator_sha256": "e7d2b87c6f25cbf8a38435db31fefa2ce2a5a8574145fe2e0dc709c0cc1cdeac",
+    "result_sha256": "104f921a6eb9c82e727e1510d0160a9b09dd8babb32c7d9cd61ef51cd5355b9a"
+  },
+  "development_exposed_reference": {
+    "addon_trades": 25,
+    "addon_primary_net": 948.00,
+    "addon_stress_net": 898.00,
+    "combined_primary_net": 2211.91,
+    "combined_stress_net": 1827.91,
+    "combined_primary_stress_profit_factor": [1.657110, 1.525545],
+    "combined_primary_stress_pnl_to_intrabar_drawdown": [4.535949, 3.643868]
+  },
+  "sealed_validation": {
+    "addon_trades": 25,
+    "addon_primary_net": -537.00,
+    "addon_stress_net": -587.00,
+    "addon_primary_profit_factor": 0.319219,
+    "addon_stress_profit_factor": 0.283097,
+    "addon_primary_pnl_to_intrabar_drawdown": -0.527029,
+    "addon_stress_pnl_to_intrabar_drawdown": -0.553293,
+    "addon_primary_stress_positive_months": [5, 5],
+    "addon_stress_branches": {
+      "absorption": [22, -412.44],
+      "initiative_failure": [3, -174.56]
+    },
+    "addon_stress_directions": {
+      "down": [14, -383.28],
+      "up": [11, -203.72]
+    },
+    "combined_primary_net": 1085.58,
+    "combined_stress_net": 693.58,
+    "combined_primary_stress_profit_factor": [1.244405, 1.151960],
+    "combined_primary_stress_pnl_to_intrabar_drawdown": [0.939831, 0.508833],
+    "combined_primary_stress_positive_months": [6, 5]
+  },
+  "failed_gates": [
+    "sealed add-on negative under both costs",
+    "both sealed branches, directions, anchors, and sides negative",
+    "sealed add-on PF, PnL/DD, month breadth, and concentration failed",
+    "combined validation net, PF, PnL/DD, and month breadth weaker than immutable V18"
+  ],
+  "finding": "The transport-leading sign repeated at identical frequency but inverted economically: +$898.00 discovery stress became -$587.00 in sealed validation, with every major cohort negative. The basis geometry was a regime artifact, not transferable oil financing. Full-prefix selection remained unopened by law.",
+  "validation_opened": true,
+  "full_prefix_opened": false,
+  "closed_families": [
+    "transport-leading CL-minus-MCL basis-change permission",
+    "basis magnitude, closing-level, body, wick, location, branch, side, direction, or regime rescue",
+    "all V18 rejection add-on geometry from V43 through V50"
+  ],
+  "preserved_seam": "Start a materially independent high-cadence oil lifecycle rather than filter V18 rejection events: retained slow auction direction plus a causal joint CL/MCL Globex-session VWAP reclaim, with raw-state alignment distinguishing acceptance continuation from failed-auction reclaim.",
+  "verdict": "REJECT_START_SESSION_VWAP_RECLAIM_CENSUS",
+  "submitted_orders": 0
+}

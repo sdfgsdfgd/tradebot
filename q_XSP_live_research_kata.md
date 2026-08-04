@@ -811,7 +811,13 @@ transition through today’s close; no order will be forced merely to populate t
   It repeated at exactly `25/25` events with combined `192.13/196.71` annual
   cadence and every cohort. V50 preregistration `83647cf1…` / evaluator
   `e7d2b87c…` now authorizes one validation-only transfer test; the sealed year
-  and then full prefix must each pass the unchanged strict V44 economics.
+  and then full prefix must each pass the unchanged strict V44 economics. It
+  failed brutally: `+$898` discovery stress became `-$587` sealed stress, with
+  both branches/directions/anchors/sides negative. V43–V50 rejection geometry
+  is closed. V51 preregistration `c1d86abc…` / evaluator `173fa743…` starts an
+  independent session-inventory profile: exact retained CL direction plus a
+  joint CL/MCL adverse-to-favorable Globex-session VWAP reclaim, with raw-state
+  agreement separating continuation from failed-auction reclaim before outcomes.
   Rolls, costs, news authority, and live XSP/Gold owners remain unchanged.
 - `[PRESERVED RUNNER-UP]` **Tri-asset narrative-dispersion compression:** test
   whether convergence among easing-negative XSP pressure, weakening-positive
@@ -1318,7 +1324,15 @@ and stable bootstrap evidence. Neither may be refactored into looking mature.
     `mcl_transport_lead_validation_lifecycle_preregistration.json`
     (`83647cf1…`) / evaluator `e7d2b87c…` freezes a validation-only transfer:
     discovery is reference-only; the sealed year must pass independently before
-    any full-prefix result opens.
+    any full-prefix result opens. It failed at `-$537/-$587` stress over `25`,
+    with every major cohort negative; full prefix remained unopened. Rejection
+    receipt `mcl_transport_lead_validation_lifecycle_rejection.json`
+    (`49463a21…`) closes all V43–V50 rejection geometry. V51 preregistration
+    `mcl_session_vwap_reclaim_census_preregistration.json` (`c1d86abc…`) /
+    evaluator `173fa743…` begins a materially independent high-cadence profile:
+    exact retained CL direction plus joint CL/MCL session-VWAP reclaim; count
+    both raw-aligned continuation and raw-opposed failed-auction branches before
+    any lifecycle outcome.
     Missing July-2023–August-2024 remains a hard crown blocker; no quota, order,
     or capital authority.
 
@@ -1680,6 +1694,7 @@ and
 | E-433 | outcome-blind V47 joint-result count `121d63f6…` passed both periods before any shifted-entry return opened. Discovery retained exactly `25` add-ons (`25.02/year`) across `25` sessions, absorption/failure `21/4`, up/down `17/8`, Europe/US `10/15`, high/low `8/17`; immutable V18 raises combined cadence to `192.13/year`, median/p95/max `1/2/3`. Validation count independently retained `25` (`25.09/year`) across `24` sessions, `23/2`, `8/17`, `12/13`, `17/8`; combined cadence `196.71/year`, median/p95/max `1/3/3`. Eighty source events failed the exact joint-sign condition; there were no clock, contract, session, V18-incumbent, or duplicate-entry exclusions. Receipt `mcl_joint_result_confirmation_addon_census_receipt.json` (`aba72eec…`). V48 preregistration `mcl_joint_result_confirmation_portfolio_lifecycle_preregistration.json` (`9e68b5b1…`) / adapter `8a4f1f53…` freezes the exact next-minute MCL entries and reuses V44's immutable V18-primary, branch-state add-on, one-position, V18-preemption, and `$3.52/$5.52` cost owner. Discovery must independently pass add-on economics and improve V18 without weakening PF, PnL/DD, positive-month breadth, or concentration under either cost before validation opens; no order or capital authority |
 | E-434 | V48 lifecycle `1a846ffd…` proved a favorable first minute was late chase, not confirmation. Its `25` add-ons lost `-$135.00/-$185.00` stress, PF `.766/.696`, PnL/DD `-.503/-.606`, with absorption `-$50.92`, initiative failure `-$134.08`, up `-$205.84`, and only four positive months. Combined net/PF/PnL-DD and month breadth all fell below immutable V18; validation remained sealed. Trigger-geometry anatomy `de8dd5df…` examined only five natural completed-trigger families across the full discovery V43 cohort. The clean physical split was CL-minus-MCL basis change: `25` events where MCL moved farther in the proposed direction than CL made `+$898.00` stress, PF `3.943`, PnL/DD `5.699`, both directions positive; `21` unchanged-basis events made `+$276.08`; `23` CL-leading events lost `-$484.96`. Rejection receipt `mcl_joint_result_confirmation_portfolio_lifecycle_rejection.json` (`8acb869e…`). V49 preregistration `mcl_transport_lead_addon_census_preregistration.json` (`6c853668…`) / evaluator `e3129629…` freezes only the natural transport-leading sign on unchanged next-open entries. Discovery is explicitly outcome-exposed; only sealed-period count breadth may advance it to a separately preregistered validation lifecycle. Both periods must retain `>=20` events, both branches/directions/anchors/sides, and combined `>190/year`; no magnitude, geometry companion, outcome, order, or capital authority |
 | E-435 | outcome-blind V49 count `ace2681e…` showed transport-leading basis ownership repeats almost perfectly before sealed PnL opened. Discovery identity is `25` events (`25.02/year`) across `24` sessions, absorption/failure `21/4`, up/down `17/8`, Europe/US `12/13`, high/low `8/17`; combined cadence `192.13/year`. Validation count independently has `25` (`25.09/year`) across `25` sessions, `22/3`, `11/14`, `15/10`, `14/11`; immutable V18 raises combined cadence to `196.71/year`, median/p95/max `1/3/4`. Eighty events lacked the exact transport-leading sign. Receipt `mcl_transport_lead_addon_census_receipt.json` (`ef470349…`). V50 preregistration `mcl_transport_lead_validation_lifecycle_preregistration.json` (`83647cf1…`) / evaluator `e7d2b87c…` binds one honest transfer test: discovery is outcome-exposed reference only; the sealed validation year must independently pass positive add-on net/PF/PnL-DD/month/concentration/all-cohort gates and improve its immutable V18 slice under both costs. Only a validation pass may compute the full prefix, which must pass the identical gate. No parameter, outcome reuse, order, or capital authority |
+| E-436 | V50 sealed transfer `104f921a…` decisively rejected the visually stable transport-lead state: discovery `+$898.00` stress inverted to validation `-$587.00` over the same `25` events, PF `.283`, PnL/DD `-.553`, only five positive months, absorption/failure `-$412.44/-$174.56`, down/up `-$383.28/-$203.72`, and both anchors/sides negative. Combined validation fell from immutable V18's `+$1,280.58` stress / PF `1.342` / PnL-DD `1.387` to `+$693.58` / `1.152` / `.509`; full-prefix selection remained unopened. Receipt `mcl_transport_lead_validation_lifecycle_rejection.json` (`49463a21…`) closes V43–V50 rejection-add-on geometry and all basis/shape/regime rescue. V51 preregistration `mcl_session_vwap_reclaim_census_preregistration.json` (`c1d86abc…`) / evaluator `173fa743…` freezes a materially independent high-cadence oil state: exact V18 retained CL trend direction, causal cumulative Globex-session HLC3-volume VWAP per CL/MCL, and one completed joint adverse-to-favorable reclaim. Raw direction aligned with retained state labels acceptance continuation; raw opposition/absence labels failed-auction reclaim. Both periods must independently produce `>160` and `<=520/year`, both branches/directions, `>=45%` active sessions, median `1–3`, p95 `<=6`, max `<=10` before any outcome opens; no VWAP band, time, volume, ATR, quota, order, or capital authority |
 
 ### Decision anchors
 
