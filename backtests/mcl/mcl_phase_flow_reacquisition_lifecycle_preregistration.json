@@ -1,0 +1,65 @@
+{
+  "schema": "mcl.phase-flow-reacquisition-lifecycle-preregistration.v1",
+  "registered_at_utc": "2026-08-04T01:54:41Z",
+  "authority": "research_only_discovery_first_validation_sealed_no_orders_no_capital",
+  "campaign": "mcl.two-speed-auction-relay.v59",
+  "hypothesis": "A phase-owned joint CL/MCL signed-flow reacquisition may finance the unchanged V18 retained direction until both books lose flow financing. Separate GTH/RTH rights create opportunity; one persistent position owner prevents overlapping exposure. Retained-state disagreement always reduces risk.",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "immutable_v18_result_sha256": "b9c64409dcb9cd482427588bb0ae314d870d0350a2100aea6d3f0615ae2f4c15",
+    "census_preregistration_sha256": "06533aa17759002b52bc8ff667e2839c4ed1a3b2ee2f398bc6a02d3fbaa7b581",
+    "census_receipt_sha256": "a342404f33c63e31b2e4b2461b5068ebda0696c537998e28e7c0d61bbe77313d",
+    "census_result_sha256": "85ba57ecb680715aa3427774b79bb2b2f5b604eb2244d75e9d52ebed90dc41f7",
+    "evaluator_path": "/tmp/mcl_stage59_phase_flow_reacquisition_lifecycle.py",
+    "evaluator_sha256": "95767b3dab62108c6c8440e4b0f2770bc35c9f340d2cf0da593992948e351e1e"
+  },
+  "frozen_lifecycle": {
+    "signal": "exact V58 first joint signed-flow reacquisition per Globex session and physical GTH/RTH phase",
+    "direction": "unchanged exact V18 retained CL trend state",
+    "entry": "next executable matched-suffix MCL minute open",
+    "ordinary_exit": "next minute open after first completed five-minute bar where direction-signed CL and MCL flow are both <=0",
+    "risk_exit": "next minute open after exact V18 retained trend differs from position direction",
+    "forced_exit": "last available close before session or contract boundary; first open after unexpected same-session clock gap; independent discovery/validation period flat",
+    "overlap": "one MCL position; a later phase event is skipped while occupied",
+    "reentry": "only a still-unused frozen phase event",
+    "stop_target_timeout_cooldown": "none"
+  },
+  "costs": {
+    "multiplier": 100,
+    "primary_round_trip_usd": 3.52,
+    "stress_round_trip_usd": 5.52
+  },
+  "period_gate": {
+    "annualized_trades": {"exclusive_minimum": 160, "inclusive_maximum": 520},
+    "primary_and_stress_net": "positive",
+    "minimum_primary_stress_profit_factor": [1.20, 1.10],
+    "minimum_primary_stress_pnl_to_intrabar_drawdown": [1.50, 1.00],
+    "directions_and_branches": "each >=20 trades and stress net positive",
+    "gth_and_rth": "each >=50 trades and stress net positive",
+    "minimum_stress_positive_months": 8,
+    "minimum_stress_positive_equal_duration_quarters": 3,
+    "maximum_stress_largest_positive_month_share": 0.35,
+    "session_density": {"median_minimum": 1, "median_maximum": 2, "p95_maximum": 2, "maximum": 2}
+  },
+  "full_prefix_additional_gate": {
+    "both_july_to_july_periods_stress_net": "positive",
+    "minimum_primary_stress_pnl_to_intrabar_drawdown": [2.0, 1.5],
+    "minimum_stress_positive_months": 16,
+    "maximum_stress_largest_positive_month_share": 0.20
+  },
+  "outcome_order": [
+    "replay discovery only and evaluate every frozen period gate",
+    "if any discovery gate fails, seal validation and reject",
+    "only after a complete discovery pass replay the untouched validation period independently from flat",
+    "evaluate validation and combined-prefix gates without changing the owner"
+  ],
+  "prohibitions": [
+    "no flow magnitude, smoothing, lookback, body, volume, state age, coherence, ATR, lane, clock, news, stop, target, timeout, cooldown, replacement, or direction-rearm neighbor",
+    "no exit rescue, V18 composition, parameter sweep, validation exposure after discovery failure, order, capital, XSP, or Gold authority"
+  ],
+  "hold_even_on_pass": [
+    "missing July 2023 through August 2024 dated-contract challenge year",
+    "unseen runtime/backtest parity and prospective signal tape",
+    "native MCL liquidity, spread, commission, roll, margin, preview, restart, reconciliation, shared-capital, and graduation proof"
+  ]
+}
