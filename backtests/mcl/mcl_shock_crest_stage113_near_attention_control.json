@@ -1,0 +1,116 @@
+{
+  "schema": "mcl.shock-crest-stage113-near-attention-control.v1",
+  "recorded_at_utc": "2026-08-04T22:52:11Z",
+  "authority": "post_checkpoint_morphology_diagnostic_only_no_threshold_selection_no_outcomes_no_orders_no_capital",
+  "checkpoint": "hawkeye_2_of_6",
+  "generation_id": "fd2dd70f9238a0ea423d9e7fe4c7317ca80aab93ba79488ab163223cfe6b3756",
+  "selection_id": "083ecba8798ea6e60f32b1c42d4896e1a016703a77eeac2f32ac7ce3f5d54a91",
+  "evaluator": {
+    "path_on_q": "/var/tmp/mcl_stage113_near_attention_control.py",
+    "sha256": "9a6c850c62848448d4a186cec19fbe610b72761dcb3f6b874747198db923c516"
+  },
+  "result": {
+    "path_on_q": "/var/tmp/mcl-stage113-near-attention-control.json",
+    "sha256": "a88976baed0413e8dc1ba334886d8c4ccb33d2d245d6d96e5f9ff9730d7d1895"
+  },
+  "frozen_prefix": {
+    "cutoff_utc": "2026-08-04T22:45:42+00:00",
+    "event_records": 1028,
+    "event_record_ids_sha256": "231b681c09964cc25f742eaf9e62fa4f5b04dd010e255f0b027fa503e44c7fa8",
+    "bar_cutoff_utc": "2026-08-04T22:45:00+00:00",
+    "bar_rows": 5565,
+    "bar_sha256": "9a7cfd8cdf503bdf463c63e60567f48387898e1bfd59b8157fd1f887799ba98f",
+    "eligible_observations": 103,
+    "natural_and_replay_prefix_identity": true,
+    "whole_file_hash_note": {
+      "natural_invocation_sha256": "f86fee2e39733a62bd79ccffe4bf300133debda5e3ceb4d0cce22b26462d284a",
+      "later_replay_sha256": "62b25c1c6d5d8778480689e0bdcdf255526e94d6c4e92dc9853cc687612fac2f",
+      "meaning": "The source JSONL continued appending after the frozen cutoff, so its whole-file SHA changed. Prefix identity is the unchanged selected record-ID SHA plus unchanged finalized-bar SHA; the whole-file SHA is not a prefix identity."
+    }
+  },
+  "peak": {
+    "observed_at_utc": "2026-08-04T22:38:55+00:00",
+    "record_id": "39a018dbdbb99f6daa1bafbeb2d79c06f1359f293f8cfa52a1d407c17e04d8cb",
+    "volume_multiple": 4.4375,
+    "mcl_microprice": 75.25285714285714,
+    "cl": {
+      "velocity_5s": 0.7916666666670125,
+      "velocity_15s": 0.6500000000002615,
+      "velocity_60s": 0.12068965517242654,
+      "slope_15m": -0.008406335722502453,
+      "velocity_15m": 0.003983593035407443,
+      "acceleration_15m": 0.003980302654646254,
+      "signed_flow_15s": 5.0,
+      "volume_velocity_5s": 1.0
+    },
+    "mcl": {
+      "velocity_5s": 1.1964285714284983,
+      "velocity_15s": 0.38849385908205336,
+      "velocity_60s": 0.1102900930486916,
+      "slope_15m": -0.009478313618441389,
+      "velocity_15m": 0.004675968051763846,
+      "acceleration_15m": 0.008208900810657838,
+      "signed_flow_15s": 19.0,
+      "volume_velocity_5s": -4.0
+    },
+    "fresh_type_1_top": true,
+    "spread_eligible": true
+  },
+  "causal_neighborhood": [
+    {
+      "observed_at_utc": "2026-08-04T22:38:51+00:00",
+      "volume_multiple": 4.3125,
+      "mcl_microprice": 75.238,
+      "cl_velocity_5s": 1.0000000000005116,
+      "mcl_velocity_5s": 1.7181818181818187,
+      "mcl_volume_velocity_5s": 9.0
+    },
+    {
+      "observed_at_utc": "2026-08-04T22:38:52+00:00",
+      "volume_multiple": 4.3125,
+      "mcl_microprice": 75.24666666666667,
+      "cl_velocity_5s": 1.355555555556028,
+      "mcl_velocity_5s": 1.4343434343435508,
+      "mcl_volume_velocity_5s": 0.0
+    },
+    {
+      "observed_at_utc": "2026-08-04T22:38:55+00:00",
+      "volume_multiple": 4.4375,
+      "mcl_microprice": 75.25285714285714,
+      "cl_velocity_5s": 0.7916666666670125,
+      "mcl_velocity_5s": 1.1964285714284983,
+      "mcl_volume_velocity_5s": -4.0
+    },
+    {
+      "observed_at_utc": "2026-08-04T22:38:57+00:00",
+      "volume_multiple": 4.4375,
+      "mcl_microprice": 75.252,
+      "cl_velocity_5s": -0.34999999999953957,
+      "mcl_velocity_5s": 0.04999999999988347,
+      "mcl_volume_velocity_5s": -11.0
+    },
+    {
+      "observed_at_utc": "2026-08-04T22:39:09+00:00",
+      "volume_multiple": 0.18181818181818182,
+      "mcl_microprice": 75.235,
+      "cl_velocity_5s": -0.24999999999977263,
+      "mcl_velocity_5s": -0.3500000000002501,
+      "cl_velocity_15s": -0.19285714285715017,
+      "mcl_velocity_15s": -0.0928571428571802,
+      "cl_signed_flow_15s": -2.0,
+      "mcl_signed_flow_15s": -3.0
+    }
+  ],
+  "interpretation": "This was a fast bullish micro-burst inside negative CL and MCL 15-minute slopes. Its five-second speed and MCL volume velocity crested before the maximum 4.4375x minute-volume reading, then reversed within seconds. It never reached the frozen 5x attention level, much less 12x tradeable shock, and generated no Stage-113 transition or episode. Volume magnitude alone is not an entry; a tradeable episode must first reach 12x and then show post-crest renewed CL/MCL multiscale acceleration and flow.",
+  "invariants": {
+    "stage112_live_unchanged": true,
+    "stage113_thresholds_unchanged": true,
+    "classifier_winner": null,
+    "future_return_exposed": false,
+    "pnl_exposed": false,
+    "order_authority": "none",
+    "capital_authority": "none"
+  },
+  "outcomes_exposed": false,
+  "submitted_orders": 0
+}
