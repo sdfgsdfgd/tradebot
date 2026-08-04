@@ -1,0 +1,53 @@
+{
+  "schema": "mcl.v18-flat-rejection-addon-census-receipt.v1",
+  "recorded_at_utc": "2026-08-04T00:21:00Z",
+  "authority": "outcome_blind_no_addon_forward_pnl_no_orders_no_capital",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "rejection_census_sha256": "b92de419131f50176b1fd247448e8d301f3230775f946353e609bb364715960f",
+    "immutable_v18_result_sha256": "b9c64409dcb9cd482427588bb0ae314d870d0350a2100aea6d3f0615ae2f4c15",
+    "preregistration_sha256": "80a3e23c0c5533f9ce20e76aaf4b13c8675a92a05997204c2a32edbf4a39e7fb",
+    "evaluator_sha256": "3196850cf1bb98c69a53eca23454594bf68f3e5241a3b80edcd3107a11f97d60",
+    "result_sha256": "1a8a5f0e8705cbbd76a71cedf6f3ba232ab93ed2c96278644a6156598040554f"
+  },
+  "discovery": {
+    "addon_events": 69,
+    "addon_annualized": 69.05,
+    "addon_active_sessions": 62,
+    "addon_active_session_fraction": 0.24031,
+    "addon_session_median_p95_max": [1, 2, 2],
+    "absorption_failure": [58, 11],
+    "up_down": [43, 26],
+    "europe_us": [29, 40],
+    "high_low": [26, 43],
+    "primary_entries": 167,
+    "combined_entries": 236,
+    "combined_annualized": 236.16,
+    "combined_session_median_p95_max": [1, 3, 3]
+  },
+  "validation_count": {
+    "addon_events": 61,
+    "addon_annualized": 61.22,
+    "addon_active_sessions": 57,
+    "addon_active_session_fraction": 0.22179,
+    "addon_session_median_p95_max": [1, 2, 2],
+    "absorption_failure": [55, 6],
+    "up_down": [29, 32],
+    "europe_us": [31, 30],
+    "high_low": [32, 29],
+    "primary_entries": 171,
+    "combined_entries": 232,
+    "combined_annualized": 232.84,
+    "combined_session_median_p95_max": [1, 3, 4]
+  },
+  "exclusions": {
+    "not_trend_aligned": 192,
+    "v18_primary_incumbent": 26
+  },
+  "finding": "The exact composition is count-eligible in both periods without reading one add-on outcome. It adds ordinary one-to-two-event opportunities across both speeds, directions, anchors, and sides while preserving every immutable V18 entry and excluding all 26 collisions with an incumbent primary position.",
+  "forward_outcomes_opened": 0,
+  "validation_outcomes_opened": 0,
+  "eligible_for_lifecycle_preregistration": true,
+  "verdict": "ELIGIBLE_FOR_PREREGISTRATION",
+  "submitted_orders": 0
+}

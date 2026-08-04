@@ -1,0 +1,77 @@
+{
+  "schema": "mcl.v18-rejection-portfolio-lifecycle-preregistration.v1",
+  "registered_at_utc": "2026-08-04T00:24:34Z",
+  "authority": "research_only_no_orders_no_capital",
+  "campaign": "mcl.two-speed-auction-relay.v44",
+  "hypothesis": "The unchanged V18 transport-acceptance owner can remain the portfolio primary while trend-financed opening-auction rejection captures otherwise idle intervals. Because the two owners are temporally exclusive and V18 always preempts, the composition should add independently positive after-cost expectancy without weakening V18's PF, PnL/DD, month breadth, or concentration.",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "immutable_v18_result_sha256": "b9c64409dcb9cd482427588bb0ae314d870d0350a2100aea6d3f0615ae2f4c15",
+    "addon_census_preregistration_sha256": "80a3e23c0c5533f9ce20e76aaf4b13c8675a92a05997204c2a32edbf4a39e7fb",
+    "addon_census_evaluator_sha256": "3196850cf1bb98c69a53eca23454594bf68f3e5241a3b80edcd3107a11f97d60",
+    "addon_census_result_sha256": "1a8a5f0e8705cbbd76a71cedf6f3ba232ab93ed2c96278644a6156598040554f",
+    "lifecycle_evaluator_path": "/tmp/mcl_stage44_v18_rejection_portfolio_lifecycle.py",
+    "lifecycle_evaluator_sha256": "0d89fcfbfe2960338bc769bcd57ba1376c54d40a24810288be08666dd5708e28"
+  },
+  "ownership": {
+    "primary": "replay no V18 signals: consume its immutable basis_breadth trade ledger exactly",
+    "addon": "only the exact V43 trend-aligned, V18-flat event set; unchanged V42 branch-state exit at anchor cutoff or next add-on",
+    "priority": "a V18 entry closes any add-on at that exact matched-MCL open before V18 begins",
+    "capital": "one mutually exclusive MCL position; no overlapping contracts or additive sizing"
+  },
+  "execution": {
+    "instrument": "matched-expiry MCL dated future",
+    "entry": "frozen next one-minute MCL open",
+    "multiplier": 100,
+    "primary_round_trip_cost_usd": 3.52,
+    "stress_round_trip_cost_usd": 5.52,
+    "contract_or_clock_discontinuity": "flatten add-on at last valid matched-MCL close",
+    "v18_preemption": "flatten add-on at exact V18 entry MCL open"
+  },
+  "period_gate": {
+    "combined_annualized_trades": {
+      "exclusive_minimum": 190,
+      "inclusive_maximum": 520
+    },
+    "addon": {
+      "positive_primary_and_stress_net": true,
+      "minimum_primary_profit_factor": 1.20,
+      "minimum_stress_profit_factor": 1.10,
+      "minimum_primary_pnl_to_intrabar_drawdown": 1.50,
+      "minimum_stress_pnl_to_intrabar_drawdown": 1.00,
+      "minimum_primary_positive_months": 7,
+      "minimum_stress_positive_months": 6,
+      "maximum_largest_positive_month_share": 0.40,
+      "all_directions_branches_anchors_and_sides_positive_under_both_costs": true
+    },
+    "combined_relative_to_immutable_v18": {
+      "strictly_higher_net_under_both_costs": true,
+      "profit_factor_not_lower_under_both_costs": true,
+      "pnl_to_intrabar_drawdown_not_lower_under_both_costs": true,
+      "positive_month_count_not_lower_under_both_costs": true,
+      "largest_positive_month_share_not_higher_under_both_costs": true
+    }
+  },
+  "validation_law": {
+    "discovery": "simulate add-on outcomes only before the split and compare the exact non-overlapping portfolio with unchanged V18",
+    "if_discovery_fails": "reject and leave every validation add-on outcome unopened",
+    "if_discovery_passes": "open the exact same add-on owner and priority law in validation; validation and full periods must independently pass the same gate"
+  },
+  "controls": {
+    "unchanged_primary": "report V18 alone beside every combined period",
+    "addon_standalone": "report independently; it is not separately selectable below 160/year",
+    "same_addon_inverted": "not selectable and not required because V42 already rejected opposed financing"
+  },
+  "prohibitions": [
+    "no V18 entry, direction, exit, hold, cost, or outcome mutation",
+    "no concurrent MCL positions or increased contract count",
+    "no alternate add-on financing, branch, anchor, side, direction, month, volatility, or news gate",
+    "no validation add-on outcomes unless discovery passes every gate",
+    "no order, capital, XSP, or Gold authority"
+  ],
+  "downstream_hold_even_on_pass": [
+    "missing July 2023 through August 2024 dated-contract history",
+    "unseen runtime parity and prospective signal tape",
+    "native MCL spread, liquidity, margin, commission, roll, preview, restart, reconciliation, shared-capital, and graduation proof"
+  ]
+}

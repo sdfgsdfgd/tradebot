@@ -771,7 +771,13 @@ transition through today’s close; no order will be forced merely to populate t
   `+$1,100.84` stress / PnL-DD `3.600` from `90` opposed events at `-$135.80`.
   V43 preregistration `80a3e23c…` / evaluator `3196850c…` therefore leaves
   V18's entire `basis_breadth` ledger immutable and outcome-blind count-tests
-  aligned rejection events only while V18 is flat; V18 always preempts.
+  aligned rejection events only while V18 is flat; V18 always preempts. Both
+  periods passed with `69/61` add-on events and combined cadence
+  `236.16/232.84` per year; median/p95/max stayed `1/3/3` and `1/3/4`.
+  V44 preregistration `2e1588d1…` / evaluator `0d89fcfb…` now freezes one
+  mutually exclusive portfolio lifecycle. The add-on must make money on its
+  own and improve V18 net, PF, PnL/DD, month breadth, and concentration under
+  both cost schedules before validation opens.
   Rolls, costs, news authority, and live XSP/Gold owners remain unchanged.
 - `[PRESERVED RUNNER-UP]` **Tri-asset narrative-dispersion compression:** test
   whether convergence among easing-negative XSP pressure, weakening-positive
@@ -1221,8 +1227,15 @@ and stable bootstrap evidence. Neither may be refactored into looking mature.
     preregistration `mcl_v18_flat_rejection_addon_census_preregistration.json`
     (`80a3e23c…`) / evaluator `3196850c…` freezes an outcome-blind count only:
     unchanged V18 primary, aligned V42 add-on only while V18 is flat, and
-    unconditional V18 preemption. No add-on outcomes may open before both
-    periods pass frozen breadth and combined-cadence floors.
+    unconditional V18 preemption. It passed with `69/61` add-on events,
+    combined `236.16/232.84` per year, and session median/p95/max `1/3/3` and
+    `1/3/4`; both periods retain both speeds/directions/anchors/sides. Receipt
+    `mcl_v18_flat_rejection_addon_census_receipt.json` (`b0371a98…`). V44
+    preregistration `mcl_v18_rejection_portfolio_lifecycle_preregistration.json`
+    (`2e1588d1…`) / evaluator `0d89fcfb…` binds one position and unconditional
+    V18 priority. Discovery must show an independently positive add-on and
+    strictly improve V18's net without weakening PF, PnL/DD, month breadth, or
+    concentration under either cost schedule before validation opens.
     Missing July-2023–August-2024 remains a hard crown blocker; no quota, order,
     or capital authority.
 
@@ -1577,6 +1590,7 @@ and
 | E-426 | V40 lifecycle `9711eee8…` remained after-cost positive but rejected before validation: `213` trades made `+$947.24/+$521.24` stress, PF `1.202/1.106`, DD `$995.16/$1,150.48`, PnL/DD `.952/.453`, `7/7` positive months, and `42.90%` primary month concentration. Absorption made `+$866.12` stress, delayed failure `+$98.92`, but monotonic two-step acceptance lost `-$443.80`; up stress was only `+$5.20`, though both anchors/sides stayed positive. Receipt `mcl_two_step_opening_drive_lifecycle_rejection.json` (`390d0dd6…`) closes continuation, volume, inversion, and exit rescue. V41 preregistration `mcl_rejection_relay_census_preregistration.json` / evaluator `3f4ec9a3…` projects exactly immediate absorption plus selected two-bar initiative failure, with zero acceptance or replacement branch. Both periods must independently preserve `>160/year`, both directions/anchors/sides, and ordinary one-to-two event cadence before combined discovery PnL/DD or validation may open. No news, order, capital, or XSP/Gold mutation |
 | E-427 | outcome-blind V41 rejection-relay count `b92de419…` passed both periods: discovery `173` events (`173.12/year`), `53.10%` active sessions, median/p95/max `1/2/2`, absorption/failure `144/29`, up/down `91/82`, Europe/US `87/86`, high/low `82/91`; validation count `175` (`175.63/year`), `55.25%` active, `151/24`, up/down `93/82`, Europe/US `83/92`, high/low `82/93`. Zero outcomes opened. Receipt `mcl_rejection_relay_census_receipt.json` (`ffdc9570…`). V42 preregistration `mcl_rejection_relay_lifecycle_preregistration.json` / evaluator `2ee4a2e0…` binds those exact next-open MCL events, anchor cutoffs, `$3.52/$5.52` costs, and one branch-state owner with no continuation, stop, memory, or timeout. Discovery may now compute combined economics; validation remains sealed unless every discovery profitability/DD/month/concentration/cohort gate passes. No news, order, capital, or XSP/Gold mutation |
 | E-428 | V42 lifecycle `f01f9a38…` is a strong standalone rejection, not a selectable rescue: `173` discovery trades made `+$1,311.04/+$965.04` stress, PF `1.359/1.253`, DD `$713.40/$858.00`, PnL/DD `1.838/1.125`, with absorption `+$866.12`, delayed failure `+$98.92`, and both directions/anchors/sides positive under stress. It nevertheless had only `7/7` positive months and `38.36%` concentration, so validation remained sealed. Financing anatomy `0c62362d…` joined the actual generic DirectionalImpulse state at all `173` exact triggers: aligned `83` earned `+$1,100.84` stress with PnL/DD `3.600`, opposed `90` lost `-$135.80`; aligned alone is below the `>160/year` mandate. Receipt `mcl_rejection_relay_lifecycle_rejection.json` (`c3115e71…`). V43 preregistration `mcl_v18_flat_rejection_addon_census_preregistration.json` (`80a3e23c…`) / evaluator `3196850c…` therefore binds a materially different composition: immutable V18 `basis_breadth` remains primary, only aligned V42 events may appear while V18 is flat, and the next V18 entry always preempts. Both periods must pass exact add-on breadth and combined `>190/year` cadence before any add-on PnL, MFE/MAE, validation outcome, order, or capital authority opens |
+| E-429 | outcome-blind V43 composition count `1a8a5f0e…` passed both periods without one add-on return: immutable V18 contributes `167/171` entries; aligned V18-flat rejection contributes `69/61`, producing combined `236.16/232.84` per year. Add-on discovery/validation-count spans absorption/failure `58/11` and `55/6`, up/down `43/26` and `29/32`, Europe/US `29/40` and `31/30`, high/low `26/43` and `32/29`; add-on session median/p95/max is `1/2/2`, combined `1/3/3` and `1/3/4`. Exact overlap law excluded `26` candidate entries with a V18 incumbent. Receipt `mcl_v18_flat_rejection_addon_census_receipt.json` (`b0371a98…`). V44 preregistration `mcl_v18_rejection_portfolio_lifecycle_preregistration.json` (`2e1588d1…`) / evaluator `0d89fcfb…` freezes one non-overlapping position: unchanged V18 primary; V42 branch-state add-on; exact V18-entry preemption. Add-on discovery must independently pass net/PF/PnL-DD/month/concentration and all costed cohorts, while the combined ledger must strictly improve V18 net and not weaken its PF, PnL-DD, positive-month count, or concentration under either cost schedule. Failure leaves validation sealed; no order or capital authority |
 
 ### Decision anchors
 
