@@ -1,0 +1,150 @@
+{
+  "schema": "mcl.predictive-intelligence-onset-atlas-preregistration.v1",
+  "frozen_at_utc": "2026-08-04T06:06:36Z",
+  "authority": "count_and_morphology_only_no_outcomes_no_orders_no_capital",
+  "candidate": {
+    "name": "Predictive Intelligence Sharpening of Onsets",
+    "base": "unchanged MCL Two-Speed Auction Relay V18",
+    "objective": "Distinguish acceptance, exhaustion, absorption, and fakeout at the earliest causal clock without changing V18 direction or forcing faster action.",
+    "eventual_actions": [
+      "CHASE",
+      "MATURE",
+      "WAIT",
+      "EXECUTION_DWELL"
+    ],
+    "current_action_authority": "NONE"
+  },
+  "immutable_inputs": {
+    "v18_owner": {
+      "path": "tradebot/research/mcl_two_speed_auction.py",
+      "sha256": "0a8d182c7a437c918fe24f8d5775a14192b55bf0791adeb28de582bec7f66b7b"
+    },
+    "historical_dated_tape": {
+      "path": "db/MCL/dated/hydration_manifest.json",
+      "sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+      "coverage": "2024-08-04T22:01:00Z through 2026-08-03T20:26:00Z",
+      "known_blocker": "July 2023 through August 2024 remains missing"
+    },
+    "prospective_event_generation": {
+      "path": "backtests/mcl/mcl_turn_authenticity_microstructure_generation.json",
+      "sha256": "b3805c9f95713a13c26cb0ada08dc043f00069f42177212d3c575abe28c3ee7f",
+      "timestamp_semantics": "ib_insync_tcp_packet_receipt_utc_not_exchange_or_broker_event_time"
+    },
+    "v84_cohort_law": {
+      "path": "backtests/mcl/mcl_turn_authenticity_v18_join_preregistration.json",
+      "sha256": "46bd255f60aff90b15baf8bedfe756f3300ed76d93d9e9f58ef9935c4d75b5f1"
+    },
+    "historical_bar_census_evaluator": {
+      "path": "/tmp/mcl_stage85_predictive_onset_atlas_census.py",
+      "sha256": "65f9d82023acca1c34300e7ce6a1363a0c55083225c3428008c3b08eba3fcf95"
+    }
+  },
+  "causal_alignment": {
+    "treatment": "every exact V18 RAW_TURN, including vetoed and later non-admitted turns",
+    "bar_clock": "only exact matched-contract completed CL/MCL bars at or before the raw-turn close",
+    "event_clock": "pre-turn [-60s,0), response [0s,60s), maturation [60s,300s); no fabricated quiet seconds",
+    "weekly_clock": "five finalized Globex sessions ending strictly before the treatment session",
+    "news_clock": "latest publication at or before treatment; stale when age exceeds its own declared horizon",
+    "direction": "raw V18 direction signs morphology; routed direction is attribution only and never rewritten",
+    "roll": "no feature spans a contract change; a successor event generation is required at roll"
+  },
+  "exact_bar_primitives": {
+    "slope_h": "100 * (close_t / close_t_minus_h - 1) / h",
+    "slope_velocity_h": "slope_h(t) - slope_h(t-1)",
+    "slope_acceleration_h": "slope_velocity_h(t) - slope_velocity_h(t-1)",
+    "tr_pct": "100 * max(high-low, abs(high-prev_close), abs(low-prev_close)) / prev_close",
+    "tr_velocity_h": "mean(last h TR) - mean(previous h TR)",
+    "tr_acceleration_h": "tr_velocity_h(t) - tr_velocity_h(t-1)",
+    "basis_ticks": "(MCL close - CL close) / 0.01",
+    "basis_slope_velocity_6": "six-bar basis slope velocity using only completed matched bars",
+    "sign_categories": [
+      "WITH_RAW_DIRECTION",
+      "AGAINST_RAW_DIRECTION",
+      "FLAT"
+    ]
+  },
+  "exact_event_primitives": {
+    "microprice_slope_velocity": "direction-signed late-half minus early-half slope over active one-second microprice closes using actual elapsed seconds",
+    "microprice_tr_velocity": "late-half minus early-half mean microprice high-low range in ticks",
+    "quote_intensity_acceleration": "late-half minus early-half quote events per active second",
+    "spread_elasticity": "last-minus-first spread plus maximum spread in ticks",
+    "top_size_pressure": "direction-signed same-price bid/ask size add/remove proxy from the existing tape",
+    "signed_print_response": "direction-signed contemporaneous-top signed trade-volume proxy",
+    "book_handoff": "CL, MCL, simultaneous, or absent first-mid-move leadership plus MCL-minus-CL receipt microseconds",
+    "basis_reconvergence": "direction-signed response-window change followed by maturation-window reversal toward the pre-turn basis",
+    "limitations": "L1 proxies never claim depth, queue, identified cancellation/refill, market-maker intent, or colocated latency"
+  },
+  "frozen_families": {
+    "one_second_to_four_hour_temporal_torsion": {
+      "fast": "pre-to-response and response-to-maturation CL/MCL microprice slope/TR acceleration",
+      "slow": "direction-signed 48-bar slope velocity/acceleration and 48-bar TR velocity/acceleration",
+      "shape": "the exact fast-slope, slow-slope, fast-TR, slow-TR sign tuple",
+      "hypothesis": "authentic onset is a causal transfer of energy across clocks; fakeout or exhaustion is fast displacement opposed by decelerating or absorbing four-hour structure"
+    },
+    "five_minute_to_four_hour_volatility_phase": {
+      "fast": "current-versus-prior completed five-minute TR velocity and direction-signed path efficiency",
+      "slow": "48-bar TR velocity/acceleration and direction-signed slope acceleration",
+      "shape": "joint expansion, local ignition from slow compression, local exhaustion inside slow expansion, or joint compression",
+      "hypothesis": "local range ignition is useful only when its slow financing state distinguishes new information from late turbulence"
+    },
+    "one_second_to_fifteen_minute_to_one_week_phase_locking": {
+      "fast": "CL-to-MCL handoff, direction-signed microprice acceleration, and persistence across response/maturation",
+      "meso": "three-bar slope velocity and acceleration from completed five-minute bars",
+      "slow": "strictly prior five-session return, return velocity, TR velocity, and state age",
+      "shape": "the exact fast, meso, and weekly sign/state tuple",
+      "hypothesis": "the best onset may be a fast discovery event inside a meso transition that is financed by, or cleanly reverses, the weekly prior"
+    },
+    "one_second_dual_book_to_thirty_minute_basis_to_news_shock": {
+      "fast": "CL/MCL lead, acceptance/absorption, and basis divergence or reconvergence",
+      "meso": "six-bar matched basis slope velocity and acceleration",
+      "slow": "causal fresh news pressure, delta, velocity, impact, confidence, and declared horizon",
+      "shape": "book-handoff, basis-curvature, and fresh-news sign tuple",
+      "hypothesis": "news crowding becomes useful when dominant-book discovery and transport-basis behavior reveal acceptance or rejection; news never owns direction"
+    },
+    "liquidity_elasticity_cascade": {
+      "fast": "direction-signed microprice displacement per quote update, spread expansion/contraction, top-size pressure, and signed prints",
+      "meso": "current five-minute direction-signed path efficiency and TR transition",
+      "slow": "four-hour direction-signed slope acceleration plus V18 trend-state age",
+      "shape": "tight-book displacement, wide-book air pocket, absorbed pressure, or silent acceptance, crossed with meso efficiency and slow age",
+      "hypothesis": "a real turn should transmit price through available liquidity; a fake may require spread inflation or pressure without durable transport acceptance"
+    }
+  },
+  "count_first_law": {
+    "historical_bar_census": "expose only readiness and categorical occurrence counts over exact V18 turns; no return, MFE, MAE, PnL, trade outcome, or winner",
+    "historical_testability_gate": {
+      "exact_v18_signal_identity": "1493 raw turns and 338 admissions over the frozen complete available tape",
+      "minimum_context_readiness_each_period": 0.95,
+      "minimum_raw_turns_each_direction_each_period": 100,
+      "minimum_admissions_each_route_each_period": 20,
+      "minimum_supported_shapes_per_family_each_period": 4,
+      "supported_shape_minimum_occurrences": 20,
+      "breadth": "each family must retain both raw directions, both admitted routes, GTH and RTH attribution, and both periods; no shape is selected as a winner"
+    },
+    "prospective_event_gate": {
+      "minimum_complete_raw_turns": 30,
+      "minimum_each_raw_direction": 10,
+      "minimum_admitted_turns": 20,
+      "minimum_each_admitted_route": 5,
+      "prefix_identity": "zero invalid, late, hash-failed, or generation-drifted rows"
+    },
+    "family_testability": "a family must have both raw directions, continuation and failed-auction admissions, GTH and RTH, both available periods, and no category selected from outcome",
+    "adjacency": "at most one semantic adjacent formulation per family, frozen before outcomes; no numeric grid"
+  },
+  "future_outcome_boundary": {
+    "before_gate": "ACCUMULATE only",
+    "after_gate": "freeze matched no-turn controls, categorical action law, and settlement in a successor preregistration before exposing outcomes",
+    "required_comparison": "unchanged V18 versus each frozen action under primary and stressed costs across periods, directions, routes, lanes, hostile regimes, concentration, and drawdown",
+    "crown": "the missing first challenge year plus runtime, transport, capital, restart, and authentic profitability proofs remain mandatory"
+  },
+  "prohibitions": [
+    "no mutation or duplication of V18 direction, routing, maturation, risk reduction, costs, or lifecycle",
+    "no unfinished slow bar, interpolation, fabricated quiet second, or cross-roll feature",
+    "no outcome-selected feature, threshold, family, category union, or action",
+    "no static multitimeframe consensus or slow-direction takeover",
+    "no claim that initial adversity alone identifies a fake turn",
+    "no news direction, fixed news coefficient, order, preview, sizing, capital, selection, or live authority",
+    "no XSP or Gold mutation"
+  ],
+  "outcomes_exposed": false,
+  "submitted_orders": 0
+}
