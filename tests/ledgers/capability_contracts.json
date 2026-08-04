@@ -120,6 +120,7 @@
     "tests/test_live_graduation.py": "market-realism-parity",
     "tests/test_live_portfolio.py": "runtime-configuration-state",
     "tests/test_live_portfolio_packages.py": "policy-risk-sizing",
+    "tests/test_mcl_two_speed_auction.py": "signal-regime-intelligence",
     "tests/test_mcl_turn_tape.py": "live-market-data-contracts",
     "tests/test_live_runs.py": "runtime-configuration-state",
     "tests/test_xsp_execution_dwell_validation.py": "market-realism-parity",
@@ -248,6 +249,7 @@
       "evidence": [
         "tests/test_daily_climate_router.py",
         "tests/test_directional_impulse.py",
+        "tests/test_mcl_two_speed_auction.py",
         "tests/test_news_signal.py",
         "tests/test_spot_context_requirements.py",
         "tests/test_spot_signal_time_mode.py"
@@ -258,6 +260,7 @@
         "tradebot/engines/signals.py",
         "tradebot/news/contract.py",
         "tradebot/news/pipeline.py",
+        "tradebot/research/mcl_two_speed_auction.py",
         "tradebot/spot_engine.py"
       ],
       "oracle": [

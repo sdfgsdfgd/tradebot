@@ -1,0 +1,38 @@
+{
+  "schema": "mcl.two-speed-auction-v18-signal-owner-parity.v1",
+  "recorded_at_utc": "2026-08-04T05:54:06Z",
+  "authority": "architecture_parity_only_no_orders_no_capital",
+  "owner": {
+    "path": "tradebot/research/mcl_two_speed_auction.py",
+    "sha256": "0a8d182c7a437c918fe24f8d5775a14192b55bf0791adeb28de582bec7f66b7b"
+  },
+  "frozen_reference": {
+    "evaluator_sha256": "cf9277e623ed6849bcefc238e82e89f9d3ca4a49647228ab8048e9ff4324f0ef",
+    "result_sha256": "b9c64409dcb9cd482427588bb0ae314d870d0350a2100aea6d3f0615ae2f4c15",
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55"
+  },
+  "tape": {
+    "rows": 707136,
+    "first_utc": "2024-08-04T22:01:00+00:00",
+    "last_utc": "2026-08-03T20:26:00+00:00",
+    "contract_pairs": 25,
+    "roll_mode": "dual_volume"
+  },
+  "signal_events": {
+    "expected": 2247,
+    "actual": 2247,
+    "expected_sha256": "531c2679bc60d5bda316dd2bb05601a1977e1c49e56abcbbcdfaee684a38d83e",
+    "actual_sha256": "531c2679bc60d5bda316dd2bb05601a1977e1c49e56abcbbcdfaee684a38d83e",
+    "first_mismatch": null,
+    "exact_event_parity": true
+  },
+  "invariants": {
+    "raw_turn_risk_reduction_unchanged": true,
+    "one_bar_maturation_unchanged": true,
+    "lag_equal_lead_breadth_routing_unchanged": true,
+    "strategy_economics_changed": false,
+    "order_authority": "none",
+    "capital_authority": "none"
+  },
+  "submitted_orders": 0
+}
