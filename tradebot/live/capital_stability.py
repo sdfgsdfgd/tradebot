@@ -20,6 +20,24 @@ PORTFOLIO_PACKAGE_GENERATION_SCHEMA = "live.portfolio-package-generation.v1"
 PORTFOLIO_PACKAGE_GENERATION_DIRECTORY = Path(
     "db/calibration/portfolio_generations"
 )
+PORTFOLIO_CAPITAL_STABILITY_DIRECTORY = Path(
+    "db/calibration/portfolio_capital_stability"
+)
+PORTFOLIO_CAPITAL_STABILITY_PATH = Path(
+    "db/calibration/portfolio_capital_owner_stability.json"
+)
+PORTFOLIO_CAPITAL_SEMANTIC_SURFACE = (
+    "tradebot/live/capital.py",
+    "tradebot/live/capital_packages.py",
+    "tradebot/live/capital_stability.py",
+    "tradebot/research/live_futures_profitability.py",
+    "tradebot/research/live_graduation.py",
+    "tradebot/research/live_portfolio_packages.py",
+    "tradebot/research/mcl_live.py",
+    "tradebot/research/mcl_live_cli.py",
+    "tradebot/research/mcl_live_transport.py",
+    "tradebot/research/mcl_profitability.py",
+)
 
 
 def _sha256(path: Path) -> str:
@@ -103,6 +121,119 @@ def publish_portfolio_package_generation(
         if temporary is not None:
             temporary.unlink(missing_ok=True)
     return relative.as_posix(), hashlib.sha256(payload).hexdigest()
+
+
+def publish_portfolio_capital_owner_stability(
+    repository_root: Path,
+    *,
+    generation_path: str,
+    generation_sha256: str,
+    observed_at_utc: object,
+    current_path: Path = PORTFOLIO_CAPITAL_STABILITY_PATH,
+) -> tuple[str, str]:
+    """Bind one validated portfolio generation to its current semantic owners."""
+
+    root = repository_root.resolve()
+    source = _resolved(root, generation_path)
+    raw = source.read_bytes()
+    if hashlib.sha256(raw).hexdigest() != generation_sha256:
+        raise ValueError("portfolio package generation digest changed")
+    generation = json.loads(raw)
+    if (
+        not isinstance(generation, Mapping)
+        or generation.get("schema") != PORTFOLIO_PACKAGE_GENERATION_SCHEMA
+        or generation.get("authority")
+        != "zero-transmission-successor-and-capital-switch"
+        or generation.get("submitted_orders") != 0
+        or not isinstance(generation.get("plan"), Mapping)
+    ):
+        raise ValueError("portfolio package generation is invalid")
+    plan = validate_live_capital_plan(generation["plan"])
+    selections = {}
+    for sleeve in plan["sleeves"]:
+        selected, path, digest = load_allocated_live_selection(
+            plan,
+            sleeve_id=str(sleeve["sleeve_id"]),
+            repository_root=root,
+        )
+        successor = selected.get("allocation_successor")
+        if (
+            not isinstance(successor, Mapping)
+            or successor.get("package_id") != sleeve["allocated_package_id"]
+        ):
+            raise ValueError("portfolio selected package identity changed")
+        selections[str(sleeve["sleeve_id"])] = {
+            "selection_id": selected["selection_id"],
+            "selection_path": path.relative_to(root).as_posix(),
+            "selection_file_sha256": digest,
+            "allocated_package_id": sleeve["allocated_package_id"],
+        }
+    proof = {
+        "schema": PORTFOLIO_CAPITAL_STABILITY_SCHEMA,
+        "authority": "frozen_portfolio_package_generation",
+        "observed_at_utc": str(observed_at_utc),
+        "generation": {
+            "path": generation_path,
+            "sha256": generation_sha256,
+            "plan_id": plan["plan_id"],
+        },
+        "selections": selections,
+        "capital_semantic_surface": {
+            relative: _sha256(_resolved(root, relative))
+            for relative in PORTFOLIO_CAPITAL_SEMANTIC_SURFACE
+        },
+        "checks": {
+            "allocated_packages_match_selections": True,
+            "capital_semantic_surface_bound": True,
+            "entry_capacity_policy_validated": True,
+            "generation_sha256_bound": True,
+            "live_capital_plan_v3_validated": True,
+            "selected_runs_content_addressed": True,
+        },
+        "verdict": "PASS_CAPITAL_OWNER_STABLE",
+        "boundaries": {
+            "broker_queried": False,
+            "service_or_timer_mutated": False,
+            "selection_mutated": False,
+            "submitted_orders": 0,
+            "profitability_clock_mutated": False,
+        },
+    }
+    payload = json.dumps(proof, allow_nan=False, indent=2, sort_keys=True).encode() + b"\n"
+    digest = hashlib.sha256(payload).hexdigest()
+    relative = PORTFOLIO_CAPITAL_STABILITY_DIRECTORY / f"{plan['plan_id']}.json"
+    immutable = _resolved(root, relative)
+    current = _resolved(root, current_path)
+    immutable.parent.mkdir(parents=True, exist_ok=True)
+    current.parent.mkdir(parents=True, exist_ok=True)
+    temporary: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(dir=current.parent, delete=False) as handle:
+            temporary = Path(handle.name)
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+        for sleeve in plan["sleeves"]:
+            decision = portfolio_capital_owner_stability_gate(
+                temporary,
+                repo_root=root,
+                sleeve_id=str(sleeve["sleeve_id"]),
+                selection_id=str(sleeve["run_id"]),
+                selection_file_sha256=str(sleeve["selection_file_sha256"]),
+            )
+            if decision["status"] != "PASS":
+                raise ValueError("portfolio capital owner proof failed self-validation")
+        try:
+            os.link(temporary, immutable)
+        except FileExistsError:
+            if immutable.read_bytes() != payload:
+                raise ValueError("immutable portfolio capital proof changed")
+        os.replace(temporary, current)
+        temporary = None
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+    return relative.as_posix(), digest
 
 
 def portfolio_capital_owner_stability_gate(

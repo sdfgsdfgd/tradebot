@@ -16,7 +16,11 @@ from ..live.capital_packages import (
     load_allocated_live_selection,
     publish_immutable_live_selection,
 )
-from ..live.capital_stability import publish_portfolio_package_generation
+from ..live.capital_stability import (
+    PORTFOLIO_CAPITAL_STABILITY_PATH,
+    publish_portfolio_capital_owner_stability,
+    publish_portfolio_package_generation,
+)
 from .live_calibration import LiveCalibrationLedger
 from .live_graduation import (
     live_calibration_logical_prefix,
@@ -138,6 +142,12 @@ async def _commission(
     generation_path, generation_sha = publish_portfolio_package_generation(
         repository_root, plan
     )
+    stability_path, stability_sha = publish_portfolio_capital_owner_stability(
+        repository_root,
+        generation_path=generation_path,
+        generation_sha256=generation_sha,
+        observed_at_utc=selected["selected_at_utc"],
+    )
     publish_live_capital_plan(capital_path, plan)
     receipt = {
         "schema": "mcl.two-speed-auction-live-commissioning.v1",
@@ -148,6 +158,11 @@ async def _commission(
         "capital_plan_id": plan["plan_id"],
         "portfolio_generation_path": generation_path,
         "portfolio_generation_sha256": generation_sha,
+        "capital_stability_path": stability_path,
+        "capital_stability_current_path": (
+            PORTFOLIO_CAPITAL_STABILITY_PATH.as_posix()
+        ),
+        "capital_stability_sha256": stability_sha,
         "predictive_generation_id": predictive["generation_id"],
         "predictive_generation_path": predictive_path,
         "predictive_generation_sha256": predictive_sha,
@@ -190,7 +205,7 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--graduation-cutoff")
     parser.add_argument(
         "--graduation-capital-stability",
-        default="backtests/portfolio_capital_owner_stability_20260804_mcl.json",
+        default=PORTFOLIO_CAPITAL_STABILITY_PATH.as_posix(),
     )
     parser.add_argument("--graduation-output")
     args = parser.parse_args(argv)

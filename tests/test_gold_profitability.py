@@ -10,8 +10,11 @@ import pytest
 
 from tradebot.live.capital import admit_live_capital, build_live_capital_plan_v3
 from tradebot.live.capital_stability import (
+    PORTFOLIO_CAPITAL_SEMANTIC_SURFACE,
+    PORTFOLIO_CAPITAL_STABILITY_PATH,
     PORTFOLIO_CAPITAL_STABILITY_SCHEMA,
     portfolio_capital_owner_stability_gate,
+    publish_portfolio_capital_owner_stability,
 )
 from tradebot.live.order_evidence import single_contract_execution_graduation_gate
 from tradebot.research import gold_profitability
@@ -347,6 +350,44 @@ def test_shared_portfolio_manifest_binds_gold_and_xsp(tmp_path: Path) -> None:
     )
     assert rejected["status"] == "INVALID"
     assert "portfolio_selected_run_invalid:gold-1oz-stage76-margin" in rejected["reasons"]
+
+
+def test_portfolio_stability_publisher_binds_current_generation_once(
+    tmp_path: Path,
+) -> None:
+    manifest, gold_path, plan = _portfolio_manifest(tmp_path)
+    generation = json.loads(manifest.read_text())["generation"]
+    for relative in PORTFOLIO_CAPITAL_SEMANTIC_SURFACE:
+        owner = tmp_path / relative
+        owner.parent.mkdir(parents=True, exist_ok=True)
+        owner.write_text(f"OWNER = {relative!r}\n", encoding="utf-8")
+
+    relative, digest = publish_portfolio_capital_owner_stability(
+        tmp_path,
+        generation_path=generation["path"],
+        generation_sha256=generation["sha256"],
+        observed_at_utc=START.isoformat(),
+    )
+    repeated = publish_portfolio_capital_owner_stability(
+        tmp_path,
+        generation_path=generation["path"],
+        generation_sha256=generation["sha256"],
+        observed_at_utc=START.isoformat(),
+    )
+    current = tmp_path / PORTFOLIO_CAPITAL_STABILITY_PATH
+    gold_sha = hashlib.sha256(gold_path.read_bytes()).hexdigest()
+    gate = portfolio_capital_owner_stability_gate(
+        current,
+        repo_root=tmp_path,
+        sleeve_id="gold-1oz-stage76-margin",
+        selection_id=GOLD_ID,
+        selection_file_sha256=gold_sha,
+    )
+
+    assert repeated == (relative, digest)
+    assert hashlib.sha256(current.read_bytes()).hexdigest() == digest
+    assert relative.endswith(f"{plan['plan_id']}.json")
+    assert gate["status"] == "PASS"
 
 
 def test_runtime_parity_rehashes_selected_crown_and_owners(
