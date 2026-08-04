@@ -20,6 +20,11 @@ from ..research.xsp_live_transport_v3 import (
 )
 from ..research.xsp_opening_edge_v3 import XSP_OPENING_EDGE_V3_VERSION
 from ..research.live_graduation import validate_live_graduation_receipt
+from ..research.mcl_live_transport import (
+    MCL_LIVE_EXECUTION_VERSION,
+    load_mcl_live_selection_from_mapping,
+)
+from ..research.mcl_two_speed_auction import MCL_TWO_SPEED_AUCTION_VERSION
 from .portfolio import LivePortfolioCockpit
 from .runs import LiveRunBinding
 
@@ -46,6 +51,17 @@ LIVE_STRATEGY_BINDINGS = (
         selection_validator=load_gold_live_selection_from_mapping,
         champion_symbol="1OZ",
         champion_track="LF",
+    ),
+    LiveRunBinding(
+        strategy_id=MCL_TWO_SPEED_AUCTION_VERSION,
+        label="MCL V18 Two-Speed Auction · CL/MCL GTH",
+        execution_strategy_version=MCL_LIVE_EXECUTION_VERSION,
+        ledger_path="db/calibration/mcl_live_calibration.jsonl",
+        timer_unit="tradebot-mcl-live.timer",
+        service_unit="tradebot-mcl-live.service",
+        selection_validator=load_mcl_live_selection_from_mapping,
+        champion_symbol="MCL",
+        champion_track="HF",
     ),
 )
 

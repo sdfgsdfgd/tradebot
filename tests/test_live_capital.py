@@ -16,6 +16,7 @@ from tradebot.live.capital import (
     validate_live_capital_decision,
 )
 from tradebot.live.capital_packages import (
+    PACKAGE_FIRST_ADMITTER_METHOD,
     load_allocated_live_selection,
     publish_immutable_live_selection,
 )
@@ -25,6 +26,8 @@ RUN_ID = "a" * 64
 SELECTION_SHA = "b" * 64
 GOLD_RUN_ID = "c" * 64
 GOLD_SELECTION_SHA = "d" * 64
+MCL_RUN_ID = "f" * 64
+MCL_SELECTION_SHA = "1" * 64
 
 
 def _sleeve(*, weight_bps: int = 10_000) -> dict[str, object]:
@@ -242,6 +245,54 @@ def _package_plan(**changes: object) -> dict[str, object]:
     return build_live_capital_plan_v3(**values)
 
 
+def _first_admitter_plan(**changes: object) -> dict[str, object]:
+    sleeves = deepcopy(_package_sleeves())
+    sleeves[0]["minimum_package_id"] = "xsp-usd-800"
+    sleeves[0]["residual_weight_bps"] = 0
+    sleeves.append(
+        {
+            "sleeve_id": "mcl-two-speed-auction-margin",
+            "strategy_id": "mcl.two-speed-auction-relay.v18",
+            "run_id": MCL_RUN_ID,
+            "selection_path": "db/calibration/mcl_selected_live_transport.json",
+            "selection_file_sha256": MCL_SELECTION_SHA,
+            "capital_kind": "FUTURES_MARGIN",
+            "position_symbols": ["MCL"],
+            "residual_weight_bps": 0,
+            "minimum_package_id": "mcl-one-contract-stage91",
+            "package_ladder": [
+                _package(
+                    "mcl-one-contract-stage91",
+                    0,
+                    cash=76,
+                    initial=268_670,
+                    maintenance=214_936,
+                    stress=30_552,
+                )
+            ],
+        }
+    )
+    values: dict[str, object] = {
+        "account_id": "U123",
+        "account_type": "CASH",
+        "cash_currency": "USD",
+        "base_currency": "AUD",
+        "observed_settled_cash_usd": "1318.05",
+        "observed_available_funds_base": "3072.19",
+        "observed_excess_liquidity_base": "3077.79",
+        "usd_to_base_rate": "1.4239442",
+        "minimum_post_reservation_base": "300",
+        "unmanaged_position_stress_base": "98.88",
+        "sleeves": sleeves,
+        "reserve_reasons": ["cash_outside_individually_selected_packages"],
+        "created_at_utc": "2026-08-04T08:31:20+00:00",
+        "supersedes_plan_id": "e" * 64,
+        "entry_capacity_policy": PACKAGE_FIRST_ADMITTER_METHOD,
+    }
+    values.update(changes)
+    return build_live_capital_plan_v3(**values)
+
+
 def _package_state(
     *,
     positions: list[dict[str, object]] | None = None,
@@ -268,6 +319,36 @@ def _package_state(
         "candidate_initial_margin_base_cents": initial,
         "candidate_maintenance_margin_base_cents": maintenance,
     }
+
+
+def _admit_first(
+    plan: dict[str, object],
+    sleeve_id: str,
+    *,
+    resource_state: dict[str, object],
+    available_cash: object = "1318.05",
+) -> dict[str, object]:
+    sleeve = next(row for row in plan["sleeves"] if row["sleeve_id"] == sleeve_id)
+    package = next(
+        row
+        for row in sleeve["package_ladder"]
+        if row["package_id"] == sleeve["allocated_package_id"]
+    )
+    return admit_live_capital(
+        plan,
+        intent="ENTER",
+        account_id="U123",
+        account_type="CASH",
+        currency="USD",
+        sleeve_id=sleeve_id,
+        run_id=str(sleeve["run_id"]),
+        selection_file_sha256=str(sleeve["selection_file_sha256"]),
+        capital_kind=str(sleeve["capital_kind"]),
+        projected_capital_usd=int(package["cash_debit_usd_cents"]) / 100,
+        cash_debit_usd=int(package["cash_debit_usd_cents"]) / 100,
+        available_cash_usd=available_cash,
+        resource_state=resource_state,
+    )
 
 
 def _admit_package(
@@ -554,6 +635,143 @@ def test_v3_holds_unknown_orders_and_full_stresses_unmanaged_positions() -> None
     assert "post_stress_excess_liquidity_below_floor" in _admit_package(
         plan, gold=False, resource_state=oversized_unknown
     )["reasons"]
+
+
+def test_v3_first_admitter_binds_each_minimum_without_promising_the_sum() -> None:
+    plan = _first_admitter_plan()
+
+    assert plan["authority"] == "active_plus_candidate_just_in_time_admission"
+    assert plan["allocation"]["aggregate_minimum_packages_promised"] is False
+    assert plan["constraints"] == {
+        "minimum_executable_packages_reserved_first": False,
+        "residual_allocation": PACKAGE_FIRST_ADMITTER_METHOD,
+        "flat_sleeves_retain_allocated_package_reservation": False,
+        "unmanaged_positions_receive_full_gross_stress": True,
+        "automatic_borrowing_or_unproved_reallocation": False,
+        "risk_reduction_requires_plan": False,
+        "entry_capacity_policy": PACKAGE_FIRST_ADMITTER_METHOD,
+    }
+    assert {
+        row["sleeve_id"]: row["allocated_package_id"] for row in plan["sleeves"]
+    } == {
+        "gold-1oz-stage76-margin": "gold-one-contract",
+        "mcl-two-speed-auction-margin": "mcl-one-contract-stage91",
+        "xsp-upro-spxu-rth-cash": "xsp-usd-800",
+    }
+
+
+def test_v3_first_admitter_allows_any_individually_funded_flat_candidate() -> None:
+    plan = _first_admitter_plan()
+    state = _package_state(
+        available=307_219,
+        excess=307_779,
+        initial=268_670,
+        maintenance=214_936,
+    )
+
+    mcl = _admit_first(plan, "mcl-two-speed-auction-margin", resource_state=state)
+
+    assert mcl["status"] == "ALLOW"
+    assert mcl["allocation"]["active_sleeves"] == []
+    assert mcl["allocation"]["cash_reserved_usd_cents"] == 76
+    assert mcl["allocation"]["initial_margin_reserved_base_cents"] == 268_670
+    assert mcl["allocation"]["post_stress_excess_liquidity_base_cents"] >= 30_000
+
+
+def test_v3_first_admitter_later_candidate_uses_only_fresh_remaining_resources() -> None:
+    plan = _first_admitter_plan()
+    xsp_active = _package_state(
+        positions=[
+            {"symbol": "UPRO", "quantity": 5, "market_value_base_cents": 113_900},
+            {"symbol": "TQQQ", "quantity": 1, "market_value_base_cents": 9_888},
+        ],
+        available=193_200,
+        excess=295_000,
+        initial=268_670,
+        maintenance=214_936,
+    )
+    mcl_active = _package_state(
+        positions=[
+            {"symbol": "MCL", "quantity": 1, "market_value_base_cents": 0},
+            {"symbol": "TQQQ", "quantity": 1, "market_value_base_cents": 9_888},
+        ],
+        available=38_400,
+        excess=92_800,
+    )
+
+    after_xsp = _admit_first(
+        plan, "mcl-two-speed-auction-margin", resource_state=xsp_active
+    )
+    after_mcl = _admit_first(
+        plan, "xsp-upro-spxu-rth-cash", resource_state=mcl_active
+    )
+
+    assert after_xsp["status"] == "HOLD"
+    assert "post_reservation_available_funds_below_floor" in after_xsp["reasons"]
+    assert after_mcl["status"] == "HOLD"
+    assert "post_reservation_available_funds_below_floor" in after_mcl["reasons"]
+    assert after_xsp["allocation"]["active_sleeves"] == [
+        "xsp-upro-spxu-rth-cash"
+    ]
+    assert after_mcl["allocation"]["active_sleeves"] == [
+        "mcl-two-speed-auction-margin"
+    ]
+
+
+def test_v3_first_admitter_reserves_pending_owner_and_fails_unknown_orders_closed() -> None:
+    plan = _first_admitter_plan()
+    pending = _package_state(available=307_219, excess=307_779)
+    pending["account_open_orders"] = [{"symbol": "MCL", "quantity": 1}]
+    unknown = _package_state(available=307_219, excess=307_779)
+    unknown["account_open_orders"] = [{"symbol": "OTHER", "quantity": 1}]
+
+    gold = _admit_first(
+        plan,
+        "gold-1oz-stage76-margin",
+        resource_state={**pending, "candidate_initial_margin_base_cents": 60_000,
+                        "candidate_maintenance_margin_base_cents": 52_000},
+    )
+    invalid = _admit_first(
+        plan, "xsp-upro-spxu-rth-cash", resource_state=unknown
+    )
+
+    assert gold["status"] == "HOLD"
+    assert gold["allocation"]["pending_sleeves"] == [
+        "mcl-two-speed-auction-margin"
+    ]
+    assert "post_reservation_available_funds_below_floor" in gold["reasons"]
+    assert invalid["status"] == "HOLD"
+    assert "open_order_has_no_unique_capital_owner" in invalid["reasons"]
+
+
+def test_v3_first_admitter_remains_product_agnostic_and_reductions_bypass_capacity() -> None:
+    sleeves = deepcopy(_first_admitter_plan()["sleeves"])
+    for index, sleeve in enumerate(sleeves):
+        sleeve.pop("allocated_package_id")
+        sleeve["sleeve_id"] = f"generic-{index}"
+        sleeve["strategy_id"] = f"generic.strategy.{index}"
+        sleeve["position_symbols"] = [f"GEN{index}"]
+    plan = _first_admitter_plan(sleeves=sleeves)
+    candidate = plan["sleeves"][0]
+
+    decision = admit_live_capital(
+        plan,
+        intent="EXIT",
+        account_id="wrong",
+        account_type="wrong",
+        currency="wrong",
+        sleeve_id=str(candidate["sleeve_id"]),
+        run_id="wrong",
+        selection_file_sha256="wrong",
+        capital_kind="wrong",
+        projected_capital_usd=0,
+        cash_debit_usd=0,
+        available_cash_usd=0,
+        resource_state=None,
+    )
+
+    assert decision["status"] == "ALLOW"
+    assert decision["reasons"] == ["risk_reduction_always_allowed"]
 
 
 def test_entry_requires_exact_account_run_selection_kind_cap_and_cash() -> None:

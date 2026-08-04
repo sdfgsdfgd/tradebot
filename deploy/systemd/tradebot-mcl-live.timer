@@ -1,0 +1,15 @@
+[Unit]
+Description=Reconcile the selected MCL V18 canary each tradable minute
+
+[Timer]
+OnCalendar=Sun *-*-* 18..23:*:10 America/New_York
+OnCalendar=Mon..Thu *-*-* 00..16:*:10 America/New_York
+OnCalendar=Mon..Thu *-*-* 18..23:*:10 America/New_York
+OnCalendar=Fri *-*-* 00..16:*:10 America/New_York
+AccuracySec=10s
+RandomizedDelaySec=0
+Persistent=false
+Unit=tradebot-mcl-live.service
+
+[Install]
+WantedBy=timers.target

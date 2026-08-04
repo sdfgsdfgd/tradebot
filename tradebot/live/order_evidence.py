@@ -5,7 +5,8 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import asdict
 from datetime import datetime, timezone
 
 from ..engines.execution import (
@@ -14,7 +15,7 @@ from ..engines.execution import (
     execution_price,
 )
 from .capital import validate_live_capital_decision
-from .execution import order_ids
+from .execution import LiveOrderExecution, order_ids
 
 
 def _evidence_sha256(value: object) -> str:
@@ -23,6 +24,112 @@ def _evidence_sha256(value: object) -> str:
             value, allow_nan=False, separators=(",", ":"), sort_keys=True
         ).encode()
     ).hexdigest()
+
+
+def _finite_number(value: object, *, name: str) -> float:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{name} must be numeric") from exc
+    if not math.isfinite(parsed):
+        raise ValueError(f"{name} must be finite")
+    return parsed
+
+
+async def broker_account_snapshot(
+    client,
+    *,
+    base_currency: str,
+) -> dict[str, object]:
+    """Capture one cash account and base-converted portfolio for live admission."""
+
+    base = str(base_currency or "").strip().upper()
+    portfolio = await client.fetch_portfolio()
+    account_id = str(client.account_id() or "").strip()
+    account_type = str(client.account_text_value("TradingType-S") or "").upper()
+    if not base or not account_id or account_type != "STKCASH":
+        raise ValueError("live admission requires one cash account and base currency")
+
+    def account(tag: str, currency: str) -> float:
+        value, actual, _updated = client.account_value(tag, currency=currency)
+        if str(actual or "").upper() != currency:
+            raise ValueError(f"fresh {tag} {currency} is unavailable")
+        return _finite_number(value, name=f"{tag} {currency}")
+
+    rates = {base: 1.0}
+
+    def base_rate(currency: str) -> float:
+        normalized = str(currency or "").strip().upper()
+        if not normalized:
+            raise ValueError("broker position currency is unavailable")
+        if normalized not in rates:
+            rates[normalized] = account("ExchangeRate", normalized)
+        return rates[normalized]
+
+    positions = []
+    for item in portfolio:
+        contract = getattr(item, "contract", None)
+        quantity = _finite_number(
+            getattr(item, "position", 0.0) or 0.0,
+            name="broker position",
+        )
+        if abs(quantity) <= 1e-9:
+            continue
+        currency = str(getattr(contract, "currency", "") or "").upper()
+        positions.append(
+            {
+                "symbol": str(getattr(contract, "symbol", "") or "").upper(),
+                "local_symbol": str(getattr(contract, "localSymbol", "") or ""),
+                "con_id": int(getattr(contract, "conId", 0) or 0),
+                "sec_type": str(getattr(contract, "secType", "") or ""),
+                "currency": currency,
+                "quantity": quantity,
+                "market_value_base_cents": math.ceil(
+                    abs(
+                        _finite_number(
+                            getattr(item, "marketValue", 0.0) or 0.0,
+                            name="broker position market value",
+                        )
+                    )
+                    * base_rate(currency)
+                    * 100
+                ),
+            }
+        )
+    open_orders = []
+    for trade in client.open_trades():
+        contract = getattr(trade, "contract", None)
+        order = getattr(trade, "order", None)
+        status = getattr(trade, "orderStatus", None)
+        open_orders.append(
+            {
+                "symbol": str(getattr(contract, "symbol", "") or "").upper(),
+                "con_id": int(getattr(contract, "conId", 0) or 0),
+                "action": str(getattr(order, "action", "") or "").upper(),
+                "quantity": _finite_number(
+                    getattr(order, "totalQuantity", 0.0) or 0.0,
+                    name="broker order quantity",
+                ),
+                "order_ref": str(getattr(order, "orderRef", "") or ""),
+                "status": str(getattr(status, "status", "") or ""),
+            }
+        )
+    return {
+        "observed_at_utc": datetime.now(timezone.utc).isoformat(),
+        "account_id": account_id,
+        "account_type": "CASH",
+        "base_currency": base,
+        "settled_cash_usd": account("CashBalance", "USD"),
+        "equity_with_loan_base": account("EquityWithLoanValue", base),
+        "available_funds_base": account("AvailableFunds", base),
+        "excess_liquidity_base": account("ExcessLiquidity", base),
+        "initial_margin_base": account("FullInitMarginReq", base),
+        "maintenance_margin_base": account("FullMaintMarginReq", base),
+        "gross_position_value_base": account("GrossPositionValue", base),
+        "usd_to_base_rate": base_rate("USD"),
+        "positions": positions,
+        "open_orders": open_orders,
+    }
 
 
 def _gate(
@@ -103,6 +210,213 @@ def terminal_broker_snapshot_complete(snapshot: Mapping[str, object]) -> bool:
     except (KeyError, TypeError, ValueError):
         return False
     return filled >= 0 and abs(fill_total - filled) <= 1e-9 and fills_complete
+
+
+async def execute_single_contract_limit_order(
+    *,
+    client,
+    contract: object,
+    ticker: object,
+    action: str,
+    order_ref: str,
+    plan: Mapping[str, object],
+    latest_checkpoint: Mapping[str, object] | None,
+    observed_at: datetime,
+    max_commission_usd: float,
+    initial_mode: str,
+    chase_mode: str,
+    price_for_mode: Callable[..., float | None],
+    checkpoint: Callable[..., Mapping[str, object]],
+    ladder_schema: str,
+    source_age_seconds: float,
+) -> dict[str, object]:
+    """Execute or reconcile one durable, capital-admitted LIMIT transition."""
+
+    prior = (
+        latest_checkpoint.get("evidence")
+        if isinstance(latest_checkpoint, Mapping)
+        else None
+    )
+    matches = await client.reconcile_trades_for_order_ref(order_ref)
+    if len(matches) > 1:
+        raise ValueError("broker returned multiple orders for one transition")
+    trade = matches[0] if matches else None
+    if trade is not None and not isinstance(prior, Mapping):
+        raise ValueError("broker order has no prepared local transition")
+    if isinstance(prior, Mapping) and prior.get("phase") == "TERMINAL":
+        snapshot = broker_trade_snapshot(trade) if trade is not None else {}
+        if not _complete_single_contract_fill(snapshot):
+            raise ValueError("terminal receipt disagrees with broker")
+        return {
+            "status": "TERMINAL",
+            "order_ref": order_ref,
+            "checkpoint_id": latest_checkpoint["checkpoint_id"],
+            "submitted_orders": 0,
+            "broker_order": snapshot,
+        }
+    if trade is None and isinstance(prior, Mapping) and prior.get("phase") == "SUBMITTED":
+        raise ValueError("submitted order disappeared from broker state")
+    preview_payload = (
+        dict(prior["what_if_preview"])
+        if isinstance(prior, Mapping)
+        and isinstance(prior.get("what_if_preview"), Mapping)
+        else None
+    )
+    initial_price = price_for_mode(initial_mode, action)
+    if initial_price is None or not math.isfinite(float(initial_price)):
+        raise ValueError("transition has no executable initial LIMIT price")
+    submitted_orders = 0
+    if trade is None:
+        preview = await client.preview_limit_order(
+            contract,
+            action,
+            1,
+            float(initial_price),
+            True,
+            order_ref,
+        )
+        preview_payload = asdict(preview)
+        commission_values = [
+            float(value)
+            for value in (
+                preview.commission,
+                preview.min_commission,
+                preview.max_commission,
+            )
+            if value is not None
+        ]
+        if (
+            preview.status != "PreSubmitted"
+            or not commission_values
+            or any(not math.isfinite(value) or value < 0 for value in commission_values)
+            or str(preview.commission_currency or "").upper() != "USD"
+            or max(commission_values) > max_commission_usd
+            or str(preview.warning_text or "")
+            or not isinstance(plan.get("capital_admission"), Mapping)
+            or plan["capital_admission"].get("status") != "ALLOW"
+        ):
+            raise ValueError("fresh LIMIT what-if or capital admission failed")
+        checkpoint(
+            phase="PREPARED",
+            observed_at=observed_at,
+            order_ref=order_ref,
+            preview=preview_payload,
+        )
+        trade = await client.place_limit_order(
+            contract,
+            action,
+            1,
+            float(initial_price),
+            True,
+            order_ref,
+        )
+        submitted_orders = 1
+        checkpoint(
+            phase="SUBMITTED",
+            observed_at=observed_at,
+            order_ref=order_ref,
+            preview=preview_payload,
+            trade=trade,
+            submitted_orders=1,
+        )
+
+    order_id, perm_id = order_ids(trade)
+    submitted_at = (
+        datetime.fromisoformat(
+            str(latest_checkpoint["recorded_at_utc"]).replace("Z", "+00:00")
+        ).astimezone(timezone.utc)
+        if latest_checkpoint is not None
+        else observed_at.astimezone(timezone.utc)
+    )
+    elapsed = max(
+        0.0,
+        (observed_at.astimezone(timezone.utc) - submitted_at).total_seconds(),
+    )
+
+    def transition(payload: dict[str, object]) -> None:
+        at = datetime.now(timezone.utc)
+        checkpoint(
+            phase="SUBMITTED",
+            observed_at=at,
+            order_ref=order_ref,
+            preview=preview_payload,
+            ladder_transition={
+                "schema": ladder_schema,
+                "observed_at_utc": at.isoformat(),
+                "source_age_seconds": source_age_seconds,
+                **payload,
+            },
+        )
+
+    execution = LiveOrderExecution(
+        client=client,
+        state_by_order={},
+        price_for_mode=price_for_mode,
+        on_transition=transition,
+    )
+    if not bool(getattr(trade, "isDone", lambda: False)()):
+        await execution.chase(
+            trade,
+            action,
+            mode=chase_mode,
+            policy=EXECUTION_POLICY,
+            elapsed_offset_sec=elapsed,
+            require_fresh_top=True,
+        )
+    reconciled = await client.reconcile_order_state(
+        order_id=order_id,
+        perm_id=perm_id,
+        force=True,
+    )
+    if isinstance(reconciled, Mapping) and reconciled.get("trade") is not None:
+        trade = reconciled["trade"]
+    broker_order = broker_trade_snapshot(trade)
+    if broker_order.get("done") is True and not _complete_single_contract_fill(
+        broker_order
+    ):
+        raise ValueError("LIMIT order terminated without one complete fill")
+    if not terminal_broker_snapshot_complete(broker_order):
+        pending = checkpoint(
+            phase="SUBMITTED",
+            observed_at=datetime.now(timezone.utc),
+            order_ref=order_ref,
+            preview=preview_payload,
+            trade=trade,
+        )
+        return {
+            "status": "PENDING",
+            "order_ref": order_ref,
+            "checkpoint_id": pending["checkpoint_id"],
+            "broker_order": broker_order,
+            "submitted_orders": submitted_orders,
+        }
+    terminal = checkpoint(
+        phase="TERMINAL",
+        observed_at=datetime.now(timezone.utc),
+        order_ref=order_ref,
+        preview=preview_payload,
+        trade=trade,
+        submitted_orders=submitted_orders,
+    )
+    return {
+        "status": "TERMINAL",
+        "order_ref": order_ref,
+        "checkpoint_id": terminal["checkpoint_id"],
+        "broker_order": terminal["evidence"]["broker_order"],
+        "submitted_orders": submitted_orders,
+    }
+
+
+def _complete_single_contract_fill(snapshot: Mapping[str, object]) -> bool:
+    try:
+        return bool(
+            terminal_broker_snapshot_complete(snapshot)
+            and float(snapshot.get("filled") or 0.0) == 1.0
+            and float(snapshot.get("remaining") or 0.0) == 0.0
+            and float(snapshot.get("quantity") or 0.0) == 1.0
+        )
+    except (TypeError, ValueError):
+        return False
 
 
 def single_contract_execution_graduation_gate(

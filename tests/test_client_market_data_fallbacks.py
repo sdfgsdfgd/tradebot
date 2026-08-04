@@ -8,6 +8,7 @@ import time
 from types import SimpleNamespace
 
 from ib_insync import Contract, Stock
+import pytest
 
 import tradebot.client as client_module
 from tradebot.client import IBKRClient
@@ -47,6 +48,21 @@ def _new_client() -> IBKRClient:
         reconnect_slow_interval_sec=60.0,
     )
     return IBKRClient(cfg)
+
+
+def test_broker_boundary_rejects_market_or_nonfinite_limit_orders() -> None:
+    client = _new_client()
+
+    with pytest.raises(ValueError, match="only finite LIMIT orders"):
+        client._require_limit_order(
+            SimpleNamespace(orderType="MKT", lmtPrice=73.11),
+            context="test",
+        )
+    with pytest.raises(ValueError, match="only finite LIMIT orders"):
+        client._require_limit_order(
+            SimpleNamespace(orderType="LMT", lmtPrice=float("nan")),
+            context="test",
+        )
 
 
 class _FakeProxyIB:

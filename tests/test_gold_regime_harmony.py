@@ -15,6 +15,7 @@ from tradebot.client import BrokerOrderPreview
 from tradebot.live.capital import build_live_capital_plan
 from tradebot.research.gold_live_runtime import (
     execute_gold_transport_plan,
+    gold_broker_snapshot,
     gold_live_contract,
     gold_transport_order_ref,
 )
@@ -685,6 +686,62 @@ class _GoldExecutionClient:
 
     async def reconcile_order_state(self, **_kwargs):
         return {"trade": self.trade}
+
+
+def test_gold_broker_snapshot_converts_portfolio_values_to_account_base() -> None:
+    contract = SimpleNamespace(
+        symbol="TQQQ",
+        localSymbol="TQQQ",
+        conId=72_539_702,
+        secType="STK",
+        currency="USD",
+    )
+
+    class Client:
+        async def fetch_portfolio(self):
+            return [
+                SimpleNamespace(
+                    contract=contract,
+                    position=1.0,
+                    marketValue=69.44,
+                )
+            ]
+
+        def account_id(self):
+            return "U123"
+
+        def account_text_value(self, _tag):
+            return "STKCASH"
+
+        def account_value(self, tag, *, currency=None):
+            values = {
+                ("CashBalance", "USD"): 1_318.05,
+                ("EquityWithLoanValue", "AUD"): 3_107.79,
+                ("AvailableFunds", "AUD"): 3_072.19,
+                ("ExcessLiquidity", "AUD"): 3_077.79,
+                ("FullInitMarginReq", "AUD"): 35.60,
+                ("FullMaintMarginReq", "AUD"): 30.00,
+                ("GrossPositionValue", "AUD"): 98.88,
+                ("ExchangeRate", "USD"): 1.4239442,
+            }
+            return values[(tag, currency)], currency, None
+
+        def open_trades(self):
+            return []
+
+    snapshot = asyncio.run(gold_broker_snapshot(Client()))
+
+    assert snapshot["positions"] == [
+        {
+            "symbol": "TQQQ",
+            "local_symbol": "TQQQ",
+            "con_id": 72_539_702,
+            "sec_type": "STK",
+            "currency": "USD",
+            "quantity": 1.0,
+            "market_value_base_cents": 9_888,
+        }
+    ]
 
 
 def test_gold_execution_is_one_order_and_restart_adopts_terminal_fill(

@@ -12,13 +12,13 @@ from datetime import datetime, timezone
 from ib_insync import Contract
 
 from ..backtest.quotes import contract_from_ticker
-from ..engines.execution import EXECUTION_POLICY, quote_health
+from ..engines.execution import quote_health
 from ..live.capital import admit_live_capital
-from ..live.execution import LiveOrderExecution, order_ids
 from ..live.order_evidence import (
+    broker_account_snapshot,
     broker_trade_snapshot,
+    execute_single_contract_limit_order,
     execution_price_for_ticker,
-    terminal_broker_snapshot_complete,
 )
 from .gold_live_transport import (
     GOLD_LIVE_CAPITAL_SLEEVE,
@@ -107,80 +107,22 @@ def gold_transport_order_ref(plan: Mapping[str, object]) -> str:
 
 
 async def gold_broker_snapshot(client) -> dict[str, object]:
-    portfolio = await client.fetch_portfolio()
-    account_id = str(client.account_id() or "").strip()
-    account_type = str(client.account_text_value("TradingType-S") or "").upper()
-    if not account_id or account_type != "STKCASH":
-        raise ValueError("gold live transport requires one cash account")
-
-    def account(tag: str, currency: str) -> float:
-        value, actual, _updated = client.account_value(tag, currency=currency)
-        if str(actual or "").upper() != currency:
-            raise ValueError(f"fresh {tag} {currency} is unavailable")
-        return _number(value, name=f"{tag} {currency}")
-
-    positions = []
-    for item in portfolio:
-        contract = getattr(item, "contract", None)
-        quantity = _number(
-            getattr(item, "position", 0.0) or 0.0,
-            name="broker position",
-        )
-        if abs(quantity) <= 1e-9:
-            continue
-        positions.append(
-            {
-                "symbol": str(getattr(contract, "symbol", "") or "").upper(),
-                "local_symbol": str(
-                    getattr(contract, "localSymbol", "") or ""
-                ),
-                "con_id": int(getattr(contract, "conId", 0) or 0),
-                "sec_type": str(getattr(contract, "secType", "") or ""),
-                "quantity": quantity,
-                "market_value_base_cents": math.ceil(
-                    abs(
-                        _number(
-                            getattr(item, "marketValue", 0.0) or 0.0,
-                            name="broker position market value",
-                        )
-                    )
-                    * 100
-                ),
-            }
-        )
-    open_orders = []
-    for trade in client.open_trades():
-        contract = getattr(trade, "contract", None)
-        order = getattr(trade, "order", None)
-        status = getattr(trade, "orderStatus", None)
-        open_orders.append(
-            {
-                "symbol": str(getattr(contract, "symbol", "") or "").upper(),
-                "con_id": int(getattr(contract, "conId", 0) or 0),
-                "action": str(getattr(order, "action", "") or "").upper(),
-                "quantity": _number(
-                    getattr(order, "totalQuantity", 0.0) or 0.0,
-                    name="broker order quantity",
-                ),
-                "order_ref": str(getattr(order, "orderRef", "") or ""),
-                "status": str(getattr(status, "status", "") or ""),
-            }
-        )
+    snapshot = await broker_account_snapshot(client, base_currency="AUD")
     return {
-        "observed_at_utc": datetime.now(timezone.utc).isoformat(),
-        "account_id": account_id,
-        "account_type": "CASH",
-        "base_currency": "AUD",
-        "settled_cash_usd": account("CashBalance", "USD"),
-        "equity_with_loan_aud": account("EquityWithLoanValue", "AUD"),
-        "available_funds_aud": account("AvailableFunds", "AUD"),
-        "excess_liquidity_aud": account("ExcessLiquidity", "AUD"),
-        "initial_margin_aud": account("FullInitMarginReq", "AUD"),
-        "maintenance_margin_aud": account("FullMaintMarginReq", "AUD"),
-        "gross_position_value_aud": account("GrossPositionValue", "AUD"),
-        "usd_to_aud": account("ExchangeRate", "USD"),
-        "positions": positions,
-        "open_orders": open_orders,
+        "observed_at_utc": snapshot["observed_at_utc"],
+        "account_id": snapshot["account_id"],
+        "account_type": snapshot["account_type"],
+        "base_currency": snapshot["base_currency"],
+        "settled_cash_usd": snapshot["settled_cash_usd"],
+        "equity_with_loan_aud": snapshot["equity_with_loan_base"],
+        "available_funds_aud": snapshot["available_funds_base"],
+        "excess_liquidity_aud": snapshot["excess_liquidity_base"],
+        "initial_margin_aud": snapshot["initial_margin_base"],
+        "maintenance_margin_aud": snapshot["maintenance_margin_base"],
+        "gross_position_value_aud": snapshot["gross_position_value_base"],
+        "usd_to_aud": snapshot["usd_to_base_rate"],
+        "positions": snapshot["positions"],
+        "open_orders": snapshot["open_orders"],
     }
 
 
@@ -261,17 +203,6 @@ def _commission_values(preview: object) -> list[float]:
         )
         if value is not None and math.isfinite(float(value))
     ]
-
-
-def _complete_one_contract_fill(snapshot: Mapping[str, object]) -> bool:
-    try:
-        return (
-            terminal_broker_snapshot_complete(snapshot)
-            and float(snapshot.get("filled") or 0.0) == 1.0
-            and float(snapshot.get("remaining") or 0.0) == 0.0
-        )
-    except (TypeError, ValueError):
-        return False
 
 
 def _admit_gold_entry(
@@ -396,178 +327,34 @@ async def execute_gold_transport_plan(
     latest = _latest_execution_by_ref(
         records, selection_id=str(selected["selection_id"])
     ).get(order_ref)
-    prior = latest.get("evidence") if isinstance(latest, Mapping) else None
-    matches = await client.reconcile_trades_for_order_ref(order_ref)
-    if len(matches) > 1:
-        raise ValueError("broker returned multiple gold orders for one transition")
-    trade = matches[0] if matches else None
-    if trade is not None and not isinstance(prior, Mapping):
-        raise ValueError("gold broker order has no prepared local transition")
-    if isinstance(prior, Mapping) and prior.get("phase") == "TERMINAL":
-        snapshot = broker_trade_snapshot(trade) if trade is not None else {}
-        if not _complete_one_contract_fill(snapshot):
-            raise ValueError("gold terminal receipt disagrees with broker")
-        return {
-            "status": "TERMINAL",
-            "order_ref": order_ref,
-            "checkpoint_id": latest["checkpoint_id"],
-            "submitted_orders": 0,
-            "broker_order": snapshot,
-        }
-    if (
-        trade is None
-        and isinstance(prior, Mapping)
-        and prior.get("phase") == "SUBMITTED"
-    ):
-        raise ValueError("submitted gold order disappeared from broker state")
-    preview_payload = (
-        dict(prior["what_if_preview"])
-        if isinstance(prior, Mapping)
-        and isinstance(prior.get("what_if_preview"), Mapping)
-        else None
-    )
     price_for_mode = execution_price_for_ticker(contract, ticker)
     action = str(leg["action"])
-    initial_price = price_for_mode(str(leg["initial_mode"]), action)
-    if initial_price is None or not math.isfinite(float(initial_price)):
-        raise ValueError("gold transport has no executable initial price")
-    submitted_orders = 0
-    if trade is None:
-        preview = await client.preview_limit_order(
-            contract,
-            action,
-            1,
-            float(initial_price),
-            True,
-            order_ref,
-        )
-        preview_payload = asdict(preview)
-        commissions = _commission_values(preview)
-        if (
-            preview.status != "PreSubmitted"
-            or not commissions
-            or str(preview.commission_currency or "").upper() != "USD"
-            or max(commissions) > GOLD_LIVE_MAX_COMMISSION_USD
-            or str(preview.warning_text or "")
-        ):
-            raise ValueError("fresh gold what-if exceeds the selected boundary")
-        if not isinstance(plan.get("capital_admission"), Mapping):
-            raise ValueError("gold order lacks central capital admission")
-        _checkpoint(
+
+    def checkpoint(**kwargs: object) -> Mapping[str, object]:
+        return _checkpoint(
             ledger,
             selection_id=str(selected["selection_id"]),
             plan=plan,
-            phase="PREPARED",
-            observed_at=observed_at,
-            order_ref=order_ref,
-            preview=preview_payload,
-        )
-        trade = await client.place_limit_order(
-            contract,
-            action,
-            1,
-            float(initial_price),
-            True,
-            order_ref,
-        )
-        submitted_orders = 1
-        _checkpoint(
-            ledger,
-            selection_id=str(selected["selection_id"]),
-            plan=plan,
-            phase="SUBMITTED",
-            observed_at=observed_at,
-            order_ref=order_ref,
-            preview=preview_payload,
-            trade=trade,
-            submitted_orders=1,
+            **kwargs,
         )
 
-    order_id, perm_id = order_ids(trade)
-    submitted_at = _utc(latest["recorded_at_utc"]) if latest is not None else observed_at
-    elapsed = max(0.0, (_utc(observed_at) - submitted_at).total_seconds())
-
-    def transition(payload: dict[str, object]) -> None:
-        at = datetime.now(timezone.utc)
-        _checkpoint(
-            ledger,
-            selection_id=str(selected["selection_id"]),
-            plan=plan,
-            phase="SUBMITTED",
-            observed_at=at,
-            order_ref=order_ref,
-            preview=preview_payload,
-            ladder_transition={
-                "schema": "gold.execution-ladder-transition.v1",
-                "observed_at_utc": at.isoformat(),
-                "source_age_seconds": plan["source_age_seconds"],
-                **payload,
-            },
-        )
-
-    execution = LiveOrderExecution(
+    return await execute_single_contract_limit_order(
         client=client,
-        state_by_order={},
-        price_for_mode=price_for_mode,
-        on_transition=transition,
-    )
-    if not bool(getattr(trade, "isDone", lambda: False)()):
-        await execution.chase(
-            trade,
-            action,
-            mode=str(leg["chase_mode"]),
-            policy=EXECUTION_POLICY,
-            elapsed_offset_sec=elapsed,
-            require_fresh_top=True,
-        )
-    reconciled = await client.reconcile_order_state(
-        order_id=order_id,
-        perm_id=perm_id,
-        force=True,
-    )
-    if isinstance(reconciled, Mapping) and reconciled.get("trade") is not None:
-        trade = reconciled["trade"]
-    broker_order = broker_trade_snapshot(trade)
-    if broker_order.get("done") is True and not _complete_one_contract_fill(
-        broker_order
-    ):
-        raise ValueError("gold order terminated without one complete fill")
-    if not terminal_broker_snapshot_complete(broker_order):
-        pending = _checkpoint(
-            ledger,
-            selection_id=str(selected["selection_id"]),
-            plan=plan,
-            phase="SUBMITTED",
-            observed_at=datetime.now(timezone.utc),
-            order_ref=order_ref,
-            preview=preview_payload,
-            trade=trade,
-        )
-        return {
-            "status": "PENDING",
-            "order_ref": order_ref,
-            "checkpoint_id": pending["checkpoint_id"],
-            "broker_order": broker_order,
-            "submitted_orders": submitted_orders,
-        }
-    terminal = _checkpoint(
-        ledger,
-        selection_id=str(selected["selection_id"]),
-        plan=plan,
-        phase="TERMINAL",
-        observed_at=datetime.now(timezone.utc),
+        contract=contract,
+        ticker=ticker,
+        action=action,
         order_ref=order_ref,
-        preview=preview_payload,
-        trade=trade,
-        submitted_orders=submitted_orders,
+        plan=plan,
+        latest_checkpoint=latest,
+        observed_at=observed_at,
+        max_commission_usd=GOLD_LIVE_MAX_COMMISSION_USD,
+        initial_mode=str(leg["initial_mode"]),
+        chase_mode=str(leg["chase_mode"]),
+        price_for_mode=price_for_mode,
+        checkpoint=checkpoint,
+        ladder_schema="gold.execution-ladder-transition.v1",
+        source_age_seconds=float(plan["source_age_seconds"]),
     )
-    return {
-        "status": "TERMINAL",
-        "order_ref": order_ref,
-        "checkpoint_id": terminal["checkpoint_id"],
-        "broker_order": terminal["evidence"]["broker_order"],
-        "submitted_orders": submitted_orders,
-    }
 
 
 async def advance_gold_live_transport(

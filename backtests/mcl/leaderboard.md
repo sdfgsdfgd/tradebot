@@ -24,7 +24,7 @@ The first does not grant the second.
 |---:|---|---|---|---|
 | 1 | Two-speed CL discovery → MCL transport | **MCL Two-Speed Auction Relay — V18** | `mcl.two-speed-auction-relay-v18-research-crown.v1` | Frozen HF research crown; no order, selection, or capital authority |
 | — | Seconds-tight predictive timing | **Stages 87/88/89** | event generation `b3805c9f…` | Active challenger; `ACCUMULATE`, zero complete unseen turns at coronation |
-| — | Operational/live | **V18 commissioning** | bounded-canary exception authorized `2026-08-04T07:18:59Z` | `HOLD` until runtime, broker, capital, selection, restart, and reconciliation gates pass |
+| — | Operational/live | **V18 commissioning** | bounded-canary exception authorized `2026-08-04T07:18:59Z` | `READY_TO_DEPLOY`; funded one-contract preview and local runtime proof pass, immutable q selection/plan/restart/timer proof pending |
 
 Machine pointer: `backtests/mcl/current-hf.json`, bound to immutable crown
 artifact `backtests/mcl/mcl_two_speed_auction_v18_crown.json` at SHA-256
@@ -45,8 +45,26 @@ artifact `backtests/mcl/mcl_two_speed_auction_v18_crown.json` at SHA-256
 | Predictive challenger | Stage 87 post-close velocity ignition, Stage 88 pre-close closing funnel, and Stage 89 velocity jerk/handoff are frozen before eligible outcomes |
 | Live-canary exception | **Authorized:** V18 may commission before Stage 87–89 reaches its unseen cohort; the seconds layer remains observation-only and every operational/safety gate remains mandatory |
 | Live source/shadow | **PASS:** finalized broker U6 history matches `2,691/2,693` cache-overlap rows; the two differences are only the old terminal partial bars. Five causal warmups down to `1,946` common minutes reproduce one exact current V18 state; receipt `mcl_v18_live_source_shadow_receipt.json` |
-| Next irreversible evidence | Bind the proven finalized-minute seam into the q worker, then prove fresh quote, commission, one-contract margin, two-sided preview, shared-capital admission, immutable flat selection, and cold restart/reconciliation; the prospective tape continues independently toward its first complete post-`06:55Z` raw-turn window |
-| Live boundary | Lifecycle and live-source shadow parity are green. The TBT seconds tape is explicitly rejected as direction truth and retained only for predictive onset/timing evidence |
+| Native commissioning | **FUNDED PREVIEW PASS:** after the settled deposit, `MCLU6` was `$81.09/$81.11`; BUY/SELL what-if was `PreSubmitted`, `$0.76` commission, `A$2,686.70/A$2,149.36` incremental initial/maintenance margin against `A$3,072.19/A$3,077.79` available/excess liquidity |
+| Alternative transport frontier | **Closed for this V18 generation:** MCO is executable but destroyed the edge; IBUSOIL 75 units was the closest near-miss but failed frozen stress PnL/DD and branch gates and lacks current CFD permission/data; OOO/UCO/SCO/USO fail bidirectional hours/economics |
+| Next irreversible evidence | Deploy the proven worker, recapture fresh broker/source truth, publish one immutable flat selection and first-admitter successor plan, pass two observe-only process restarts, then arm only if both remain flat/order-free and identity-exact |
+| Live boundary | Signal, lifecycle, finalized source, funded preview, general capital law, and local runtime proof are green. q selection/plan/restart/deployment remain the blocker; no MCL order or profitability clock exists yet |
+
+## Live transport frontier
+
+| Rank | Transport | Exact result | Decision |
+|---:|---|---|---|
+| 1 | Native `MCLU6` | Exact V18 linear economics and live type-1 book; funded BUY/SELL preview now passes at one contract. Central admission uses actual-position first-admitter resources rather than falsely promising every flat minimum simultaneously | **Preferred; commissioning in progress** |
+| 2 | `IBUSOIL` CFD | `75` units: primary `+$1,468.98`, PnL/DD `3.511`; stress `+$675.69`, PnL/DD `.911`, failed-auction `-$79.75`. Live quote/preview absent because CFD permission/data is disabled | **Frozen generation rejected; future challenger only on genuinely new executable evidence** |
+| 3 | `MCO` long calls/puts | Live premium/margin fits, but ATM replay was `-$1,918.94`; the only liquid symmetric ITM corridor was `-$1,428.12`; both stress cases and both directions lost | **Rejected** |
+| 4 | Oil ETFs | `OOO` is ASX-hours and has no cash-buy down lane. Even perfect 24h 2× UCO/SCO tracking with zero decay/commission produced `+$967.21` gross but `-$63.41` after observed spread alone; USO has no cash-buy down companion | **Rejected** |
+
+Receipts: `mcl_v18_native_margin_hold.json`,
+`mcl_three_champion_minimum_capital_census.json`,
+`mcl_ibusoil_permission_hold.json`,
+`mcl_v18_ibusoil_linear_replay_rejection.json`,
+`mcl_v18_mco_transport_rejection.json`, and
+`mcl_oil_etf_transport_rejection.json`.
 
 ## CR-001 · 2026-08-04 · MCL Two-Speed Auction Relay — V18
 
@@ -168,7 +186,10 @@ Do not reopen these historical rescue families without genuinely new data:
 - first adversity, hostile effort, reclaim/re-loss, or closing-rejection vetoes;
 - generic slow takeover, phase routing, product-complex pulses, and add-on
   portfolios that failed their frozen count or economic gates;
-- fabricated 4h bars, cross-roll carry, or speculative ICE/USO substitution.
+- fabricated 4h bars, cross-roll carry, or speculative ICE/USO substitution;
+- MCO ATM/ITM option dilution, the frozen IBUSOIL 50/75-unit generation, and
+  OOO/UCO/SCO/USO cash-ETF transport. Reopen only on materially new executable
+  evidence, never by lowering a gate after seeing the rejection.
 
 ## Operational graduation queue
 
@@ -178,9 +199,13 @@ Do not reopen these historical rescue families without genuinely new data:
    historical parity and prove current finalized-minute source/shadow identity.
    Next bind that exact seam behind the shared q worker boundary; do not copy
    XSP or Gold execution or promote TBT-derived bars to direction truth.
-3. Prove live MCL contract selection, spread, commission, slippage, margin,
-   minimum executable package, and non-transmitting broker preview.
-4. Prove cold start, immediate restart, open-position reconciliation, roll,
+3. **Done:** fresh funded MCLU6 identity/book and two-sided one-contract LIMIT
+   what-if pass. The product-neutral first-admitter law allows each independently
+   executable minimum while reserving only actual positions/pending orders plus
+   the candidate at entry time; it never promises three simultaneous minima.
+4. **Locally green:** q-owned finalized-source, actual-fill risk, shared LIMIT
+   executor, maintenance-aware timer, and immutable commissioning CLI. Deploy,
+   then prove cold start, immediate restart, open-position reconciliation, roll,
    maintenance, risk reduction, and one shared account-capital admission.
 5. Publish an immutable flat-baseline selection only after every receipt passes.
 6. Arm the authorized bounded canary only after every preceding receipt passes;

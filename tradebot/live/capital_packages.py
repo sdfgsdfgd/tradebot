@@ -19,6 +19,7 @@ PACKAGE_RESOURCE_FIELDS = (
     "stressed_loss_usd_cents",
 )
 PACKAGE_ALLOCATION_METHOD = "minimum_first_weighted_residual.v1"
+PACKAGE_FIRST_ADMITTER_METHOD = "first_admitter_just_in_time.v1"
 IMMUTABLE_SELECTION_DIRECTORY = Path("db/calibration/selections")
 
 
@@ -308,6 +309,76 @@ def allocate_live_packages(
     }
 
 
+def allocate_first_admitter_packages(
+    sleeves: Sequence[Mapping[str, object]],
+    *,
+    settled_cash_usd_cents: int,
+    available_funds_base_cents: int,
+    excess_liquidity_base_cents: int,
+    usd_to_base_rate_ppm: int,
+    minimum_buffer_base_cents: int,
+    unmanaged_position_stress_base_cents: int,
+) -> tuple[list[dict[str, object]], dict[str, object]]:
+    """Bind each selected minimum independently; reserve only at admission."""
+
+    normalized = sorted(
+        (normalize_package_sleeve(sleeve) for sleeve in sleeves),
+        key=lambda sleeve: str(sleeve["sleeve_id"]),
+    )
+    if not normalized or len({row["sleeve_id"] for row in normalized}) != len(
+        normalized
+    ):
+        raise ValueError("package sleeve identities are empty or duplicated")
+    numeric = {
+        "settled_cash_usd_cents": _positive_int(
+            settled_cash_usd_cents, name="settled cash"
+        ),
+        "available_funds_base_cents": _positive_int(
+            available_funds_base_cents, name="available funds"
+        ),
+        "excess_liquidity_base_cents": _positive_int(
+            excess_liquidity_base_cents, name="excess liquidity"
+        ),
+        "usd_to_base_rate_ppm": _positive_int(
+            usd_to_base_rate_ppm, name="USD/base rate"
+        ),
+        "minimum_buffer_base_cents": _nonnegative_int(
+            minimum_buffer_base_cents, name="minimum account buffer"
+        ),
+        "unmanaged_position_stress_base_cents": _nonnegative_int(
+            unmanaged_position_stress_base_cents,
+            name="unmanaged-position stress",
+        ),
+    }
+    capacities = {}
+    allocated = []
+    for sleeve in normalized:
+        sleeve_id = str(sleeve["sleeve_id"])
+        index = next(
+            index
+            for index, package in enumerate(sleeve["package_ladder"])
+            if package["package_id"] == sleeve["minimum_package_id"]
+        )
+        capacity = _capacity([sleeve], {sleeve_id: index}, **numeric)
+        if not _fits(capacity):
+            raise ValueError(
+                f"minimum executable package exceeds account capacity: {sleeve_id}"
+            )
+        capacities[sleeve_id] = capacity
+        allocated.append(
+            {
+                **sleeve,
+                "allocated_package_id": sleeve["minimum_package_id"],
+            }
+        )
+    return allocated, {
+        "method": PACKAGE_FIRST_ADMITTER_METHOD,
+        "individual_minimum_packages_fit": True,
+        "aggregate_minimum_packages_promised": False,
+        "individual_capacity": capacities,
+    }
+
+
 def package_for_sleeve(
     sleeve: Mapping[str, object], *, allocated: bool
 ) -> Mapping[str, object]:
@@ -416,6 +487,10 @@ def live_package_entry_capacity(
     sleeves = plan["sleeves"]
     candidate = next(row for row in sleeves if row["sleeve_id"] == sleeve_id)
     allocated = package_for_sleeve(candidate, allocated=True)
+    first_admitter = (
+        plan.get("constraints", {}).get("entry_capacity_policy")
+        == PACKAGE_FIRST_ADMITTER_METHOD
+    )
     positions = resource_state.get("account_positions")
     orders = resource_state.get("account_open_orders")
     try:
@@ -480,19 +555,48 @@ def live_package_entry_capacity(
                     row.get("market_value_base_cents"),
                     name="unmanaged position market value",
                 )
-        if any(
+        pending: set[str] = set()
+        if not first_admitter and any(
             isinstance(row, Mapping)
             and abs(Decimal(str(row.get("quantity") or 0))) > Decimal("1e-9")
             for row in orders
         ):
             reasons.append("open_order_blocks_portfolio_capacity_proof")
+        elif first_admitter:
+            for row in orders:
+                if not isinstance(row, Mapping):
+                    raise ValueError
+                symbol = str(row.get("symbol") or "").strip().upper()
+                quantity = Decimal(str(row.get("quantity") or 0))
+                if not symbol or not quantity.is_finite():
+                    raise ValueError
+                if abs(quantity) <= Decimal("1e-9"):
+                    continue
+                owners = [
+                    str(sleeve["sleeve_id"])
+                    for sleeve in sleeves
+                    if symbol in sleeve["position_symbols"]
+                ]
+                if len(owners) != 1:
+                    reasons.append("open_order_has_no_unique_capital_owner")
+                elif owners[0] in active or owners[0] == sleeve_id:
+                    reasons.append("open_order_blocks_portfolio_capacity_proof")
+                else:
+                    pending.add(owners[0])
         if sleeve_id in active:
             reasons.append("candidate_sleeve_already_active")
 
         cash_reserved = initial_reserved = maintenance_reserved = stress_reserved = 0
+        reserved = (
+            {sleeve_id, *active, *pending}
+            if first_admitter
+            else {str(sleeve["sleeve_id"]) for sleeve in sleeves}
+        )
         for sleeve in sleeves:
-            package = package_for_sleeve(sleeve, allocated=True)
             current = str(sleeve["sleeve_id"])
+            if current not in reserved:
+                continue
+            package = package_for_sleeve(sleeve, allocated=True)
             stress_reserved += _ceil_ratio(
                 int(package["stressed_loss_usd_cents"])
                 * fx_ppm
@@ -519,6 +623,12 @@ def live_package_entry_capacity(
             "capital_kind": candidate["capital_kind"],
             "allocated_package_id": candidate["allocated_package_id"],
             "active_sleeves": sorted(active),
+            "pending_sleeves": sorted(pending),
+            "entry_capacity_policy": (
+                PACKAGE_FIRST_ADMITTER_METHOD
+                if first_admitter
+                else PACKAGE_ALLOCATION_METHOD
+            ),
             "cash_reserved_usd_cents": cash_reserved,
             "initial_margin_reserved_base_cents": initial_reserved,
             "maintenance_margin_reserved_base_cents": maintenance_reserved,

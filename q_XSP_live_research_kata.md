@@ -11,8 +11,10 @@
   flat one-contract 1OZ canary `62344ce2…`; only a fresh causal admission may
   enter during GTH or RTH, and operational graduation remains pending. MCL V18
   is the immutable HF research crown and its Gold-style bounded-canary exception
-  is now user-authorized; commissioning remains fail-closed until exact runtime,
-  broker, capital, selection, restart, and reconciliation receipts pass`
+  is user-authorized. Exact lifecycle/live-source parity and a fresh funded
+  two-sided `MCLU6` LIMIT what-if now pass. The centralized first-admitter
+  capital law and q-owned runtime are locally proven; immutable selection,
+  plan switch, cold-restart reconciliation, deployment, and timer arming remain`
 - **Authority:** canonical resume state, active task tree, critical evidence
   index, and promotion contract
 - **Cold history:** [`q_XSP_live_research_kata-archive.md`](q_XSP_live_research_kata-archive.md)
@@ -28,17 +30,20 @@
   restart, and broker-permission gates passed; its narrower `141/year` RTH cash
   scope is explicitly accepted for the first canary. GTH cash execution remains
   separately unqualified
-- **Capital premise:** the position-preserving successor binds IBKR Australia's
-  immediate stock-sale proceeds. Shared plan `b4a920b3…` reserves every active
-  champion's generic minimum executable package before weighted residual
-  allocation. It assigns one 1OZ contract plus XSP's `$800.46` package and
-  leaves `$516.93` settled USD unallocated; the same account envelope reserves
-  `A$600/A$520` gold initial/maintenance margin, an `A$300` minimum buffer, and
-  full-gross stress for the unrelated TQQQ share. Either entry order is lawful;
-  every new entry re-evaluates all promised packages from fresh broker state,
-  and aggregate insufficiency returns an exact pre-order HOLD. Neither spare
-  cash nor futures margin is interchangeable entry authority. The
-  selected transport retains a conservative
+- **Capital premise:** current plan `b4a920b3…` still owns immutable XSP/Gold
+  until the MCL successor is commissioned. The general successor law is
+  `first_admitter_just_in_time.v1`: each active champion must independently fit
+  its indivisible minimum, but flat sleeves do not pretend to reserve three
+  simultaneous minima. At each fresh entry the candidate plus actual positions
+  and uniquely owned pending orders are stress-tested from one new broker
+  snapshot; the first lawful admitter may take its minimum, and later entries
+  receive only genuinely remaining capacity or exact pre-order `HOLD`. Risk
+  reduction is always allowed. After the settled deposit, the broker reported
+  `A$3,107.79` EWL, `A$3,072.19` available funds, and `A$3,077.79` excess
+  liquidity; one `MCLU6` BUY or SELL preview required `A$2,686.70/A$2,149.36`
+  initial/maintenance margin and `$0.76` commission. This proves the MCL minimum
+  alone; it does not promise simultaneous ownership of all three. The selected
+  XSP transport retains a conservative
   maximum completed-ticket commission of `$0.45034925`. The first round trip
   bought `23 SPXU @ $39.10` for `$0.318126`, then sold all `23 @ $38.56` for
   `$0.340881`: realized `-$13.079007`, current settled USD `$1,318.051`, no
@@ -59,7 +64,7 @@ output belongs in commit/final verification, not in this management brain.
 | Selected live run | `1083c181…` / file `d5f616e4…`, selected flat at `12:41:13Z` as the package-sized successor to `b4799fa6…`; XSP owns `xsp-usd-800`, zero inherited fills/P&L/DD. Invalid `daf1609b…` and earlier identities remain archived evidence only |
 | Gold live canary | `62344ce2…` / file `5fc9048d…`, selected flat at `12:41:13Z` as the package-bound successor to `12b15bd2…`; `1OZZ6` execution and `GCZ6` corroboration, zero inherited fills/P&L/DD, no synthetic midcycle entry |
 | XSP research crown | **Opening Edge v3 — Regime Harmony 24/5**; `xsp.opening-edge-v3-regime-harmony-24x5.v1` |
-| MCL research crown | **MCL Two-Speed Auction Relay — V18**; machine pointer `backtests/mcl/current-hf.json`, crown artifact `6d21b6d9…`; complete-available-history and bounded-live-canary exceptions are user-authorized; commissioning is in progress but order/selection/capital authority remains zero until every operational gate passes |
+| MCL research crown | **MCL Two-Speed Auction Relay — V18**; machine pointer `backtests/mcl/current-hf.json`, crown artifact `6d21b6d9…`; lifecycle/live-source/funded-preview and centralized runtime tests pass. Commissioning is `READY_TO_DEPLOY`, but order/selection/capital authority remains zero until the immutable successor plan and two cold reconciliations pass on q |
 | Runtime parity | Central v3 owner reproduces RTH `40708a28…` exactly over `425/425` trades; unchanged GTH Down Sleeve reproduces `9e04807f…` over `179/179`; combined `604`, `+291.1756`, PF `2.0919`, DD `17.63` |
 | Runtime source anchor | q/origin remain synchronized; deployed runtime code anchor `f925257…`, shared portfolio-capital manifest `0b243adb…`, XSP central owner `643b6a…`, crown `d47eb39…`, exact Gold/XSP graduation adapters, MCL news generation `2c4c543a…`, and prospective turn-tape generation `b3805c9f…` remain bound |
 | Goal snapshot | `q_XSP_goal_objective.md` is the byte-identical tracked backup of the active inline Goal at SHA `86636416…`; it preserves rather than replaces the attachment-owned Goal, while this kata remains the detailed resume authority |
@@ -68,8 +73,8 @@ output belongs in commit/final verification, not in this management brain.
 | Order/capital authority | XSP `1083c181…` retains `rth_cash_pair_limit_only` under package `xsp-usd-800`. Gold `62344ce2…` retains `one_oz_limit_canary` under package `gold-one-contract`. Plan `b4a920b3…` reserves both minima before residual allocation, permits concurrent ownership, forbids borrowing/unproved reallocation, and rechecks the complete portfolio envelope before either entry. Risk reduction is unconditional |
 | Profitability clock | Both successor prefixes begin `12:41:13Z`. First immutable `13:44:04Z` 24h judgments are honest `HOLD`: identity, shared capital ownership, parity, restart, safety, and attribution PASS; execution and elapsed/session profitability remain immature. Predecessor prefixes remain immutable evidence only; no slot is backfilled and no trade is forced |
 | Execution verdict | `LIVE_FLAT` for both selected runs: XSP has zero clean-run fills/P&L/DD and gold has zero fills/trades/P&L/DD, no relevant position/order, and no breach. Archived XSP predecessor loss `-$13.079007` transfers to neither clean identity |
-| Next irreversible evidence | XSP/Gold retain their existing natural capital boundaries. MCL lifecycle parity and current finalized-minute live shadow are green: `2,691/2,693` overlap rows exact, only old terminal partial bars differ, and five causal warmups converge to the same flat state. Next bind this source seam into q and pass margin/preview, shared-capital, immutable-selection, reconciliation, and safety gates before arming the authorized canary |
-| First active work | preserve both selected XSP/Gold recurrence streams and reconcile any real fill immediately. During the authorized MCL campaign, bind the proven finalized IBKR-minute source to the exact V18 lifecycle and downstream commissioning without retuning its signal. Keep generation `b3805c9f…` continuously recording matched CL/MCL TBT evidence for predictive timing only—it is explicitly not direction truth. After MCL is live-confirmed, resume Stage 87/88/89 predictive-onset and causal-news sharpening beside all three graduation lanes; its classifier remains observation-only until the frozen unseen cohort passes |
+| Next irreversible evidence | Publish the locally green q-owned MCL worker, capture a new funded preview, atomically freeze one flat V18 selection plus the first-admitter three-run plan, then pass two separate observe-only cold reconciliations with the exact same selection/source and zero orders before arming the tradable-minute timer |
+| First active work | deploy and commission MCL only. Preserve XSP/Gold recurrence and the uninterrupted predictive tape, but do not detour into Hawkeye or Stage 87–89 sharpening until the natural MCL live recurrence is verified. The seconds layer remains timing-only |
 
 ### Immediate sequence
 

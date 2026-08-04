@@ -11,7 +11,9 @@ from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation, ROUND_CEILING, ROUND_FLOOR
 from pathlib import Path
 
-from .capital_packages import allocate_live_packages, live_package_entry_capacity
+from .capital_packages import PACKAGE_ALLOCATION_METHOD, PACKAGE_FIRST_ADMITTER_METHOD
+from .capital_packages import allocate_first_admitter_packages, allocate_live_packages
+from .capital_packages import live_package_entry_capacity, package_for_sleeve
 
 
 LIVE_CAPITAL_PLAN_SCHEMA = "live.capital-plan.v1"
@@ -338,6 +340,7 @@ def build_live_capital_plan_v3(
     reserve_reasons: Sequence[str],
     created_at_utc: datetime | str,
     supersedes_plan_id: str | None = None,
+    entry_capacity_policy: str = PACKAGE_ALLOCATION_METHOD,
 ) -> dict[str, object]:
     """Build one minimum-first allocation across cash, margin, and risk."""
 
@@ -380,7 +383,10 @@ def build_live_capital_plan_v3(
         for field in ("run_id", "selection_file_sha256")
     ):
         raise ValueError("package sleeve run or selection identity is invalid")
-    allocated, allocation = allocate_live_packages(
+    if entry_capacity_policy not in {PACKAGE_ALLOCATION_METHOD, PACKAGE_FIRST_ADMITTER_METHOD}:
+        raise ValueError("v3 entry-capacity policy is unsupported")
+    allocator = allocate_first_admitter_packages if entry_capacity_policy == PACKAGE_FIRST_ADMITTER_METHOD else allocate_live_packages
+    allocated, allocation = allocator(
         sleeves,
         settled_cash_usd_cents=resources["observed_settled_cash_usd_cents"],
         available_funds_base_cents=resources[
@@ -398,17 +404,44 @@ def build_live_capital_plan_v3(
     reasons = sorted(
         {str(reason).strip() for reason in reserve_reasons if str(reason).strip()}
     )
-    managed_cents = int(allocation["capacity"]["cash_debit_usd_cents"])
+    managed_cents = (
+        max(
+            int(package_for_sleeve(sleeve, allocated=True)["cash_debit_usd_cents"])
+            for sleeve in allocated
+        )
+        if entry_capacity_policy == PACKAGE_FIRST_ADMITTER_METHOD
+        else int(allocation["capacity"]["cash_debit_usd_cents"])
+    )
     reserve_cents = resources["observed_settled_cash_usd_cents"] - managed_cents
     if reserve_cents and not reasons:
         raise ValueError("unallocated cash requires an explicit reserve reason")
     if supersedes_plan_id is not None and not _sha256_identity(supersedes_plan_id):
         raise ValueError("superseded capital-plan identity is invalid")
+    constraints = {
+        "minimum_executable_packages_reserved_first": True,
+        "residual_allocation": PACKAGE_ALLOCATION_METHOD,
+        "flat_sleeves_retain_allocated_package_reservation": True,
+        "unmanaged_positions_receive_full_gross_stress": True,
+        "automatic_borrowing_or_unproved_reallocation": False,
+        "risk_reduction_requires_plan": False,
+    }
+    if entry_capacity_policy == PACKAGE_FIRST_ADMITTER_METHOD:
+        constraints = {
+            **constraints,
+            "minimum_executable_packages_reserved_first": False,
+            "residual_allocation": PACKAGE_FIRST_ADMITTER_METHOD,
+            "entry_capacity_policy": PACKAGE_FIRST_ADMITTER_METHOD,
+            "flat_sleeves_retain_allocated_package_reservation": False,
+        }
     body: dict[str, object] = {
         "schema": LIVE_CAPITAL_PLAN_V3_SCHEMA,
         "created_at_utc": _aware_utc(created_at_utc),
         "supersedes_plan_id": supersedes_plan_id,
-        "authority": "minimum_packages_and_portfolio_resource_reservation",
+        "authority": (
+            "active_plus_candidate_just_in_time_admission"
+            if entry_capacity_policy == PACKAGE_FIRST_ADMITTER_METHOD
+            else "minimum_packages_and_portfolio_resource_reservation"
+        ),
         "account": {
             "account_id": account_id,
             "account_type": "CASH",
@@ -426,14 +459,7 @@ def build_live_capital_plan_v3(
         "resources": resources,
         "sleeves": allocated,
         "allocation": allocation,
-        "constraints": {
-            "minimum_executable_packages_reserved_first": True,
-            "residual_allocation": "minimum_first_weighted_residual.v1",
-            "flat_sleeves_retain_allocated_package_reservation": True,
-            "unmanaged_positions_receive_full_gross_stress": True,
-            "automatic_borrowing_or_unproved_reallocation": False,
-            "risk_reduction_requires_plan": False,
-        },
+        "constraints": constraints,
     }
     return {**body, "plan_id": _identity(body)}
 
@@ -527,8 +553,12 @@ def _validate_live_capital_plan_v3(value: Mapping[str, object]) -> dict[str, obj
     capital = plan.get("capital")
     resources = plan.get("resources")
     sleeves = plan.get("sleeves")
+    constraints = plan.get("constraints")
     if (
-        not all(isinstance(item, Mapping) for item in (account, capital, resources))
+        not all(
+            isinstance(item, Mapping)
+            for item in (account, capital, resources, constraints)
+        )
         or not isinstance(sleeves, Sequence)
         or isinstance(sleeves, (str, bytes))
     ):
@@ -566,6 +596,10 @@ def _validate_live_capital_plan_v3(value: Mapping[str, object]) -> dict[str, obj
             str(plan["supersedes_plan_id"])
             if plan.get("supersedes_plan_id") is not None
             else None
+        ),
+        entry_capacity_policy=str(
+            constraints.get("entry_capacity_policy")
+            or PACKAGE_ALLOCATION_METHOD
         ),
     )
     if rebuilt != value:

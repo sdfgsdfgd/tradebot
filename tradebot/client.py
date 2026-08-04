@@ -1834,7 +1834,22 @@ class IBKRClient:
         if sec_type == "STK" and outside_rth and outside_session and not include_overnight:
             order.outsideRth = True
         order_contract = _normalize_order_contract(order_contract)
+        self._require_limit_order(order, context="prepare")
         return order_contract, order
+
+    @staticmethod
+    def _require_limit_order(order: object, *, context: str) -> None:
+        """Fail closed before any broker preview, submission, or modification."""
+
+        try:
+            limit_price = float(getattr(order, "lmtPrice"))
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{context}: finite LIMIT price is required") from exc
+        if (
+            str(getattr(order, "orderType", "") or "").strip().upper() != "LMT"
+            or not math.isfinite(limit_price)
+        ):
+            raise ValueError(f"{context}: only finite LIMIT orders are allowed")
 
     async def preview_limit_order(
         self,
@@ -1854,6 +1869,7 @@ class IBKRClient:
             outside_rth,
             order_ref,
         )
+        self._require_limit_order(order, context="preview_limit_order")
         state = await self._ib.whatIfOrderAsync(order_contract, order)
         return self._normalize_order_preview(state)
 
@@ -1875,19 +1891,20 @@ class IBKRClient:
             outside_rth,
             order_ref,
         )
+        self._require_limit_order(order, context="place_limit_order")
         return self._ib.placeOrder(order_contract, order)
 
     async def modify_limit_order(self, trade: Trade, limit_price: float) -> Trade:
         """Modify an existing LIMIT order's price in place."""
         await self.connect()
         order = trade.order
-        if not hasattr(order, "lmtPrice"):
-            raise ValueError("modify_limit_order: trade has no lmtPrice")
+        self._require_limit_order(order, context="modify_limit_order")
         try:
             await self._prime_contract_price_increments(trade.contract)
         except Exception:
             pass
         order.lmtPrice = self._normalize_limit_price_increment(trade.contract, float(limit_price))
+        self._require_limit_order(order, context="modify_limit_order")
         return self._ib.placeOrder(trade.contract, order)
 
     def open_trades_for_conids(self, con_ids: Iterable[int]) -> list[Trade]:
