@@ -1,0 +1,136 @@
+{
+  "schema": "mcl.shock-crest-stage113-commissioning.v1",
+  "recorded_at_utc": "2026-08-04T22:07:08Z",
+  "authority": "prospective_morphology_only_no_outcomes_no_orders_no_capital",
+  "deployment": {
+    "commits": [
+      "2434466677b6ec4e1d19923bdc6e4ced8e3e2d8e",
+      "85d1c232a57c1ca49fc206b79fbb98fb9c71a02b",
+      "702bde7039537c4d14a889766d533292f7fdd6ba",
+      "ac297e076bad20a90bde286f1a7a27ea28985851"
+    ],
+    "q_head": "ac297e076bad20a90bde286f1a7a27ea28985851",
+    "origin_main": "ac297e076bad20a90bde286f1a7a27ea28985851",
+    "generation_id": "fd2dd70f9238a0ea423d9e7fe4c7317ca80aab93ba79488ab163223cfe6b3756",
+    "generation_sha256": "64f564b273d78b0661860673b02c87cdfc925a6a403521754dc90c580e1454ea",
+    "accumulator_sha256": "ba9c1f4771dbed0c986b01b65a45e79778f3f3c720a0918e71bcf0d76169d646",
+    "evidence_owner_sha256": "f435f744fb7db453230300685675122885e4277d0517cbb2f1ce15909088f803",
+    "service_sha256": "00d004a459fa494f5ee6c1d2e12c24f12555f8da00a0792d199e52b4222229b7",
+    "timer_sha256": "18813ea33c8ccd66a31777b7fc5fdf1fe58843ad39ad8f5441f9a903383cdbe1"
+  },
+  "architecture_proof": {
+    "observation_parity_sha256": "d7542013e8c8469c669a385a3560650aa3cb21dce5b394156eae7b848e296e8d",
+    "expected_observations": 2167,
+    "actual_observations": 2167,
+    "shared_observation_sha256": "a004b91f692b1fc35dda823c95fc22f61cba7c95507ea16eb4e23d37aa63099f",
+    "first_mismatch": null,
+    "incident_reset_parity_sha256": "1457471481b5654359f49b08553575cbfd8ad9030284331ccafab97e6cd14bbf",
+    "incident_episode_started_at_utc": "2026-08-04T10:44:27+00:00",
+    "incident_episode_terminal_at_utc": "2026-08-04T11:10:00+00:00",
+    "incident_terminal_reason": "stage112_v18_raw_turn",
+    "full_repository_tests": {
+      "passed": 1186,
+      "deselected": 4
+    }
+  },
+  "first_natural_reopen_invocation": {
+    "triggered_at_utc": "2026-08-04T22:00:45+00:00",
+    "expected_fail_closed_attempt": {
+      "failed_at_utc": "2026-08-04T22:00:51+00:00",
+      "reason": "finalized_bars_stale_during_scheduled_maintenance",
+      "common_rows": 5520,
+      "last_common_close_utc": "2026-08-04T21:00:00+00:00",
+      "age_seconds": 3646.196606
+    },
+    "successful_retry": {
+      "started_at_utc": "2026-08-04T22:01:21+00:00",
+      "finished_at_utc": "2026-08-04T22:01:27+00:00",
+      "invocation_id": "2cd4cbe94e9042318fbf2ba30c26a5ff",
+      "restart_count": 1,
+      "last_common_close_utc": "2026-08-04T22:01:00+00:00",
+      "source_records": 69,
+      "eligible_observations": 0,
+      "complete_episodes": 0,
+      "appended": 0,
+      "submitted_orders": 0
+    }
+  },
+  "stable_natural_recurrence": {
+    "started_at_utc": "2026-08-04T22:05:45+00:00",
+    "finished_at_utc": "2026-08-04T22:05:51+00:00",
+    "invocation_id": "b0ed38cd2ab44dfd92eb3f1a1b996a5a",
+    "restart_count": 0,
+    "last_common_close_utc": "2026-08-04T22:05:00+00:00",
+    "source_records": 198,
+    "eligible_observations": 0,
+    "complete_episodes": 0,
+    "appended": 0,
+    "submitted_orders": 0,
+    "result": "success"
+  },
+  "idempotence": {
+    "manual_replay_at_utc": "2026-08-04T22:03:49+00:00",
+    "source_records": 150,
+    "appended": 0,
+    "shock_ledger_before": "missing",
+    "shock_ledger_after_natural": "missing",
+    "shock_ledger_after_manual_replay": "missing",
+    "legacy_onset_records": 3,
+    "legacy_onset_sha256": "bfcc0147faf6b8ebf1abf67d68fa3075a51ef4496bbd2d17c9851e2c0b06aab5"
+  },
+  "turn_tape_reconnect": {
+    "disconnect_at_utc": "2026-08-04T21:45:01+00:00",
+    "cause": "ibkr_tcp_peer_reset_during_scheduled_maintenance",
+    "reconnected_at_utc": "2026-08-04T21:45:36+00:00",
+    "current_invocation_id": "41a8eaf7f60540eebac7043778c5615a",
+    "restart_count": 2,
+    "last_pre_maintenance_record_utc": "2026-08-04T21:00:03.049705+00:00",
+    "first_reopen_record_utc": "2026-08-04T22:00:03.081495+00:00",
+    "generation_sha256": "b3805c9f95713a13c26cb0ada08dc043f00069f42177212d3c575abe28c3ee7f",
+    "tradable_evidence_gap": false,
+    "active_running": true
+  },
+  "cohort": {
+    "complete_episodes": 0,
+    "required_complete_episodes": 30,
+    "resolved_directions": {},
+    "tradeable_12x_episodes": 0,
+    "regime_20x_episodes": 0,
+    "causal_crests": 0,
+    "continuations": 0,
+    "continuation_directions": {},
+    "verdict": "ACCUMULATE"
+  },
+  "live_stage112_at_receipt": {
+    "checkpoint_id": "0650f5884eebf7a45a29f7580086be26dd077189234fc6bcad6012d0752553c5",
+    "observed_at_utc": "2026-08-04T22:06:11.250122+00:00",
+    "selection_id": "083ecba8798ea6e60f32b1c42d4896e1a016703a77eeac2f32ac7ce3f5d54a91",
+    "strategy_version": "mcl.two-speed-shock-arbiter.v112",
+    "plan_reason": "flat_no_target",
+    "market_data_type": 1,
+    "book_live_and_eligible": true,
+    "mcl_positions": 0,
+    "mcl_open_orders": 0,
+    "fill_count": 0,
+    "run_net_usd": 0.0,
+    "drawdown_usd": 0.0,
+    "safety_breaches": [],
+    "submitted_orders": 0
+  },
+  "invariants": {
+    "stage112_signal_changed": false,
+    "stage112_lifecycle_changed": false,
+    "stage112_risk_changed": false,
+    "stage112_execution_changed": false,
+    "separate_sparse_append_only_ledger": true,
+    "empty_cycles_append_nothing": true,
+    "outcomes_exposed": false,
+    "direction_authority": "none",
+    "timing_authority": "none",
+    "order_authority": "none",
+    "capital_authority": "none",
+    "market_orders_permitted": false
+  },
+  "verdict": "PASS_STAGE113_OBSERVER_COMMISSIONED__ACCUMULATE_0_OF_30",
+  "submitted_orders": 0
+}

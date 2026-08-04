@@ -20,7 +20,8 @@
   fresh LMT preview, predictive-generation continuity, observe-only restart,
   and natural recurrence passed. Preliminary graduation is correctly `HOLD`
   for zero authentic execution and immature elapsed/session evidence. Stage
-  87–90 remains non-authoritative `ACCUMULATE` at `3/30`
+  87–90 remains non-authoritative `ACCUMULATE` at `3/30`; the separate
+  Stage-113 seconds-shock cohort is commissioned and `ACCUMULATE` at `0/30`
 - **Authority:** canonical resume state, active task tree, critical evidence
   index, and promotion contract
 - **Cold history:** [`q_XSP_live_research_kata-archive.md`](q_XSP_live_research_kata-archive.md)
@@ -75,12 +76,12 @@ output belongs in commit/final verification, not in this management brain.
 | Runtime parity | Central v3 owner reproduces RTH `40708a28…` exactly over `425/425` trades; unchanged GTH Down Sleeve reproduces `9e04807f…` over `179/179`; combined `604`, `+291.1756`, PF `2.0919`, DD `17.63` |
 | Runtime source anchor | V18 owner is byte-exact at `03d0c958…`; Stage-112 owners `d9f170dd…/e4b217c6…` replay all `707,136` minutes exactly. Live selection `083ecba…`, plan `851714c2…`, generation `21a0a8c9…`, and capital proof `4c5a339c…` are current; checkpoint `de40e0fe…` is flat/zero-order under q revision `7aa49db…` |
 | Goal snapshot | `q_XSP_goal_objective.md` is the byte-identical tracked backup of the active inline Goal at SHA `86636416…`; it preserves rather than replaces the attachment-owned Goal, while this kata remains the detailed resume authority |
-| Observer cadence | Stage-112 live and predictive-onset timers are active/waiting; the uninterrupted MCL event tape is active/running at zero restarts. Predictive generation `d0443eb0…` binds selection `083ecba…` while preserving onset ledger `bfcc0147…` and all three treatment IDs with no outcome/order/capital authority |
+| Observer cadence | Stage-112 live and the shared predictive timer are active/waiting. Predictive generation `d0443eb0…` preserves onset ledger `bfcc0147…` at `3/30`; separate Stage-113 generation `fd2dd70f…` records only complete seconds-shock episodes and is `0/30`. The event tape is active/running under generation `b3805c9f…`; its two restarts were an IBKR peer reset wholly inside scheduled maintenance, with exact pre-close/reopen continuity and no tradable evidence gap |
 | RTH signal freshness | **cleared:** after the user activated `CBOE Streaming Market Indexes`, zero-order receipt `acce7ed3…` returned live type-1 XSP, current five-minute history, and real-time `TRADES` bars without a Gateway restart; the natural `10:07 ET` centralized v2 checkpoint then evaluated with both XSP and SPY through `10:05` and `120s` age |
 | Order/capital authority | Plan `851714c2…` binds XSP `1083c181…` / `xsp-usd-800`, Gold `62344ce2…` / `gold-one-contract`, and Stage-112 MCL `083ecba…` / `mcl-one-contract-stage91`. Flat strategies reserve no fictional capacity: each fresh entry admits its own indivisible minimum only if candidate + actual positions + uniquely owned pending orders pass the same fresh full-account stress proof. Later entries may honestly `HOLD`; risk reduction is unconditional. Every champion is LMT-only; broker-wide market-order rejection is centralized |
 | Profitability clock | Old V18 clock is permanently closed negative. Stage 112 owns a fresh exact-zero prefix from `19:10:47Z`; preliminary 24h evidence passes parity/capital/identity/restart/risk/attribution and holds for no authentic fill plus immature elapsed/session coverage. XSP/Gold prefixes are unchanged; no slot is backfilled and no trade is forced |
 | Execution verdict | Stage-112 MCL position/orders/fills are zero and both live/predictive timers are active. A fresh causal V18-or-shock admission may submit one broker-enforced LMT through the shared ladder; market orders remain impossible. Predictive Stages 87–90 cannot submit or alter direction |
-| Next irreversible evidence | Let authentic Stage-112 fills and after-cost `24h → 48h → five-session` evidence accumulate without forcing a trade; concurrently preserve and sharpen the `3/30` unseen onset cohort |
+| Next irreversible evidence | Let authentic Stage-112 fills and after-cost `24h → 48h → five-session` evidence accumulate without forcing a trade; concurrently preserve the `3/30` V18 onset cohort and accumulate Stage 113 to its frozen `30`-episode shock gate before controls/economics open |
 | First active work | MCL remains Priority Zero. Commissioning is complete; active work is live graduation plus Predictive Intelligence Sharpening of Onsets, especially seconds-to-multiscale velocity/range/volume morphology, while XSP/Gold remain unchanged |
 
 ### Immediate sequence
@@ -225,10 +226,10 @@ output belongs in commit/final verification, not in this management brain.
     succession, preview, observe-only restart, and natural recurrence are exact.
     Stage 112 is `CANARY_LIVE`, flat, LMT-only, and awaiting authentic positive
     `24h/48h/five-session` evidence; old V18 remains permanently breached.
-    **Predictive Intelligence Sharpening of Onsets remains Priority Zero**: keep
-    its V18 `3/30` cohort immutable while deciding the separate rolling seconds-
-    shock episode accumulator. Observation-only until a frozen unseen cohort
-    earns authority.
+    **Predictive Intelligence Sharpening of Onsets remains Priority Zero**:
+    preserve the V18 `3/30` cohort and commissioned Stage-113 rolling seconds-
+    shock accumulator `0/30` as separate immutable ledgers. Both remain
+    observation-only until their frozen unseen cohorts earn a successor proof.
 32. `[DONE]` **Generic concurrent-capital lane:** plan `955967b2…` supersedes
     both the v2 account mutex and the fictional all-flat-minima reservation.
     Cash lots, futures contracts, and later defined-risk packages declare one
@@ -2437,6 +2438,7 @@ and
 | E-500 | Stage-112 executable crown `mcl_v18_shock_stage112_executable_crown.json` (`c1e7aad0…`) supersedes V18 after the first live round trip bought the accelerating crash at `$80.16`, exited `$76.99`, and realized `-$318.52`. The successor retains V18 owner SHA `03d0c958…`, adds frozen minute-shock owner `d9f170dd…`, and centralizes one arbiter/risk owner `e4b217c6…`. Final replay receipt `aedda4a3…` covers all `707,136` matched minutes and 25 pairs: `388/388` trades, ledger SHA `e4d18b52…`, null mismatch, exact arbitration, eight loss-cap events, and sixteen Friday flats. Economics are `+$3,942.99 / +$3,166.99` primary/stress, PF `1.535`, DD `$603.63`, PnL/DD `6.532`, with both years, directions, and owners positive; user-authorized cadence is `194.42/year`. Read-only source receipt `d3d5f2e4…` is flat over `4,003` U6 minutes through `18:43Z` with zero orders. Stage 112 is crowned but not yet live-selected; fresh preview, capital/predictive generation succession, observe-only restart, and natural recurrence remain mandatory |
 | E-501 | Stage-112 commissioning receipt `mcl_v18_shock_stage112_live_commissioning_receipt.json` (`33e1fdce…`) binds selection `083ecba…/3ffcdd1d…`, plan `851714c2…/e209f26b…`, portfolio generation `21a0a8c9…`, predictive generation `d0443eb0…/2a7e478d…`, and unchanged three-treatment ledger `bfcc0147…`. Exact `CLU6/MCLU6`, one contract, LMT-only ordinary/shock AUTO `1×/2×`, `$300` loss cap, and Friday flat are immutable. Observe-only `5769e31d…`, first natural `85433ec6…`, and revision-`7aa49db…` checkpoint `de40e0fe…` are flat with zero MCL position/order/fill/P&L/DD/breach/submission; live/predictive timers and the seconds tape are active. Shared futures coverage now accepts duplicate same-minute observations only when the MCL economic/fill/position/order/safety signature agrees; volatile quote/source refreshes cannot create false conflict and any material mutation still quarantines. Corrected 24h receipt `mcl_v18_shock_stage112_preliminary_24h_graduation.json` (`e68194d8…`) passes runtime parity, capital proof `4c5a339c…`, identity, restart, risk, and attribution; verdict is truthfully `HOLD` for no authentic execution and immature elapsed/eligible sessions. Stage 112 is `CANARY_LIVE`, not operationally graduated |
 | E-502 | count-only receipt `mcl_shock_crest_stage112_prospective_prefix_accumulation.json` (`a21d62df…`) freezes Stage-112 selection `083ecba…`, predictive generation `d0443eb0…`, current seconds owner `0363b341…`, event prefix `d100d8a9…`, and broker snapshot `0cf0996d…` through `20:12Z`. Its `2,167` eligible post-selection observations reached at most `4.8286×` relative volume; every phase remained `STATE`, so no transition, episode, morphology winner, outcome, order, or capital authority opened. A `62`-minute clock audit found near-exact aggregate tape/broker volume (`4,347/4,348`, median ratio `1.0`) but `22` receipt-time/finalized-bar bucket mismatches, correctly forbidding exchange-time claims. Verdict is `ACCUMULATE_NO_ELIGIBLE_SHOCK`. The old prefix builder is quadratic research code; any promoted observer must be a separate rolling `O(n)` ledger consumer under the existing predictive timer and must join exact Stage-112 reset boundaries |
+| E-503 | Stage-113 commissioning receipt `mcl_shock_crest_stage113_commissioning_receipt.json` binds generation `fd2dd70f…`, accumulator/evidence owners `ba9c1f47…/f435f744…`, and the existing shared predictive service `00d004a4…`. Frozen-owner parity remains exact over `2,167/2,167` observations at shared SHA `a004b91f…`; incident receipt `14574714…` proves the causal `10:44:27Z` 20× episode terminates exactly at V18's unconditional `11:10Z` raw turn. The first post-reopen invocation refused stale maintenance bars, retried once at `22:01:21Z`, and succeeded with fresh `22:01Z` bars; the `22:05:45Z` recurrence passed directly with zero restarts. Natural plus manual idempotence appended zero, left the sparse shock ledger nonexistent, and preserved the independent V18 onset ledger at `3` rows / `bfcc0147…`. The tape's two IBKR reconnects occurred wholly inside the scheduled `21:00–22:00Z` closure: last pre-close `21:00:03Z`, first reopen `22:00:03Z`, unchanged generation, no tradable gap. Stage 112 remained flat on a live type-1 book with zero MCL position/order/fill/P&L/DD/breach/submission. Stage 113 is commissioned `ACCUMULATE 0/30`; no outcome, classifier, direction, timing, order, or capital authority opened |
 
 ### Decision anchors
 
@@ -2506,6 +2508,7 @@ and
 | D-202 | the predictive-onset accumulator is a separate read-only consumer of the immutable turn tape, exact selected-live V18 checkpoint, completed multiscale bars, and canonical causal-news selector. It appends once only after the complete frozen treatment window exists; empty cycles append nothing and make no broker-history request. It may accumulate morphology and cohort counts only—never outcomes, scores, direction, timing, sizing, orders, capital, risk reduction, or graduation. A file bound by an active immutable selection may not be refactored in place while a position is possible; preserve its byte identity and move shared code only through a flat successor package with fresh capital-owner proof |
 | D-203 | Stage 112 is the executable MCL research crown; Stage 110 remains a non-selectable raw-alpha ceiling because it omits mandatory live risk. V18 direction stays byte-exact, the completed-minute shock lane may own continuation only through the sole Stage-112 arbiter, and the prospective seconds crest remains uncounted historical evidence. The old V18 selection is permanently breached and may not be rewritten or rearmed. A fresh Stage-112 selection must atomically supersede capital and create predictive generation v2 bound to the exact selection while preserving all prior treatment IDs and V18-only predictive direction; no shock event may silently enter the onset cohort |
 | D-204 | Stage-112 selection `083ecba…` is the sole live MCL canary. Same-minute profitability observations may collapse only through the product-supplied canonical MCL signature: full risk/accounting and fill identity, held direction, selected MCL position/orders, safety state, and submission count must agree; receipt-time quote/source/mark timestamps alone are not economic conflict. Gold and default shared-futures semantics remain unchanged. Portfolio capital-stability receipts are content-addressed by their own digest so one unchanged plan may lawfully retain successive immutable semantic-owner proofs; the current pointer remains singular. Live graduation cannot pass without authentic fills, positive after-cost net, complete due-slot/session coverage, and every existing parity/capital/restart/risk/attribution gate |
+| D-205 | Stage 113 is one sparse `O(n)` morphology consumer under the existing predictive timer, never a second recorder, trader, or profitability engine. Its ledger is separate from the V18 onset cohort and appends only a complete episode that reached at least `10×`; `5×` attention, `12×` tradeable, and `20×` regime remain frozen descriptive levels. Episode authority ends on exact V18 raw turn, minute-shock release, roll, first missing minute, scheduled maintenance, Friday flat, or seconds normalization; contiguous intraday clocks may not bridge those boundaries. Empty cycles append nothing. Until the frozen `30`-episode/bidirectional/crest/continuation gate passes and a successor preregisters controls/economics, Stage 113 has no outcome, classifier, direction, timing, execution, order, capital, risk-reduction, or graduation authority |
 
 ---
 
@@ -2621,7 +2624,8 @@ observe-only restart, and natural recurrence are live; the old V18 selection is
 flat and permanently breached after `-$318.52`, and its history cannot transfer.
 The new clock is exact-zero and preliminary graduation is `HOLD` pending an
 authentic fill and mature positive after-cost sessions. Stage 87–90 remains an
-observation-only timing challenger.
+observation-only timing challenger; Stage 113 is separately commissioned at
+`0/30` complete shock episodes with no live authority.
 
 Archived predecessor `daf1609b…` and the first live round trip remain immutable
 evidence: `23 SPXU @ $39.10` sold at `$38.56`, `$0.659007` commission, realized
@@ -2636,5 +2640,7 @@ authority is separately unqualified.
 persistent shock as a separately owned continuation while ordinary V18 remains
 unchanged. Its historical advantage is not graduation: authentic live fills and
 positive after-cost sessions must prove it. In parallel, the three-treatment
-onset ledger keeps sharpening seconds-to-week intelligence without altering
-selected direction, synthesizing a trade, or accelerating graduation.
+onset ledger and sparse Stage-113 episode ledger now accumulate independently;
+the first authentic `10×/12×/20×` episode will test the frozen seconds-to-
+week morphology without altering selected direction, synthesizing a trade, or
+accelerating graduation.
