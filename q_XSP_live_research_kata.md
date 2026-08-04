@@ -859,7 +859,16 @@ transition through today’s close; no order will be forced merely to populate t
   absorption, naturally caps at two events per session, and must preserve both
   directions, branches, GTH/RTH, and `160–520/year` in both periods before any
   lifecycle economics. This is an honest OHLCV flow proxy, never bid/ask delta.
-  There is no stop, target, timeout, cooldown, threshold, smoothing, or quota.
+  It produced `515/499` events (`515.35/500.80` per year), `100%` active
+  sessions, balanced directions/branches, and `2/2/2` density, but only `15/14`
+  RTH events because session-direction rights were almost always spent in GTH;
+  no outcome opened. Receipt `ecb2110b…` rejects that owner without lowering the
+  RTH floor. V58 preregistration `06533aa1…` / evaluator `d6f531cf…` retains the
+  exact signal but gives the distinct GTH and RTH inventory auctions one right
+  each, maximum two per session. Both periods must preserve `160–520/year`, both
+  directions/branches, `>=80` events per phase, active-session breadth, and
+  `1–2/2/2` density before any lifecycle return. There is no stop, target,
+  timeout, cooldown, threshold, smoothing, sub-lane, direction rearm, or quota.
   Rolls, costs, news authority, and live XSP/Gold owners remain unchanged.
 - `[PRESERVED RUNNER-UP]` **Tri-asset narrative-dispersion compression:** test
   whether convergence among easing-negative XSP pressure, weakening-positive
@@ -1415,6 +1424,15 @@ and stable bootstrap evidence. Neither may be refactored into looking mature.
     financing transition per session/direction, price acceptance versus flow
     absorption, natural maximum two/session, and independent `160–520/year`,
     direction, branch, GTH/RTH, active-session, and density gates before outcomes.
+    It failed only physical-lane breadth at `15/14` RTH events while preserving
+    `515/499` events, both directions/branches, `100%` active sessions, and
+    `2/2/2` density; zero outcomes opened. Receipt
+    `mcl_signed_flow_reacquisition_census_rejection.json` (`ecb2110b…`). V58
+    preregistration `mcl_phase_flow_reacquisition_census_preregistration.json`
+    (`06533aa1…`) / evaluator `d6f531cf…` preserves the signal but consumes one
+    physically distinct GTH and one RTH auction right per session, maximum two.
+    Both periods must pass count, direction, branch, phase, active-session, and
+    density floors before any economics.
     Missing July-2023–August-2024 remains a hard crown blocker; no quota, order,
     or capital authority.
 
@@ -1783,6 +1801,7 @@ and
 | E-440 | V54 anatomy `aeb0f42d…` isolated a physically coherent amplitude split while keeping validation PnL sealed. Europe `02:00–09:30 ET` made `+$312.04` stress over `98`, PF `1.268`, and repeats `84` times in validation; at least four-tick joint clearance beyond both causal VWAPs made `+$302.68` over `116`, PF `1.202`, and repeats `140`. Asia and sub-two-tick clearance lost `-$1,888.40/-$1,567.40`. Stronger maturing-financed (`+$280.12/44`) and positive-velocity/decelerating six-tick (`+$182.52/24`) motifs were too sparse to own target cadence. Receipt `mcl_first_session_reclaim_admission_anatomy_receipt.json` (`6c833c6d…`). V55 preregistration `mcl_europe_or_deep_reclaim_census_preregistration.json` (`44fedd92…`) / evaluator `6d3c4db3…` freezes one mutually exclusive count-only successor: Europe owns first; outside Europe only four-plus-tick joint clearance owns the second. Both periods must exceed `160/year`, preserve each branch/direction, `>=55%` active sessions, and median/p95/max `1–2/2/2` before any V18-primary portfolio lifecycle. Discovery selection is explicitly exposed; validation contributes counts only. No lane/threshold companion, outcome, order, or capital authority |
 | E-441 | V55 outcome-blind union census `70f82163…` transferred cleanly before any new lifecycle return. Discovery/validation retained `170/189` events (`170.12/189.68` per year), `56.6/59.9%` active sessions, up/down `94/76` and `94/95`, Europe/decisive `98/72` and `84/105`, first/second semantic events `67/103` and `92/97`, with exact median/p95/max `1/2/2`. Receipt `mcl_europe_or_deep_reclaim_census_receipt.json` (`c2f5a274…`). V56 preregistration `mcl_two_speed_reclaim_portfolio_preregistration.json` (`7843c5ee…`) / evaluator `f7ac4e93…` freezes the first literal Two-Speed Auction Relay: consume immutable V18 `basis_breadth` as slow primary; V55 fast owner may enter only while V18 is flat, V18 preempts at the same MCL open, and only one contract may exist. Fast discovery must independently pass net/PF/PnL-DD, branches/directions, months/quarters/concentration; combined cadence must exceed `250/year` and strictly improve V18 net without weakening PF, PnL-DD, month breadth, or concentration under both `$3.52/$5.52`. Only then may sealed validation open and pass the identical law. No signal/exit/threshold companion, overlap, order, or capital authority |
 | E-442 | Exact V56 discovery `25b0ac53…` rejected the literal V18-plus-session-reclaim portfolio before validation: its fast residual made `-$6.28/-$284.28` stress over `139`, PF `.996/.838`, PnL/DD `-.010/-.349`, only three stress-positive months, and both directions negative under stress. Combined cadence reached `306.21/year` and `+$1,257.63/+$645.63`, but PF `1.273/1.131`, PnL/DD `1.979/.871`, month breadth, and concentration all weakened immutable V18. The decisive-clearance branch lost after V18 owned overlapping movement; Europe retained `+$193.44` stress but only three positive months and `.376` PnL/DD. Receipt `mcl_two_speed_reclaim_portfolio_rejection.json` (`7c44a330…`) closes the entire session-VWAP reclaim family and composition. V57 preregistration `mcl_signed_flow_reacquisition_census_preregistration.json` (`7ea47300…`) / evaluator `c0a29d77…` freezes one outcome-blind, anchor-free oil state: first per-session/direction joint adverse-to-financing transition in completed CL/MCL volume-weighted close-location flow under exact V18 retained direction, split into price acceptance versus flow absorption. Both periods must independently pass `160–520/year`, directions, branches, GTH/RTH, active-session, and `1–2/2/2` density floors before any lifecycle return; the proxy is explicitly not bid/ask delta. No magnitude, lookback, smoothing, volume/body threshold, lane, time, ATR, news, risk overlay, quota, order, or capital authority |
+| E-443 | V57 outcome-blind count `ed983bdd…` found a stable high-cadence signed-flow state but rejected its ownership before PnL: discovery/validation produced `515/499` events (`515.35/500.80` per year), `100%` active sessions, up/down `258/257` and `252/247`, acceptance/absorption `405/110` and `392/107`, and exact `2/2/2` density. The frozen RTH floor failed at only `15/14` because `500/485` events spent the session-direction rights during GTH; no return or validation outcome opened. Receipt `mcl_signed_flow_reacquisition_census_rejection.json` (`ecb2110b…`). V58 preregistration `mcl_phase_flow_reacquisition_census_preregistration.json` (`06533aa1…`) / evaluator `d6f531cf…` keeps the exact completed-OHLCV flow trigger and V18 direction but recognizes GTH and RTH as distinct physical inventory auctions, consuming one right per session/phase for a natural maximum two. Both periods must independently pass `160–520/year`, both directions/branches, `>=80` per phase, `>=50%` active sessions, and `1–2/2/2` density before any lifecycle return. No signal magnitude, lookback, smoothing, threshold, sub-lane, direction rearm, replacement event, quota, order, or capital authority |
 
 ### Decision anchors
 

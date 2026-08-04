@@ -1,0 +1,36 @@
+{
+  "schema": "mcl.signed-flow-reacquisition-census-rejection.v1",
+  "recorded_at_utc": "2026-08-04T01:48:49Z",
+  "authority": "outcome_blind_count_failed_no_trade_outcomes_no_orders_no_capital",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "immutable_v18_result_sha256": "b9c64409dcb9cd482427588bb0ae314d870d0350a2100aea6d3f0615ae2f4c15",
+    "preregistration_sha256": "7ea47300ae349855e7a408c07f18961fbbbdf62f2cb1fe29dcab40284eec9176",
+    "evaluator_sha256": "c0a29d7754bca1757acd720a697724e8f9b1a57e4e485aabb580f1500cef88dc",
+    "result_sha256": "ed983bdd39f1909872cc324e1eafe4dfaea3eea398f78d553444f2eac9bd15da"
+  },
+  "discovery": {
+    "events": 515,
+    "annualized": 515.352740,
+    "active_session_fraction": 1.0,
+    "up_down": [258, 257],
+    "price_acceptance_flow_absorption": [405, 110],
+    "gth_rth": [500, 15],
+    "median_p95_maximum": [2, 2, 2]
+  },
+  "validation": {
+    "events": 499,
+    "annualized": 500.802455,
+    "active_session_fraction": 1.0,
+    "up_down": [252, 247],
+    "price_acceptance_flow_absorption": [392, 107],
+    "gth_rth": [485, 14],
+    "median_p95_maximum": [2, 2, 2]
+  },
+  "failed_gate": "minimum 20 RTH events in each period",
+  "finding": "The signed-flow state is abundant, stable in count, branch-broad, direction-balanced and naturally capped at two events per session, but session-direction consumption spends almost every auction right during GTH. Lowering the RTH floor or adding a numeric time threshold is prohibited. A separately preregistered physical GTH/RTH phase owner may count-test one auction right per phase before any PnL opens.",
+  "forward_outcomes_opened": 0,
+  "validation_outcomes_opened": 0,
+  "verdict": "REJECT_SESSION_DIRECTION_OWNERSHIP_ADVANCE_PHASE_CENSUS",
+  "submitted_orders": 0
+}
