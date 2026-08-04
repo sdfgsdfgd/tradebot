@@ -910,6 +910,17 @@ transition through today’s close; no order will be forced merely to populate t
   preserve `300–520/year`, both directions/branches/phases, weekend GTH,
   `>=65%` phase-identity coverage, and natural `1–2/2/2` density before outcomes.
   The mode is explicitly a completed-bar proxy, not true volume-at-price POC.
+  The outcome-blind census passed at `395/410` events (`395.27/411.48/year`),
+  `78.5/81.7%` phase-identity coverage, up/down `207/188` and `223/187`,
+  acceptance/failure `344/51` and `347/63`, GTH/RTH `187/208` and `201/209`,
+  weekend GTH `44/42`, and exact `2/2/2` density; zero returns opened. Receipt
+  `d71250f0…`. V64 preregistration `7347828a…` / evaluator `135c11a5…`
+  freezes next-open MCL and a single position across phase clocks. Ordinary exit
+  occurs only at the next open after both completed books cross their own
+  frozen phase modes against the position; hard boundaries flatten. Discovery
+  must retain `>250/year` after overlap and pass strict cost, PnL/DD,
+  direction, branch, phase, weekend, month, quarter, concentration, and density
+  laws before validation outcomes may open.
   There is no bin/magnitude/tie/clock companion, VWAP, retained-state, news,
   stop, target, timeout, cooldown, replacement, or quota.
   Rolls, costs, news authority, and live XSP/Gold owners remain unchanged.
@@ -1509,6 +1520,14 @@ and stable bootstrap evidence. Neither may be refactored into looking mature.
     `mcl_phase_modal_inventory_census_preregistration.json` (`58365a85…`) /
     evaluator `87ae3600…` freezes two physical phase transfers against the prior
     phase's completed close-volume modal-price proxy, count-only before outcomes.
+    It passed at `395/410` events (`395.27/411.48/year`), both directions,
+    branches, phases, `44/42` weekend GTH events, `78.5/81.7%` coverage, and
+    exact `2/2/2` density without opening a return; receipt
+    `mcl_phase_modal_inventory_census_receipt.json` (`d71250f0…`). V64
+    preregistration `mcl_phase_modal_inventory_lifecycle_preregistration.json`
+    (`7347828a…`) / evaluator `135c11a5…` freezes one-position ownership,
+    next-open MCL, joint completed-book modal invalidation, hard boundaries,
+    `$3.52/$5.52`, and discovery-before-validation stability.
     Missing July-2023–August-2024 remains a hard crown blocker; no quota, order,
     or capital authority.
 
@@ -1883,6 +1902,7 @@ and
 | E-446 | V60 shared-gap count `afee107d…` rejected before outcomes: discovery/validation produced `140/157` events (`140.10/157.57` per year) and `57.14/64.08%` eligible-session coverage, below the frozen `>160` and `>=65%` laws. Direction, CL-gap side, acceptance/failure, weekend, and exact `1/1/1` density were otherwise broad; zero return opened. The decisive exclusion was `166` sessions where MCL's lower-liquidity opening print did not share CL's gap direction. Receipt `mcl_maintenance_gap_auction_census_rejection.json` (`e2649aba…`). V61 preregistration `mcl_dominant_gap_auction_census_preregistration.json` (`65389fc3…`) / evaluator `e5e019b3…` applies the platform's actual discovery/transport law: dominant CL alone defines the nonzero maintenance gap; MCL's opening sign is attribution only, but both completed books must still agree on the exact 15-minute acceptance/failure verdict relative to their own prior closes. The unchanged `160–300/year`, direction, branch, weekend, coverage, and one/session gates precede outcomes. No gap magnitude, MCL-opening selector, alternate clock, volume, flow, VWAP, retained-state/news/risk overlay, quota, order, or capital authority |
 | E-447 | V61 dominant-gap count `2fc9ee67…` passed every frozen law before outcomes: discovery/validation produced `203/214` events (`203.14/214.77` per year), `82.86/87.35%` eligible-session coverage, up/down `97/106` and `102/112`, CL gap up/down `117/86` and `123/91`, acceptance/failure `131/72` and `151/63`, weekday/weekend `154/49` and `164/50`, and exact `1/1/1` density. MCL's opening gap was opposed or zero in `63/57` valid events, proving it belongs in transport attribution rather than CL discovery. Receipt `mcl_dominant_gap_auction_census_receipt.json` (`bc627f5f…`). V62 preregistration `mcl_dominant_gap_auction_lifecycle_preregistration.json` (`50ce1125…`) / evaluator `ef3f87cb…` freezes next-open matched MCL, follow-acceptance/fade-failure direction, and one symmetric origin: exit next-open only after both completed books cross their own pre-maintenance close against the position; hard session/contract/gap/independent-period boundaries flatten. Discovery must pass `160–300/year`, positive primary/stress net, PF `1.20/1.10`, PnL/DD `1.50/1.00`, positive directions/branches/weekdays/weekends, 8 months, 3 quarters, <=35% concentration, and exact one/session before validation. No magnitude, alternate clock, MCL-open selector, added gate, exit rescue, V18 composition, order, or capital authority |
 | E-448 | V62 discovery `c33a1aee…` rejected the maintenance-gap lifecycle before validation: `203` trades made `-$1,044` raw, `-$1,758.56/-$2,164.56` stress, PF `.606/.552`, PnL/DD `-.825/-.896`, only `3/2` positive months, and three negative quarters. Acceptance/failure, up/down, and weekday/weekend were all negative; mean hold was `343m` despite mean MFE/MAE `$37.11/-$24.35`. Receipt `mcl_dominant_gap_auction_lifecycle_rejection.json` (`c1f90734…`) closes shared/dominant maintenance gaps, gap-size/verdict-clock/hold-time/structural-exit/stop/target/inversion rescue. V63 preregistration `mcl_phase_modal_inventory_census_preregistration.json` (`58365a85…`) / evaluator `87ae3600…` freezes a distinct accepted-inventory object: the immediately preceding physical phase's one-cent completed-five-minute close-volume mode for CL and MCL. At each GTH/RTH transition, CL defines opening side; both books must confirm exactly one 15-minute acceptance/failure verdict against their own frozen modes. Both periods must pass `300–520/year`, both directions/branches/phases, weekend GTH, `>=65%` eligible phase identities, and `1–2/2/2` density before any outcome. It is explicitly a modal-price proxy, not true volume-at-price POC; no bin/tie/value-area/VWAP companion, added gate, order, or capital authority |
+| E-449 | V63 outcome-blind count `e75b4a60…` passed every frozen breadth law before any return: discovery/validation produced `395/410` events (`395.27/411.48/year`), `78.5/81.7%` eligible phase-identity coverage, up/down `207/188` and `223/187`, acceptance/failure `344/51` and `347/63`, GTH/RTH `187/208` and `201/209`, weekend GTH `44/42`, and exact `2/2/2` density. Receipt `mcl_phase_modal_inventory_census_receipt.json` (`d71250f0…`). V64 preregistration `mcl_phase_modal_inventory_lifecycle_preregistration.json` (`7347828a…`) / evaluator `135c11a5…` freezes next-open matched MCL, one position across both phase clocks, and one symmetric ordinary exit: both completed five-minute books must cross their own frozen source-phase modes against the position, then exit next-open. Session/contract/gap/independent-period boundaries flatten. Discovery must retain `>250/year` after overlap and pass net/PF/PnL-DD, direction, branch, phase, weekend, month, quarter, concentration, and density laws before validation opens. No mode bin, threshold, magnitude, clock, retained state, VWAP, stop, target, timeout, news, companion, order, or capital authority |
 
 ### Decision anchors
 

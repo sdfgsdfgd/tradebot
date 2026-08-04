@@ -1,0 +1,77 @@
+{
+  "schema": "mcl.phase-modal-inventory-lifecycle-preregistration.v1",
+  "recorded_at_utc": "2026-08-04T02:24:55Z",
+  "authority": "research_only_no_orders_no_capital",
+  "question": "Can a completed-bar proxy for the immediately prior physical phase's accepted inventory support a naturally high-cadence, after-cost CL-discovered/MCL-executed lifecycle without any outcome-selected risk knob?",
+  "inputs": {
+    "manifest_path": "/var/tmp/mcl-v11-full-manifest-1085ce89.json",
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "census_path": "/var/tmp/mcl-stage63-phase-modal-inventory-census.json",
+    "census_sha256": "e75b4a60b7eaafd9a5addae9d3c74f8feb502f57e588efee1da955b70bb48cd5",
+    "census_receipt_path": "backtests/mcl/mcl_phase_modal_inventory_census_receipt.json",
+    "census_receipt_sha256": "d71250f093ca96cf95cc82cc925bde2990f897330f109065e67490f3409c617e",
+    "evaluator_path": "/tmp/mcl_stage64_phase_modal_inventory_lifecycle.py",
+    "evaluator_sha256": "135c11a582fb276ccfc4b0638e7a31b3bc3476b2d000c9169743bec7c61ed0a8"
+  },
+  "windows": {
+    "discovery": "2024-08-04T22:00:00Z/2025-08-04T22:00:00Z",
+    "validation": "2025-08-04T22:00:00Z/2026-08-04T22:00:00Z",
+    "validation_law": "sealed unless every frozen discovery gate passes"
+  },
+  "signal": {
+    "inventory_proxy": "one-cent completed-five-minute close bins weighted by completed volume from the immediately preceding GTH or RTH phase; deterministic tie nearest weighted mean then lower tick; not true volume-at-price POC",
+    "opening_side": "dominant CL opening print relative to its own prior-phase mode",
+    "acceptance": "first completed fifteen minutes leave both CL and MCL on the CL opening side of their own modes; follow",
+    "failure": "first completed fifteen minutes leave both CL and MCL opposite the CL opening side of their own modes; fade",
+    "mixed": "abstain",
+    "entry": "next available matched-month MCL open after the completed verdict",
+    "position_owner": "one position spans both phase clocks; any later GTH/RTH event abstains while occupied"
+  },
+  "lifecycle": {
+    "ordinary_exit": "at a completed five-minute boundary, require both CL and MCL closes to cross their own frozen phase modes against the position; execute at next MCL open",
+    "session_or_contract_boundary": "flatten at last available MCL close",
+    "unexpected_within_session_gap": "flatten at first available MCL open",
+    "discovery_validation_boundary": "flatten before validation so validation owns an independent flat start",
+    "stop": null,
+    "target": null,
+    "timeout": null,
+    "retained_direction": null,
+    "news_gate": null,
+    "replacement_or_quota": null
+  },
+  "economics": {
+    "multiplier": 100,
+    "primary_round_trip_usd": 3.52,
+    "stress_round_trip_usd": 5.52,
+    "entry_exit_prices": "MCL next open except declared boundary closes",
+    "roll_mode": "dual_volume"
+  },
+  "discovery_gates": {
+    "annualized_trades": ">250 and <=520 after position overlap",
+    "primary_stress_net": "both positive",
+    "profit_factor": "primary >=1.20 and stress >=1.10",
+    "net_to_intrabar_drawdown": "primary >=1.50 and stress >=1.00",
+    "directions": "up and down each >=20 trades and stress-positive",
+    "branches": "acceptance and failure each >=20 trades and stress-positive",
+    "phases": "GTH and RTH each >=50 trades and stress-positive",
+    "weekend": "weekend GTH >=20 and stress-positive; all other trades >=50 and stress-positive",
+    "temporal": ">=8 stress-positive months and >=3 stress-positive quarters",
+    "concentration": "largest stress-positive month share <=35%",
+    "density": "median 1-2, p95 <=2, maximum <=2 trades per active session"
+  },
+  "validation_and_full_gates": {
+    "validation": "repeat every discovery gate unchanged",
+    "annual_slices": "both July-to-July years stress-positive",
+    "full_net_to_intrabar_drawdown": "primary >=2.00 and stress >=1.50",
+    "full_temporal": ">=16 stress-positive months",
+    "full_concentration": "largest stress-positive month share <=20%",
+    "all_other_full_gates": "repeat discovery law on the combined flat-boundary ledger"
+  },
+  "hard_limits": {
+    "missing_july_2023_to_august_2024": "hard crown blocker even if development passes",
+    "runtime_parity": "unproven",
+    "transport_or_capital_authority": "none",
+    "outcome_tuning": "no threshold, bin, magnitude, time, exit, branch, or companion may be changed after this freeze"
+  },
+  "status": "FROZEN_BEFORE_LIFECYCLE_OUTCOMES"
+}

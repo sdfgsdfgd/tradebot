@@ -1,0 +1,45 @@
+{
+  "schema": "mcl.phase-modal-inventory-census-receipt.v1",
+  "recorded_at_utc": "2026-08-04T02:21:37Z",
+  "authority": "research_count_only_no_trade_outcomes_no_orders_no_capital",
+  "inputs": {
+    "manifest_path": "/var/tmp/mcl-v11-full-manifest-1085ce89.json",
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "preregistration_path": "backtests/mcl/mcl_phase_modal_inventory_census_preregistration.json",
+    "preregistration_sha256": "58365a854f5c4c6d787d1d2f11c3a9e9fbcc6079d3919ca727edf212cdb63224",
+    "evaluator_path": "/tmp/mcl_stage63_phase_modal_inventory_census.py",
+    "evaluator_sha256": "87ae3600f5ffd56e0308c0c60d26ca6f821f2ccead15fea2dd128e1da66152a8",
+    "result_path": "/var/tmp/mcl-stage63-phase-modal-inventory-census.json",
+    "result_sha256": "e75b4a60b7eaafd9a5addae9d3c74f8feb502f57e588efee1da955b70bb48cd5"
+  },
+  "definition": "One-cent completed-five-minute close bins weighted by completed volume define a deterministic prior-phase inventory-mode proxy; CL defines opening side and both CL/MCL books must confirm the first-fifteen-minute accept/fail verdict. This is not true volume-at-price POC.",
+  "discovery": {
+    "events": 395,
+    "annualized": 395.27054794520546,
+    "active_phase_identity_fraction": 0.7852882703777336,
+    "up_down": [207, 188],
+    "acceptance_failure": [344, 51],
+    "gth_rth": [187, 208],
+    "weekend_gth": 44,
+    "session_density_median_p95_max": [2, 2, 2]
+  },
+  "validation": {
+    "events": 410,
+    "annualized": 411.48097476086076,
+    "active_phase_identity_fraction": 0.8167330677290837,
+    "up_down": [223, 187],
+    "acceptance_failure": [347, 63],
+    "gth_rth": [201, 209],
+    "weekend_gth": 42,
+    "session_density_median_p95_max": [2, 2, 2]
+  },
+  "exclusions": {
+    "contract_roll_phase": 24,
+    "first_fifteen_minute_modal_verdict_mixed": 171,
+    "missing_source_or_first_fifteen_minutes": 1,
+    "zero_dominant_cl_open_side": 29
+  },
+  "outcomes_opened": 0,
+  "eligible_for_lifecycle_preregistration": true,
+  "verdict": "PASS_COUNT_ONLY"
+}
