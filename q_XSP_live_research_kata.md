@@ -1061,7 +1061,16 @@ transition through today’s close; no order will be forced merely to populate t
   preregistration `bf9acc28…` / evaluator `0c96e5dd…` freezes the sole lifecycle:
   abort that exact cohort next minute, retain every other V18 behavior, require
   >=85% of control net plus >=20% PnL/DD improvement and >=20% DD reduction in
-  discovery before validation opens.
+  discovery before validation opens. V77 result `43a2789f…` rejected that rule
+  before validation: V18 control made `+$1,263.91/+$929.91` primary/stress,
+  PF `1.293`, DD `$501.64`, while first-adverse-minute aborts made only
+  `+$267.66/-$66.34`, PF `.972`, DD `$847.89`; GTH, failure, up, and slow-
+  financed cohorts all failed. Receipt
+  `mcl_dual_book_first_passage_lifecycle_rejection.json` closes every timing,
+  persistence, threshold, and subset rescue. The categorical lesson is that
+  initial disagreement is normal profitable oil microstructure. Preserve V18
+  unchanged and prospectively record the sub-minute CL/MCL event sequence before
+  defining any fake-turn permission law.
 - `[PRESERVED RUNNER-UP]` **Tri-asset narrative-dispersion compression:** test
   whether convergence among easing-negative XSP pressure, weakening-positive
   MCL pressure, and weakly reversing-positive Gold pressure predicts
@@ -1780,8 +1789,18 @@ and stable bootstrap evidence. Neither may be refactored into looking mature.
     (`bf9acc28…`) / evaluator `0c96e5dd…` freezes exact next-minute aborts and
     unchanged V18 otherwise. Discovery must retain >=85% control net while
     improving PnL/DD and DD by >=20%; only a complete pass may expose validation.
-    Missing July-2023–August-2024 remains a hard crown blocker; no quota, order,
-    or capital authority.
+    V77 `43a2789f…` rejected before validation: the candidate retained cadence but
+    stress net/PF/DD became `-$66.34/.972/$847.89` versus unchanged V18
+    `+$929.91/1.293/$501.64`. Receipt
+    `mcl_dual_book_first_passage_lifecycle_rejection.json` closes first-passage
+    rescue. The active successor is a non-submitting **MCL Turn Authenticity
+    Microstructure Tape**: continuously preserve matched `CL` discovery and `MCL`
+    transport L1 events at sub-minute resolution, then join them to exact V18 raw
+    turns and matched no-turn controls. Record raw bid/ask, sizes, trades,
+    microprice, spread, update intensity, size-change proxies, and book leadership;
+    never call L1 a depth/cancellation feed or give the tape direction/capital
+    authority. Missing July-2023–August-2024 remains a hard crown blocker; no
+    quota, order, or capital authority.
 
 ---
 
@@ -2176,6 +2195,7 @@ and
 | E-468 | V75 count `2dd0014e…` rejected the symmetric slow-epoch exit before any PnL/MFE/MAE opened. Exact V18 identity/cadence remained `167/171`; readiness was `99.4%/100%`; total transitions were `36/26`; directions, branches, GTH/RTH, aligned/opposed ownership, >=30m lead, and density all passed. Financing loss was broad at `29/20`, but the separately required opposition-surrender cohort had only `7/6<8`; median transition-to-original-exit lead was still `515/380m`. Receipt `mcl_event_time_slow_epoch_surrender_census_rejection.json` (`1227ca61…`) closes floor relaxation, financing-only subset rescue, transition delay/persistence/age/horizon tuning, and slow-flip exit economics. The asymmetry is evidence, not authority: preserve V18 unchanged and seek a materially distinct causal state owner. Orders/capital and live XSP/Gold/news remain unchanged |
 | E-469 | V76 preregistration `mcl_dual_book_first_passage_census_preregistration.json` (`f0e74fad…`) / evaluator `3b38ff3f…` freezes a high-energy fail-fast state before counts. Every V18 admission enters at the exact next MCL open with unchanged direction, branch, costs, roll, raw-turn boundary, failed-auction memory, and cadence. From that open, cumulative CL and MCL movement races causally: first joint V18-direction movement graduates to unchanged V18; first joint adverse movement may abort at the next minute; disagreement stays in probation. Unlike rejected V47, no entry is delayed/suppressed and no add-on signal exists. Both periods must retain `160–520/year`, >=95% resolution, >=60 favorable-first, `20–100` actionable adverse-first, both directions/branches/GTH-RTH and fast/slow-financed/mature-opposition ownership, >=15 events with 30m lead, and unchanged density before PnL/MFE/MAE. No magnitude, timing, book subset, indicator, state, threshold, outcome, news, order, or capital sweep |
 | E-470 | V76 count `e9a3334d…` passed every frozen gate with exact V18 identity and no PnL/MFE/MAE. All `167/171` trades resolved causally: favorable-first `87/87`, actionable adverse-first `80/84`; adverse directions were `34/46` and `42/42`, branches `12/68` and `11/73`, GTH/RTH `56/24` and `58/26`, and fast/mature/slow ownership `21/22/36` and `20/21/43`. `78/79` adverse events led the original exit by >=30m; median first passage was the entry minute with `354/234m` median lead. Receipt `mcl_dual_book_first_passage_census_receipt.json` (`38138d71…`). V77 preregistration `mcl_dual_book_first_passage_lifecycle_preregistration.json` (`bf9acc28…`) / evaluator `0c96e5dd…` freezes only those next-minute adverse aborts; all other V18 behavior remains exact. Discovery must retain >=85% primary/stress control net, not lower PF, improve PnL/DD by >=20%, reduce DD by >=20%, and pass every absolute/cohort/temporal gate before validation opens. Missing first year, order, capital, XSP, Gold, and news authority remain unchanged |
+| E-471 | V77 lifecycle `43a2789f…` rejected unconditional first-adverse-minute aborts in discovery with exact action/abort identity and unchanged-V18 control parity; validation stayed sealed. Control made `+$1,263.91/+$929.91` primary/stress, PF `1.293`, DD `$501.64`, PnL/DD `1.854`; the candidate made only `+$267.66/-$66.34`, PF `.972`, DD `$847.89`, PnL/DD `-.078`. GTH `-$286.92`, failure `-$566.86`, up `-$648.51`, and slow-financed `-$356.54` stress attribution prove the entry-minute adverse print is ordinary oil microstructure rather than a fake-turn classifier. Receipt `mcl_dual_book_first_passage_lifecycle_rejection.json` closes timing, persistence, magnitude, subset, and favorable-first rescue. Live bounded probes then proved matched `CLU6/MCLU6` type-1 L1 and true IBKR tick-by-tick availability: over 12 seconds, CL emitted `47` BidAsk/`3` AllLast events and MCL `40`/`5`, with zero errors/orders. The next owner is one immutable, non-submitting prospective second-level tape that preserves raw CL/MCL event sequences for later exact-V18 and matched-control settlement; L1 size changes remain explicit top-book proxies, never claimed depth/order cancellation truth |
 
 ### Decision anchors
 

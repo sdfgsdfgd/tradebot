@@ -1,0 +1,61 @@
+{
+  "schema": "mcl.dual-book-first-passage-lifecycle-rejection.v1",
+  "generated_at_utc": "2026-08-04T04:22:34Z",
+  "authority": "research_rejection_no_orders_no_capital",
+  "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+  "v18_result_sha256": "b9c64409dcb9cd482427588bb0ae314d870d0350a2100aea6d3f0615ae2f4c15",
+  "passage_census_sha256": "e9a3334dca3b282b0947f5aafc28faa5f9f98bc9f586fc0e0474a9b9bc4b1a88",
+  "preregistration_sha256": "bf9acc2850eb00e31f8281603c5fb9a9eba2fb84c973e5c2d4ddc9f82590e93e",
+  "evaluator_sha256": "0c96e5dde48049fc42fb4660f1a5294d5fa247b6239880c689ecc0da51c77f46",
+  "result_sha256": "43a2789f1281c1772478af49ece4297f4c12d1664d3db5601902882d6c09eaa4",
+  "verdict": "REJECT_DISCOVERY",
+  "action_identity": true,
+  "abort_identity": true,
+  "control_discovery_parity": true,
+  "validation_opened": false,
+  "expected_actual_discovery_aborts": [80, 80],
+  "discovery": {
+    "trades": 167,
+    "annualized_trades": 167.114702,
+    "candidate": {
+      "primary_net": 267.66,
+      "stress_net": -66.34,
+      "stress_profit_factor": 0.971547,
+      "stress_intrabar_drawdown": 847.89,
+      "stress_pnl_to_intrabar_drawdown": -0.078241,
+      "stress_gth_net": -286.92,
+      "stress_rth_net": 220.58,
+      "stress_down_up_net": [582.17, -648.51],
+      "stress_acceptance_failure_net": [500.52, -566.86]
+    },
+    "unchanged_v18_control": {
+      "primary_net": 1263.91,
+      "stress_net": 929.91,
+      "stress_profit_factor": 1.293073,
+      "stress_intrabar_drawdown": 501.64,
+      "stress_pnl_to_intrabar_drawdown": 1.85374
+    }
+  },
+  "stress_ownership": {
+    "fast_transport_owned": {"trades": 38, "net": 108.24},
+    "mature_handoff": {"trades": 51, "net": 189.48},
+    "slow_financed": {"trades": 77, "net": -356.54},
+    "unresolved": {"trades": 1, "net": -7.52}
+  },
+  "invariants": {
+    "exact_v18_admission_identity": true,
+    "exact_control_lifecycle_and_economics": true,
+    "only_cadence_gate_passed": true,
+    "all_economic_and_cohort_gates_failed": true,
+    "validation_economics_sealed": true,
+    "missing_july_2023_to_august_2024": true
+  },
+  "decision": "Close first-adverse-minute aborts and every timing, persistence, threshold, or subset rescue. Roughly half of V18's profitable admissions begin with joint adverse CL/MCL movement; that first print is normal oil microstructure, not a fake-turn signature. Preserve V18's direction and lifecycle. A distinct successor may prospectively study the event sequence inside and around the entry minute from live CL/MCL top-of-book evidence, but it must remain non-submitting until unseen matched fake-versus-authentic cohorts establish stable permission authority.",
+  "closed_families": [
+    "first adverse CL/MCL minute as an unconditional abort",
+    "first-passage delay, persistence, magnitude, ownership, direction, branch, or session threshold rescue",
+    "favorable-first-only admission",
+    "validation outcome exposure after failed discovery"
+  ],
+  "submitted_orders": 0
+}
