@@ -1014,7 +1014,13 @@ transition through today’s close; no order will be forced merely to populate t
   preserving the weekend shock return but not nonexistent bars. V73
   preregistration `db045831…` / evaluator `2af9ad0c…` freezes that event clock,
   the same zero-roll-basis index, exact V18 identity, and unchanged ownership/
-  breadth law with a `95%` readiness floor. Both periods remain count-only.
+  breadth law with a `95%` readiness floor. V73 count `511ac3b8…` passed every
+  law without outcomes: readiness `99.4%/100%`, exact V18 `167/171`, fast owner
+  `38/33`, mature handoff `51/56`, and complete direction/branch/lane breadth.
+  Receipt `mcl_event_time_roll_neutral_handoff_census_receipt.json` (`9a38ca43…`).
+  V74 preregistration `27345bc1…` / evaluator `85904f6f…` now freezes unchanged
+  V18 control against one exact mature-handoff lifecycle; discovery must improve
+  control by >=5% without worse PF, PnL/DD, or DD before validation opens.
   Rolls, costs, news authority, and live XSP/Gold owners remain unchanged.
 - `[PRESERVED RUNNER-UP]` **Tri-asset narrative-dispersion compression:** test
   whether convergence among easing-negative XSP pressure, weakening-positive
@@ -1696,7 +1702,13 @@ and stable bootstrap evidence. Neither may be refactored into looking mature.
     `mcl_event_time_roll_neutral_handoff_census_preregistration.json`
     (`db045831…`) / evaluator `2af9ad0c…` advances exactly one virtual step per
     real completed bar, inserts none, preserves reopen shock return, and keeps
-    real time authoritative everywhere outside slow state.
+    real time authoritative everywhere outside slow state. V73 `511ac3b8…`
+    passed all count laws; receipt
+    `mcl_event_time_roll_neutral_handoff_census_receipt.json` (`9a38ca43…`). V74
+    preregistration
+    `mcl_event_time_roll_neutral_handoff_lifecycle_preregistration.json`
+    (`27345bc1…`) / evaluator `85904f6f…` binds exact next-open/turn/roll/minute-
+    path economics and strict relative-to-V18 discovery-before-validation.
     Missing July-2023–August-2024 remains a hard crown blocker; no quota, order,
     or capital authority.
 
@@ -2087,6 +2099,7 @@ and
 | E-462 | V72 preregistration `mcl_roll_neutral_multiscale_handoff_census_preregistration.json` (`12d27306…`) / evaluator `3f8da2af…` freezes the roll-neutral successor before counts. Its synthetic CL index starts at `100`, compounds exact completed-five-minute within-contract OHLC ratios, and at a contract change keeps prior synthetic close as new open while retaining only the new bar's intrabar ratios—exactly zero roll-basis return. The nested `24/48/96/192/384` engine never resets by suffix but keeps the unchanged V18 policy and 65-minute anchor law, so real maintenance/weekend gaps can still underwarm. Every exact V18 admission remains; any raw short-to-long propagation protects V18's transport route, slow agreement preserves it, and only mature nonpropagating slow opposition routes to slow direction. Both periods must independently retain exact identity, `160–520/year`, >=85% slow readiness, >=25 fast-owned and 20–120 mature-handoff events with direction/branch/lane breadth, projected directions, and natural density before any PnL. No back-adjustment neighbor, horizon/policy/age/wave/ATR/slope/parity/time sweep, abstention, news, stop, quota, order, or capital authority |
 | E-463 | V72 count `bee711ac…` rejected wall-time roll-neutral handoff with zero outcomes exposed. Every gate except readiness passed: exact V18 `167/171` identity and cadence; fast transport-owned `38/33`; mature handoff `36/50` with both directions, acceptance/failure, GTH/RTH; projected directions `85/82` and `69/102`; natural `1/2–3/3` density. Carrying state across rolls raised readiness to `76.6%/77.8%`, but real elapsed-time maintenance/weekend gaps still caused post-gap underwarm below the frozen `85%` law. Receipt `mcl_roll_neutral_multiscale_handoff_census_rejection.json` closes readiness relaxation and wall-time slow ownership. The next causal clock may advance exactly once per completed traded five-minute bar: weekend reopen price remains one shock return, missing closed-market bars are not invented, roll basis remains zero, and real timestamps still own session/execution. Count proof remains mandatory before economics; no order or capital authority |
 | E-464 | V73 preregistration `mcl_event_time_roll_neutral_handoff_census_preregistration.json` (`db045831…`) / evaluator `2af9ad0c…` freezes the completed-traded-bar successor before counts. It advances one virtual five-minute step per real completed CL five-minute bar and inserts zero bars; a same-contract maintenance/weekend reopen compounds the full real gap as one causal shock observation, while contract change still contributes exactly zero roll-basis return. Real timestamps continue to own V18 opportunity identity, independent periods, Globex sessions, GTH/RTH, dated MCL parity/cost/roll/execution. The exact V72 slow engine and ownership hierarchy remain unchanged; readiness now must exceed `95%`, with the same fast-owned/mature-handoff/direction/branch/lane/cadence/density laws before any PnL. No gap cap/weekend flag/virtual speed/roll adjustment/horizon/policy/age/wave/ATR/slope/parity/time sweep, news, stop, quota, order, or capital authority |
+| E-465 | V73 event-time count `511ac3b8…` passed every frozen law with zero outcomes exposed. Exact V18 identity/cadence stayed `167/171` (`167.11/171.62/year`); slow readiness rose to `99.4%/100%` without inserted bars; fast transport-owned remained `38/33`; mature handoff expanded to `51/56` with down/up `24/27` and `31/25`, acceptance/failure `12/39` and `9/47`, GTH/RTH `39/12` and `39/17`; projected directions were `82/85` and `71/100`; density stayed `1/2/3` and `1/3/3`. Receipt `mcl_event_time_roll_neutral_handoff_census_receipt.json` (`9a38ca43…`). V74 preregistration `mcl_event_time_roll_neutral_handoff_lifecycle_preregistration.json` (`27345bc1…`) / evaluator `85904f6f…` freezes unchanged V18 control and one exact candidate: every V18 admission executes next matched-MCL open; only mature handoff changes direction; every V18 raw turn/roll/period boundary flattens; unchanged failure positions retain exact `0.5%/25%` profit memory but handoffs inherit none; minute MFE/MAE and `$3.52/$5.52` remain exact. Candidate discovery must pass absolute stability and improve V18 net >=5% without lower PF/PnL-DD or higher DD before validation opens. Missing first challenge year remains a crown blocker; no sweep, news, order, or capital authority |
 
 ### Decision anchors
 

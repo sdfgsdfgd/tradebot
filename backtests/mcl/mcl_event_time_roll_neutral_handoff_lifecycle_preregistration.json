@@ -1,0 +1,47 @@
+{
+  "schema": "mcl.event-time-roll-neutral-handoff-lifecycle-preregistration.v1",
+  "frozen_at_utc": "2026-08-04T03:48:30Z",
+  "authority": "research_discovery_first_no_orders_no_capital",
+  "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+  "v18_evaluator_sha256": "cf9277e623ed6849bcefc238e82e89f9d3ca4a49647228ab8048e9ff4324f0ef",
+  "v18_result_sha256": "b9c64409dcb9cd482427588bb0ae314d870d0350a2100aea6d3f0615ae2f4c15",
+  "census_sha256": "511ac3b8b87c01a9d7d81cb19e5cf01e63b33f0d98647fd62af5d9ec227235d7",
+  "windows": {
+    "discovery_start": "2024-08-04T22:01:00+00:00",
+    "validation_start": "2025-08-04T22:00:00+00:00",
+    "end": "2026-08-03T20:27:00+00:00"
+  },
+  "control": "Unchanged V18 basis_breadth lifecycle must reproduce the frozen ledger identity and economics.",
+  "candidate": {
+    "opportunities": "Every exact V18 admission at the exact next matched-MCL minute open.",
+    "direction": "Use V18 except the exact V73 mature_handoff cohort, which uses the event-time slow direction.",
+    "ordinary_exit": "Every V18 raw turn invalidates any position at the next matched-MCL minute open, whether or not its successor matures.",
+    "roll_and_period": "Flat at exact dated-contract and independent-period boundaries.",
+    "profit_memory": "Unchanged non-handoff V18 failed-auction positions retain the exact 0.5 percent MFE activation and 25 percent retention. Mature-handoff positions inherit no V18 failed-auction memory because their direction owner changed.",
+    "marking": "Minute-level dated MCL high/low MFE and MAE, exact next-open fills, one position, multiplier 100."
+  },
+  "costs": {"primary_round_trip_usd": 3.52, "stress_round_trip_usd": 5.52},
+  "discovery_gates": {
+    "annualized_trades_between": [160, 520],
+    "primary_and_stress_net_positive": true,
+    "primary_and_stress_profit_factor_min": [1.2, 1.1],
+    "primary_and_stress_pnl_to_intrabar_drawdown_min": [1.5, 1.0],
+    "stress_directions_positive": true,
+    "stress_v18_branches_positive": true,
+    "stress_gth_and_rth_positive": true,
+    "stress_fast_transport_slow_financed_and_mature_handoff_positive": true,
+    "stress_positive_months_min": 8,
+    "stress_positive_quarters_min": 3,
+    "largest_positive_month_share_max": 0.4,
+    "candidate_primary_and_stress_net_vs_control_min_ratio": 1.05,
+    "candidate_primary_profit_factor_and_pnl_dd_not_below_control": true,
+    "candidate_primary_intrabar_drawdown_not_above_control": true
+  },
+  "validation_law": "Expose validation only after every discovery gate passes. Validation and full prefix must remain positive under both costs, preserve both directions, source branches, lanes and ownership cohorts, and not fall below unchanged V18 PF or PnL/DD. Missing July-2023 through August-2024 still forbids a crown.",
+  "prohibitions": [
+    "no alternate handoff exit or inherited profit memory",
+    "no event-clock, gap, roll, horizon, policy, maturity, ownership, direction, ATR, slope, parity, basis, time, cost, stop, target, timeout, or sizing sweep",
+    "no category deletion/union, news authority, quota, order, or capital authority"
+  ],
+  "submitted_orders": 0
+}
