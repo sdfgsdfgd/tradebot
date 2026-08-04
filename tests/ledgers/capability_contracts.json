@@ -264,6 +264,7 @@
         "tradebot/news/contract.py",
         "tradebot/news/pipeline.py",
         "tradebot/research/mcl_predictive_onset.py",
+        "tradebot/research/mcl_predictive_velocity.py",
         "tradebot/research/mcl_two_speed_auction.py",
         "tradebot/spot_engine.py"
       ],

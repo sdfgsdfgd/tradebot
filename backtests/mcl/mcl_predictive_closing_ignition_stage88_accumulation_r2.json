@@ -1,0 +1,1800 @@
+{
+  "admitted_routes": {},
+  "admitted_turns": 0,
+  "authority": "prospective_count_and_morphology_only_no_outcomes_no_orders_no_capital",
+  "complete_raw_turns": 2,
+  "directions": {
+    "down": 1,
+    "up": 1
+  },
+  "eligible_treatment_start_utc": "2026-08-04T06:45:00+00:00",
+  "evaluator_sha256": "089afb9ee4429b34d636ae4667bec51c100d9f7561fd732c767cc09a569e5d3d",
+  "event_owner_sha256": "71373f19591486ce4fe8f2d8d9d29ae31b9f37dddd7e40d5ccef0ed812390b3f",
+  "event_prefix": {
+    "first_bucket_utc": "2026-08-04T04:49:34+00:00",
+    "generation_failures": 0,
+    "generation_sha256": "b3805c9f95713a13c26cb0ada08dc043f00069f42177212d3c575abe28c3ee7f",
+    "hash_failures": 0,
+    "invalid_records": 0,
+    "last_bucket_utc": "2026-08-04T10:18:05+00:00",
+    "late_records": 0,
+    "prefix_end_exclusive_utc": "2026-08-04T10:18:06+00:00",
+    "records": 16471
+  },
+  "event_prefix_sha256": "031f6605f1725591026258e80cea55a09a39d584005825b587e4d88955a536d4",
+  "gates": {
+    "at_least_10_each_raw_direction": false,
+    "at_least_20_admitted_turns": false,
+    "at_least_30_complete_raw_turns": false,
+    "at_least_5_each_admitted_route": false,
+    "exact_historical_v18_identity": true,
+    "prefix_identity": true
+  },
+  "generated_at_utc": "2026-08-04T10:18:32.126897+00:00",
+  "historical_identity": {
+    "admissions": 338,
+    "raw_turns": 1493
+  },
+  "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+  "outcomes_exposed": false,
+  "post_generation_raw_turns": 2,
+  "preregistration_sha256": "cc694029267a5024b42eab5c4e8086a1c771aa4032a3961d3862bfb4e78f3bec",
+  "schema": "mcl.predictive-intelligence-prospective-event-join.v1",
+  "service_invocation": {
+    "exec_main_start_utc": "2026-08-04T04:49:31+00:00",
+    "invocation_id": "60d5377f917c4edaa980b3aed89bf9e8",
+    "restarts_at_freeze": 0,
+    "state_at_freeze": "active/running",
+    "unit": "tradebot-mcl-turn-tape.service"
+  },
+  "snapshot_sha256": "e2c90b8bad87febf9f05b18242ad22090c9259395f1954ca4086ec8c8f84184d",
+  "submitted_orders": 0,
+  "tape": {
+    "appended_common_bars": 769,
+    "appended_first_close_utc": "2026-08-03T20:27:00+00:00",
+    "appended_last_close_utc": "2026-08-04T10:16:00+00:00",
+    "historical": {
+      "duplicates": 0,
+      "first": "2024-08-04T22:01:00+00:00",
+      "last": "2026-08-03T20:26:00+00:00",
+      "pairs": [
+        {
+          "common_rows": 9653,
+          "missing_mcl_at_cl_timestamp": 0,
+          "selected_cl_rows": 9653,
+          "suffix": "U4"
+        },
+        {
+          "common_rows": 31568,
+          "missing_mcl_at_cl_timestamp": 0,
+          "selected_cl_rows": 31568,
+          "suffix": "V4"
+        },
+        {
+          "common_rows": 30338,
+          "missing_mcl_at_cl_timestamp": 0,
+          "selected_cl_rows": 30338,
+          "suffix": "X4"
+        },
+        {
+          "common_rows": 28959,
+          "missing_mcl_at_cl_timestamp": 0,
+          "selected_cl_rows": 28959,
+          "suffix": "Z4"
+        },
+        {
+          "common_rows": 28676,
+          "missing_mcl_at_cl_timestamp": 0,
+          "selected_cl_rows": 28676,
+          "suffix": "F5"
+        },
+        {
+          "common_rows": 27386,
+          "missing_mcl_at_cl_timestamp": 0,
+          "selected_cl_rows": 27386,
+          "suffix": "G5"
+        },
+        {
+          "common_rows": 31568,
+          "missing_mcl_at_cl_timestamp": 0,
+          "selected_cl_rows": 31568,
+          "suffix": "H5"
+        },
+        {
+          "common_rows": 27431,
+          "missing_mcl_at_cl_timestamp": 0,
+          "selected_cl_rows": 27431,
+          "suffix": "J5"
+        },
+        {
+          "common_rows": 30338,
+          "missing_mcl_at_cl_timestamp": 0,
+          "selected_cl_rows": 30338,
+          "suffix": "K5"
+        },
+        {
+          "common_rows": 27580,
+          "missing_mcl_at_cl_timestamp": 0,
+          "selected_cl_rows": 27580,
+          "suffix": "M5"
+        },
+        {
+          "common_rows": 30189,
+          "missing_mcl_at_cl_timestamp": 0,
+          "selected_cl_rows": 30189,
+          "suffix": "N5"
+        },
+        {
+          "common_rows": 31329,
+          "missing_mcl_at_cl_timestamp": 0,
+          "selected_cl_rows": 31329,
+          "suffix": "Q5"
+        },
+        {
+          "common_rows": 28959,
+          "missing_mcl_at_cl_timestamp": 0,
+          "selected_cl_rows": 28959,
+          "suffix": "U5"
+        },
+        {
+          "common_rows": 31568,
+          "missing_mcl_at_cl_timestamp": 0,
+          "selected_cl_rows": 31568,
+          "suffix": "V5"
+        },
+        {
+          "common_rows": 28959,
+          "missing_mcl_at_cl_timestamp": 0,
+          "selected_cl_rows": 28959,
+          "suffix": "X5"
+        },
+        {
+          "common_rows": 30338,
+          "missing_mcl_at_cl_timestamp": 0,
+          "selected_cl_rows": 30338,
+          "suffix": "Z5"
+        },
+        {
+          "common_rows": 28676,
+          "missing_mcl_at_cl_timestamp": 0,
+          "selected_cl_rows": 28676,
+          "suffix": "F6"
+        },
+        {
+          "common_rows": 26007,
+          "missing_mcl_at_cl_timestamp": 0,
+          "selected_cl_rows": 26007,
+          "suffix": "G6"
+        },
+        {
+          "common_rows": 32947,
+          "missing_mcl_at_cl_timestamp": 0,
+          "selected_cl_rows": 32947,
+          "suffix": "H6"
+        },
+        {
+          "common_rows": 27427,
+          "missing_mcl_at_cl_timestamp": 0,
+          "selected_cl_rows": 27427,
+          "suffix": "J6"
+        },
+        {
+          "common_rows": 28959,
+          "missing_mcl_at_cl_timestamp": 0,
+          "selected_cl_rows": 28959,
+          "suffix": "K6"
+        },
+        {
+          "common_rows": 27580,
+          "missing_mcl_at_cl_timestamp": 0,
+          "selected_cl_rows": 27580,
+          "suffix": "M6"
+        },
+        {
+          "common_rows": 31568,
+          "missing_mcl_at_cl_timestamp": 0,
+          "selected_cl_rows": 31568,
+          "suffix": "N6"
+        },
+        {
+          "common_rows": 29860,
+          "missing_mcl_at_cl_timestamp": 0,
+          "selected_cl_rows": 29860,
+          "suffix": "Q6"
+        },
+        {
+          "common_rows": 19273,
+          "missing_mcl_at_cl_timestamp": 0,
+          "selected_cl_rows": 19273,
+          "suffix": "U6"
+        }
+      ],
+      "roll_mode": "dual_volume",
+      "rolls": [
+        {
+          "boundary": "2024-08-14",
+          "forced": "2024-08-14",
+          "from": "U4",
+          "to": "V4",
+          "volume_cross": null
+        },
+        {
+          "boundary": "2024-09-16",
+          "forced": "2024-09-16",
+          "from": "V4",
+          "to": "X4",
+          "volume_cross": null
+        },
+        {
+          "boundary": "2024-10-16",
+          "forced": "2024-10-16",
+          "from": "X4",
+          "to": "Z4",
+          "volume_cross": null
+        },
+        {
+          "boundary": "2024-11-14",
+          "forced": "2024-11-14",
+          "from": "Z4",
+          "to": "F5",
+          "volume_cross": null
+        },
+        {
+          "boundary": "2024-12-13",
+          "forced": "2024-12-13",
+          "from": "F5",
+          "to": "G5",
+          "volume_cross": null
+        },
+        {
+          "boundary": "2025-01-14",
+          "forced": "2025-01-14",
+          "from": "G5",
+          "to": "H5",
+          "volume_cross": null
+        },
+        {
+          "boundary": "2025-02-14",
+          "forced": "2025-02-14",
+          "from": "H5",
+          "to": "J5",
+          "volume_cross": null
+        },
+        {
+          "boundary": "2025-03-14",
+          "forced": "2025-03-14",
+          "from": "J5",
+          "to": "K5",
+          "volume_cross": null
+        },
+        {
+          "boundary": "2025-04-15",
+          "forced": "2025-04-15",
+          "from": "K5",
+          "to": "M5",
+          "volume_cross": null
+        },
+        {
+          "boundary": "2025-05-14",
+          "forced": "2025-05-14",
+          "from": "M5",
+          "to": "N5",
+          "volume_cross": null
+        },
+        {
+          "boundary": "2025-06-13",
+          "forced": "2025-06-13",
+          "from": "N5",
+          "to": "Q5",
+          "volume_cross": null
+        },
+        {
+          "boundary": "2025-07-16",
+          "forced": "2025-07-16",
+          "from": "Q5",
+          "to": "U5",
+          "volume_cross": null
+        },
+        {
+          "boundary": "2025-08-14",
+          "forced": "2025-08-14",
+          "from": "U5",
+          "to": "V5",
+          "volume_cross": null
+        },
+        {
+          "boundary": "2025-09-16",
+          "forced": "2025-09-16",
+          "from": "V5",
+          "to": "X5",
+          "volume_cross": null
+        },
+        {
+          "boundary": "2025-10-15",
+          "forced": "2025-10-15",
+          "from": "X5",
+          "to": "Z5",
+          "volume_cross": null
+        },
+        {
+          "boundary": "2025-11-14",
+          "forced": "2025-11-14",
+          "from": "Z5",
+          "to": "F6",
+          "volume_cross": null
+        },
+        {
+          "boundary": "2025-12-15",
+          "forced": "2025-12-15",
+          "from": "F6",
+          "to": "G6",
+          "volume_cross": null
+        },
+        {
+          "boundary": "2026-01-13",
+          "forced": "2026-01-13",
+          "from": "G6",
+          "to": "H6",
+          "volume_cross": null
+        },
+        {
+          "boundary": "2026-02-16",
+          "forced": "2026-02-16",
+          "from": "H6",
+          "to": "J6",
+          "volume_cross": null
+        },
+        {
+          "boundary": "2026-03-16",
+          "forced": "2026-03-16",
+          "from": "J6",
+          "to": "K6",
+          "volume_cross": null
+        },
+        {
+          "boundary": "2026-04-15",
+          "forced": "2026-04-15",
+          "from": "K6",
+          "to": "M6",
+          "volume_cross": null
+        },
+        {
+          "boundary": "2026-05-13",
+          "forced": "2026-05-13",
+          "from": "M6",
+          "to": "N6",
+          "volume_cross": null
+        },
+        {
+          "boundary": "2026-06-15",
+          "forced": "2026-06-15",
+          "from": "N6",
+          "to": "Q6",
+          "volume_cross": null
+        },
+        {
+          "boundary": "2026-07-15",
+          "forced": "2026-07-15",
+          "from": "Q6",
+          "to": "U6",
+          "volume_cross": null
+        }
+      ],
+      "rows": 707136,
+      "within_session_gap_minutes": {}
+    },
+    "historical_last_common_close_utc": "2026-08-03T20:26:00+00:00",
+    "snapshot_cutoff_utc": "2026-08-04T10:16:00+00:00",
+    "snapshot_id": "e75bcc8af08591a4d45181c6d64827caa810aea8424f3dc111fad37660baccdc"
+  },
+  "treatments": [
+    {
+      "admitted": false,
+      "complete_event_window": true,
+      "event_morphology": {
+        "authority": "count_and_morphology_only_no_outcomes_no_orders_no_capital",
+        "event_shapes": {
+          "basis_response_to_maturation": "UNCHANGED",
+          "books": {
+            "CL": {
+              "maturation_slope_velocity": "WITH_RAW_DIRECTION",
+              "maturation_tr_velocity": "UP",
+              "pressure_persistence": "DOWN",
+              "response_displacement": "AGAINST_RAW_DIRECTION",
+              "response_slope_velocity": "AGAINST_RAW_DIRECTION",
+              "response_tr_velocity": "DOWN",
+              "spread_response": "DOWN"
+            },
+            "MCL": {
+              "maturation_slope_velocity": "WITH_RAW_DIRECTION",
+              "maturation_tr_velocity": "DOWN",
+              "pressure_persistence": "DOWN",
+              "response_displacement": "AGAINST_RAW_DIRECTION",
+              "response_slope_velocity": "AGAINST_RAW_DIRECTION",
+              "response_tr_velocity": "DOWN",
+              "spread_response": "FLAT"
+            }
+          },
+          "maturation_leaders": {
+            "CL": 42,
+            "MCL": 36,
+            "SIMULTANEOUS": 60
+          },
+          "response_leaders": {
+            "CL": 18,
+            "MCL": 12,
+            "SIMULTANEOUS": 14
+          },
+          "velocity_ignition_ladder": {
+            "acceptance_5_15s": {
+              "books": {
+                "CL": {
+                  "displacement": "AGAINST_RAW_DIRECTION",
+                  "quote_intensity_acceleration": "UP",
+                  "signed_prints": "WITH_RAW_DIRECTION",
+                  "slope_velocity": "AGAINST_RAW_DIRECTION",
+                  "spread_elasticity": "FLAT",
+                  "top_size_pressure": "AGAINST_RAW_DIRECTION",
+                  "tr_velocity": "UP"
+                },
+                "MCL": {
+                  "displacement": "AGAINST_RAW_DIRECTION",
+                  "quote_intensity_acceleration": "UP",
+                  "signed_prints": "WITH_RAW_DIRECTION",
+                  "slope_velocity": "AGAINST_RAW_DIRECTION",
+                  "spread_elasticity": "UP",
+                  "top_size_pressure": "AGAINST_RAW_DIRECTION",
+                  "tr_velocity": "UP"
+                }
+              },
+              "first_mid_move_leaders": {
+                "CL": 3,
+                "MCL": 1,
+                "SIMULTANEOUS": 2
+              },
+              "median_mcl_minus_cl_first_mid_move_us": 276.0
+            },
+            "closing_acceleration_30_15s": {
+              "books": {
+                "CL": {
+                  "displacement": "AGAINST_RAW_DIRECTION",
+                  "quote_intensity_acceleration": "DOWN",
+                  "signed_prints": "AGAINST_RAW_DIRECTION",
+                  "slope_velocity": "WITH_RAW_DIRECTION",
+                  "spread_elasticity": "DOWN",
+                  "top_size_pressure": "AGAINST_RAW_DIRECTION",
+                  "tr_velocity": "DOWN"
+                },
+                "MCL": {
+                  "displacement": "AGAINST_RAW_DIRECTION",
+                  "quote_intensity_acceleration": "DOWN",
+                  "signed_prints": "AGAINST_RAW_DIRECTION",
+                  "slope_velocity": "WITH_RAW_DIRECTION",
+                  "spread_elasticity": "FLAT",
+                  "top_size_pressure": "AGAINST_RAW_DIRECTION",
+                  "tr_velocity": "DOWN"
+                }
+              },
+              "first_mid_move_leaders": {
+                "CL": 3,
+                "MCL": 6,
+                "SIMULTANEOUS": 4
+              },
+              "median_mcl_minus_cl_first_mid_move_us": 0
+            },
+            "closing_baseline_60_30s": {
+              "books": {
+                "CL": {
+                  "displacement": "AGAINST_RAW_DIRECTION",
+                  "quote_intensity_acceleration": "DOWN",
+                  "signed_prints": "WITH_RAW_DIRECTION",
+                  "slope_velocity": "AGAINST_RAW_DIRECTION",
+                  "spread_elasticity": "UP",
+                  "top_size_pressure": "WITH_RAW_DIRECTION",
+                  "tr_velocity": "DOWN"
+                },
+                "MCL": {
+                  "displacement": "AGAINST_RAW_DIRECTION",
+                  "quote_intensity_acceleration": "DOWN",
+                  "signed_prints": "WITH_RAW_DIRECTION",
+                  "slope_velocity": "AGAINST_RAW_DIRECTION",
+                  "spread_elasticity": "UP",
+                  "top_size_pressure": "AGAINST_RAW_DIRECTION",
+                  "tr_velocity": "DOWN"
+                }
+              },
+              "first_mid_move_leaders": {
+                "CL": 4,
+                "MCL": 5,
+                "SIMULTANEOUS": 9
+              },
+              "median_mcl_minus_cl_first_mid_move_us": 0.0
+            },
+            "closing_commitment_15_5s": {
+              "books": {
+                "CL": {
+                  "displacement": "AGAINST_RAW_DIRECTION",
+                  "quote_intensity_acceleration": "DOWN",
+                  "signed_prints": "AGAINST_RAW_DIRECTION",
+                  "slope_velocity": "AGAINST_RAW_DIRECTION",
+                  "spread_elasticity": "FLAT",
+                  "top_size_pressure": "WITH_RAW_DIRECTION",
+                  "tr_velocity": "DOWN"
+                },
+                "MCL": {
+                  "displacement": "WITH_RAW_DIRECTION",
+                  "quote_intensity_acceleration": "DOWN",
+                  "signed_prints": "AGAINST_RAW_DIRECTION",
+                  "slope_velocity": "AGAINST_RAW_DIRECTION",
+                  "spread_elasticity": "FLAT",
+                  "top_size_pressure": "WITH_RAW_DIRECTION",
+                  "tr_velocity": "DOWN"
+                }
+              },
+              "first_mid_move_leaders": {
+                "CL": 3,
+                "MCL": 2,
+                "SIMULTANEOUS": 2
+              },
+              "median_mcl_minus_cl_first_mid_move_us": 0
+            },
+            "closing_trigger_5_0s": {
+              "books": {
+                "CL": {
+                  "displacement": "AGAINST_RAW_DIRECTION",
+                  "quote_intensity_acceleration": "UP",
+                  "signed_prints": "AGAINST_RAW_DIRECTION",
+                  "slope_velocity": "WITH_RAW_DIRECTION",
+                  "spread_elasticity": "DOWN",
+                  "top_size_pressure": "AGAINST_RAW_DIRECTION",
+                  "tr_velocity": "UP"
+                },
+                "MCL": {
+                  "displacement": "AGAINST_RAW_DIRECTION",
+                  "quote_intensity_acceleration": "UP",
+                  "signed_prints": "AGAINST_RAW_DIRECTION",
+                  "slope_velocity": "WITH_RAW_DIRECTION",
+                  "spread_elasticity": "FLAT",
+                  "top_size_pressure": "AGAINST_RAW_DIRECTION",
+                  "tr_velocity": "UP"
+                }
+              },
+              "first_mid_move_leaders": {
+                "CL": 2
+              },
+              "median_mcl_minus_cl_first_mid_move_us": 802.5
+            },
+            "persistence_30_60s": {
+              "books": {
+                "CL": {
+                  "displacement": "AGAINST_RAW_DIRECTION",
+                  "quote_intensity_acceleration": "DOWN",
+                  "signed_prints": "WITH_RAW_DIRECTION",
+                  "slope_velocity": "AGAINST_RAW_DIRECTION",
+                  "spread_elasticity": "FLAT",
+                  "top_size_pressure": "AGAINST_RAW_DIRECTION",
+                  "tr_velocity": "DOWN"
+                },
+                "MCL": {
+                  "displacement": "AGAINST_RAW_DIRECTION",
+                  "quote_intensity_acceleration": "DOWN",
+                  "signed_prints": "WITH_RAW_DIRECTION",
+                  "slope_velocity": "AGAINST_RAW_DIRECTION",
+                  "spread_elasticity": "FLAT",
+                  "top_size_pressure": "AGAINST_RAW_DIRECTION",
+                  "tr_velocity": "DOWN"
+                }
+              },
+              "first_mid_move_leaders": {
+                "CL": 5,
+                "MCL": 7,
+                "SIMULTANEOUS": 8
+              },
+              "median_mcl_minus_cl_first_mid_move_us": 0.0
+            },
+            "propagation_15_30s": {
+              "books": {
+                "CL": {
+                  "displacement": "WITH_RAW_DIRECTION",
+                  "quote_intensity_acceleration": "UP",
+                  "signed_prints": "AGAINST_RAW_DIRECTION",
+                  "slope_velocity": "AGAINST_RAW_DIRECTION",
+                  "spread_elasticity": "DOWN",
+                  "top_size_pressure": "WITH_RAW_DIRECTION",
+                  "tr_velocity": "DOWN"
+                },
+                "MCL": {
+                  "displacement": "WITH_RAW_DIRECTION",
+                  "quote_intensity_acceleration": "DOWN",
+                  "signed_prints": "AGAINST_RAW_DIRECTION",
+                  "slope_velocity": "AGAINST_RAW_DIRECTION",
+                  "spread_elasticity": "FLAT",
+                  "top_size_pressure": "WITH_RAW_DIRECTION",
+                  "tr_velocity": "DOWN"
+                }
+              },
+              "first_mid_move_leaders": {
+                "CL": 7,
+                "MCL": 3,
+                "SIMULTANEOUS": 3
+              },
+              "median_mcl_minus_cl_first_mid_move_us": 530
+            },
+            "spark_0_5s": {
+              "books": {
+                "CL": {
+                  "displacement": "AGAINST_RAW_DIRECTION",
+                  "quote_intensity_acceleration": "DOWN",
+                  "signed_prints": "AGAINST_RAW_DIRECTION",
+                  "slope_velocity": "AGAINST_RAW_DIRECTION",
+                  "spread_elasticity": "DOWN",
+                  "top_size_pressure": "WITH_RAW_DIRECTION",
+                  "tr_velocity": "UP"
+                },
+                "MCL": {
+                  "displacement": "AGAINST_RAW_DIRECTION",
+                  "quote_intensity_acceleration": "UP",
+                  "signed_prints": "AGAINST_RAW_DIRECTION",
+                  "slope_velocity": "WITH_RAW_DIRECTION",
+                  "spread_elasticity": "FLAT",
+                  "top_size_pressure": "AGAINST_RAW_DIRECTION",
+                  "tr_velocity": "UP"
+                }
+              },
+              "first_mid_move_leaders": {
+                "CL": 3,
+                "MCL": 1,
+                "SIMULTANEOUS": 1
+              },
+              "median_mcl_minus_cl_first_mid_move_us": 139
+            }
+          }
+        },
+        "generation_sha256": "b3805c9f95713a13c26cb0ada08dc043f00069f42177212d3c575abe28c3ee7f",
+        "outcomes_exposed": false,
+        "raw_direction": -1,
+        "raw_turn_at_utc": "2026-08-04T07:05:00+00:00",
+        "strategy_version": "mcl.predictive-intelligence-onset-atlas.v1",
+        "submitted_orders": 0,
+        "windows": {
+          "acceptance_5_15s": {
+            "active_seconds": 10,
+            "basis_open_close_ticks": [
+              0.9999999999990905,
+              0.5000000000009663
+            ],
+            "books": {
+              "CL": {
+                "active_seconds": 10,
+                "directional_microprice_displacement_ticks": -1.9000000000005457,
+                "directional_microprice_slope_velocity_ticks_per_second2": -1.6291666666670608,
+                "directional_same_price_size_pressure_proxy": -10.0,
+                "directional_signed_trade_volume_proxy": 4.0,
+                "maximum_spread_ticks": 2.000000000001023,
+                "microprice_tr_velocity_ticks": 0.575259740260492,
+                "quote_intensity_acceleration": 5.199999999999999,
+                "spread_last_minus_first_ticks": 0.0
+              },
+              "MCL": {
+                "active_seconds": 10,
+                "directional_microprice_displacement_ticks": -1.2333333333344854,
+                "directional_microprice_slope_velocity_ticks_per_second2": -1.7143939393934033,
+                "directional_same_price_size_pressure_proxy": -7.0,
+                "directional_signed_trade_volume_proxy": 3.0,
+                "maximum_spread_ticks": 2.000000000001023,
+                "microprice_tr_velocity_ticks": 0.7370435120441243,
+                "quote_intensity_acceleration": 6.599999999999998,
+                "spread_last_minus_first_ticks": 1.4210854715202004e-12
+              }
+            },
+            "end_utc": "2026-08-04T07:05:15+00:00",
+            "first_mid_move_leaders": {
+              "CL": 3,
+              "MCL": 1,
+              "SIMULTANEOUS": 2
+            },
+            "median_mcl_minus_cl_first_mid_move_us": 276.0,
+            "start_utc": "2026-08-04T07:05:05+00:00"
+          },
+          "closing_acceleration_30_15s": {
+            "active_seconds": 15,
+            "basis_open_close_ticks": [
+              0.49999999999954525,
+              0.49999999999954525
+            ],
+            "books": {
+              "CL": {
+                "active_seconds": 15,
+                "directional_microprice_displacement_ticks": -8.50000000000091,
+                "directional_microprice_slope_velocity_ticks_per_second2": 1.4523809523806708,
+                "directional_same_price_size_pressure_proxy": -115.0,
+                "directional_signed_trade_volume_proxy": -31.0,
+                "maximum_spread_ticks": 2.000000000001023,
+                "microprice_tr_velocity_ticks": -1.136569581212475,
+                "quote_intensity_acceleration": -30.107142857142858,
+                "spread_last_minus_first_ticks": -1.0000000000005116
+              },
+              "MCL": {
+                "active_seconds": 15,
+                "directional_microprice_displacement_ticks": -8.111111111111313,
+                "directional_microprice_slope_velocity_ticks_per_second2": 1.462888962889186,
+                "directional_same_price_size_pressure_proxy": -49.0,
+                "directional_signed_trade_volume_proxy": -25.0,
+                "maximum_spread_ticks": 2.000000000001023,
+                "microprice_tr_velocity_ticks": -1.2980050703260662,
+                "quote_intensity_acceleration": -27.839285714285715,
+                "spread_last_minus_first_ticks": 0.0
+              }
+            },
+            "end_utc": "2026-08-04T07:04:45+00:00",
+            "first_mid_move_leaders": {
+              "CL": 3,
+              "MCL": 6,
+              "SIMULTANEOUS": 4
+            },
+            "median_mcl_minus_cl_first_mid_move_us": 0,
+            "start_utc": "2026-08-04T07:04:30+00:00"
+          },
+          "closing_baseline_60_30s": {
+            "active_seconds": 26,
+            "basis_open_close_ticks": [
+              0.9999999999990905,
+              0.49999999999954525
+            ],
+            "books": {
+              "CL": {
+                "active_seconds": 25,
+                "directional_microprice_displacement_ticks": -0.6666666666660603,
+                "directional_microprice_slope_velocity_ticks_per_second2": -0.2415674603175722,
+                "directional_same_price_size_pressure_proxy": 1.0,
+                "directional_signed_trade_volume_proxy": 27.0,
+                "maximum_spread_ticks": 2.000000000001023,
+                "microprice_tr_velocity_ticks": -0.048623057982983164,
+                "quote_intensity_acceleration": -6.380952380952383,
+                "spread_last_minus_first_ticks": 1.4210854715202004e-12
+              },
+              "MCL": {
+                "active_seconds": 26,
+                "directional_microprice_displacement_ticks": -0.9090909090919013,
+                "directional_microprice_slope_velocity_ticks_per_second2": -0.25487012987007673,
+                "directional_same_price_size_pressure_proxy": -8.0,
+                "directional_signed_trade_volume_proxy": 54.0,
+                "maximum_spread_ticks": 3.0000000000001137,
+                "microprice_tr_velocity_ticks": -0.18607707107711846,
+                "quote_intensity_acceleration": -1.6428571428571423,
+                "spread_last_minus_first_ticks": 1.4210854715202004e-12
+              }
+            },
+            "end_utc": "2026-08-04T07:04:30+00:00",
+            "first_mid_move_leaders": {
+              "CL": 4,
+              "MCL": 5,
+              "SIMULTANEOUS": 9
+            },
+            "median_mcl_minus_cl_first_mid_move_us": 0.0,
+            "start_utc": "2026-08-04T07:04:00+00:00"
+          },
+          "closing_commitment_15_5s": {
+            "active_seconds": 10,
+            "basis_open_close_ticks": [
+              0.49999999999954525,
+              0.49999999999954525
+            ],
+            "books": {
+              "CL": {
+                "active_seconds": 9,
+                "directional_microprice_displacement_ticks": -0.19047619047523767,
+                "directional_microprice_slope_velocity_ticks_per_second2": -1.119047619047251,
+                "directional_same_price_size_pressure_proxy": 7.0,
+                "directional_signed_trade_volume_proxy": -5.0,
+                "maximum_spread_ticks": 2.000000000001023,
+                "microprice_tr_velocity_ticks": -0.878143939394036,
+                "quote_intensity_acceleration": -18.4,
+                "spread_last_minus_first_ticks": 0.0
+              },
+              "MCL": {
+                "active_seconds": 10,
+                "directional_microprice_displacement_ticks": 0.4000000000005457,
+                "directional_microprice_slope_velocity_ticks_per_second2": -1.0277777777778283,
+                "directional_same_price_size_pressure_proxy": 7.0,
+                "directional_signed_trade_volume_proxy": -22.0,
+                "maximum_spread_ticks": 2.000000000001023,
+                "microprice_tr_velocity_ticks": -0.5129748029747816,
+                "quote_intensity_acceleration": -15.4,
+                "spread_last_minus_first_ticks": 0.0
+              }
+            },
+            "end_utc": "2026-08-04T07:04:55+00:00",
+            "first_mid_move_leaders": {
+              "CL": 3,
+              "MCL": 2,
+              "SIMULTANEOUS": 2
+            },
+            "median_mcl_minus_cl_first_mid_move_us": 0,
+            "start_utc": "2026-08-04T07:04:45+00:00"
+          },
+          "closing_trigger_5_0s": {
+            "active_seconds": 5,
+            "basis_open_close_ticks": [
+              0.49999999999954525,
+              0.49999999999954525
+            ],
+            "books": {
+              "CL": {
+                "active_seconds": 5,
+                "directional_microprice_displacement_ticks": -1.6666666666669698,
+                "directional_microprice_slope_velocity_ticks_per_second2": 1.11904761904907,
+                "directional_same_price_size_pressure_proxy": -8.0,
+                "directional_signed_trade_volume_proxy": -3.0,
+                "maximum_spread_ticks": 2.000000000001023,
+                "microprice_tr_velocity_ticks": 0.015262515263003706,
+                "quote_intensity_acceleration": 26.5,
+                "spread_last_minus_first_ticks": -0.9999999999990905
+              },
+              "MCL": {
+                "active_seconds": 4,
+                "directional_microprice_displacement_ticks": -2.7846153846157904,
+                "directional_microprice_slope_velocity_ticks_per_second2": 1.815384615383664,
+                "directional_same_price_size_pressure_proxy": -16.0,
+                "directional_signed_trade_volume_proxy": -3.0,
+                "maximum_spread_ticks": 1.999999999999602,
+                "microprice_tr_velocity_ticks": 0.005555555556213676,
+                "quote_intensity_acceleration": 18.333333333333336,
+                "spread_last_minus_first_ticks": 0.0
+              }
+            },
+            "end_utc": "2026-08-04T07:05:00+00:00",
+            "first_mid_move_leaders": {
+              "CL": 2
+            },
+            "median_mcl_minus_cl_first_mid_move_us": 802.5,
+            "start_utc": "2026-08-04T07:04:55+00:00"
+          },
+          "maturation_4m": {
+            "active_seconds": 213,
+            "basis_open_close_ticks": [
+              0.0,
+              0.0
+            ],
+            "books": {
+              "CL": {
+                "active_seconds": 198,
+                "directional_microprice_displacement_ticks": -0.9999999999990905,
+                "directional_microprice_slope_velocity_ticks_per_second2": 0.025210084033628732,
+                "directional_same_price_size_pressure_proxy": -48.0,
+                "directional_signed_trade_volume_proxy": -29.0,
+                "maximum_spread_ticks": 3.0000000000001137,
+                "microprice_tr_velocity_ticks": 0.00134229268835373,
+                "quote_intensity_acceleration": -1.7135785007072144,
+                "spread_last_minus_first_ticks": 1.4210854715202004e-12
+              },
+              "MCL": {
+                "active_seconds": 202,
+                "directional_microprice_displacement_ticks": -0.13888888888959627,
+                "directional_microprice_slope_velocity_ticks_per_second2": 0.01858076563957864,
+                "directional_same_price_size_pressure_proxy": -26.0,
+                "directional_signed_trade_volume_proxy": -38.0,
+                "maximum_spread_ticks": 2.000000000001023,
+                "microprice_tr_velocity_ticks": -0.03682058095172358,
+                "quote_intensity_acceleration": -2.2061527581329567,
+                "spread_last_minus_first_ticks": 1.0000000000005116
+              }
+            },
+            "end_utc": "2026-08-04T07:10:00+00:00",
+            "first_mid_move_leaders": {
+              "CL": 42,
+              "MCL": 36,
+              "SIMULTANEOUS": 60
+            },
+            "median_mcl_minus_cl_first_mid_move_us": 0.0,
+            "start_utc": "2026-08-04T07:06:00+00:00"
+          },
+          "persistence_30_60s": {
+            "active_seconds": 29,
+            "basis_open_close_ticks": [
+              0.49999999999954525,
+              0.0
+            ],
+            "books": {
+              "CL": {
+                "active_seconds": 28,
+                "directional_microprice_displacement_ticks": -5.899999999998727,
+                "directional_microprice_slope_velocity_ticks_per_second2": -0.4214285714284805,
+                "directional_same_price_size_pressure_proxy": -74.0,
+                "directional_signed_trade_volume_proxy": 10.0,
+                "maximum_spread_ticks": 2.000000000001023,
+                "microprice_tr_velocity_ticks": -0.309309951821618,
+                "quote_intensity_acceleration": -8.42857142857143,
+                "spread_last_minus_first_ticks": 0.0
+              },
+              "MCL": {
+                "active_seconds": 28,
+                "directional_microprice_displacement_ticks": -5.248803827748816,
+                "directional_microprice_slope_velocity_ticks_per_second2": -0.5721800129694912,
+                "directional_same_price_size_pressure_proxy": -68.0,
+                "directional_signed_trade_volume_proxy": 7.0,
+                "maximum_spread_ticks": 2.000000000001023,
+                "microprice_tr_velocity_ticks": -0.203399576613553,
+                "quote_intensity_acceleration": -1.5238095238095255,
+                "spread_last_minus_first_ticks": 0.0
+              }
+            },
+            "end_utc": "2026-08-04T07:06:00+00:00",
+            "first_mid_move_leaders": {
+              "CL": 5,
+              "MCL": 7,
+              "SIMULTANEOUS": 8
+            },
+            "median_mcl_minus_cl_first_mid_move_us": 0.0,
+            "start_utc": "2026-08-04T07:05:30+00:00"
+          },
+          "pre_turn_60s": {
+            "active_seconds": 56,
+            "basis_open_close_ticks": [
+              0.9999999999990905,
+              0.49999999999954525
+            ],
+            "books": {
+              "CL": {
+                "active_seconds": 54,
+                "directional_microprice_displacement_ticks": -12.83333333333303,
+                "directional_microprice_slope_velocity_ticks_per_second2": -0.36611323967647,
+                "directional_same_price_size_pressure_proxy": -115.0,
+                "directional_signed_trade_volume_proxy": -12.0,
+                "maximum_spread_ticks": 2.000000000001023,
+                "microprice_tr_velocity_ticks": 0.22936184147271765,
+                "quote_intensity_acceleration": -4.635897435897437,
+                "spread_last_minus_first_ticks": 1.4210854715202004e-12
+              },
+              "MCL": {
+                "active_seconds": 55,
+                "directional_microprice_displacement_ticks": -13.293706293708055,
+                "directional_microprice_slope_velocity_ticks_per_second2": -0.38189141637417523,
+                "directional_same_price_size_pressure_proxy": -66.0,
+                "directional_signed_trade_volume_proxy": 4.0,
+                "maximum_spread_ticks": 3.0000000000001137,
+                "microprice_tr_velocity_ticks": 0.1378468959571275,
+                "quote_intensity_acceleration": 4.615384615384617,
+                "spread_last_minus_first_ticks": 0.0
+              }
+            },
+            "end_utc": "2026-08-04T07:05:00+00:00",
+            "first_mid_move_leaders": {
+              "CL": 12,
+              "MCL": 13,
+              "SIMULTANEOUS": 15
+            },
+            "median_mcl_minus_cl_first_mid_move_us": 0.0,
+            "start_utc": "2026-08-04T07:04:00+00:00"
+          },
+          "propagation_15_30s": {
+            "active_seconds": 14,
+            "basis_open_close_ticks": [
+              0.5000000000009663,
+              0.49999999999954525
+            ],
+            "books": {
+              "CL": {
+                "active_seconds": 14,
+                "directional_microprice_displacement_ticks": 0.8666666666667879,
+                "directional_microprice_slope_velocity_ticks_per_second2": -0.44285714285738975,
+                "directional_same_price_size_pressure_proxy": 2.0,
+                "directional_signed_trade_volume_proxy": -10.0,
+                "maximum_spread_ticks": 2.000000000001023,
+                "microprice_tr_velocity_ticks": -0.035350529101011885,
+                "quote_intensity_acceleration": 2.291666666666668,
+                "spread_last_minus_first_ticks": -1.4210854715202004e-12
+              },
+              "MCL": {
+                "active_seconds": 14,
+                "directional_microprice_displacement_ticks": 0.933333333333394,
+                "directional_microprice_slope_velocity_ticks_per_second2": -0.49823232323257927,
+                "directional_same_price_size_pressure_proxy": 3.0,
+                "directional_signed_trade_volume_proxy": -37.0,
+                "maximum_spread_ticks": 1.999999999999602,
+                "microprice_tr_velocity_ticks": -0.3757215891400989,
+                "quote_intensity_acceleration": -3.375,
+                "spread_last_minus_first_ticks": 0.0
+              }
+            },
+            "end_utc": "2026-08-04T07:05:30+00:00",
+            "first_mid_move_leaders": {
+              "CL": 7,
+              "MCL": 3,
+              "SIMULTANEOUS": 3
+            },
+            "median_mcl_minus_cl_first_mid_move_us": 530,
+            "start_utc": "2026-08-04T07:05:15+00:00"
+          },
+          "spark_0_5s": {
+            "active_seconds": 5,
+            "basis_open_close_ticks": [
+              0.49999999999954525,
+              0.9999999999990905
+            ],
+            "books": {
+              "CL": {
+                "active_seconds": 5,
+                "directional_microprice_displacement_ticks": -1.3999999999996362,
+                "directional_microprice_slope_velocity_ticks_per_second2": -0.8166666666656965,
+                "directional_same_price_size_pressure_proxy": 6.0,
+                "directional_signed_trade_volume_proxy": -3.0,
+                "maximum_spread_ticks": 2.000000000001023,
+                "microprice_tr_velocity_ticks": 0.23388648388641786,
+                "quote_intensity_acceleration": -7.166666666666668,
+                "spread_last_minus_first_ticks": -1.4210854715202004e-12
+              },
+              "MCL": {
+                "active_seconds": 5,
+                "directional_microprice_displacement_ticks": -0.20634920634984155,
+                "directional_microprice_slope_velocity_ticks_per_second2": 0.00793650793548295,
+                "directional_same_price_size_pressure_proxy": -2.0,
+                "directional_signed_trade_volume_proxy": -2.0,
+                "maximum_spread_ticks": 1.999999999999602,
+                "microprice_tr_velocity_ticks": 0.5239457165930143,
+                "quote_intensity_acceleration": 0.6666666666666679,
+                "spread_last_minus_first_ticks": 0.0
+              }
+            },
+            "end_utc": "2026-08-04T07:05:05+00:00",
+            "first_mid_move_leaders": {
+              "CL": 3,
+              "MCL": 1,
+              "SIMULTANEOUS": 1
+            },
+            "median_mcl_minus_cl_first_mid_move_us": 139,
+            "start_utc": "2026-08-04T07:05:00+00:00"
+          },
+          "turn_response_60s": {
+            "active_seconds": 58,
+            "basis_open_close_ticks": [
+              0.49999999999954525,
+              0.0
+            ],
+            "books": {
+              "CL": {
+                "active_seconds": 57,
+                "directional_microprice_displacement_ticks": -6.399999999999636,
+                "directional_microprice_slope_velocity_ticks_per_second2": -0.1413793103447774,
+                "directional_same_price_size_pressure_proxy": -76.0,
+                "directional_signed_trade_volume_proxy": 1.0,
+                "maximum_spread_ticks": 2.000000000001023,
+                "microprice_tr_velocity_ticks": -0.027480932691634763,
+                "quote_intensity_acceleration": 4.344827586206897,
+                "spread_last_minus_first_ticks": -1.4210854715202004e-12
+              },
+              "MCL": {
+                "active_seconds": 57,
+                "directional_microprice_displacement_ticks": -5.868686868686382,
+                "directional_microprice_slope_velocity_ticks_per_second2": -0.13764885044365588,
+                "directional_same_price_size_pressure_proxy": -74.0,
+                "directional_signed_trade_volume_proxy": -29.0,
+                "maximum_spread_ticks": 2.000000000001023,
+                "microprice_tr_velocity_ticks": -0.10430990075478119,
+                "quote_intensity_acceleration": 0.10344827586207117,
+                "spread_last_minus_first_ticks": 0.0
+              }
+            },
+            "end_utc": "2026-08-04T07:06:00+00:00",
+            "first_mid_move_leaders": {
+              "CL": 18,
+              "MCL": 12,
+              "SIMULTANEOUS": 14
+            },
+            "median_mcl_minus_cl_first_mid_move_us": 0.0,
+            "start_utc": "2026-08-04T07:05:00+00:00"
+          }
+        }
+      },
+      "proposed": true,
+      "raw_direction": -1,
+      "raw_turn_at_utc": "2026-08-04T07:05:00+00:00",
+      "route": "failed_auction",
+      "routed_direction": null
+    },
+    {
+      "admitted": false,
+      "complete_event_window": true,
+      "event_morphology": {
+        "authority": "count_and_morphology_only_no_outcomes_no_orders_no_capital",
+        "event_shapes": {
+          "basis_response_to_maturation": "DIVERGED",
+          "books": {
+            "CL": {
+              "maturation_slope_velocity": "AGAINST_RAW_DIRECTION",
+              "maturation_tr_velocity": "DOWN",
+              "pressure_persistence": "UP",
+              "response_displacement": "WITH_RAW_DIRECTION",
+              "response_slope_velocity": "AGAINST_RAW_DIRECTION",
+              "response_tr_velocity": "DOWN",
+              "spread_response": "FLAT"
+            },
+            "MCL": {
+              "maturation_slope_velocity": "AGAINST_RAW_DIRECTION",
+              "maturation_tr_velocity": "DOWN",
+              "pressure_persistence": "DOWN",
+              "response_displacement": "WITH_RAW_DIRECTION",
+              "response_slope_velocity": "AGAINST_RAW_DIRECTION",
+              "response_tr_velocity": "DOWN",
+              "spread_response": "FLAT"
+            }
+          },
+          "maturation_leaders": {
+            "CL": 59,
+            "MCL": 42,
+            "SIMULTANEOUS": 75
+          },
+          "response_leaders": {
+            "CL": 12,
+            "MCL": 5,
+            "SIMULTANEOUS": 23
+          },
+          "velocity_ignition_ladder": {
+            "acceptance_5_15s": {
+              "books": {
+                "CL": {
+                  "displacement": "WITH_RAW_DIRECTION",
+                  "quote_intensity_acceleration": "DOWN",
+                  "signed_prints": "WITH_RAW_DIRECTION",
+                  "slope_velocity": "AGAINST_RAW_DIRECTION",
+                  "spread_elasticity": "FLAT",
+                  "top_size_pressure": "WITH_RAW_DIRECTION",
+                  "tr_velocity": "DOWN"
+                },
+                "MCL": {
+                  "displacement": "WITH_RAW_DIRECTION",
+                  "quote_intensity_acceleration": "DOWN",
+                  "signed_prints": "WITH_RAW_DIRECTION",
+                  "slope_velocity": "AGAINST_RAW_DIRECTION",
+                  "spread_elasticity": "FLAT",
+                  "top_size_pressure": "WITH_RAW_DIRECTION",
+                  "tr_velocity": "DOWN"
+                }
+              },
+              "first_mid_move_leaders": {
+                "CL": 2,
+                "MCL": 2,
+                "SIMULTANEOUS": 2
+              },
+              "median_mcl_minus_cl_first_mid_move_us": 0.0
+            },
+            "closing_acceleration_30_15s": {
+              "books": {
+                "CL": {
+                  "displacement": "AGAINST_RAW_DIRECTION",
+                  "quote_intensity_acceleration": "UP",
+                  "signed_prints": "WITH_RAW_DIRECTION",
+                  "slope_velocity": "AGAINST_RAW_DIRECTION",
+                  "spread_elasticity": "UP",
+                  "top_size_pressure": "AGAINST_RAW_DIRECTION",
+                  "tr_velocity": "UP"
+                },
+                "MCL": {
+                  "displacement": "AGAINST_RAW_DIRECTION",
+                  "quote_intensity_acceleration": "UP",
+                  "signed_prints": "AGAINST_RAW_DIRECTION",
+                  "slope_velocity": "AGAINST_RAW_DIRECTION",
+                  "spread_elasticity": "DOWN",
+                  "top_size_pressure": "AGAINST_RAW_DIRECTION",
+                  "tr_velocity": "UP"
+                }
+              },
+              "first_mid_move_leaders": {
+                "CL": 2,
+                "MCL": 2,
+                "SIMULTANEOUS": 6
+              },
+              "median_mcl_minus_cl_first_mid_move_us": 0.0
+            },
+            "closing_baseline_60_30s": {
+              "books": {
+                "CL": {
+                  "displacement": "FLAT",
+                  "quote_intensity_acceleration": "UP",
+                  "signed_prints": "WITH_RAW_DIRECTION",
+                  "slope_velocity": "AGAINST_RAW_DIRECTION",
+                  "spread_elasticity": "UP",
+                  "top_size_pressure": "AGAINST_RAW_DIRECTION",
+                  "tr_velocity": "UP"
+                },
+                "MCL": {
+                  "displacement": "WITH_RAW_DIRECTION",
+                  "quote_intensity_acceleration": "UP",
+                  "signed_prints": "AGAINST_RAW_DIRECTION",
+                  "slope_velocity": "AGAINST_RAW_DIRECTION",
+                  "spread_elasticity": "FLAT",
+                  "top_size_pressure": "WITH_RAW_DIRECTION",
+                  "tr_velocity": "DOWN"
+                }
+              },
+              "first_mid_move_leaders": {
+                "CL": 7,
+                "MCL": 2,
+                "SIMULTANEOUS": 7
+              },
+              "median_mcl_minus_cl_first_mid_move_us": 0.0
+            },
+            "closing_commitment_15_5s": {
+              "books": {
+                "CL": {
+                  "displacement": "AGAINST_RAW_DIRECTION",
+                  "quote_intensity_acceleration": "UP",
+                  "signed_prints": "WITH_RAW_DIRECTION",
+                  "slope_velocity": "AGAINST_RAW_DIRECTION",
+                  "spread_elasticity": "FLAT",
+                  "top_size_pressure": "AGAINST_RAW_DIRECTION",
+                  "tr_velocity": "UP"
+                },
+                "MCL": {
+                  "displacement": "WITH_RAW_DIRECTION",
+                  "quote_intensity_acceleration": "UP",
+                  "signed_prints": "WITH_RAW_DIRECTION",
+                  "slope_velocity": "AGAINST_RAW_DIRECTION",
+                  "spread_elasticity": "DOWN",
+                  "top_size_pressure": "AGAINST_RAW_DIRECTION",
+                  "tr_velocity": "UP"
+                }
+              },
+              "first_mid_move_leaders": {
+                "CL": 4,
+                "MCL": 1,
+                "SIMULTANEOUS": 2
+              },
+              "median_mcl_minus_cl_first_mid_move_us": 667
+            },
+            "closing_trigger_5_0s": {
+              "books": {
+                "CL": {
+                  "displacement": "WITH_RAW_DIRECTION",
+                  "quote_intensity_acceleration": "DOWN",
+                  "signed_prints": "WITH_RAW_DIRECTION",
+                  "slope_velocity": "AGAINST_RAW_DIRECTION",
+                  "spread_elasticity": "FLAT",
+                  "top_size_pressure": "WITH_RAW_DIRECTION",
+                  "tr_velocity": "DOWN"
+                },
+                "MCL": {
+                  "displacement": "WITH_RAW_DIRECTION",
+                  "quote_intensity_acceleration": "DOWN",
+                  "signed_prints": "WITH_RAW_DIRECTION",
+                  "slope_velocity": "AGAINST_RAW_DIRECTION",
+                  "spread_elasticity": "FLAT",
+                  "top_size_pressure": "WITH_RAW_DIRECTION",
+                  "tr_velocity": "DOWN"
+                }
+              },
+              "first_mid_move_leaders": {
+                "MCL": 1,
+                "SIMULTANEOUS": 1
+              },
+              "median_mcl_minus_cl_first_mid_move_us": -499.5
+            },
+            "persistence_30_60s": {
+              "books": {
+                "CL": {
+                  "displacement": "WITH_RAW_DIRECTION",
+                  "quote_intensity_acceleration": "DOWN",
+                  "signed_prints": "WITH_RAW_DIRECTION",
+                  "slope_velocity": "AGAINST_RAW_DIRECTION",
+                  "spread_elasticity": "DOWN",
+                  "top_size_pressure": "AGAINST_RAW_DIRECTION",
+                  "tr_velocity": "DOWN"
+                },
+                "MCL": {
+                  "displacement": "WITH_RAW_DIRECTION",
+                  "quote_intensity_acceleration": "UP",
+                  "signed_prints": "WITH_RAW_DIRECTION",
+                  "slope_velocity": "AGAINST_RAW_DIRECTION",
+                  "spread_elasticity": "UP",
+                  "top_size_pressure": "AGAINST_RAW_DIRECTION",
+                  "tr_velocity": "UP"
+                }
+              },
+              "first_mid_move_leaders": {
+                "CL": 8,
+                "MCL": 2,
+                "SIMULTANEOUS": 11
+              },
+              "median_mcl_minus_cl_first_mid_move_us": 0
+            },
+            "propagation_15_30s": {
+              "books": {
+                "CL": {
+                  "displacement": "WITH_RAW_DIRECTION",
+                  "quote_intensity_acceleration": "UP",
+                  "signed_prints": "WITH_RAW_DIRECTION",
+                  "slope_velocity": "WITH_RAW_DIRECTION",
+                  "spread_elasticity": "FLAT",
+                  "top_size_pressure": "WITH_RAW_DIRECTION",
+                  "tr_velocity": "UP"
+                },
+                "MCL": {
+                  "displacement": "WITH_RAW_DIRECTION",
+                  "quote_intensity_acceleration": "UP",
+                  "signed_prints": "WITH_RAW_DIRECTION",
+                  "slope_velocity": "WITH_RAW_DIRECTION",
+                  "spread_elasticity": "UP",
+                  "top_size_pressure": "WITH_RAW_DIRECTION",
+                  "tr_velocity": "UP"
+                }
+              },
+              "first_mid_move_leaders": {
+                "SIMULTANEOUS": 9
+              },
+              "median_mcl_minus_cl_first_mid_move_us": 0
+            },
+            "spark_0_5s": {
+              "books": {
+                "CL": {
+                  "displacement": "AGAINST_RAW_DIRECTION",
+                  "quote_intensity_acceleration": "UP",
+                  "signed_prints": "AGAINST_RAW_DIRECTION",
+                  "slope_velocity": "AGAINST_RAW_DIRECTION",
+                  "spread_elasticity": "DOWN",
+                  "top_size_pressure": "AGAINST_RAW_DIRECTION",
+                  "tr_velocity": "UP"
+                },
+                "MCL": {
+                  "displacement": "AGAINST_RAW_DIRECTION",
+                  "quote_intensity_acceleration": "UP",
+                  "signed_prints": "AGAINST_RAW_DIRECTION",
+                  "slope_velocity": "AGAINST_RAW_DIRECTION",
+                  "spread_elasticity": "FLAT",
+                  "top_size_pressure": "AGAINST_RAW_DIRECTION",
+                  "tr_velocity": "UP"
+                }
+              },
+              "first_mid_move_leaders": {
+                "CL": 2,
+                "MCL": 1,
+                "SIMULTANEOUS": 1
+              },
+              "median_mcl_minus_cl_first_mid_move_us": 333.5
+            }
+          }
+        },
+        "generation_sha256": "b3805c9f95713a13c26cb0ada08dc043f00069f42177212d3c575abe28c3ee7f",
+        "outcomes_exposed": false,
+        "raw_direction": 1,
+        "raw_turn_at_utc": "2026-08-04T09:05:00+00:00",
+        "strategy_version": "mcl.predictive-intelligence-onset-atlas.v1",
+        "submitted_orders": 0,
+        "windows": {
+          "acceptance_5_15s": {
+            "active_seconds": 9,
+            "basis_open_close_ticks": [
+              -0.49999999999954525,
+              -0.9999999999990905
+            ],
+            "books": {
+              "CL": {
+                "active_seconds": 9,
+                "directional_microprice_displacement_ticks": 3.5454545454540494,
+                "directional_microprice_slope_velocity_ticks_per_second2": -0.017316017315806675,
+                "directional_same_price_size_pressure_proxy": 48.0,
+                "directional_signed_trade_volume_proxy": 5.0,
+                "maximum_spread_ticks": 2.000000000001023,
+                "microprice_tr_velocity_ticks": -0.43551226551244326,
+                "quote_intensity_acceleration": -10.0,
+                "spread_last_minus_first_ticks": 0.0
+              },
+              "MCL": {
+                "active_seconds": 9,
+                "directional_microprice_displacement_ticks": 3.071428571429351,
+                "directional_microprice_slope_velocity_ticks_per_second2": -0.43452380952385283,
+                "directional_same_price_size_pressure_proxy": 4.0,
+                "directional_signed_trade_volume_proxy": 2.0,
+                "maximum_spread_ticks": 1.999999999999602,
+                "microprice_tr_velocity_ticks": -0.17646825396781196,
+                "quote_intensity_acceleration": -13.25,
+                "spread_last_minus_first_ticks": 0.0
+              }
+            },
+            "end_utc": "2026-08-04T09:05:15+00:00",
+            "first_mid_move_leaders": {
+              "CL": 2,
+              "MCL": 2,
+              "SIMULTANEOUS": 2
+            },
+            "median_mcl_minus_cl_first_mid_move_us": 0.0,
+            "start_utc": "2026-08-04T09:05:05+00:00"
+          },
+          "closing_acceleration_30_15s": {
+            "active_seconds": 15,
+            "basis_open_close_ticks": [
+              -1.0000000000005116,
+              -1.5000000000000568
+            ],
+            "books": {
+              "CL": {
+                "active_seconds": 15,
+                "directional_microprice_displacement_ticks": -2.0,
+                "directional_microprice_slope_velocity_ticks_per_second2": -0.12142857142879665,
+                "directional_same_price_size_pressure_proxy": -20.0,
+                "directional_signed_trade_volume_proxy": 2.0,
+                "maximum_spread_ticks": 2.000000000001023,
+                "microprice_tr_velocity_ticks": 0.5447903287194324,
+                "quote_intensity_acceleration": 10.589285714285715,
+                "spread_last_minus_first_ticks": 1.4210854715202004e-12
+              },
+              "MCL": {
+                "active_seconds": 15,
+                "directional_microprice_displacement_ticks": -2.5833333333321207,
+                "directional_microprice_slope_velocity_ticks_per_second2": -0.14729437229427622,
+                "directional_same_price_size_pressure_proxy": -17.0,
+                "directional_signed_trade_volume_proxy": -6.0,
+                "maximum_spread_ticks": 2.000000000001023,
+                "microprice_tr_velocity_ticks": 0.46719401630136903,
+                "quote_intensity_acceleration": 8.017857142857142,
+                "spread_last_minus_first_ticks": -1.0000000000005116
+              }
+            },
+            "end_utc": "2026-08-04T09:04:45+00:00",
+            "first_mid_move_leaders": {
+              "CL": 2,
+              "MCL": 2,
+              "SIMULTANEOUS": 6
+            },
+            "median_mcl_minus_cl_first_mid_move_us": 0.0,
+            "start_utc": "2026-08-04T09:04:30+00:00"
+          },
+          "closing_baseline_60_30s": {
+            "active_seconds": 29,
+            "basis_open_close_ticks": [
+              -0.49999999999954525,
+              -1.0000000000005116
+            ],
+            "books": {
+              "CL": {
+                "active_seconds": 29,
+                "directional_microprice_displacement_ticks": 0.0,
+                "directional_microprice_slope_velocity_ticks_per_second2": -0.3035714285715585,
+                "directional_same_price_size_pressure_proxy": -4.0,
+                "directional_signed_trade_volume_proxy": 2.0,
+                "maximum_spread_ticks": 2.000000000001023,
+                "microprice_tr_velocity_ticks": 0.09451158629725376,
+                "quote_intensity_acceleration": 0.5761904761904759,
+                "spread_last_minus_first_ticks": 1.0000000000005116
+              },
+              "MCL": {
+                "active_seconds": 28,
+                "directional_microprice_displacement_ticks": 0.2727272727279342,
+                "directional_microprice_slope_velocity_ticks_per_second2": -0.2581168831168595,
+                "directional_same_price_size_pressure_proxy": 6.0,
+                "directional_signed_trade_volume_proxy": -3.0,
+                "maximum_spread_ticks": 3.0000000000001137,
+                "microprice_tr_velocity_ticks": -0.04246190317717591,
+                "quote_intensity_acceleration": 1.076190476190476,
+                "spread_last_minus_first_ticks": 0.0
+              }
+            },
+            "end_utc": "2026-08-04T09:04:30+00:00",
+            "first_mid_move_leaders": {
+              "CL": 7,
+              "MCL": 2,
+              "SIMULTANEOUS": 7
+            },
+            "median_mcl_minus_cl_first_mid_move_us": 0.0,
+            "start_utc": "2026-08-04T09:04:00+00:00"
+          },
+          "closing_commitment_15_5s": {
+            "active_seconds": 10,
+            "basis_open_close_ticks": [
+              -1.5000000000000568,
+              -0.5000000000009663
+            ],
+            "books": {
+              "CL": {
+                "active_seconds": 9,
+                "directional_microprice_displacement_ticks": -0.250000000001819,
+                "directional_microprice_slope_velocity_ticks_per_second2": -0.6250000000004547,
+                "directional_same_price_size_pressure_proxy": -7.0,
+                "directional_signed_trade_volume_proxy": 2.0,
+                "maximum_spread_ticks": 2.000000000001023,
+                "microprice_tr_velocity_ticks": 0.28882950382900674,
+                "quote_intensity_acceleration": 12.6,
+                "spread_last_minus_first_ticks": 0.0
+              },
+              "MCL": {
+                "active_seconds": 10,
+                "directional_microprice_displacement_ticks": 0.5833333333321207,
+                "directional_microprice_slope_velocity_ticks_per_second2": -0.3958333333334849,
+                "directional_same_price_size_pressure_proxy": -8.0,
+                "directional_signed_trade_volume_proxy": 7.0,
+                "maximum_spread_ticks": 3.0000000000001137,
+                "microprice_tr_velocity_ticks": 0.3958241758238046,
+                "quote_intensity_acceleration": 9.2,
+                "spread_last_minus_first_ticks": -0.9999999999990905
+              }
+            },
+            "end_utc": "2026-08-04T09:04:55+00:00",
+            "first_mid_move_leaders": {
+              "CL": 4,
+              "MCL": 1,
+              "SIMULTANEOUS": 2
+            },
+            "median_mcl_minus_cl_first_mid_move_us": 667,
+            "start_utc": "2026-08-04T09:04:45+00:00"
+          },
+          "closing_trigger_5_0s": {
+            "active_seconds": 4,
+            "basis_open_close_ticks": [
+              -0.5000000000009663,
+              -0.49999999999954525
+            ],
+            "books": {
+              "CL": {
+                "active_seconds": 4,
+                "directional_microprice_displacement_ticks": 0.250000000001819,
+                "directional_microprice_slope_velocity_ticks_per_second2": -0.049999999999272404,
+                "directional_same_price_size_pressure_proxy": 2.0,
+                "directional_signed_trade_volume_proxy": 2.0,
+                "maximum_spread_ticks": 1.0000000000005116,
+                "microprice_tr_velocity_ticks": -0.20802253302321105,
+                "quote_intensity_acceleration": -8.0,
+                "spread_last_minus_first_ticks": 0.0
+              },
+              "MCL": {
+                "active_seconds": 4,
+                "directional_microprice_displacement_ticks": 0.8285714285702852,
+                "directional_microprice_slope_velocity_ticks_per_second2": -0.30476190476292686,
+                "directional_same_price_size_pressure_proxy": 5.0,
+                "directional_signed_trade_volume_proxy": 1.0,
+                "maximum_spread_ticks": 1.999999999999602,
+                "microprice_tr_velocity_ticks": -0.5629509379510012,
+                "quote_intensity_acceleration": -8.5,
+                "spread_last_minus_first_ticks": 0.0
+              }
+            },
+            "end_utc": "2026-08-04T09:05:00+00:00",
+            "first_mid_move_leaders": {
+              "MCL": 1,
+              "SIMULTANEOUS": 1
+            },
+            "median_mcl_minus_cl_first_mid_move_us": -499.5,
+            "start_utc": "2026-08-04T09:04:55+00:00"
+          },
+          "maturation_4m": {
+            "active_seconds": 227,
+            "basis_open_close_ticks": [
+              -0.9999999999990905,
+              0.49999999999954525
+            ],
+            "books": {
+              "CL": {
+                "active_seconds": 220,
+                "directional_microprice_displacement_ticks": -9.277777777777374,
+                "directional_microprice_slope_velocity_ticks_per_second2": -0.05194139802815997,
+                "directional_same_price_size_pressure_proxy": -100.0,
+                "directional_signed_trade_volume_proxy": 7.0,
+                "maximum_spread_ticks": 3.0000000000001137,
+                "microprice_tr_velocity_ticks": -0.0362129304148755,
+                "quote_intensity_acceleration": -0.39611801242235956,
+                "spread_last_minus_first_ticks": -1.4210854715202004e-12
+              },
+              "MCL": {
+                "active_seconds": 222,
+                "directional_microprice_displacement_ticks": -8.33333333333394,
+                "directional_microprice_slope_velocity_ticks_per_second2": -0.06042416966785914,
+                "directional_same_price_size_pressure_proxy": -30.0,
+                "directional_signed_trade_volume_proxy": 122.0,
+                "maximum_spread_ticks": 3.0000000000001137,
+                "microprice_tr_velocity_ticks": -0.10919784497048401,
+                "quote_intensity_acceleration": -1.0597826086956523,
+                "spread_last_minus_first_ticks": -1.0000000000005116
+              }
+            },
+            "end_utc": "2026-08-04T09:10:00+00:00",
+            "first_mid_move_leaders": {
+              "CL": 59,
+              "MCL": 42,
+              "SIMULTANEOUS": 75
+            },
+            "median_mcl_minus_cl_first_mid_move_us": 0.0,
+            "start_utc": "2026-08-04T09:06:00+00:00"
+          },
+          "persistence_30_60s": {
+            "active_seconds": 30,
+            "basis_open_close_ticks": [
+              -1.0000000000005116,
+              -0.9999999999990905
+            ],
+            "books": {
+              "CL": {
+                "active_seconds": 29,
+                "directional_microprice_displacement_ticks": 4.282051282052635,
+                "directional_microprice_slope_velocity_ticks_per_second2": -0.3820512820514393,
+                "directional_same_price_size_pressure_proxy": -4.0,
+                "directional_signed_trade_volume_proxy": 122.0,
+                "maximum_spread_ticks": 2.000000000001023,
+                "microprice_tr_velocity_ticks": -0.003857663500301034,
+                "quote_intensity_acceleration": -2.400000000000002,
+                "spread_last_minus_first_ticks": -1.4210854715202004e-12
+              },
+              "MCL": {
+                "active_seconds": 30,
+                "directional_microprice_displacement_ticks": 4.749999999998181,
+                "directional_microprice_slope_velocity_ticks_per_second2": -0.39880952380969703,
+                "directional_same_price_size_pressure_proxy": -12.0,
+                "directional_signed_trade_volume_proxy": 19.0,
+                "maximum_spread_ticks": 2.000000000001023,
+                "microprice_tr_velocity_ticks": 0.09173942237130939,
+                "quote_intensity_acceleration": 0.4666666666666668,
+                "spread_last_minus_first_ticks": 0.9999999999990905
+              }
+            },
+            "end_utc": "2026-08-04T09:06:00+00:00",
+            "first_mid_move_leaders": {
+              "CL": 8,
+              "MCL": 2,
+              "SIMULTANEOUS": 11
+            },
+            "median_mcl_minus_cl_first_mid_move_us": 0,
+            "start_utc": "2026-08-04T09:05:30+00:00"
+          },
+          "pre_turn_60s": {
+            "active_seconds": 58,
+            "basis_open_close_ticks": [
+              -0.49999999999954525,
+              -0.49999999999954525
+            ],
+            "books": {
+              "CL": {
+                "active_seconds": 57,
+                "directional_microprice_displacement_ticks": -2.9166666666660603,
+                "directional_microprice_slope_velocity_ticks_per_second2": -0.0706896551723887,
+                "directional_same_price_size_pressure_proxy": -29.0,
+                "directional_signed_trade_volume_proxy": 8.0,
+                "maximum_spread_ticks": 2.000000000001023,
+                "microprice_tr_velocity_ticks": -0.17577119104253025,
+                "quote_intensity_acceleration": -3.724137931034484,
+                "spread_last_minus_first_ticks": 0.0
+              },
+              "MCL": {
+                "active_seconds": 57,
+                "directional_microprice_displacement_ticks": -2.298701298701417,
+                "directional_microprice_slope_velocity_ticks_per_second2": -0.07508583370653124,
+                "directional_same_price_size_pressure_proxy": -14.0,
+                "directional_signed_trade_volume_proxy": -1.0,
+                "maximum_spread_ticks": 3.0000000000001137,
+                "microprice_tr_velocity_ticks": -0.1766400881548642,
+                "quote_intensity_acceleration": -1.068965517241379,
+                "spread_last_minus_first_ticks": 0.0
+              }
+            },
+            "end_utc": "2026-08-04T09:05:00+00:00",
+            "first_mid_move_leaders": {
+              "CL": 13,
+              "MCL": 6,
+              "SIMULTANEOUS": 16
+            },
+            "median_mcl_minus_cl_first_mid_move_us": 0,
+            "start_utc": "2026-08-04T09:04:00+00:00"
+          },
+          "propagation_15_30s": {
+            "active_seconds": 14,
+            "basis_open_close_ticks": [
+              -0.9999999999990905,
+              -1.0000000000005116
+            ],
+            "books": {
+              "CL": {
+                "active_seconds": 14,
+                "directional_microprice_displacement_ticks": 5.03174603174557,
+                "directional_microprice_slope_velocity_ticks_per_second2": 0.8629629629628782,
+                "directional_same_price_size_pressure_proxy": 73.0,
+                "directional_signed_trade_volume_proxy": 3.0,
+                "maximum_spread_ticks": 1.999999999999602,
+                "microprice_tr_velocity_ticks": 1.2731353859164432,
+                "quote_intensity_acceleration": 30.71428571428571,
+                "spread_last_minus_first_ticks": 0.0
+              },
+              "MCL": {
+                "active_seconds": 14,
+                "directional_microprice_displacement_ticks": 5.280701754385518,
+                "directional_microprice_slope_velocity_ticks_per_second2": 0.9647603858129947,
+                "directional_same_price_size_pressure_proxy": 37.0,
+                "directional_signed_trade_volume_proxy": 34.0,
+                "maximum_spread_ticks": 2.000000000001023,
+                "microprice_tr_velocity_ticks": 1.548190914275998,
+                "quote_intensity_acceleration": 25.142857142857142,
+                "spread_last_minus_first_ticks": 1.0000000000019327
+              }
+            },
+            "end_utc": "2026-08-04T09:05:30+00:00",
+            "first_mid_move_leaders": {
+              "SIMULTANEOUS": 9
+            },
+            "median_mcl_minus_cl_first_mid_move_us": 0,
+            "start_utc": "2026-08-04T09:05:15+00:00"
+          },
+          "spark_0_5s": {
+            "active_seconds": 4,
+            "basis_open_close_ticks": [
+              -0.49999999999954525,
+              -0.49999999999954525
+            ],
+            "books": {
+              "CL": {
+                "active_seconds": 4,
+                "directional_microprice_displacement_ticks": -3.3809523809522943,
+                "directional_microprice_slope_velocity_ticks_per_second2": -2.3690476190458867,
+                "directional_same_price_size_pressure_proxy": -12.0,
+                "directional_signed_trade_volume_proxy": -4.0,
+                "maximum_spread_ticks": 1.999999999999602,
+                "microprice_tr_velocity_ticks": 0.838461538459967,
+                "quote_intensity_acceleration": 11.5,
+                "spread_last_minus_first_ticks": -1.0000000000005116
+              },
+              "MCL": {
+                "active_seconds": 4,
+                "directional_microprice_displacement_ticks": -2.5666666666675155,
+                "directional_microprice_slope_velocity_ticks_per_second2": -2.5666666666656965,
+                "directional_same_price_size_pressure_proxy": -23.0,
+                "directional_signed_trade_volume_proxy": -5.0,
+                "maximum_spread_ticks": 2.000000000001023,
+                "microprice_tr_velocity_ticks": 0.47987012987036337,
+                "quote_intensity_acceleration": 11.5,
+                "spread_last_minus_first_ticks": 0.0
+              }
+            },
+            "end_utc": "2026-08-04T09:05:05+00:00",
+            "first_mid_move_leaders": {
+              "CL": 2,
+              "MCL": 1,
+              "SIMULTANEOUS": 1
+            },
+            "median_mcl_minus_cl_first_mid_move_us": 333.5,
+            "start_utc": "2026-08-04T09:05:00+00:00"
+          },
+          "turn_response_60s": {
+            "active_seconds": 57,
+            "basis_open_close_ticks": [
+              -0.49999999999954525,
+              -0.9999999999990905
+            ],
+            "books": {
+              "CL": {
+                "active_seconds": 56,
+                "directional_microprice_displacement_ticks": 8.952380952379826,
+                "directional_microprice_slope_velocity_ticks_per_second2": -0.03953517746613844,
+                "directional_same_price_size_pressure_proxy": 105.0,
+                "directional_signed_trade_volume_proxy": 126.0,
+                "maximum_spread_ticks": 2.000000000001023,
+                "microprice_tr_velocity_ticks": -0.22188306846010553,
+                "quote_intensity_acceleration": -0.2518518518518498,
+                "spread_last_minus_first_ticks": 0.0
+              },
+              "MCL": {
+                "active_seconds": 57,
+                "directional_microprice_displacement_ticks": 9.499999999998181,
+                "directional_microprice_slope_velocity_ticks_per_second2": -0.03735632183910137,
+                "directional_same_price_size_pressure_proxy": 6.0,
+                "directional_signed_trade_volume_proxy": 50.0,
+                "maximum_spread_ticks": 2.000000000001023,
+                "microprice_tr_velocity_ticks": -0.20293356937355822,
+                "quote_intensity_acceleration": -4.448148148148146,
+                "spread_last_minus_first_ticks": 0.0
+              }
+            },
+            "end_utc": "2026-08-04T09:06:00+00:00",
+            "first_mid_move_leaders": {
+              "CL": 12,
+              "MCL": 5,
+              "SIMULTANEOUS": 23
+            },
+            "median_mcl_minus_cl_first_mid_move_us": 0.0,
+            "start_utc": "2026-08-04T09:05:00+00:00"
+          }
+        }
+      },
+      "proposed": false,
+      "raw_direction": 1,
+      "raw_turn_at_utc": "2026-08-04T09:05:00+00:00",
+      "route": null,
+      "routed_direction": null
+    }
+  ],
+  "v18_owner_sha256": "03d0c958dab724a9e1b8f36070a1cbbb8df700e4d37683ffd6977061d5b866b7",
+  "verdict": "ACCUMULATE"
+}

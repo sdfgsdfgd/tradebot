@@ -200,6 +200,19 @@ or classifier may be fitted until the frozen cohort has at least `30` complete
 raw turns, `10` each direction, `20` admissions, `5` each route, `20` resolved
 handoffs, and repeated actionable shapes.
 
+The first lawful unseen prefix is now durable. Stage-88 receipt
+`mcl_predictive_closing_ignition_stage88_accumulation_r2.json` (`d571f6cd…`)
+contains `16,471` identity-clean seconds and two complete post-generation raw
+turns: down `07:05Z` proposed failed-auction but did not admit; up `09:05Z` did
+not propose. Stage-89 receipt
+`mcl_predictive_velocity_jerk_stage89_accumulation.json` (`8ef53f7d…`) derives
+every sign transition without an outcome, score, union, or winner. The down
+control has no resolved first-minute alignment; the up control aligns CL/MCL
+together only at `+15→+30s`, while its independent frozen hypotheses overlap
+`ORDERED_IGNITION + TRANSPORT_REFUSAL + WHIPSAW`. That overlap is preserved,
+not resolved after the fact. Status remains `ACCUMULATE`: `2/30` complete,
+`1/10` each direction, `0/20` admitted, zero order or timing authority.
+
 ## Closed search boundary
 
 Do not reopen these historical rescue families without genuinely new data:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 import hashlib
 import json
@@ -19,6 +20,11 @@ from tradebot.research.mcl_predictive_onset import (
     combine_mcl_predictive_onset_atlas,
     project_mcl_completed_bar_onset,
     project_mcl_event_onset,
+)
+from tradebot.research.mcl_predictive_velocity import (
+    MCL_VELOCITY_JERK_AUTHORITY,
+    MCL_VELOCITY_JERK_INTERVALS,
+    project_mcl_velocity_jerk_handoff,
 )
 from tradebot.research.mcl_turn_tape import MCL_TURN_TAPE_SCHEMA
 from tradebot.research.mcl_two_speed_auction import (
@@ -218,6 +224,35 @@ def _events() -> tuple[dict[str, object], ...]:
     return tuple(rows)
 
 
+def _velocity_event(
+    cl: tuple[float, ...],
+    mcl: tuple[float, ...],
+) -> dict[str, object]:
+    event = deepcopy(
+        project_mcl_event_onset(
+            _events(),
+            raw_turn_at_utc=TURN,
+            raw_direction=1,
+            prefix_start_utc=TURN - timedelta(seconds=60),
+            prefix_end_utc=TURN + timedelta(minutes=5),
+        )
+    )
+    assert len(cl) == len(mcl) == len(MCL_VELOCITY_JERK_INTERVALS)
+    for symbol, velocities in (("CL", cl), ("MCL", mcl)):
+        for index, name in enumerate(MCL_VELOCITY_JERK_INTERVALS):
+            book = event["windows"][name]["books"][symbol]
+            book["directional_microprice_displacement_ticks"] = (
+                1.0 if velocities[index] > 0.0 else -1.0
+            )
+            book["directional_microprice_slope_velocity_ticks_per_second2"] = (
+                velocities[index]
+            )
+            book["microprice_tr_velocity_ticks"] = float(index)
+            book["quote_intensity_acceleration"] = float(index * 2)
+            book["spread_last_minus_first_ticks"] = 0.0
+    return event
+
+
 def test_completed_bar_atlas_freezes_eclectic_clocks_without_outcomes() -> None:
     payload = project_mcl_completed_bar_onset(
         (
@@ -383,3 +418,62 @@ def test_slow_context_cannot_use_future_week_or_cross_roll() -> None:
     bars[-1] = MclAuctionBar("202609", last.cl, last.mcl)
     with pytest.raises(ValueError, match="contract roll"):
         project_mcl_completed_bar_onset(decisions, bars)
+
+
+def test_velocity_jerk_handoff_preserves_frozen_sequence_without_a_winner() -> None:
+    payload = project_mcl_velocity_jerk_handoff(
+        _velocity_event(
+            (-2.0, -1.0, 0.5, 1.0, 2.0, 3.0, 4.0, 5.0),
+            (-2.0, -2.0, -0.5, 0.2, 0.8, 2.0, 3.0, 4.0),
+        )
+    )
+
+    assert payload["authority"] == MCL_VELOCITY_JERK_AUTHORITY
+    assert payload["handoff"] == "CL_LEADS"
+    assert payload["books"]["CL"]["first_alignment_interval"] == (
+        "closing_commitment_15_5s"
+    )
+    assert payload["books"]["MCL"]["first_alignment_interval"] == (
+        "closing_trigger_5_0s"
+    )
+    assert payload["hypotheses"]["ORDERED_IGNITION"]["matched"] is True
+    assert payload["hypotheses"]["TRANSPORT_REFUSAL"]["matched"] is False
+    assert payload["hypotheses"]["TRANSPORT_NOISE"]["matched"] is False
+    assert payload["winner"] is None
+    assert payload["outcomes_exposed"] is False
+    assert payload["submitted_orders"] == 0
+
+
+def test_velocity_jerk_hypotheses_remain_independent_and_sign_only() -> None:
+    noise = project_mcl_velocity_jerk_handoff(
+        _velocity_event(
+            (-2.0, -1.0, -0.5, 0.2, 0.8, 2.0, 3.0, 4.0),
+            (-2.0, -1.0, 0.5, 1.0, 2.0, 3.0, 4.0, 5.0),
+        )
+    )
+    exhaustion = project_mcl_velocity_jerk_handoff(
+        _velocity_event(
+            (-2.0, -1.0, 0.5, 1.0, -0.5, -1.0, 0.5, 1.0),
+            (-2.0, -1.0, 0.5, 1.0, -0.5, -1.0, 0.5, 1.0),
+        )
+    )
+
+    assert noise["handoff"] == "MCL_LEADS"
+    assert noise["hypotheses"]["TRANSPORT_NOISE"]["matched"] is True
+    assert exhaustion["hypotheses"]["EXHAUSTION"]["matched"] is True
+    assert exhaustion["winner"] is None
+
+
+def test_velocity_jerk_projection_rejects_authority_or_interval_drift() -> None:
+    event = _velocity_event(
+        (-2.0, -1.0, 0.5, 1.0, 2.0, 3.0, 4.0, 5.0),
+        (-2.0, -2.0, -0.5, 0.2, 0.8, 2.0, 3.0, 4.0),
+    )
+    event["authority"] = "signal"
+    with pytest.raises(ValueError, match="authority drifted"):
+        project_mcl_velocity_jerk_handoff(event)
+
+    event["authority"] = MCL_PREDICTIVE_ONSET_AUTHORITY
+    del event["windows"]["spark_0_5s"]
+    with pytest.raises(ValueError, match="interval contract drifted"):
+        project_mcl_velocity_jerk_handoff(event)
