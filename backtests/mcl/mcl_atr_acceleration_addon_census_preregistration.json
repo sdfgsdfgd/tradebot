@@ -1,0 +1,62 @@
+{
+  "schema": "mcl.atr-acceleration-addon-census-preregistration.v1",
+  "registered_at_utc": "2026-08-04T00:29:55Z",
+  "authority": "outcome_blind_no_forward_pnl_no_orders_no_capital",
+  "campaign": "mcl.two-speed-auction-relay.v45",
+  "hypothesis": "A trend-aligned rejection during a V18-flat interval is financed only when oil's generic multihorizon ATR is causally accelerating at the exact completed trigger. Acceleration sign should distinguish a newly expanding auction distribution from stale high-volatility rejection, improving temporal breadth without altering direction or tuning a magnitude threshold.",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "flat_addon_census_sha256": "1a8a5f0e8705cbbd76a71cedf6f3ba232ab93ed2c96278644a6156598040554f",
+    "portfolio_lifecycle_result_sha256": "275288701139cdc6d9fe08666826213f92703e035e58e15b5dde385fff44c74e",
+    "residual_anatomy_sha256": "e3e1f17c9bb0d5d53b30ce74a90f582c99d4c58104ea35fc31e9d228145e6188",
+    "immutable_v18_result_sha256": "b9c64409dcb9cd482427588bb0ae314d870d0350a2100aea6d3f0615ae2f4c15",
+    "census_evaluator_path": "/tmp/mcl_stage45_atr_acceleration_addon_census.py",
+    "census_evaluator_sha256": "51e0c3703a655ef7e21ee3cc97e0f729bf98000025f8b157151902f08c9e988b"
+  },
+  "profile": {
+    "source": "exact V43 trend-aligned, V18-flat rejection events",
+    "additional_permission": "DirectionalImpulseSnapshot.atr_acceleration_pct > 0 at the exact completed trigger",
+    "direction": "unchanged source rejection direction",
+    "priority": "unchanged V18 primary always preempts",
+    "neighbor_policy": "none; zero sign is the only natural boundary and magnitude sweeps are prohibited"
+  },
+  "count_gate_per_period": {
+    "minimum_addon_events": 20,
+    "minimum_each_direction": 5,
+    "minimum_absorption": 15,
+    "minimum_initiative_failure": 3,
+    "minimum_each_anchor": 5,
+    "minimum_each_boundary_side": 5,
+    "minimum_addon_active_session_fraction": 0.07,
+    "combined_annualized_trades": {
+      "exclusive_minimum": 190,
+      "inclusive_maximum": 520
+    },
+    "combined_session_distribution": {
+      "median_minimum": 1,
+      "median_maximum": 3,
+      "p95_maximum": 4,
+      "maximum": 6
+    }
+  },
+  "frozen_order": [
+    "replay the unchanged V18 sensor causally across the same manifest",
+    "join every already-qualified V43 event at its exact trigger",
+    "retain positive ATR acceleration only",
+    "count discovery and validation periods without reading any new return, MFE, MAE, exit, PnL, or validation outcome",
+    "advance only if both periods independently pass every breadth and combined-cadence floor"
+  ],
+  "if_eligible": "Preregister the exact V44 non-overlapping lifecycle with this single additional permission. Discovery must independently pass the same strict add-on and combined-relative-to-V18 economic gate before validation opens.",
+  "prohibitions": [
+    "no ATR acceleration magnitude threshold or neighbor sweep",
+    "no ATR level, ATR velocity, coherence, state-age, slope, velocity, month, anchor, side, branch, or direction companion gate",
+    "no V18 mutation or concurrent MCL position",
+    "no forward outcome before count eligibility",
+    "no order, capital, XSP, or Gold authority"
+  ],
+  "downstream_hold_even_on_pass": [
+    "missing July 2023 through August 2024 dated-contract history",
+    "unseen runtime parity and prospective signal tape",
+    "native MCL spread, liquidity, margin, commission, roll, preview, restart, reconciliation, shared-capital, and graduation proof"
+  ]
+}

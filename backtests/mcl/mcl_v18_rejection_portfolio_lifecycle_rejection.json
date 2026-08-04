@@ -1,0 +1,55 @@
+{
+  "schema": "mcl.v18-rejection-portfolio-lifecycle-rejection.v1",
+  "recorded_at_utc": "2026-08-04T00:28:44Z",
+  "authority": "research_only_validation_unopened_no_orders_no_capital",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "census_sha256": "1a8a5f0e8705cbbd76a71cedf6f3ba232ab93ed2c96278644a6156598040554f",
+    "primary_result_sha256": "b9c64409dcb9cd482427588bb0ae314d870d0350a2100aea6d3f0615ae2f4c15",
+    "preregistration_sha256": "2e1588d10c402aa5b3d59ccd4ebf21b6b77b5c7cfb97f6357cf49f8aa48801c8",
+    "evaluator_sha256": "0d89fcfbfe2960338bc769bcd57ba1376c54d40a24810288be08666dd5708e28",
+    "result_sha256": "275288701139cdc6d9fe08666826213f92703e035e58e15b5dde385fff44c74e",
+    "residual_anatomy_evaluator_sha256": "1bc17bbcdce92cd9ce383d4b831d230d70b3866984c19d3fb46d0249054ac41f",
+    "residual_anatomy_result_sha256": "e3e1f17c9bb0d5d53b30ce74a90f582c99d4c58104ea35fc31e9d228145e6188"
+  },
+  "discovery": {
+    "combined_trades": 236,
+    "combined_annualized": 236.16,
+    "combined_primary_net": 2091.03,
+    "combined_stress_net": 1619.03,
+    "combined_primary_profit_factor": 1.494441,
+    "combined_stress_profit_factor": 1.368917,
+    "combined_primary_pnl_to_intrabar_drawdown": 4.578163,
+    "combined_stress_pnl_to_intrabar_drawdown": 3.367787,
+    "combined_primary_stress_positive_months": [8, 8],
+    "combined_primary_stress_concentration": [0.299821, 0.31691],
+    "addon_primary_net": 827.12,
+    "addon_stress_net": 689.12,
+    "addon_primary_profit_factor": 1.717911,
+    "addon_stress_profit_factor": 1.566878,
+    "addon_primary_pnl_to_intrabar_drawdown": 3.04312,
+    "addon_stress_pnl_to_intrabar_drawdown": 2.283366,
+    "addon_primary_stress_positive_months": [6, 6],
+    "addon_primary_stress_concentration": [0.467011, 0.470133],
+    "addon_stress_branches": {
+      "absorption": [58, 533.84],
+      "initiative_failure": [11, 155.28]
+    }
+  },
+  "failed_gates": [
+    "addon primary positive months 6 below 7",
+    "addon concentration 46.70% and 47.01% above 40%",
+    "combined positive months 8 below immutable V18's 10",
+    "combined concentration marginally above immutable V18 under both costs"
+  ],
+  "finding": "The non-overlapping composition nearly doubled V18 net while improving PF and PnL/DD and preserving every costed branch, direction, anchor, and side. It was nevertheless rejected because a June concentration and six weak months reduced temporal breadth. Post-rejection discovery anatomy isolated positive ATR acceleration as the physical financing boundary: 31 events earned $913.88 stress with PF 3.59, PnL/DD 4.94, eight positive months, and 30.14% concentration, while 38 decelerating events lost $224.76 stress.",
+  "validation_opened": false,
+  "closed_families": [
+    "unconditional trend-aligned rejection add-on",
+    "relaxing month breadth or concentration gates",
+    "high ATR level as a permission gate"
+  ],
+  "preserved_seam": "Outcome-blind count-test the sign of exact ATR acceleration inside the already-aligned, V18-flat add-on set; retain V18 priority and every other lifecycle invariant.",
+  "verdict": "REJECT_PRESERVE_ATR_ACCELERATION_CENSUS",
+  "submitted_orders": 0
+}
