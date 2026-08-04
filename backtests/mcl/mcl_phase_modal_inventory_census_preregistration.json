@@ -1,0 +1,53 @@
+{
+  "schema": "mcl.phase-modal-inventory-census-preregistration.v1",
+  "registered_at_utc": "2026-08-04T02:15:27Z",
+  "authority": "outcome_blind_completed_close_volume_mode_only_no_trade_outcomes_no_orders_no_capital",
+  "campaign": "mcl.two-speed-auction-relay.v63",
+  "hypothesis": "The immediately preceding physical phase's completed close-volume modal price may represent accepted inventory more faithfully than its final close. At each GTH and RTH transition, dominant CL defines the opening side while both CL and matched MCL must confirm a completed fifteen-minute acceptance or failure relative to their own frozen modal prices.",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "maintenance_gap_family_rejection_sha256": "c1f9073407eaf7f7568f3a9a5687ac5b9d6c27b9f39785432aa484d7eab4117e",
+    "census_evaluator_path": "/tmp/mcl_stage63_phase_modal_inventory_census.py",
+    "census_evaluator_sha256": "87ae3600f5ffd56e0308c0c60d26ca6f821f2ccead15fea2dd128e1da66152a8"
+  },
+  "frozen_inventory_owner": {
+    "phases": {
+      "RTH": "09:30-16:00 ET; source is same-session completed GTH",
+      "GTH": "post-maintenance through 09:30 ET; source is preceding session completed RTH"
+    },
+    "modal_price": "one-cent bins of completed five-minute closes weighted by completed bar volume; maximum volume wins; ties choose nearest completed weighted-mean tick then lower tick",
+    "honesty": "close-volume modal-price proxy, never represented as true trade-by-price POC",
+    "opening_side": "dominant CL phase open relative to frozen CL mode; zero excluded; MCL open side is attribution only",
+    "verdict": "after exactly three completed five-minute bars, CL and MCL closes must both remain on CL's opening side of their own modes for acceptance or both cross opposite for failure",
+    "direction": "follow phase acceptance; fade phase failure",
+    "entry_projection": "next matched-suffix MCL minute open",
+    "frequency": "maximum one event per GTH phase and one per RTH phase"
+  },
+  "count_gate_per_period": {
+    "annualized_events": {"exclusive_minimum": 300, "inclusive_maximum": 520},
+    "minimum_each_proposed_direction": 80,
+    "minimum_phase_acceptance": 80,
+    "minimum_phase_failure": 30,
+    "minimum_each_phase": 100,
+    "minimum_weekend_gth": 20,
+    "minimum_active_eligible_phase_identity_fraction": 0.65,
+    "session_distribution": {"median_minimum": 1, "median_maximum": 2, "p95_maximum": 2, "maximum": 2}
+  },
+  "frozen_order": [
+    "construct exact completed GTH/RTH groups and exclude incomplete or roll-mismatched phase pairs",
+    "freeze each source phase's CL/MCL close-volume mode before the target phase begins",
+    "let CL define target-phase opening side while recording MCL open disagreement as attribution",
+    "classify exactly one completed fifteen-minute joint acceptance/failure verdict per phase",
+    "count discovery and validation independently before any forward return"
+  ],
+  "if_eligible": "Preregister one branch-aware lifecycle using each frozen modal price as symmetric structural origin, with one-position ownership and hard session/contract/gap boundaries; discovery must pass before validation opens.",
+  "prohibitions": [
+    "no bin width, value-area percentage, alternate mode tie, VWAP/mean/median companion, opening-side magnitude, alternate verdict clock, partial bar, retained state, ATR, news, stop, target, timeout, cooldown, replacement, or quota",
+    "no outcome, MFE, MAE, PnL, validation economics, order, capital, XSP, or Gold authority"
+  ],
+  "downstream_hold_even_on_pass": [
+    "missing July 2023 through August 2024 dated-contract history",
+    "unseen runtime parity and prospective signal tape",
+    "native MCL spread, liquidity, margin, commission, roll, preview, restart, reconciliation, shared-capital, and graduation proof"
+  ]
+}

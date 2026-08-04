@@ -1,0 +1,42 @@
+{
+  "schema": "mcl.dominant-gap-auction-lifecycle-rejection.v1",
+  "recorded_at_utc": "2026-08-04T02:14:00Z",
+  "authority": "research_only_discovery_failed_validation_unopened_no_orders_no_capital",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "census_result_sha256": "2fc9ee675ddb22bcbf3172b3ad90a22aa9d38e5e5fc7b6184c5429fba05972f2",
+    "preregistration_sha256": "50ce11257c4d0f0c1ca42d57cce303840049e33427498aadf1ca560cef5da35d",
+    "evaluator_sha256": "ef3f87cb3e13fd0cb4f5c996344a862018472f0fa493409812c244f6ab11f2ab",
+    "result_sha256": "c33a1aee1738841360c255e686cfeb5cf60ee43166e384884d67f161c3ac9f30"
+  },
+  "discovery": {
+    "trades": 203,
+    "annualized": 203.139428,
+    "raw_net": -1044.00,
+    "primary_net": -1758.56,
+    "stress_net": -2164.56,
+    "primary_stress_profit_factor": [0.606378, 0.552003],
+    "primary_stress_pnl_to_intrabar_drawdown": [-0.825290, -0.896358],
+    "primary_stress_positive_months": [3, 2],
+    "primary_quarters": [262.88, -457.92, -523.96, -1039.56],
+    "stress_quarters": [150.88, -549.92, -619.96, -1145.56],
+    "acceptance_primary_stress": [-1180.12, -1442.12, 131],
+    "failure_primary_stress": [-578.44, -722.44, 72],
+    "up_primary_stress": [-479.44, -673.44, 97],
+    "down_primary_stress": [-1279.12, -1491.12, 106],
+    "weekday_primary_stress": [-940.08, -1248.08, 154],
+    "weekend_primary_stress": [-818.48, -916.48, 49],
+    "mean_hold_minutes": 343.0,
+    "mean_mfe_mae": [37.113300, -24.349754]
+  },
+  "finding": "Dominant CL discovery repaired cadence but not economics. The symmetric prior-close lifecycle is negative gross and after cost across both directions, branches, weekday/weekend cohorts, and most temporal slices. Gap magnitude, alternate verdict time, hold duration, branch inversion, stop, target, or exit rescue would be outcome-selected and are closed.",
+  "validation_opened": false,
+  "closed_families": [
+    "shared CL/MCL maintenance-gap ownership",
+    "dominant CL maintenance-gap ownership",
+    "maintenance-gap acceptance follow and failure fade",
+    "gap magnitude, verdict-clock, hold-time, structural-exit, stop, target, or inversion rescue"
+  ],
+  "verdict": "REJECT_CLOSE_MAINTENANCE_GAP_AUCTION_FAMILY",
+  "submitted_orders": 0
+}
