@@ -1,0 +1,37 @@
+{
+  "schema": "mcl.multiscale-auction-handoff-census-rejection.v1",
+  "generated_at_utc": "2026-08-04T03:36:30Z",
+  "authority": "research_count_rejection_no_outcomes_no_orders_no_capital",
+  "preregistration_sha256": "192870a63b0497757c4e7931ed1aef9715029ee13be9fc0721194e68635c7853",
+  "evaluator_sha256": "20c1d807119a60df041798267f276cd7197ecc3c7252df51c63d7ae9ac53ac81",
+  "result_sha256": "49244a820e78925514aad74c8b9a92681a476b85c20594aa55722a4851c26a0d",
+  "verdict": "REJECT_COUNT",
+  "exact_v18_trade_identity": true,
+  "outcomes_exposed": false,
+  "periods": {
+    "discovery": {
+      "opportunities": 167,
+      "slow_ready_fraction": 0.706587,
+      "waves": {"propagating": 38, "catchup": 14, "mixed": 45, "unresolved": 70},
+      "ownership": {"transport_financed": 78, "propagating_takeover": 1, "mature_counter_auction": 39, "unresolved_conflict": 49},
+      "route_annualized_trades": 167.114702,
+      "hold_annualized_trades": 128.087915
+    },
+    "validation_count": {
+      "opportunities": 171,
+      "slow_ready_fraction": 0.74269,
+      "waves": {"propagating": 33, "catchup": 18, "mixed": 48, "unresolved": 72},
+      "ownership": {"transport_financed": 65, "propagating_takeover": 2, "mature_counter_auction": 60, "unresolved_conflict": 44},
+      "route_annualized_trades": 171.617675,
+      "hold_annualized_trades": 111.400947
+    }
+  },
+  "failed_gates": [
+    "nested slow state readiness was below 80 percent in both periods because contract identity reset the long memory",
+    "fast propagation inside exact slow conflict produced only 1 and 2 events versus 15 required",
+    "the hold profile fell below 160 annualized trades in both periods",
+    "the route profile retained cadence but validation had only 18 acceptance events versus 20 required"
+  ],
+  "decision": "Do not relax the readiness, takeover, cadence, or branch gates and do not inspect lifecycle outcomes. Close suffix-reset nested-state routing and slow-conflict abstention. A successor may test one roll-neutral return-index state that carries causal memory across contract changes while explicitly removing the roll gap; matched dated MCL remains execution truth.",
+  "submitted_orders": 0
+}
