@@ -84,6 +84,8 @@ def test_mcl_selection_binds_flat_limit_only_stage91_canary() -> None:
     assert selected["allocation_successor"]["package_id"] == (
         "mcl-one-contract-stage91"
     )
+    assert selected["allocation_successor"]["initial_margin_base_cents"] == 268_670
+    assert selected["allocation_successor"]["maintenance_margin_base_cents"] == 214_936
 
     mutated = deepcopy(selected)
     mutated["execution"]["market_orders_allowed"] = True

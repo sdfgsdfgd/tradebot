@@ -34,7 +34,11 @@ def _mcl_selection() -> dict[str, object]:
         "schema": "mcl.two-speed-auction-selected-run.v1",
         "selection_id": "f" * 64,
         "strategy_version": "mcl.two-speed-auction-relay.v18",
-        "allocation_successor": {"package_id": "mcl-one-contract-stage91"},
+        "allocation_successor": {
+            "package_id": "mcl-one-contract-stage91",
+            "initial_margin_base_cents": 268_670,
+            "maintenance_margin_base_cents": 214_936,
+        },
         "risk": {
             "max_initial_margin_change_aud": 2770.0,
             "max_maintenance_margin_change_aud": 2200.0,
@@ -153,3 +157,13 @@ def test_three_champion_composer_binds_first_admitter_minima(monkeypatch) -> Non
     assert plan["constraints"]["flat_sleeves_retain_allocated_package_reservation"] is False
     assert plan["allocation"]["aggregate_minimum_packages_promised"] is False
     assert plan["capital"]["managed_capital_cents"] == 80_046
+    mcl_sleeve = next(
+        sleeve
+        for sleeve in plan["sleeves"]
+        if sleeve["sleeve_id"] == "mcl-two-speed-auction-margin"
+    )
+    assert mcl_sleeve["package_ladder"][0]["initial_margin_base_cents"] == 268_670
+    assert (
+        mcl_sleeve["package_ladder"][0]["maintenance_margin_base_cents"]
+        == 214_936
+    )

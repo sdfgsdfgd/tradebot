@@ -188,6 +188,10 @@ def load_mcl_live_selection_from_mapping(
         or baseline.get("inherited_target_authority") != "none"
         or successor.get("package_id") != MCL_LIVE_PACKAGE_ID
         or successor.get("package_cash_debit_usd_cents") != 76
+        or not 0 < int(successor.get("initial_margin_base_cents") or 0)
+        <= math.ceil(MCL_LIVE_MAX_INITIAL_MARGIN_AUD * 100)
+        or not 0 < int(successor.get("maintenance_margin_base_cents") or 0)
+        <= math.ceil(MCL_LIVE_MAX_MAINTENANCE_MARGIN_AUD * 100)
         or any(not _is_sha(item.get("sha256")) for item in evidence.values())
     ):
         raise ValueError("MCL selected-run contract is invalid")
@@ -435,6 +439,23 @@ def build_mcl_live_selection(
         for symbol in ("CL", "MCL")
     ):
         raise ValueError("MCL selected contract generation changed")
+    selected_initial_margin_cents = math.ceil(
+        max(
+            _number(row["init_margin_change"], name="MCL selected initial margin")
+            for row in what_if.values()
+        )
+        * 100
+    )
+    selected_maintenance_margin_cents = math.ceil(
+        max(
+            _number(
+                row["maintenance_margin_change"],
+                name="MCL selected maintenance margin",
+            )
+            for row in what_if.values()
+        )
+        * 100
+    )
     body = {
         "schema": MCL_LIVE_SELECTION_SCHEMA,
         "strategy_version": MCL_TWO_SPEED_AUCTION_VERSION,
@@ -494,6 +515,8 @@ def build_mcl_live_selection(
             "schema": "mcl.two-speed-auction-portfolio-package.v1",
             "package_id": MCL_LIVE_PACKAGE_ID,
             "package_cash_debit_usd_cents": 76,
+            "initial_margin_base_cents": selected_initial_margin_cents,
+            "maintenance_margin_base_cents": selected_maintenance_margin_cents,
             "broker_preview_fingerprint": _identity(preview),
         },
     }

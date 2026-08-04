@@ -165,11 +165,13 @@ def mcl_portfolio_package_sleeve(
                 "package_id": MCL_LIVE_PACKAGE_ID,
                 "rank": 0,
                 "cash_debit_usd_cents": 76,
-                "initial_margin_base_cents": math.ceil(
-                    float(risk["max_initial_margin_change_aud"]) * 100
+                "initial_margin_base_cents": int(
+                    selected["allocation_successor"]["initial_margin_base_cents"]
                 ),
-                "maintenance_margin_base_cents": math.ceil(
-                    float(risk["max_maintenance_margin_change_aud"]) * 100
+                "maintenance_margin_base_cents": int(
+                    selected["allocation_successor"][
+                        "maintenance_margin_base_cents"
+                    ]
                 ),
                 "stressed_loss_usd_cents": math.ceil(
                     float(risk["package_stressed_loss_usd"]) * 100
