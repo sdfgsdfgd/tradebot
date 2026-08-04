@@ -1,0 +1,56 @@
+{
+  "schema": "mcl.multiscale-auction-handoff-census-preregistration.v1",
+  "frozen_at_utc": "2026-08-04T03:30:43Z",
+  "authority": "research_count_only_no_outcomes_no_orders_no_capital",
+  "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+  "v18_evaluator_sha256": "cf9277e623ed6849bcefc238e82e89f9d3ca4a49647228ab8048e9ff4324f0ef",
+  "v18_result_sha256": "b9c64409dcb9cd482427588bb0ae314d870d0350a2100aea6d3f0615ae2f4c15",
+  "windows": {
+    "discovery_start": "2024-08-04T22:01:00+00:00",
+    "validation_start": "2025-08-04T22:00:00+00:00",
+    "end": "2026-08-03T20:27:00+00:00"
+  },
+  "opportunity_owner": "Every exact V18 basis_breadth admission; no new event, threshold, or outcome-selected subset.",
+  "layers": {
+    "fast_onset": "V18 raw-turn sentinel sequence: short_to_long propagation, long_to_short catch-up, mixed, or unresolved.",
+    "medium_owner": "Unchanged V18 6/12/24/48/96 completed-five-minute impulse and dominant-CL/matched-MCL transport router.",
+    "slow_financing": "One nested 24/48/96/192/384 completed-five-minute DirectionalImpulseEngine using V18's exact turn policy and thresholds. It resets only at contract identity and never sees a future bar."
+  },
+  "slow_state_law": {
+    "underwarm": "not all five horizons ready, no trend state, or no causal state age",
+    "new": "ready state age is below the existing 24-bar maturation boundary",
+    "mature": "ready state age is at least the existing 24-bar maturation boundary"
+  },
+  "conflict_law": {
+    "transport_financed": "V18 executed direction agrees with ready slow direction",
+    "propagating_takeover": "V18 direction opposes slow direction but the raw turn is a same-direction short_to_long wavefront",
+    "mature_counter_auction": "V18 direction opposes a mature slow owner without a propagating takeover",
+    "unresolved_conflict": "all remaining slow-opposed or underwarm cases"
+  },
+  "projected_profiles": {
+    "unchanged_v18": "retain every exact V18 direction",
+    "mature_slow_route": "only mature_counter_auction opportunities route to slow direction; all others retain V18",
+    "mature_slow_hold": "only mature_counter_auction opportunities abstain; all others retain V18"
+  },
+  "count_gates": {
+    "exact_v18_trade_identity": true,
+    "each_period_annualized_profile_trades_between": [160, 520],
+    "each_period_slow_ready_fraction_min": 0.8,
+    "each_period_transport_financed_min": 40,
+    "each_period_propagating_takeover_min": 15,
+    "each_period_mature_counter_auction_min": 20,
+    "each_period_both_projected_directions_min": 40,
+    "each_period_both_v18_branches_min": 20,
+    "each_period_both_lanes_min": 30,
+    "median_per_active_session_between": [1, 3],
+    "p95_per_active_session_max": 6,
+    "maximum_per_session_max": 10
+  },
+  "selection_law": "Count both periods with all returns, MFE, MAE, and PnL sealed. Mature-slow route is primary and may proceed if it passes alone; mature-slow hold is retained only if it independently passes. The lifecycle also carries unchanged V18 control, discovery may select only a complete gate passer, and only that selection may expose validation.",
+  "prohibitions": [
+    "no horizon, policy, maturity, sequence, time, ATR, slope, parity, basis, or state-age sweep",
+    "no category deletion, union search, continuous score, news authority, risk overlay, stop, target, timeout, quota, order, or capital authority",
+    "no validation economics during the census"
+  ],
+  "submitted_orders": 0
+}

@@ -989,7 +989,12 @@ transition through today’s close; no order will be forced merely to populate t
   Receipt `mcl_phase_bounded_reclaim_lifecycle_rejection.json` closes static
   reclaim and risk-overlay rescue. The next frozen lane returns to V18's
   positive-energy process and tests ordered fast-onset/medium-ownership/slow-
-  financing transitions, never another static vote. Rolls, costs, news
+  financing transitions, never another static vote. V71 preregistration
+  `192870a6…` / evaluator `20c1d80…` binds every exact V18 opportunity, its
+  short-to-long/long-to-short/mixed wavefront, the unchanged V18 medium owner,
+  and one nested `24/48/96/192/384` slow state using V18's exact policy. Only a
+  mature slow/V18 conflict without fast propagation may route to slow or hold;
+  both periods face count-only breadth before any outcome. Rolls, costs, news
   authority, and live XSP/Gold owners remain unchanged.
 - `[PRESERVED RUNNER-UP]` **Tri-asset narrative-dispersion compression:** test
   whether convergence among easing-negative XSP pressure, weakening-positive
@@ -1650,6 +1655,11 @@ and stable bootstrap evidence. Neither may be refactored into looking mature.
     `mcl_phase_bounded_reclaim_lifecycle_rejection.json` closes reclaim/exit/
     risk rescue. Continue from V18's positive-energy owner with an outcome-
     blind census of ordered multiscale state transitions, not static consensus.
+    V71 preregistration `mcl_multiscale_auction_handoff_census_preregistration.json`
+    (`192870a6…`) / evaluator `20c1d80…` freezes exact V18 admissions, causal
+    turn-wave order, unchanged medium transport ownership, and a nested slow
+    state. Count both periods before any return; only mature nonpropagating
+    conflicts may route or hold.
     Missing July-2023–August-2024 remains a hard crown blocker; no quota, order,
     or capital authority.
 
@@ -2035,6 +2045,7 @@ and
 | E-457 | V69 count preregistration `mcl_phase_bounded_reclaim_census_preregistration.json` (`f4ca9654…`) / evaluator `f6f0229c…` repairs the exact Stage-68 semantic error without a threshold rescue. The shared phase clock is physically flat at Asia/Europe/US, macro-state, contract, and period boundaries. An aligned phase turn plus matched-MCL movement is immediate acceptance. An opposing CL turn flattens and arms one challenge but cannot enter; only a later same-phase close/body/range reclaim under unchanged macro and same-sign MCL movement may enter the retained macro direction as failure reversal. The three categorical anchors must independently pass `>160–520/year`, `>=40` each direction, `>=20` each branch/phase, `>=30` each lane, and natural density in discovery and validation before any outcome opens. No risk knob, continuous timing/threshold sweep, quota, news authority, order, or capital authority |
 | E-458 | V69 count `0564f731…` passed all three categorical failed-auction reclaim cells in both independent periods without outcomes. Close reclaim produced `441/409` entries (`441.30/410.48/year`), body `406/359` (`406.28/360.30`), range `375/328` (`375.26/329.18`); every cell retained both directions, acceptance/failure-reversal, Asia/Europe/US, GTH/RTH, and median two entries per active session with p95 `3–4` and max `4–6`. Receipt `mcl_phase_bounded_reclaim_census_receipt.json` (`d6605bab…`). V70 preregistration `mcl_phase_bounded_reclaim_lifecycle_preregistration.json` (`51033889…`) / evaluator `5ed84c73…` binds every economic entry byte-for-byte to that frozen count ledger, executes target changes at next matched-MCL minute open, flattens phase/macro/opposition/contract/period boundaries, charges `$3.52/$5.52`, and permits no stop/target/timeout/profit memory. Discovery must pass net/PF/PnL-DD, direction/branch/phase/lane, month/quarter, concentration, and density laws; only the strongest complete passer may expose validation. No order or capital authority |
 | E-459 | V70 lifecycle `518baa5d…` rejected every phase-bounded reclaim cell before validation. Body/close/range made `406/441/375` trades but lost `-$810/-$1,058/-$1,116` gross, `-$2,239.12/-$2,610.32/-$2,436.00` primary, and `-$3,051.12/-$3,492.32/-$3,186.00` stress, with PF `.570/.543/.537` and DD `$3,203.00/$3,634.68/$3,307.48`. Exact immutable-ledger grouping corrects a display-only legacy branch key: acceptance lost `-$1,531.04` stress in every cell and failure-reversal lost `-$1,520.08/-$1,961.28/-$1,654.96`; both directions, Asia/Europe/US, GTH/RTH, and all quarters were negative. Validation stayed sealed. Receipt `mcl_phase_bounded_reclaim_lifecycle_rejection.json` closes close/body/range reclaim, static phase agreement, and risk-overlay rescue. The successor must begin with V18's positive gross energy and outcome-blindly test ordered fast-onset, medium-owner, slow-financing, and counter-auction state transitions; no static ATR/slope vote, threshold rescue, order, or capital authority |
+| E-460 | V71 preregistration `mcl_multiscale_auction_handoff_census_preregistration.json` (`192870a6…`) / evaluator `20c1d80…` freezes a genuinely different high-energy architecture before counts. Every exact V18 `basis_breadth` admission remains the opportunity set. Fast onset is categorical sentinel turn propagation (`short_to_long`, `long_to_short`, mixed, unresolved); medium ownership is unchanged V18 `6/12/24/48/96` CL discovery plus matched-MCL transport routing; slow financing is one nested `24/48/96/192/384` engine using V18's exact policy and existing 24-bar state-maturity boundary. V18/slow agreement remains unchanged; fast propagating takeover remains V18; only a mature slow conflict without propagation may route to slow or abstain. Both periods must independently preserve exact V18 identity, `>160–520/year`, >=80% slow readiness, financed/takeover/counter-auction cohort floors, directions/branches/lanes, and natural density before any PnL. No horizon/policy/age/sequence/ATR/slope/parity/time sweep, outcome union, news, stop, quota, order, or capital authority |
 
 ### Decision anchors
 
