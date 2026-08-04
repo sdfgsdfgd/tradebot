@@ -1,0 +1,31 @@
+{
+  "schema": "mcl.phase-bounded-reclaim-census-receipt.v1",
+  "generated_at_utc": "2026-08-04T03:18:57Z",
+  "authority": "research_count_only_no_trade_outcomes_no_orders_no_capital",
+  "preregistration_sha256": "f4ca9654c6aebcd757633a43d57b592559054b05adb40f48273bd3f9e0d27e40",
+  "evaluator_sha256": "f6f0229c3ea7e462cf12b54ee5dbd015cc39b18c482d1da4724f58387682f107",
+  "result_sha256": "0564f7311393116e5d012e7602ab78d362ad26fe329d11fe0b0eb4fd912388e0",
+  "eligible_cells": {
+    "signal_close": {
+      "discovery_entries": 441,
+      "validation_entries": 409,
+      "discovery_density": [2, 4, 5],
+      "validation_density": [2, 4, 6]
+    },
+    "signal_body": {
+      "discovery_entries": 406,
+      "validation_entries": 359,
+      "discovery_density": [2, 3, 5],
+      "validation_density": [2, 4, 5]
+    },
+    "signal_range": {
+      "discovery_entries": 375,
+      "validation_entries": 328,
+      "discovery_density": [2, 3, 5],
+      "validation_density": [2, 4, 4]
+    }
+  },
+  "breadth": "Every cell passed both periods with both directions, acceptance and failure-reversal, Asia/Europe/US, GTH/RTH, and natural active-session density.",
+  "trade_outcomes_opened": false,
+  "submitted_orders": 0
+}

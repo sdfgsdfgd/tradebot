@@ -1,0 +1,50 @@
+{
+  "schema": "mcl.phase-bounded-reclaim-lifecycle-preregistration.v1",
+  "frozen_at_utc": "2026-08-04T03:21:05Z",
+  "authority": "research_discovery_first_no_orders_no_capital",
+  "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+  "census_result_sha256": "0564f7311393116e5d012e7602ab78d362ad26fe329d11fe0b0eb4fd912388e0",
+  "census_receipt_sha256": "d6605bab2078d2d5715ef15a6c6a166ad4e1c585a27c13a0443406f91f964ac7",
+  "evaluator_sha256": "5ed84c73691553bfc06b2b8f4ceff5d01a9041574ec32a06d48a7cd56661bdef",
+  "eligible_cells": ["signal_close", "signal_body", "signal_range"],
+  "entry_parity": "Every economic entry must byte-match the corresponding frozen Stage-69 count entry ledger before any return is accepted.",
+  "lifecycle": {
+    "entry_and_target_change": "next matched-MCL minute open",
+    "ordinary_exit": "next matched-MCL minute open after phase boundary, macro-state change, or opposing phase turn",
+    "contract_and_period_boundary": "flat",
+    "position_limit": "one MCL contract direction at a time",
+    "stop_target_timeout_profit_memory": "none",
+    "mfe_mae": "complete matched-MCL one-minute high/low"
+  },
+  "economics_usd_per_round_trip": {
+    "primary": 3.52,
+    "stress": 5.52,
+    "multiplier": 100
+  },
+  "discovery_gates": {
+    "annualized_trades": ">160 and <=520",
+    "raw_primary_stress_net": "all positive",
+    "primary_stress_profit_factor": ">=1.20 and >=1.10",
+    "primary_stress_pnl_to_intrabar_drawdown": ">=1.50 and >=1.00",
+    "directions": ">=20 and stress-positive each",
+    "branches": ">=20 and stress-positive acceptance and failure_reversal",
+    "phases": ">=20 and stress-positive Asia, Europe, and US",
+    "lanes": ">=30 and stress-positive GTH and RTH",
+    "temporal": ">=8 positive months per year and >=75% positive equal-duration quarters",
+    "largest_positive_month_share": "<=35%",
+    "density": "median 1-3, p95 <=6, maximum <=10"
+  },
+  "selection": "Only complete discovery passers compete by stress PnL/DD, then stress PF, then stress net. Only that selected cell may expose validation outcomes. Validation repeats every gate; full overlap opens only after validation passes.",
+  "hard_blockers_after_pass": [
+    "missing July-2023 through August-2024 canonical dated-contract tape",
+    "unseen complete-period proof",
+    "production extraction and runtime parity",
+    "native liquidity, preview, restart, allocation, and graduation"
+  ],
+  "prohibitions": [
+    "no new anchor or threshold after outcomes",
+    "no stop, target, timeout, or exit rescue",
+    "no validation anatomy unless selected by discovery",
+    "no news authority, quota, order, or capital authority"
+  ]
+}

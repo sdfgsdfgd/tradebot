@@ -976,6 +976,12 @@ transition through today’s close; no order will be forced merely to populate t
   later same-phase close/body/range reclaim under unchanged macro plus
   matched-MCL confirmation is the first lawful failure-reversal entry. All
   three categorical anchors face independent-period count proof first.
+  Stage-69 count `0564f731…` passed every cell in both periods: close
+  `441/409`, body `406/359`, range `375/328`, with complete directions,
+  branches, phases, lanes, and natural density. Receipt `d6605bab…`. V70
+  preregistration `51033889…` / evaluator `5ed84c73…` binds exact count-ledger
+  parity, next-minute matched-MCL execution, phase/macro/opposition flats, and
+  `$3.52/$5.52` discovery-first economics before one validation cell can open.
   Rolls, costs, news authority, and live XSP/Gold owners remain unchanged.
 - `[PRESERVED RUNNER-UP]` **Tri-asset narrative-dispersion compression:** test
   whether convergence among easing-negative XSP pressure, weakening-positive
@@ -1624,7 +1630,12 @@ and stable bootstrap evidence. Neither may be refactored into looking mature.
     V69 count preregistration
     `mcl_phase_bounded_reclaim_census_preregistration.json` (`f4ca9654…`) /
     evaluator `f6f0229c…` freezes exactly close/body/range reclaim anchors,
-    phase/macro/contract flattening, and outcome-sealed breadth gates.
+    phase/macro/contract flattening, and outcome-sealed breadth gates. All
+    passed: close `441/409`, body `406/359`, range `375/328`; receipt
+    `mcl_phase_bounded_reclaim_census_receipt.json` (`d6605bab…`). V70
+    preregistration `mcl_phase_bounded_reclaim_lifecycle_preregistration.json`
+    (`51033889…`) / evaluator `5ed84c73…` requires exact count-entry parity and
+    strict discovery-before-validation economics without a risk knob.
     Missing July-2023–August-2024 remains a hard crown blocker; no quota, order,
     or capital authority.
 
@@ -2008,6 +2019,7 @@ and
 | E-455 | V68 lifecycle `aee21803…` rejected both phase-clock profiles before validation. One-step-slower made `403` trades but lost `-$2,127` gross, `-$3,545.56/-$4,351.56` primary/stress, PF `.778/.736`, with both directions, both branches, every phase/lane, and nine of thirteen months nonpositive. Shared-macro made `354` trades but lost `-$841` gross, `-$2,087.08/-$2,795.08` primary/stress, PF `.857/.814`. Its aligned acceptance cohort was the sole positive fracture at `109` trades, `+$360.32` stress, PF `1.091`; the `245` opposing local turns lost `-$3,155.40`. Acceptance alone misses `>160/year`, so neither branch deletion nor threshold rescue is lawful. Rejection `mcl_phase_modular_impulse_lifecycle_rejection.json`; the unified lifecycle family is closed. The successor must be phase-bounded and count a true two-step failed auction: opposition arms without entry, then a causal within-phase reclaim under unchanged macro and matched-MCL parity may reverse into macro direction |
 | E-456 | Gold live safety audit found two actual startup-book misses at `2026-08-04 07:32:05` and `13:02:05 AEST` (an initial grep count of four double-counted traceback source and terminal lines). Both invocations failed closed with flat broker/ledger position, zero orders/fills/P&L/DD/breaches and recovered on the next natural five-minute recurrence; XSP remained healthy. Root cause is a transient missing initial streaming 1OZ NBBO inside the three-second oneshot startup, not Stage-76 state. The minimal operational repair adds systemd-bounded `Restart=on-failure`, five-second delay, and `3/60s` start limit to the already idempotent/restart-proven gold worker; signal, selection, sizing, quote freshness, execution, and capital authority remain unchanged |
 | E-457 | V69 count preregistration `mcl_phase_bounded_reclaim_census_preregistration.json` (`f4ca9654…`) / evaluator `f6f0229c…` repairs the exact Stage-68 semantic error without a threshold rescue. The shared phase clock is physically flat at Asia/Europe/US, macro-state, contract, and period boundaries. An aligned phase turn plus matched-MCL movement is immediate acceptance. An opposing CL turn flattens and arms one challenge but cannot enter; only a later same-phase close/body/range reclaim under unchanged macro and same-sign MCL movement may enter the retained macro direction as failure reversal. The three categorical anchors must independently pass `>160–520/year`, `>=40` each direction, `>=20` each branch/phase, `>=30` each lane, and natural density in discovery and validation before any outcome opens. No risk knob, continuous timing/threshold sweep, quota, news authority, order, or capital authority |
+| E-458 | V69 count `0564f731…` passed all three categorical failed-auction reclaim cells in both independent periods without outcomes. Close reclaim produced `441/409` entries (`441.30/410.48/year`), body `406/359` (`406.28/360.30`), range `375/328` (`375.26/329.18`); every cell retained both directions, acceptance/failure-reversal, Asia/Europe/US, GTH/RTH, and median two entries per active session with p95 `3–4` and max `4–6`. Receipt `mcl_phase_bounded_reclaim_census_receipt.json` (`d6605bab…`). V70 preregistration `mcl_phase_bounded_reclaim_lifecycle_preregistration.json` (`51033889…`) / evaluator `5ed84c73…` binds every economic entry byte-for-byte to that frozen count ledger, executes target changes at next matched-MCL minute open, flattens phase/macro/opposition/contract/period boundaries, charges `$3.52/$5.52`, and permits no stop/target/timeout/profit memory. Discovery must pass net/PF/PnL-DD, direction/branch/phase/lane, month/quarter, concentration, and density laws; only the strongest complete passer may expose validation. No order or capital authority |
 
 ### Decision anchors
 
