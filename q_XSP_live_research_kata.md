@@ -1082,7 +1082,23 @@ transition through today’s close; no order will be forced merely to populate t
   `+$829.41/1.262/$504.89/1.643`; failed-auction and slow-financed stress stayed
   negative. Historical one-minute entry-path permission, abort, revocation, and
   dwell are closed. V18 remains unchanged; only the live event tape may
-  prospectively test sub-minute quote morphology.
+  prospectively test sub-minute quote morphology. V84 now binds that join without
+  a second recorder: a broker-qualified `483`-bar bridge warmed exact V18 through
+  `05:30Z`, while immutable event prefix `04800507…` supplied `1,435` valid
+  second records from `04:49:34–05:34:27Z` under one zero-restart invocation.
+  The corrected count found zero post-generation raw turns, so no treatment,
+  morphology threshold, control match, or economic outcome opened. Status is
+  `ACCUMULATE`; arbitrary seconds cannot impersonate turn evidence.
+- `[ACTIVE METHOD]` **Predictive Intelligence Sharpening of Onsets:** use the one
+  immutable event tape to predict acceptance, exhaustion, absorption, or fakeout
+  before the slow lifecycle pays full error—not merely to trade faster. Preserve
+  diverse orthogonal evidence together: CL→MCL lead/lag and basis transition;
+  microprice/imbalance persistence; spread elasticity; quote-intensity
+  acceleration; same-price top-size pressure proxies; signed-print response;
+  completed-bar TR/volume state; exact V18 multihorizon context; and causal fresh
+  news shock context when available. Freeze categorical shapes and controls before
+  outcomes; never mine a threshold grid, infer depth/intent from L1, let the fast
+  layer invent direction, or confuse random active seconds with an onset.
 - `[PRESERVED RUNNER-UP]` **Tri-asset narrative-dispersion compression:** test
   whether convergence among easing-negative XSP pressure, weakening-positive
   MCL pressure, and weakly reversing-positive Gold pressure predicts
@@ -1853,7 +1869,13 @@ and stable bootstrap evidence. Neither may be refactored into looking mature.
     `mcl_maturation_closing_rejection_census_rejection.json` and
     `mcl_failed_auction_closing_rejection_dwell_rejection.json` close historical
     one-minute entry-path gating/dwell. The prospective live tape remains the
-    only lawful sub-minute fake-versus-authentic classifier.
+    only lawful sub-minute fake-versus-authentic classifier. V84 preregistration
+    now binds exact V18 warmup, three fixed event windows, raw/routed direction,
+    L1 pressure/lead proxies, and a strict `30`-turn/bidirectional/route cohort
+    before any classifier may be preregistered. Its first clean prefix contained
+    zero exact post-generation raw turns; continue accumulation without fitting
+    random seconds. The initial mislabeled historical count is preserved as an
+    invalid q artifact and corrected before any morphology or outcome exposure.
     Missing July-2023–August-2024 remains a hard crown blocker; no quota, classifier,
     order, or capital authority.
 
@@ -2258,6 +2280,7 @@ and
 | E-476 | V81 preregistration `mcl_failed_auction_reclaim_revocation_lifecycle_preregistration.json` (`a2feb2b0…`) / evaluator `52389f76…` preserved every V18 admission, direction, profit memory, and ordinary exit, changing only next-minute surrender after an exact V80 sequence. Result `84adb28a…` rejected discovery with exact action/control/revocation identity; validation remained sealed. Candidate stress net/PF/DD/PnL-DD was `+$577.16/1.199/$570.72/1.011` versus V18 `+$929.91/1.293/$501.64/1.854`; failure and slow-financed cohorts became negative. Receipt `mcl_failed_auction_reclaim_revocation_lifecycle_rejection.json` closes post-reclaim revocation and, together with V77/V79, historical one-minute-OHLC abort rescue. Authenticity sharpening moves upstream to pre-entry raw-turn/maturation auction shape; live sub-minute authority remains prospective |
 | E-477 | V82 preregistration `mcl_maturation_closing_rejection_census_preregistration.json` (`b61e9d90…`) / evaluator `051055d7…` moved outcome-blind anatomy upstream to the final V18 maturation minute. The frozen three-of-four joint adverse close-location plus range/volume-effort primary flagged `20/32` discovery/validation-count admissions, but recovery-or-skip projected only `155.11/152.55` annual admissions below the strict `>160` floor. Flags were almost exclusively failed-auction (`19/31`) rather than branch-balanced (`1/1` acceptance). Two-channel cadence was worse; four-channel barely retained cadence but had `1/0` acceptance and could not replace the primary. Receipt `mcl_maturation_closing_rejection_census_rejection.json` (`209aeb93…`) closes recovery/skip, threshold substitution, and branch-floor relaxation without opening PnL/MFE/MAE |
 | E-478 | V83 preregistration `mcl_failed_auction_closing_rejection_dwell_preregistration.json` (`5ea5ea04…`) / evaluator `a3a223a5…` preserved every V18 admission and direction, moving only the exact `19` discovery failed-auction V82 flags to the immediately following MCL minute open. Identity and unchanged-control parity passed, but result `98760852…` rejected discovery and sealed validation: candidate primary/stress net `+$1,163.41/+$829.41` versus control `+$1,263.91/+$929.91`; PF `1.378/1.262` versus `1.411/1.293`; DD `$490.89/$504.89` versus `$487.64/$501.64`; PnL/DD `2.370/1.643` versus `2.592/1.854`. Failed-auction stress was `-$143.11` and slow-financed `-$192.29`. Receipt `mcl_failed_auction_closing_rejection_dwell_rejection.json` (`a890e6b1…`) closes one-minute entry dwell and all historical minute-bar fake-turn rescue. V18 remains unchanged; generation `b3805c9f…` is the sole lawful prospective sub-minute morphology source |
+| E-479 | V84 preregistration `mcl_turn_authenticity_v18_join_preregistration.json` (`46bd255f…`) / evaluator `54b54b28…` joins the unchanged exact V18 owner to the existing event tape without adding a recorder or classifier. Broker snapshot `55236d3b…` appended `483` exact common CL/MCL completed-minute bars from the canonical `20:26Z` prefix through `05:30Z`. Immutable event prefix `04800507…` retained `1,435` valid rows from `04:49:34–05:34:27Z` under generation `b3805c9f…` and service invocation `60d5377f…`, with zero restarts, invalid/late rows, hash failures, or generation drift. The first run mislabeled all `1,493` historical turns as post-generation but exposed zero eligible windows and no morphology/outcome; the corrected pre-outcome result `57197e09…` finds zero post-generation raw turns. Receipt `mcl_turn_authenticity_v18_join_accumulation.json` preserves the correction and `ACCUMULATE` verdict. No arbitrary seconds, partial window, threshold, control, return, MFE/MAE, PnL, classifier, order, or capital authority opened |
 
 ### Decision anchors
 

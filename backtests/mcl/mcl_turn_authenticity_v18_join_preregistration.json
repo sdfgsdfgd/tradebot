@@ -1,0 +1,87 @@
+{
+  "schema": "mcl.turn-authenticity-v18-join-preregistration.v1",
+  "registered_at_utc": "2026-08-04T05:36:20Z",
+  "pre_outcome_correction": "The first count-only execution labeled all historical raw turns as post-generation because the display list was not filtered at the event-prefix start. It exposed zero eligible windows and no morphology or economic outcome. Before any outcome, the evaluator now excludes turns earlier than the first prospective bucket; the corrected result uses a new output path and preserves the first invalid count artifact on q.",
+  "authority": "prospective_count_and_morphology_only_no_outcomes_no_orders_no_capital",
+  "campaign": "mcl.two-speed-auction-relay.v84",
+  "candidate": "MCL Turn Authenticity V18 Prospective Join",
+  "hypothesis": "A canonical event-level CL discovery and matched-MCL transport tape can expose ordered quote morphology around exact unchanged V18 raw turns without pretending historical one-minute OHLC identifies fake turns. Count and preserve complete prospective treatment windows first; any classifier remains a later frozen generation.",
+  "inputs": {
+    "historical_manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "recent_bar_snapshot_path": "/var/tmp/mcl-turn-recent-snapshot-20260804.json",
+    "recent_bar_snapshot_sha256": "55236d3bb1b0a085aa67602e81cbb755d73bd7acb7e5881fb34d3237535ea6fc",
+    "recent_bar_snapshot_id": "fda2398f65c6b82bbef5b997c2cc4c988a16e4e1e4d159f570effbb8f211a2cc",
+    "recent_bar_cutoff_utc": "2026-08-04T05:30:00+00:00",
+    "event_prefix_path": "/var/tmp/mcl-turn-prefix-20260804-0534z.jsonl",
+    "event_prefix_sha256": "048005073b8f84dcc3c47bccd482c07f4dab039c8ed96180a33ca577ab58ad7b",
+    "event_prefix_rows": 1435,
+    "event_prefix_first_bucket_utc": "2026-08-04T04:49:34+00:00",
+    "event_prefix_last_bucket_utc": "2026-08-04T05:34:27+00:00",
+    "generation_sha256": "b3805c9f95713a13c26cb0ada08dc043f00069f42177212d3c575abe28c3ee7f",
+    "evaluator_path": "/tmp/mcl_stage84_turn_authenticity_join.py",
+    "evaluator_sha256": "54b54b283326d7ae482c9eb374605e71f21a3f049e63c08d4f30231a9e65d752"
+  },
+  "service_invocation": {
+    "unit": "tradebot-mcl-turn-tape.service",
+    "invocation_id": "60d5377f917c4edaa980b3aed89bf9e8",
+    "exec_main_start": "2026-08-04T04:49:31+00:00",
+    "active_state_at_prefix_freeze": "active/running",
+    "restarts_at_prefix_freeze": 0
+  },
+  "exact_v18_join": {
+    "warmup": "immutable 25-contract dated CL/MCL manifest plus only strictly later exact-conId broker snapshot bars",
+    "signal_owner": "unchanged V18 basis_breadth engine, route, maturation, roll, and session law",
+    "treatments": "every exact raw V18 turn after generation start, whether proposed, vetoed, or admitted",
+    "complete_window": "one minute before raw-turn close through the next five-minute maturation close must be bracketed by the uninterrupted event prefix",
+    "directions": "retain both raw CL turn direction and final routed V18 direction; neither may be rewritten by microstructure",
+    "controls": "deferred until treatment eligibility passes; later matched controls must be frozen outcome-blind on contract, Globex session, GTH/RTH lane, V18 branch/ownership, and completed-bar volatility context"
+  },
+  "frozen_morphology": {
+    "windows": [
+      "pre_turn_60s",
+      "turn_response_60s",
+      "maturation_4m"
+    ],
+    "per_book": [
+      "quote and trade event count",
+      "direction-signed midpoint displacement",
+      "direction-signed same-price top-size add/remove pressure proxy",
+      "direction-signed mean closing imbalance",
+      "direction-signed trade-volume proxy",
+      "trade volume",
+      "maximum spread"
+    ],
+    "cross_book": [
+      "CL/MCL/simultaneous first-mid-move counts",
+      "median MCL-minus-CL first-mid-move receipt microseconds"
+    ],
+    "limitations": "L1 top-size changes are proxies, not depth, queue position, identified adds/cancels, market-maker intent, or colocated latency"
+  },
+  "eligibility_gate": {
+    "minimum_complete_raw_turns": 30,
+    "minimum_each_raw_direction": 10,
+    "minimum_admitted_turns": 20,
+    "minimum_each_admitted_route": 5,
+    "event_prefix_identity": "zero invalid, late, hash-failed, or generation-drifted records"
+  },
+  "outcome_boundary": {
+    "current_run": "count and morphology only",
+    "forbidden_now": [
+      "forward return",
+      "MFE or MAE",
+      "giveback or reversal",
+      "trade PnL or cost comparison",
+      "feature threshold, score, classifier, or action selection"
+    ],
+    "after_count_pass": "freeze controls, categorical classifier, action law, and settlement before opening any outcome"
+  },
+  "prohibitions": [
+    "no mutation of V18 admission, direction, timing, lifecycle, or costs",
+    "no historical one-minute backfill presented as event-level evidence",
+    "no partial-window treatment",
+    "no classifier or threshold from this prefix",
+    "no news, order, preview, sizing, capital, selection, or live authority",
+    "no XSP or Gold mutation"
+  ],
+  "submitted_orders": 0
+}

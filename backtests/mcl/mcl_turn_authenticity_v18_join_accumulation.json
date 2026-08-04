@@ -1,0 +1,59 @@
+{
+  "schema": "mcl.turn-authenticity-v18-join-accumulation.v1",
+  "recorded_at_utc": "2026-08-04T05:39:00Z",
+  "authority": "prospective_count_and_morphology_only_no_outcomes_no_orders_no_capital",
+  "inputs": {
+    "preregistration_sha256": "46bd255f60aff90b15baf8bedfe756f3300ed76d93d9e9f58ef9935c4d75b5f1",
+    "evaluator_sha256": "54b54b283326d7ae482c9eb374605e71f21a3f049e63c08d4f30231a9e65d752",
+    "historical_manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "recent_bar_snapshot_sha256": "55236d3bb1b0a085aa67602e81cbb755d73bd7acb7e5881fb34d3237535ea6fc",
+    "event_prefix_sha256": "048005073b8f84dcc3c47bccd482c07f4dab039c8ed96180a33ca577ab58ad7b",
+    "result_sha256": "57197e0930265cf933686476b4967b41dd229470521c64300333b6c3e60f2f5d"
+  },
+  "pre_outcome_correction": {
+    "first_invalid_count_artifact_preserved_on_q": "/var/tmp/mcl-stage84-turn-authenticity-v18-join.json",
+    "defect": "all historical raw turns were labeled post-generation before the event-prefix start filter",
+    "exposure": "1493 historical turn count and zero eligible windows only; no morphology, return, MFE, MAE, PnL, or classifier",
+    "corrected_result": "/var/tmp/mcl-stage84-turn-authenticity-v18-join-r2.json"
+  },
+  "service_invocation": {
+    "unit": "tradebot-mcl-turn-tape.service",
+    "invocation_id": "60d5377f917c4edaa980b3aed89bf9e8",
+    "exec_main_start_utc": "2026-08-04T04:49:31+00:00",
+    "restarts": 0,
+    "state": "active/running"
+  },
+  "bar_bridge": {
+    "snapshot_id": "fda2398f65c6b82bbef5b997c2cc4c988a16e4e1e4d159f570effbb8f211a2cc",
+    "historical_last_common_close_utc": "2026-08-03T20:26:00+00:00",
+    "appended_common_bars": 483,
+    "appended_first_close_utc": "2026-08-03T20:27:00+00:00",
+    "appended_last_close_utc": "2026-08-04T05:30:00+00:00"
+  },
+  "event_prefix": {
+    "generation_sha256": "b3805c9f95713a13c26cb0ada08dc043f00069f42177212d3c575abe28c3ee7f",
+    "first_bucket_utc": "2026-08-04T04:49:34+00:00",
+    "last_bucket_utc": "2026-08-04T05:34:27+00:00",
+    "records": 1435,
+    "invalid_records": 0,
+    "late_records": 0,
+    "hash_failures": 0,
+    "generation_failures": 0
+  },
+  "cohort": {
+    "post_generation_raw_turns": 0,
+    "complete_event_windows": 0,
+    "admitted_turns": 0,
+    "outcomes_exposed": false
+  },
+  "verdict": "ACCUMULATE",
+  "decision": "The first uninterrupted event prefix contains no exact V18 raw turn, so it supplies infrastructure and ordinary-state control evidence only. Continue the same immutable generation. Do not fit morphology thresholds to random seconds or weaken the minimum treatment/direction/route cohort. The first complete raw-turn-plus-maturation window becomes the first lawful treatment.",
+  "invariants": {
+    "v18_unchanged": true,
+    "classifier_authority": "none",
+    "order_authority": "none",
+    "capital_authority": "none",
+    "missing_july_2023_to_august_2024": true
+  },
+  "submitted_orders": 0
+}
