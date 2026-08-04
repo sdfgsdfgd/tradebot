@@ -1046,7 +1046,14 @@ transition through today’s close; no order will be forced merely to populate t
   `mcl_event_time_slow_epoch_surrender_census_rejection.json` (`1227ca61…`)
   closes threshold
   relaxation, one-type subset rescue, and slow-flip exit tuning. Rolls, costs,
-  news authority, and live XSP/Gold owners remain unchanged.
+  news authority, and live XSP/Gold owners remain unchanged. V76
+  preregistration `f0e74fad…` / evaluator `3b38ff3f…` instead freezes **Dual-
+  Book First-Passage Probation**: every V18 trade enters unchanged; cumulative
+  post-entry CL discovery and MCL transport race until their first shared
+  direction. Favorable-first graduates to unchanged V18; adverse-first may only
+  abort at the next minute; disagreement waits. Both periods must pass exact
+  identity, resolution, adverse breadth across direction/branch/lane/multiscale
+  ownership, meaningful lead, and unchanged cadence/density before PnL.
 - `[PRESERVED RUNNER-UP]` **Tri-asset narrative-dispersion compression:** test
   whether convergence among easing-negative XSP pressure, weakening-positive
   MCL pressure, and weakly reversing-positive Gold pressure predicts
@@ -1752,6 +1759,12 @@ and stable bootstrap evidence. Neither may be refactored into looking mature.
     `mcl_event_time_slow_epoch_surrender_census_rejection.json` (`1227ca61…`)
     closes a
     one-type subset, floor relaxation, and slow-flip timing rescue.
+    V76 preregistration `mcl_dual_book_first_passage_census_preregistration.json`
+    (`f0e74fad…`) / evaluator `3b38ff3f…` freezes every V18 entry and lets only
+    the first cumulative joint CL/MCL post-entry direction graduate or abort the
+    live probation. It differs from delayed add-on confirmation: capital enters
+    immediately, no signal is vetoed, and adverse-first can only exit next minute.
+    Count/breadth/lead/cadence proof precedes every dollar of replay.
     Missing July-2023–August-2024 remains a hard crown blocker; no quota, order,
     or capital authority.
 
@@ -2146,6 +2159,7 @@ and
 | E-466 | V74 lifecycle `dd1669b0…` rejected slow-direction substitution in discovery with exact action identity and unchanged-V18 parity; validation remained sealed. V18 control made `+$1,263.91/+$929.91` primary/stress, PF `1.293`, DD `$501.64`, while the candidate made `-$326.84/-$660.84`, PF `.849`, DD `$1,118.55`. The decisive attribution is causal and categorical: the exact `51` mature slow-opposition admissions made `+$283.23` stress when V18 remained contrarian but `-$1,307.52` when slow direction took ownership, a `-$1,590.75` delta; GTH moved from `+$471.58` to `-$1,456.42`. Receipt `mcl_event_time_roll_neutral_handoff_lifecycle_rejection.json` (`a9403baf…`) closes slow takeover and static multitimeframe consensus. New architectural law: preserve V18's noisy high-energy admissions and direction; independent slower state may govern only permission, dwell, or surrender after an outcome-blind transition census. Missing first challenge year, order, capital, XSP, Gold, and news authority remain unchanged |
 | E-467 | V75 preregistration `mcl_event_time_slow_epoch_surrender_census_preregistration.json` (`5656b7ff…`) / evaluator `da4435df…` freezes a materially distinct lifecycle sensor before counts. Every exact V18 admission, direction, branch, next-minute entry, raw-turn/roll/period boundary, and natural density remains. A ready event-time slow owner is labeled aligned or opposed at entry; its first completed-bar flip while the V18 position is still open becomes `financing_lost` or `opposition_surrendered`. The future candidate may only exit at the next matched-MCL minute; it cannot suppress, reverse, add, re-enter, or inherit slow direction. Discovery and validation-count must independently retain `160–520/year`, >=95% readiness, `20–100` transitions, both types/directions/branches/lanes/entry ownership, >=30m meaningful lead, and unchanged density before any PnL opens. No transition subset, delay, horizon, state, price, indicator, cost, news, quota, order, or capital sweep |
 | E-468 | V75 count `2dd0014e…` rejected the symmetric slow-epoch exit before any PnL/MFE/MAE opened. Exact V18 identity/cadence remained `167/171`; readiness was `99.4%/100%`; total transitions were `36/26`; directions, branches, GTH/RTH, aligned/opposed ownership, >=30m lead, and density all passed. Financing loss was broad at `29/20`, but the separately required opposition-surrender cohort had only `7/6<8`; median transition-to-original-exit lead was still `515/380m`. Receipt `mcl_event_time_slow_epoch_surrender_census_rejection.json` (`1227ca61…`) closes floor relaxation, financing-only subset rescue, transition delay/persistence/age/horizon tuning, and slow-flip exit economics. The asymmetry is evidence, not authority: preserve V18 unchanged and seek a materially distinct causal state owner. Orders/capital and live XSP/Gold/news remain unchanged |
+| E-469 | V76 preregistration `mcl_dual_book_first_passage_census_preregistration.json` (`f0e74fad…`) / evaluator `3b38ff3f…` freezes a high-energy fail-fast state before counts. Every V18 admission enters at the exact next MCL open with unchanged direction, branch, costs, roll, raw-turn boundary, failed-auction memory, and cadence. From that open, cumulative CL and MCL movement races causally: first joint V18-direction movement graduates to unchanged V18; first joint adverse movement may abort at the next minute; disagreement stays in probation. Unlike rejected V47, no entry is delayed/suppressed and no add-on signal exists. Both periods must retain `160–520/year`, >=95% resolution, >=60 favorable-first, `20–100` actionable adverse-first, both directions/branches/GTH-RTH and fast/slow-financed/mature-opposition ownership, >=15 events with 30m lead, and unchanged density before PnL/MFE/MAE. No magnitude, timing, book subset, indicator, state, threshold, outcome, news, order, or capital sweep |
 
 ### Decision anchors
 
