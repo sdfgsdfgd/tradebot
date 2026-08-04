@@ -1001,7 +1001,12 @@ transition through today’s close; no order will be forced merely to populate t
   validation branch floor. Receipt `mcl_multiscale_auction_handoff_census_rejection.json`
   closes gate relaxation. The next distinct lane may carry slow state through a
   roll-neutral within-contract return index while dated MCL remains execution
-  truth. Rolls, costs, news authority, and live XSP/Gold owners remain unchanged.
+  truth. V72 preregistration `12d27306…` / evaluator `3f8da2af…` freezes exactly
+  that seam: zero synthetic return at contract change, causal within-contract
+  CL returns otherwise, unchanged V18 opportunities, fast-wave priority, and
+  one mature nonpropagating handoff to slow direction. Both periods face count-
+  only readiness/cohort/cadence proof before economics. Rolls, costs, news
+  authority, and live XSP/Gold owners remain unchanged.
 - `[PRESERVED RUNNER-UP]` **Tri-asset narrative-dispersion compression:** test
   whether convergence among easing-negative XSP pressure, weakening-positive
   MCL pressure, and weakly reversing-positive Gold pressure predicts
@@ -1670,6 +1675,11 @@ and stable bootstrap evidence. Neither may be refactored into looking mature.
     `128/111/year`, and route's validation acceptance count `18<20`. Receipt
     `mcl_multiscale_auction_handoff_census_rejection.json` closes suffix-reset
     slow routing and abstention; next test a roll-neutral return-state census.
+    V72 preregistration
+    `mcl_roll_neutral_multiscale_handoff_census_preregistration.json`
+    (`12d27306…`) / evaluator `3f8da2af…` binds zero roll-basis return, unchanged
+    V18 identity, fast-wave priority, and exactly one mature-slow route. Both
+    periods remain outcome-sealed until readiness and cohort breadth pass.
     Missing July-2023–August-2024 remains a hard crown blocker; no quota, order,
     or capital authority.
 
@@ -2057,6 +2067,7 @@ and
 | E-459 | V70 lifecycle `518baa5d…` rejected every phase-bounded reclaim cell before validation. Body/close/range made `406/441/375` trades but lost `-$810/-$1,058/-$1,116` gross, `-$2,239.12/-$2,610.32/-$2,436.00` primary, and `-$3,051.12/-$3,492.32/-$3,186.00` stress, with PF `.570/.543/.537` and DD `$3,203.00/$3,634.68/$3,307.48`. Exact immutable-ledger grouping corrects a display-only legacy branch key: acceptance lost `-$1,531.04` stress in every cell and failure-reversal lost `-$1,520.08/-$1,961.28/-$1,654.96`; both directions, Asia/Europe/US, GTH/RTH, and all quarters were negative. Validation stayed sealed. Receipt `mcl_phase_bounded_reclaim_lifecycle_rejection.json` closes close/body/range reclaim, static phase agreement, and risk-overlay rescue. The successor must begin with V18's positive gross energy and outcome-blindly test ordered fast-onset, medium-owner, slow-financing, and counter-auction state transitions; no static ATR/slope vote, threshold rescue, order, or capital authority |
 | E-460 | V71 preregistration `mcl_multiscale_auction_handoff_census_preregistration.json` (`192870a6…`) / evaluator `20c1d80…` freezes a genuinely different high-energy architecture before counts. Every exact V18 `basis_breadth` admission remains the opportunity set. Fast onset is categorical sentinel turn propagation (`short_to_long`, `long_to_short`, mixed, unresolved); medium ownership is unchanged V18 `6/12/24/48/96` CL discovery plus matched-MCL transport routing; slow financing is one nested `24/48/96/192/384` engine using V18's exact policy and existing 24-bar state-maturity boundary. V18/slow agreement remains unchanged; fast propagating takeover remains V18; only a mature slow conflict without propagation may route to slow or abstain. Both periods must independently preserve exact V18 identity, `>160–520/year`, >=80% slow readiness, financed/takeover/counter-auction cohort floors, directions/branches/lanes, and natural density before any PnL. No horizon/policy/age/sequence/ATR/slope/parity/time sweep, outcome union, news, stop, quota, order, or capital authority |
 | E-461 | V71 count `49244a82…` rejected suffix-reset multiscale handoff with zero outcomes exposed. Exact V18 identity remained `167/171` opportunities and raw propagating wavefronts were broad at `38/33`, but monthly contract resets left the nested slow state ready for only `70.7%/74.3%`. Mature conflicts were powered at `39/60`, yet propagation inside that exact conflict was only `1/2` versus `15`; abstention collapsed cadence to `128.09/111.40/year`; routing retained `167.11/171.62/year` but validation acceptance was `18<20`. Receipt `mcl_multiscale_auction_handoff_census_rejection.json` closes gate relaxation, suffix-reset slow ownership, and conflict hold. The causal successor is a roll-neutral CL return index that carries state across dated-contract changes while assigning zero return to the roll gap; matched-month MCL still owns execution/parity. This is a reusable futures-state seam, not a V18 threshold rescue; count proof must precede economics, with no order or capital authority |
+| E-462 | V72 preregistration `mcl_roll_neutral_multiscale_handoff_census_preregistration.json` (`12d27306…`) / evaluator `3f8da2af…` freezes the roll-neutral successor before counts. Its synthetic CL index starts at `100`, compounds exact completed-five-minute within-contract OHLC ratios, and at a contract change keeps prior synthetic close as new open while retaining only the new bar's intrabar ratios—exactly zero roll-basis return. The nested `24/48/96/192/384` engine never resets by suffix but keeps the unchanged V18 policy and 65-minute anchor law, so real maintenance/weekend gaps can still underwarm. Every exact V18 admission remains; any raw short-to-long propagation protects V18's transport route, slow agreement preserves it, and only mature nonpropagating slow opposition routes to slow direction. Both periods must independently retain exact identity, `160–520/year`, >=85% slow readiness, >=25 fast-owned and 20–120 mature-handoff events with direction/branch/lane breadth, projected directions, and natural density before any PnL. No back-adjustment neighbor, horizon/policy/age/wave/ATR/slope/parity/time sweep, abstention, news, stop, quota, order, or capital authority |
 
 ### Decision anchors
 
