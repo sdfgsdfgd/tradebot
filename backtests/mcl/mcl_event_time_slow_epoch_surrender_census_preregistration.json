@@ -1,0 +1,59 @@
+{
+  "schema": "mcl.event-time-slow-epoch-surrender-census-preregistration.v1",
+  "frozen_at_utc": "2026-08-04T04:02:10Z",
+  "authority": "research_count_only_no_outcomes_no_orders_no_capital",
+  "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+  "v18_result_sha256": "b9c64409dcb9cd482427588bb0ae314d870d0350a2100aea6d3f0615ae2f4c15",
+  "source_event_time_census_sha256": "511ac3b8b87c01a9d7d81cb19e5cf01e63b33f0d98647fd62af5d9ec227235d7",
+  "stage74_rejection_sha256": "a9403baf1f6aba680635b2eadc0ff37f546c7dda129e5e3d2cf2a12136c6fe47",
+  "evaluator_sha256": "da4435dff04965c84ed1c49e4197a01323c43812431b22926c7a5a3d3ffb6340",
+  "windows": {
+    "discovery_start": "2024-08-04T22:01:00+00:00",
+    "validation_start": "2025-08-04T22:00:00+00:00",
+    "end": "2026-08-03T20:27:00+00:00"
+  },
+  "frozen_opportunity_set": "Every exact V18 basis_breadth admission, direction, branch, next-minute matched-MCL entry, original raw-turn/roll/period exit boundary, and natural session density remains unchanged.",
+  "candidate_transition": {
+    "slow_owner": "The V73 roll-neutral event-time 24/48/96/192/384 CL state, advanced once per real completed five-minute bar with no inserted bars and zero roll-basis return.",
+    "entry_relation": "At each V18 admission, label the ready slow direction as aligned or opposed to V18; underwarm remains in the opportunity set but cannot produce a transition.",
+    "financing_lost": "A ready slow state aligned at entry first turns against the still-open V18 position.",
+    "opposition_surrendered": "A ready slow state opposed at entry first turns into the still-open V18 direction.",
+    "candidate_exit": "The first such completed-bar transition may close at the next matched-MCL minute open only when it precedes the frozen original exit. It never reverses, suppresses, adds, or re-enters a trade.",
+    "economic_intuition": "Preserve the noisy high-energy V18 landing. Slow state may recognize loss of financing or completion of a contrarian fracture, but never overwrite direction."
+  },
+  "independent_period_count_gates": {
+    "exact_v18_trade_identity": true,
+    "annualized_admissions_between": [
+      160,
+      520
+    ],
+    "slow_ready_fraction_min": 0.95,
+    "transitions_between": [
+      20,
+      100
+    ],
+    "financing_lost_min": 8,
+    "opposition_surrendered_min": 8,
+    "each_v18_direction_min": 8,
+    "each_v18_branch_min": 4,
+    "each_gth_rth_lane_min": 5,
+    "slow_financed_and_mature_handoff_ownership_min": 5,
+    "each_transition_type_with_at_least_30m_original_exit_lead_min": 5,
+    "unchanged_admission_density": {
+      "median_between": [
+        1,
+        3
+      ],
+      "p95_max": 6,
+      "maximum_max": 10
+    }
+  },
+  "outcome_law": "Do not read, group, or compare PnL, MFE, MAE, price path, win rate, drawdown, or validation economics during this census. If and only if every count gate passes independently, freeze one lifecycle with both transition types before opening discovery economics; validation remains sealed until every discovery gate passes.",
+  "prohibitions": [
+    "no V18 admission, direction, branch, parity, maturation, or cadence change",
+    "no transition-type subset, union, delay, persistence, age, horizon, clock, relation, phase, ATR, slope, velocity, basis, parity, time, session, cost, stop, target, timeout, sizing, or quota sweep",
+    "no slow-direction takeover, re-entry, add-on, reversal, news authority, order, or capital authority",
+    "no validation PnL unless the frozen count and later discovery gates pass"
+  ],
+  "submitted_orders": 0
+}

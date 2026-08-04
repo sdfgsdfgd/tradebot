@@ -1031,7 +1031,14 @@ transition through today’s close; no order will be forced merely to populate t
   closes slow
   direction ownership and static multitimeframe consensus. Preserve V18's
   noisy high-energy admission/direction; event-time slow state may next own only
-  a separately count-proven permission, dwell, or surrender transition. Rolls,
+  a separately count-proven permission, dwell, or surrender transition. V75
+  preregistration `5656b7ff…` / evaluator `da4435df…` freezes the first exact
+  test: every V18 trade remains, while the first in-position slow-epoch flip is
+  counted as either `financing_lost` (aligned to opposed) or
+  `opposition_surrendered` (opposed to aligned). It may only shorten at the next
+  minute; it cannot change direction, suppress, reverse, add, or re-enter. Both
+  independent periods must pass transition, direction, branch, lane, ownership,
+  meaningful-lead, cadence, and density floors before any outcome opens. Rolls,
   costs, news authority, and live XSP/Gold owners remain unchanged.
 - `[PRESERVED RUNNER-UP]` **Tri-asset narrative-dispersion compression:** test
   whether convergence among easing-negative XSP pressure, weakening-positive
@@ -1726,7 +1733,13 @@ and stable bootstrap evidence. Neither may be refactored into looking mature.
     `mcl_event_time_roll_neutral_handoff_lifecycle_rejection.json`
     (`a9403baf…`) closes slow
     takeover. Preserve every V18 admission/direction and test slow state only as
-    an outcome-blind lifecycle transition owner before any economic replay.
+    an outcome-blind lifecycle transition owner before any economic replay. V75
+    preregistration
+    `mcl_event_time_slow_epoch_surrender_census_preregistration.json`
+    (`5656b7ff…`) / evaluator `da4435df…` freezes exactly two first-turn labels:
+    aligned-to-opposed financing loss and opposed-to-aligned surrender. It keeps
+    every V18 admission/direction and can only shorten, never reverse or re-enter;
+    both periods face count/breadth/lead/cadence gates before any PnL.
     Missing July-2023–August-2024 remains a hard crown blocker; no quota, order,
     or capital authority.
 
@@ -2119,6 +2132,7 @@ and
 | E-464 | V73 preregistration `mcl_event_time_roll_neutral_handoff_census_preregistration.json` (`db045831…`) / evaluator `2af9ad0c…` freezes the completed-traded-bar successor before counts. It advances one virtual five-minute step per real completed CL five-minute bar and inserts zero bars; a same-contract maintenance/weekend reopen compounds the full real gap as one causal shock observation, while contract change still contributes exactly zero roll-basis return. Real timestamps continue to own V18 opportunity identity, independent periods, Globex sessions, GTH/RTH, dated MCL parity/cost/roll/execution. The exact V72 slow engine and ownership hierarchy remain unchanged; readiness now must exceed `95%`, with the same fast-owned/mature-handoff/direction/branch/lane/cadence/density laws before any PnL. No gap cap/weekend flag/virtual speed/roll adjustment/horizon/policy/age/wave/ATR/slope/parity/time sweep, news, stop, quota, order, or capital authority |
 | E-465 | V73 event-time count `511ac3b8…` passed every frozen law with zero outcomes exposed. Exact V18 identity/cadence stayed `167/171` (`167.11/171.62/year`); slow readiness rose to `99.4%/100%` without inserted bars; fast transport-owned remained `38/33`; mature handoff expanded to `51/56` with down/up `24/27` and `31/25`, acceptance/failure `12/39` and `9/47`, GTH/RTH `39/12` and `39/17`; projected directions were `82/85` and `71/100`; density stayed `1/2/3` and `1/3/3`. Receipt `mcl_event_time_roll_neutral_handoff_census_receipt.json` (`9a38ca43…`). V74 preregistration `mcl_event_time_roll_neutral_handoff_lifecycle_preregistration.json` (`27345bc1…`) / evaluator `85904f6f…` freezes unchanged V18 control and one exact candidate: every V18 admission executes next matched-MCL open; only mature handoff changes direction; every V18 raw turn/roll/period boundary flattens; unchanged failure positions retain exact `0.5%/25%` profit memory but handoffs inherit none; minute MFE/MAE and `$3.52/$5.52` remain exact. Candidate discovery must pass absolute stability and improve V18 net >=5% without lower PF/PnL-DD or higher DD before validation opens. Missing first challenge year remains a crown blocker; no sweep, news, order, or capital authority |
 | E-466 | V74 lifecycle `dd1669b0…` rejected slow-direction substitution in discovery with exact action identity and unchanged-V18 parity; validation remained sealed. V18 control made `+$1,263.91/+$929.91` primary/stress, PF `1.293`, DD `$501.64`, while the candidate made `-$326.84/-$660.84`, PF `.849`, DD `$1,118.55`. The decisive attribution is causal and categorical: the exact `51` mature slow-opposition admissions made `+$283.23` stress when V18 remained contrarian but `-$1,307.52` when slow direction took ownership, a `-$1,590.75` delta; GTH moved from `+$471.58` to `-$1,456.42`. Receipt `mcl_event_time_roll_neutral_handoff_lifecycle_rejection.json` (`a9403baf…`) closes slow takeover and static multitimeframe consensus. New architectural law: preserve V18's noisy high-energy admissions and direction; independent slower state may govern only permission, dwell, or surrender after an outcome-blind transition census. Missing first challenge year, order, capital, XSP, Gold, and news authority remain unchanged |
+| E-467 | V75 preregistration `mcl_event_time_slow_epoch_surrender_census_preregistration.json` (`5656b7ff…`) / evaluator `da4435df…` freezes a materially distinct lifecycle sensor before counts. Every exact V18 admission, direction, branch, next-minute entry, raw-turn/roll/period boundary, and natural density remains. A ready event-time slow owner is labeled aligned or opposed at entry; its first completed-bar flip while the V18 position is still open becomes `financing_lost` or `opposition_surrendered`. The future candidate may only exit at the next matched-MCL minute; it cannot suppress, reverse, add, re-enter, or inherit slow direction. Discovery and validation-count must independently retain `160–520/year`, >=95% readiness, `20–100` transitions, both types/directions/branches/lanes/entry ownership, >=30m meaningful lead, and unchanged density before any PnL opens. No transition subset, delay, horizon, state, price, indicator, cost, news, quota, order, or capital sweep |
 
 ### Decision anchors
 
