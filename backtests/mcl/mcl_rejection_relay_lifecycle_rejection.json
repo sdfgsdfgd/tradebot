@@ -1,0 +1,45 @@
+{
+  "schema": "mcl.rejection-relay-lifecycle-rejection.v1",
+  "recorded_at_utc": "2026-08-04T00:17:10Z",
+  "authority": "research_only_validation_unopened_no_orders_no_capital",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "census_sha256": "b92de419131f50176b1fd247448e8d301f3230775f946353e609bb364715960f",
+    "preregistration_sha256": "66e33e4b0ddcb40c59ba4e78226ec18aaafd0963afc27262e682f57ab68a0f9a",
+    "evaluator_sha256": "2ee4a2e0eb6865a14b4b85ba171ba85530af8abb86a0e573547dbf9c418f8fc0",
+    "result_sha256": "f01f9a38b2940acd16414f043a138c0cbfc31da64f8629aef3b18ec9fb17cc40",
+    "financing_anatomy_evaluator_sha256": "9dd5ef9ecb4f5219d1e52af5e6d36b9e5ddc4fc7d39e11ddee49da9b83fb44a2",
+    "financing_anatomy_result_sha256": "0c62362d8e0f1a1c8107681f1e0dffda0001fbcceabd361f9d14a2e29a34ec02"
+  },
+  "discovery": {
+    "trades": 173,
+    "annualized_trades": 173.12,
+    "primary_net": 1311.04,
+    "stress_net": 965.04,
+    "primary_profit_factor": 1.359465,
+    "stress_profit_factor": 1.25261,
+    "primary_intrabar_drawdown": 713.40,
+    "stress_intrabar_drawdown": 858.00,
+    "primary_pnl_to_intrabar_drawdown": 1.837735,
+    "stress_pnl_to_intrabar_drawdown": 1.124755,
+    "primary_stress_positive_months": [7, 7],
+    "largest_positive_month_share": 0.383629,
+    "stress_branches": {
+      "absorption": [144, 866.12],
+      "initiative_failure": [29, 98.92]
+    },
+    "stress_directions_up_down": [281.68, 683.36],
+    "stress_anchors_europe_us": [186.76, 778.28],
+    "stress_sides_high_low": [683.36, 281.68]
+  },
+  "finding": "The exact rejection-only owner cleared cadence, PF, PnL/DD, branch, direction, anchor, and boundary-side economics under stress, but only seven months were positive and its largest winner supplied 38.36% of positive-month PnL. Validation therefore remained sealed. Post-rejection anatomy found one categorical financing distinction: 83 events aligned with the existing product-neutral trend state earned $1,100.84 under stress with PnL/DD 3.60, while 90 opposed events lost $135.80. Trend-aligned rejection is too sparse to replace the >160/year owner, so it may only be count-tested as a separately accountable add-on while the unchanged V18 primary owner is flat.",
+  "validation_opened": false,
+  "closed_families": [
+    "standalone_rejection_relay_v42",
+    "opposed_trend_rejection_events",
+    "month_or_concentration_threshold_rescue"
+  ],
+  "preserved_seam": "Keep V18 transport acceptance unchanged and outcome-blind count-test only trend-state-aligned V42 rejection events that arrive while V18 is flat; V18 must always preempt and the add-on may never filter or alter its entries, exits, direction, or ledger.",
+  "verdict": "REJECT_STANDALONE_PRESERVE_PREEMPTIBLE_ADDON_CENSUS",
+  "submitted_orders": 0
+}

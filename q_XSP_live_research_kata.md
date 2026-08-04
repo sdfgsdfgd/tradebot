@@ -763,8 +763,15 @@ transition through today’s close; no order will be forced merely to populate t
   count-tested one exact rejection-only relay: immediate absorption plus delayed
   initiative failure. It passed at `173.12/175.63` annualized, `53.1%/55.3%`
   active sessions, median `1`, p95/max `2`, with both directions/anchors/sides.
-  V42 preregistration `66e33e4b…` / evaluator `2ee4a2e0…` freezes one exact
-  costed branch-state lifecycle; discovery alone decides whether validation opens.
+  V42 made `+$1,311.04/+$965.04` stress over `173`, PF `1.359/1.253`,
+  DD `$713.40/$858.00`, and PnL/DD `1.838/1.125`; both branches,
+  directions, anchors, and sides were positive, but only `7/7` months were
+  positive and concentration was `38.36%`, so validation stayed sealed.
+  Exact financing anatomy then separated `83` generic-trend-aligned events at
+  `+$1,100.84` stress / PnL-DD `3.600` from `90` opposed events at `-$135.80`.
+  V43 preregistration `80a3e23c…` / evaluator `3196850c…` therefore leaves
+  V18's entire `basis_breadth` ledger immutable and outcome-blind count-tests
+  aligned rejection events only while V18 is flat; V18 always preempts.
   Rolls, costs, news authority, and live XSP/Gold owners remain unchanged.
 - `[PRESERVED RUNNER-UP]` **Tri-asset narrative-dispersion compression:** test
   whether convergence among easing-negative XSP pressure, weakening-positive
@@ -1204,10 +1211,18 @@ and stable bootstrap evidence. Neither may be refactored into looking mature.
     `3f4ec9a3…` count-tested the exact absorption-plus-delayed-failure relay. It
     passed at `173.12/175.63` annualized, `53.1%/55.3%` active sessions, median
     `1`, p95/max `2`, up/down `91/82` and `93/82`, Europe/US `87/86` and `83/92`.
-    Receipt `mcl_rejection_relay_census_receipt.json` (`ffdc9570…`). V42
-    preregistration `mcl_rejection_relay_lifecycle_preregistration.json`
-    (`66e33e4b…`) / evaluator `2ee4a2e0…` freezes one exact branch-state owner;
-    discovery PnL/DD is now permitted, validation only after every gate passes.
+    Receipt `mcl_rejection_relay_census_receipt.json` (`ffdc9570…`). V42 made
+    `+$1,311.04/+$965.04` stress over `173`, PF `1.359/1.253`, DD
+    `$713.40/$858.00`, and PnL/DD `1.838/1.125`; all costed cohorts were
+    positive, but month breadth `7/7` and `38.36%` concentration rejected it
+    before validation. Financing anatomy `0c62362d…` found aligned `83`
+    at `+$1,100.84` stress versus opposed `90` at `-$135.80`. Receipt
+    `mcl_rejection_relay_lifecycle_rejection.json` (`c3115e71…`). V43
+    preregistration `mcl_v18_flat_rejection_addon_census_preregistration.json`
+    (`80a3e23c…`) / evaluator `3196850c…` freezes an outcome-blind count only:
+    unchanged V18 primary, aligned V42 add-on only while V18 is flat, and
+    unconditional V18 preemption. No add-on outcomes may open before both
+    periods pass frozen breadth and combined-cadence floors.
     Missing July-2023–August-2024 remains a hard crown blocker; no quota, order,
     or capital authority.
 
@@ -1561,6 +1576,7 @@ and
 | E-425 | outcome-blind V39 count `ccf52fd2…` rejected its effort primary before PnL because only `19/14` initiative acceptances survived, below the frozen `20` floor. The price-only fallback then passed in frozen order: discovery `213` (`213.15/year`), `62.40%` active sessions, median/p95/max `1/2/2`, absorption/acceptance/failure `144/40/29`, up/down `115/98`, Europe/US `108/105`; validation count `204` (`204.74/year`), `63.04%` active, `151/29/24`, up/down `106/98`, Europe/US `98/106`. Zero outcomes opened. Receipt `mcl_two_step_opening_drive_census_receipt.json` (`e7ed8fc1…`). V40 preregistration `mcl_two_step_opening_drive_lifecycle_preregistration.json` / evaluator `e880e6e3…` binds the exact next-open MCL entries, anchor cutoffs, `$3.52/$5.52` costs, and one plain branch-state owner only. Discovery must pass every profitability/DD/month/concentration/cohort gate before validation opens. No news, order, capital, or XSP/Gold mutation |
 | E-426 | V40 lifecycle `9711eee8…` remained after-cost positive but rejected before validation: `213` trades made `+$947.24/+$521.24` stress, PF `1.202/1.106`, DD `$995.16/$1,150.48`, PnL/DD `.952/.453`, `7/7` positive months, and `42.90%` primary month concentration. Absorption made `+$866.12` stress, delayed failure `+$98.92`, but monotonic two-step acceptance lost `-$443.80`; up stress was only `+$5.20`, though both anchors/sides stayed positive. Receipt `mcl_two_step_opening_drive_lifecycle_rejection.json` (`390d0dd6…`) closes continuation, volume, inversion, and exit rescue. V41 preregistration `mcl_rejection_relay_census_preregistration.json` / evaluator `3f4ec9a3…` projects exactly immediate absorption plus selected two-bar initiative failure, with zero acceptance or replacement branch. Both periods must independently preserve `>160/year`, both directions/anchors/sides, and ordinary one-to-two event cadence before combined discovery PnL/DD or validation may open. No news, order, capital, or XSP/Gold mutation |
 | E-427 | outcome-blind V41 rejection-relay count `b92de419…` passed both periods: discovery `173` events (`173.12/year`), `53.10%` active sessions, median/p95/max `1/2/2`, absorption/failure `144/29`, up/down `91/82`, Europe/US `87/86`, high/low `82/91`; validation count `175` (`175.63/year`), `55.25%` active, `151/24`, up/down `93/82`, Europe/US `83/92`, high/low `82/93`. Zero outcomes opened. Receipt `mcl_rejection_relay_census_receipt.json` (`ffdc9570…`). V42 preregistration `mcl_rejection_relay_lifecycle_preregistration.json` / evaluator `2ee4a2e0…` binds those exact next-open MCL events, anchor cutoffs, `$3.52/$5.52` costs, and one branch-state owner with no continuation, stop, memory, or timeout. Discovery may now compute combined economics; validation remains sealed unless every discovery profitability/DD/month/concentration/cohort gate passes. No news, order, capital, or XSP/Gold mutation |
+| E-428 | V42 lifecycle `f01f9a38…` is a strong standalone rejection, not a selectable rescue: `173` discovery trades made `+$1,311.04/+$965.04` stress, PF `1.359/1.253`, DD `$713.40/$858.00`, PnL/DD `1.838/1.125`, with absorption `+$866.12`, delayed failure `+$98.92`, and both directions/anchors/sides positive under stress. It nevertheless had only `7/7` positive months and `38.36%` concentration, so validation remained sealed. Financing anatomy `0c62362d…` joined the actual generic DirectionalImpulse state at all `173` exact triggers: aligned `83` earned `+$1,100.84` stress with PnL/DD `3.600`, opposed `90` lost `-$135.80`; aligned alone is below the `>160/year` mandate. Receipt `mcl_rejection_relay_lifecycle_rejection.json` (`c3115e71…`). V43 preregistration `mcl_v18_flat_rejection_addon_census_preregistration.json` (`80a3e23c…`) / evaluator `3196850c…` therefore binds a materially different composition: immutable V18 `basis_breadth` remains primary, only aligned V42 events may appear while V18 is flat, and the next V18 entry always preempts. Both periods must pass exact add-on breadth and combined `>190/year` cadence before any add-on PnL, MFE/MAE, validation outcome, order, or capital authority opens |
 
 ### Decision anchors
 

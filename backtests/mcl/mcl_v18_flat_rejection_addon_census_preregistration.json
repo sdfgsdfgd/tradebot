@@ -1,0 +1,61 @@
+{
+  "schema": "mcl.v18-flat-rejection-addon-census-preregistration.v1",
+  "registered_at_utc": "2026-08-04T00:19:45Z",
+  "authority": "outcome_blind_no_addon_forward_pnl_no_orders_no_capital",
+  "campaign": "mcl.two-speed-auction-relay.v43",
+  "hypothesis": "V18 transport acceptance remains the immutable primary owner. A separately financed rejection add-on may improve ordinary cadence and month breadth without diluting V18 if it is admitted only when the existing product-neutral trend state agrees with the rejection direction and V18 is physically flat; any later V18 entry always preempts it.",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "rejection_census_sha256": "b92de419131f50176b1fd247448e8d301f3230775f946353e609bb364715960f",
+    "rejection_lifecycle_result_sha256": "f01f9a38b2940acd16414f043a138c0cbfc31da64f8629aef3b18ec9fb17cc40",
+    "financing_anatomy_sha256": "0c62362d8e0f1a1c8107681f1e0dffda0001fbcceabd361f9d14a2e29a34ec02",
+    "immutable_v18_result_sha256": "b9c64409dcb9cd482427588bb0ae314d870d0350a2100aea6d3f0615ae2f4c15",
+    "census_evaluator_path": "/tmp/mcl_stage43_v18_flat_addon_census.py",
+    "census_evaluator_sha256": "3196850cf1bb98c69a53eca23454594bf68f3e5241a3b80edcd3107a11f97d60"
+  },
+  "owners": {
+    "primary": "unchanged V18 basis_breadth ledger, entries, directions, exits, costs, and outcomes",
+    "addon": "V41 immediate absorption or two-bar initiative failure whose exact completed trigger has DirectionalImpulse trend_state equal to its direction",
+    "admission": "addon projected entry must occur outside every immutable V18 entry-to-exit interval",
+    "preemption": "the next V18 entry is recorded as an unconditional maximum ownership boundary for any later lifecycle; the add-on may never delay, replace, invert, or modify V18"
+  },
+  "count_gate_per_period": {
+    "minimum_addon_events": 30,
+    "minimum_each_direction": 10,
+    "minimum_absorption": 20,
+    "minimum_initiative_failure": 5,
+    "minimum_each_anchor": 10,
+    "minimum_each_boundary_side": 10,
+    "minimum_addon_active_session_fraction": 0.10,
+    "combined_annualized_trades": {
+      "exclusive_minimum": 190,
+      "inclusive_maximum": 520
+    },
+    "combined_session_distribution": {
+      "median_minimum": 1,
+      "median_maximum": 3,
+      "p95_maximum": 4,
+      "maximum": 6
+    }
+  },
+  "frozen_order": [
+    "replay the unchanged V18 sensor causally and join each V41 event at its exact completed trigger",
+    "retain trend-state-aligned events only",
+    "exclude every event whose projected entry overlaps an immutable V18 position interval",
+    "count discovery and validation periods without reading any add-on return, MFE, MAE, exit, PnL, or validation outcome",
+    "advance only if both count periods independently pass every frozen floor"
+  ],
+  "if_eligible": "Preregister one combined lifecycle in which V18 remains primary, the add-on uses the unchanged V42 branch-state exit, and a new V18 entry flattens the add-on at that exact MCL open before V18 admission. Discovery must improve the unchanged V18 primary and stress portfolio without weakening V18 or hiding add-on economics before validation opens.",
+  "prohibitions": [
+    "no V18 filter, gate, direction, hold, exit, cost, or ledger mutation",
+    "no standalone trend-aligned V42 owner below the annual cadence floor",
+    "no alternate trend, slope, velocity, ATR, branch, anchor, side, month, or news profile",
+    "no add-on forward outcomes before count eligibility",
+    "no order, capital, XSP, or Gold authority"
+  ],
+  "downstream_hold_even_on_pass": [
+    "missing July 2023 through August 2024 dated-contract history",
+    "unseen runtime parity and prospective signal tape",
+    "native MCL spread, liquidity, margin, commission, roll, preview, restart, reconciliation, shared-capital, and graduation proof"
+  ]
+}
