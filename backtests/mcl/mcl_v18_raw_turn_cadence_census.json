@@ -1,0 +1,32 @@
+{
+  "schema": "mcl.v18-raw-turn-cadence-census.v1",
+  "recorded_at_utc": "2026-08-04T06:46:00Z",
+  "authority": "descriptive_signal_count_only_no_outcomes_no_orders_no_capital",
+  "source": {
+    "frozen_v18_result_sha256": "b9c64409dcb9cd482427588bb0ae314d870d0350a2100aea6d3f0615ae2f4c15",
+    "exact_signal_event_sha256": "531c2679bc60d5bda316dd2bb05601a1977e1c49e56abcbbcdfaee684a38d83e"
+  },
+  "raw_turns": 1493,
+  "directions": {
+    "down": 747,
+    "up": 746
+  },
+  "active_dates": 505,
+  "raw_turns_per_active_date": {
+    "mean": 2.9564356435643564,
+    "median": 3,
+    "p90": 5,
+    "maximum": 8
+  },
+  "interarrival_minutes": {
+    "p25": 210,
+    "median": 390,
+    "p75": 740,
+    "p90": 1420,
+    "p95": 3375,
+    "maximum": 5695
+  },
+  "interpretation": "Zero prospective V18 turns in the first 107 minutes is ordinary and does not indicate a warmup defect or missed onset. Preserve the frozen 30-turn prospective treatment floor.",
+  "outcomes_exposed": false,
+  "submitted_orders": 0
+}
