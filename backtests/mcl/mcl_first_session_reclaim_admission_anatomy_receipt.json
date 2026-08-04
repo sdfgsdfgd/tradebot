@@ -1,0 +1,34 @@
+{
+  "schema": "mcl.first-session-reclaim-admission-anatomy-receipt.v1",
+  "recorded_at_utc": "2026-08-04T01:26:12Z",
+  "authority": "discovery_outcome_exposed_validation_count_only_no_validation_pnl_no_orders_no_capital",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "census_sha256": "f3d3b7ac85218a836f820ce1c3bc4ed33c3fe6ed9331d28ec19fc8fc3d0c962d",
+    "rejected_lifecycle_sha256": "3b98580dea159a73090bfc5a4f64dc457f3857869017f47a9c97bf732a27a55f",
+    "preregistration_sha256": "6720ff386fe511a989682337f62f981c7eb8940b7bbb0b3052bb0931fb7db37c",
+    "evaluator_sha256": "182d30e9abf6ae9cb0a9fb80abc68551723d2b55f0a6d6d57846965adb58e125",
+    "result_sha256": "aeb0f42dfa003abdc51ed4f86c4e5bb526a822e2c60577ce4dc939d0a942b9c8"
+  },
+  "principal_discovery_splits": {
+    "europe_02_0930": [98, 508.04, 312.04, 1.268048, 84],
+    "asia_18_02": [270, -1348.40, -1888.40, 0.239566, 271],
+    "rth_0930_16": [28, -268.56, -324.56, 0.394432, 30],
+    "joint_vwap_clearance_four_plus_ticks": [116, 534.68, 302.68, 1.202218, 140],
+    "joint_vwap_clearance_under_two_ticks": [195, -1177.40, -1567.40, 0.122966, 166],
+    "state_48_95_both_vwaps_financing": [44, 368.12, 280.12, 1.745714, 50],
+    "positive_atr_velocity_negative_acceleration_six_plus_reclaim": [24, 230.52, 182.52, 1.593754, 28]
+  },
+  "tuple_meaning": [
+    "discovery trades",
+    "discovery primary net",
+    "discovery stress net",
+    "discovery stress profit factor",
+    "validation event count only"
+  ],
+  "finding": "The raw reclaim owner mixed three physically distinct auctions. Asia and shallow dual-book clearance were decisively cost-negative; European price discovery and at least four-tick clearance beyond both causal VWAPs were independently positive and repeated at substantial validation count. The maturing-financed and decelerating-expansion motifs were stronger but too sparse to own the target cadence. Freeze Europe as first mutually exclusive branch and, outside Europe only, deep joint clearance as the second; count the union before any new lifecycle outcome.",
+  "validation_outcomes_opened": 0,
+  "selection_authority": "one_downstream_outcome_blind_union_census_only",
+  "submitted_orders": 0,
+  "verdict": "FREEZE_EUROPE_ELSE_DEEP_CLEARANCE_CENSUS"
+}

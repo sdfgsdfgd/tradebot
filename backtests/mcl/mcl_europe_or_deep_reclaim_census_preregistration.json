@@ -1,0 +1,58 @@
+{
+  "schema": "mcl.europe-or-deep-reclaim-census-preregistration.v1",
+  "registered_at_utc": "2026-08-04T01:26:12Z",
+  "authority": "outcome_blind_count_only_discovery_selection_exposed_validation_pnl_unopened_no_orders_no_capital",
+  "campaign": "mcl.two-speed-auction-relay.v55",
+  "hypothesis": "Oil's first session-direction reclaim has sufficient gross amplitude in either European price discovery or a decisive joint dual-book displacement. Europe owns the first mutually exclusive branch; outside Europe, only a completed reclaim closing at least four ticks beyond both causal CL and MCL session VWAPs owns the second. This should remove Asia/shallow churn while preserving ordinary cadence.",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "source_census_sha256": "f3d3b7ac85218a836f820ce1c3bc4ed33c3fe6ed9331d28ec19fc8fc3d0c962d",
+    "anatomy_preregistration_sha256": "6720ff386fe511a989682337f62f981c7eb8940b7bbb0b3052bb0931fb7db37c",
+    "anatomy_result_sha256": "aeb0f42dfa003abdc51ed4f86c4e5bb526a822e2c60577ce4dc939d0a942b9c8",
+    "anatomy_receipt_sha256": "6c833c6decd2caf0259b3208cb46ab015d5b7560cdfccea8002cce6d56fc5c8f",
+    "census_evaluator_path": "/tmp/mcl_stage55_europe_or_deep_reclaim_census.py",
+    "census_evaluator_sha256": "6d3c4db3a1bb0ca90a377fcf16159099825e9761b25c0582ededd3e68ebc5ef4"
+  },
+  "mutually_exclusive_profile": {
+    "branch_priority": [
+      "europe_rotation",
+      "decisive_clearance"
+    ],
+    "europe_rotation": "projected entry is from 02:00 inclusive to 09:30 exclusive ET, regardless of clearance category",
+    "decisive_clearance": "outside Europe only, both completed CL and matched MCL closes are at least four 0.01 ticks beyond their own causal session VWAP in retained direction",
+    "direction_owner": "unchanged V18 retained CL trend state",
+    "event_owner": "unchanged V52 first reclaim per Globex-session and retained-direction identity",
+    "threshold_origin": "natural whole-tick category frozen in V54 before anatomy; no continuous optimization"
+  },
+  "count_gate_per_period": {
+    "annualized_events": {
+      "exclusive_minimum": 160,
+      "inclusive_maximum": 300
+    },
+    "minimum_each_direction": 50,
+    "minimum_each_branch": 40,
+    "minimum_active_session_fraction": 0.55,
+    "session_distribution": {
+      "median_minimum": 1,
+      "median_maximum": 2,
+      "p95_maximum": 2,
+      "maximum": 2
+    }
+  },
+  "frozen_order": [
+    "recompute only V54 completed-evidence features for every V52 event",
+    "apply Europe branch first, then deep-clearance branch only outside Europe",
+    "count discovery and validation independently without opening any trade outcome",
+    "advance only if both periods pass every cadence, direction, branch, active-session, and density gate"
+  ],
+  "if_eligible": "Preregister one V18-primary plus fast-reclaim portfolio lifecycle. V18 remains immutable and preempts; the fast owner retains the V53 entry/VWAP/state/boundary exits; one MCL position maximum. Discovery must prove the add-on independently and improve V18 before sealed validation opens.",
+  "prohibitions": [
+    "no Asia/RTH exception, second clearance threshold, lane subdivision, maturity, curvature, volume, direction, news, stop, target, timeout, cooldown, or quota companion",
+    "no validation PnL, MFE, MAE, return, order, capital, XSP, or Gold authority"
+  ],
+  "downstream_hold_even_on_pass": [
+    "missing July 2023 through August 2024 dated-contract history",
+    "unseen runtime parity and prospective signal tape",
+    "native MCL spread, liquidity, margin, commission, roll, preview, restart, reconciliation, shared-capital, and graduation proof"
+  ]
+}
