@@ -1,0 +1,72 @@
+{
+  "schema": "mcl.v18-live-source-shadow-receipt.v1",
+  "recorded_at_utc": "2026-08-04T07:36:37Z",
+  "authority": "read_only_source_and_shadow_no_orders_no_capital",
+  "inputs": {
+    "native_manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "broker_snapshot_sha256": "90773c8e49723ced3c79bb76e7139e2d368190880730a5f656a0815396c9ddee",
+    "broker_snapshot_id": "c5a47683f7039c2e6aa351f3297f8f5a45155f06796c36a8e2bf0202419b572a",
+    "snapshot_cutoff_utc": "2026-08-04T07:26:00+00:00",
+    "evaluator_sha256": "e6ba1006ee27bd9791c293748273783dad16deedb8020c03fdc6f9677795d2a6",
+    "full_result_sha256": "c5ebcd0a927c60ff961b83e2b191af85dcae780241f1b96d31b44c9d6cae4ad0"
+  },
+  "contract_identity": {
+    "contract_month": "U6",
+    "CL": {
+      "con_id": 304037484,
+      "local_symbol": "CLU6",
+      "identity_match": true
+    },
+    "MCL": {
+      "con_id": 661016525,
+      "local_symbol": "MCLU6",
+      "identity_match": true
+    }
+  },
+  "cache_to_broker_overlap": {
+    "rows": 2693,
+    "exact_rows": 2691,
+    "mismatch_rows": 2,
+    "mismatch_scope": "one terminal partial bar per contract only",
+    "law": "the later finalized broker snapshot supersedes only the prior cache tail; every earlier overlapping row is exact"
+  },
+  "current_shadow": {
+    "active_roll_start_utc": "2026-07-15T00:00:00+00:00",
+    "common_minutes": 19767,
+    "five_minute_decisions": 3953,
+    "raw_turns": 47,
+    "maturations": 24,
+    "counterfactual_admissions": 11,
+    "counterfactual_closed_trades": 11,
+    "counterfactual_position": null,
+    "last_completed_minute_utc": "2026-08-04T07:26:00+00:00",
+    "last_decision_utc": "2026-08-04T07:25:00+00:00",
+    "last_phase": "STATE",
+    "trend_state": "down",
+    "state_age_bars": 4,
+    "admitted_direction": null,
+    "latest_raw_turn_utc": "2026-08-04T07:05:00+00:00",
+    "latest_raw_direction": "down",
+    "latest_maturation_utc": "2026-08-04T07:10:00+00:00",
+    "latest_maturation_admitted": false
+  },
+  "warmup_convergence": {
+    "starts_utc": [
+      "2026-07-15T00:00:00+00:00",
+      "2026-07-20T00:00:00+00:00",
+      "2026-07-27T00:00:00+00:00",
+      "2026-08-01T00:00:00+00:00",
+      "2026-08-02T22:01:00+00:00"
+    ],
+    "minimum_common_minutes": 1946,
+    "exact_current_state_across_all_starts": true
+  },
+  "selection_boundary": {
+    "selected_position": null,
+    "target_direction": 0,
+    "counterfactual_position_is_evidence_only": true,
+    "fresh_post_selection_admission_required": true
+  },
+  "verdict": "LIVE_SOURCE_SHADOW_PASS",
+  "submitted_orders": 0
+}

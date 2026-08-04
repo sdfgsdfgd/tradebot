@@ -1,0 +1,31 @@
+{
+  "schema": "mcl.tbt-direction-source-rejection.v1",
+  "recorded_at_utc": "2026-08-04T07:36:37Z",
+  "authority": "read_only_source_anatomy_no_orders_no_capital",
+  "inputs": {
+    "broker_snapshot_sha256": "90773c8e49723ced3c79bb76e7139e2d368190880730a5f656a0815396c9ddee",
+    "broker_snapshot_id": "c5a47683f7039c2e6aa351f3297f8f5a45155f06796c36a8e2bf0202419b572a",
+    "event_parity_result_sha256": "eb6fb11a9ad5774c54cadf213b7564db49a35e37771dbb4826efc8849075ffae"
+  },
+  "event_prefix": {
+    "first_completed_minute_utc": "2026-08-04T04:50:00+00:00",
+    "last_completed_minute_utc": "2026-08-04T07:26:00+00:00",
+    "minutes": 157,
+    "invalid_rows": 0,
+    "late_rows": 0
+  },
+  "parity": {
+    "CL": {
+      "ohlcv_price_exact_minutes": 137,
+      "volume_exact_minutes": 130
+    },
+    "MCL": {
+      "ohlcv_price_exact_minutes": 121,
+      "volume_exact_minutes": 106
+    }
+  },
+  "decision": "TickByTickAllLast-derived minute bars are valid prospective microstructure evidence but do not reproduce IBKR finalized historical TRADES bars exactly and therefore cannot own V18 direction, admission, or lifecycle state.",
+  "preserved_authority": "Stages 87/88/89 onset morphology and timing evidence only",
+  "verdict": "REJECT_AS_DIRECTION_SOURCE",
+  "submitted_orders": 0
+}

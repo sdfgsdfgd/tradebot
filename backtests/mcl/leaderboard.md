@@ -44,8 +44,9 @@ artifact `backtests/mcl/mcl_two_speed_auction_v18_crown.json` at SHA-256
 | Prospective tape | q service generation `b3805c9f…` continuously records matched live NYMEX L1 CL/MCL seconds and completed minutes without order authority |
 | Predictive challenger | Stage 87 post-close velocity ignition, Stage 88 pre-close closing funnel, and Stage 89 velocity jerk/handoff are frozen before eligible outcomes |
 | Live-canary exception | **Authorized:** V18 may commission before Stage 87–89 reaches its unseen cohort; the seconds layer remains observation-only and every operational/safety gate remains mandatory |
-| Next irreversible evidence | Reconstruct the current matched CL/MCL state through the durable lifecycle and prove a cold-restart-identical, non-submitting live shadow; the prospective tape continues independently toward its first complete post-`06:55Z` raw-turn window |
-| Live boundary | Lifecycle parity is green. Next prove matched live shadow, quote, commission, margin, sizing, preview, restart, reconciliation, allocation, immutable selection, and bounded canary safety |
+| Live source/shadow | **PASS:** finalized broker U6 history matches `2,691/2,693` cache-overlap rows; the two differences are only the old terminal partial bars. Five causal warmups down to `1,946` common minutes reproduce one exact current V18 state; receipt `mcl_v18_live_source_shadow_receipt.json` |
+| Next irreversible evidence | Bind the proven finalized-minute seam into the q worker, then prove fresh quote, commission, one-contract margin, two-sided preview, shared-capital admission, immutable flat selection, and cold restart/reconciliation; the prospective tape continues independently toward its first complete post-`06:55Z` raw-turn window |
+| Live boundary | Lifecycle and live-source shadow parity are green. The TBT seconds tape is explicitly rejected as direction truth and retained only for predictive onset/timing evidence |
 
 ## CR-001 · 2026-08-04 · MCL Two-Speed Auction Relay — V18
 
@@ -123,6 +124,17 @@ replayed `707,136` matched minutes and all 25 contract pairs. Expected and actua
 ledgers contain `338` trades at the identical canonical SHA `788a5c3f…`, with
 no mismatch and zero order/capital authority.
 
+The second gate is also complete. Receipt
+`mcl_v18_live_source_shadow_receipt.json` proves exact matched U6 identity and
+`2,691/2,693` cache-to-broker rows; each sole mismatch is the old cache's final
+partial bar, correctly replaced by the later finalized broker history. Replays
+from five causal starts—including only the latest `1,946` common minutes—land
+on the identical current state. The `07:05Z` raw down turn matured at `07:10Z`
+but was not admitted, so the live flat state is a genuine V18 decision, not
+missing warmup. Tick-by-tick-derived bars remain useful only to Stages 87–89;
+receipt `mcl_tbt_direction_source_rejection.json` forbids them from silently
+becoming direction truth.
+
 ## Active challenger — Predictive Intelligence Sharpening of Onsets
 
 V18 remains the sole direction and risk-reduction owner. One immutable live
@@ -163,8 +175,9 @@ Do not reopen these historical rescue families without genuinely new data:
 1. Preserve V18 identity and continue the same prospective tape generation.
    The bounded-canary exception is authorized, but present state remains `HOLD`.
 2. **Done:** centralize its exact costed lifecycle with byte-exact `338/338`
-   historical parity. Next bind matched dated-contract live state behind the
-   shared q worker boundary; do not copy XSP or Gold execution.
+   historical parity and prove current finalized-minute source/shadow identity.
+   Next bind that exact seam behind the shared q worker boundary; do not copy
+   XSP or Gold execution or promote TBT-derived bars to direction truth.
 3. Prove live MCL contract selection, spread, commission, slippage, margin,
    minimum executable package, and non-transmitting broker preview.
 4. Prove cold start, immediate restart, open-position reconciliation, roll,
