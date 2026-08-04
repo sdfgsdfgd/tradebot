@@ -1,0 +1,54 @@
+{
+  "schema": "mcl.turn-authenticity-microstructure-commissioning-receipt.v1",
+  "recorded_at_utc": "2026-08-04T04:50:11.189787Z",
+  "authority": "prospective_observation_only_no_signal_no_orders_no_capital",
+  "generation_path": "backtests/mcl/mcl_turn_authenticity_microstructure_generation.json",
+  "generation_sha256": "b3805c9f95713a13c26cb0ada08dc043f00069f42177212d3c575abe28c3ee7f",
+  "preregistration_sha256": "dcd783c199dbe91602caeb05410f05fb68f91527299e8502495b59686effe82a",
+  "recorder_sha256": "3eb97510f9647e312715e25577fe019c5b60e342c5dbd1c04f5d84d544354d56",
+  "deployed_commit": "1d1b1096d994727cd5b13b4d9261e3bbf33d3407",
+  "service": {
+    "unit": "tradebot-mcl-turn-tape.service",
+    "active_since": "2026-08-04T14:49:31+10:00",
+    "active_state": "active",
+    "sub_state": "running",
+    "restarts": 0,
+    "client_id_pool": [3211, 3213],
+    "broker_read_only": true
+  },
+  "frozen_prefix": {
+    "path": "~/.local/state/tradebot/research/mcl_turn_tape/2026-08-04.jsonl",
+    "first_bucket_utc": "2026-08-04T04:49:34+00:00",
+    "last_bucket_utc": "2026-08-04T04:50:08+00:00",
+    "rows": 13,
+    "prefix_sha256": "e6e224f165aa13e4176d9a0a0d3d7b6740231b1324caa2ddd1285f729084d432",
+    "terminal_record_id": "bd9b311edb4259af46a7a69a94ac60e643c3ce13f1c78f9c65918ebbe3f1b632",
+    "valid_type_1_rows": 13,
+    "late_rows": 0,
+    "invalid_record_hashes": 0,
+    "events": {
+      "CL_bid_ask": 39,
+      "CL_all_last": 1,
+      "MCL_bid_ask": 43,
+      "MCL_all_last": 10
+    }
+  },
+  "timestamp_semantics": "ib_insync_tcp_packet_receipt_utc_not_exchange_or_broker_event_time",
+  "invariants": {
+    "shared_contract_month": "202608",
+    "CL": "CLU6 conId 304037484",
+    "MCL": "MCLU6 conId 661016525",
+    "content_addressed_rows": true,
+    "matched_type_1_books": true,
+    "submitted_orders": 0,
+    "classifier_authority": "none",
+    "direction_authority": "none",
+    "capital_authority": "none"
+  },
+  "limitations": [
+    "L1 size changes are top-of-book add/remove proxies, not depth, identified cancellation, queue position, manipulation, or insider evidence.",
+    "Microseconds are local q TCP-packet receipt timing through ib_insync, not exchange timestamps or colocated latency.",
+    "V18 remains development-only; this generation collects unseen evidence and cannot promote, veto, or submit a trade."
+  ],
+  "submitted_orders": 0
+}
