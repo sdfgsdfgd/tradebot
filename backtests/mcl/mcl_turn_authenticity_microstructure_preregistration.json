@@ -1,0 +1,105 @@
+{
+  "schema": "mcl.turn-authenticity-microstructure-preregistration.v1",
+  "frozen_at_utc": "2026-08-04T04:30:44Z",
+  "authority": "prospective_observation_only_no_signal_no_orders_no_capital",
+  "candidate": {
+    "name": "MCL Turn Authenticity Microstructure Tape",
+    "base": "unchanged V18 Dominant-Book Transport Acceptance Router",
+    "hypothesis": "Authentic and fake V18 oil turns may differ in the ordered sub-minute transition between dominant CL price discovery and matched-month MCL transport acceptance even though a first adverse one-minute close cannot distinguish them.",
+    "eventual_actions": [
+      "ADMIT_NOW",
+      "MATURE",
+      "REJECT_FAKE"
+    ],
+    "current_action_authority": "NONE"
+  },
+  "causal_seed": {
+    "v18_artifact": "backtests/mcl/mcl_two_speed_auction_relay_v18_transport_acceptance_development.json",
+    "v18_artifact_sha256": "d852cae56dd64bd30fa376c5c6efd6862fe916d0d704deb003cbaeb033d83e43",
+    "v18_internal_result_sha256": "b9c64409dcb9cd482427588bb0ae314d870d0350a2100aea6d3f0615ae2f4c15",
+    "v77_rejection": "backtests/mcl/mcl_dual_book_first_passage_lifecycle_rejection.json",
+    "v77_rejection_sha256": "e29c72969fe3f1401a5ec5fbb7d8ff4acfd5ba701c8be1bc48f2cdfb424f9f11",
+    "v77_finding": "Favorable-first and adverse-first split approximately evenly in both periods; unconditional first-adverse-minute aborts changed discovery stress PnL from +929.91 USD to -66.34 USD and DD from 501.64 USD to 847.89 USD.",
+    "live_feed_probe": {
+      "observed_at_utc": "2026-08-04T04:26:42Z",
+      "contracts": [
+        {"symbol": "CL", "con_id": 304037484, "local_symbol": "CLU6", "expiry": "20260820"},
+        {"symbol": "MCL", "con_id": 661016525, "local_symbol": "MCLU6", "expiry": "20260819"}
+      ],
+      "market_data_type": 1,
+      "twelve_second_events": {
+        "CL": {"bid_ask": 47, "all_last": 3},
+        "MCL": {"bid_ask": 40, "all_last": 5}
+      },
+      "errors": 0,
+      "submitted_orders": 0
+    }
+  },
+  "frozen_capture": {
+    "source": "IBKR NYMEX non-professional L1 reqTickByTickData BidAsk plus AllLast",
+    "contracts": "one immutable exact-conId shared contract-month generation; a roll requires a successor generation and may not rewrite the existing tape",
+    "clock": "IBKR UTC event timestamp retained verbatim; events grouped into integer UTC seconds without interpolation or fabricated quiet seconds",
+    "recording": "continuous matched CL/MCL event tape so exact V18 turns and outcome-blind matched no-turn controls can be joined later without trigger-time selection",
+    "raw_bid_ask_fields": [
+      "event_time_utc",
+      "bid",
+      "ask",
+      "bid_size",
+      "ask_size",
+      "bid_past_low",
+      "ask_past_high"
+    ],
+    "raw_trade_fields": [
+      "event_time_utc",
+      "tick_type",
+      "price",
+      "size",
+      "past_limit",
+      "unreported"
+    ],
+    "deterministic_second_summary": [
+      "quote_and_trade_event_count",
+      "mid_open_high_low_close",
+      "microprice_open_high_low_close",
+      "spread_min_max_last_ticks",
+      "imbalance_open_min_max_close",
+      "same-price bid/ask size-add and size-remove proxies",
+      "trade volume and contemporaneous-top signed-volume proxy",
+      "first price-change timestamp and CL-versus-MCL lead in microseconds",
+      "matched basis open/high/low/close ticks"
+    ],
+    "storage": "content-addressed append-only JSONL partitioned by UTC date with interrupted-tail repair and exact generation identity on every record",
+    "invalid_evidence": "marketDataType other than 1, contract drift, unmatched contract month, invalid/crossed top, impossible timestamp, or generation/code drift records no valid cohort evidence and fails closed"
+  },
+  "future_join_and_settlement": {
+    "decision_owner": "exact immutable V18 completed-bar evaluator; tape never creates direction",
+    "treatments": "every exact V18 raw/proposed/admitted turn whose required pre/post event window is complete",
+    "controls": "outcome-blind same-contract/session/lane states matched on V18 direction, branch, multiscale ownership, and completed-bar volatility context before forward outcomes open",
+    "exploratory_horizons_minutes": [1, 5, 15, 30, 60],
+    "outcomes": [
+      "CL and MCL return",
+      "MFE",
+      "MAE",
+      "first favorable/adverse passage",
+      "giveback",
+      "reversal",
+      "unchanged V18 trade attribution"
+    ],
+    "classifier_law": "Generation v1 collects raw evidence only. Any categorical authenticity classifier must be frozen in a successor preregistration before a later unseen cohort and must beat unchanged V18 after costs across independent periods, directions, branches, GTH/RTH, and hostile regimes before receiving permission authority."
+  },
+  "limitations": {
+    "market_depth": "L1 top of book only; size increases/decreases are top-size add/remove proxies, not identified orders, queue position, true refill, cancellation, or depth imbalance",
+    "latency": "broker/API timestamps and residential-network receipt are suitable for prospective microstructure research, not exchange-colocated HFT or guaranteed execution priority",
+    "history": "the tape begins prospectively and cannot reconstruct historical second-level states from one-minute bars",
+    "crown": "V18 remains development-only and the missing July-2023 to August-2024 challenge year remains a hard crown blocker"
+  },
+  "prohibitions": [
+    "no order, preview, sizing, capital, selection, or live direction authority",
+    "no retrospective pressure-score or threshold selection presented as prospective proof",
+    "no first-minute, first-tick, persistence, magnitude, session, direction, branch, or ownership rescue of V77",
+    "no claim that L1 observes full order-book flow, market-maker intent, manipulation, or insider behavior",
+    "no synthetic event, interpolated quote, hidden backfill, contract substitution, or silent generation rewrite",
+    "no mutation of XSP, Gold, V18, news, capital, or live-service authority"
+  ],
+  "submitted_orders": 0
+}

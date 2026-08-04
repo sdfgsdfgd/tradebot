@@ -209,6 +209,54 @@ def test_ensure_ticker_preserves_and_accumulates_generic_ticks(
     )
 
 
+def test_tick_by_tick_subscription_uses_main_derivative_stream() -> None:
+    client = _new_client()
+    calls: list[tuple[object, str, int, bool]] = []
+    cancels: list[tuple[object, str]] = []
+    marker = SimpleNamespace(tickByTicks=[])
+
+    class _MainIB:
+        def reqTickByTickData(
+            self,
+            contract,
+            tick_type: str,
+            number_of_ticks: int,
+            ignore_size: bool,
+        ):
+            calls.append((contract, tick_type, number_of_ticks, ignore_size))
+            return marker
+
+        def cancelTickByTickData(self, contract, tick_type: str) -> None:
+            cancels.append((contract, tick_type))
+
+    async def _connect() -> None:
+        return None
+
+    client._ib = _MainIB()
+    client.connect = _connect  # type: ignore[method-assign]
+    contract = Contract(secType="FUT", symbol="MCL", currency="USD", conId=42)
+
+    ticker = asyncio.run(client.subscribe_tick_by_tick(contract, "bidask"))
+    client.unsubscribe_tick_by_tick(calls[0][0], "BidAsk")
+
+    assert ticker is marker
+    assert calls[0][1:] == ("BidAsk", 0, False)
+    assert calls[0][0].exchange == "NYMEX"
+    assert cancels == [(calls[0][0], "BidAsk")]
+
+
+def test_tick_by_tick_subscription_rejects_unknown_event_type() -> None:
+    client = _new_client()
+    contract = Contract(secType="FUT", symbol="MCL", exchange="NYMEX")
+
+    try:
+        asyncio.run(client.subscribe_tick_by_tick(contract, "Depth"))
+    except ValueError as exc:
+        assert "unsupported tick-by-tick type" in str(exc)
+    else:
+        raise AssertionError("unknown tick-by-tick type was accepted")
+
+
 def test_limit_order_binds_a_restart_safe_order_ref(monkeypatch) -> None:
     client = _new_client()
     monkeypatch.setattr(

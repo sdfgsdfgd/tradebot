@@ -1682,6 +1682,59 @@ class IBKRClient:
         )
         return ticker
 
+    async def subscribe_tick_by_tick(
+        self,
+        contract: Contract,
+        tick_type: str,
+        *,
+        ignore_size: bool = False,
+    ) -> Ticker:
+        """Subscribe one exact contract to IBKR-delivered tick-by-tick L1 events."""
+
+        kind = str(tick_type or "").strip()
+        canonical = next(
+            (
+                value
+                for value in ("Last", "AllLast", "BidAsk", "MidPoint")
+                if value.lower() == kind.lower()
+            ),
+            None,
+        )
+        if canonical is None:
+            raise ValueError(f"unsupported tick-by-tick type: {tick_type!r}")
+        await self.connect()
+        sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
+        request = (
+            self._normalize_derivative_market_data_contract(
+                contract,
+                sec_type=sec_type,
+            )
+            if sec_type in ("FUT", "OPT", "FOP")
+            else contract
+        )
+        return self._ib.reqTickByTickData(
+            request,
+            canonical,
+            0,
+            bool(ignore_size),
+        )
+
+    def unsubscribe_tick_by_tick(self, contract: Contract, tick_type: str) -> None:
+        """Cancel the exact IBKR-delivered tick-by-tick L1 subscription."""
+
+        kind = str(tick_type or "").strip()
+        canonical = next(
+            (
+                value
+                for value in ("Last", "AllLast", "BidAsk", "MidPoint")
+                if value.lower() == kind.lower()
+            ),
+            None,
+        )
+        if canonical is None:
+            raise ValueError(f"unsupported tick-by-tick type: {tick_type!r}")
+        self._ib.cancelTickByTickData(contract, canonical)
+
     async def refresh_live_snapshot_once(self, contract: Contract) -> str | None:
         """Snapshot quotes are disabled (they can incur per-snapshot fees)."""
         return None
@@ -6473,8 +6526,6 @@ class IBKRClient:
                 now_mono = time.monotonic()
                 age_sec = self._ticker_quote_age_sec(ticker)
                 top_age_sec = self._ticker_top_quote_age_sec(ticker)
-                has_actionable = self._ticker_has_data(ticker)
-                has_close = self._ticker_has_close_data(ticker)
                 md_type_raw = getattr(ticker, "marketDataType", None)
                 try:
                     md_type = int(md_type_raw) if md_type_raw is not None else None

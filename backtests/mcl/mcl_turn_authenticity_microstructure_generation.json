@@ -1,0 +1,64 @@
+{
+  "schema": "mcl.turn-authenticity-microstructure-generation.v1",
+  "created_at_utc": "2026-08-04T04:45:22Z",
+  "authority": "prospective_observation_only_no_signal_no_orders_no_capital",
+  "order_authority": "none",
+  "preregistration_path": "backtests/mcl/mcl_turn_authenticity_microstructure_preregistration.json",
+  "preregistration_sha256": "dcd783c199dbe91602caeb05410f05fb68f91527299e8502495b59686effe82a",
+  "recorder_path": "tradebot/research/mcl_turn_tape.py",
+  "recorder_sha256": "3eb97510f9647e312715e25577fe019c5b60e342c5dbd1c04f5d84d544354d56",
+  "timestamp_semantics": "ib_insync_tcp_packet_receipt_utc_not_exchange_or_broker_event_time",
+  "preregistration_clock_correction": "The preregistration's event-time wording is operationally narrowed before first recording: ib_insync discards the wire's integer broker second and stores local UTC TCP-packet receipt time with microseconds. Receipt order is evidence about this execution path, not exchange chronology or colocated latency.",
+  "contracts": {
+    "CL": {
+      "symbol": "CL",
+      "con_id": 304037484,
+      "local_symbol": "CLU6",
+      "expiry": "20260820",
+      "exchange": "NYMEX",
+      "currency": "USD",
+      "multiplier": "1000"
+    },
+    "MCL": {
+      "symbol": "MCL",
+      "con_id": 661016525,
+      "local_symbol": "MCLU6",
+      "expiry": "20260819",
+      "exchange": "NYMEX",
+      "currency": "USD",
+      "multiplier": "100"
+    }
+  },
+  "tick_size": 0.01,
+  "flush_lag_seconds": 3,
+  "raw_row_layout": {
+    "bid_ask": [
+      "receipt_microsecond",
+      "within_symbol_capture_sequence",
+      "bid",
+      "ask",
+      "bid_size",
+      "ask_size",
+      "bid_past_low",
+      "ask_past_high"
+    ],
+    "all_last": [
+      "receipt_microsecond",
+      "within_symbol_capture_sequence",
+      "tick_type",
+      "price",
+      "size",
+      "past_limit",
+      "unreported"
+    ]
+  },
+  "causal_sources": {
+    "v18_path": "backtests/mcl/mcl_two_speed_auction_relay_v18_transport_acceptance_development.json",
+    "v18_sha256": "d852cae56dd64bd30fa376c5c6efd6862fe916d0d704deb003cbaeb033d83e43",
+    "v18_internal_result_sha256": "b9c64409dcb9cd482427588bb0ae314d870d0350a2100aea6d3f0615ae2f4c15",
+    "v77_rejection_path": "backtests/mcl/mcl_dual_book_first_passage_lifecycle_rejection.json",
+    "v77_rejection_sha256": "e29c72969fe3f1401a5ec5fbb7d8ff4acfd5ba701c8be1bc48f2cdfb424f9f11"
+  },
+  "roll_law": "Exact shared contract month only; any CL or MCL conId change requires an immutable successor generation.",
+  "submitted_orders": 0
+}
