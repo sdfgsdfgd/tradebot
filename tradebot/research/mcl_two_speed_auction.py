@@ -18,6 +18,9 @@ MCL_TWO_SPEED_AUCTION_VERSION = "mcl.two-speed-auction-relay.v18"
 MCL_TWO_SPEED_AUCTION_AUTHORITY = "signal_state_only_no_orders_no_capital"
 MCL_TWO_SPEED_AUCTION_HORIZONS = (6, 12, 24, 48, 96)
 MCL_TWO_SPEED_AUCTION_TICK_SIZE = 0.01
+MCL_TWO_SPEED_AUCTION_MULTIPLIER = 100.0
+MCL_TWO_SPEED_AUCTION_PRIMARY_COST_USD = 3.52
+MCL_TWO_SPEED_AUCTION_STRESS_COST_USD = 5.52
 MCL_TWO_SPEED_AUCTION_POLICY = DirectionalTurnPolicy(
     session_mode="window",
     smooth_alpha=0.15,
@@ -337,4 +340,340 @@ class MclTwoSpeedAuctionEngine:
             raw_parity_ticks=target.raw_parity_ticks,
             basis_velocity_ticks=target.basis_velocity_ticks,
             snapshot=snapshot,
+        )
+
+
+@dataclass(frozen=True)
+class MclAuctionMinute:
+    """One causal matched-contract minute used by the exact V18 lifecycle."""
+
+    contract_key: str
+    cl: OhlcvBar
+    mcl: OhlcvBar
+
+    def __post_init__(self) -> None:
+        if not self.contract_key.strip():
+            raise ValueError("MCL lifecycle minute requires a contract key")
+        if self.cl.ts != self.mcl.ts:
+            raise ValueError("CL/MCL lifecycle minute timestamps do not match")
+        if self.cl.ts.tzinfo is None:
+            raise ValueError("MCL lifecycle minute timestamps must be timezone-aware")
+
+    @property
+    def ts(self) -> datetime:
+        return self.cl.ts.astimezone(timezone.utc)
+
+
+@dataclass(frozen=True)
+class MclAuctionTrade:
+    """One completed costed V18 trade; broker execution remains downstream."""
+
+    route: Literal["continuation", "failed_auction"]
+    direction: int
+    signal_at_utc: datetime
+    entry_at_utc: datetime
+    exit_at_utc: datetime
+    entry_price: float
+    exit_price: float
+    exit_reason: str
+    raw_pnl_usd: float
+    primary_pnl_usd: float
+    stress_pnl_usd: float
+    mfe_usd: float
+    mae_usd: float
+
+    def as_payload(self) -> dict[str, object]:
+        return {
+            "branch": "acceptance" if self.route == "continuation" else "failure",
+            "direction": "up" if self.direction > 0 else "down",
+            "signal_time": self.signal_at_utc.astimezone(timezone.utc).isoformat(),
+            "entry_time": self.entry_at_utc.astimezone(timezone.utc).isoformat(),
+            "exit_time": self.exit_at_utc.astimezone(timezone.utc).isoformat(),
+            "entry": float(self.entry_price),
+            "exit": float(self.exit_price),
+            "reason": self.exit_reason,
+            "raw_pnl": float(self.raw_pnl_usd),
+            "primary_pnl": float(self.primary_pnl_usd),
+            "stress_pnl": float(self.stress_pnl_usd),
+            "mfe": float(self.mfe_usd),
+            "mae": float(self.mae_usd),
+        }
+
+
+@dataclass(frozen=True)
+class MclAuctionLifecycleStep:
+    """One minute transition from the pure, non-submitting V18 lifecycle."""
+
+    observed_at_utc: datetime
+    decision: MclAuctionDecision | None
+    opened_position: bool
+    closed_trades: tuple[MclAuctionTrade, ...]
+    contract_reset: bool
+
+
+@dataclass
+class _MclAuctionPosition:
+    direction: int
+    signal_at_utc: datetime
+    entry_at_utc: datetime
+    entry_price: float
+    route: Literal["continuation", "failed_auction"]
+    mfe_usd: float = 0.0
+    mae_usd: float = 0.0
+
+
+def _aggregate_mcl_minutes(rows: list[MclAuctionMinute]) -> MclAuctionBar:
+    if len(rows) != 5 or any(
+        right.ts - left.ts != timedelta(minutes=1)
+        for left, right in zip(rows, rows[1:])
+    ):
+        raise ValueError("MCL lifecycle requires five consecutive minutes")
+
+    def aggregate(side: str) -> OhlcvBar:
+        values = [getattr(row, side) for row in rows]
+        return OhlcvBar(
+            rows[-1].ts,
+            float(values[0].open),
+            max(float(value.high) for value in values),
+            min(float(value.low) for value in values),
+            float(values[-1].close),
+            sum(float(value.volume) for value in values),
+        )
+
+    return MclAuctionBar(rows[-1].contract_key, aggregate("cl"), aggregate("mcl"))
+
+
+class MclTwoSpeedAuctionLifecycle:
+    """Own V18 next-minute entry, raw-turn flatten, profit memory, and roll."""
+
+    def __init__(self, engine: MclTwoSpeedAuctionEngine | None = None) -> None:
+        self._engine = engine or MclTwoSpeedAuctionEngine()
+        self._minutes: list[MclAuctionMinute] = []
+        self._previous: MclAuctionMinute | None = None
+        self._position: _MclAuctionPosition | None = None
+        self._pending_flatten = False
+        self._pending_direction: int | None = None
+        self._pending_signal_at_utc: datetime | None = None
+        self._pending_route: Literal["continuation", "failed_auction"] | None = None
+        self._trades: list[MclAuctionTrade] = []
+
+    @property
+    def trades(self) -> tuple[MclAuctionTrade, ...]:
+        return tuple(self._trades)
+
+    @property
+    def position(self) -> dict[str, object] | None:
+        value = self._position
+        if value is None:
+            return None
+        return {
+            "direction": value.direction,
+            "signal_at_utc": value.signal_at_utc.isoformat(),
+            "entry_at_utc": value.entry_at_utc.isoformat(),
+            "entry_price": value.entry_price,
+            "route": value.route,
+            "mfe_usd": value.mfe_usd,
+            "mae_usd": value.mae_usd,
+        }
+
+    def _close(
+        self,
+        *,
+        observed_at: datetime,
+        price: float,
+        reason: str,
+    ) -> MclAuctionTrade | None:
+        position = self._position
+        if position is None:
+            return None
+        raw = (
+            position.direction
+            * (float(price) - position.entry_price)
+            * MCL_TWO_SPEED_AUCTION_MULTIPLIER
+        )
+        trade = MclAuctionTrade(
+            route=position.route,
+            direction=position.direction,
+            signal_at_utc=position.signal_at_utc,
+            entry_at_utc=position.entry_at_utc,
+            exit_at_utc=observed_at,
+            entry_price=position.entry_price,
+            exit_price=float(price),
+            exit_reason=reason,
+            raw_pnl_usd=raw,
+            primary_pnl_usd=raw - MCL_TWO_SPEED_AUCTION_PRIMARY_COST_USD,
+            stress_pnl_usd=raw - MCL_TWO_SPEED_AUCTION_STRESS_COST_USD,
+            mfe_usd=position.mfe_usd,
+            mae_usd=position.mae_usd,
+        )
+        self._position = None
+        self._trades.append(trade)
+        return trade
+
+    def _apply_pending(
+        self,
+        minute: MclAuctionMinute,
+    ) -> tuple[bool, list[MclAuctionTrade]]:
+        closed = []
+        if self._pending_flatten:
+            trade = self._close(
+                observed_at=minute.ts,
+                price=float(minute.mcl.open),
+                reason="raw_turn_invalidation",
+            )
+            if trade is not None:
+                closed.append(trade)
+            self._pending_flatten = False
+        direction = self._pending_direction
+        signal_at = self._pending_signal_at_utc
+        route = self._pending_route
+        self._pending_direction = None
+        self._pending_signal_at_utc = None
+        self._pending_route = None
+        if direction is None or signal_at is None or route is None:
+            return False, closed
+        if self._position is not None and self._position.direction == direction:
+            return False, closed
+        if self._position is not None:
+            trade = self._close(
+                observed_at=minute.ts,
+                price=float(minute.mcl.open),
+                reason="opposite_turn",
+            )
+            if trade is not None:
+                closed.append(trade)
+        self._position = _MclAuctionPosition(
+            direction=direction,
+            signal_at_utc=signal_at,
+            entry_at_utc=minute.ts,
+            entry_price=float(minute.mcl.open),
+            route=route,
+        )
+        return True, closed
+
+    def _mark(self, minute: MclAuctionMinute) -> MclAuctionTrade | None:
+        position = self._position
+        if position is None:
+            return None
+        if position.route == "failed_auction":
+            activation = (
+                position.entry_price * 0.005 * MCL_TWO_SPEED_AUCTION_MULTIPLIER
+            )
+            if position.mfe_usd >= activation:
+                protected = 0.25 * position.mfe_usd
+                stop = (
+                    position.entry_price
+                    + position.direction
+                    * protected
+                    / MCL_TWO_SPEED_AUCTION_MULTIPLIER
+                )
+                price = (
+                    min(float(minute.mcl.open), stop)
+                    if position.direction > 0 and float(minute.mcl.low) <= stop
+                    else max(float(minute.mcl.open), stop)
+                    if position.direction < 0 and float(minute.mcl.high) >= stop
+                    else None
+                )
+                if price is not None:
+                    return self._close(
+                        observed_at=minute.ts,
+                        price=price,
+                        reason="profit_memory",
+                    )
+        if position.direction > 0:
+            position.mfe_usd = max(
+                position.mfe_usd,
+                (float(minute.mcl.high) - position.entry_price)
+                * MCL_TWO_SPEED_AUCTION_MULTIPLIER,
+            )
+            position.mae_usd = min(
+                position.mae_usd,
+                (float(minute.mcl.low) - position.entry_price)
+                * MCL_TWO_SPEED_AUCTION_MULTIPLIER,
+            )
+        else:
+            position.mfe_usd = max(
+                position.mfe_usd,
+                (position.entry_price - float(minute.mcl.low))
+                * MCL_TWO_SPEED_AUCTION_MULTIPLIER,
+            )
+            position.mae_usd = min(
+                position.mae_usd,
+                (position.entry_price - float(minute.mcl.high))
+                * MCL_TWO_SPEED_AUCTION_MULTIPLIER,
+            )
+        return None
+
+    def _bind_decision(self, decision: MclAuctionDecision) -> None:
+        if decision.phase == "RAW_TURN":
+            self._pending_flatten = self._position is not None
+            self._pending_direction = None
+            self._pending_signal_at_utc = None
+            self._pending_route = None
+        elif (
+            decision.phase == "MATURATION"
+            and decision.admitted_direction in (-1, 1)
+            and decision.signal_at_utc is not None
+            and decision.route is not None
+        ):
+            self._pending_direction = decision.admitted_direction
+            self._pending_signal_at_utc = decision.signal_at_utc
+            self._pending_route = decision.route
+
+    def update(self, minute: MclAuctionMinute) -> MclAuctionLifecycleStep:
+        previous = self._previous
+        if previous is not None and minute.ts <= previous.ts:
+            raise ValueError("MCL lifecycle minute timestamps must increase")
+        contract_reset = previous is not None and (
+            minute.contract_key != previous.contract_key
+        )
+        closed = []
+        if contract_reset:
+            trade = self._close(
+                observed_at=previous.ts,
+                price=float(previous.mcl.close),
+                reason="contract_roll",
+            )
+            if trade is not None:
+                closed.append(trade)
+            self._pending_flatten = False
+            self._pending_direction = None
+            self._pending_signal_at_utc = None
+            self._pending_route = None
+            self._minutes.clear()
+        elif previous is None or minute.ts - previous.ts != timedelta(minutes=1):
+            self._minutes.clear()
+
+        opened, pending_closed = self._apply_pending(minute)
+        closed.extend(pending_closed)
+        marked = self._mark(minute)
+        if marked is not None:
+            closed.append(marked)
+
+        self._minutes.append(minute)
+        decision = None
+        if minute.ts.minute % 5 == 0:
+            if len(self._minutes) == 5:
+                decision = self._engine.update(_aggregate_mcl_minutes(self._minutes))
+                self._bind_decision(decision)
+            self._minutes.clear()
+        self._previous = minute
+        return MclAuctionLifecycleStep(
+            observed_at_utc=minute.ts,
+            decision=decision,
+            opened_position=opened,
+            closed_trades=tuple(closed),
+            contract_reset=contract_reset,
+        )
+
+    def finish(self) -> MclAuctionTrade | None:
+        """Close only a finite historical replay; a live owner never calls this."""
+
+        previous = self._previous
+        if previous is None:
+            return None
+        return self._close(
+            observed_at=previous.ts,
+            price=float(previous.mcl.close),
+            reason="dataset_end",
         )

@@ -16,9 +16,13 @@ from tradebot.research.mcl_two_speed_auction import (
     MCL_TWO_SPEED_AUCTION_AUTHORITY,
     MCL_TWO_SPEED_AUCTION_HORIZONS,
     MCL_TWO_SPEED_AUCTION_POLICY,
+    MCL_TWO_SPEED_AUCTION_PRIMARY_COST_USD,
     MCL_TWO_SPEED_AUCTION_VERSION,
     MclAuctionBar,
+    MclAuctionDecision,
+    MclAuctionMinute,
     MclTwoSpeedAuctionEngine,
+    MclTwoSpeedAuctionLifecycle,
     route_mcl_v18_direction,
 )
 from tradebot.spot.champions import discover_current_champions, load_champion_group
@@ -57,8 +61,29 @@ def test_v18_research_crown_is_machine_bound_but_cannot_trade() -> None:
     assert artifact["prospective"]["complete_unseen_raw_turns"] == 0
     leaderboard = (root / "backtests/mcl/leaderboard.md").read_text()
     assert "CR-001 · 2026-08-04 · MCL Two-Speed Auction Relay — V18" in leaderboard
+    assert "CR-002 · 2026-08-04 · Bounded live-canary exception" in leaderboard
     assert artifact["schema"] in leaderboard
     assert declaration["artifact_sha256"] in leaderboard
+
+
+def test_v18_lifecycle_parity_receipt_binds_every_frozen_trade() -> None:
+    root = Path(__file__).resolve().parents[1]
+    receipt = json.loads(
+        (root / "backtests/mcl/mcl_two_speed_auction_v18_lifecycle_owner_parity.json").read_text()
+    )
+
+    assert receipt["authority"].endswith("no_orders_no_capital")
+    assert receipt["manifest_sha256"] == (
+        "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55"
+    )
+    assert receipt["tape"]["rows"] == 707_136
+    assert receipt["expected_trades"] == receipt["actual_trades"] == 338
+    assert receipt["expected_sha256"] == receipt["actual_sha256"] == (
+        "788a5c3ff577b05b8d0f25b1794ab4b7f5e5d47795b48fbee5c3184577fac2a5"
+    )
+    assert receipt["first_mismatch"] is None
+    assert receipt["exact_trade_parity"] is True
+    assert receipt["submitted_orders"] == 0
 
 
 def _horizon(bars: int, velocity: float | None) -> DirectionalImpulseHorizon:
@@ -139,6 +164,65 @@ def _pair(
         return OhlcvBar(ts, close, close, close, close, 1.0)
 
     return MclAuctionBar(contract, bar(cl), bar(mcl))
+
+
+def _minute(
+    minute: int,
+    *,
+    cl: tuple[float, float, float, float] = (80.0, 80.0, 80.0, 80.0),
+    mcl: tuple[float, float, float, float] = (80.0, 80.0, 80.0, 80.0),
+    contract: str = "202608",
+) -> MclAuctionMinute:
+    ts = START + timedelta(minutes=minute)
+
+    def bar(values: tuple[float, float, float, float]) -> OhlcvBar:
+        return OhlcvBar(ts, *values, 1.0)
+
+    return MclAuctionMinute(contract, bar(cl), bar(mcl))
+
+
+def _decision(
+    minute: int,
+    phase: str,
+    *,
+    raw: int | None = None,
+    admitted: int | None = None,
+    route: str | None = None,
+    signal_minute: int | None = None,
+) -> MclAuctionDecision:
+    return MclAuctionDecision(
+        observed_at_utc=START + timedelta(minutes=minute),
+        contract_key="202608",
+        phase=phase,  # type: ignore[arg-type]
+        signal_at_utc=(
+            START + timedelta(minutes=signal_minute)
+            if signal_minute is not None
+            else None
+        ),
+        raw_direction=raw,
+        proposed_direction=raw,
+        admitted_direction=admitted,
+        route=route,  # type: ignore[arg-type]
+        risk_reduction=phase == "RAW_TURN",
+        contract_reset=False,
+        cl_move=0.01,
+        mcl_move=0.01,
+        velocity_aligned=True,
+        velocity_breadth=5,
+        parity_aligned=True,
+        retained=True if phase == "MATURATION" else None,
+        raw_parity_ticks=1,
+        basis_velocity_ticks=0,
+        snapshot=_snapshot(trend="up"),
+    )
+
+
+class _DecisionEngine:
+    def __init__(self, *decisions: MclAuctionDecision) -> None:
+        self.decisions = list(decisions)
+
+    def update(self, _bar: MclAuctionBar) -> MclAuctionDecision:
+        return self.decisions.pop(0)
 
 
 def test_v18_identity_and_turn_policy_are_frozen() -> None:
@@ -255,6 +339,102 @@ def test_contract_change_discards_unmatured_turn() -> None:
     assert reset.contract_reset is True
     assert reset.cl_move == reset.mcl_move == 0.0
     assert reset.admitted_direction is None
+
+
+def test_v18_lifecycle_enters_next_minute_and_raw_turn_flattens_unconditionally(
+) -> None:
+    lifecycle = MclTwoSpeedAuctionLifecycle(
+        _DecisionEngine(  # type: ignore[arg-type]
+            _decision(5, "STATE"),
+            _decision(10, "MATURATION", raw=1, admitted=1, route="continuation", signal_minute=5),
+            _decision(15, "RAW_TURN", raw=-1, signal_minute=15),
+        )
+    )
+    for minute in range(1, 17):
+        mcl = (
+            (80.0, 80.4, 79.9, 80.2)
+            if minute == 11
+            else (80.1, 80.3, 79.8, 80.0)
+            if minute == 16
+            else (80.0, 80.2, 79.9, 80.0)
+        )
+        step = lifecycle.update(_minute(minute, mcl=mcl))
+
+    assert step.closed_trades == lifecycle.trades
+    assert lifecycle.position is None
+    assert len(lifecycle.trades) == 1
+    trade = lifecycle.trades[0]
+    assert trade.route == "continuation"
+    assert trade.signal_at_utc == START + timedelta(minutes=5)
+    assert trade.entry_at_utc == START + timedelta(minutes=11)
+    assert trade.exit_at_utc == START + timedelta(minutes=16)
+    assert trade.entry_price == 80.0
+    assert trade.exit_price == 80.1
+    assert trade.exit_reason == "raw_turn_invalidation"
+    assert trade.raw_pnl_usd == pytest.approx(10.0)
+    assert trade.primary_pnl_usd == pytest.approx(
+        10.0 - MCL_TWO_SPEED_AUCTION_PRIMARY_COST_USD
+    )
+    assert trade.mfe_usd == pytest.approx(40.0)
+    assert trade.mae_usd == pytest.approx(-10.0)
+
+
+def test_failed_auction_profit_memory_uses_completed_excursion_before_stop() -> None:
+    lifecycle = MclTwoSpeedAuctionLifecycle(
+        _DecisionEngine(  # type: ignore[arg-type]
+            _decision(5, "STATE"),
+            _decision(10, "RAW_TURN", raw=1, signal_minute=10),
+            _decision(
+                15,
+                "MATURATION",
+                raw=1,
+                admitted=1,
+                route="failed_auction",
+                signal_minute=10,
+            ),
+        )
+    )
+    for minute in range(1, 18):
+        mcl = (
+            (100.0, 100.6, 99.9, 100.5)
+            if minute == 16
+            else (100.2, 100.3, 100.1, 100.2)
+            if minute == 17
+            else (100.0, 100.1, 99.9, 100.0)
+        )
+        lifecycle.update(_minute(minute, cl=(100.0,) * 4, mcl=mcl))
+
+    assert lifecycle.position is None
+    trade = lifecycle.trades[0]
+    assert trade.exit_reason == "profit_memory"
+    assert trade.entry_at_utc == START + timedelta(minutes=16)
+    assert trade.exit_at_utc == START + timedelta(minutes=17)
+    assert trade.entry_price == 100.0
+    assert trade.exit_price == pytest.approx(100.15)
+    assert trade.mfe_usd == pytest.approx(60.0)
+    assert trade.mae_usd == pytest.approx(-10.0)
+
+
+def test_contract_roll_flattens_at_last_known_close_and_clears_pending_state() -> None:
+    lifecycle = MclTwoSpeedAuctionLifecycle(
+        _DecisionEngine(  # type: ignore[arg-type]
+            _decision(5, "STATE"),
+            _decision(10, "MATURATION", raw=1, admitted=1, route="continuation", signal_minute=5),
+        )
+    )
+    for minute in range(1, 12):
+        lifecycle.update(_minute(minute, mcl=(80.0, 80.2, 79.9, 80.1)))
+    rolled = lifecycle.update(
+        _minute(12, contract="202609", mcl=(81.0, 81.2, 80.9, 81.1))
+    )
+
+    assert rolled.contract_reset is True
+    assert rolled.opened_position is False
+    assert lifecycle.position is None
+    assert len(rolled.closed_trades) == 1
+    assert rolled.closed_trades[0].exit_reason == "contract_roll"
+    assert rolled.closed_trades[0].exit_at_utc == START + timedelta(minutes=11)
+    assert rolled.closed_trades[0].exit_price == 80.1
 
 
 def test_bar_contract_rejects_ambiguous_or_nonincreasing_time() -> None:

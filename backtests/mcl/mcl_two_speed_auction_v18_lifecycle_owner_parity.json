@@ -1,0 +1,375 @@
+{
+  "actual_sha256": "788a5c3ff577b05b8d0f25b1794ab4b7f5e5d47795b48fbee5c3184577fac2a5",
+  "actual_trades": 338,
+  "authority": "architecture_and_historical_parity_only_no_orders_no_capital",
+  "exact_trade_parity": true,
+  "expected_sha256": "788a5c3ff577b05b8d0f25b1794ab4b7f5e5d47795b48fbee5c3184577fac2a5",
+  "expected_trades": 338,
+  "first_mismatch": null,
+  "first_trade": {
+    "branch": "failure",
+    "direction": "up",
+    "entry": 73.77,
+    "entry_time": "2024-08-06T06:16:00+00:00",
+    "exit": 73.53,
+    "exit_time": "2024-08-06T14:16:00+00:00",
+    "mae": -156.00000000000023,
+    "mfe": 18.000000000000682,
+    "primary_pnl": -27.519999999999488,
+    "raw_pnl": -23.99999999999949,
+    "reason": "raw_turn_invalidation",
+    "signal_time": "2024-08-06T06:10:00+00:00",
+    "stress_pnl": -29.519999999999488
+  },
+  "frozen_evaluator_sha256": "cf9277e623ed6849bcefc238e82e89f9d3ca4a49647228ab8048e9ff4324f0ef",
+  "frozen_result_sha256": "b9c64409dcb9cd482427588bb0ae314d870d0350a2100aea6d3f0615ae2f4c15",
+  "last_trade": {
+    "branch": "failure",
+    "direction": "up",
+    "entry": 82.62,
+    "entry_time": "2026-07-31T01:11:00+00:00",
+    "exit": 82.5,
+    "exit_time": "2026-07-31T07:41:00+00:00",
+    "mae": -154.00000000000063,
+    "mfe": 36.999999999999034,
+    "primary_pnl": -15.520000000000454,
+    "raw_pnl": -12.000000000000455,
+    "reason": "raw_turn_invalidation",
+    "signal_time": "2026-07-31T01:05:00+00:00",
+    "stress_pnl": -17.520000000000454
+  },
+  "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+  "owner_sha256": "03d0c958dab724a9e1b8f36070a1cbbb8df700e4d37683ffd6977061d5b866b7",
+  "schema": "mcl.two-speed-auction-v18-lifecycle-owner-parity.v1",
+  "submitted_orders": 0,
+  "tape": {
+    "duplicates": 0,
+    "first": "2024-08-04T22:01:00+00:00",
+    "last": "2026-08-03T20:26:00+00:00",
+    "pairs": [
+      {
+        "common_rows": 9653,
+        "missing_mcl_at_cl_timestamp": 0,
+        "selected_cl_rows": 9653,
+        "suffix": "U4"
+      },
+      {
+        "common_rows": 31568,
+        "missing_mcl_at_cl_timestamp": 0,
+        "selected_cl_rows": 31568,
+        "suffix": "V4"
+      },
+      {
+        "common_rows": 30338,
+        "missing_mcl_at_cl_timestamp": 0,
+        "selected_cl_rows": 30338,
+        "suffix": "X4"
+      },
+      {
+        "common_rows": 28959,
+        "missing_mcl_at_cl_timestamp": 0,
+        "selected_cl_rows": 28959,
+        "suffix": "Z4"
+      },
+      {
+        "common_rows": 28676,
+        "missing_mcl_at_cl_timestamp": 0,
+        "selected_cl_rows": 28676,
+        "suffix": "F5"
+      },
+      {
+        "common_rows": 27386,
+        "missing_mcl_at_cl_timestamp": 0,
+        "selected_cl_rows": 27386,
+        "suffix": "G5"
+      },
+      {
+        "common_rows": 31568,
+        "missing_mcl_at_cl_timestamp": 0,
+        "selected_cl_rows": 31568,
+        "suffix": "H5"
+      },
+      {
+        "common_rows": 27431,
+        "missing_mcl_at_cl_timestamp": 0,
+        "selected_cl_rows": 27431,
+        "suffix": "J5"
+      },
+      {
+        "common_rows": 30338,
+        "missing_mcl_at_cl_timestamp": 0,
+        "selected_cl_rows": 30338,
+        "suffix": "K5"
+      },
+      {
+        "common_rows": 27580,
+        "missing_mcl_at_cl_timestamp": 0,
+        "selected_cl_rows": 27580,
+        "suffix": "M5"
+      },
+      {
+        "common_rows": 30189,
+        "missing_mcl_at_cl_timestamp": 0,
+        "selected_cl_rows": 30189,
+        "suffix": "N5"
+      },
+      {
+        "common_rows": 31329,
+        "missing_mcl_at_cl_timestamp": 0,
+        "selected_cl_rows": 31329,
+        "suffix": "Q5"
+      },
+      {
+        "common_rows": 28959,
+        "missing_mcl_at_cl_timestamp": 0,
+        "selected_cl_rows": 28959,
+        "suffix": "U5"
+      },
+      {
+        "common_rows": 31568,
+        "missing_mcl_at_cl_timestamp": 0,
+        "selected_cl_rows": 31568,
+        "suffix": "V5"
+      },
+      {
+        "common_rows": 28959,
+        "missing_mcl_at_cl_timestamp": 0,
+        "selected_cl_rows": 28959,
+        "suffix": "X5"
+      },
+      {
+        "common_rows": 30338,
+        "missing_mcl_at_cl_timestamp": 0,
+        "selected_cl_rows": 30338,
+        "suffix": "Z5"
+      },
+      {
+        "common_rows": 28676,
+        "missing_mcl_at_cl_timestamp": 0,
+        "selected_cl_rows": 28676,
+        "suffix": "F6"
+      },
+      {
+        "common_rows": 26007,
+        "missing_mcl_at_cl_timestamp": 0,
+        "selected_cl_rows": 26007,
+        "suffix": "G6"
+      },
+      {
+        "common_rows": 32947,
+        "missing_mcl_at_cl_timestamp": 0,
+        "selected_cl_rows": 32947,
+        "suffix": "H6"
+      },
+      {
+        "common_rows": 27427,
+        "missing_mcl_at_cl_timestamp": 0,
+        "selected_cl_rows": 27427,
+        "suffix": "J6"
+      },
+      {
+        "common_rows": 28959,
+        "missing_mcl_at_cl_timestamp": 0,
+        "selected_cl_rows": 28959,
+        "suffix": "K6"
+      },
+      {
+        "common_rows": 27580,
+        "missing_mcl_at_cl_timestamp": 0,
+        "selected_cl_rows": 27580,
+        "suffix": "M6"
+      },
+      {
+        "common_rows": 31568,
+        "missing_mcl_at_cl_timestamp": 0,
+        "selected_cl_rows": 31568,
+        "suffix": "N6"
+      },
+      {
+        "common_rows": 29860,
+        "missing_mcl_at_cl_timestamp": 0,
+        "selected_cl_rows": 29860,
+        "suffix": "Q6"
+      },
+      {
+        "common_rows": 19273,
+        "missing_mcl_at_cl_timestamp": 0,
+        "selected_cl_rows": 19273,
+        "suffix": "U6"
+      }
+    ],
+    "roll_mode": "dual_volume",
+    "rolls": [
+      {
+        "boundary": "2024-08-14",
+        "forced": "2024-08-14",
+        "from": "U4",
+        "to": "V4",
+        "volume_cross": null
+      },
+      {
+        "boundary": "2024-09-16",
+        "forced": "2024-09-16",
+        "from": "V4",
+        "to": "X4",
+        "volume_cross": null
+      },
+      {
+        "boundary": "2024-10-16",
+        "forced": "2024-10-16",
+        "from": "X4",
+        "to": "Z4",
+        "volume_cross": null
+      },
+      {
+        "boundary": "2024-11-14",
+        "forced": "2024-11-14",
+        "from": "Z4",
+        "to": "F5",
+        "volume_cross": null
+      },
+      {
+        "boundary": "2024-12-13",
+        "forced": "2024-12-13",
+        "from": "F5",
+        "to": "G5",
+        "volume_cross": null
+      },
+      {
+        "boundary": "2025-01-14",
+        "forced": "2025-01-14",
+        "from": "G5",
+        "to": "H5",
+        "volume_cross": null
+      },
+      {
+        "boundary": "2025-02-14",
+        "forced": "2025-02-14",
+        "from": "H5",
+        "to": "J5",
+        "volume_cross": null
+      },
+      {
+        "boundary": "2025-03-14",
+        "forced": "2025-03-14",
+        "from": "J5",
+        "to": "K5",
+        "volume_cross": null
+      },
+      {
+        "boundary": "2025-04-15",
+        "forced": "2025-04-15",
+        "from": "K5",
+        "to": "M5",
+        "volume_cross": null
+      },
+      {
+        "boundary": "2025-05-14",
+        "forced": "2025-05-14",
+        "from": "M5",
+        "to": "N5",
+        "volume_cross": null
+      },
+      {
+        "boundary": "2025-06-13",
+        "forced": "2025-06-13",
+        "from": "N5",
+        "to": "Q5",
+        "volume_cross": null
+      },
+      {
+        "boundary": "2025-07-16",
+        "forced": "2025-07-16",
+        "from": "Q5",
+        "to": "U5",
+        "volume_cross": null
+      },
+      {
+        "boundary": "2025-08-14",
+        "forced": "2025-08-14",
+        "from": "U5",
+        "to": "V5",
+        "volume_cross": null
+      },
+      {
+        "boundary": "2025-09-16",
+        "forced": "2025-09-16",
+        "from": "V5",
+        "to": "X5",
+        "volume_cross": null
+      },
+      {
+        "boundary": "2025-10-15",
+        "forced": "2025-10-15",
+        "from": "X5",
+        "to": "Z5",
+        "volume_cross": null
+      },
+      {
+        "boundary": "2025-11-14",
+        "forced": "2025-11-14",
+        "from": "Z5",
+        "to": "F6",
+        "volume_cross": null
+      },
+      {
+        "boundary": "2025-12-15",
+        "forced": "2025-12-15",
+        "from": "F6",
+        "to": "G6",
+        "volume_cross": null
+      },
+      {
+        "boundary": "2026-01-13",
+        "forced": "2026-01-13",
+        "from": "G6",
+        "to": "H6",
+        "volume_cross": null
+      },
+      {
+        "boundary": "2026-02-16",
+        "forced": "2026-02-16",
+        "from": "H6",
+        "to": "J6",
+        "volume_cross": null
+      },
+      {
+        "boundary": "2026-03-16",
+        "forced": "2026-03-16",
+        "from": "J6",
+        "to": "K6",
+        "volume_cross": null
+      },
+      {
+        "boundary": "2026-04-15",
+        "forced": "2026-04-15",
+        "from": "K6",
+        "to": "M6",
+        "volume_cross": null
+      },
+      {
+        "boundary": "2026-05-13",
+        "forced": "2026-05-13",
+        "from": "M6",
+        "to": "N6",
+        "volume_cross": null
+      },
+      {
+        "boundary": "2026-06-15",
+        "forced": "2026-06-15",
+        "from": "N6",
+        "to": "Q6",
+        "volume_cross": null
+      },
+      {
+        "boundary": "2026-07-15",
+        "forced": "2026-07-15",
+        "from": "Q6",
+        "to": "U6",
+        "volume_cross": null
+      }
+    ],
+    "rows": 707136,
+    "within_session_gap_minutes": {}
+  }
+}
