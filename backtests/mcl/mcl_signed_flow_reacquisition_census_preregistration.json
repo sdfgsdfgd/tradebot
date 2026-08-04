@@ -1,0 +1,58 @@
+{
+  "schema": "mcl.signed-flow-reacquisition-census-preregistration.v1",
+  "registered_at_utc": "2026-08-04T01:41:09Z",
+  "authority": "outcome_blind_completed_ohlcv_flow_only_no_trade_outcomes_no_orders_no_capital",
+  "campaign": "mcl.two-speed-auction-relay.v57",
+  "hypothesis": "Within the unchanged V18 retained CL direction, the first same-session transition where completed CL and matched MCL volume-weighted close-location flow both move from adverse/nonfinancing to financing may identify dominant-book auction reacquisition. Price-body agreement labels acceptance; flow agreement despite at least one nonconfirming body labels absorption. Session-direction consumption prevents churn without a quota.",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "immutable_v18_result_sha256": "b9c64409dcb9cd482427588bb0ae314d870d0350a2100aea6d3f0615ae2f4c15",
+    "session_reclaim_rejection_sha256": "7c44a3309e2dc6011b2faacb07525128dbc9c9536f4abdde682ae94cc44e6ff5",
+    "census_evaluator_path": "/tmp/mcl_stage57_signed_flow_reacquisition_census.py",
+    "census_evaluator_sha256": "c0a29d7754bca1757acd720a697724e8f9b1a57e4e485aabb580f1500cef88dc"
+  },
+  "flow_owner": {
+    "bar": "completed five-minute CL and matched-MCL OHLCV only",
+    "definition": "volume multiplied by (2*close-high-low)/(high-low), zero for a zero-range bar",
+    "meaning": "bounded close-location flow proxy; never represented as bid-ask classified order-flow delta",
+    "direction": "unchanged exact V18 retained CL trend state",
+    "trigger": "previous completed CL and MCL directional flow both <=0; current completed directional flow both >0",
+    "consumption_identity": ["Globex trading session", "retained direction"],
+    "natural_rearm": "new session or genuine retained-direction flip only"
+  },
+  "branches": {
+    "price_acceptance": "both completed CL and MCL candle bodies also move in retained direction",
+    "flow_absorption": "joint flow reacquires retained direction while at least one completed price body does not"
+  },
+  "count_gate_per_period": {
+    "annualized_events": {"exclusive_minimum": 160, "inclusive_maximum": 520},
+    "minimum_each_direction": 50,
+    "minimum_each_branch": 20,
+    "minimum_gth_rth": [80, 20],
+    "minimum_active_session_fraction": 0.50,
+    "session_distribution": {
+      "median_minimum": 1,
+      "median_maximum": 2,
+      "p95_maximum": 2,
+      "maximum": 2
+    }
+  },
+  "frozen_order": [
+    "replay exact roll-adjusted completed CL/MCL five-minute bars and exact V18 retained state",
+    "compute only bounded signed close-location flow from each completed bar",
+    "consume the first exact joint adverse-to-financing transition per session and retained direction",
+    "classify price acceptance versus flow absorption and project the next executable MCL open",
+    "count discovery and validation independently; open no trade outcome"
+  ],
+  "if_eligible": "Preregister one position lifecycle: next-open MCL entry; next-open exit after joint directional flow becomes adverse or retained state flips; hard session/contract/gap flat; discovery must pass before validation opens. V18-primary composition is downstream only if standalone ownership is positive and nonoverlapping.",
+  "prohibitions": [
+    "no flow magnitude, lookback, smoothing, percentile, volume threshold, body threshold, lane, time, maturity, ATR, news, stop, target, timeout, cooldown, or quota neighbor",
+    "no reuse of opening-drive close-location quartiles, fixed anchors, VWAP reclaim, term structure, RB/HO, or V18 rejection add-ons",
+    "no trade outcome, validation PnL, order, capital, XSP, or Gold authority"
+  ],
+  "downstream_hold_even_on_pass": [
+    "missing July 2023 through August 2024 dated-contract history",
+    "unseen runtime parity and prospective signal tape",
+    "native MCL spread, liquidity, margin, commission, roll, preview, restart, reconciliation, shared-capital, and graduation proof"
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "schema": "mcl.two-speed-v18-europe-deep-reclaim-portfolio-rejection.v1",
+  "recorded_at_utc": "2026-08-04T01:41:09Z",
+  "authority": "research_only_discovery_failed_validation_unopened_no_orders_no_capital",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "immutable_v18_result_sha256": "b9c64409dcb9cd482427588bb0ae314d870d0350a2100aea6d3f0615ae2f4c15",
+    "fast_census_sha256": "70f8216356681460c9622cbd2c86326ed83f72c3adc4840962be5b7271ea9492",
+    "preregistration_sha256": "7843c5eee3765388cb5d152bd1607c89a878d04fc74291e2890a04c9b8c83caf",
+    "evaluator_sha256": "f7ac4e9385d6dd79d1480aafe4adb4b56b7d30b7161a6e62139b50bdb104243b",
+    "result_sha256": "25b0ac53f22caa98bbcb5e82be4121d2a0861c2b4b04503b97a9577de1acd5ce"
+  },
+  "discovery": {
+    "combined_trades": 306,
+    "combined_annualized": 306.209589,
+    "combined_primary_stress_net": [1257.63, 645.63],
+    "combined_primary_stress_profit_factor": [1.272942, 1.131020],
+    "combined_primary_stress_pnl_to_intrabar_drawdown": [1.979398, 0.870802],
+    "fast_trades": 139,
+    "fast_primary_stress_net": [-6.28, -284.28],
+    "fast_primary_stress_profit_factor": [0.995897, 0.837995],
+    "fast_primary_stress_pnl_to_intrabar_drawdown": [-0.009847, -0.349341],
+    "fast_stress_positive_months": 3,
+    "fast_stress_positive_quarters": 1,
+    "fast_up_down_stress_net": [-257.60, -26.68],
+    "fast_europe_primary_stress": [349.44, 193.44, 78],
+    "fast_decisive_primary_stress": [-355.72, -477.72, 61],
+    "skipped_v18_occupied": 31,
+    "v18_preemptions": 6
+  },
+  "failed_gates": [
+    "fast owner primary and stress net, PF, PnL/DD, month and quarter breadth",
+    "fast up and down directions under stress",
+    "decisive-clearance branch after immutable V18 ownership",
+    "combined PF, PnL/DD, month breadth, and concentration relative to immutable V18"
+  ],
+  "finding": "Standalone deep-clearance gains occupied movement the immutable V18 owner already captured. Once one-position ownership skipped 31 V18-held events and applied six V18 preemptions, the residual deep branch lost while Europe remained positive. Europe alone still had only three stress-positive months and PnL/DD 0.376, so it is attribution rather than a stable fast owner. Session-VWAP reclaim, lane/clearance rescue, and their V18 composition are closed.",
+  "validation_opened": false,
+  "closed_families": [
+    "session-VWAP first-reclaim entry and exit lifecycle",
+    "Europe-only fast owner",
+    "joint-clearance threshold or lane union",
+    "V18 plus session-reclaim portfolio"
+  ],
+  "preserved_primary": "V18 basis_breadth remains unchanged development reference",
+  "verdict": "REJECT_CLOSE_SESSION_RECLAIM_FAMILY",
+  "submitted_orders": 0
+}
