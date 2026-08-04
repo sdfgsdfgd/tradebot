@@ -1,8 +1,8 @@
 [Unit]
-Description=Accumulate exact non-submitting MCL V18 onset morphology
+Description=Accumulate exact non-submitting MCL V18 onset morphology across live selections
 Wants=network-online.target tradebot-ib-gateway-tunnel.service
 After=network-online.target tradebot-ib-gateway-tunnel.service tradebot-mcl-turn-tape.service
-ConditionPathExists=%h/Desktop/py/tradebot/backtests/mcl/mcl_predictive_onset_accumulator_generation.json
+ConditionPathExists=%h/Desktop/py/tradebot/db/calibration/mcl_predictive_onset_generation.json
 ConditionPathExists=%h/Desktop/py/tradebot/db/calibration/mcl_live_calibration.jsonl
 StartLimitIntervalSec=5min
 StartLimitBurst=3
@@ -24,7 +24,7 @@ Environment=MCL_PREDICTIVE_LEDGER=%h/.local/state/tradebot/research/mcl_predicti
 Environment=MCL_TURN_TAPE_DIR=%h/.local/state/tradebot/research/mcl_turn_tape
 Environment=MCL_NEWS_HISTORY_DIR=%h/.local/state/tradebot/news/history
 ExecCondition=/usr/bin/test -x %h/.local/share/tradebot/venv/bin/python
-ExecStart=/usr/bin/env python3 -m tradebot.research.mcl_predictive_accumulator
+ExecStart=/usr/bin/env python3 -m tradebot.research.mcl_predictive_accumulator --generation db/calibration/mcl_predictive_onset_generation.json
 TimeoutStartSec=4min
 Restart=on-failure
 RestartSec=30s

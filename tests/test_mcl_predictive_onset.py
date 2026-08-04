@@ -39,6 +39,9 @@ from tradebot.research.mcl_predictive_onset import (
     project_mcl_completed_bar_onset,
     project_mcl_event_onset,
 )
+from tradebot.research.mcl_predictive_generation import (
+    build_mcl_predictive_successor_generation,
+)
 from tradebot.research.mcl_predictive_velocity import (
     MCL_VELOCITY_JERK_AUTHORITY,
     MCL_VELOCITY_JERK_INTERVALS,
@@ -49,10 +52,25 @@ from tradebot.research.mcl_two_speed_auction import (
     MclAuctionBar,
     MclAuctionDecision,
 )
+from tradebot.research.mcl_shock_arbiter import MCL_TWO_SPEED_SHOCK_VERSION
 
 
 TURN = datetime(2026, 8, 4, 6, 0, tzinfo=timezone.utc)
 GENERATION = "b" * 64
+
+
+def _successor_generation(root: Path) -> dict[str, object]:
+    return build_mcl_predictive_successor_generation(
+        repository_root=root,
+        selected={
+            "selection_id": "c" * 64,
+            "selected_at_utc": "2026-08-05T00:00:00+00:00",
+            "strategy_version": MCL_TWO_SPEED_SHOCK_VERSION,
+            "authority": "selected_live_bounded_canary",
+        },
+        inherited_treatment_ids=(),
+        generated_at=datetime(2026, 8, 5, tzinfo=timezone.utc),
+    )
 
 
 def _horizon(velocity: float, tr: float) -> DirectionalImpulseHorizon:
@@ -499,7 +517,11 @@ def test_velocity_jerk_projection_rejects_authority_or_interval_drift() -> None:
 
 def test_predictive_accumulator_seeds_exact_stage90_once(tmp_path: Path) -> None:
     root = Path(__file__).resolve().parents[1]
-    generation = load_mcl_predictive_generation(repository_root=root)
+    generation_path = tmp_path / "generation.json"
+    generation_path.write_text(json.dumps(_successor_generation(root)))
+    generation = load_mcl_predictive_generation(
+        generation_path, repository_root=root
+    )
     seeds = _seed_treatments(generation, repository_root=root)
 
     assert [row["raw_turn_at_utc"] for row in seeds] == [

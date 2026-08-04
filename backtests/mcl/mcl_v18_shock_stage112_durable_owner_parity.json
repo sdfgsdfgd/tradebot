@@ -1,0 +1,47 @@
+{
+  "schema": "mcl.v18-shock-stage112-durable-owner-parity.v1",
+  "recorded_at_utc": "2026-08-04T18:43:00+00:00",
+  "authority": "architecture_parity_only_no_orders_no_capital",
+  "strategy_version": "mcl.two-speed-shock-arbiter.v112",
+  "owners": {
+    "minute_shock_path": "tradebot/research/mcl_minute_shock.py",
+    "minute_shock_sha256": "d9f170ddce49a48d3868c0c23f797ba0544d635aa4804f6534139a6679b17f64",
+    "v18_path": "tradebot/research/mcl_two_speed_auction.py",
+    "v18_sha256": "03d0c958dab724a9e1b8f36070a1cbbb8df700e4d37683ffd6977061d5b866b7",
+    "arbiter_path": "tradebot/research/mcl_shock_arbiter.py",
+    "arbiter_sha256": "e4b217c61c4cc51b813a20ff20741a11ea26d09f5d2223a88925a981f2bcddff"
+  },
+  "evaluator": {
+    "path_on_q": "/var/tmp/mcl_stage112_durable_owner_parity.py",
+    "sha256": "e307e3b6639e60fbe628cb9d490391310a517acb9120f4e414b4b74eeea326bd"
+  },
+  "reference": {
+    "path_on_q": "/var/tmp/mcl-stage112-full-live-risk-parity.json",
+    "sha256": "bb0f40f42f22f5888ade3719ace3b9f95813f8fb3575ecfa06682353d90ac2df",
+    "ledger_sha256": "e4d18b52dd6f791371722077c111bd717e4feb63654b4a9fc068b58c06b83aa7"
+  },
+  "result": {
+    "path_on_q": "/var/tmp/mcl-stage112-durable-owner-parity.json",
+    "sha256": "6c803d5fa67ae1b5932f21ed461bcad6318bfd766b1b4f8a083483fe656a3fda",
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "matched_minutes": 707136,
+    "contract_pairs": 25,
+    "expected_trades": 388,
+    "actual_trades": 388,
+    "expected_ledger_sha256": "e4d18b52dd6f791371722077c111bd717e4feb63654b4a9fc068b58c06b83aa7",
+    "actual_ledger_sha256": "e4d18b52dd6f791371722077c111bd717e4feb63654b4a9fc068b58c06b83aa7",
+    "first_mismatch": null,
+    "exact_trade_parity": true,
+    "arbitration_parity": true,
+    "raw_loss_cap_event_parity": true,
+    "weekly_flat_event_parity": true
+  },
+  "invariants": {
+    "v18_signal_changed": false,
+    "stage106_shock_policy_changed": false,
+    "stage112_risk_policy_changed": false,
+    "orders": "none",
+    "capital": "none"
+  },
+  "submitted_orders": 0
+}

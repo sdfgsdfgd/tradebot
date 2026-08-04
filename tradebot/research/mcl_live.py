@@ -45,7 +45,6 @@ from .mcl_live_transport import (
 )
 from .mcl_two_speed_auction import (
     MCL_TWO_SPEED_AUCTION_MULTIPLIER,
-    MCL_TWO_SPEED_AUCTION_VERSION,
 )
 
 def _latest_execution_by_ref(
@@ -78,7 +77,10 @@ def _consumed_admissions(
         ):
             continue
         plan = evidence.get("plan")
-        if not isinstance(plan, Mapping) or plan.get("reason") != "fresh_v18_admission":
+        if not isinstance(plan, Mapping) or plan.get("reason") not in {
+            "fresh_v18_admission",
+            "fresh_source_admission",
+        }:
             continue
         event_id = str(plan.get("admission_event_id") or "")
         if _is_sha(event_id):
@@ -150,7 +152,7 @@ def mcl_transport_risk_state(
             fills[exec_id] = fill
 
     position = 0
-    entry_price = entry_commission = entry_time = route = admission_id = None
+    entry_price = entry_commission = entry_time = route = admission_id = owner = None
     open_exec_id = None
     realized_gross = realized_cost = 0.0
     closed_trade_gross: list[float] = []
@@ -182,12 +184,21 @@ def mcl_transport_risk_state(
             entry_commission = commission
             entry_time = fill_time
             route = plan.get("target_route")
+            owner = plan.get("target_owner", "v18")
             admission_id = plan.get("admission_event_id")
             open_exec_id = fill["exec_id"]
-            if route not in {"continuation", "failed_auction"} or not _is_sha(
-                admission_id
+            if (
+                route
+                not in {
+                    "continuation",
+                    "failed_auction",
+                    "shock_continuation",
+                    "shock_reacquisition",
+                }
+                or owner not in {"v18", "shock"}
+                or not _is_sha(admission_id)
             ):
-                raise ValueError("MCL opening fill lacks its V18 admission")
+                raise ValueError("MCL opening fill lacks its source admission")
         elif position + signed == 0:
             assert entry_price is not None and entry_commission is not None
             gross = (
@@ -198,6 +209,7 @@ def mcl_transport_risk_state(
             closed_trade_gross.append(gross)
             position = 0
             entry_price = entry_commission = entry_time = route = admission_id = None
+            owner = None
             open_exec_id = None
         else:
             raise ValueError("MCL fill ledger exceeded one contract or crossed zero")
@@ -224,7 +236,11 @@ def mcl_transport_risk_state(
             bar_at = _utc(bar.ts)
             if bar_at <= max(entry_time, marked_through or entry_time) or bar_at > now:
                 continue
-            if route == "failed_auction" and mfe >= entry_price * 0.5:
+            if (
+                owner == "v18"
+                and route == "failed_auction"
+                and mfe >= entry_price * 0.5
+            ):
                 protected = 0.25 * mfe
                 stop = entry_price + position * protected / MCL_TWO_SPEED_AUCTION_MULTIPLIER
                 crossed = (
@@ -286,6 +302,7 @@ def mcl_transport_risk_state(
         "entry_price": entry_price,
         "entry_commission_usd": entry_commission,
         "route": route,
+        "owner": owner,
         "admission_event_id": admission_id,
         "liquidation_price": mark,
         "unrealized_raw_usd": unrealized,
@@ -340,18 +357,26 @@ def project_mcl_transport_plan(
     if held not in {-1.0, 0.0, 1.0}:
         raise ValueError("MCL broker position exceeds one contract")
     target = evidence.get("target")
-    target_direction = target_route = admission_id = None
+    target_direction = target_route = target_owner = admission_id = None
     target_at = None
     if target is not None:
         if not isinstance(target, Mapping):
             raise ValueError("MCL source target is invalid")
         target_direction = int(target.get("direction") or 0)
         target_route = str(target.get("route") or "")
+        target_owner = str(target.get("owner") or "v18")
         admission_id = str(target.get("event_id") or "")
         target_at = _utc(target.get("observed_at_utc"))
         if (
             target_direction not in {-1, 1}
-            or target_route not in {"continuation", "failed_auction"}
+            or target_route
+            not in {
+                "continuation",
+                "failed_auction",
+                "shock_continuation",
+                "shock_reacquisition",
+            }
+            or target_owner not in {"v18", "shock"}
             or not _is_sha(admission_id)
         ):
             raise ValueError("MCL source target identity is invalid")
@@ -366,6 +391,7 @@ def project_mcl_transport_plan(
         raise ValueError("MCL risk exit triggers are invalid")
     breaches = [str(value) for value in breaches]
     exit_triggers = [str(value) for value in exit_triggers]
+    held_admission_id = risk_state.get("admission_event_id")
     action = reason = None
     if held_direction is not None and (breaches or exit_triggers):
         action = "SELL" if held_direction > 0 else "BUY"
@@ -373,8 +399,17 @@ def project_mcl_transport_plan(
     elif held_direction is not None and held_direction != target_direction:
         action = "SELL" if held_direction > 0 else "BUY"
         reason = "raw_turn_or_source_flatten"
+    elif (
+        held_direction is not None
+        and admission_id is not None
+        and held_admission_id != admission_id
+    ):
+        action = "SELL" if held_direction > 0 else "BUY"
+        reason = "source_admission_identity_changed"
     elif held_direction is None and breaches:
         reason = breaches[0]
+    elif held_direction is None and _weekly_flat_due(now):
+        reason = "weekly_closure_entry_lock"
     elif held_direction is None and target_direction is not None:
         assert target_at is not None and admission_id is not None
         due_at = target_at + timedelta(minutes=1)
@@ -389,7 +424,7 @@ def project_mcl_transport_plan(
             reason = "entry_source_stale"
         else:
             action = "BUY" if target_direction > 0 else "SELL"
-            reason = "fresh_v18_admission"
+            reason = "fresh_source_admission"
     else:
         reason = "target_already_owned" if held_direction else "flat_no_target"
     reduction = held_direction is not None and action is not None
@@ -397,6 +432,7 @@ def project_mcl_transport_plan(
     source_age = (now - _utc(latest_source)).total_seconds()
     body = {
         "schema": MCL_LIVE_PLAN_SCHEMA,
+        "strategy_version": selected["strategy_version"],
         "selection_id": selected["selection_id"],
         "source_checkpoint_id": source_checkpoint["checkpoint_id"],
         "source_recorded_at_utc": source_checkpoint["recorded_at_utc"],
@@ -404,6 +440,7 @@ def project_mcl_transport_plan(
         "admission_event_id": admission_id,
         "target_direction": target_direction,
         "target_route": target_route,
+        "target_owner": target_owner,
         "held_direction": held_direction,
         "reason": reason,
         "status": "ACTIONABLE" if action is not None else "HOLD",
@@ -414,6 +451,9 @@ def project_mcl_transport_plan(
                 "quantity": 1,
                 "initial_mode": "CROSS" if reduction else "OPTIMISTIC",
                 "chase_mode": "RELENTLESS" if reduction else "AUTO",
+                "phase_speed_multiplier": (
+                    2.0 if not reduction and target_owner == "shock" else 1.0
+                ),
                 "outside_rth": True,
             }
             if action is not None
@@ -426,10 +466,12 @@ def project_mcl_transport_plan(
         key: body[key]
         for key in (
             "selection_id",
+            "strategy_version",
             "source_checkpoint_id",
             "admission_event_id",
             "target_direction",
             "target_route",
+            "target_owner",
             "held_direction",
             "reason",
             "leg",
@@ -464,7 +506,7 @@ def _checkpoint(
     now = _utc(observed_at)
     return ledger.checkpoint(
         evaluation_as_of=now,
-        strategy_id=MCL_TWO_SPEED_AUCTION_VERSION,
+        strategy_id=str(plan["strategy_version"]),
         strategy_version=MCL_LIVE_EXECUTION_VERSION,
         trading_date=now.date().isoformat(),
         session="MCL_GTH",
@@ -628,6 +670,7 @@ async def execute_mcl_transport_plan(
         max_commission_usd=MCL_LIVE_MAX_COMMISSION_USD,
         initial_mode=str(leg["initial_mode"]),
         chase_mode=str(leg["chase_mode"]),
+        phase_speed_multiplier=float(leg.get("phase_speed_multiplier", 1.0)),
         price_for_mode=price_for_mode,
         checkpoint=checkpoint,
         ladder_schema="mcl.execution-ladder-transition.v1",

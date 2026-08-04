@@ -29,6 +29,7 @@ from tradebot.research.mcl_profitability import (
     mcl_runtime_parity_graduation_gate,
     normalize_mcl_risk,
 )
+from tradebot.research.mcl_shock_arbiter import MCL_TWO_SPEED_SHOCK_VERSION
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -47,6 +48,7 @@ def _preview() -> dict[str, object]:
         "schema": "mcl.v18-live-commissioning-preview.v2",
         "observed_at_utc": AT.isoformat(),
         "authority": "fresh_nontransmitting_what_if_only",
+        "strategy_version": MCL_TWO_SPEED_SHOCK_VERSION,
         "broker": {
             "observed_at_utc": broker["observed_at_utc"],
             "account_id": broker["account_id"],
@@ -65,7 +67,10 @@ def _preview() -> dict[str, object]:
         },
         "contracts": generation["contracts"],
         "quote": old["quote"],
-        "source": {"submitted_orders": 0},
+        "source": {
+            "strategy_version": MCL_TWO_SPEED_SHOCK_VERSION,
+            "submitted_orders": 0,
+        },
         "what_if": old["what_if"],
         "submitted_orders": 0,
     }
@@ -85,6 +90,7 @@ def test_mcl_selection_binds_flat_limit_only_stage91_canary() -> None:
     assert load_mcl_live_selection_from_mapping(selected) == selected
     assert selected["baseline"]["position"] == 0
     assert selected["baseline"]["inherited_target_authority"] == "none"
+    assert selected["strategy_version"] == MCL_TWO_SPEED_SHOCK_VERSION
     assert selected["execution"]["order_type"] == "LMT"
     assert selected["execution"]["market_orders_allowed"] is False
     assert selected["risk"]["raw_loss_cap_usd"] == 300.0
@@ -138,6 +144,7 @@ def test_mcl_source_uses_completed_et_minutes_and_never_adopts_history() -> None
             mcl_contract=mcl,
             observed_at=now,
             selected_at=now,
+            strategy_version=selected["strategy_version"],
         )
     )
 
@@ -147,13 +154,16 @@ def test_mcl_source_uses_completed_et_minutes_and_never_adopts_history() -> None
     assert source["synthetic_midcycle_entry_authority"] == "none"
 
 
-def _source_checkpoint(selected, *, event_at: datetime, event_id: str):
+def _source_checkpoint(
+    selected, *, event_at: datetime, event_id: str, owner: str = "v18"
+):
     target = {
         "event_id": event_id,
         "observed_at_utc": event_at.isoformat(),
         "signal_at_utc": event_at.isoformat(),
         "direction": 1,
         "route": "failed_auction",
+        "owner": owner,
         "decision": {},
     }
     return {
@@ -212,9 +222,75 @@ def test_mcl_plan_waits_for_next_minute_and_consumes_each_admission_once() -> No
         "quantity": 1,
         "initial_mode": "OPTIMISTIC",
         "chase_mode": "AUTO",
+        "phase_speed_multiplier": 1.0,
         "outside_rth": True,
     }
     assert consumed["reason"] == "admission_already_consumed"
+
+
+def test_mcl_shock_entry_uses_accelerated_limit_ladder_and_friday_lock() -> None:
+    selected = _selection()
+    event_at = datetime.fromisoformat(selected["selected_at_utc"]) + timedelta(minutes=5)
+    source = _source_checkpoint(
+        selected, event_at=event_at, event_id="5" * 64, owner="shock"
+    )
+    source["evidence"]["target"]["route"] = "shock_continuation"
+    risk = {"safety_breaches": []}
+    active = project_mcl_transport_plan(
+        selection=selected,
+        source_checkpoint=source,
+        broker_position=0,
+        risk_state=risk,
+        consumed_admissions=set(),
+        observed_at=event_at + timedelta(minutes=1, seconds=5),
+    )
+    locked = project_mcl_transport_plan(
+        selection=selected,
+        source_checkpoint=source,
+        broker_position=0,
+        risk_state=risk,
+        consumed_admissions=set(),
+        observed_at=datetime(2026, 8, 7, 20, 54, tzinfo=timezone.utc),
+    )
+
+    assert active["reason"] == "fresh_source_admission"
+    assert active["leg"]["phase_speed_multiplier"] == 2.0
+    assert active["leg"]["chase_mode"] == "AUTO"
+    assert locked["reason"] == "weekly_closure_entry_lock"
+    assert locked["leg"] is None
+
+
+def test_mcl_same_direction_cannot_inherit_a_new_admission_across_restart() -> None:
+    selected = _selection()
+    event_at = datetime.fromisoformat(selected["selected_at_utc"]) + timedelta(
+        minutes=5
+    )
+    source = _source_checkpoint(
+        selected, event_at=event_at, event_id="6" * 64, owner="shock"
+    )
+    source["evidence"]["target"]["route"] = "shock_continuation"
+    retained = project_mcl_transport_plan(
+        selection=selected,
+        source_checkpoint=source,
+        broker_position=1,
+        risk_state={"safety_breaches": [], "admission_event_id": "6" * 64},
+        consumed_admissions=set(),
+        observed_at=event_at + timedelta(minutes=1, seconds=5),
+    )
+    replaced = project_mcl_transport_plan(
+        selection=selected,
+        source_checkpoint=source,
+        broker_position=1,
+        risk_state={"safety_breaches": [], "admission_event_id": "7" * 64},
+        consumed_admissions=set(),
+        observed_at=event_at + timedelta(minutes=1, seconds=5),
+    )
+
+    assert retained["reason"] == "target_already_owned"
+    assert retained["leg"] is None
+    assert replaced["reason"] == "source_admission_identity_changed"
+    assert replaced["leg"]["action"] == "SELL"
+    assert replaced["leg"]["chase_mode"] == "RELENTLESS"
 
 
 def test_mcl_actual_fill_risk_uses_failed_auction_memory_and_raw_cap() -> None:
@@ -276,6 +352,8 @@ def test_mcl_actual_fill_risk_uses_failed_auction_memory_and_raw_cap() -> None:
     )
 
     assert risk["position_from_fills"] == 1
+    assert risk["owner"] == "v18"
+    assert risk["admission_event_id"] == event_id
     assert risk["mfe_usd"] == 50.0
     assert risk["profit_memory_stop"] == 80.125
     assert risk["exit_triggers"] == ["failed_auction_profit_memory"]
@@ -315,7 +393,7 @@ def test_mcl_live_binding_uses_the_one_durable_worker() -> None:
     binding = next(
         item for item in LIVE_STRATEGY_BINDINGS if item.champion_symbol == "MCL"
     )
-    assert binding.strategy_id == "mcl.two-speed-auction-relay.v18"
+    assert binding.strategy_id == MCL_TWO_SPEED_SHOCK_VERSION
     assert binding.execution_strategy_version == MCL_LIVE_EXECUTION_VERSION
     assert binding.timer_unit == "tradebot-mcl-live.timer"
     assert binding.service_unit == "tradebot-mcl-live.service"
@@ -439,7 +517,7 @@ def test_mcl_positive_24h_requires_complete_minutes_and_authentic_fill() -> None
     assert receipt["economics"]["fills"] == 2
 
 
-def test_mcl_runtime_gate_rehashes_the_selected_v18_owner() -> None:
+def test_mcl_runtime_gate_rehashes_the_selected_stage112_owners() -> None:
     passed = mcl_runtime_parity_graduation_gate(
         selection=_selection(), repo_root=ROOT
     )

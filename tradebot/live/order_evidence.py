@@ -225,6 +225,7 @@ async def execute_single_contract_limit_order(
     max_commission_usd: float,
     initial_mode: str,
     chase_mode: str,
+    phase_speed_multiplier: float = 1.0,
     price_for_mode: Callable[..., float | None],
     checkpoint: Callable[..., Mapping[str, object]],
     ladder_schema: str,
@@ -360,6 +361,7 @@ async def execute_single_contract_limit_order(
             action,
             mode=chase_mode,
             policy=EXECUTION_POLICY,
+            phase_speed_multiplier=phase_speed_multiplier,
             elapsed_offset_sec=elapsed,
             require_fresh_top=True,
         )

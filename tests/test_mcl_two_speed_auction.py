@@ -25,13 +25,13 @@ from tradebot.research.mcl_two_speed_auction import (
     MclTwoSpeedAuctionLifecycle,
     route_mcl_v18_direction,
 )
-from tradebot.spot.champions import discover_current_champions, load_champion_group
+from tradebot.spot.champions import discover_current_champions
 
 
 START = datetime(2026, 8, 4, 4, 0, tzinfo=timezone.utc)
 
 
-def test_v18_research_crown_is_machine_bound_but_cannot_trade() -> None:
+def test_stage112_executable_research_crown_is_machine_bound_but_cannot_trade() -> None:
     root = Path(__file__).resolve().parents[1]
     refs = discover_current_champions(root=root, symbols=("MCL",), tracks=("HF",))
 
@@ -39,29 +39,29 @@ def test_v18_research_crown_is_machine_bound_but_cannot_trade() -> None:
     ref = refs[0]
     declaration = json.loads(ref.declaration_path.read_text())
     artifact = json.loads(ref.artifact_path.read_text())
-    group = load_champion_group(ref)
 
-    assert ref.version == "18"
-    assert group is not None
-    assert group["_key"] == "mcl-two-speed-auction-relay-v18"
+    assert ref.version == "112"
+    assert ref.strategy_key == "mcl-two-speed-shock-arbiter-v112"
     assert hashlib.sha256(ref.artifact_path.read_bytes()).hexdigest() == declaration[
         "artifact_sha256"
     ]
     assert declaration["promotion"]["eligible"] is True
     assert declaration["promotion"]["order_authority"] == "none"
-    assert artifact["authority"] == "historical_research_crown_only"
-    assert artifact["order_authority"] == "none"
-    assert artifact["selection_authority"] == "none"
-    assert artifact["capital_authority"] == "none"
-    assert artifact["coronation"]["history_exception"][
-        "generic_july_2023_requirement"
-    ] == "waived_for_mcl_research_coronation"
-    assert artifact["graduation_enrollment"]["lifecycle_state"] == "CROWNED"
-    assert artifact["graduation_enrollment"]["live_24h"] == "NOT_STARTED"
-    assert artifact["prospective"]["complete_unseen_raw_turns"] == 0
+    assert artifact["selection"] == "EXECUTABLE_CROWN"
+    assert artifact["strategy_version"] == "mcl.two-speed-shock-arbiter.v112"
+    assert artifact["economics"]["trades"] == 388
+    assert artifact["economics"]["primary_net_usd"] == pytest.approx(3942.99)
+    assert artifact["economics"]["primary_intrabar_drawdown_usd"] == pytest.approx(
+        603.63
+    )
+    assert artifact["economics"]["primary_pnl_to_intrabar_drawdown"] == pytest.approx(
+        6.532130609810673
+    )
+    assert artifact["cadence_exception"]["authorized_by_user"] is True
+    assert artifact["invariants"]["limit_only"] is True
+    assert artifact["invariants"]["market_orders_allowed"] is False
     leaderboard = (root / "backtests/mcl/leaderboard.md").read_text()
-    assert "CR-001 · 2026-08-04 · MCL Two-Speed Auction Relay — V18" in leaderboard
-    assert "CR-002 · 2026-08-04 · Bounded live-canary exception" in leaderboard
+    assert "CR-004 · 2026-08-04 · Shock-Aware Two-Speed Arbiter — Stage 112" in leaderboard
     assert artifact["schema"] in leaderboard
     assert declaration["artifact_sha256"] in leaderboard
 

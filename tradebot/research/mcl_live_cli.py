@@ -1,4 +1,4 @@
-"""Commission or advance the sole selected MCL V18 bounded canary."""
+"""Commission or advance the sole selected MCL bounded canary."""
 
 from __future__ import annotations
 
@@ -34,6 +34,14 @@ from .mcl_live_transport import (
     build_mcl_live_selection,
     capture_mcl_commissioning_preview,
     load_mcl_live_selection_from_mapping,
+)
+from .mcl_predictive_accumulator import (
+    MCL_PREDICTIVE_LEDGER_PATH,
+    mcl_predictive_treatments,
+)
+from .mcl_predictive_generation import (
+    build_mcl_predictive_successor_generation,
+    publish_mcl_predictive_generation,
 )
 from .mcl_profitability import (
     mcl_live_graduation_inputs,
@@ -73,6 +81,21 @@ async def _commission(
         selected_at=datetime.now(timezone.utc),
     )
     mcl_path, mcl_sha = publish_immutable_live_selection(repository_root, selected)
+    predictive_records = tuple(
+        LiveCalibrationLedger(MCL_PREDICTIVE_LEDGER_PATH).records()
+    )
+    predictive = build_mcl_predictive_successor_generation(
+        repository_root=repository_root,
+        selected=selected,
+        inherited_treatment_ids=[
+            str(row["treatment_id"])
+            for row in mcl_predictive_treatments(predictive_records)
+        ],
+        generated_at=datetime.now(timezone.utc),
+    )
+    predictive_path, predictive_sha = publish_mcl_predictive_generation(
+        repository_root, predictive
+    )
     xsp, xsp_path, xsp_sha = load_allocated_live_selection(
         predecessor,
         sleeve_id=XSP_V3_TRANSPORT_CAPITAL_SLEEVE,
@@ -125,6 +148,12 @@ async def _commission(
         "capital_plan_id": plan["plan_id"],
         "portfolio_generation_path": generation_path,
         "portfolio_generation_sha256": generation_sha,
+        "predictive_generation_id": predictive["generation_id"],
+        "predictive_generation_path": predictive_path,
+        "predictive_generation_sha256": predictive_sha,
+        "predictive_inherited_treatments": predictive["inherited_prefix"][
+            "treatment_count"
+        ],
         "supersedes_plan_id": predecessor["plan_id"],
         "preview_fingerprint": selected["allocation_successor"][
             "broker_preview_fingerprint"
@@ -147,7 +176,7 @@ async def _commission(
 
 async def _main_async(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Commission or reconcile one selected MCL V18 canary."
+        description="Commission or reconcile one selected MCL bounded canary."
     )
     parser.add_argument("--ledger", default=str(MCL_LIVE_LEDGER_PATH))
     parser.add_argument(

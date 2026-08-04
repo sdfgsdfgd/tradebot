@@ -1,4 +1,4 @@
-"""Cutoff-bound profitability and graduation evidence for selected MCL V18."""
+"""Cutoff-bound profitability and graduation evidence for selected MCL."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ from .mcl_live_transport import (
     MCL_LIVE_ORDER_REF_PREFIX,
     load_mcl_live_selection_from_mapping,
 )
-from .mcl_two_speed_auction import MCL_TWO_SPEED_AUCTION_VERSION
+from .mcl_shock_arbiter import MCL_TWO_SPEED_SHOCK_VERSION
 
 
 MCL_LIVE_PROFITABILITY_SCHEMA = "mcl.live-profitability.v1"
@@ -146,11 +146,11 @@ def normalize_mcl_risk(risk: Mapping[str, object]) -> Mapping[str, object]:
     }
 
 
-def _spec() -> FuturesProfitabilitySpec:
+def _spec(strategy_id: str) -> FuturesProfitabilitySpec:
     return FuturesProfitabilitySpec(
         receipt_schema=MCL_LIVE_PROFITABILITY_SCHEMA,
         authority="selected_reconciled_mcl_risk_state_only",
-        strategy_id=MCL_TWO_SPEED_AUCTION_VERSION,
+        strategy_id=strategy_id,
         strategy_version=MCL_LIVE_EXECUTION_VERSION,
         capital_sleeve=MCL_LIVE_CAPITAL_SLEEVE,
         symbol="MCL",
@@ -180,7 +180,7 @@ def mcl_live_profitability_receipt(
         selection_id=str(selected["selection_id"]),
         run_started_at=str(selected["run_started_at_utc"]),
         con_id=int(selected["contracts"]["MCL"]["con_id"]),
-        spec=_spec(),
+        spec=_spec(str(selected["strategy_version"])),
         as_of=as_of,
     )
 
@@ -188,7 +188,7 @@ def mcl_live_profitability_receipt(
 def mcl_runtime_parity_graduation_gate(
     *, selection: Mapping[str, object], repo_root: Path
 ) -> dict[str, object]:
-    """Rehash every selected V18 proof and the sole signal/lifecycle owner."""
+    """Rehash the selected crown, owners, and finalized live source."""
 
     try:
         selected = load_mcl_live_selection_from_mapping(selection)
@@ -216,59 +216,68 @@ def mcl_runtime_parity_graduation_gate(
             {"error": str(exc)},
         )
     reasons = []
+    crown = artifacts.get("crown", {})
     lifecycle = artifacts.get("lifecycle_parity", {})
-    signal = artifacts.get("signal_parity", {})
-    signal_events = signal.get("signal_events") if isinstance(signal, Mapping) else None
     source = artifacts.get("source_shadow", {})
-    stage91 = artifacts.get("stage91_result", {})
-    owner_path = root / "tradebot/research/mcl_two_speed_auction.py"
+    result = lifecycle.get("result") if isinstance(lifecycle, Mapping) else None
+    owners = lifecycle.get("owners") if isinstance(lifecycle, Mapping) else None
+    source_owners = source.get("owners") if isinstance(source, Mapping) else None
+    v18_path = root / "tradebot/research/mcl_two_speed_auction.py"
+    minute_shock_path = root / "tradebot/research/mcl_minute_shock.py"
+    arbiter_path = root / "tradebot/research/mcl_shock_arbiter.py"
+    transport_path = root / "tradebot/research/mcl_live_transport.py"
     if (
-        lifecycle.get("exact_trade_parity") is not True
-        or lifecycle.get("expected_trades") != lifecycle.get("actual_trades")
-        or lifecycle.get("actual_trades") != 338
-        or lifecycle.get("expected_sha256") != lifecycle.get("actual_sha256")
-        or lifecycle.get("owner_sha256") != _sha256(owner_path)
+        selected.get("strategy_version") != MCL_TWO_SPEED_SHOCK_VERSION
+        or crown.get("strategy_version") != MCL_TWO_SPEED_SHOCK_VERSION
+        or crown.get("selection") != "EXECUTABLE_CROWN"
+        or crown.get("economics", {}).get("trades") != 388
+        or crown.get("invariants", {}).get("limit_only") is not True
+        or crown.get("invariants", {}).get("market_orders_allowed") is not False
+        or crown.get("submitted_orders") != 0
+    ):
+        reasons.append("runtime_crown_invalid")
+    if (
+        not isinstance(result, Mapping)
+        or not isinstance(owners, Mapping)
+        or result.get("exact_trade_parity") is not True
+        or result.get("expected_trades") != result.get("actual_trades")
+        or result.get("actual_trades") != 388
+        or result.get("expected_ledger_sha256")
+        != result.get("actual_ledger_sha256")
+        or result.get("actual_ledger_sha256")
+        != crown.get("frozen_result", {}).get("ledger_sha256")
+        or result.get("raw_loss_cap_event_parity") is not True
+        or result.get("weekly_flat_event_parity") is not True
+        or owners.get("v18_sha256") != _sha256(v18_path)
+        or owners.get("minute_shock_sha256") != _sha256(minute_shock_path)
+        or owners.get("arbiter_sha256") != _sha256(arbiter_path)
+        or lifecycle.get("submitted_orders") != 0
     ):
         reasons.append("runtime_lifecycle_parity_invalid")
     if (
-        not isinstance(signal_events, Mapping)
-        or signal_events.get("exact_event_parity") is not True
-        or signal_events.get("expected") != signal_events.get("actual")
-        or signal_events.get("actual") != 2247
-        or signal_events.get("expected_sha256")
-        != signal_events.get("actual_sha256")
-    ):
-        reasons.append("runtime_signal_parity_invalid")
-    shadow = source.get("current_shadow") if isinstance(source, Mapping) else None
-    boundary = source.get("selection_boundary") if isinstance(source, Mapping) else None
-    if (
-        source.get("verdict") != "LIVE_SOURCE_SHADOW_PASS"
-        or not isinstance(shadow, Mapping)
-        or not isinstance(boundary, Mapping)
-        or boundary.get("fresh_post_selection_admission_required") is not True
-        or boundary.get("counterfactual_position_is_evidence_only") is not True
+        not isinstance(source_owners, Mapping)
+        or source.get("strategy_version") != MCL_TWO_SPEED_SHOCK_VERSION
+        or source.get("verdict") != "LIVE_SOURCE_SHADOW_PASS"
+        or not all(source.get("gates", {}).values())
+        or source_owners.get("v18_sha256") != _sha256(v18_path)
+        or source_owners.get("minute_shock_sha256") != _sha256(minute_shock_path)
+        or source_owners.get("arbiter_sha256") != _sha256(arbiter_path)
+        or source_owners.get("transport_sha256") != _sha256(transport_path)
         or source.get("submitted_orders") != 0
     ):
         reasons.append("runtime_source_shadow_invalid")
-    if (
-        stage91.get("verdict") != "REJECT_NO_POST_OUTCOME_GATE_CHANGE"
-        or stage91.get("submitted_orders") != 0
-    ):
-        reasons.append("runtime_stage91_boundary_invalid")
     return _gate(
         "INVALID" if reasons else "PASS",
         reasons,
         {
+            "crown_sha256": evidence["crown"]["sha256"],
             "lifecycle_sha256": evidence["lifecycle_parity"]["sha256"],
-            "signal_sha256": evidence["signal_parity"]["sha256"],
             "source_shadow_sha256": evidence["source_shadow"]["sha256"],
-            "owner_sha256": _sha256(owner_path),
-            "trades": lifecycle.get("actual_trades"),
-            "signal_events": (
-                signal_events.get("actual")
-                if isinstance(signal_events, Mapping)
-                else None
-            ),
+            "v18_owner_sha256": _sha256(v18_path),
+            "minute_shock_owner_sha256": _sha256(minute_shock_path),
+            "arbiter_owner_sha256": _sha256(arbiter_path),
+            "transport_owner_sha256": _sha256(transport_path),
+            "trades": result.get("actual_trades") if isinstance(result, Mapping) else None,
         },
     )
 
@@ -288,23 +297,27 @@ def mcl_live_graduation_inputs(
     selection_sha = _sha256(selection_path)
     prefix, projected = live_calibration_logical_prefix(records, cutoff_utc=cutoff)
     rows = selected_futures_rows(
-        projected, selection_id=str(selected["selection_id"]), spec=_spec()
+        projected,
+        selection_id=str(selected["selection_id"]),
+        spec=_spec(str(selected["strategy_version"])),
     )
     con_id = int(selected["contracts"]["MCL"]["con_id"])
     restart = single_contract_restart_gate(
         selected_at_utc=str(selected["selected_at_utc"]),
         rows=rows,
         con_id=con_id,
-        spec=_spec(),
+        spec=_spec(str(selected["strategy_version"])),
     )
     risk, attribution = single_contract_risk_gates(
-        rows=rows, con_id=con_id, spec=_spec()
+        rows=rows,
+        con_id=con_id,
+        spec=_spec(str(selected["strategy_version"])),
     )
     broker = selected.get("broker_at_selection")
     account_id = str(broker.get("account_id") or "") if isinstance(broker, Mapping) else ""
     return {
         "subject": {
-            "strategy_id": MCL_TWO_SPEED_AUCTION_VERSION,
+            "strategy_id": selected["strategy_version"],
             "strategy_version": MCL_LIVE_EXECUTION_VERSION,
             "signal_instrument": "CL",
             "execution_sleeve": "MCL",

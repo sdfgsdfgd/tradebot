@@ -313,12 +313,21 @@ def initial_execution_mode(
     return "AGGRESSIVE" if retries >= 2 else "MID" if retries else "OPTIMISTIC"
 
 
-def _exec_ladder_mode(elapsed_sec: float) -> str | None:
-    """Advance OPTIMISTIC -> MID -> AGGRESSIVE -> CROSS in six-second phases."""
+def _exec_ladder_mode(
+    elapsed_sec: float,
+    *,
+    phase_speed_multiplier: float = 1.0,
+) -> str | None:
+    """Advance the shared four-phase limit ladder at an explicit clock speed."""
     try:
         elapsed = max(0.0, float(elapsed_sec))
+        speed = float(phase_speed_multiplier)
     except (TypeError, ValueError):
         elapsed = 0.0
+        speed = 1.0
+    if not math.isfinite(speed) or not 1.0 <= speed <= 4.0:
+        raise ValueError("execution phase speed multiplier must be within 1x..4x")
+    elapsed *= speed
     for mode, duration in (
         ("OPTIMISTIC", _EXEC_LADDER_OPTIMISTIC_SEC),
         ("MID", _EXEC_LADDER_MID_SEC),
@@ -331,7 +340,12 @@ def _exec_ladder_mode(elapsed_sec: float) -> str | None:
     return None
 
 
-def _exec_chase_mode(elapsed_sec: float, *, selected_mode: str | None = "AUTO") -> str | None:
+def _exec_chase_mode(
+    elapsed_sec: float,
+    *,
+    selected_mode: str | None = "AUTO",
+    phase_speed_multiplier: float = 1.0,
+) -> str | None:
     cleaned = str(selected_mode or "AUTO").strip().upper()
     try:
         elapsed = max(0.0, float(elapsed_sec))
@@ -341,10 +355,14 @@ def _exec_chase_mode(elapsed_sec: float, *, selected_mode: str | None = "AUTO") 
         return cleaned if elapsed <= _EXEC_RELENTLESS_TIMEOUT_SEC else None
     if cleaned and cleaned not in ("AUTO", "LADDER"):
         return cleaned if elapsed <= _EXEC_LADDER_TIMEOUT_SEC else None
-    ladder = _exec_ladder_mode(elapsed)
+    ladder = _exec_ladder_mode(
+        elapsed,
+        phase_speed_multiplier=phase_speed_multiplier,
+    )
     if ladder is not None:
         return ladder
-    relentless_elapsed = max(0.0, elapsed - _EXEC_LADDER_PHASES_SEC)
+    speed = float(phase_speed_multiplier)
+    relentless_elapsed = max(0.0, elapsed - _EXEC_LADDER_PHASES_SEC / speed)
     return "RELENTLESS" if relentless_elapsed <= _EXEC_RELENTLESS_TIMEOUT_SEC else None
 
 

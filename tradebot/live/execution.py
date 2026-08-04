@@ -293,6 +293,7 @@ class LiveOrderExecution:
         *,
         mode: str,
         policy: ExecutionPolicy,
+        phase_speed_multiplier: float = 1.0,
         elapsed_offset_sec: float = 0.0,
         require_fresh_top: bool = False,
         pending_ack_sec: float = 0.9,
@@ -607,7 +608,11 @@ class LiveOrderExecution:
                         return
 
                 elapsed = loop_now - started
-                mode_now = _exec_chase_mode(elapsed, selected_mode=mode)
+                mode_now = _exec_chase_mode(
+                    elapsed,
+                    selected_mode=mode,
+                    phase_speed_multiplier=phase_speed_multiplier,
+                )
                 if mode_now is None:
                     try:
                         self.mark_cancel_requested(order_id=order_id, perm_id=perm_id)
@@ -749,6 +754,9 @@ class LiveOrderExecution:
                             "event": "ladder_mode_transition",
                             "elapsed_seconds": float(elapsed),
                             "selected_mode": selected_label,
+                            "phase_speed_multiplier": float(
+                                phase_speed_multiplier
+                            ),
                             "previous_mode": (
                                 execution_mode_label(previous_mode)
                                 if previous_mode is not None

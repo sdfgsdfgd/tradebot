@@ -1,0 +1,85 @@
+{
+  "schema": "mcl.v18-shock-stage112-executable-crown.v1",
+  "recorded_at_utc": "2026-08-04T17:28:22.281423+00:00",
+  "authority": "outcome_exposed_executable_successor_selection_no_orders_no_capital",
+  "strategy_version": "mcl.two-speed-shock-arbiter.v112",
+  "selection": "EXECUTABLE_CROWN",
+  "selection_reason": "Stage 110 is the frozen raw-alpha ceiling but cannot be selected for live execution because it omits the already-mandatory Friday-flat and 300 USD loss-cap laws. Stage 112 is the only end-to-end candidate whose historical lifecycle matches the executable risk envelope.",
+  "frozen_result": {
+    "path_on_q": "/var/tmp/mcl-stage112-full-live-risk-parity.json",
+    "sha256": "bb0f40f42f22f5888ade3719ace3b9f95813f8fb3575ecfa06682353d90ac2df",
+    "preregistration_path": "backtests/mcl/mcl_v18_shock_full_live_risk_parity_stage112_preregistration.json",
+    "preregistration_sha256": "e59244183a04a9b39da853de1ed12840952bdf586a37bb400db159d4a18f0573",
+    "evaluator_path_on_q": "/var/tmp/mcl_stage112_full_live_risk_parity.py",
+    "evaluator_sha256": "d2cf220bc6bf7f2e1586d993a86454556df33c6a6130fffcadf5a47d2ccbd7b4",
+    "ledger_sha256": "e4d18b52dd6f791371722077c111bd717e4feb63654b4a9fc068b58c06b83aa7"
+  },
+  "economics": {
+    "trades": 388,
+    "annualized_trades": 194.41658584730763,
+    "primary_net_usd": 3942.9899999999993,
+    "stressed_net_usd": 3166.99,
+    "primary_profit_factor": 1.5352610744887651,
+    "primary_intrabar_drawdown_usd": 603.6299999999974,
+    "primary_pnl_to_intrabar_drawdown": 6.532130609810673,
+    "worst_primary_trade_usd": -333.5200000000011,
+    "year_1": {
+      "primary_net_usd": 2071.679999999992,
+      "stressed_net_usd": 1689.679999999992,
+      "primary_pnl_to_intrabar_drawdown": 3.495562379779284
+    },
+    "year_2": {
+      "primary_net_usd": 1871.3100000000072,
+      "stressed_net_usd": 1477.3100000000074,
+      "primary_pnl_to_intrabar_drawdown": 3.100094428706357
+    },
+    "directions_primary_usd": {
+      "down": 1316.4100000000028,
+      "up": 2626.5799999999963
+    },
+    "owners_primary_usd": {
+      "shock": 1771.24,
+      "v18": 2171.749999999999
+    }
+  },
+  "comparisons": {
+    "v18_primary_net_usd": 2886.49,
+    "v18_primary_intrabar_drawdown_usd": 883.52,
+    "v18_primary_pnl_to_intrabar_drawdown": 3.267,
+    "primary_net_improvement_usd": 1056.499999999999,
+    "drawdown_reduction_usd": 279.8900000000026,
+    "pnl_to_drawdown_improvement_fraction": 0.999428102789305,
+    "stage110_raw_alpha_primary_net_usd": 4527.99,
+    "stage110_raw_alpha_intrabar_drawdown_usd": 923.87,
+    "stage110_raw_alpha_pnl_to_drawdown": 4.901
+  },
+  "risk_events": {
+    "raw_loss_cap_exits": 8,
+    "weekly_flat_exits": 16,
+    "february_weekend_gap_removed": true,
+    "shock_owned_raw_loss_cap_exits": 0
+  },
+  "frozen_gate_disclosure": {
+    "original_verdict": "REJECT_FULL_RISK_PARITY_KEEP_STAGE110",
+    "failed_gates": [
+      "primary_net_not_below_stage110",
+      "stress_net_not_below_stage110",
+      "each_year_pnl_dd_not_below_stage110"
+    ],
+    "interpretation": "The failed comparator treated the non-executable Stage-110 risk omission as selectable. This receipt does not rewrite that result; it selects Stage 112 at the architecture boundary because live execution cannot lawfully omit its risk envelope."
+  },
+  "cadence_exception": {
+    "authorized_by_user": true,
+    "minimum_annualized_trades": 194.0,
+    "actual_annualized_trades": 194.41658584730763
+  },
+  "invariants": {
+    "one_contract": true,
+    "single_position_owner": true,
+    "limit_only": true,
+    "market_orders_allowed": false,
+    "seconds_lane_counted_historically": false,
+    "xsp_or_gold_changed": false
+  },
+  "submitted_orders": 0
+}

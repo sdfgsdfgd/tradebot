@@ -1,4 +1,4 @@
-"""Immutable selection and restart-safe live transport for crowned MCL V18."""
+"""Immutable selection and restart-safe live transport for crowned MCL."""
 
 from __future__ import annotations
 
@@ -20,6 +20,10 @@ from ..chart_data.series import OhlcvBar
 from ..engines.execution import quote_health
 from ..live.order_evidence import broker_account_snapshot
 from .live_calibration import LiveCalibrationLedger, calibration_fingerprint
+from .mcl_shock_arbiter import (
+    MCL_TWO_SPEED_SHOCK_VERSION,
+    MclTwoSpeedShockLifecycle,
+)
 from .mcl_two_speed_auction import (
     MCL_TWO_SPEED_AUCTION_VERSION,
     MclAuctionMinute,
@@ -55,23 +59,15 @@ MCL_LIVE_PACKAGE_ID = "mcl-one-contract-stage91"
 _ET = ZoneInfo("America/New_York")
 _ROOT = Path(__file__).resolve().parents[2]
 _ARTIFACTS = {
-    "declaration": Path("backtests/mcl/current-hf.json"),
-    "crown": Path("backtests/mcl/mcl_two_speed_auction_v18_crown.json"),
+    "crown": Path("backtests/mcl/mcl_v18_shock_stage112_executable_crown.json"),
     "generation": Path(
         "backtests/mcl/mcl_turn_authenticity_microstructure_generation.json"
     ),
-    "signal_parity": Path(
-        "backtests/mcl/mcl_two_speed_auction_v18_signal_owner_parity.json"
-    ),
     "lifecycle_parity": Path(
-        "backtests/mcl/mcl_two_speed_auction_v18_lifecycle_owner_parity.json"
+        "backtests/mcl/mcl_v18_shock_stage112_durable_owner_parity.json"
     ),
-    "source_shadow": Path("backtests/mcl/mcl_v18_live_source_shadow_receipt.json"),
-    "stage91_preregistration": Path(
-        "backtests/mcl/mcl_v18_weekly_closure_canary_stage91_preregistration.json"
-    ),
-    "stage91_result": Path(
-        "backtests/mcl/mcl_v18_weekly_closure_canary_stage91_rejection.json"
+    "source_shadow": Path(
+        "backtests/mcl/mcl_v18_shock_stage112_live_source_shadow.json"
     ),
 }
 
@@ -154,7 +150,8 @@ def load_mcl_live_selection_from_mapping(
     if (
         selection.get("schema") != MCL_LIVE_SELECTION_SCHEMA
         or selection_id != _identity(selection)
-        or selection.get("strategy_version") != MCL_TWO_SPEED_AUCTION_VERSION
+        or selection.get("strategy_version")
+        not in {MCL_TWO_SPEED_AUCTION_VERSION, MCL_TWO_SPEED_SHOCK_VERSION}
         or selection.get("authority") != "selected_live_bounded_canary"
         or not all(
             isinstance(item, Mapping)
@@ -247,6 +244,7 @@ async def mcl_source_snapshot(
     mcl_contract: Contract,
     observed_at: datetime,
     selected_at: datetime | None = None,
+    strategy_version: str = MCL_TWO_SPEED_AUCTION_VERSION,
 ) -> dict[str, object]:
     """Replay the exact finalized CL/MCL minute source without adopting history."""
 
@@ -279,48 +277,122 @@ async def mcl_source_snapshot(
     if not 0 <= (now - latest).total_seconds() <= MCL_LIVE_SOURCE_MAX_AGE_SECONDS:
         raise ValueError("MCL finalized source is stale")
     contract_key = str(getattr(mcl_contract, "lastTradeDateOrContractMonth", ""))[:6]
-    lifecycle = MclTwoSpeedAuctionLifecycle()
+    if strategy_version not in {
+        MCL_TWO_SPEED_AUCTION_VERSION,
+        MCL_TWO_SPEED_SHOCK_VERSION,
+    }:
+        raise ValueError("MCL source strategy version is unsupported")
+    combined = strategy_version == MCL_TWO_SPEED_SHOCK_VERSION
+    lifecycle = (
+        MclTwoSpeedShockLifecycle() if combined else MclTwoSpeedAuctionLifecycle()
+    )
     decisions = []
+    steps = []
     for stamp in common:
         step = lifecycle.update(
             MclAuctionMinute(contract_key, cl[stamp], mcl[stamp])
         )
-        if step.decision is not None:
-            decisions.append(step.decision)
+        decision = step.v18_decision if combined else step.decision
+        if decision is not None:
+            decisions.append(decision)
+        steps.append(step)
     if not decisions:
         raise ValueError("MCL source produced no V18 state")
     start = _utc(selected_at) if selected_at is not None else now
     target = None
     last_raw_turn = None
-    for decision in decisions:
-        if decision.observed_at_utc <= start:
-            continue
-        payload = decision.as_payload()
-        event = {
-            "event_id": _identity(payload),
-            "observed_at_utc": decision.observed_at_utc.isoformat(),
-            "signal_at_utc": (
-                decision.signal_at_utc.isoformat()
-                if decision.signal_at_utc is not None
-                else None
-            ),
-            "direction": decision.admitted_direction,
-            "route": decision.route,
-            "decision": payload,
-        }
-        if decision.phase == "RAW_TURN":
-            target = None
-            last_raw_turn = event
-        elif decision.phase == "MATURATION" and decision.admitted_direction in {
-            -1,
-            1,
-        }:
-            target = event
+    if combined:
+        for step in steps:
+            decision = step.v18_decision
+            if decision is not None and decision.observed_at_utc > start:
+                payload = decision.as_payload()
+                event = {
+                    "event_id": _identity(payload),
+                    "observed_at_utc": decision.observed_at_utc.isoformat(),
+                    "signal_at_utc": (
+                        decision.signal_at_utc.isoformat()
+                        if decision.signal_at_utc is not None
+                        else None
+                    ),
+                    "direction": decision.admitted_direction,
+                    "route": decision.route,
+                    "owner": "v18",
+                    "decision": payload,
+                }
+                if decision.phase == "RAW_TURN":
+                    target = None
+                    last_raw_turn = event
+                elif (
+                    decision.phase == "MATURATION"
+                    and decision.admitted_direction in {-1, 1}
+                ):
+                    target = event
+            shock = step.shock_transition
+            if (
+                shock.scheduled_entry_direction in {-1, 1}
+                and shock.scheduled_entry_signal_at_utc is not None
+                and shock.scheduled_entry_signal_at_utc > start
+            ):
+                payload = {
+                    "strategy_version": MCL_TWO_SPEED_SHOCK_VERSION,
+                    "authority": "finalized_minute_shock_signal_only",
+                    "observed_at_utc": (
+                        shock.scheduled_entry_signal_at_utc.isoformat()
+                    ),
+                    "execution_due_at_utc": (
+                        shock.scheduled_entry_signal_at_utc
+                        + timedelta(minutes=1)
+                    ).isoformat(),
+                    "direction": shock.scheduled_entry_direction,
+                    "owner": "shock",
+                    "route": "shock_continuation",
+                    "submitted_orders": 0,
+                }
+                target = {
+                    "event_id": _identity(payload),
+                    "observed_at_utc": payload["observed_at_utc"],
+                    "signal_at_utc": payload["observed_at_utc"],
+                    "direction": shock.scheduled_entry_direction,
+                    "route": "shock_continuation",
+                    "owner": "shock",
+                    "decision": payload,
+                }
+            if shock.scheduled_exit_reason is not None:
+                target = None
+            if decision is not None and decision.phase == "RAW_TURN":
+                target = None
+    else:
+        for decision in decisions:
+            if decision.observed_at_utc <= start:
+                continue
+            payload = decision.as_payload()
+            event = {
+                "event_id": _identity(payload),
+                "observed_at_utc": decision.observed_at_utc.isoformat(),
+                "signal_at_utc": (
+                    decision.signal_at_utc.isoformat()
+                    if decision.signal_at_utc is not None
+                    else None
+                ),
+                "direction": decision.admitted_direction,
+                "route": decision.route,
+                "owner": "v18",
+                "decision": payload,
+            }
+            if decision.phase == "RAW_TURN":
+                target = None
+                last_raw_turn = event
+            elif decision.phase == "MATURATION" and decision.admitted_direction in {
+                -1,
+                1,
+            }:
+                target = event
     latest_decision = decisions[-1]
     return {
         "schema": "mcl.two-speed-auction-finalized-source-snapshot.v1",
         "observed_at_utc": now.isoformat(),
         "authority": "finalized_source_only_no_orders_no_capital",
+        "strategy_version": strategy_version,
         "contract_month": contract_key,
         "contracts": {
             "CL": {
@@ -365,19 +437,16 @@ def build_mcl_live_selection(
     preview: Mapping[str, object],
     selected_at: datetime,
 ) -> dict[str, object]:
-    """Freeze one flat, funded V18 canary from exact repository and broker truth."""
+    """Freeze one flat, funded Stage-112 canary from repository and broker truth."""
 
     root = repository_root.resolve()
     at = _utc(selected_at)
     observed = _utc(preview.get("observed_at_utc"))
     artifacts = {key: _artifact(root, key) for key in _ARTIFACTS}
-    declaration = artifacts["declaration"][0]
     crown = artifacts["crown"][0]
     generation = artifacts["generation"][0]
-    signal = artifacts["signal_parity"][0]
     lifecycle = artifacts["lifecycle_parity"][0]
     source = artifacts["source_shadow"][0]
-    stage91 = artifacts["stage91_result"][0]
     broker = preview.get("broker")
     contracts = preview.get("contracts")
     source_preview = preview.get("source")
@@ -386,6 +455,7 @@ def build_mcl_live_selection(
     if (
         preview.get("schema") != "mcl.v18-live-commissioning-preview.v2"
         or preview.get("authority") != "fresh_nontransmitting_what_if_only"
+        or preview.get("strategy_version") != MCL_TWO_SPEED_SHOCK_VERSION
         or preview.get("submitted_orders") != 0
         or not 0 <= (at - observed).total_seconds() <= 90
         or not isinstance(broker, Mapping)
@@ -419,19 +489,23 @@ def build_mcl_live_selection(
             for row in what_if.values()
         )
         or not isinstance(source_preview, Mapping)
+        or source_preview.get("strategy_version") != MCL_TWO_SPEED_SHOCK_VERSION
         or source_preview.get("submitted_orders") != 0
-        or declaration.get("version") != "18"
-        or declaration.get("artifact_sha256") != artifacts["crown"][1]
-        or not isinstance(crown.get("signal"), Mapping)
-        or crown["signal"].get("strategy_version")
-        != MCL_TWO_SPEED_AUCTION_VERSION
-        or not isinstance(signal.get("signal_events"), Mapping)
-        or signal["signal_events"].get("exact_event_parity") is not True
-        or lifecycle.get("exact_trade_parity") is not True
-        or lifecycle.get("actual_trades") != 338
+        or crown.get("strategy_version") != MCL_TWO_SPEED_SHOCK_VERSION
+        or crown.get("selection") != "EXECUTABLE_CROWN"
+        or crown.get("submitted_orders") != 0
+        or crown.get("economics", {}).get("trades") != 388
+        or crown.get("invariants", {}).get("limit_only") is not True
+        or crown.get("invariants", {}).get("market_orders_allowed") is not False
+        or lifecycle.get("strategy_version") != MCL_TWO_SPEED_SHOCK_VERSION
+        or lifecycle.get("result", {}).get("exact_trade_parity") is not True
+        or lifecycle.get("result", {}).get("actual_trades") != 388
+        or lifecycle.get("result", {}).get("raw_loss_cap_event_parity") is not True
+        or lifecycle.get("result", {}).get("weekly_flat_event_parity") is not True
+        or source.get("strategy_version") != MCL_TWO_SPEED_SHOCK_VERSION
         or source.get("verdict") != "LIVE_SOURCE_SHADOW_PASS"
-        or stage91.get("primary_300", {}).get("maximum_observed_loss_usd")
-        != MCL_LIVE_RAW_LOSS_CAP_USD
+        or source.get("submitted_orders") != 0
+        or not all(source.get("gates", {}).values())
     ):
         raise ValueError("MCL canary selection evidence is incomplete")
     frozen_contracts = generation.get("contracts")
@@ -459,7 +533,7 @@ def build_mcl_live_selection(
     )
     body = {
         "schema": MCL_LIVE_SELECTION_SCHEMA,
-        "strategy_version": MCL_TWO_SPEED_AUCTION_VERSION,
+        "strategy_version": MCL_TWO_SPEED_SHOCK_VERSION,
         "authority": "selected_live_bounded_canary",
         "selected_at_utc": at.isoformat(),
         "run_started_at_utc": at.isoformat(),
@@ -467,7 +541,7 @@ def build_mcl_live_selection(
         "baseline": {
             "position": 0,
             "inherited_target_authority": "none",
-            "first_eligible_event": "fresh_post_selection_v18_admission",
+            "first_eligible_event": "fresh_post_selection_v18_or_shock_admission",
             "source_snapshot_sha256": _identity(source_preview),
         },
         "broker_at_selection": dict(broker),
@@ -485,7 +559,7 @@ def build_mcl_live_selection(
             ),
             "fx_stress_bps": MCL_LIVE_FX_STRESS_BPS,
             "weekly_flat_et": "Friday 16:53",
-            "post_safety_exit_reentry": "next_original_v18_admission_only",
+            "post_safety_exit_reentry": "next_fresh_source_admission_only",
         },
         "execution": {
             "order_type": "LMT",
@@ -493,6 +567,8 @@ def build_mcl_live_selection(
             "outside_rth": True,
             "entry_initial_mode": "OPTIMISTIC",
             "entry_chase_mode": "AUTO",
+            "ordinary_entry_phase_speed_multiplier": 1.0,
+            "shock_entry_phase_speed_multiplier": 2.0,
             "risk_reduction_initial_mode": "CROSS",
             "risk_reduction_chase_mode": "RELENTLESS",
             "market_orders_allowed": False,
@@ -503,7 +579,7 @@ def build_mcl_live_selection(
         },
         "exception": {
             "authority": "user_explicit_gold_style_bounded_live_canary",
-            "waived": "prospective_stage87_89_cohort_before_unchanged_v18_canary",
+            "waived": "prospective_seconds_cohort_before_stage112_bounded_canary",
             "not_waived": [
                 "finalized_source_identity",
                 "fresh_two_sided_limit_preview",
@@ -578,6 +654,7 @@ async def capture_mcl_commissioning_preview(
     *,
     repository_root: Path = _ROOT,
     observed_at: datetime,
+    strategy_version: str = MCL_TWO_SPEED_SHOCK_VERSION,
 ) -> dict[str, object]:
     """Capture the exact funded, nontransmitting MCL commissioning boundary."""
 
@@ -600,6 +677,7 @@ async def capture_mcl_commissioning_preview(
         cl_contract=contracts["CL"],
         mcl_contract=contracts["MCL"],
         observed_at=observed_at,
+        strategy_version=strategy_version,
     )
     rows = []
     for action, price in (("BUY", quote["ask"]), ("SELL", quote["bid"])):
@@ -630,6 +708,7 @@ async def capture_mcl_commissioning_preview(
         "schema": "mcl.v18-live-commissioning-preview.v2",
         "observed_at_utc": now.isoformat(),
         "authority": "fresh_nontransmitting_what_if_only",
+        "strategy_version": strategy_version,
         "broker": broker,
         "contracts": {
             symbol: dict(identities[symbol]) for symbol in ("CL", "MCL")
@@ -654,6 +733,7 @@ def persist_mcl_source_checkpoint(
         source.get("schema")
         != "mcl.two-speed-auction-finalized-source-snapshot.v1"
         or source.get("submitted_orders") != 0
+        or source.get("strategy_version") != selected["strategy_version"]
         or source.get("contract_month")
         != str(selected["contracts"]["MCL"]["expiry"])[:6]
     ):
@@ -670,7 +750,7 @@ def persist_mcl_source_checkpoint(
     }
     return ledger.checkpoint(
         evaluation_as_of=now,
-        strategy_id=MCL_TWO_SPEED_AUCTION_VERSION,
+        strategy_id=str(selected["strategy_version"]),
         strategy_version=MCL_LIVE_SOURCE_VERSION,
         trading_date=now.date().isoformat(),
         session="MCL_GTH_SOURCE",
@@ -710,19 +790,23 @@ async def refresh_mcl_source_if_due(
     latest = latest_mcl_source_checkpoint(
         records, selection_id=str(selected["selection_id"])
     )
-    due = now.replace(second=0, microsecond=0) - timedelta(
-        minutes=now.minute % 5
-    )
-    latest_decision = None
+    combined = selected["strategy_version"] == MCL_TWO_SPEED_SHOCK_VERSION
+    due = now.replace(second=0, microsecond=0)
+    if not combined:
+        due -= timedelta(minutes=now.minute % 5)
+    latest_source_at = None
     if latest is not None:
         evidence = latest["evidence"]
         assert isinstance(evidence, Mapping)
         source = evidence.get("source")
         if isinstance(source, Mapping):
-            decision = source.get("latest_decision")
-            if isinstance(decision, Mapping):
-                latest_decision = _utc(decision.get("observed_at_utc"))
-    if latest is not None and latest_decision is not None and latest_decision >= due:
+            if combined:
+                latest_source_at = _utc(source.get("latest_common_close_utc"))
+            else:
+                decision = source.get("latest_decision")
+                if isinstance(decision, Mapping):
+                    latest_source_at = _utc(decision.get("observed_at_utc"))
+    if latest is not None and latest_source_at is not None and latest_source_at >= due:
         return latest
     cl_contract, mcl_contract = mcl_live_contracts(selected)
     source = await mcl_source_snapshot(
@@ -731,10 +815,15 @@ async def refresh_mcl_source_if_due(
         mcl_contract=mcl_contract,
         observed_at=now,
         selected_at=_utc(selected["selected_at_utc"]),
+        strategy_version=str(selected["strategy_version"]),
     )
-    decision_at = _utc(source["latest_decision"]["observed_at_utc"])
-    if decision_at < due:
-        raise ValueError("MCL broker history has not finalized the due V18 boundary")
+    source_at = _utc(
+        source["latest_common_close_utc"]
+        if combined
+        else source["latest_decision"]["observed_at_utc"]
+    )
+    if source_at < due:
+        raise ValueError("MCL broker history has not finalized the due source boundary")
     return persist_mcl_source_checkpoint(
         ledger, selection=selected, source=source, observed_at=now
     )

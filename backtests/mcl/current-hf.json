@@ -2,19 +2,19 @@
   "schema": "tradebot.spot.champion.v1",
   "symbol": "MCL",
   "track": "HF",
-  "version": "18",
-  "artifact": "backtests/mcl/mcl_two_speed_auction_v18_crown.json",
-  "artifact_sha256": "6d21b6d97e5b1a651e1d684c5c6f1261a7744df407913d606b63cd75dac1a455",
-  "strategy_key": "mcl-two-speed-auction-relay-v18",
-  "promoted_at": "2026-08-04T07:01:27Z",
+  "version": "112",
+  "artifact": "backtests/mcl/mcl_v18_shock_stage112_executable_crown.json",
+  "artifact_sha256": "c1e7aad0391a6a4ab1cd6cf2065af023d2c36058e411a464dae939599b0dd63f",
+  "strategy_key": "mcl-two-speed-shock-arbiter-v112",
+  "promoted_at": "2026-08-04T18:45:00Z",
   "promotion": {
-    "authority": "user_explicit_mcl_history_exception_and_research_crown",
+    "authority": "user_explicit_mcl_stage112_executable_research_crown",
     "eligible": true,
     "order_authority": "none",
     "selection_authority": "none",
     "capital_authority": "none",
     "profitability_clock": "not_started",
-    "candidate": "MCL Two-Speed Auction Relay — V18",
-    "reason": "Strongest honest MCL development candidate on the complete available matched native tape. The user explicitly waived the unavailable July-2023–August-2024 prefix for MCL research coronation; outcome-exposed origin, prospective evidence, runtime, transport, capital, and graduation remain disclosed downstream gates."
+    "candidate": "MCL Shock-Aware Two-Speed Arbiter — Stage 112",
+    "reason": "Stage 112 combines exact V18 signal ownership with the frozen minute-shock continuation lane and the already-mandatory executable Friday-flat and 300 USD loss-cap envelope. It improves V18 primary net by 1056.50 USD, cuts intrabar drawdown by 279.89 USD, and nearly doubles PnL/DD while retaining the disclosed MCL history exception. Live selection, capital succession, and fresh profitability remain separate downstream gates."
   }
 }

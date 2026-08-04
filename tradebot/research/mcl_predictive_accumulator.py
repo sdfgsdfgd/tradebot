@@ -38,6 +38,11 @@ from .mcl_live_transport import (
     load_mcl_live_selection_from_mapping,
     mcl_live_contracts,
 )
+from .mcl_predictive_generation import (
+    MCL_PREDICTIVE_GENERATION_SCHEMA_V1,
+    MCL_PREDICTIVE_RUNTIME_GENERATION_PATH,
+    load_mcl_predictive_generation,
+)
 from .mcl_predictive_onset import (
     MclOnsetNewsContext,
     MclWeeklyPrior,
@@ -59,13 +64,11 @@ MCL_PREDICTIVE_ACCUMULATOR_SCHEMA = "mcl.predictive-onset-treatment.v1"
 MCL_PREDICTIVE_ACCUMULATOR_AUTHORITY = (
     "prospective_morphology_only_no_outcomes_no_orders_no_capital"
 )
-MCL_PREDICTIVE_GENERATION_SCHEMA = "mcl.predictive-onset-accumulator-generation.v1"
+MCL_PREDICTIVE_GENERATION_SCHEMA = MCL_PREDICTIVE_GENERATION_SCHEMA_V1
 MCL_PREDICTIVE_LEDGER_PATH = (
     Path.home() / ".local/state/tradebot/research/mcl_predictive_onset.jsonl"
 )
-MCL_PREDICTIVE_GENERATION_PATH = Path(
-    "backtests/mcl/mcl_predictive_onset_accumulator_generation.json"
-)
+MCL_PREDICTIVE_GENERATION_PATH = MCL_PREDICTIVE_RUNTIME_GENERATION_PATH
 MCL_PREDICTIVE_MANIFEST_PATH = Path("db/MCL/dated/hydration_manifest.json")
 MCL_PREDICTIVE_NEWS_DIR = Path.home() / ".local/state/tradebot/news/history"
 _ROOT = Path(__file__).resolve().parents[2]
@@ -104,40 +107,6 @@ def _sha256(path: Path) -> str:
 def _is_sha(value: object) -> bool:
     text = str(value or "")
     return len(text) == 64 and all(char in "0123456789abcdef" for char in text)
-
-def load_mcl_predictive_generation(
-    path: Path = MCL_PREDICTIVE_GENERATION_PATH,
-    *,
-    repository_root: Path = _ROOT,
-) -> dict[str, object]:
-    generation = json.loads(path.read_text())
-    if (
-        not isinstance(generation, Mapping)
-        or generation.get("schema") != MCL_PREDICTIVE_GENERATION_SCHEMA
-        or generation.get("authority") != MCL_PREDICTIVE_ACCUMULATOR_AUTHORITY
-        or generation.get("outcomes_exposed") is not False
-        or generation.get("submitted_orders") != 0
-    ):
-        raise ValueError("MCL predictive accumulator generation is invalid")
-    artifacts = generation.get("artifacts")
-    if not isinstance(artifacts, Mapping):
-        raise ValueError("MCL predictive accumulator generation has no artifacts")
-    for name, item in artifacts.items():
-        if not isinstance(item, Mapping) or not _is_sha(item.get("sha256")):
-            raise ValueError(f"MCL predictive artifact {name} is invalid")
-        artifact = repository_root / str(item["path"])
-        if not artifact.is_file() or _sha256(artifact) != item["sha256"]:
-            raise ValueError(f"MCL predictive artifact {name} drifted")
-    gate = generation.get("cohort_gate")
-    if not isinstance(gate, Mapping) or set(gate) != {
-        "complete_turns",
-        "each_raw_direction",
-        "admitted_turns",
-        "each_admitted_route",
-        "resolved_handoffs",
-    }:
-        raise ValueError("MCL predictive cohort gate drifted")
-    return dict(generation)
 
 def _validated_treatment(evidence: Mapping[str, object]) -> dict[str, object]:
     value = dict(evidence)
@@ -768,6 +737,12 @@ async def advance_mcl_predictive_accumulator(
     for treatment in _seed_treatments(generation, repository_root=repository_root):
         appended += _append_treatment(ledger, treatment, recorded_at=now)
     treatments = mcl_predictive_treatments(tuple(ledger.records()))
+    inherited = generation.get("inherited_prefix")
+    if isinstance(inherited, Mapping):
+        expected_ids = list(inherited.get("treatment_ids") or ())
+        actual_ids = [row["treatment_id"] for row in treatments[: len(expected_ids)]]
+        if actual_ids != expected_ids:
+            raise ValueError("MCL predictive inherited treatment prefix drifted")
     gate = generation["cohort_gate"]
     assert isinstance(gate, Mapping)
     if seed_only:

@@ -24,7 +24,7 @@ from ..research.mcl_live_transport import (
     MCL_LIVE_EXECUTION_VERSION,
     load_mcl_live_selection_from_mapping,
 )
-from ..research.mcl_two_speed_auction import MCL_TWO_SPEED_AUCTION_VERSION
+from ..research.mcl_shock_arbiter import MCL_TWO_SPEED_SHOCK_VERSION
 from .portfolio import LivePortfolioCockpit
 from .runs import LiveRunBinding
 
@@ -53,8 +53,8 @@ LIVE_STRATEGY_BINDINGS = (
         champion_track="LF",
     ),
     LiveRunBinding(
-        strategy_id=MCL_TWO_SPEED_AUCTION_VERSION,
-        label="MCL V18 Two-Speed Auction · CL/MCL GTH",
+        strategy_id=MCL_TWO_SPEED_SHOCK_VERSION,
+        label="MCL Stage 112 Two-Speed Shock Arbiter · CL/MCL GTH",
         execution_strategy_version=MCL_LIVE_EXECUTION_VERSION,
         ledger_path="db/calibration/mcl_live_calibration.jsonl",
         timer_unit="tradebot-mcl-live.timer",

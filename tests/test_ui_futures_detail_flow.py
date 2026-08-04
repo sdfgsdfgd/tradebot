@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from time import monotonic
 
 from ib_insync import Contract, PortfolioItem
+import pytest
 
 from tradebot.engines.execution import EXECUTION_POLICY, _exec_chase_mode
 from tradebot.live.execution import CHASE_STATE_BY_ORDER
@@ -151,6 +152,26 @@ def test_exec_chase_mode_relentless_has_extended_timeout() -> None:
 def test_exec_chase_mode_relentless_delay_has_extended_timeout() -> None:
     assert _exec_chase_mode(100.0, selected_mode="RELENTLESS_DELAY") == "RELENTLESS_DELAY"
     assert _exec_chase_mode(2_000.0, selected_mode="RELENTLESS_DELAY") is None
+
+
+def test_exec_chase_mode_can_accelerate_only_the_auto_ladder() -> None:
+    assert _exec_chase_mode(2.999, phase_speed_multiplier=2.0) == "OPTIMISTIC"
+    assert _exec_chase_mode(3.0, phase_speed_multiplier=2.0) == "MID"
+    assert _exec_chase_mode(6.0, phase_speed_multiplier=2.0) == "AGGRESSIVE"
+    assert _exec_chase_mode(9.0, phase_speed_multiplier=2.0) == "CROSS"
+    assert _exec_chase_mode(12.0, phase_speed_multiplier=2.0) == "RELENTLESS"
+    assert _exec_chase_mode(
+        100.0,
+        selected_mode="RELENTLESS",
+        phase_speed_multiplier=2.0,
+    ) == "RELENTLESS"
+
+
+def test_exec_chase_mode_rejects_unsafe_phase_speed_multipliers() -> None:
+    with pytest.raises(ValueError, match="within 1x..4x"):
+        _exec_chase_mode(1.0, phase_speed_multiplier=0.0)
+    with pytest.raises(ValueError, match="within 1x..4x"):
+        _exec_chase_mode(1.0, phase_speed_multiplier=5.0)
 
 
 def test_render_execution_block_includes_custom_price_row() -> None:

@@ -1,0 +1,60 @@
+{
+  "schema": "mcl.v18-shock-stage112-live-source-shadow-receipt.v1",
+  "recorded_at_utc": "2026-08-04T18:44:01.143442+00:00",
+  "authority": "read_only_finalized_source_shadow_no_orders_no_capital",
+  "strategy_version": "mcl.two-speed-shock-arbiter.v112",
+  "evaluator": {
+    "path_on_q": "/var/tmp/mcl_stage112_live_source_shadow.py",
+    "sha256": "97bb34fbff820d0df7fd6376abd7efe8303271a848c3b2492cbb010688cd1558"
+  },
+  "result": {
+    "path_on_q": "/var/tmp/mcl-stage112-live-source-shadow.json",
+    "sha256": "84236d5ade8f782a80ffcb620a080d38f1b95a556b258478e825659649aaf102"
+  },
+  "owners": {
+    "minute_shock_path": "tradebot/research/mcl_minute_shock.py",
+    "minute_shock_sha256": "d9f170ddce49a48d3868c0c23f797ba0544d635aa4804f6534139a6679b17f64",
+    "v18_path": "tradebot/research/mcl_two_speed_auction.py",
+    "v18_sha256": "03d0c958dab724a9e1b8f36070a1cbbb8df700e4d37683ffd6977061d5b866b7",
+    "arbiter_path": "tradebot/research/mcl_shock_arbiter.py",
+    "arbiter_sha256": "e4b217c61c4cc51b813a20ff20741a11ea26d09f5d2223a88925a981f2bcddff",
+    "transport_path": "tradebot/research/mcl_live_transport.py",
+    "transport_sha256": "8b204647072bfe91ae2f29425c34c5c581c2305fa25022c4270360cab8a97add"
+  },
+  "generation_sha256": "b3805c9f95713a13c26cb0ada08dc043f00069f42177212d3c575abe28c3ee7f",
+  "source": {
+    "observed_at_utc": "2026-08-04T18:43:58.631309+00:00",
+    "contract_month": "202608",
+    "contracts": {
+      "CL": {
+        "con_id": 304037484,
+        "local_symbol": "CLU6"
+      },
+      "MCL": {
+        "con_id": 661016525,
+        "local_symbol": "MCLU6"
+      }
+    },
+    "rows": {
+      "CL": 4003,
+      "MCL": 4003,
+      "common": 4003
+    },
+    "first_common_close_utc": "2026-07-30T22:01:00+00:00",
+    "latest_common_close_utc": "2026-08-04T18:43:00+00:00",
+    "target": null,
+    "counterfactual_position": null,
+    "synthetic_midcycle_entry_authority": "none"
+  },
+  "gates": {
+    "strategy_identity": true,
+    "matched_contract_month": true,
+    "minimum_warmup": true,
+    "finalized_source_fresh": true,
+    "selection_boundary_flat": true,
+    "synthetic_midcycle_entry_forbidden": true,
+    "submitted_orders_zero": true
+  },
+  "verdict": "LIVE_SOURCE_SHADOW_PASS",
+  "submitted_orders": 0
+}
