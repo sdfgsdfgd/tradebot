@@ -1,0 +1,49 @@
+{
+  "schema": "mcl.maintenance-gap-auction-census-preregistration.v1",
+  "registered_at_utc": "2026-08-04T01:59:43Z",
+  "authority": "outcome_blind_completed_reopen_auction_only_no_trade_outcomes_no_orders_no_capital",
+  "campaign": "mcl.two-speed-auction-relay.v60",
+  "hypothesis": "The NYMEX maintenance pause is a daily information boundary. The first completed fifteen-minute CL auction after reopen may show whether the shared CL/MCL gap was accepted or rejected; dominant CL discovers direction and matched MCL must confirm the same prior-close verdict before any executable projection.",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "signed_flow_family_rejection_sha256": "db44ab68ed504c1a66be2ada2f344c14fcbdd5fa7a87517d2f7664e7848f07e5",
+    "census_evaluator_path": "/tmp/mcl_stage60_maintenance_gap_auction_census.py",
+    "census_evaluator_sha256": "39c1e9fbb5684004f5d261c9cc59aa0bc55262325bec8b9b3e33bc192444b1b7"
+  },
+  "frozen_auction": {
+    "reference": "last completed five-minute CL/MCL close before the daily NYMEX maintenance boundary",
+    "gap": "first post-maintenance CL and MCL opens must share one nonzero direction relative to their own prior closes",
+    "verdict": "after exactly the first three completed five-minute bars, both CL and MCL closes must remain on the gap side for acceptance or cross the opposite side for failure",
+    "direction": "follow the shared gap after acceptance; fade the shared gap after failure",
+    "entry_projection": "next matched-suffix MCL minute open",
+    "frequency": "maximum one event per Globex session",
+    "weekend": "included and explicitly attributed; contract-roll sessions excluded"
+  },
+  "count_gate_per_period": {
+    "annualized_events": {"exclusive_minimum": 160, "inclusive_maximum": 300},
+    "minimum_each_proposed_direction": 50,
+    "minimum_each_gap_direction": 50,
+    "minimum_gap_acceptance": 50,
+    "minimum_gap_failure": 20,
+    "minimum_weekend_reopens": 20,
+    "minimum_active_eligible_session_fraction": 0.65,
+    "session_distribution": {"median": 1, "p95": 1, "maximum": 1}
+  },
+  "frozen_order": [
+    "reconstruct completed five-minute session boundaries on the exact dated CL/MCL tape",
+    "exclude contract-roll boundaries and incomplete first-fifteen-minute auctions",
+    "require shared nonzero CL/MCL reopen-gap direction",
+    "classify exactly one completed fifteen-minute acceptance or failure verdict",
+    "count discovery and validation independently before any forward return"
+  ],
+  "if_eligible": "Preregister exactly one branch-aware lifecycle with next-open MCL entry, semantic prior-close/gap invalidation and hard session/contract/gap flat; discovery must pass before validation opens. News may later annotate weekend shock but has no authority.",
+  "prohibitions": [
+    "no gap magnitude, ATR normalization, alternate 5/10/20/30-minute verdict, partial bar, volume, flow, VWAP, Europe/US anchor, retained-state gate, news, stop distance, target, timeout, cooldown, replacement event, or quota",
+    "no trade outcome, MFE, MAE, PnL, validation economics, order, capital, XSP, or Gold authority"
+  ],
+  "downstream_hold_even_on_pass": [
+    "missing July 2023 through August 2024 dated-contract history",
+    "unseen runtime parity and prospective signal tape",
+    "native MCL spread, liquidity, margin, commission, roll, preview, restart, reconciliation, shared-capital, and graduation proof"
+  ]
+}

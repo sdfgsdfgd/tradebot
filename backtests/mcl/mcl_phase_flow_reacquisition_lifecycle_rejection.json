@@ -1,0 +1,42 @@
+{
+  "schema": "mcl.phase-flow-reacquisition-lifecycle-rejection.v1",
+  "recorded_at_utc": "2026-08-04T01:59:00Z",
+  "authority": "research_only_discovery_failed_validation_unopened_no_orders_no_capital",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "census_result_sha256": "85ba57ecb680715aa3427774b79bb2b2f5b604eb2244d75e9d52ebed90dc41f7",
+    "preregistration_sha256": "81d4b2a53ada5f99fa2741626d3cfb165e3f6230db50fd19508c1536c4fb4081",
+    "evaluator_sha256": "95767b3dab62108c6c8440e4b0f2770bc35c9f340d2cf0da593992948e351e1e",
+    "result_sha256": "cfc272a1f04d21fc525fdb0819f3ae1724d1cf25a9f514569422078bfaa6dce6"
+  },
+  "discovery": {
+    "trades": 516,
+    "annualized": 516.354407,
+    "raw_net": -152.00,
+    "primary_net": -1968.32,
+    "stress_net": -3000.32,
+    "primary_stress_profit_factor": [0.491852, 0.361417],
+    "primary_stress_pnl_to_intrabar_drawdown": [-0.996961, -0.998004],
+    "primary_stress_positive_months": [1, 1],
+    "primary_stress_quarters": [[-566.12, -536.52, -155.08, -710.60], [-828.12, -788.52, -413.08, -970.60]],
+    "gth_primary_stress": [-1149.16, -1665.16, 258],
+    "rth_primary_stress": [-819.16, -1335.16, 258],
+    "up_primary_stress": [-1207.96, -1803.96, 298],
+    "down_primary_stress": [-760.36, -1196.36, 218],
+    "price_acceptance_raw_primary_stress": [-550.00, -1965.04, -2769.04, 402],
+    "flow_absorption_raw_primary_stress": [398.00, -3.28, -231.28, 114],
+    "mean_hold_minutes": 11.007752,
+    "mean_mfe_mae": [11.664729, -8.286822]
+  },
+  "reporting_caveat": "The shared legacy summary recognizes branch keys acceptance/failure, so its embedded branch table was empty for price_acceptance/flow_absorption. The immutable trade ledger retained the correct labels; the branch figures above are reconstructed directly from that ledger. This display mismatch cannot affect entries, exits, PnL, direction, phase, or the rejection.",
+  "finding": "The exact high-cadence flow lifecycle is negative even before costs and fails every profitability, drawdown, temporal, direction and phase gate. Flow absorption alone is approximately flat after primary friction and negative under stress; price acceptance is negative gross. No magnitude, threshold, branch selection, stop, timeout, or exit rescue is lawful.",
+  "validation_opened": false,
+  "closed_families": [
+    "session-direction signed-flow reacquisition",
+    "physical-phase signed-flow reacquisition",
+    "price-acceptance or flow-absorption selection",
+    "signed-flow magnitude, smoothing, threshold, stop, timeout, or exit rescue"
+  ],
+  "verdict": "REJECT_CLOSE_SIGNED_FLOW_REACQUISITION_FAMILY",
+  "submitted_orders": 0
+}
