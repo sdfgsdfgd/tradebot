@@ -1,0 +1,85 @@
+{
+  "schema": "mcl.predictive-velocity-ignition-stage87-preregistration.v1",
+  "frozen_at_utc": "2026-08-04T06:36:54Z",
+  "authority": "prospective_count_and_morphology_only_no_outcomes_no_orders_no_capital",
+  "campaign": "mcl.two-speed-auction-relay.v87",
+  "candidate": "MCL V18 Predictive Velocity-Ignition Ladder",
+  "hypothesis": "An authentic rapid V18 onset has an ordered CL discovery spark, prompt matched-MCL acceptance, continued directional propagation, and persistent pressure without pathological spread expansion; a fake turn instead lacks the handoff, overshoots, reverses velocity, diverges in basis, or withdraws liquidity.",
+  "immutable_inputs": {
+    "historical_manifest_path": "db/MCL/dated/hydration_manifest.json",
+    "historical_manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "v18_owner_path": "tradebot/research/mcl_two_speed_auction.py",
+    "v18_owner_sha256": "0a8d182c7a437c918fe24f8d5775a14192b55bf0791adeb28de582bec7f66b7b",
+    "event_owner_path": "tradebot/research/mcl_predictive_onset.py",
+    "event_owner_sha256": "1380916d36c18d12be7314b1fd657908c8d5d6dab04d4616b100d4c9c12d34d0",
+    "evaluator_path": "/tmp/mcl_stage87_predictive_event_join.py",
+    "evaluator_sha256": "9050da42c1ec691189fe83cca106ce6b900b7c7fd79306c081ddee2df8b5c520",
+    "snapshot_path": "/var/tmp/mcl-turn-recent-snapshot-stage87.json",
+    "snapshot_sha256": "ceac30277597ba1c5a109b7d9a88861edcd405e774094e30e64b8a6b71bac21e",
+    "snapshot_id": "63be7b00cf13d533d502255b54db40b04e07f163f6cf80d39cf6b7deb7a36fd6",
+    "snapshot_cutoff_utc": "2026-08-04T06:34:00+00:00",
+    "event_prefix_path": "/var/tmp/mcl-turn-prefix-stage87.jsonl",
+    "event_prefix_sha256": "d4175683ce9dfc27998e19e014989e044a9b29ef48b9797c9508d776fbf9c1b7",
+    "event_prefix_rows": 4586,
+    "event_prefix_first_bucket_utc": "2026-08-04T04:49:34+00:00",
+    "event_prefix_last_bucket_utc": "2026-08-04T06:36:54+00:00",
+    "generation_sha256": "b3805c9f95713a13c26cb0ada08dc043f00069f42177212d3c575abe28c3ee7f"
+  },
+  "service_invocation": {
+    "unit": "tradebot-mcl-turn-tape.service",
+    "invocation_id": "60d5377f917c4edaa980b3aed89bf9e8",
+    "exec_main_start_utc": "2026-08-04T04:49:31+00:00",
+    "restarts_at_prefix_freeze": 0,
+    "state_at_prefix_freeze": "active/running"
+  },
+  "exact_v18_join": {
+    "historical_identity": "1493 raw turns and 338 admissions must remain exact before appended broker bars",
+    "treatments": "every exact durable-owner V18 raw turn at or after the first event bucket",
+    "complete_window": "the immutable event prefix must contain every second from 60 seconds before the raw-turn close through five minutes after it",
+    "maturation": "retain the exact V18 proposed/admitted state, continuation or failed-auction route, and routed direction",
+    "direction_authority": "V18 only; event evidence cannot create or reverse direction",
+    "risk_reduction": "unchanged and unconditional on every raw turn"
+  },
+  "frozen_velocity_ignition_ladder": {
+    "pre_turn_60s": "ordinary pressure and liquidity baseline",
+    "spark_0_5s": "initial CL discovery ignition",
+    "acceptance_5_15s": "matched-MCL acceptance or refusal",
+    "propagation_15_30s": "directional continuation versus recoil",
+    "persistence_30_60s": "durable financing, exhaustion, or spread blowout",
+    "maturation_1_5m": "unchanged V18 one-bar maturation interval",
+    "per_book_evidence": [
+      "directional microprice displacement",
+      "directional microprice slope-velocity",
+      "microprice true-range velocity",
+      "quote-intensity acceleration",
+      "same-price top-size pressure proxy",
+      "signed-print proxy",
+      "spread elasticity"
+    ],
+    "cross_book_evidence": [
+      "CL, MCL, or simultaneous first-mid-move receipt leadership",
+      "median MCL-minus-CL first-mid-move receipt microseconds",
+      "basis divergence or re-convergence"
+    ],
+    "limitations": "IBKR L1 and local TCP receipt time support seconds-sensitive causal morphology, not depth, queue position, identified cancellation, exchange timestamp priority, or colocated HFT claims"
+  },
+  "eligibility_gate": {
+    "exact_historical_v18_identity": true,
+    "event_prefix_identity": "zero invalid, late, hash-failed, or generation-drifted records",
+    "minimum_complete_raw_turns": 30,
+    "minimum_each_raw_direction": 10,
+    "minimum_admitted_turns": 20,
+    "minimum_each_admitted_route": 5
+  },
+  "future_action_boundary": {
+    "current_authority": "record count and categorical morphology only",
+    "after_count_pass": "preregister matched controls, categorical shapes, CHASE_NOW versus KEEP_ONE_BAR_MATURATION versus REJECT_FAKE actions, and economic settlement before opening outcomes",
+    "forbidden_now": [
+      "forward return, MFE, MAE, giveback, reversal, or PnL",
+      "threshold, score, classifier, winner, or feature-union selection",
+      "direction, admission, exit, sizing, order, capital, or crown authority"
+    ]
+  },
+  "outcomes_exposed": false,
+  "submitted_orders": 0
+}

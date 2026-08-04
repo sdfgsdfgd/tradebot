@@ -309,6 +309,20 @@ def test_event_atlas_uses_complete_identity_clean_window_and_combines_all_famili
     assert event["windows"]["pre_turn_60s"]["active_seconds"] == 4
     assert event["windows"]["turn_response_60s"]["active_seconds"] == 4
     assert event["windows"]["maturation_4m"]["active_seconds"] == 5
+    assert event["windows"]["spark_0_5s"]["active_seconds"] == 1
+    assert event["windows"]["acceptance_5_15s"]["active_seconds"] == 0
+    assert event["windows"]["propagation_15_30s"]["active_seconds"] == 1
+    assert event["windows"]["persistence_30_60s"]["active_seconds"] == 2
+    ladder = event["event_shapes"]["velocity_ignition_ladder"]
+    assert tuple(ladder) == (
+        "spark_0_5s",
+        "acceptance_5_15s",
+        "propagation_15_30s",
+        "persistence_30_60s",
+    )
+    assert ladder["spark_0_5s"]["books"]["CL"]["top_size_pressure"] == (
+        "WITH_RAW_DIRECTION"
+    )
     assert atlas["outcomes_exposed"] is False
     assert atlas["submitted_orders"] == 0
     serialized = json.dumps(atlas, sort_keys=True).lower()

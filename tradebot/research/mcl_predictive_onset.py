@@ -664,6 +664,31 @@ def project_mcl_event_onset(
             raw_direction=raw_direction,
         ),
     }
+    ignition_intervals = (
+        ("spark_0_5s", turn, turn + timedelta(seconds=5)),
+        (
+            "acceptance_5_15s",
+            turn + timedelta(seconds=5),
+            turn + timedelta(seconds=15),
+        ),
+        (
+            "propagation_15_30s",
+            turn + timedelta(seconds=15),
+            turn + timedelta(seconds=30),
+        ),
+        (
+            "persistence_30_60s",
+            turn + timedelta(seconds=30),
+            turn + timedelta(seconds=60),
+        ),
+    )
+    for name, start, end in ignition_intervals:
+        windows[name] = _window_event_features(
+            ordered,
+            start=start,
+            end=end,
+            raw_direction=raw_direction,
+        )
     response = windows["turn_response_60s"]
     maturation = windows["maturation_4m"]
     pre = windows["pre_turn_60s"]
@@ -728,6 +753,62 @@ def project_mcl_event_onset(
             if mature_distance > response_distance
             else "UNCHANGED"
         )
+
+    ignition_shapes = {}
+    for name, _start, _end in ignition_intervals:
+        window = windows[name]
+        ignition_shapes[name] = {
+            "books": {
+                symbol: {
+                    "displacement": (
+                        _shape(float(book["directional_microprice_displacement_ticks"]))
+                        if book["directional_microprice_displacement_ticks"]
+                        is not None
+                        else None
+                    ),
+                    "slope_velocity": (
+                        _shape(
+                            float(
+                                book[
+                                    "directional_microprice_slope_velocity_ticks_per_second2"
+                                ]
+                            )
+                        )
+                        if book[
+                            "directional_microprice_slope_velocity_ticks_per_second2"
+                        ]
+                        is not None
+                        else None
+                    ),
+                    "tr_velocity": (
+                        _plain_shape(float(book["microprice_tr_velocity_ticks"]))
+                        if book["microprice_tr_velocity_ticks"] is not None
+                        else None
+                    ),
+                    "quote_intensity_acceleration": (
+                        _plain_shape(float(book["quote_intensity_acceleration"]))
+                        if book["quote_intensity_acceleration"] is not None
+                        else None
+                    ),
+                    "spread_elasticity": (
+                        _plain_shape(float(book["spread_last_minus_first_ticks"]))
+                        if book["spread_last_minus_first_ticks"] is not None
+                        else None
+                    ),
+                    "top_size_pressure": _shape(
+                        float(book["directional_same_price_size_pressure_proxy"])
+                    ),
+                    "signed_prints": _shape(
+                        float(book["directional_signed_trade_volume_proxy"])
+                    ),
+                }
+                for symbol, book in window["books"].items()
+            },
+            "first_mid_move_leaders": window["first_mid_move_leaders"],
+            "median_mcl_minus_cl_first_mid_move_us": window[
+                "median_mcl_minus_cl_first_mid_move_us"
+            ],
+        }
     return {
         "strategy_version": MCL_PREDICTIVE_ONSET_VERSION,
         "authority": MCL_PREDICTIVE_ONSET_AUTHORITY,
@@ -740,6 +821,7 @@ def project_mcl_event_onset(
             "response_leaders": response["first_mid_move_leaders"],
             "maturation_leaders": maturation["first_mid_move_leaders"],
             "basis_response_to_maturation": basis_shape,
+            "velocity_ignition_ladder": ignition_shapes,
         },
         "outcomes_exposed": False,
         "submitted_orders": 0,
