@@ -208,6 +208,22 @@ five-session regime, 30m basis curvature, and causally available news by
 `snapshot_as_of_utc`. Slow clocks preserve missingness and cannot veto a fast
 treatment; news cannot own direction.
 
+Stage-90 accumulation `mcl_predictive_cross_scale_stage90_accumulation.json`
+(`336aa2f8…`) passes every identity/causality gate with outcomes sealed:
+
+- `07:05Z` down: 5m path/TR and 15m velocity/acceleration align inside joint
+  5m/4h expansion, but 4h slope acceleration opposes, weekly downside is
+  decelerating, bullish news is stale/opposed, and first-minute handoff remains
+  unresolved.
+- `09:05Z` up: immediate 5m path and 15m velocity oppose inside local
+  exhaustion/slow expansion, while 15m and 4h slope acceleration align, weekly
+  downside is improving, fresh bullish pressure strengthens `+0.46→+0.50`, and
+  CL/MCL align together at `+15→+30s`.
+
+The second is a high-value early-torsion hypothesis seed, not an admission: both
+treatments are non-admitted, `winner=null`, and the Stage-89 cohort remains
+`2/30` complete with zero timing or order authority.
+
 The first lawful unseen prefix is now durable. Stage-88 receipt
 `mcl_predictive_closing_ignition_stage88_accumulation_r2.json` (`d571f6cd…`)
 contains `16,471` identity-clean seconds and two complete post-generation raw
