@@ -11,6 +11,7 @@ from tradebot.research.mcl_shock_accumulator import (
     MCL_SHOCK_ACCUMULATOR_AUTHORITY,
     MCL_SHOCK_ACCUMULATOR_VERSION,
     MCL_SHOCK_GENERATION_PATH,
+    _minute_resets,
     load_mcl_shock_generation,
     mcl_shock_cohort,
     mcl_shock_episodes,
@@ -442,7 +443,7 @@ def test_stage113_generation_binds_one_shared_observer_service() -> None:
     ).read_text()
 
     assert generation["generation_id"] == (
-        "41717060839653e5f18ff36dc0533c92d1afeacc7c8d397ea56ee60129742a67"
+        "5305c37a169dc09228aaaf36f0c2f094d2aa2eb46a0104cc02ab810fd1670d29"
     )
     assert generation["frozen_levels"] == {
         "attention": 5.0,
@@ -456,3 +457,46 @@ def test_stage113_generation_binds_one_shared_observer_service() -> None:
     assert "MCL_SHOCK_LEDGER=" in service
     assert "Unit=tradebot-mcl-predictive-onset.service" in timer
     assert "MCL_LIVE_SELECTION_PATH" not in accumulator
+
+
+def _reset_bars(stamps: tuple[datetime, ...]) -> dict[str, dict[datetime, OhlcvBar]]:
+    return {
+        symbol: {
+            stamp: OhlcvBar(stamp, 80.0, 80.01, 79.99, 80.0, 10.0)
+            for stamp in stamps
+        }
+        for symbol in ("CL", "MCL")
+    }
+
+
+def test_stage113_maintenance_resets_before_reopen_not_at_first_returning_bar() -> None:
+    maintenance = datetime(2026, 8, 4, 21, 0, tzinfo=timezone.utc)
+    resets = _minute_resets(
+        _reset_bars(
+            (
+                maintenance - timedelta(minutes=1),
+                maintenance,
+                maintenance + timedelta(hours=1, minutes=1),
+            )
+        ),
+        contract_key="202608",
+    )
+
+    assert resets == [
+        {"at_utc": maintenance, "reasons": ["stage112_maintenance"]}
+    ]
+
+
+def test_stage113_unscheduled_gap_resets_at_first_missing_minute() -> None:
+    first = datetime(2026, 8, 4, 10, 0, tzinfo=timezone.utc)
+    resets = _minute_resets(
+        _reset_bars((first, first + timedelta(minutes=5))),
+        contract_key="202608",
+    )
+
+    assert resets == [
+        {
+            "at_utc": first + timedelta(minutes=1),
+            "reasons": ["unscheduled_minute_gap"],
+        }
+    ]

@@ -1,6 +1,6 @@
 {
   "schema": "mcl.shock-crest-accumulator-generation.v1",
-  "generation_id": "41717060839653e5f18ff36dc0533c92d1afeacc7c8d397ea56ee60129742a67",
+  "generation_id": "5305c37a169dc09228aaaf36f0c2f094d2aa2eb46a0104cc02ab810fd1670d29",
   "registered_at_utc": "2026-08-04T21:11:52.159396+00:00",
   "eligible_start_utc": "2026-08-04T21:11:52.159396+00:00",
   "authority": "prospective_morphology_only_no_outcomes_no_orders_no_capital",
@@ -12,6 +12,12 @@
   "predictive_generation_file_sha256": "2a7e478dc02952226099a68f5b525d9dd2bd57810302dd730e1c428ec9001db4",
   "turn_tape_generation_sha256": "b3805c9f95713a13c26cb0ada08dc043f00069f42177212d3c575abe28c3ee7f",
   "seconds_owner_version": "mcl.shock-crest-continuation-relay.v2",
+  "pre_outcome_implementation_correction": {
+    "recorded_before_first_eligible_observation": true,
+    "defect": "The initial replay window could discard an unclosed pre-maintenance episode and place a generic gap reset at the first returning bar, one minute after a fresh reopen episode could begin.",
+    "correction": "Replay the preceding session, close at the known 17:00 ET maintenance boundary, and place unscheduled-gap resets at the first missing minute. Thresholds, morphology algebra, cohort law, outcomes, and live authority are unchanged.",
+    "evidence": "Two exact reset-clock tests pass and the frozen 2,167-observation payload remains byte-identical at a004b91f."
+  },
   "frozen_levels": {
     "attention": 5.0,
     "major": 10.0,
@@ -55,7 +61,7 @@
   "artifacts": {
     "accumulator_owner": {
       "path": "tradebot/research/mcl_shock_accumulator.py",
-      "sha256": "2649e2b81e2e8d75776a75a615a945ca2f4f382f5bfbb8c8f2ff5e2a102f570f"
+      "sha256": "e3c1ee7d0b2479e61d01343ddf61a95e7eca15dbba7d357a867c94ac7cf1732c"
     },
     "evidence_owner": {
       "path": "tradebot/research/mcl_shock_evidence.py",
@@ -99,7 +105,7 @@
     },
     "observation_owner_parity": {
       "path": "backtests/mcl/mcl_shock_crest_stage113_observation_parity.json",
-      "sha256": "6e89578ab5ae04a7e768d3a8d99076d28164280cb8b64e1ead4b9946b8e7c535"
+      "sha256": "9ca9c3d9eca64188f83588f732093ffb1ffed071ac10d0e03a8bd7c22864143e"
     },
     "shared_predictive_service": {
       "path": "deploy/systemd/tradebot-mcl-predictive-onset.service",

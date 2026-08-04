@@ -8,7 +8,7 @@ import fcntl
 import hashlib
 import json
 import os
-from collections import Counter
+from collections import Counter, defaultdict
 from collections.abc import Mapping, Sequence
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
@@ -278,8 +278,21 @@ def _minute_resets(
     bars: Mapping[str, Mapping[datetime, OhlcvBar]], *, contract_key: str
 ) -> list[dict[str, object]]:
     engine = MclMinuteShockEngine()
-    resets = []
+    resets: defaultdict[datetime, set[str]] = defaultdict(set)
     common = sorted(set(bars["CL"]) & set(bars["MCL"]))
+    maintenance = set()
+    if common:
+        cursor = common[0].astimezone(ET_ZONE).date()
+        last = common[-1].astimezone(ET_ZONE).date()
+        while cursor <= last:
+            boundary = datetime.combine(cursor, time(17), tzinfo=ET_ZONE).astimezone(
+                timezone.utc
+            )
+            if common[0] <= boundary <= common[-1]:
+                maintenance.add(boundary)
+                resets[boundary].add("stage112_maintenance")
+            cursor += timedelta(days=1)
+    previous: datetime | None = None
     for stamp in common:
         transition = engine.update(
             MclShockMinute(
@@ -288,18 +301,24 @@ def _minute_resets(
                 bars["MCL"][stamp],
             )
         )
-        reasons = []
         if transition.exit_reason is not None:
-            reasons.append(f"stage112_minute_release:{transition.exit_reason}")
+            resets[stamp].add(
+                f"stage112_minute_release:{transition.exit_reason}"
+            )
         if transition.contract_reset:
-            reasons.append("contract_roll")
+            resets[stamp].add("contract_roll")
         if transition.gap_reset:
-            reasons.append("minute_gap_or_maintenance")
+            assert previous is not None
+            scheduled = any(previous <= boundary < stamp for boundary in maintenance)
+            if not scheduled:
+                resets[previous + timedelta(minutes=1)].add("unscheduled_minute_gap")
         if mcl_weekly_flat_blocked_at_open(stamp):
-            reasons.append("stage112_friday_flat")
-        if reasons:
-            resets.append({"at_utc": stamp, "reasons": reasons})
-    return resets
+            resets[stamp].add("stage112_friday_flat")
+        previous = stamp
+    return [
+        {"at_utc": stamp, "reasons": sorted(reasons)}
+        for stamp, reasons in sorted(resets.items())
+    ]
 
 
 def _new_episode(
@@ -810,7 +829,10 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
         raise ValueError("MCL shock predictive generation drifted")
     now = datetime.now(timezone.utc)
     eligible = _utc(generation["eligible_start_utc"])
-    start = max(eligible - timedelta(seconds=60), _session_start(now) - timedelta(seconds=60))
+    start = max(
+        eligible - timedelta(seconds=60),
+        _session_start(now) - timedelta(days=1, seconds=60),
+    )
     rows, tape = load_mcl_shock_tape(
         args.turn_tape_dir.expanduser(),
         start=start,
