@@ -240,15 +240,14 @@ def _bar_map(
     return output
 
 
-async def mcl_source_snapshot(
+async def mcl_finalized_minute_source(
     client,
     *,
     cl_contract: Contract,
     mcl_contract: Contract,
     observed_at: datetime,
-    selected_at: datetime | None = None,
-) -> dict[str, object]:
-    """Replay the exact finalized CL/MCL minute source without adopting history."""
+) -> tuple[dict[str, dict[datetime, OhlcvBar]], dict[str, object]]:
+    """Fetch the one canonical fresh, completed CL/MCL minute source."""
 
     now = _utc(observed_at)
     raw_cl, raw_mcl = await asyncio.gather(
@@ -270,14 +269,45 @@ async def mcl_source_snapshot(
         ),
     )
     cutoff = now.replace(second=0, microsecond=0)
-    cl = _bar_map(raw_cl, cutoff=cutoff, name="CL")
-    mcl = _bar_map(raw_mcl, cutoff=cutoff, name="MCL")
-    common = sorted(set(cl).intersection(mcl))
+    maps = {
+        "CL": _bar_map(raw_cl, cutoff=cutoff, name="CL"),
+        "MCL": _bar_map(raw_mcl, cutoff=cutoff, name="MCL"),
+    }
+    common = sorted(set(maps["CL"]) & set(maps["MCL"]))
     if len(common) < 500:
         raise ValueError("MCL source warmup is incomplete")
     latest = common[-1]
     if not 0 <= (now - latest).total_seconds() <= MCL_LIVE_SOURCE_MAX_AGE_SECONDS:
         raise ValueError("MCL finalized source is stale")
+    evidence = {
+        "cutoff_utc": cutoff.isoformat(),
+        "first_common_close_utc": common[0].isoformat(),
+        "last_common_close_utc": latest.isoformat(),
+        "common_rows": len(common),
+    }
+    return maps, evidence
+
+
+async def mcl_source_snapshot(
+    client,
+    *,
+    cl_contract: Contract,
+    mcl_contract: Contract,
+    observed_at: datetime,
+    selected_at: datetime | None = None,
+) -> dict[str, object]:
+    """Replay the exact finalized CL/MCL minute source without adopting history."""
+
+    now = _utc(observed_at)
+    maps, _ = await mcl_finalized_minute_source(
+        client,
+        cl_contract=cl_contract,
+        mcl_contract=mcl_contract,
+        observed_at=now,
+    )
+    cl, mcl = maps["CL"], maps["MCL"]
+    common = sorted(set(cl).intersection(mcl))
+    latest = common[-1]
     contract_key = str(getattr(mcl_contract, "lastTradeDateOrContractMonth", ""))[:6]
     lifecycle = MclTwoSpeedAuctionLifecycle()
     decisions = []

@@ -156,3 +156,28 @@ read-only cadence.
 Failure after selection preserves the immutable selection, leaves cadence
 disabled, and requires reconciliation; it never deletes or silently replaces
 selected authority. The command is deliberately not a recurring selector.
+
+## MCL predictive-onset accumulation
+
+Install the predictive observer only after the crowned V18 live worker and the
+continuous turn tape are proven independently. The observer is a separate,
+read-only failure domain: empty cycles append nothing and do not contact IBKR;
+only a new exact V18 raw turn with a complete `-60s..+5m` tape window opens one
+finalized-history read and one immutable morphology treatment. It cannot alter
+direction, timing, orders, capital, or the live/recorder services.
+
+```bash
+install -m 0644 deploy/systemd/tradebot-mcl-predictive-onset.{service,timer} \
+  ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemd-analyze --user verify \
+  ~/.config/systemd/user/tradebot-mcl-predictive-onset.{service,timer}
+systemctl --user start tradebot-mcl-predictive-onset.service
+journalctl --user -u tradebot-mcl-predictive-onset.service -n 100 --no-pager
+systemctl --user enable --now tradebot-mcl-predictive-onset.timer
+```
+
+The first invocation imports the two frozen Stage-90 treatments once. Repeating
+it with no unseen complete turn must leave the ledger byte-identical. The
+five-minute timer runs after the live checkpoint and recorder flush, is not
+persistent, and never fabricates a missed treatment across a closure.

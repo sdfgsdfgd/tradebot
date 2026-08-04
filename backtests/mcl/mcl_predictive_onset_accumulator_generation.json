@@ -1,0 +1,71 @@
+{
+  "schema": "mcl.predictive-onset-accumulator-generation.v1",
+  "generated_at_utc": "2026-08-04T11:11:43Z",
+  "authority": "prospective_morphology_only_no_outcomes_no_orders_no_capital",
+  "selection_id": "591db0104449f4388b9063bd613ffd8c9b076dcb281c46fb45545080e28898b2",
+  "eligible_start_utc": "2026-08-04T06:45:00+00:00",
+  "turn_tape_generation_sha256": "b3805c9f95713a13c26cb0ada08dc043f00069f42177212d3c575abe28c3ee7f",
+  "historical_manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+  "artifacts": {
+    "accumulator_owner": {
+      "path": "tradebot/research/mcl_predictive_accumulator.py",
+      "sha256": "03225be72fab6f9938130cc74d93be00908a25233b6b46a3ed2e4c6579148f0a"
+    },
+    "finalized_minute_source_owner": {
+      "path": "tradebot/research/mcl_live_transport.py",
+      "sha256": "8c6871502cd07ada8b30c7ec07f3ce3286f0a9a96ade562400ff2cac6c751203"
+    },
+    "v18_owner": {
+      "path": "tradebot/research/mcl_two_speed_auction.py",
+      "sha256": "03d0c958dab724a9e1b8f36070a1cbbb8df700e4d37683ffd6977061d5b866b7"
+    },
+    "completed_bar_event_owner": {
+      "path": "tradebot/research/mcl_predictive_onset.py",
+      "sha256": "71373f19591486ce4fe8f2d8d9d29ae31b9f37dddd7e40d5ccef0ed812390b3f"
+    },
+    "velocity_jerk_owner": {
+      "path": "tradebot/research/mcl_predictive_velocity.py",
+      "sha256": "b69f02225b8ae4ecbe7dc99d339fd54d5e5b24c2d9aa8ec06af6e5d380fd69ec"
+    },
+    "turn_tape_generation": {
+      "path": "backtests/mcl/mcl_turn_authenticity_microstructure_generation.json",
+      "sha256": "b3805c9f95713a13c26cb0ada08dc043f00069f42177212d3c575abe28c3ee7f"
+    },
+    "stage88_seed": {
+      "path": "backtests/mcl/mcl_predictive_closing_ignition_stage88_accumulation_r2.json",
+      "sha256": "d571f6cda47e6ce155b660f26df0bdad92a0ec88fff54a4dc72263f5d7f33371"
+    },
+    "stage89_seed": {
+      "path": "backtests/mcl/mcl_predictive_velocity_jerk_stage89_accumulation.json",
+      "sha256": "8ef53f7da72831f1cb4ec4ce9a33c18c48ac263688d49afc02c7070badab6c0b"
+    },
+    "stage90_preregistration": {
+      "path": "backtests/mcl/mcl_predictive_cross_scale_stage90_preregistration.json",
+      "sha256": "db9c73c399063033ec7bcb96d78bb8dc92ca17a43a08072033b30ab7866d78ab"
+    },
+    "stage90_seed": {
+      "path": "backtests/mcl/mcl_predictive_cross_scale_stage90_accumulation.json",
+      "sha256": "336aa2f88ed0c102c698eeb21275f22dbdf941931feeaef2b6a11da77154f0b4"
+    }
+  },
+  "cohort_gate": {
+    "complete_turns": 30,
+    "each_raw_direction": 10,
+    "admitted_turns": 20,
+    "each_admitted_route": 5,
+    "resolved_handoffs": 20
+  },
+  "invariants": {
+    "empty_cycles_append_nothing": true,
+    "broker_access_only_after_unseen_complete_turn": true,
+    "live_worker_dependency": "none",
+    "turn_recorder_dependency": "read_only_files_after_flush",
+    "classifier_authority": "none",
+    "timing_authority": "none",
+    "direction_authority": "V18_only",
+    "order_authority": "none",
+    "capital_authority": "none"
+  },
+  "outcomes_exposed": false,
+  "submitted_orders": 0
+}

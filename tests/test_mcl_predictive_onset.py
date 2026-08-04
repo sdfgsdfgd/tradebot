@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import ast
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 import hashlib
 import json
+from pathlib import Path
 
 import pytest
 
@@ -11,6 +13,20 @@ from tradebot.chart_data.series import OhlcvBar
 from tradebot.engines.directional_impulse import (
     DirectionalImpulseHorizon,
     DirectionalImpulseSnapshot,
+)
+from tradebot.research.live_calibration import LiveCalibrationLedger
+from tradebot.research.mcl_predictive_accumulator import (
+    MCL_PREDICTIVE_ACCUMULATOR_AUTHORITY,
+    MCL_PREDICTIVE_ACCUMULATOR_SCHEMA,
+    MCL_PREDICTIVE_ACCUMULATOR_VERSION,
+    _append_treatment,
+    _cohort,
+    _identity,
+    _read_event_window,
+    _seed_treatments,
+    _source_candidates,
+    load_mcl_predictive_generation,
+    mcl_predictive_treatments,
 )
 from tradebot.research.mcl_predictive_onset import (
     MCL_PREDICTIVE_ONSET_AUTHORITY,
@@ -477,3 +493,175 @@ def test_velocity_jerk_projection_rejects_authority_or_interval_drift() -> None:
     del event["windows"]["spark_0_5s"]
     with pytest.raises(ValueError, match="interval contract drifted"):
         project_mcl_velocity_jerk_handoff(event)
+
+
+def test_predictive_accumulator_seeds_exact_stage90_once(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[1]
+    generation = load_mcl_predictive_generation(repository_root=root)
+    seeds = _seed_treatments(generation, repository_root=root)
+
+    assert [row["raw_turn_at_utc"] for row in seeds] == [
+        "2026-08-04T07:05:00+00:00",
+        "2026-08-04T09:05:00+00:00",
+    ]
+    assert {row["raw_direction"] for row in seeds} == {-1, 1}
+    assert all(row["schema"] == MCL_PREDICTIVE_ACCUMULATOR_SCHEMA for row in seeds)
+    assert all(row["authority"] == MCL_PREDICTIVE_ACCUMULATOR_AUTHORITY for row in seeds)
+    assert all(row["outcomes_exposed"] is False for row in seeds)
+    assert all(row["submitted_orders"] == 0 for row in seeds)
+
+    ledger = LiveCalibrationLedger(tmp_path / "onset.jsonl")
+    now = datetime(2026, 8, 4, 11, tzinfo=timezone.utc)
+    assert [_append_treatment(ledger, row, recorded_at=now) for row in seeds] == [
+        True,
+        True,
+    ]
+    before = ledger.path.read_bytes()
+    assert [_append_treatment(ledger, row, recorded_at=now) for row in seeds] == [
+        False,
+        False,
+    ]
+    assert ledger.path.read_bytes() == before
+    restored = mcl_predictive_treatments(tuple(ledger.records()))
+    assert [row["treatment_id"] for row in restored] == [
+        row["treatment_id"] for row in seeds
+    ]
+    assert all(
+        record["strategy_version"] == MCL_PREDICTIVE_ACCUMULATOR_VERSION
+        for record in ledger.records()
+    )
+
+
+def test_predictive_accumulator_accepts_only_exact_live_raw_events() -> None:
+    decision = {
+        "observed_at_utc": TURN.isoformat(),
+        "phase": "RAW_TURN",
+        "raw_direction": 1,
+    }
+    event_id = _identity(decision)
+    record = {
+        "kind": "checkpoint",
+        "checkpoint_id": "c" * 64,
+        "strategy_version": "mcl.two-speed-auction-live-source.v1",
+        "evidence": {
+            "schema": "mcl.two-speed-auction-source-checkpoint.v1",
+            "selection_id": "selection",
+            "last_raw_turn": {
+                "event_id": event_id,
+                "observed_at_utc": TURN.isoformat(),
+                "decision": decision,
+            },
+        },
+    }
+
+    values = _source_candidates(
+        (record,),
+        selection_id="selection",
+        eligible_start=TURN - timedelta(minutes=1),
+    )
+    assert len(values) == 1
+    assert values[0]["event_id"] == event_id
+    assert values[0]["source_checkpoint_id"] == "c" * 64
+
+    broken = deepcopy(record)
+    broken["evidence"]["last_raw_turn"]["event_id"] = "d" * 64
+    with pytest.raises(ValueError, match="source identity drifted"):
+        _source_candidates(
+            (broken,), selection_id="selection", eligible_start=TURN
+        )
+
+
+def test_predictive_event_window_waits_for_both_bookends(tmp_path: Path) -> None:
+    start = TURN - timedelta(seconds=60)
+    end = TURN + timedelta(minutes=5)
+
+    def row(stamp: datetime) -> dict[str, object]:
+        body = {
+            "schema": MCL_TURN_TAPE_SCHEMA,
+            "generation_sha256": GENERATION,
+            "bucket_start_utc": stamp.isoformat(),
+            "valid_evidence": True,
+        }
+        return {**body, "record_id": _identity(body)}
+
+    path = tmp_path / f"{TURN.date().isoformat()}.jsonl"
+    path.write_text(json.dumps(row(start)) + "\n")
+    assert (
+        _read_event_window(
+            tmp_path, turn=TURN, expected_generation_sha256=GENERATION
+        )
+        is None
+    )
+    path.write_text(
+        "\n".join(json.dumps(value) for value in (row(start), row(end - timedelta(seconds=1))))
+        + "\n"
+    )
+    records, evidence = _read_event_window(
+        tmp_path, turn=TURN, expected_generation_sha256=GENERATION
+    )
+    assert len(records) == 2
+    assert evidence["first_bucket_utc"] == start.isoformat()
+    assert evidence["prefix_end_exclusive_utc"] == end.isoformat()
+
+
+def test_predictive_cohort_never_opens_outcomes_implicitly() -> None:
+    treatments = [
+        {
+            "raw_direction": 1 if index % 2 else -1,
+            "admitted": index < 20,
+            "route": "continuation" if index % 2 else "failed_auction",
+            "velocity_jerk": {
+                "handoff": "SAME_INTERVAL" if index < 20 else "UNRESOLVED"
+            },
+        }
+        for index in range(30)
+    ]
+    result = _cohort(
+        treatments,
+        {
+            "complete_turns": 30,
+            "each_raw_direction": 10,
+            "admitted_turns": 20,
+            "each_admitted_route": 5,
+            "resolved_handoffs": 20,
+        },
+    )
+    assert all(result["gates"].values())
+    assert result["verdict"] == "ELIGIBLE_FOR_MATCHED_CONTROL_PREREGISTRATION"
+    assert "outcome" not in json.dumps(result).lower()
+
+
+def test_predictive_accumulator_service_is_separate_read_only_and_bounded() -> None:
+    root = Path(__file__).resolve().parents[1]
+    source = root / "tradebot/research/mcl_predictive_accumulator.py"
+    live_source = (root / "tradebot/research/mcl_live_transport.py").read_text()
+    tree = ast.parse(source.read_text(), filename=str(source))
+    calls = {
+        node.func.attr
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+    }
+    service = (
+        root / "deploy/systemd/tradebot-mcl-predictive-onset.service"
+    ).read_text()
+    timer = (
+        root / "deploy/systemd/tradebot-mcl-predictive-onset.timer"
+    ).read_text()
+
+    assert not calls & {
+        "placeOrder",
+        "place_limit_order",
+        "preview_limit_order",
+        "submit_order",
+    }
+    assert "historical_bars_ohlcv" not in source.read_text()
+    assert "mcl_finalized_minute_source" in source.read_text()
+    assert "mcl_finalized_minute_source" in live_source
+    assert "Environment=IBKR_READONLY=1" in service
+    assert "mcl_predictive_accumulator" in service
+    assert "tradebot-mcl-live.service" not in service
+    assert "tradebot-mcl-turn-tape.service" in service
+    assert "NoNewPrivileges=true" in service
+    assert timer.count("OnCalendar=") == 4
+    assert all(":0/5:45 America/New_York" in row for row in timer.splitlines() if row.startswith("OnCalendar="))
+    assert "Persistent=false" in timer

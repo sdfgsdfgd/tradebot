@@ -258,11 +258,14 @@
         "tests/test_spot_signal_time_mode.py"
       ],
       "owner_surface": [
+        "deploy/systemd/tradebot-mcl-predictive-onset.service",
+        "deploy/systemd/tradebot-mcl-predictive-onset.timer",
         "tradebot/engines/directional_impulse.py",
         "tradebot/engines/shock.py",
         "tradebot/engines/signals.py",
         "tradebot/news/contract.py",
         "tradebot/news/pipeline.py",
+        "tradebot/research/mcl_predictive_accumulator.py",
         "tradebot/research/mcl_predictive_onset.py",
         "tradebot/research/mcl_predictive_velocity.py",
         "tradebot/research/mcl_two_speed_auction.py",
