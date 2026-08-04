@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from tradebot.news.contract import publication_id
 from tradebot.chart_data.series import OhlcvBar
 from tradebot.engines.directional_impulse import (
     DirectionalImpulseHorizon,
@@ -22,6 +23,7 @@ from tradebot.research.mcl_predictive_accumulator import (
     _append_treatment,
     _cohort,
     _identity,
+    _news_context,
     _read_event_window,
     _seed_treatments,
     _source_candidates,
@@ -569,6 +571,60 @@ def test_predictive_accumulator_accepts_only_exact_live_raw_events() -> None:
         _source_candidates(
             (broken,), selection_id="selection", eligible_start=TURN
         )
+
+
+def test_predictive_news_context_reuses_v3_v4_contract_and_legacy_identity() -> None:
+    def snapshot(
+        *, schema: str, at: str, direction: int, impact: int, change: str
+    ) -> dict[str, object]:
+        return {
+            "schema": schema,
+            "score_version": "causal-impact-100.v2",
+            "run_status": "published",
+            "signal_as_of_utc": at,
+            "snapshot_as_of_utc": at,
+            "analysis": {
+                "assets": {
+                    "MCL": {
+                        "direction": direction,
+                        "impact": impact,
+                        "confidence": 0.9,
+                        "horizon_hours": 4,
+                        "change": change,
+                        "drivers": [],
+                    }
+                }
+            },
+        }
+
+    legacy = snapshot(
+        schema="tradebot.news-signal.v3",
+        at="2026-08-04T06:00:00Z",
+        direction=-1,
+        impact=20,
+        change="new",
+    )
+    current = snapshot(
+        schema="tradebot.news-signal.v4",
+        at="2026-08-04T07:00:00Z",
+        direction=1,
+        impact=50,
+        change="strengthening",
+    )
+    current["publication_id"] = publication_id(current)
+
+    context, source = _news_context(
+        (legacy, current),
+        treatment_at=datetime(2026, 8, 4, 7, 5, tzinfo=timezone.utc),
+    )
+
+    assert context is not None and source is not None
+    assert context.signed_pressure == 0.5
+    assert context.pressure_delta == 0.7
+    assert context.pressure_velocity_per_hour == 0.7
+    assert source["publication_id"] == current["publication_id"]
+    assert source["prior_publication_id"] == publication_id(legacy)
+    assert source["usable"] is True
 
 
 def test_predictive_event_window_waits_for_both_bookends(tmp_path: Path) -> None:

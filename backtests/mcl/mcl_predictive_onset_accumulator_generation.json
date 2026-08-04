@@ -9,11 +9,15 @@
   "artifacts": {
     "accumulator_owner": {
       "path": "tradebot/research/mcl_predictive_accumulator.py",
-      "sha256": "03225be72fab6f9938130cc74d93be00908a25233b6b46a3ed2e4c6579148f0a"
+      "sha256": "5724c83381b00b7e06d0fe9aa460515dbcba2d30b9b0750da748a40c0c2e0fdb"
     },
     "finalized_minute_source_owner": {
       "path": "tradebot/research/mcl_live_transport.py",
       "sha256": "8c6871502cd07ada8b30c7ec07f3ce3286f0a9a96ade562400ff2cac6c751203"
+    },
+    "news_contract_owner": {
+      "path": "tradebot/news/contract.py",
+      "sha256": "8f59b02ae8e65bcf23117f610d226f4a549bf708c53140af75dd718e4610a431"
     },
     "v18_owner": {
       "path": "tradebot/research/mcl_two_speed_auction.py",

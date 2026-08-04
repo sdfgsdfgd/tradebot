@@ -21,7 +21,12 @@ from ..client import IBKRClient
 from ..config import load_config
 from ..live.capital import load_live_capital_plan
 from ..live.capital_packages import load_allocated_live_selection
-from ..news.contract import load_news_history
+from ..news.contract import (
+    load_news_history,
+    observe_news_signal,
+    publication_id,
+    select_news_snapshot_at,
+)
 from ..time_utils import ET_ZONE
 from .live_calibration import LiveCalibrationLedger, calibration_fingerprint
 from .mcl_live_transport import (
@@ -548,74 +553,61 @@ def _weekly_prior(
 def _news_context(
     snapshots: Sequence[Mapping[str, object]], *, treatment_at: datetime
 ) -> tuple[MclOnsetNewsContext | None, dict[str, object] | None]:
-    publications = []
-    for row in snapshots:
-        analysis = row.get("analysis")
-        assets = analysis.get("assets") if isinstance(analysis, Mapping) else None
-        asset = assets.get("MCL") if isinstance(assets, Mapping) else None
-        available = row.get("snapshot_as_of_utc")
-        if (
-            row.get("run_status") != "published"
-            or not isinstance(asset, Mapping)
-            or not available
-        ):
-            continue
-        at = _utc(available)
-        if at > treatment_at:
-            continue
-        impact = float(asset["impact"]) / 100.0
-        publications.append(
-            {
-                "publication_id": row["publication_id"],
-                "signal_as_of_utc": row["signal_as_of_utc"],
-                "snapshot_as_of_utc": available,
-                "available_at_utc": at,
-                "direction": int(asset["direction"]),
-                "impact": impact,
-                "signed_pressure": int(asset["direction"]) * impact,
-                "horizon_hours": float(asset["horizon_hours"]),
-                "confidence": float(asset["confidence"]),
-                "change": asset["change"],
-            }
-        )
-    if not publications:
+    selected = select_news_snapshot_at(snapshots, as_of=treatment_at)
+    if selected is None:
         return None, None
-    publications.sort(key=lambda row: row["available_at_utc"])
-    current = publications[-1]
-    previous = publications[-2] if len(publications) >= 2 else None
+    current = observe_news_signal(selected, symbol="MCL", as_of=treatment_at)
+    selected_index = max(
+        index for index, row in enumerate(snapshots) if row == selected
+    )
+    previous_snapshot = select_news_snapshot_at(
+        tuple(row for index, row in enumerate(snapshots) if index != selected_index),
+        as_of=treatment_at,
+    )
+    previous = (
+        observe_news_signal(previous_snapshot, symbol="MCL", as_of=treatment_at)
+        if previous_snapshot is not None
+        else None
+    )
+    current_at = _utc(current.snapshot_as_of_utc)
+    current_pressure = current.direction * current.impact / 100.0
+    previous_pressure = (
+        previous.direction * previous.impact / 100.0 if previous else 0.0
+    )
     delta = (
-        float(current["signed_pressure"]) - float(previous["signed_pressure"])
+        current_pressure - previous_pressure
         if previous is not None
         else 0.0
     )
     elapsed = (
-        (current["available_at_utc"] - previous["available_at_utc"]).total_seconds()
-        / 3600.0
+        (current_at - _utc(previous.snapshot_as_of_utc)).total_seconds() / 3600.0
         if previous is not None
         else 0.0
     )
     velocity = delta / elapsed if elapsed > 0.0 else 0.0
     context = MclOnsetNewsContext(
-        published_at_utc=current["available_at_utc"],
-        horizon_hours=float(current["horizon_hours"]),
-        signed_pressure=float(current["signed_pressure"]),
+        published_at_utc=current_at,
+        horizon_hours=float(current.horizon_hours),
+        signed_pressure=current_pressure,
         pressure_delta=delta,
         pressure_velocity_per_hour=velocity,
-        impact=float(current["impact"]),
-        confidence=float(current["confidence"]),
+        impact=current.impact / 100.0,
+        confidence=current.confidence,
     )
-    source = {key: value for key, value in current.items() if key != "available_at_utc"}
-    source.update(
-        {
-            "prior_publication_id": previous["publication_id"] if previous else None,
-            "pressure_delta": delta,
-            "pressure_velocity_per_hour": velocity,
-            "treatment_age_hours": (
-                treatment_at - current["available_at_utc"]
-            ).total_seconds()
-            / 3600.0,
-        }
-    )
+    source = {
+        **current.as_payload(),
+        "publication_id": selected.get("publication_id") or publication_id(selected),
+        "prior_publication_id": (
+            previous_snapshot.get("publication_id")
+            or publication_id(previous_snapshot)
+            if previous_snapshot is not None
+            else None
+        ),
+        "signed_pressure": current_pressure,
+        "pressure_delta": delta,
+        "pressure_velocity_per_hour": velocity,
+        "treatment_age_hours": (treatment_at - current_at).total_seconds() / 3600.0,
+    }
     return context, source
 
 
