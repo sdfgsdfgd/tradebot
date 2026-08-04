@@ -1021,7 +1021,18 @@ transition through today’s close; no order will be forced merely to populate t
   V74 preregistration `27345bc1…` / evaluator `85904f6f…` now freezes unchanged
   V18 control against one exact mature-handoff lifecycle; discovery must improve
   control by >=5% without worse PF, PnL/DD, or DD before validation opens.
-  Rolls, costs, news authority, and live XSP/Gold owners remain unchanged.
+  V74 result `dd1669b0…` rejected slow-direction substitution before validation:
+  unchanged V18 made `+$929.91` stress with PF `1.293` and DD `$501.64`, while
+  the candidate lost `-$660.84`, PF `.849`, with `$1,118.55` DD. The exact 51-
+  trade mature-opposition cohort made `+$283.23` when V18 stayed contrarian but
+  `-$1,307.52` after slow takeover; GTH collapsed from `+$471.58` to
+  `-$1,456.42`. Receipt
+  `mcl_event_time_roll_neutral_handoff_lifecycle_rejection.json` (`a9403baf…`)
+  closes slow
+  direction ownership and static multitimeframe consensus. Preserve V18's
+  noisy high-energy admission/direction; event-time slow state may next own only
+  a separately count-proven permission, dwell, or surrender transition. Rolls,
+  costs, news authority, and live XSP/Gold owners remain unchanged.
 - `[PRESERVED RUNNER-UP]` **Tri-asset narrative-dispersion compression:** test
   whether convergence among easing-negative XSP pressure, weakening-positive
   MCL pressure, and weakly reversing-positive Gold pressure predicts
@@ -1708,7 +1719,14 @@ and stable bootstrap evidence. Neither may be refactored into looking mature.
     preregistration
     `mcl_event_time_roll_neutral_handoff_lifecycle_preregistration.json`
     (`27345bc1…`) / evaluator `85904f6f…` binds exact next-open/turn/roll/minute-
-    path economics and strict relative-to-V18 discovery-before-validation.
+    path economics and strict relative-to-V18 discovery-before-validation. V74
+    `dd1669b0…` rejected before validation: unchanged V18 stress was `+$929.91`
+    versus candidate `-$660.84`; the 51 mature-opposition trades moved from
+    `+$283.23` under V18 to `-$1,307.52` under slow direction. Receipt
+    `mcl_event_time_roll_neutral_handoff_lifecycle_rejection.json`
+    (`a9403baf…`) closes slow
+    takeover. Preserve every V18 admission/direction and test slow state only as
+    an outcome-blind lifecycle transition owner before any economic replay.
     Missing July-2023–August-2024 remains a hard crown blocker; no quota, order,
     or capital authority.
 
@@ -2100,6 +2118,7 @@ and
 | E-463 | V72 count `bee711ac…` rejected wall-time roll-neutral handoff with zero outcomes exposed. Every gate except readiness passed: exact V18 `167/171` identity and cadence; fast transport-owned `38/33`; mature handoff `36/50` with both directions, acceptance/failure, GTH/RTH; projected directions `85/82` and `69/102`; natural `1/2–3/3` density. Carrying state across rolls raised readiness to `76.6%/77.8%`, but real elapsed-time maintenance/weekend gaps still caused post-gap underwarm below the frozen `85%` law. Receipt `mcl_roll_neutral_multiscale_handoff_census_rejection.json` closes readiness relaxation and wall-time slow ownership. The next causal clock may advance exactly once per completed traded five-minute bar: weekend reopen price remains one shock return, missing closed-market bars are not invented, roll basis remains zero, and real timestamps still own session/execution. Count proof remains mandatory before economics; no order or capital authority |
 | E-464 | V73 preregistration `mcl_event_time_roll_neutral_handoff_census_preregistration.json` (`db045831…`) / evaluator `2af9ad0c…` freezes the completed-traded-bar successor before counts. It advances one virtual five-minute step per real completed CL five-minute bar and inserts zero bars; a same-contract maintenance/weekend reopen compounds the full real gap as one causal shock observation, while contract change still contributes exactly zero roll-basis return. Real timestamps continue to own V18 opportunity identity, independent periods, Globex sessions, GTH/RTH, dated MCL parity/cost/roll/execution. The exact V72 slow engine and ownership hierarchy remain unchanged; readiness now must exceed `95%`, with the same fast-owned/mature-handoff/direction/branch/lane/cadence/density laws before any PnL. No gap cap/weekend flag/virtual speed/roll adjustment/horizon/policy/age/wave/ATR/slope/parity/time sweep, news, stop, quota, order, or capital authority |
 | E-465 | V73 event-time count `511ac3b8…` passed every frozen law with zero outcomes exposed. Exact V18 identity/cadence stayed `167/171` (`167.11/171.62/year`); slow readiness rose to `99.4%/100%` without inserted bars; fast transport-owned remained `38/33`; mature handoff expanded to `51/56` with down/up `24/27` and `31/25`, acceptance/failure `12/39` and `9/47`, GTH/RTH `39/12` and `39/17`; projected directions were `82/85` and `71/100`; density stayed `1/2/3` and `1/3/3`. Receipt `mcl_event_time_roll_neutral_handoff_census_receipt.json` (`9a38ca43…`). V74 preregistration `mcl_event_time_roll_neutral_handoff_lifecycle_preregistration.json` (`27345bc1…`) / evaluator `85904f6f…` freezes unchanged V18 control and one exact candidate: every V18 admission executes next matched-MCL open; only mature handoff changes direction; every V18 raw turn/roll/period boundary flattens; unchanged failure positions retain exact `0.5%/25%` profit memory but handoffs inherit none; minute MFE/MAE and `$3.52/$5.52` remain exact. Candidate discovery must pass absolute stability and improve V18 net >=5% without lower PF/PnL-DD or higher DD before validation opens. Missing first challenge year remains a crown blocker; no sweep, news, order, or capital authority |
+| E-466 | V74 lifecycle `dd1669b0…` rejected slow-direction substitution in discovery with exact action identity and unchanged-V18 parity; validation remained sealed. V18 control made `+$1,263.91/+$929.91` primary/stress, PF `1.293`, DD `$501.64`, while the candidate made `-$326.84/-$660.84`, PF `.849`, DD `$1,118.55`. The decisive attribution is causal and categorical: the exact `51` mature slow-opposition admissions made `+$283.23` stress when V18 remained contrarian but `-$1,307.52` when slow direction took ownership, a `-$1,590.75` delta; GTH moved from `+$471.58` to `-$1,456.42`. Receipt `mcl_event_time_roll_neutral_handoff_lifecycle_rejection.json` (`a9403baf…`) closes slow takeover and static multitimeframe consensus. New architectural law: preserve V18's noisy high-energy admissions and direction; independent slower state may govern only permission, dwell, or surrender after an outcome-blind transition census. Missing first challenge year, order, capital, XSP, Gold, and news authority remain unchanged |
 
 ### Decision anchors
 

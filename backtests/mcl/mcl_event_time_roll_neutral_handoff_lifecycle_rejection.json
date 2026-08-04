@@ -1,0 +1,67 @@
+{
+  "schema": "mcl.event-time-roll-neutral-handoff-lifecycle-rejection.v1",
+  "generated_at_utc": "2026-08-04T03:57:45Z",
+  "authority": "research_rejection_no_orders_no_capital",
+  "preregistration_sha256": "27345bc1cade36a3f479a5191eb4eed01ffb88f2c67825037fac36c64a780a70",
+  "evaluator_sha256": "85904f6f2360d099e2e5a5a774ece9c88e7ab109735433eb905a8565ef389234",
+  "census_receipt_sha256": "9a38ca4369a1f1bf0bcdf6add9f4d756cd282a1ade2953e762e9e09552999612",
+  "result_sha256": "dd1669b0c36fa899a384dcde1c2849357f18fc83c20d4a25294d72fc8ba3b121",
+  "verdict": "REJECT_DISCOVERY",
+  "action_identity": true,
+  "control_discovery_parity": true,
+  "validation_opened": false,
+  "discovery": {
+    "trades": 167,
+    "annualized_trades": 167.114702,
+    "candidate": {
+      "primary_net": -326.84,
+      "stress_net": -660.84,
+      "stress_profit_factor": 0.849291,
+      "stress_intrabar_drawdown": 1118.55,
+      "stress_pnl_to_intrabar_drawdown": -0.590801,
+      "stress_gth_net": -1456.42,
+      "stress_rth_net": 795.58
+    },
+    "unchanged_v18_control": {
+      "primary_net": 1263.91,
+      "stress_net": 929.91,
+      "stress_profit_factor": 1.293073,
+      "stress_intrabar_drawdown": 501.64,
+      "stress_pnl_to_intrabar_drawdown": 1.85374,
+      "stress_gth_net": 471.58,
+      "stress_rth_net": 458.33
+    }
+  },
+  "exact_ownership_attribution": {
+    "fast_transport_owned": {
+      "trades": 38,
+      "unchanged_v18_stress_net": 758.99,
+      "candidate_stress_net": 758.99
+    },
+    "mature_handoff": {
+      "trades": 51,
+      "unchanged_v18_stress_net": 283.23,
+      "slow_direction_candidate_stress_net": -1307.52,
+      "direction_substitution_delta": -1590.75
+    },
+    "slow_financed": {
+      "trades": 77,
+      "unchanged_v18_stress_net": -82.79,
+      "candidate_stress_net": -82.79
+    },
+    "unresolved": {
+      "trades": 1,
+      "unchanged_v18_stress_net": -29.52,
+      "candidate_stress_net": -29.52
+    }
+  },
+  "invariants": {
+    "exact_v18_admission_identity": true,
+    "exact_control_lifecycle_and_economics": true,
+    "all_relative_improvement_gates_failed": true,
+    "validation_economics_sealed": true,
+    "missing_july_2023_to_august_2024": true
+  },
+  "decision": "Close slow-direction substitution and any static multitimeframe consensus owner over V18. Mature slow opposition is historically part of V18's positive contrarian auction edge, not evidence that the slow direction should replace it. Preserve every V18 admission and direction. A distinct successor may use the causal event-time slow state only as an independent permission, dwell, or surrender owner after an admission; it must first pass an outcome-blind state-transition census and may not change cadence, direction, costs, or live authority.",
+  "submitted_orders": 0
+}
