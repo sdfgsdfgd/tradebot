@@ -1,0 +1,64 @@
+{
+  "schema": "mcl.joint-result-confirmation-portfolio-lifecycle-rejection.v1",
+  "recorded_at_utc": "2026-08-04T00:51:25Z",
+  "authority": "research_only_validation_unopened_no_orders_no_capital",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "census_sha256": "121d63f60bf7dfa009e566cdf73ad0045a097a6f901af67b85d1378b1b3defa4",
+    "primary_result_sha256": "b9c64409dcb9cd482427588bb0ae314d870d0350a2100aea6d3f0615ae2f4c15",
+    "preregistration_sha256": "9e68b5b19e59a81e111d6e40c4d59c4ad373bc34b6526de960d2c3566530b301",
+    "evaluator_sha256": "8a4f1f53c2f1990ab57f7615c20506b11dd48cb6df6cf144220c867b89f334d2",
+    "result_sha256": "1a846ffdad38a60f71cbbe2f5e29ffbe8f727831bb634ff4890b2810286592ff",
+    "trigger_geometry_evaluator_sha256": "e98b58931c7e8c1d5388965325a8c9f620cec27c3c272bc8eaf20fe94a18849c",
+    "trigger_geometry_result_sha256": "de8dd5df5778c9a9f959872e4c67f488457b38cfef69022ba6d3f4fad2c2efb1"
+  },
+  "discovery": {
+    "combined_trades": 192,
+    "combined_annualized": 192.131507,
+    "combined_primary_net": 1128.91,
+    "combined_stress_net": 744.91,
+    "combined_primary_profit_factor": 1.309013,
+    "combined_stress_profit_factor": 1.196999,
+    "combined_primary_pnl_to_intrabar_drawdown": 2.338547,
+    "combined_stress_pnl_to_intrabar_drawdown": 1.470004,
+    "combined_primary_stress_positive_months": [9, 8],
+    "addon_trades": 25,
+    "addon_primary_net": -135.00,
+    "addon_stress_net": -185.00,
+    "addon_primary_profit_factor": 0.765755,
+    "addon_stress_profit_factor": 0.695884,
+    "addon_primary_pnl_to_intrabar_drawdown": -0.502531,
+    "addon_stress_pnl_to_intrabar_drawdown": -0.605763,
+    "addon_primary_stress_positive_months": [4, 4],
+    "addon_stress_branches": {
+      "absorption": [21, -50.92],
+      "initiative_failure": [4, -134.08]
+    },
+    "addon_stress_directions": {
+      "down": [8, 20.84],
+      "up": [17, -205.84]
+    }
+  },
+  "failed_gates": [
+    "add-on primary and stress net negative",
+    "add-on PF and PnL/DD below every frozen floor",
+    "both add-on branches not positive",
+    "up-direction add-on negative",
+    "combined net, PF, PnL/DD, and positive-month breadth weaker than immutable V18"
+  ],
+  "post_rejection_anatomy": {
+    "basis_change_mcl_leads_proposed_direction": [25, 898.00, 3.942719, 5.699416],
+    "basis_change_flat": [21, 276.08, 2.204748, 1.572210],
+    "basis_change_cl_leads_proposed_direction": [23, -484.96, 0.288205, -0.839205]
+  },
+  "finding": "A favorable first minute was a late chase, not confirmation: the shifted add-on lost under both costs and weakened every immutable V18 aggregate. Trigger-internal discovery anatomy found a materially different categorical mechanism before entry. When matched MCL moved farther in the proposed direction than dominant CL during the completed rejection bar, 25 discovery events earned $898.00 stress with PF 3.94, PnL/DD 5.70, and both directions positive; CL-leading events lost $484.96. This is a zero-sign basis ownership state, not a tuned magnitude.",
+  "validation_opened": false,
+  "closed_families": [
+    "one-minute joint CL/MCL follow-through confirmation",
+    "confirmation bar-count, magnitude, shape, CL-only, or MCL-only neighbors",
+    "delayed-entry lifecycle rescue"
+  ],
+  "preserved_seam": "Outcome-blind count-test whether the exact MCL-transport-leading basis-change sign retains sufficient breadth in the sealed period. Discovery economics are explicitly exposed and may never be represented as blind; only a separately preregistered sealed-period lifecycle can validate the mechanism.",
+  "verdict": "REJECT_PRESERVE_TRANSPORT_LEAD_VALIDATION_CENSUS",
+  "submitted_orders": 0
+}

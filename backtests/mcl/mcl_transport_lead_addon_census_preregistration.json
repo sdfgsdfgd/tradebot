@@ -1,0 +1,63 @@
+{
+  "schema": "mcl.transport-lead-addon-census-preregistration.v1",
+  "registered_at_utc": "2026-08-04T00:51:25Z",
+  "authority": "outcome_blind_validation_count_no_new_trade_outcomes_no_orders_no_capital",
+  "campaign": "mcl.two-speed-auction-relay.v49",
+  "hypothesis": "During an aligned rejection while V18 is flat, matched MCL moving farther than dominant CL in the proposed direction marks a transport-led inventory dislocation whose later CL catch-up finances continuation. The exact zero-sign basis-change owner should recur with useful breadth in the sealed period without any magnitude threshold.",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "flat_addon_census_sha256": "1a8a5f0e8705cbbd76a71cedf6f3ba232ab93ed2c96278644a6156598040554f",
+    "immutable_v18_result_sha256": "b9c64409dcb9cd482427588bb0ae314d870d0350a2100aea6d3f0615ae2f4c15",
+    "failed_joint_result_lifecycle_sha256": "1a846ffdad38a60f71cbbe2f5e29ffbe8f727831bb634ff4890b2810286592ff",
+    "trigger_geometry_anatomy_sha256": "de8dd5df5778c9a9f959872e4c67f488457b38cfef69022ba6d3f4fad2c2efb1",
+    "census_evaluator_path": "/tmp/mcl_stage49_transport_lead_census.py",
+    "census_evaluator_sha256": "e31296294aa9c7573a4d90ee634fb71e54bf4740a862f53893f25a22da5847f3"
+  },
+  "profile": {
+    "source": "exact V43 trend-aligned rejection events while immutable V18 is flat",
+    "basis_change": "(CL close - MCL close) - (CL open - MCL open) on the completed trigger bar",
+    "permission": "proposed_direction * basis_change < 0, meaning MCL moved farther than CL in the proposed direction",
+    "entry": "unchanged source next one-minute MCL open",
+    "direction": "unchanged source rejection direction",
+    "priority": "unchanged V18 primary always preempts",
+    "neighbor_policy": "none; exact tick-sign boundary only and no magnitude threshold"
+  },
+  "count_gate_per_period": {
+    "minimum_addon_events": 20,
+    "minimum_each_direction": 5,
+    "minimum_absorption": 15,
+    "minimum_initiative_failure": 2,
+    "minimum_each_anchor": 5,
+    "minimum_each_boundary_side": 5,
+    "minimum_addon_active_session_fraction": 0.06,
+    "combined_annualized_trades": {
+      "exclusive_minimum": 190,
+      "inclusive_maximum": 520
+    },
+    "combined_session_distribution": {
+      "median_minimum": 1,
+      "median_maximum": 3,
+      "p95_maximum": 4,
+      "maximum": 6
+    }
+  },
+  "frozen_order": [
+    "load the unchanged V43 aligned and V18-flat event set",
+    "compute only completed-trigger CL-minus-MCL basis change and retain the exact transport-leading sign",
+    "count discovery for identity consistency and validation for unseen breadth without reading any new trade outcome",
+    "advance only if both periods independently pass every cohort, density, and combined-cadence floor"
+  ],
+  "if_eligible": "Preregister a validation-only lifecycle with the exact event set and unchanged V44 one-position owner. Discovery is development-exposed; only validation and full-prefix evidence may adjudicate transfer. The sealed period must independently pass add-on economics and improve its immutable V18 slice under both costs.",
+  "prohibitions": [
+    "no basis magnitude, closing-level, body, wick, location, or equality companion",
+    "no ATR, coherence, state-age, slope, month, anchor, side, branch, or direction companion",
+    "no claim that discovery selection was blind",
+    "no validation trade outcome before count eligibility and separate validation-lifecycle preregistration",
+    "no V18 mutation, concurrent MCL position, order, capital, XSP, or Gold authority"
+  ],
+  "downstream_hold_even_on_pass": [
+    "missing July 2023 through August 2024 dated-contract history",
+    "unseen runtime parity and prospective signal tape",
+    "native MCL spread, liquidity, margin, commission, roll, preview, restart, reconciliation, shared-capital, and graduation proof"
+  ]
+}
