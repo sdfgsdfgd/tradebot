@@ -1,0 +1,37 @@
+{
+  "schema": "mcl.first-session-direction-vwap-reclaim-census-receipt.v1",
+  "recorded_at_utc": "2026-08-04T01:14:03Z",
+  "authority": "outcome_blind_state_consumption_only_no_trade_outcomes_no_orders_no_capital",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "source_v51_census_sha256": "f29cb9a169769ff9feb9c7eeb98336b068413ffc90944db65836e025a6be028e",
+    "preregistration_sha256": "1a287a31dd86560414d78b53318ad6052d8cb760008878b24408e28bcb55d481",
+    "evaluator_sha256": "2d45ccaa06c85cde27dad3a74db0271acbf85def54d87c3a88990ddd5574cb1b",
+    "result_sha256": "f3d3b7ac85218a836f820ce1c3bc4ed33c3fe6ed9331d28ec19fc8fc3d0c962d"
+  },
+  "cadence": {
+    "discovery": {
+      "events": 396,
+      "annualized": 396.271233,
+      "active_sessions": 248,
+      "active_session_fraction": 0.961240,
+      "median_p95_maximum": [2, 2, 2],
+      "up_down": [203, 193]
+    },
+    "validation": {
+      "events": 385,
+      "annualized": 386.390671,
+      "active_sessions": 244,
+      "active_session_fraction": 0.949416,
+      "median_p95_maximum": [2, 2, 2],
+      "up_down": [205, 180]
+    }
+  },
+  "consumed_same_session_direction_recrosses": 1909,
+  "finding": "Consuming the first joint CL/MCL VWAP reclaim for each Globex-session and retained-direction identity converts a roughly five-cross-per-session inventory state into a naturally bounded two-auction owner. Both periods independently retain about 386-396 events per year, more than 94% active-session coverage, balanced directions, and exact 2/2/2 median/p95/maximum density without a time, threshold, PnL, or quota rule.",
+  "eligible_for_lifecycle_preregistration": true,
+  "forward_outcomes_opened": 0,
+  "validation_outcomes_opened": 0,
+  "verdict": "PASS_FREEZE_ONE_POSITION_LIFECYCLE",
+  "submitted_orders": 0
+}

@@ -1,0 +1,74 @@
+{
+  "schema": "mcl.first-session-direction-vwap-reclaim-lifecycle-preregistration.v1",
+  "registered_at_utc": "2026-08-04T01:14:03Z",
+  "authority": "research_only_discovery_then_sealed_validation_no_orders_no_capital",
+  "campaign": "mcl.two-speed-auction-relay.v53",
+  "hypothesis": "The first joint CL/MCL session-VWAP reclaim in a retained-direction epoch is a completed inventory transfer with enough persistence to own a trade. The edge should end when both dominant and transport books close back on the adverse side of session VWAP, while a retained-state flip always reduces risk. Session-direction consumption prevents recross churn without tuning hold duration.",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "census_preregistration_sha256": "1a287a31dd86560414d78b53318ad6052d8cb760008878b24408e28bcb55d481",
+    "census_result_sha256": "f3d3b7ac85218a836f820ce1c3bc4ed33c3fe6ed9331d28ec19fc8fc3d0c962d",
+    "census_receipt_sha256": "79c6b1946fa12b044a74a44f9790cb5c642063720c58a9074e7197b8a1fdde61",
+    "lifecycle_evaluator_path": "/tmp/mcl_stage53_first_session_reclaim_lifecycle.py",
+    "lifecycle_evaluator_sha256": "c2e8a0934a352fdf9bc2082fb24f2d5547dda37fdddace3c661cc6c58c48f9d8"
+  },
+  "lifecycle": {
+    "entry": "exact frozen next-minute matched MCL open, only while flat and contract/session identity remains exact",
+    "one_position": true,
+    "ordinary_exit": "next matched MCL open after the first completed five-minute bar where both CL and MCL close on the adverse side of their causal session VWAP",
+    "risk_exit": "next matched MCL open after the exact V18 retained CL trend state differs from the owned direction",
+    "forced_exit": "last available MCL close before a known contract/session boundary; first available MCL open after an unexpected same-session clock gap; flat at discovery cutoff and dataset end",
+    "reentry": "only a separately frozen and still-unused session-direction identity; no same-session same-direction recross can rearm",
+    "costs_usd_round_trip": {
+      "primary": 3.52,
+      "stress": 5.52
+    },
+    "stop": null,
+    "target": null,
+    "timeout": null,
+    "cooldown": null
+  },
+  "discovery_gate_before_validation": {
+    "annualized_trades_exclusive_minimum": 160,
+    "primary_and_stress_net_positive": true,
+    "primary_profit_factor_minimum": 1.15,
+    "stress_profit_factor_minimum": 1.05,
+    "primary_pnl_to_intrabar_drawdown_minimum": 1.5,
+    "stress_pnl_to_intrabar_drawdown_minimum": 1.0,
+    "each_direction_minimum_trades_and_positive_stress_net": [30, true],
+    "each_gth_rth_lane_minimum_trades_and_positive_stress_net": [20, true],
+    "minimum_stress_positive_months": 8,
+    "all_four_equal-duration_stress_quarters_positive": true,
+    "stress_largest_positive_month_share_maximum": 0.35,
+    "realized_session_median_p95_maximum": [2, 2, 2]
+  },
+  "sealed_validation_and_full_gate": {
+    "validation_must_independently_pass_discovery_gate": true,
+    "both_july_to_july_slices_stress_positive": true,
+    "full_primary_profit_factor_minimum": 1.20,
+    "full_stress_profit_factor_minimum": 1.10,
+    "full_primary_pnl_to_intrabar_drawdown_minimum": 2.0,
+    "full_stress_pnl_to_intrabar_drawdown_minimum": 1.5,
+    "full_minimum_stress_positive_months": 16,
+    "full_stress_largest_positive_month_share_maximum": 0.20
+  },
+  "frozen_execution_order": [
+    "run only the discovery prefix and flatten at the exact cutoff",
+    "compute discovery trade economics and every frozen gate",
+    "if any discovery gate fails, emit rejection with validation unopened",
+    "only after a complete discovery pass, replay causally through the sealed validation suffix with a flat cutoff boundary",
+    "require validation and full-prefix gates independently; missing first challenge year remains HOLD even on pass"
+  ],
+  "prohibitions": [
+    "no stop, target, timeout, trailing memory, reentry cooldown, daily quota, hold-time, VWAP-band, time-of-day, volume, ATR, news, or threshold cell",
+    "no branch relabeling from normally null raw turns",
+    "no overlapping position, same-session same-direction rearm, outcome-selected neighbor, or post-result gate change",
+    "no validation outcome before discovery pass",
+    "no order, capital, XSP, or Gold authority"
+  ],
+  "downstream_hold_even_on_pass": [
+    "missing July 2023 through August 2024 dated-contract history",
+    "unseen runtime parity and prospective signal tape",
+    "native MCL spread, liquidity, margin, commission, roll, preview, restart, reconciliation, shared-capital, and graduation proof"
+  ]
+}
