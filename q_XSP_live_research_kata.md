@@ -970,6 +970,12 @@ transition through today’s close; no order will be forced merely to populate t
   stress. Shared-macro acceptance alone made `+$360.32` stress across `109`
   trades, but its `245` unconfirmed opposition trades lost `-$3,155.40` and
   acceptance-only misses the cadence floor. Rejection `mcl_phase_modular_impulse_lifecycle_rejection.json`.
+  V69 preregistration `f4ca9654…` / evaluator `f6f0229c…` corrects the
+  semantics before opening another outcome: physical phase boundaries flatten;
+  aligned shared-clock turns are acceptance; opposing CL turns only arm; a
+  later same-phase close/body/range reclaim under unchanged macro plus
+  matched-MCL confirmation is the first lawful failure-reversal entry. All
+  three categorical anchors face independent-period count proof first.
   Rolls, costs, news authority, and live XSP/Gold owners remain unchanged.
 - `[PRESERVED RUNNER-UP]` **Tri-asset narrative-dispersion compression:** test
   whether convergence among easing-negative XSP pressure, weakening-positive
@@ -1615,6 +1621,10 @@ and stable bootstrap evidence. Neither may be refactored into looking mature.
     lawful seam is a count-first phase-bounded relay where macro opposition
     only arms a challenge and a later causal reclaim must prove failure before
     trading the retained macro direction.
+    V69 count preregistration
+    `mcl_phase_bounded_reclaim_census_preregistration.json` (`f4ca9654…`) /
+    evaluator `f6f0229c…` freezes exactly close/body/range reclaim anchors,
+    phase/macro/contract flattening, and outcome-sealed breadth gates.
     Missing July-2023–August-2024 remains a hard crown blocker; no quota, order,
     or capital authority.
 
@@ -1997,6 +2007,7 @@ and
 | E-454 | V67 outcome-blind count `02b21c26…` produced the first new high-cadence architecture with complete independent-period breadth. One-step-slower Asia/Europe/US clocks retained `403/376` entries (`403.28/377.36/year`), down/up `202/201` and `189/187`, acceptance/failure `137/266` and `131/245`, phases `32/137/234` and `35/118/223`, GTH/RTH `201/202` and `187/189`, density `2/4/6` in both years. Shared `30/60/120/240m` clocks retained `354/311` (`354.24/312.12/year`), balanced directions, branches `109/245` and `96/215`, all phases/lanes, density `2/3/4`. Fast physical clocks were rejected at `775/765` entries near `770/year`, not outcome-rescued. Receipt `mcl_phase_modular_impulse_census_receipt.json` (`c414757d…`). V68 preregistration `mcl_phase_modular_impulse_lifecycle_preregistration.json` (`3799e772…`) / evaluator `b23bbb94…` freezes only the two eligible profiles: next-open matched MCL, one position across phases, same-direction hold, opposite turn flip, roll/period flat, no stop/target/timeout/profit memory. Discovery needs positive raw/primary/stress, PF `1.20/1.10`, PnL/DD `1.50/1.00`, positive directions/branches/phases/lanes, 8 months, 3 quarters, <=35% concentration, and frozen cadence/density. Only a complete discovery passer may open selected validation; no order or capital authority |
 | E-455 | V68 lifecycle `aee21803…` rejected both phase-clock profiles before validation. One-step-slower made `403` trades but lost `-$2,127` gross, `-$3,545.56/-$4,351.56` primary/stress, PF `.778/.736`, with both directions, both branches, every phase/lane, and nine of thirteen months nonpositive. Shared-macro made `354` trades but lost `-$841` gross, `-$2,087.08/-$2,795.08` primary/stress, PF `.857/.814`. Its aligned acceptance cohort was the sole positive fracture at `109` trades, `+$360.32` stress, PF `1.091`; the `245` opposing local turns lost `-$3,155.40`. Acceptance alone misses `>160/year`, so neither branch deletion nor threshold rescue is lawful. Rejection `mcl_phase_modular_impulse_lifecycle_rejection.json`; the unified lifecycle family is closed. The successor must be phase-bounded and count a true two-step failed auction: opposition arms without entry, then a causal within-phase reclaim under unchanged macro and matched-MCL parity may reverse into macro direction |
 | E-456 | Gold live safety audit found two actual startup-book misses at `2026-08-04 07:32:05` and `13:02:05 AEST` (an initial grep count of four double-counted traceback source and terminal lines). Both invocations failed closed with flat broker/ledger position, zero orders/fills/P&L/DD/breaches and recovered on the next natural five-minute recurrence; XSP remained healthy. Root cause is a transient missing initial streaming 1OZ NBBO inside the three-second oneshot startup, not Stage-76 state. The minimal operational repair adds systemd-bounded `Restart=on-failure`, five-second delay, and `3/60s` start limit to the already idempotent/restart-proven gold worker; signal, selection, sizing, quote freshness, execution, and capital authority remain unchanged |
+| E-457 | V69 count preregistration `mcl_phase_bounded_reclaim_census_preregistration.json` (`f4ca9654…`) / evaluator `f6f0229c…` repairs the exact Stage-68 semantic error without a threshold rescue. The shared phase clock is physically flat at Asia/Europe/US, macro-state, contract, and period boundaries. An aligned phase turn plus matched-MCL movement is immediate acceptance. An opposing CL turn flattens and arms one challenge but cannot enter; only a later same-phase close/body/range reclaim under unchanged macro and same-sign MCL movement may enter the retained macro direction as failure reversal. The three categorical anchors must independently pass `>160–520/year`, `>=40` each direction, `>=20` each branch/phase, `>=30` each lane, and natural density in discovery and validation before any outcome opens. No risk knob, continuous timing/threshold sweep, quota, news authority, order, or capital authority |
 
 ### Decision anchors
 
