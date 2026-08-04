@@ -48,7 +48,14 @@ def _horizon(velocity: float, tr: float) -> DirectionalImpulseHorizon:
     )
 
 
-def _snapshot(velocity: float, tr: float, *, raw: bool = False) -> DirectionalImpulseSnapshot:
+def _snapshot(
+    velocity: float,
+    tr: float,
+    *,
+    raw: bool = False,
+    age: int = 30,
+    h4_ready: bool = True,
+) -> DirectionalImpulseSnapshot:
     return DirectionalImpulseSnapshot(
         ready=True,
         direction="up",
@@ -70,10 +77,10 @@ def _snapshot(velocity: float, tr: float, *, raw: bool = False) -> DirectionalIm
         turn_abstain_reason=None,
         smoothed_direction_score=0.2,
         trend_state="up",
-        state_age_bars=30,
+        state_age_bars=age,
         retrace_atr=2.1,
         turn_event="up" if raw else None,
-        horizons=(_horizon(velocity, tr),),
+        horizons=(_horizon(velocity, tr),) if h4_ready else (),
     )
 
 
@@ -83,6 +90,7 @@ def _decision(
     tr: float,
     *,
     raw: bool = False,
+    h4_ready: bool = True,
 ) -> MclAuctionDecision:
     ts = TURN + timedelta(minutes=minutes)
     return MclAuctionDecision(
@@ -104,7 +112,13 @@ def _decision(
         retained=None,
         raw_parity_ticks=3 if raw else None,
         basis_velocity_ticks=1 if raw else None,
-        snapshot=_snapshot(velocity, tr, raw=raw),
+        snapshot=_snapshot(
+            velocity,
+            tr,
+            raw=raw,
+            age=0 if raw else 30,
+            h4_ready=h4_ready,
+        ),
     )
 
 
@@ -233,6 +247,8 @@ def test_completed_bar_atlas_freezes_eclectic_clocks_without_outcomes() -> None:
     assert payload["authority"] == MCL_PREDICTIVE_ONSET_AUTHORITY
     assert payload["raw_direction"] == 1
     assert payload["v18"]["risk_reduction"] is True
+    assert payload["v18"]["raw_state_age_bars"] == 0
+    assert payload["v18"]["incumbent_state_age_bars"] == 30
     assert payload["weekly_prior"]["return_shape"] == "WITH_RAW_DIRECTION"
     assert payload["news"]["fresh"] is True
     assert (
@@ -243,6 +259,31 @@ def test_completed_bar_atlas_freezes_eclectic_clocks_without_outcomes() -> None:
     )
     assert payload["outcomes_exposed"] is False
     assert payload["submitted_orders"] == 0
+
+
+def test_sparse_four_hour_clock_uses_only_finalized_observations_and_real_age() -> None:
+    decisions = (
+        _decision(-20, 0.01, 0.10),
+        _decision(-15, 0.01, 0.10, h4_ready=False),
+        _decision(-10, 0.03, 0.12),
+        _decision(-5, 0.03, 0.12, h4_ready=False),
+        _decision(0, 0.06, 0.17, raw=True),
+    )
+    with pytest.raises(ValueError, match="adjacent"):
+        project_mcl_completed_bar_onset(decisions, _bars())
+
+    payload = project_mcl_completed_bar_onset(
+        decisions,
+        _bars(),
+        four_hour_clock="finalized_sparse",
+    )
+
+    features = payload["completed_bar_features"]
+    assert features["four_hour_clock"] == "finalized_sparse"
+    assert features["four_hour_observation_gaps_minutes"] == [10.0, 10.0]
+    assert features["four_hour_measure_units"] == (
+        "finalized_observation_delta_per_actual_elapsed_hour"
+    )
 
 
 def test_event_atlas_uses_complete_identity_clean_window_and_combines_all_families() -> None:

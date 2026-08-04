@@ -245,6 +245,7 @@ def project_mcl_completed_bar_onset(
     *,
     weekly_prior: MclWeeklyPrior | None = None,
     news: MclOnsetNewsContext | None = None,
+    four_hour_clock: str = "adjacent",
 ) -> dict[str, object]:
     """Project outcome-blind 5m/15m/30m/4h/weekly context at a V18 raw turn."""
 
@@ -259,8 +260,6 @@ def project_mcl_completed_bar_onset(
     contract = raw.contract_key
     if any(bar.contract_key != contract for bar in bars[-9:]):
         raise ValueError("MCL onset context cannot cross a contract roll")
-    if any(decision.contract_key != contract for decision in decisions[-3:]):
-        raise ValueError("MCL onset decisions cannot cross a contract roll")
     if any(
         bars[index].ts <= bars[index - 1].ts
         for index in range(1, len(bars))
@@ -272,24 +271,61 @@ def project_mcl_completed_bar_onset(
     ):
         raise ValueError("MCL onset decisions must be ordered and unique")
 
-    h4 = tuple(_horizon(decision, 48) for decision in decisions[-3:])
-    if any(row is None for row in h4):
+    if four_hour_clock not in {"adjacent", "finalized_sparse"}:
+        raise ValueError("unsupported MCL onset four-hour clock")
+    observations = [
+        (decision, horizon)
+        for decision in decisions
+        if decision.contract_key == contract
+        and (horizon := _horizon(decision, 48)) is not None
+    ]
+    if len(observations) < 3 or observations[-1][0] is not raw:
         raise ValueError("MCL onset four-hour context is underwarmed")
-    previous2, previous1, current = h4
-    assert previous2 is not None and previous1 is not None and current is not None
-    if current.slope_velocity_pct_per_bar is None:
-        raise ValueError("MCL onset four-hour slope velocity is underwarmed")
-    if previous1.slope_velocity_pct_per_bar is None:
-        raise ValueError("MCL onset prior four-hour slope velocity is underwarmed")
-
-    h4_slope_velocity = float(current.slope_velocity_pct_per_bar)
-    h4_slope_acceleration = h4_slope_velocity - float(
-        previous1.slope_velocity_pct_per_bar
-    )
-    h4_tr_velocity = float(current.tr_mean_pct) - float(previous1.tr_mean_pct)
-    h4_tr_acceleration = h4_tr_velocity - (
-        float(previous1.tr_mean_pct) - float(previous2.tr_mean_pct)
-    )
+    if four_hour_clock == "adjacent" and tuple(
+        decision for decision, _horizon_row in observations[-3:]
+    ) != tuple(decisions[-3:]):
+        raise ValueError("MCL onset adjacent four-hour context is underwarmed")
+    (decision2, previous2), (decision1, previous1), (_, current) = observations[-3:]
+    gaps_minutes = [
+        (decision1.observed_at_utc - decision2.observed_at_utc).total_seconds()
+        / 60.0,
+        (raw.observed_at_utc - decision1.observed_at_utc).total_seconds() / 60.0,
+    ]
+    if any(value <= 0.0 for value in gaps_minutes):
+        raise ValueError("MCL onset four-hour observation clock is invalid")
+    if four_hour_clock == "adjacent":
+        if current.slope_velocity_pct_per_bar is None:
+            raise ValueError("MCL onset four-hour slope velocity is underwarmed")
+        if previous1.slope_velocity_pct_per_bar is None:
+            raise ValueError("MCL onset prior four-hour slope velocity is underwarmed")
+        h4_slope_velocity = float(current.slope_velocity_pct_per_bar)
+        h4_slope_acceleration = h4_slope_velocity - float(
+            previous1.slope_velocity_pct_per_bar
+        )
+        h4_tr_velocity = float(current.tr_mean_pct) - float(previous1.tr_mean_pct)
+        h4_tr_acceleration = h4_tr_velocity - (
+            float(previous1.tr_mean_pct) - float(previous2.tr_mean_pct)
+        )
+        h4_units = "adjacent_completed_decision_delta"
+    else:
+        prior_hours, current_hours = (value / 60.0 for value in gaps_minutes)
+        prior_slope_rate = (
+            float(previous1.slope_pct_per_bar)
+            - float(previous2.slope_pct_per_bar)
+        ) / prior_hours
+        h4_slope_velocity = (
+            float(current.slope_pct_per_bar)
+            - float(previous1.slope_pct_per_bar)
+        ) / current_hours
+        h4_slope_acceleration = h4_slope_velocity - prior_slope_rate
+        prior_tr_rate = (
+            float(previous1.tr_mean_pct) - float(previous2.tr_mean_pct)
+        ) / prior_hours
+        h4_tr_velocity = (
+            float(current.tr_mean_pct) - float(previous1.tr_mean_pct)
+        ) / current_hours
+        h4_tr_acceleration = h4_tr_velocity - prior_tr_rate
+        h4_units = "finalized_observation_delta_per_actual_elapsed_hour"
 
     closes = [float(bar.cl.close) for bar in bars]
     basis = [
@@ -315,6 +351,7 @@ def project_mcl_completed_bar_onset(
     fifteen_slope_acceleration = _slope_acceleration(closes, 3)
     basis_slope_velocity = _linear_slope_velocity(basis, 6)
     basis_slope_acceleration = _linear_slope_acceleration(basis, 6)
+    incumbent_state_age = decisions[-2].snapshot.state_age_bars
 
     weekly_payload = None
     if weekly_prior is not None:
@@ -351,7 +388,8 @@ def project_mcl_completed_bar_onset(
             "phase": raw.phase,
             "proposed_direction": raw.proposed_direction,
             "risk_reduction": raw.risk_reduction,
-            "state_age_bars": raw.snapshot.state_age_bars,
+            "raw_state_age_bars": raw.snapshot.state_age_bars,
+            "incumbent_state_age_bars": incumbent_state_age,
             "trend_state": raw.snapshot.trend_state,
         },
         "completed_bar_features": {
@@ -365,6 +403,9 @@ def project_mcl_completed_bar_onset(
             "four_hour_slope_acceleration_pct_per_bar": h4_slope_acceleration,
             "four_hour_tr_velocity_pct": h4_tr_velocity,
             "four_hour_tr_acceleration_pct": h4_tr_acceleration,
+            "four_hour_clock": four_hour_clock,
+            "four_hour_measure_units": h4_units,
+            "four_hour_observation_gaps_minutes": gaps_minutes,
             "thirty_minute_basis_slope_velocity_ticks_per_bar": (
                 basis_slope_velocity
             ),
@@ -431,7 +472,7 @@ def project_mcl_completed_bar_onset(
                     h4_slope_acceleration,
                     direction=direction,
                 ),
-                "trend_age": _age_class(raw.snapshot.state_age_bars),
+                "trend_age": _age_class(incumbent_state_age),
             },
         },
         "outcomes_exposed": False,

@@ -1,0 +1,57 @@
+{
+  "schema": "mcl.predictive-onset-sparse-clock-preregistration.v1",
+  "frozen_at_utc": "2026-08-04T06:21:56Z",
+  "authority": "count_and_morphology_only_no_outcomes_no_orders_no_capital",
+  "base": {
+    "atlas_preregistration_sha256": "d69e9c60a59374f473adfbf56c6f8d5cbbf3c04335ab854e1ef95490493321c8",
+    "stage85_r1_result_sha256": "7006c859abecbb9f201315284a67c0e544cc1a347257fe58db41c932339a2f48",
+    "stage85_r2_result_sha256": "1fed853cd2b86557683b91210f5d3104f4de0c736a03cf23291e4104a23fec74",
+    "stage85_verdict": "REVISE_COUNT_ONLY",
+    "outcomes_exposed": false
+  },
+  "single_adjacent_change": {
+    "name": "Finalized Sparse-Clock Torsion",
+    "problem": "Stage85 required the current and two immediately preceding five-minute decisions all to contain an exact elapsed-time 48-bar horizon. Real maintenance and weekend gaps made 86 raw turns context-ineligible without saying anything about their morphology.",
+    "law": "At each exact V18 raw turn, retain the current exact four-hour observation and the two most recent earlier exact four-hour observations from the same contract. Never synthesize an observation for a missing five-minute decision.",
+    "slope_rate": "difference in exact 48-horizon slope_pct_per_bar divided by actual elapsed hours between finalized observations",
+    "slope_acceleration": "current slope rate minus prior slope rate",
+    "tr_rate": "difference in exact 48-horizon tr_mean_pct divided by actual elapsed hours",
+    "tr_acceleration": "current TR rate minus prior TR rate",
+    "age_evidence": "record both actual elapsed gaps in minutes; no hidden cap, interpolation, weekend reset, or age-selected subset",
+    "incumbent_age_correction": "liquidity-elasticity uses the immediately preceding V18 decision's state_age_bars, because the raw-turn snapshot has already reset its age and cannot describe the incumbent trend"
+  },
+  "pre_outcome_implementation": {
+    "owner_path": "tradebot/research/mcl_predictive_onset.py",
+    "owner_sha256": "ceca81380252cd37705ed3f570ac38149064ad3c0a3b6bb004b7fffb9cc64be8",
+    "evaluator_path": "/tmp/mcl_stage85_predictive_onset_atlas_census.py",
+    "evaluator_sha256": "d08a1db82e18aa6f4110079992f869c5f93ab7df6d7fe5879477fdcdc5ce6130"
+  },
+  "unchanged": [
+    "all 1493 exact V18 raw turns and 338 admissions",
+    "raw direction, proposal, one-bar maturation, route, and risk reduction",
+    "five-minute TR/path, fifteen-minute curvature, thirty-minute basis, strictly prior five-session context, and causal news laws",
+    "all five frozen eclectic families and sign categories",
+    "primary prospective V84 gate of 30 complete turns, 10 each direction, 20 admissions, and 5 each admitted route",
+    "no outcomes, controls, classifier, action, order, or capital authority"
+  ],
+  "count_gate": {
+    "exact_v18_raw_turns": 1493,
+    "exact_v18_admissions": 338,
+    "minimum_sparse_four_hour_readiness_each_period": 0.99,
+    "minimum_weekly_family_readiness_each_period": 0.95,
+    "minimum_raw_turns_each_direction_each_period": 100,
+    "minimum_admissions_each_route_each_period": 20,
+    "minimum_supported_shapes_per_family_each_period": 4,
+    "supported_shape_minimum_occurrences": 20,
+    "route_floor_note": "The frozen 20-route floor is retained even though Stage85 revealed only 18 validation continuation admissions. Sparse-clock success cannot erase that independent near-miss."
+  },
+  "outcome_boundary": "Count and morphology only. A pass may make the sparse clock the prospective context owner, but cannot open historical or prospective economics. V84 unseen event treatments and matched controls remain mandatory.",
+  "prohibitions": [
+    "no carried price, invented bar, interpolation, gap cap, time-bin sweep, or context abstention",
+    "no lowering the 95 percent Stage85 law or 20-route floor after counts",
+    "no direct slow direction, static consensus, entry veto, exit, sizing, order, capital, or crown authority",
+    "no PnL, return, MFE, MAE, winner, threshold, or category-union exposure"
+  ],
+  "outcomes_exposed": false,
+  "submitted_orders": 0
+}
