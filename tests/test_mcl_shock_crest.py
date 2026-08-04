@@ -26,7 +26,10 @@ from tradebot.research.mcl_shock_crest import (
     MclShockCrestPolicy,
     MclShockObservation,
 )
-from tradebot.research.mcl_shock_evidence import _slow_context
+from tradebot.research.mcl_shock_evidence import (
+    _slow_context,
+    build_mcl_shock_observations,
+)
 from tradebot.research.mcl_minute_shock import MclMinuteShockEngine, MclShockMinute
 
 
@@ -143,6 +146,52 @@ def test_volume_reset_cannot_unlatch_a_major_shock() -> None:
     assert reset_minute.latched_level == "MAJOR_PROTECT_10_TO_12X"
     assert reset_minute.opposing_position_must_flatten is True
     assert reset_minute.countertrend_inversion_eligible is False
+
+
+def test_seconds_volume_baseline_excludes_later_finalized_active_minute() -> None:
+    active = START.replace(second=0)
+    bars: dict[str, dict[datetime, OhlcvBar]] = {"CL": {}, "MCL": {}}
+    for offset in range(-18, 2):
+        closed_at = active + timedelta(minutes=offset)
+        volume = (
+            float(offset + 10)
+            if -9 <= offset <= 0
+            else 10_000.0
+            if offset > 0
+            else 1.0
+        )
+        bar = OhlcvBar(closed_at, 100.0, 100.1, 99.9, 100.0, volume)
+        bars["CL"][closed_at] = bar
+        bars["MCL"][closed_at] = bar
+
+    rows = []
+    for index in range(20):
+        price = 100.0 - index / 100.0
+        summary = {
+            "microprice_ohlc": [price, price, price, price],
+            "trade_volume": 1.0,
+            "signed_trade_volume_proxy": -1.0,
+        }
+        rows.append(
+            {
+                "_time": active + timedelta(seconds=index * 3),
+                "books": {
+                    "CL": {"summary": summary},
+                    "MCL": {"summary": summary},
+                },
+                "market_data_types": {"CL": 1, "MCL": 1},
+            }
+        )
+
+    observations = build_mcl_shock_observations(
+        rows,
+        bars,
+        contract_key="202608",
+        eligible_start=active,
+    )
+
+    assert observations
+    assert observations[-1][1].volume_multiple == pytest.approx(20.0 / 5.5)
 
 
 def test_regime_rotation_arms_protection_before_reversal_without_flat_authority() -> None:
