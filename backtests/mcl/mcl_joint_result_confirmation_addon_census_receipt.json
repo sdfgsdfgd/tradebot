@@ -1,0 +1,52 @@
+{
+  "schema": "mcl.joint-result-confirmation-addon-census-receipt.v1",
+  "recorded_at_utc": "2026-08-04T00:45:23Z",
+  "authority": "outcome_blind_one_confirmation_bar_only_no_trade_outcomes_no_orders_no_capital",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "source_census_sha256": "1a8a5f0e8705cbbd76a71cedf6f3ba232ab93ed2c96278644a6156598040554f",
+    "immutable_v18_result_sha256": "b9c64409dcb9cd482427588bb0ae314d870d0350a2100aea6d3f0615ae2f4c15",
+    "preregistration_sha256": "152175975619a2cfc26a34dd1b75ca35bab22edb77d7c97740a627a465c31974",
+    "evaluator_sha256": "353a4a8c444a1e8726e7750968598d4c3019b7edef2452120575e2f9e0157335",
+    "result_sha256": "121d63f60bf7dfa009e566cdf73ad0045a097a6f901af67b85d1378b1b3defa4"
+  },
+  "discovery": {
+    "addon_events": 25,
+    "addon_annualized": 25.02,
+    "addon_active_sessions": 25,
+    "addon_active_session_fraction": 0.096899,
+    "addon_session_median_p95_max": [1, 1, 1],
+    "absorption_failure": [21, 4],
+    "up_down": [17, 8],
+    "europe_us": [10, 15],
+    "high_low": [8, 17],
+    "primary_entries": 167,
+    "combined_entries": 192,
+    "combined_annualized": 192.13,
+    "combined_session_median_p95_max": [1, 2, 3]
+  },
+  "validation_count": {
+    "addon_events": 25,
+    "addon_annualized": 25.09,
+    "addon_active_sessions": 24,
+    "addon_active_session_fraction": 0.093385,
+    "addon_session_median_p95_max": [1, 1, 2],
+    "absorption_failure": [23, 2],
+    "up_down": [8, 17],
+    "europe_us": [12, 13],
+    "high_low": [17, 8],
+    "primary_entries": 171,
+    "combined_entries": 196,
+    "combined_annualized": 196.71,
+    "combined_session_median_p95_max": [1, 3, 3]
+  },
+  "exclusions": {
+    "joint_result_not_confirmed": 80
+  },
+  "finding": "Exactly one completed joint CL/MCL result minute retains 25 events in each period, lifts immutable V18 above 190 annualized trades, preserves every frozen speed, direction, anchor, and side, and does not cluster. No trade return, MFE, MAE, exit, PnL, or validation outcome was opened.",
+  "forward_trade_outcomes_opened": 0,
+  "validation_trade_outcomes_opened": 0,
+  "eligible_for_lifecycle_preregistration": true,
+  "verdict": "ELIGIBLE_FOR_PREREGISTRATION",
+  "submitted_orders": 0
+}
