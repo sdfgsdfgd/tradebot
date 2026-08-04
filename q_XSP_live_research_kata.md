@@ -932,7 +932,13 @@ transition through today’s close; no order will be forced merely to populate t
   strictly prior completed-Globex-session `5/10/21/42/63/84` context owner
   around the higher-cadence macro-auction lifecycle; first freeze categorical
   cadence/breadth with all validation PnL sealed, then open economics only under
-  a separate preregistration.
+  a separate preregistration. V65 preregistration `a4c70f4f…` / count-only
+  evaluator `83ee2b37…` freezes three nonnumeric direction profiles before
+  observing even event counts: four-horizon majority, `5/21` consensus, and
+  `63/84` consensus. Current-session bars are excluded; context needs `94`
+  finalized prior Globex sessions. Each period must independently retain
+  `>160–520/year`, both directions/branches/lanes, six alignment masks, and
+  natural `1–3/<=6/<=10` density before any lifecycle outcome may open.
   Rolls, costs, news authority, and live XSP/Gold owners remain unchanged.
 - `[PRESERVED RUNNER-UP]` **Tri-asset narrative-dispersion compression:** test
   whether convergence among easing-negative XSP pressure, weakening-positive
@@ -1544,8 +1550,13 @@ and stable bootstrap evidence. Neither may be refactored into looking mature.
     Rejection receipt `mcl_phase_modal_inventory_lifecycle_rejection.json`
     (`11eff900…`) closes the complete phase-modal family. Continue with one
     outcome-blind causal long-session regime census around the higher-cadence
-    macro-auction owner; no validation PnL or production refactor before its
-    categorical cadence/breadth law passes.
+    macro-auction owner. V65 preregistration
+    `mcl_prior_globex_regime_router_census_preregistration.json` (`a4c70f4f…`) /
+    evaluator `83ee2b37…` freezes four-horizon-majority, `5/21`-consensus, and
+    `63/84`-consensus direction routers over exact v9 raw turns, with `94`
+    strictly prior finalized sessions and count-only discovery/validation.
+    No lifecycle outcome or production refactor before its categorical
+    cadence/breadth law passes.
     Missing July-2023–August-2024 remains a hard crown blocker; no quota, order,
     or capital authority.
 
@@ -1922,6 +1933,7 @@ and
 | E-448 | V62 discovery `c33a1aee…` rejected the maintenance-gap lifecycle before validation: `203` trades made `-$1,044` raw, `-$1,758.56/-$2,164.56` stress, PF `.606/.552`, PnL/DD `-.825/-.896`, only `3/2` positive months, and three negative quarters. Acceptance/failure, up/down, and weekday/weekend were all negative; mean hold was `343m` despite mean MFE/MAE `$37.11/-$24.35`. Receipt `mcl_dominant_gap_auction_lifecycle_rejection.json` (`c1f90734…`) closes shared/dominant maintenance gaps, gap-size/verdict-clock/hold-time/structural-exit/stop/target/inversion rescue. V63 preregistration `mcl_phase_modal_inventory_census_preregistration.json` (`58365a85…`) / evaluator `87ae3600…` freezes a distinct accepted-inventory object: the immediately preceding physical phase's one-cent completed-five-minute close-volume mode for CL and MCL. At each GTH/RTH transition, CL defines opening side; both books must confirm exactly one 15-minute acceptance/failure verdict against their own frozen modes. Both periods must pass `300–520/year`, both directions/branches/phases, weekend GTH, `>=65%` eligible phase identities, and `1–2/2/2` density before any outcome. It is explicitly a modal-price proxy, not true volume-at-price POC; no bin/tie/value-area/VWAP companion, added gate, order, or capital authority |
 | E-449 | V63 outcome-blind count `e75b4a60…` passed every frozen breadth law before any return: discovery/validation produced `395/410` events (`395.27/411.48/year`), `78.5/81.7%` eligible phase-identity coverage, up/down `207/188` and `223/187`, acceptance/failure `344/51` and `347/63`, GTH/RTH `187/208` and `201/209`, weekend GTH `44/42`, and exact `2/2/2` density. Receipt `mcl_phase_modal_inventory_census_receipt.json` (`d71250f0…`). V64 preregistration `mcl_phase_modal_inventory_lifecycle_preregistration.json` (`7347828a…`) / evaluator `135c11a5…` freezes next-open matched MCL, one position across both phase clocks, and one symmetric ordinary exit: both completed five-minute books must cross their own frozen source-phase modes against the position, then exit next-open. Session/contract/gap/independent-period boundaries flatten. Discovery must retain `>250/year` after overlap and pass net/PF/PnL-DD, direction, branch, phase, weekend, month, quarter, concentration, and density laws before validation opens. No mode bin, threshold, magnitude, clock, retained state, VWAP, stop, target, timeout, news, companion, order, or capital authority |
 | E-450 | V64 discovery `3cccb288…` killed phase-modal inventory before validation despite textbook cadence. Its `326` trades (`326.22/year`, median/p95/max `1/2/2`) made `-$1,340` gross, `-$2,487.52/-$3,139.52` primary/stress, PF `.795/.751`, PnL/DD `-.825/-.874`; down/up were `-$1,473.08/-$1,014.44`, acceptance/failure `-$1,829.84/-$657.68`, GTH/RTH stress `-$3,123.24/-$16.28`, weekend/other stress `-$1,471.88/-$1,667.64`, every quarter lost, and only two stress-positive months survived. Validation remained sealed. Receipt `mcl_phase_modal_inventory_lifecycle_rejection.json` (`11eff900…`) closes modal-bin/magnitude/hold/exit/stop/target/timeout/threshold rescue. The next distinct lane is a strictly prior completed-Globex-session `5/10/21/42/63/84` context census around the high-cadence macro-auction owner, with validation economics sealed and no production/order/capital authority |
+| E-451 | V65 preregistration `mcl_prior_globex_regime_router_census_preregistration.json` (`a4c70f4f…`) / evaluator `83ee2b37…` freezes one count-only causal long-session test before observing its event counts. Exact v9 `retrace2/state24` CL turns plus same-sign matched-MCL parity form the raw event. Context uses `94` strictly prior finalized CL Globex sessions and the existing centralized `5/10/21/42/63/84` return/velocity/acceleration/TR law, never current-session data or XSP's session/admission policy. Three categorical profiles are fixed: 3-of-4 majority over `5/21/63/84`, `5/21` consensus, and `63/84` consensus; consensus opposition routes a failed-auction fade, otherwise raw acceptance survives. Both periods must independently retain `>160–520/year`, `>=25` each direction, `>=20` each branch/lane, six masks, and median/p95/max `1–3/<=6/<=10` before any trade outcome. Missing first challenge year, production extraction, news, order, and capital authority remain blocked |
 
 ### Decision anchors
 
