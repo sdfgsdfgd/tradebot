@@ -1,0 +1,122 @@
+{
+  "schema": "mcl.v18-live-commissioning-receipt.v1",
+  "recorded_at_utc": "2026-08-04T09:35:46Z",
+  "authority": "commissioned_bounded_live_canary",
+  "strategy_version": "mcl.two-speed-auction-relay.v18",
+  "execution_strategy_version": "mcl.two-speed-auction-live-execution.v1",
+  "selection": {
+    "selection_id": "591db0104449f4388b9063bd613ffd8c9b076dcb281c46fb45545080e28898b2",
+    "selected_at_utc": "2026-08-04T09:32:35.416127+00:00",
+    "path": "db/calibration/selections/591db0104449f4388b9063bd613ffd8c9b076dcb281c46fb45545080e28898b2.json",
+    "file_sha256": "61e502020e6bc0896e2a73e252ea1628afac24a40de18d327bf2651d40513b24",
+    "baseline_position": 0,
+    "inherited_target_authority": "none",
+    "first_eligible_event": "fresh_post_selection_v18_admission"
+  },
+  "contracts": {
+    "CL": {
+      "con_id": 304037484,
+      "local_symbol": "CLU6",
+      "expiry": "20260820",
+      "role": "dominant_discovery"
+    },
+    "MCL": {
+      "con_id": 661016525,
+      "local_symbol": "MCLU6",
+      "expiry": "20260819",
+      "role": "one_contract_execution"
+    }
+  },
+  "funded_package": {
+    "package_id": "mcl-one-contract-stage91",
+    "cash_debit_usd_cents": 76,
+    "initial_margin_base_cents": 268552,
+    "maintenance_margin_base_cents": 214842,
+    "stressed_loss_usd_cents": 30552,
+    "minimum_post_stress_buffer_base_cents": 30000,
+    "fx_stress_bps": 11000,
+    "max_contracts": 1,
+    "fresh_buy_and_sell_what_if": "PreSubmitted"
+  },
+  "capital_plan": {
+    "plan_id": "955967b275b5eddfe3e05b7665124b225fb8257ddf71d9ef50e888a4263a2542",
+    "file_sha256": "5d5d8d00413e87fadc33e362e68a43e3fa23db474ef754b8351d91a22d2a7196",
+    "supersedes_plan_id": "b4a920b3b8531d4c41037247e97e69cc922e470479d5b314ee27cd8306262330",
+    "entry_capacity_policy": "first_admitter_just_in_time.v1",
+    "flat_sleeves_reserve_capacity": false,
+    "risk_reduction_always_allowed": true,
+    "preserved_runs": {
+      "XSP": "1083c1813e6b0ca4cf5777a5275e06be651622bc6e6207e718b549296a9bdd87",
+      "Gold": "62344ce21bf7c6f01095abab14b6ca8ef79c9806abb35294859fc9574a5f7574"
+    }
+  },
+  "execution": {
+    "order_type": "LMT",
+    "market_orders_allowed": false,
+    "entry_modes": [
+      "OPTIMISTIC",
+      "AUTO"
+    ],
+    "risk_reduction_modes": [
+      "CROSS",
+      "RELENTLESS"
+    ],
+    "shared_account_lock": "%t/tradebot-live-account.lock",
+    "weekly_flat_et": "Friday 16:53",
+    "raw_loss_cap_usd": 300.0
+  },
+  "restart_proof": {
+    "source_checkpoint_id": "e99ef2c7243b7a38e25e08d9f58f0b64057ec134ffd0cdbe2746c7d693738f7b",
+    "transition_id": "06a7f481c06d94752c6ab9fd54012492721bbf6e37aefd1f109f76effee3d840",
+    "cold_process_1_checkpoint_id": "a9813a915e5b2c64fc4f5210e58bb62ff0847c1b84214ae8982daa05d6b7abff",
+    "cold_process_2_checkpoint_id": "f3ead573c5ff04f9c2ceb40462c667cd7ecf9a245f914cb8f9770ce95f93d848",
+    "result": "flat_no_target",
+    "position": 0,
+    "open_orders": 0,
+    "fills": 0,
+    "safety_breaches": []
+  },
+  "natural_recurrence": {
+    "first_observed_at_utc": "2026-08-04T09:34:11.285411+00:00",
+    "first_checkpoint_id": "5d29b4e7e244699a05fc263e7395e5b04ccdc42b7a49b50eab23d3de5040754e",
+    "latest_prefix_checkpoint_id": "3492de26fd83edb4628e734c110aae11ccdfa2dd9060b52de6cf55578df61e9f",
+    "timer": "active/waiting",
+    "service": "inactive/dead between successful invocations",
+    "service_restarts": 0,
+    "result": "flat_no_target",
+    "position": 0,
+    "submitted_orders": 0
+  },
+  "ledger_prefix": {
+    "records": 7,
+    "first_recorded_at_utc": "2026-08-04T09:32:35.444048+00:00",
+    "last_recorded_at_utc": "2026-08-04T09:35:11.034139+00:00",
+    "sha256": "3abbe6eb3e0de40bf71af85d1c6ff60b63733bd0010030eeb50d682063e405af",
+    "fill_ledger_fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "submitted_orders_total": 0
+  },
+  "deployment": {
+    "repository_commit": "25b73880fc4c2a3d40465dc51fff0270b71c0999",
+    "stage91_evidence_commit": "69814a593c9a29eaaf79c9d9cdde7f8edad6cdc1",
+    "service_sha256": "0d3142b94d1ec0f624bdc6ccfa2c2a1ee05c1ef0f21e42a1d84044e80aaef260",
+    "timer_sha256": "3c2bc337ae887ddbd338cf8c6ecc99c9eb9c61b495a41e1ef8dafc4902d4e299",
+    "q_head_matches_origin": true,
+    "q_worktree_clean": true
+  },
+  "pre_authority_failures": [
+    "manual commissioning first used the wrong system interpreter and stopped before broker connection",
+    "the next run exposed two unpublished Stage-91 artifacts and stopped before selection or plan publication",
+    "the first funded selection remained unreferenced when a static worst-case margin ceiling exceeded capacity",
+    "the corrected immutable package binds the exact fresh preview and future margin drift now returns HOLD"
+  ],
+  "graduation": {
+    "status": "STARTED_AWAITING_AUTHENTIC_EXECUTION_AND_CUTOFFS",
+    "milestones": [
+      "24h",
+      "48h",
+      "five_session"
+    ],
+    "profitability_claim": "none"
+  },
+  "submitted_orders": 0
+}

@@ -22,9 +22,9 @@ The first does not grant the second.
 
 | Rank | Track | Crown | Identity | State |
 |---:|---|---|---|---|
-| 1 | Two-speed CL discovery → MCL transport | **MCL Two-Speed Auction Relay — V18** | `mcl.two-speed-auction-relay-v18-research-crown.v1` | Frozen HF research crown; no order, selection, or capital authority |
+| 1 | Two-speed CL discovery → MCL transport | **MCL Two-Speed Auction Relay — V18** | `mcl.two-speed-auction-relay-v18-research-crown.v1` | Frozen HF research crown; operational authority exists only through the separate immutable canary selection below |
 | — | Seconds-tight predictive timing | **Stages 87/88/89** | event generation `b3805c9f…` | Active challenger; `ACCUMULATE`, zero complete unseen turns at coronation |
-| — | Operational/live | **V18 commissioning** | bounded-canary exception authorized `2026-08-04T07:18:59Z` | `READY_TO_DEPLOY`; funded one-contract preview and local runtime proof pass, immutable q selection/plan/restart/timer proof pending |
+| — | Operational/live | **V18 bounded canary** | selection `591db010…`, plan `955967b2…` | **`CANARY_LIVE`**; q timer active, one `MCLU6` LMT maximum, currently `flat_no_target`; not yet graduated |
 
 Machine pointer: `backtests/mcl/current-hf.json`, bound to immutable crown
 artifact `backtests/mcl/mcl_two_speed_auction_v18_crown.json` at SHA-256
@@ -45,16 +45,16 @@ artifact `backtests/mcl/mcl_two_speed_auction_v18_crown.json` at SHA-256
 | Predictive challenger | Stage 87 post-close velocity ignition, Stage 88 pre-close closing funnel, and Stage 89 velocity jerk/handoff are frozen before eligible outcomes |
 | Live-canary exception | **Authorized:** V18 may commission before Stage 87–89 reaches its unseen cohort; the seconds layer remains observation-only and every operational/safety gate remains mandatory |
 | Live source/shadow | **PASS:** finalized broker U6 history matches `2,691/2,693` cache-overlap rows; the two differences are only the old terminal partial bars. Five causal warmups down to `1,946` common minutes reproduce one exact current V18 state; receipt `mcl_v18_live_source_shadow_receipt.json` |
-| Native commissioning | **FUNDED PREVIEW PASS:** after the settled deposit, `MCLU6` was `$81.09/$81.11`; BUY/SELL what-if was `PreSubmitted`, `$0.76` commission, `A$2,686.70/A$2,149.36` incremental initial/maintenance margin against `A$3,072.19/A$3,077.79` available/excess liquidity |
+| Native commissioning | **PASS:** selected fresh BUY/SELL what-if was `PreSubmitted`, `$0.76` commission, and `A$2,685.52/A$2,148.42` initial/maintenance margin. Immutable flat selection `591db010…`, first-admitter plan `955967b2…`, two cold processes, and the first natural recurrence all passed with zero orders/fills/breaches |
 | Alternative transport frontier | **Closed for this V18 generation:** MCO is executable but destroyed the edge; IBUSOIL 75 units was the closest near-miss but failed frozen stress PnL/DD and branch gates and lacks current CFD permission/data; OOO/UCO/SCO/USO fail bidirectional hours/economics |
-| Next irreversible evidence | Deploy the proven worker, recapture fresh broker/source truth, publish one immutable flat selection and first-admitter successor plan, pass two observe-only process restarts, then arm only if both remain flat/order-free and identity-exact |
-| Live boundary | Signal, lifecycle, finalized source, funded preview, general capital law, and local runtime proof are green. q selection/plan/restart/deployment remain the blocker; no MCL order or profitability clock exists yet |
+| Next irreversible evidence | Preserve the commissioned prefix until the first fresh V18 admission/order/fill or due 24h cutoff; then bind authentic commission, slippage, P&L/DD, safety, and restart attribution without forcing a trade |
+| Live boundary | **Active:** q may submit exactly one `MCLU6` contract through the shared LMT ladder after a fresh post-selection V18 admission and fresh capital/package proof. Current `flat_no_target` is a valid live decision. `24h → 48h → five-session` profitability remains unproven |
 
 ## Live transport frontier
 
 | Rank | Transport | Exact result | Decision |
 |---:|---|---|---|
-| 1 | Native `MCLU6` | Exact V18 linear economics and live type-1 book; funded BUY/SELL preview now passes at one contract. Central admission uses actual-position first-admitter resources rather than falsely promising every flat minimum simultaneously | **Preferred; commissioning in progress** |
+| 1 | Native `MCLU6` | Exact V18 linear economics, live type-1 book, selected two-sided preview, immutable one-contract package, cold restart, and natural recurrence pass. Central admission uses actual positions/pending orders rather than falsely promising every flat minimum simultaneously | **Selected; `CANARY_LIVE`** |
 | 2 | `IBUSOIL` CFD | `75` units: primary `+$1,468.98`, PnL/DD `3.511`; stress `+$675.69`, PnL/DD `.911`, failed-auction `-$79.75`. Live quote/preview absent because CFD permission/data is disabled | **Frozen generation rejected; future challenger only on genuinely new executable evidence** |
 | 3 | `MCO` long calls/puts | Live premium/margin fits, but ATM replay was `-$1,918.94`; the only liquid symmetric ITM corridor was `-$1,428.12`; both stress cases and both directions lost | **Rejected** |
 | 4 | Oil ETFs | `OOO` is ASX-hours and has no cash-buy down lane. Even perfect 24h 2× UCO/SCO tracking with zero decay/commission produced `+$967.21` gross but `-$63.41` after observed spread alone; USO has no cash-buy down companion | **Rejected** |
@@ -64,7 +64,8 @@ Receipts: `mcl_v18_native_margin_hold.json`,
 `mcl_ibusoil_permission_hold.json`,
 `mcl_v18_ibusoil_linear_replay_rejection.json`,
 `mcl_v18_mco_transport_rejection.json`, and
-`mcl_oil_etf_transport_rejection.json`.
+`mcl_oil_etf_transport_rejection.json`; live commissioning is bound by
+`mcl_v18_live_commissioning_receipt.json` (`8ec07209…`).
 
 ## CR-001 · 2026-08-04 · MCL Two-Speed Auction Relay — V18
 
@@ -115,7 +116,8 @@ Disclosed limitations:
   minute bars;
 - `167–172/year` satisfies the explicit `>160/year` requirement but does not
   mean one or two fills on every market day;
-- no MCL order, selection, capital, or profitability clock exists.
+- live selection/capital/order authority now exists, but no authentic MCL fill
+  or positive profitability receipt exists yet.
 
 ## CR-002 · 2026-08-04 · Bounded live-canary exception
 
@@ -152,6 +154,28 @@ but was not admitted, so the live flat state is a genuine V18 decision, not
 missing warmup. Tick-by-tick-derived bars remain useful only to Stages 87–89;
 receipt `mcl_tbt_direction_source_rejection.json` forbids them from silently
 becoming direction truth.
+
+## CR-003 · 2026-08-04 · Bounded live-canary commissioning
+
+Commissioning is complete. Immutable flat selection `591db010…` / file
+`61e50202…` binds V18 to dominant-discovery `CLU6` and one-contract execution
+`MCLU6` under first-admitter plan `955967b2…`. The selected package freezes
+fresh two-sided `PreSubmitted` LMT previews at `$0.76` commission and
+`A$2,685.52/A$2,148.42` initial/maintenance margin, plus the Stage-91 stressed
+loss, FX, buffer, weekly-flat, and `$300` raw-loss bounds.
+
+Two independent cold processes reproduced source `e99ef2c7…`, transition
+`06a7f481…`, zero target/position/order/fill/breach, and no inherited historical
+state. The first natural five-minute invocation at `09:34:11Z` returned the same
+`flat_no_target` verdict and zero submissions. `tradebot-mcl-live.timer` is
+active/waiting; the service exits success between invocations. Every order is
+broker-enforced LMT through the shared patient-to-relentless ladder. Receipt:
+`mcl_v18_live_commissioning_receipt.json` (`8ec07209…`).
+
+This starts—not completes—operational graduation. The canary may take one
+contract only on a fresh post-selection V18 admission that also passes fresh
+source/book/account/package proof. Stage 87–89 remains non-authoritative
+`ACCUMULATE`; no fill or profitability claim exists yet.
 
 ## Active challenger — Predictive Intelligence Sharpening of Onsets
 
@@ -193,24 +217,24 @@ Do not reopen these historical rescue families without genuinely new data:
 
 ## Operational graduation queue
 
-1. Preserve V18 identity and continue the same prospective tape generation.
-   The bounded-canary exception is authorized, but present state remains `HOLD`.
+1. **Done:** preserve V18 identity and continue the same prospective tape
+   generation. The bounded-canary exception is commissioned as `CANARY_LIVE`;
+   current signal state is the valid flat decision `flat_no_target`.
 2. **Done:** centralize its exact costed lifecycle with byte-exact `338/338`
    historical parity and prove current finalized-minute source/shadow identity.
-   Next bind that exact seam behind the shared q worker boundary; do not copy
-   XSP or Gold execution or promote TBT-derived bars to direction truth.
+   The exact seam is bound behind the shared q worker; do not copy XSP or Gold
+   execution or promote TBT-derived bars to direction truth.
 3. **Done:** fresh funded MCLU6 identity/book and two-sided one-contract LIMIT
    what-if pass. The product-neutral first-admitter law allows each independently
    executable minimum while reserving only actual positions/pending orders plus
    the candidate at entry time; it never promises three simultaneous minima.
-4. **Locally green:** q-owned finalized-source, actual-fill risk, shared LIMIT
-   executor, maintenance-aware timer, and immutable commissioning CLI. Deploy,
-   then prove cold start, immediate restart, open-position reconciliation, roll,
-   maintenance, risk reduction, and one shared account-capital admission.
-5. Publish an immutable flat-baseline selection only after every receipt passes.
-6. Arm the authorized bounded canary only after every preceding receipt passes;
-   then judge authentic after-cost `24h`, `48h`, and five-session evidence
-   through the shared graduation reducer.
+4. **Done:** q-owned finalized source, actual-fill risk, shared LIMIT executor,
+   maintenance-aware timer, immutable CLI, shared account lock/capital law, and
+   fail-closed roll/risk boundaries are deployed.
+5. **Done:** immutable flat selection `591db010…` and plan `955967b2…` passed
+   two cold processes with exact source/transition and zero orders.
+6. **Active:** bounded canary is armed; judge authentic after-cost `24h`, `48h`,
+   and five-session evidence through the shared graduation reducer.
 7. Immediately resume Stage 87–89 predictive-onset and causal-news sharpening
    beside the live canary; do not wait for a fill or force one.
 
