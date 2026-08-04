@@ -1,0 +1,43 @@
+{
+  "schema": "mcl.ibkr-deep-wti-identity-rejection.v1",
+  "observed_at_utc": "2026-08-04T06:55:00Z",
+  "authority": "read_only_contract_and_historical_data_probe_no_orders_no_capital",
+  "queries": {
+    "XTIUSD": "no matching contract",
+    "USOIL": "no matching contract"
+  },
+  "identities": {
+    "NYMEX_CL_INDEX": {
+      "con_id": 17340715,
+      "sec_type": "IND",
+      "exchange": "NYMEX",
+      "long_name": "Light Sweet Crude Oil",
+      "recent_trades_rows": 0,
+      "recent_midpoint_rows": 0,
+      "deep_trades_rows": 0,
+      "broker_error": "No data of type DayChart is available for NYMEX Index"
+    },
+    "NYMEX_MCL_INDEX": {
+      "con_id": 500567051,
+      "sec_type": "IND",
+      "exchange": "NYMEX",
+      "long_name": "Micro WTI Crude Oil",
+      "recent_trades_rows": 0,
+      "recent_midpoint_rows": 0,
+      "deep_trades_rows": 0,
+      "broker_error": "No data of type DayChart is available for NYMEX Index"
+    },
+    "ICE_WTI_INDEX": {
+      "con_id": 37813650,
+      "sec_type": "IND",
+      "exchange": "IPE",
+      "long_name": "West Texas Intermediate Light Sweet Crude Oil",
+      "recent_trades_rows": 0,
+      "recent_midpoint_rows": 0,
+      "deep_trades_rows": 0,
+      "broker_error": "No market data permissions for IPE IND"
+    }
+  },
+  "decision": "There is no current-account IBKR WTI commodity seam analogous to XAUUSD. NYMEX index identities are nonhistorical derivative placeholders. Do not buy ICE data speculatively or substitute ICE, USO, or another proxy for dated CL/MCL roll and execution truth. July 2023 through August 2024 remains a hard native-history crown blocker.",
+  "submitted_orders": 0
+}
