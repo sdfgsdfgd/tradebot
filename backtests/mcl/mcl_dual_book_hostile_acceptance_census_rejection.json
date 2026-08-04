@@ -1,0 +1,42 @@
+{
+  "schema": "mcl.dual-book-hostile-acceptance-census-rejection.v1",
+  "recorded_at_utc": "2026-08-04T04:57:28Z",
+  "authority": "research_count_only_no_pnl_no_orders_no_capital",
+  "preregistration_sha256": "9db10e405cf7ca1cc8a64ae1a667d86b3be98bec20e43a68dd01d2efebe43793",
+  "evaluator_sha256": "f6c8c73c210edf95a1c63ba8514b02ebd2d13fda0ee9dfa57d25171cfa1cfe0a",
+  "result_sha256": "1f425021d551c31fc49d997c2ebb77ebc3c2a9f55b3a2733e56e4d91892c52a5",
+  "verdict": "REJECT_UNBOUNDED_HOSTILE_ACCEPTANCE_COUNT",
+  "exact_v18_identity": true,
+  "primary_full_hold_counts": {
+    "discovery": 120,
+    "validation_count": 115,
+    "frozen_max_each_period": 80
+  },
+  "finding": "Two progressive joint adverse closes plus adverse close-location and three-of-four range/volume effort eventually occur in roughly seventy percent of long-lived V18 trades. The unbounded state is ordinary oil path noise, not turn authenticity, so no PnL, MFE, MAE, or validation economics opened.",
+  "outcome_blind_onset_anatomy": {
+    "semantic_boundary": "two completed five-minute V18 decision clocks after entry",
+    "max_minutes_after_entry": 10,
+    "discovery_events": 51,
+    "validation_count_events": 46,
+    "discovery": {
+      "directions": {"down": 21, "up": 30},
+      "branches": {"acceptance": 7, "failure": 44},
+      "lanes": {"GTH": 36, "RTH": 15},
+      "ownership": {"fast_transport_owned": 11, "mature_handoff": 14, "slow_financed": 26}
+    },
+    "validation_count": {
+      "directions": {"down": 28, "up": 18},
+      "branches": {"acceptance": 4, "failure": 42},
+      "lanes": {"GTH": 37, "RTH": 9},
+      "ownership": {"fast_transport_owned": 13, "mature_handoff": 14, "slow_financed": 19}
+    },
+    "pnl_mfe_mae_exposed": false
+  },
+  "closed_rescues": [
+    "unbounded effort-count relaxation",
+    "unbounded result-only or transport-lead subset",
+    "post-entry event timing selected from PnL"
+  ],
+  "preserved_seam": "Freeze one ten-minute, two-engine-clock hostile-transition lifecycle before outcomes. Every V18 entry remains immediate and unchanged; only an exact early hostile event may surrender at the next MCL open.",
+  "submitted_orders": 0
+}

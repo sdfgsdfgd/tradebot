@@ -1,0 +1,91 @@
+{
+  "schema": "mcl.dual-book-hostile-onset-lifecycle-rejection.v1",
+  "generated_at_utc": "2026-08-04T05:00:23.588743+00:00",
+  "authority": "research_rejection_no_orders_no_capital",
+  "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+  "v18_result_sha256": "b9c64409dcb9cd482427588bb0ae314d870d0350a2100aea6d3f0615ae2f4c15",
+  "hostile_census_sha256": "1f425021d551c31fc49d997c2ebb77ebc3c2a9f55b3a2733e56e4d91892c52a5",
+  "source_census_sha256": "511ac3b8b87c01a9d7d81cb19e5cf01e63b33f0d98647fd62af5d9ec227235d7",
+  "preregistration_sha256": "5790ad854346129277882fcd74e3c80b9602d29e94a398d1ce5cf09c0a5e01cc",
+  "evaluator_sha256": "c787372f2e7232e6eeee31395502bb9e69486cea106315490b19cc27c3b4331b",
+  "result_sha256": "ba905a353ce059eab66b248c35bba0c4c6e555b9dff4a12e4bf8bb34ca9e8d1a",
+  "verdict": "REJECT_DISCOVERY",
+  "action_identity": true,
+  "control_discovery_parity": true,
+  "surrender_identity": {
+    "5_minutes": true,
+    "10_minutes_primary": true,
+    "15_minutes": true
+  },
+  "validation_opened": false,
+  "expected_discovery_surrenders": {
+    "5_minutes": 32,
+    "10_minutes_primary": 51,
+    "15_minutes": 66
+  },
+  "discovery": {
+    "trades": 167,
+    "unchanged_v18_control": {
+      "primary_net": 1263.91,
+      "stress_net": 929.91,
+      "stress_profit_factor": 1.293073,
+      "stress_intrabar_drawdown": 501.64,
+      "stress_pnl_to_intrabar_drawdown": 1.85374
+    },
+    "ten_minute_primary": {
+      "primary_net": 561.91,
+      "stress_net": 227.91,
+      "stress_profit_factor": 1.08371,
+      "stress_intrabar_drawdown": 792.22,
+      "stress_pnl_to_intrabar_drawdown": 0.287685,
+      "stress_down_up_net": [
+        480.17,
+        -252.26
+      ],
+      "stress_acceptance_failure_net": [
+        796.52,
+        -568.61
+      ]
+    },
+    "five_minute_neighbor": {
+      "primary_net": 757.41,
+      "stress_net": 423.41,
+      "stress_profit_factor": 1.146341,
+      "stress_intrabar_drawdown": 801.22,
+      "stress_pnl_to_intrabar_drawdown": 0.528457
+    },
+    "fifteen_minute_neighbor": {
+      "primary_net": 486.16,
+      "stress_net": 152.16,
+      "stress_profit_factor": 1.060302,
+      "stress_intrabar_drawdown": 619.47,
+      "stress_pnl_to_intrabar_drawdown": 0.245629
+    }
+  },
+  "failed_primary_gates": [
+    "retain_at_least_85_percent_control_net",
+    "profit_factor_not_below_control",
+    "intrabar_drawdown_reduced_at_least_20_percent",
+    "pnl_dd_improves_at_least_20_percent",
+    "primary_and_stress_pf",
+    "primary_and_stress_pnl_dd",
+    "stress_directions",
+    "stress_lanes",
+    "stress_ownership",
+    "stress_source_branches"
+  ],
+  "decision": "Close early hostile-onset surrender and its five- and fifteen-minute semantic neighbours. Progressive joint CL/MCL adverse effort during the first two V18 decision clocks is frequently a normal retest inside profitable oil turns; exiting it destroys net expectancy, raises drawdown, and destabilizes the up and failed-auction cohorts. Preserve every V18 admission, direction, and ordinary lifecycle. A successor must require a distinct completed recovery transition and may affect only post-recovery ownership after an outcome-blind count proof.",
+  "closed_families": [
+    "unbounded dual-book hostile effort as turn-authenticity evidence",
+    "hostile onset inside the first five, ten, or fifteen minutes as a surrender trigger",
+    "timing, effort-count, direction, branch, lane, or ownership subset rescue",
+    "validation outcome exposure after failed discovery"
+  ],
+  "invariants": {
+    "exact_v18_admission_and_direction_identity": true,
+    "exact_control_lifecycle_and_economics": true,
+    "validation_economics_sealed": true,
+    "missing_july_2023_to_august_2024": true
+  },
+  "submitted_orders": 0
+}

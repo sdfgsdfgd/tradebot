@@ -1,0 +1,49 @@
+{
+  "schema": "mcl.dual-book-hostile-onset-lifecycle-preregistration.v1",
+  "frozen_at_utc": "2026-08-04T04:57:28Z",
+  "authority": "research_discovery_first_no_orders_no_capital",
+  "base": {
+    "strategy": "unchanged V18 Dominant-Book Transport Acceptance Router",
+    "result_sha256": "b9c64409dcb9cd482427588bb0ae314d870d0350a2100aea6d3f0615ae2f4c15",
+    "count_result_sha256": "1f425021d551c31fc49d997c2ebb77ebc3c2a9f55b3a2733e56e4d91892c52a5",
+    "count_rejection_receipt": "backtests/mcl/mcl_dual_book_hostile_acceptance_census_rejection.json"
+  },
+  "primary": {
+    "id": "two_clock_hostile_onset",
+    "entry": "Every exact V18 admission executes at the unchanged next matched-MCL minute open.",
+    "direction": "Exact unchanged V18 direction; never invert or reroute.",
+    "probation_window": "The first ten completed one-minute bars after entry, equal to two completed five-minute V18 decision clocks.",
+    "hostile_state": "Within probation, the first two-step_result_effort_3of4 event frozen by the count census.",
+    "surrender": "Exit at the next matched-MCL minute open only when that exact early event is actionable before the unchanged V18 exit.",
+    "otherwise": "Retain every V18 raw-turn, opposite-admission, profit-memory, roll, and period exit unchanged."
+  },
+  "sensitivity_only": [
+    "one_clock_hostile_onset: identical rule within five minutes",
+    "three_clock_hostile_onset: identical rule within fifteen minutes"
+  ],
+  "discovery_gates": {
+    "exact_action_control_and_surrender_identity": true,
+    "annualized_trades_min_max": [160, 520],
+    "primary_and_stress_positive": true,
+    "primary_profit_factor_min": 1.2,
+    "stress_profit_factor_min": 1.1,
+    "primary_pnl_to_drawdown_min": 1.5,
+    "stress_pnl_to_drawdown_min": 1.0,
+    "stress_both_directions_branches_lanes_and_all_owners_positive": true,
+    "stress_positive_months_min": 8,
+    "stress_positive_quarters_min": 3,
+    "largest_positive_month_share_max": 0.4,
+    "retain_control_net_min_fraction": 0.85,
+    "profit_factor_not_below_control": true,
+    "pnl_to_drawdown_improvement_min_fraction": 0.2,
+    "intrabar_drawdown_reduction_min_fraction": 0.2
+  },
+  "validation_law": "Validation remains sealed unless the ten-minute primary alone passes every discovery gate. If opened, validation and full prefix must remain positive under both costs, retain at least 85 percent of unchanged V18 net, not weaken PF or PnL/DD, not increase drawdown, and keep every direction, branch, lane, and ownership cohort positive. Sensitivity cells can demonstrate local continuity but never replace the primary.",
+  "prohibitions": [
+    "no entry veto, delay, inversion, add-on, re-entry, stop, target, quota, or sizing change",
+    "no effort, result, streak, time, direction, branch, lane, owner, session, news, cost, MFE, MAE, or outcome subset rescue",
+    "no validation exposure after any primary discovery failure",
+    "no order, preview, selection, capital, XSP, Gold, news, or live-authority mutation"
+  ],
+  "submitted_orders": 0
+}
