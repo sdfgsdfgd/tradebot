@@ -1,0 +1,59 @@
+{
+  "schema": "mcl.prior-globex-context-financing-anatomy-preregistration.v1",
+  "recorded_at_utc": "2026-08-04T02:46:50Z",
+  "authority": "research_discovery_anatomy_validation_counts_only_no_orders_no_capital",
+  "question": "Which broad, strictly prior oil-session state—if any—finances the unchanged high-cadence raw CL/MCL macro auction without replacing its direction?",
+  "inputs": {
+    "manifest_path": "/var/tmp/mcl-v11-full-manifest-1085ce89.json",
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "direction_router_census_preregistration_sha256": "a4c70f4f7d3493437974c288f17197c41d1a096c7be995362a4e34fb411719a3",
+    "direction_router_census_result_sha256": "88031911780047f41695cdc34bc65d9e1868581c2dea1a5deab5163cef50bc5c",
+    "direction_router_rejection_sha256": "552d7f92780ecb725796562625b443ee745329afa97f3457c132badb400954b2",
+    "source_census_evaluator_sha256": "83ee2b37142d62c3b1ba68635bb8d2a72b03418c7c1674990cbc243407cdaffe",
+    "anatomy_evaluator_path": "/tmp/mcl_stage66_long_context_financing_anatomy.py",
+    "anatomy_evaluator_sha256": "d6c6001ed4bf2f3ad409a2f55b4839ef6e35de805ee2ad120dbef770b8698300"
+  },
+  "windows": {
+    "discovery": "first 94-session-warmed event through 2025-08-04T22:00:00Z",
+    "validation": "2025-08-04T22:00:00Z/2026-08-04T22:00:00Z",
+    "validation_law": "entry counts and causal category labels only; no return, MFE, MAE, PnL, ranking, or selection"
+  },
+  "unchanged_lifecycle": {
+    "source": "v9 retrace2/state24 completed CL turn plus same-sign completed matched-MCL move",
+    "entry": "next matched-MCL minute open",
+    "same_direction": "hold",
+    "opposite_direction": "close and flip at the same next open",
+    "contract_roll": "close old matched MCL and remain flat until a fresh post-roll turn; no synthetic reopen",
+    "discovery_boundary": "flat",
+    "stop_target_timeout": null,
+    "primary_stress_round_trip_usd": [3.52, 5.52]
+  },
+  "frozen_categorical_anatomy": {
+    "direction_mask": "exact raw-direction alignment over 5/21/63/84-session directions",
+    "direction_votes": "0 through 4 aligned horizon votes",
+    "soft_fast": "5/21 pair aligned, opposed, or split",
+    "mid_hard": "63/84 pair aligned, opposed, or split",
+    "transition": "aligned_up/down or transition_up/down",
+    "tr_phase": "high/low crossed with up/down/flat TR velocity",
+    "velocity_votes": "0 through 4 raw-signed return-velocity votes over 5/21/63/84",
+    "acceleration_votes": "0 through 4 raw-signed return-acceleration votes over 5/21/63/84",
+    "gap_bias": "aligned, opposed, or balanced relative to raw direction",
+    "damage_phase": "aligned, opposed, or balanced relative to raw direction",
+    "controls": ["GTH/RTH", "up/down"]
+  },
+  "successor_eligibility": {
+    "scope": "at most one declared categorical field and one natural category or adjacent two-category union",
+    "discovery_breadth": ">=60 trades, both directions, both GTH/RTH lanes, >=6 active months",
+    "validation_count_breadth": ">=60 entries, both directions, both GTH/RTH lanes",
+    "discovery_economics": "positive primary and stress net, stress PF >=1.10, stress PnL/DD >=1.00, <=40% positive-month concentration",
+    "next_step": "a qualifying category may only seed a separate outcome-blind successor count census; it does not become a gate from this anatomy"
+  },
+  "prohibitions": [
+    "no validation trade outcome",
+    "no continuous return, velocity, acceleration, TR, gap, drawdown, time, or magnitude sweep",
+    "no cross-field conjunction search",
+    "no route inversion, exit rescue, stop, target, timeout, quota, or replacement",
+    "no production refactor, news, order, or capital authority"
+  ],
+  "status": "FROZEN_BEFORE_DISCOVERY_ANATOMY"
+}

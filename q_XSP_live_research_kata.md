@@ -938,7 +938,16 @@ transition through today’s close; no order will be forced merely to populate t
   `63/84` consensus. Current-session bars are excluded; context needs `94`
   finalized prior Globex sessions. Each period must independently retain
   `>160–520/year`, both directions/branches/lanes, six alignment masks, and
-  natural `1–3/<=6/<=10` density before any lifecycle outcome may open.
+  natural `1–3/<=6/<=10` density before any lifecycle outcome may open. It
+  rejected all three direct direction owners without opening PnL: majority
+  produced only `82.72/91.59` entries/year, `5/21` consensus
+  `157.48/137.89`, and `63/84` consensus `111.35/83.54`; every profile also
+  missed failed-auction breadth. Receipt `552d7f92…` closes context-owned
+  direction. V66 preregistration `8e9fcd7a…` / evaluator `d6c6001e…` now keeps
+  raw CL/MCL direction unchanged and opens discovery anatomy only across
+  predefined direction-vote, pair-consensus, transition, TR-phase,
+  velocity/acceleration-vote, gap-bias, and damage-phase categories; validation
+  contributes counts only. At most one broad relation may seed another census.
   Rolls, costs, news authority, and live XSP/Gold owners remain unchanged.
 - `[PRESERVED RUNNER-UP]` **Tri-asset narrative-dispersion compression:** test
   whether convergence among easing-negative XSP pressure, weakening-positive
@@ -1555,8 +1564,16 @@ and stable bootstrap evidence. Neither may be refactored into looking mature.
     evaluator `83ee2b37…` freezes four-horizon-majority, `5/21`-consensus, and
     `63/84`-consensus direction routers over exact v9 raw turns, with `94`
     strictly prior finalized sessions and count-only discovery/validation.
-    No lifecycle outcome or production refactor before its categorical
-    cadence/breadth law passes.
+    All rejected without outcomes: annualized discovery/validation entries were
+    `82.72/91.59`, `157.48/137.89`, and `111.35/83.54`, with only `10/7`,
+    `10/12`, and `9/3` failed-auction entries. Rejection receipt
+    `mcl_prior_globex_regime_router_census_rejection.json` (`552d7f92…`) closes
+    direct context direction. V66 preregistration
+    `mcl_prior_globex_context_financing_anatomy_preregistration.json`
+    (`8e9fcd7a…`) / evaluator `d6c6001e…` preserves raw direction and flat-roll
+    lifecycle, opens discovery-only category economics, and keeps validation at
+    causal counts. No production refactor before one broad category earns a
+    separate count census.
     Missing July-2023–August-2024 remains a hard crown blocker; no quota, order,
     or capital authority.
 
@@ -1934,6 +1951,7 @@ and
 | E-449 | V63 outcome-blind count `e75b4a60…` passed every frozen breadth law before any return: discovery/validation produced `395/410` events (`395.27/411.48/year`), `78.5/81.7%` eligible phase-identity coverage, up/down `207/188` and `223/187`, acceptance/failure `344/51` and `347/63`, GTH/RTH `187/208` and `201/209`, weekend GTH `44/42`, and exact `2/2/2` density. Receipt `mcl_phase_modal_inventory_census_receipt.json` (`d71250f0…`). V64 preregistration `mcl_phase_modal_inventory_lifecycle_preregistration.json` (`7347828a…`) / evaluator `135c11a5…` freezes next-open matched MCL, one position across both phase clocks, and one symmetric ordinary exit: both completed five-minute books must cross their own frozen source-phase modes against the position, then exit next-open. Session/contract/gap/independent-period boundaries flatten. Discovery must retain `>250/year` after overlap and pass net/PF/PnL-DD, direction, branch, phase, weekend, month, quarter, concentration, and density laws before validation opens. No mode bin, threshold, magnitude, clock, retained state, VWAP, stop, target, timeout, news, companion, order, or capital authority |
 | E-450 | V64 discovery `3cccb288…` killed phase-modal inventory before validation despite textbook cadence. Its `326` trades (`326.22/year`, median/p95/max `1/2/2`) made `-$1,340` gross, `-$2,487.52/-$3,139.52` primary/stress, PF `.795/.751`, PnL/DD `-.825/-.874`; down/up were `-$1,473.08/-$1,014.44`, acceptance/failure `-$1,829.84/-$657.68`, GTH/RTH stress `-$3,123.24/-$16.28`, weekend/other stress `-$1,471.88/-$1,667.64`, every quarter lost, and only two stress-positive months survived. Validation remained sealed. Receipt `mcl_phase_modal_inventory_lifecycle_rejection.json` (`11eff900…`) closes modal-bin/magnitude/hold/exit/stop/target/timeout/threshold rescue. The next distinct lane is a strictly prior completed-Globex-session `5/10/21/42/63/84` context census around the high-cadence macro-auction owner, with validation economics sealed and no production/order/capital authority |
 | E-451 | V65 preregistration `mcl_prior_globex_regime_router_census_preregistration.json` (`a4c70f4f…`) / evaluator `83ee2b37…` freezes one count-only causal long-session test before observing its event counts. Exact v9 `retrace2/state24` CL turns plus same-sign matched-MCL parity form the raw event. Context uses `94` strictly prior finalized CL Globex sessions and the existing centralized `5/10/21/42/63/84` return/velocity/acceleration/TR law, never current-session data or XSP's session/admission policy. Three categorical profiles are fixed: 3-of-4 majority over `5/21/63/84`, `5/21` consensus, and `63/84` consensus; consensus opposition routes a failed-auction fade, otherwise raw acceptance survives. Both periods must independently retain `>160–520/year`, `>=25` each direction, `>=20` each branch/lane, six masks, and median/p95/max `1–3/<=6/<=10` before any trade outcome. Missing first challenge year, production extraction, news, order, and capital authority remain blocked |
+| E-452 | V65 count `88031911…` rejected all three context-owned direction profiles before any PnL. Of `1,493` raw turns, `481` failed matched-MCL parity, `198` were context-underwarm, and `814` were eligible. Four-horizon majority collapsed to `52/91` entries (`82.72/91.59/year`) with only `10/7` fades; `5/21` consensus reached `99/137` (`157.48/137.89`) with `10/12` fades; `63/84` consensus made `70/83` (`111.35/83.54`) with `9/3` fades. Density and direction breadth were generally healthy, proving persistence—not noise—caused the failure. Receipt `mcl_prior_globex_regime_router_census_rejection.json` (`552d7f92…`) closes direct vote/pair routing and threshold rescue. V66 preregistration `mcl_prior_globex_context_financing_anatomy_preregistration.json` (`8e9fcd7a…`) / evaluator `d6c6001e…` keeps raw direction and exact next-open/flip/flat-roll lifecycle, opens discovery economics only across predefined context mask/votes/pairs/transition/TR/velocity/acceleration/gap/damage categories, and exposes validation counts only. A successor needs `>=60` discovery trades and validation entries, both directions/lanes, six months, positive stress net, PF `>=1.10`, PnL/DD `>=1.00`, and `<=40%` concentration; at most one relation may seed a separate count census. No cross-field search, continuous threshold, outcome rescue, order, or capital authority |
 
 ### Decision anchors
 

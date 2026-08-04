@@ -1,0 +1,54 @@
+{
+  "schema": "mcl.prior-globex-regime-router-census-rejection.v1",
+  "recorded_at_utc": "2026-08-04T02:44:23Z",
+  "authority": "research_count_only_no_trade_outcomes_no_orders_no_capital",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "preregistration_sha256": "a4c70f4f7d3493437974c288f17197c41d1a096c7be995362a4e34fb411719a3",
+    "evaluator_sha256": "83ee2b37142d62c3b1ba68635bb8d2a72b03418c7c1674990cbc243407cdaffe",
+    "result_sha256": "88031911780047f41695cdc34bc65d9e1868581c2dea1a5deab5163cef50bc5c"
+  },
+  "source": {
+    "raw_turns": 1493,
+    "matched_mcl_parity_vetoes": 481,
+    "context_underwarm": 198,
+    "eligible_events": 814,
+    "finalized_observed_sessions": [496, 515],
+    "first_last_finalized": ["2024-08-05", "2026-07-31"]
+  },
+  "profiles": {
+    "four_horizon_majority": {
+      "discovery_validation_entries": [52, 91],
+      "discovery_validation_annualized": [82.718122, 91.594364],
+      "discovery_validation_failure_branch": [10, 7],
+      "discovery_validation_density": [[1, 4, 5], [1, 3, 4]]
+    },
+    "soft_fast_consensus": {
+      "discovery_validation_entries": [99, 137],
+      "discovery_validation_annualized": [157.482579, 137.894811],
+      "discovery_validation_failure_branch": [10, 12],
+      "discovery_validation_density": [[1, 4, 5], [1, 3, 4]]
+    },
+    "mid_hard_consensus": {
+      "discovery_validation_entries": [70, 83],
+      "discovery_validation_annualized": [111.351319, 83.542112],
+      "discovery_validation_failure_branch": [9, 3],
+      "discovery_validation_density": [[1, 3, 4], [1, 4, 4]]
+    }
+  },
+  "failed_gates": [
+    "every profile missed greater-than-160 annualized entries in at least one period",
+    "every profile missed the minimum failed-auction branch breadth",
+    "four-horizon majority and mid-hard consensus also missed discovery RTH breadth"
+  ],
+  "finding": "Strictly prior long-session context is sufficiently broad to label oil auctions, but too persistent to own routed direction: it collapses hundreds of eligible raw turns into a slow directional hold. Long context may remain categorical financing or permission evidence around raw CL/MCL direction, but cannot replace that direction owner.",
+  "trade_outcomes_opened": false,
+  "closed_families": [
+    "direct four-horizon majority direction routing",
+    "direct 5/21-session consensus direction routing",
+    "direct 63/84-session consensus direction routing",
+    "threshold or vote-count rescue of those direct routers"
+  ],
+  "verdict": "REJECT_DIRECTION_ROUTING_PRESERVE_CONTEXT_ANATOMY",
+  "submitted_orders": 0
+}
