@@ -1,0 +1,113 @@
+{
+  "schema": "mcl.v18-shock-stage112-live-commissioning.v1",
+  "recorded_at_utc": "2026-08-04T19:47:26.359315+00:00",
+  "authority": "bounded_live_canary_commissioning_and_preliminary_graduation_evidence",
+  "source_revision": "7aa49dbaec65216995734d4575517d3f428cf043",
+  "crown": {
+    "strategy_version": "mcl.two-speed-shock-arbiter.v112",
+    "artifact": "backtests/mcl/mcl_v18_shock_stage112_executable_crown.json",
+    "artifact_sha256": "c1e7aad0391a6a4ab1cd6cf2065af023d2c36058e411a464dae939599b0dd63f",
+    "exact_trades": 388,
+    "ledger_sha256": "e4d18b52dd6f791371722077c111bd717e4feb63654b4a9fc068b58c06b83aa7"
+  },
+  "selection": {
+    "selection_id": "083ecba8798ea6e60f32b1c42d4896e1a016703a77eeac2f32ac7ce3f5d54a91",
+    "selection_file_sha256": "3ffcdd1d7471456095f34ff1a7251679edd56b1898227f869e8112f41af16f7a",
+    "selected_at_utc": "2026-08-04T19:10:47.020477+00:00",
+    "cl": "CLU6",
+    "mcl": "MCLU6",
+    "max_contracts": 1,
+    "order_type": "LMT",
+    "market_orders_allowed": false,
+    "ordinary_entry_phase_speed_multiplier": 1.0,
+    "shock_entry_phase_speed_multiplier": 2.0,
+    "raw_loss_cap_usd": 300.0,
+    "weekly_flat_et": "Friday 16:53"
+  },
+  "portfolio": {
+    "plan_id": "851714c27f22abca7652d7df762ccfd464daff0ce4001fed6888079d54829f37",
+    "plan_file_sha256": "e209f26bd4c7e99ebeb2bc3f8912d418db19842c151728bddd695450035bc7bc",
+    "supersedes_plan_id": "955967b275b5eddfe3e05b7665124b225fb8257ddf71d9ef50e888a4263a2542",
+    "generation_sha256": "21a0a8c9a5c17706c15a523fc444970ab732f6a911a2587194b87161b4a3449e",
+    "capital_stability_sha256": "4c5a339ccd742433cf8da2a2a0947f0d93ef259702a83f7faa6b4763026242dd",
+    "preserves_xsp_selection_id": "1083c1813e6b0ca4cf5777a5275e06be651622bc6e6207e718b549296a9bdd87",
+    "preserves_gold_selection_id": "62344ce21bf7c6f01095abab14b6ca8ef79c9806abb35294859fc9574a5f7574"
+  },
+  "predictive_onset": {
+    "generation_id": "d0443eb0ff2c18714579d23d9e3eeb44fc5bc2a596e4daebbe25683c08b71fc8",
+    "generation_sha256": "2a7e478dc02952226099a68f5b525d9dd2bd57810302dd730e1c428ec9001db4",
+    "inherited_treatments": 3,
+    "ledger_sha256": "bfcc0147faf6b8ebf1abf67d68fa3075a51ef4496bbd2d17c9851e2c0b06aab5",
+    "outcome_authority": "none",
+    "order_authority": "none",
+    "capital_authority": "none"
+  },
+  "restart_and_recurrence": {
+    "observe_only_checkpoint_id": "5769e31d7a786e61ffa5e824bdbfacc3aa2190b25247ef71dd0286f359006db4",
+    "observe_only_at_utc": "2026-08-04T19:13:00.840408+00:00",
+    "first_natural_checkpoint_id": "85433ec613555cec0ea1bbce0cbb3cdd7c229893431b553cf3cdbdd962c8bdbd",
+    "latest_proven_checkpoint_id": "de40e0fefdda3c143ddbcad73264c1d02783df66cb23750243aebd4cdb322548",
+    "latest_proven_at_utc": "2026-08-04T19:47:26.359315+00:00",
+    "plan_reason": "flat_no_target",
+    "mcl_position": 0,
+    "mcl_open_orders": 0,
+    "fills": 0,
+    "run_net_usd": 0.0,
+    "drawdown_usd": 0.0,
+    "safety_breaches": [],
+    "submitted_orders": 0
+  },
+  "pre_outcome_coverage_correction": {
+    "invalid_artifact_preserved_on_q": "/var/tmp/mcl-stage112-preliminary-graduation.json",
+    "invalid_artifact_sha256": "fbc2e6b59e94154fb5fc599cb8108f4b3670e24b25f8a7980dd334a14fc3c132",
+    "invalid_receipt_id": "40561bb224c8897c3412fe15c0d6c7b26af543341aa6bacb09be8f6601022b10",
+    "defect": "The generic futures reducer hashed volatile quote and source evidence, so two economically identical flat observations in one minute falsely conflicted.",
+    "repair_revision": "986ea017bfa50a61232c9f97c74dfba316afce84",
+    "capital_proof_revision": "7aa49dbaec65216995734d4575517d3f428cf043",
+    "unchanged": [
+      "selection",
+      "profitability_clock",
+      "fills",
+      "position",
+      "orders",
+      "risk",
+      "strategy",
+      "submitted_orders"
+    ]
+  },
+  "preliminary_graduation": {
+    "artifact": "backtests/mcl/mcl_v18_shock_stage112_preliminary_24h_graduation.json",
+    "artifact_sha256": "e68194d87a934bb23c31038b0ea5d467cfda298b28cdacf2a9fe99852507d3ac",
+    "receipt_id": "6cdd167f35306cfb96c706f64577353de3a1d7d88256cc42aa88f9bed2c50046",
+    "cutoff_utc": "2026-08-04T19:25:28+00:00",
+    "verdict": "HOLD",
+    "pass_gates": [
+      "attribution",
+      "capital_owner_stability",
+      "cash_risk_safety",
+      "identity",
+      "restart",
+      "runtime_parity"
+    ],
+    "hold_reasons": [
+      "execution_not_observed",
+      "elapsed_time_incomplete",
+      "eligible_sessions_incomplete"
+    ]
+  },
+  "services": {
+    "tradebot-mcl-live.timer": "active/waiting",
+    "tradebot-mcl-predictive-onset.timer": "active/waiting",
+    "tradebot-mcl-turn-tape.service": "active/running"
+  },
+  "invariants": {
+    "old_v18_selection_rearmed": false,
+    "stage112_live_canary_armed": true,
+    "limit_only": true,
+    "market_orders_allowed": false,
+    "historical_economics_changed": false,
+    "predictive_classifier_authority": "none",
+    "submitted_orders_during_commissioning": 0
+  },
+  "submitted_orders": 0
+}
