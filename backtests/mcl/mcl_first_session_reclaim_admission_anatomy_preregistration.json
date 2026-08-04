@@ -1,0 +1,51 @@
+{
+  "schema": "mcl.first-session-reclaim-admission-anatomy-preregistration.v1",
+  "registered_at_utc": "2026-08-04T01:20:01Z",
+  "authority": "discovery_outcome_exposed_validation_count_only_no_validation_pnl_no_orders_no_capital",
+  "campaign": "mcl.two-speed-auction-relay.v54",
+  "hypothesis": "The rejected first-reclaim owner mixes immediate auction errors with rare financed expansions. Oil-specific completed-state categories may reveal which physical inventory configuration has gross amplitude sufficient for MCL friction, without changing direction or rescuing the exit after the fact.",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "census_sha256": "f3d3b7ac85218a836f820ce1c3bc4ed33c3fe6ed9331d28ec19fc8fc3d0c962d",
+    "rejected_lifecycle_sha256": "3b98580dea159a73090bfc5a4f64dc457f3857869017f47a9c97bf732a27a55f",
+    "rejection_receipt_sha256": "576ab8c96231924e6df6f95270d0c9c768e471eaebcf0bdf981daf6b2ea797a1",
+    "anatomy_evaluator_path": "/tmp/mcl_stage54_first_reclaim_admission_anatomy.py",
+    "anatomy_evaluator_sha256": "182d30e9abf6ae9cb0a9fb80abc68551723d2b55f0a6d6d57846965adb58e125"
+  },
+  "frozen_single_families": {
+    "session_ordinal": ["first", "second_after_genuine_retained_state_flip"],
+    "direction": ["up", "down"],
+    "physical_lane_et": ["18:00-02:00", "02:00-09:30", "09:30-16:00", "16:00-17:00"],
+    "retained_state_maturity_bars": ["24-47", "48-95", "96_plus"],
+    "coherence": ["below_0.70", "0.70-0.89", "0.90_plus"],
+    "atr_velocity_and_acceleration_zero_sign": true,
+    "vwap_financing": ["both_aligned", "mixed", "both_opposed"],
+    "joint_reclaim_strength_ticks": ["1-2", "3-5", "6_plus"],
+    "joint_vwap_clearance_ticks": ["below_2", "2-3", "4_plus"],
+    "prior_adverse_depth_ticks": ["below_3", "3-6", "7_plus"],
+    "cl_mcl_reclaim_lead": ["mcl", "equal", "cl"],
+    "completed_volume_participation": "current completed five-minute CL/MCL volume independently above or below the mean of the previous six same-session completed bars"
+  },
+  "frozen_causal_pairs_only": [
+    "retained-state maturity x VWAP financing",
+    "ATR velocity/acceleration zero-sign regime x joint reclaim strength",
+    "physical lane x semantic session ordinal"
+  ],
+  "outputs": [
+    "discovery primary/stress net, stress PF/closed-DD ratio, month breadth/concentration, MFE/MAE, immediate errors and financed givebacks for every frozen category",
+    "sealed validation event count only for the identical categories",
+    "no candidate selection or authority"
+  ],
+  "frozen_order": [
+    "verify Stage 53 validation remained unopened",
+    "join only exact discovery trades to Stage 52 event identities",
+    "compute all frozen categories from completed pre-entry evidence",
+    "report discovery economics and validation counts without reading validation returns",
+    "after anatomy, freeze at most one physically coherent one- or two-category profile and its outcome-blind count gate before any sealed lifecycle"
+  ],
+  "prohibitions": [
+    "no continuous threshold optimization, percentile, rank, regression, model, broad pairwise search, target, stop, timeout, or exit rescue",
+    "no more than two admission categories in a downstream candidate",
+    "no validation PnL, MFE, MAE, return, order, capital, XSP, or Gold authority"
+  ]
+}

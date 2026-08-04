@@ -1,0 +1,49 @@
+{
+  "schema": "mcl.first-session-direction-vwap-reclaim-lifecycle-rejection.v1",
+  "recorded_at_utc": "2026-08-04T01:20:01Z",
+  "authority": "research_only_discovery_failed_validation_unopened_no_orders_no_capital",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "census_sha256": "f3d3b7ac85218a836f820ce1c3bc4ed33c3fe6ed9331d28ec19fc8fc3d0c962d",
+    "preregistration_sha256": "1025715ea40dfcb1f3ead60d926143e6e563e77675034631bab6aa471d7d96f7",
+    "evaluator_sha256": "c2e8a0934a352fdf9bc2082fb24f2d5547dda37fdddace3c661cc6c58c48f9d8",
+    "result_sha256": "3b98580dea159a73090bfc5a4f64dc457f3857869017f47a9c97bf732a27a55f"
+  },
+  "discovery": {
+    "trades": 396,
+    "annualized": 396.271987,
+    "primary_net": -1108.92,
+    "stress_net": -1900.92,
+    "primary_stress_profit_factor": [0.683234, 0.545604],
+    "primary_stress_pnl_to_intrabar_drawdown": [-0.755725, -0.903479],
+    "primary_stress_positive_months": [3, 2],
+    "up_down_primary_net": [-484.56, -624.36],
+    "gth_rth_primary_net": [-840.36, -268.56],
+    "median_p95_maximum_per_active_session": [2, 2, 2],
+    "mean_hold_minutes": 77.290404,
+    "mean_mfe_mae": [21.126263, -8.757576]
+  },
+  "failed_gates": [
+    "primary and stress net, PF, and PnL/DD",
+    "both directions and both GTH/RTH lanes",
+    "all four equal-duration stress quarters",
+    "stress positive-month breadth and concentration"
+  ],
+  "post_rejection_anatomy": {
+    "gross_before_primary_cost": 285.00,
+    "mfe_below_primary_fee": [160, -1497.20],
+    "mfe_at_least_primary_fee": [236, 388.28, 178],
+    "mfe_at_least_50_usd": [43, 2156.64, 8],
+    "joint_adverse_vwap_exit": [371, -2648.92],
+    "retained_state_flip_exit": [16, 209.68],
+    "session_and_roll_flat_exit": [9, 1330.32]
+  },
+  "finding": "The semantic owner achieved ideal cadence and slightly positive gross direction, but ordinary recross economics were far too weak for MCL friction. A fixed target would truncate the only financing tail, while exit-only rescue cannot repair 160 immediate errors. The next lawful seam is categorical admission anatomy: identify whether auction maturity, VWAP financing, volatility curvature, reclaim geometry, dominant/transport leadership, physical session, or completed-volume participation separates immediate errors from financed expansions.",
+  "validation_opened": false,
+  "closed_families": [
+    "unconditional first session-direction VWAP reclaim entry",
+    "same lifecycle with fee, target, stop, timeout, cooldown, or exit-threshold rescue"
+  ],
+  "verdict": "REJECT_PRESERVE_FROZEN_ADMISSION_ANATOMY",
+  "submitted_orders": 0
+}
