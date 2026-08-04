@@ -1,0 +1,84 @@
+{
+  "schema": "mcl.opening-drive-branch-maturation-lifecycle-rejection.v1",
+  "recorded_at_utc": "2026-08-04T00:02:00Z",
+  "authority": "research_only_validation_unopened_no_orders_no_capital",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "census_sha256": "929b32245f5fc46816c0bc6f1624056d18a087f1749ca0832f46adb496abde9c",
+    "preregistration_sha256": "7ce554fc2229e879cecf9bd2e04b1c51f118dc2459bf5ece78b2494ee702c601",
+    "evaluator_sha256": "fc62205ce6a6479b08a8c19e6d7537e2c824a75474cd73d70b02ec89e38dc274",
+    "result_sha256": "de77229bed23370cbc2a2d1d4d2d178203e55372234bbda888f1a12baf86cca1"
+  },
+  "discovery": [
+    {
+      "owner": "branch_state",
+      "trades": 258,
+      "primary_net": 1089.84,
+      "stress_net": 573.84,
+      "primary_profit_factor": 1.202932,
+      "stress_profit_factor": 1.101959,
+      "primary_intrabar_drawdown": 1119.84,
+      "stress_intrabar_drawdown": 1253.84,
+      "primary_pnl_to_intrabar_drawdown": 0.973210,
+      "stress_pnl_to_intrabar_drawdown": 0.457666,
+      "primary_stress_positive_months": [
+        7,
+        6
+      ],
+      "largest_positive_month_share": 0.394300
+    },
+    {
+      "owner": "initiative_failure_memory",
+      "trades": 258,
+      "primary_net": 1043.84,
+      "stress_net": 527.84,
+      "primary_profit_factor": 1.198170,
+      "stress_profit_factor": 1.095674,
+      "primary_intrabar_drawdown": 1119.84,
+      "stress_intrabar_drawdown": 1253.84,
+      "primary_pnl_to_intrabar_drawdown": 0.932133,
+      "stress_pnl_to_intrabar_drawdown": 0.420979,
+      "primary_stress_positive_months": [
+        7,
+        7
+      ],
+      "largest_positive_month_share": 0.313452
+    }
+  ],
+  "branch_state_stress_anatomy": {
+    "absorption": {
+      "trades": 144,
+      "net": 866.12
+    },
+    "initiative_acceptance": {
+      "trades": 85,
+      "net": -391.20
+    },
+    "initiative_failure": {
+      "trades": 29,
+      "net": 98.92
+    },
+    "directions_up_down": [
+      145.16,
+      428.68
+    ],
+    "anchors_europe_us": [
+      -82.12,
+      655.96
+    ],
+    "sides_high_low": [
+      546.84,
+      27.00
+    ]
+  },
+  "finding": "Ten-minute maturation converted the opening-drive family from stress-negative to positive after harsh friction, but weak initiative acceptance still consumed edge and left PnL/drawdown, month stability, concentration, and Europe-anchor transfer below frozen gates. Profit memory reduced rather than improved expectancy.",
+  "validation_opened": false,
+  "closed_families": [
+    "v38_plain_branch_state_as_selectable_owner",
+    "v38_initiative_failure_profit_memory",
+    "profit_memory_threshold_rescue"
+  ],
+  "preserved_seam": "Require initiative acceptance to demonstrate categorical two-step price extension and dominant-book effort before entry; retain already-positive absorption and initiative-failure clocks unchanged.",
+  "verdict": "REJECT",
+  "submitted_orders": 0
+}

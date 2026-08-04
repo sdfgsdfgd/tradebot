@@ -1,0 +1,73 @@
+{
+  "schema": "mcl.two-step-opening-drive-census-preregistration.v1",
+  "registered_at_utc": "2026-08-04T00:02:00Z",
+  "authority": "outcome_blind_count_only_no_forward_pnl_no_orders_no_capital",
+  "campaign": "mcl.two-speed-auction-relay.v39",
+  "hypothesis": "A true initiative opening drive should accept on the first completed five-minute bar and extend jointly in CL and MCL on the second; dominant-book effort on that second step is the primary categorical definition. Absorption and two-bar initiative failure retain their already-frozen clocks.",
+  "inputs": {
+    "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+    "source_census_sha256": "929b32245f5fc46816c0bc6f1624056d18a087f1749ca0832f46adb496abde9c",
+    "rejected_lifecycle_sha256": "de77229bed23370cbc2a2d1d4d2d178203e55372234bbda888f1a12baf86cca1",
+    "evaluator_path": "/tmp/mcl_stage39_two_step_drive_census.py",
+    "evaluator_sha256": "e9917fe54708fbb6aea34d0bf197dcefe2af0ee90b51148137f1a6fe9d480558"
+  },
+  "profiles_in_frozen_selection_order": [
+    {
+      "profile": "monotonic_price_effort",
+      "law": "first CL/MCL closes both accept beyond their opening-auction closes; second CL/MCL closes both extend farther in source direction; second CL volume is at least first CL volume and MCL volume is positive"
+    },
+    {
+      "profile": "monotonic_price",
+      "law": "same two-step joint price acceptance and extension without the second-step CL volume comparison",
+      "role": "count-eligibility fallback only if the effort primary is ineligible"
+    }
+  ],
+  "unchanged_branches": {
+    "absorption": "retain exact immediate V35 event",
+    "initiative_failure": "retain exact selected two-bar V37 event"
+  },
+  "periods": {
+    "discovery": "2024-08-04T22:00:00Z through 2025-08-04T22:00:00Z exclusive",
+    "validation_count_only": "2025-08-04T22:00:00Z through 2026-08-04T22:00:00Z exclusive"
+  },
+  "eligibility_required_in_each_period": {
+    "annualized_events": {
+      "exclusive_minimum": 160,
+      "inclusive_maximum": 520
+    },
+    "minimum_up": 50,
+    "minimum_down": 50,
+    "minimum_absorption": 100,
+    "minimum_initiative_acceptance": 20,
+    "minimum_initiative_failure": 20,
+    "minimum_europe": 60,
+    "minimum_us": 60,
+    "minimum_high_side": 60,
+    "minimum_low_side": 60,
+    "minimum_active_session_fraction": 0.55,
+    "active_session_median_events": [
+      1,
+      2
+    ],
+    "maximum_p95_events": 2,
+    "maximum_events": 2
+  },
+  "selection_law": "Select the first profile in frozen order passing all count gates in both periods. Only it may receive a costed lifecycle preregistration.",
+  "outcome_firewall": {
+    "forward_return": false,
+    "mfe": false,
+    "mae": false,
+    "pnl": false,
+    "validation_outcome": false,
+    "news": false,
+    "orders": false,
+    "capital": false
+  },
+  "prohibitions": [
+    "no one-bar or three-bar alternative",
+    "no volume multiplier or percentile sweep",
+    "no partial-book acceptance",
+    "no branch, anchor, side, direction, month, or regime deletion",
+    "no outcome-based profile selection"
+  ]
+}
