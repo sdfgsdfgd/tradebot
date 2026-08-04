@@ -1,0 +1,82 @@
+{
+  "schema": "mcl.dual-book-first-passage-census-receipt.v1",
+  "generated_at_utc": "2026-08-04T04:13:10Z",
+  "authority": "research_count_advance_no_pnl_no_orders_no_capital",
+  "preregistration_sha256": "f0e74fad787d44a9baf62efaf8b5d6688072837ff8d616347b523cf5a0a86390",
+  "evaluator_sha256": "3b38ff3f02f246e49add8e36c5d5503d2ada71866ac39bd6b5a73a4f711c5389",
+  "result_sha256": "e9a3334dca3b282b0947f5aafc28faa5f9f98bc9f586fc0e0474a9b9bc4b1a88",
+  "verdict": "ADVANCE_TO_LIFECYCLE_PREREGISTRATION",
+  "exact_v18_trade_identity": true,
+  "price_path_labels_exposed": true,
+  "pnl_mfe_mae_exposed": false,
+  "periods": {
+    "discovery": {
+      "opportunities": 167,
+      "annualized_admissions": 167.114702,
+      "resolved_fraction": 1.0,
+      "favorable_first": 87,
+      "actionable_adverse_first": 80,
+      "adverse_directions_down_up": [
+        34,
+        46
+      ],
+      "adverse_branches_acceptance_failure": [
+        12,
+        68
+      ],
+      "adverse_lanes_gth_rth": [
+        56,
+        24
+      ],
+      "adverse_ownership_fast_mature_slow": [
+        21,
+        22,
+        36
+      ],
+      "meaningful_adverse_lead_30m": 78,
+      "median_adverse_minutes_after_entry": 1,
+      "median_adverse_minutes_before_original_exit": 354,
+      "density_median_p95_max": [
+        1,
+        2,
+        3
+      ]
+    },
+    "validation_count": {
+      "opportunities": 171,
+      "annualized_admissions": 171.617675,
+      "resolved_fraction": 1.0,
+      "favorable_first": 87,
+      "actionable_adverse_first": 84,
+      "adverse_directions_down_up": [
+        42,
+        42
+      ],
+      "adverse_branches_acceptance_failure": [
+        11,
+        73
+      ],
+      "adverse_lanes_gth_rth": [
+        58,
+        26
+      ],
+      "adverse_ownership_fast_mature_slow": [
+        20,
+        21,
+        43
+      ],
+      "meaningful_adverse_lead_30m": 79,
+      "median_adverse_minutes_after_entry": 1,
+      "median_adverse_minutes_before_original_exit": 234,
+      "density_median_p95_max": [
+        1,
+        3,
+        3
+      ]
+    }
+  },
+  "all_frozen_gates_passed": true,
+  "finding": "The exact V18 high-energy stream resolves into favorable-first versus adverse-first dual-book state with complete independent-period breadth. Roughly half of admissions experience joint adverse CL/MCL movement first, usually in the entry minute and hundreds of minutes before the original exit. This is sufficiently powered to test one fail-fast lifecycle without suppressing any admission or reading one PnL/MFE/MAE value.",
+  "decision": "Freeze exactly one lifecycle: every V18 trade enters; actionable adverse-first aborts at the next MCL minute open before unchanged profit-memory/raw-turn/roll boundaries; favorable-first and unresolved positions retain exact V18. Discovery must materially improve drawdown and PnL/DD while retaining most V18 net before validation may open.",
+  "submitted_orders": 0
+}

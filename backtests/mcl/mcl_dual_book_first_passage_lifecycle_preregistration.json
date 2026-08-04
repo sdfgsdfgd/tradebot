@@ -1,0 +1,68 @@
+{
+  "schema": "mcl.dual-book-first-passage-lifecycle-preregistration.v1",
+  "frozen_at_utc": "2026-08-04T04:14:19Z",
+  "authority": "research_discovery_first_no_orders_no_capital",
+  "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+  "v18_result_sha256": "b9c64409dcb9cd482427588bb0ae314d870d0350a2100aea6d3f0615ae2f4c15",
+  "source_event_time_census_sha256": "511ac3b8b87c01a9d7d81cb19e5cf01e63b33f0d98647fd62af5d9ec227235d7",
+  "first_passage_census_result_sha256": "e9a3334dca3b282b0947f5aafc28faa5f9f98bc9f586fc0e0474a9b9bc4b1a88",
+  "first_passage_census_receipt_sha256": "38138d71d51dec29f5dc4acd7c49e7f1df7f573574c23d36b45bfa9243ffb78a",
+  "evaluator_sha256": "0c96e5dde48049fc42fb4660f1a5294d5fa247b6239880c689ecc0da51c77f46",
+  "windows": {
+    "discovery_start": "2024-08-04T22:01:00+00:00",
+    "validation_start": "2025-08-04T22:00:00+00:00",
+    "end": "2026-08-03T20:27:00+00:00"
+  },
+  "control": "Reproduce the frozen V18 basis_breadth discovery ledger exactly before opening candidate economics; if discovery passes, reproduce its frozen validation ledger before transfer judgment.",
+  "candidate": {
+    "admission": "Every exact V18 trade enters at the same next-minute matched-MCL open; no signal is delayed, suppressed, replaced, inverted, or added.",
+    "direction_and_route": "Exact V18 direction, acceptance/failure branch, basis-breadth route, and multiscale ownership attribution.",
+    "adverse_first_exit": "Only the frozen Stage-76 actionable adverse-first cohort exits at its exact next-minute MCL open. Structural decision is checked before the existing failed-auction profit-memory owner on that minute.",
+    "all_other_positions": "Exact V18 failed-auction 0.5-percent activation/25-percent MFE retention, raw-turn invalidation, contract roll, and period boundary.",
+    "after_abort": "Remain flat until the next authentic V18 admission; no re-entry.",
+    "marking": "Complete dated-MCL one-minute high/low MFE and MAE, multiplier 100, conservative structural-before-intrabar ordering."
+  },
+  "costs": {
+    "primary_round_trip_usd": 3.52,
+    "stress_round_trip_usd": 5.52
+  },
+  "discovery_gates": {
+    "annualized_trades_between": [
+      160,
+      520
+    ],
+    "primary_and_stress_net_positive": true,
+    "primary_and_stress_profit_factor_min": [
+      1.2,
+      1.1
+    ],
+    "primary_and_stress_pnl_to_intrabar_drawdown_min": [
+      1.5,
+      1.0
+    ],
+    "stress_directions_branches_gth_rth_and_fast_slow_mature_ownership_positive": true,
+    "stress_positive_months_min": 8,
+    "stress_positive_quarters_min": 3,
+    "largest_positive_month_share_max": 0.4,
+    "candidate_primary_and_stress_net_vs_control_min_ratio": 0.85,
+    "candidate_primary_and_stress_profit_factor_not_below_control": true,
+    "candidate_primary_and_stress_pnl_to_drawdown_vs_control_min_ratio": 1.2,
+    "candidate_primary_and_stress_intrabar_drawdown_vs_control_max_ratio": 0.8
+  },
+  "validation_and_full_gates": {
+    "both_costs_positive": true,
+    "candidate_primary_and_stress_net_vs_control_min_ratio": 0.85,
+    "profit_factor_and_pnl_to_drawdown_not_below_control": true,
+    "intrabar_drawdown_not_above_control": true,
+    "stress_directions_branches_gth_rth_and_fast_slow_mature_ownership_positive": true
+  },
+  "selection_law": "Open validation only if action/control/abort identity and every discovery gate pass. Validation and full prefix must each pass the exact transfer gates; there is no neighbor or fallback. Missing July-2023 through August-2024 still forbids a crown even on complete success.",
+  "prohibitions": [
+    "no first-passage magnitude, timing, persistence, bar-count, book subset, favorable/adverse subset, entry-delay, or confirmation neighbor",
+    "no V18 admission, direction, branch, route, parity, maturation, cadence, roll, cost, profit-memory, or ordinary-exit change",
+    "no ATR, slope, velocity, basis, phase, session, stop, target, timeout, reverse, add-on, re-entry, sizing, news, or quota rescue",
+    "no validation outcome unless every discovery gate passes",
+    "no order or capital authority"
+  ],
+  "submitted_orders": 0
+}

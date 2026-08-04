@@ -1053,7 +1053,15 @@ transition through today’s close; no order will be forced merely to populate t
   direction. Favorable-first graduates to unchanged V18; adverse-first may only
   abort at the next minute; disagreement waits. Both periods must pass exact
   identity, resolution, adverse breadth across direction/branch/lane/multiscale
-  ownership, meaningful lead, and unchanged cadence/density before PnL.
+  ownership, meaningful lead, and unchanged cadence/density before PnL. V76
+  count `e9a3334d…` passed every gate: all `167/171` trades resolved; favorable-
+  first was `87/87`, adverse-first `80/84`, with both directions/branches/GTH-
+  RTH and fast/slow/mature ownership; `78/79` adverse events led the original
+  exit by >=30m, with median lead `354/234m`. Receipt `38138d71…`. V77
+  preregistration `bf9acc28…` / evaluator `0c96e5dd…` freezes the sole lifecycle:
+  abort that exact cohort next minute, retain every other V18 behavior, require
+  >=85% of control net plus >=20% PnL/DD improvement and >=20% DD reduction in
+  discovery before validation opens.
 - `[PRESERVED RUNNER-UP]` **Tri-asset narrative-dispersion compression:** test
   whether convergence among easing-negative XSP pressure, weakening-positive
   MCL pressure, and weakly reversing-positive Gold pressure predicts
@@ -1765,6 +1773,13 @@ and stable bootstrap evidence. Neither may be refactored into looking mature.
     live probation. It differs from delayed add-on confirmation: capital enters
     immediately, no signal is vetoed, and adverse-first can only exit next minute.
     Count/breadth/lead/cadence proof precedes every dollar of replay.
+    V76 `e9a3334d…` passed all count gates with adverse-first `80/84` and
+    favorable-first `87/87`; receipt
+    `mcl_dual_book_first_passage_census_receipt.json` (`38138d71…`). V77
+    preregistration `mcl_dual_book_first_passage_lifecycle_preregistration.json`
+    (`bf9acc28…`) / evaluator `0c96e5dd…` freezes exact next-minute aborts and
+    unchanged V18 otherwise. Discovery must retain >=85% control net while
+    improving PnL/DD and DD by >=20%; only a complete pass may expose validation.
     Missing July-2023–August-2024 remains a hard crown blocker; no quota, order,
     or capital authority.
 
@@ -2160,6 +2175,7 @@ and
 | E-467 | V75 preregistration `mcl_event_time_slow_epoch_surrender_census_preregistration.json` (`5656b7ff…`) / evaluator `da4435df…` freezes a materially distinct lifecycle sensor before counts. Every exact V18 admission, direction, branch, next-minute entry, raw-turn/roll/period boundary, and natural density remains. A ready event-time slow owner is labeled aligned or opposed at entry; its first completed-bar flip while the V18 position is still open becomes `financing_lost` or `opposition_surrendered`. The future candidate may only exit at the next matched-MCL minute; it cannot suppress, reverse, add, re-enter, or inherit slow direction. Discovery and validation-count must independently retain `160–520/year`, >=95% readiness, `20–100` transitions, both types/directions/branches/lanes/entry ownership, >=30m meaningful lead, and unchanged density before any PnL opens. No transition subset, delay, horizon, state, price, indicator, cost, news, quota, order, or capital sweep |
 | E-468 | V75 count `2dd0014e…` rejected the symmetric slow-epoch exit before any PnL/MFE/MAE opened. Exact V18 identity/cadence remained `167/171`; readiness was `99.4%/100%`; total transitions were `36/26`; directions, branches, GTH/RTH, aligned/opposed ownership, >=30m lead, and density all passed. Financing loss was broad at `29/20`, but the separately required opposition-surrender cohort had only `7/6<8`; median transition-to-original-exit lead was still `515/380m`. Receipt `mcl_event_time_slow_epoch_surrender_census_rejection.json` (`1227ca61…`) closes floor relaxation, financing-only subset rescue, transition delay/persistence/age/horizon tuning, and slow-flip exit economics. The asymmetry is evidence, not authority: preserve V18 unchanged and seek a materially distinct causal state owner. Orders/capital and live XSP/Gold/news remain unchanged |
 | E-469 | V76 preregistration `mcl_dual_book_first_passage_census_preregistration.json` (`f0e74fad…`) / evaluator `3b38ff3f…` freezes a high-energy fail-fast state before counts. Every V18 admission enters at the exact next MCL open with unchanged direction, branch, costs, roll, raw-turn boundary, failed-auction memory, and cadence. From that open, cumulative CL and MCL movement races causally: first joint V18-direction movement graduates to unchanged V18; first joint adverse movement may abort at the next minute; disagreement stays in probation. Unlike rejected V47, no entry is delayed/suppressed and no add-on signal exists. Both periods must retain `160–520/year`, >=95% resolution, >=60 favorable-first, `20–100` actionable adverse-first, both directions/branches/GTH-RTH and fast/slow-financed/mature-opposition ownership, >=15 events with 30m lead, and unchanged density before PnL/MFE/MAE. No magnitude, timing, book subset, indicator, state, threshold, outcome, news, order, or capital sweep |
+| E-470 | V76 count `e9a3334d…` passed every frozen gate with exact V18 identity and no PnL/MFE/MAE. All `167/171` trades resolved causally: favorable-first `87/87`, actionable adverse-first `80/84`; adverse directions were `34/46` and `42/42`, branches `12/68` and `11/73`, GTH/RTH `56/24` and `58/26`, and fast/mature/slow ownership `21/22/36` and `20/21/43`. `78/79` adverse events led the original exit by >=30m; median first passage was the entry minute with `354/234m` median lead. Receipt `mcl_dual_book_first_passage_census_receipt.json` (`38138d71…`). V77 preregistration `mcl_dual_book_first_passage_lifecycle_preregistration.json` (`bf9acc28…`) / evaluator `0c96e5dd…` freezes only those next-minute adverse aborts; all other V18 behavior remains exact. Discovery must retain >=85% primary/stress control net, not lower PF, improve PnL/DD by >=20%, reduce DD by >=20%, and pass every absolute/cohort/temporal gate before validation opens. Missing first year, order, capital, XSP, Gold, and news authority remain unchanged |
 
 ### Decision anchors
 
