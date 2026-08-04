@@ -1,0 +1,390 @@
+{
+  "admitted_routes": {},
+  "admitted_turns": 0,
+  "authority": "prospective_count_and_morphology_only_no_outcomes_no_orders_no_capital",
+  "complete_raw_turns": 0,
+  "directions": {},
+  "eligible_treatment_start_utc": "2026-08-04T06:45:00+00:00",
+  "evaluator_sha256": "089afb9ee4429b34d636ae4667bec51c100d9f7561fd732c767cc09a569e5d3d",
+  "event_owner_sha256": "71373f19591486ce4fe8f2d8d9d29ae31b9f37dddd7e40d5ccef0ed812390b3f",
+  "event_prefix": {
+    "first_bucket_utc": "2026-08-04T04:49:34+00:00",
+    "generation_failures": 0,
+    "generation_sha256": "b3805c9f95713a13c26cb0ada08dc043f00069f42177212d3c575abe28c3ee7f",
+    "hash_failures": 0,
+    "invalid_records": 0,
+    "last_bucket_utc": "2026-08-04T06:54:56+00:00",
+    "late_records": 0,
+    "prefix_end_exclusive_utc": "2026-08-04T06:54:57+00:00",
+    "records": 5498
+  },
+  "event_prefix_sha256": "cf7e82066a8d22aa0d8222d3ea72c8a9d10f0a6acd881ba5c33209a5fb055eed",
+  "gates": {
+    "at_least_10_each_raw_direction": false,
+    "at_least_20_admitted_turns": false,
+    "at_least_30_complete_raw_turns": false,
+    "at_least_5_each_admitted_route": false,
+    "exact_historical_v18_identity": true,
+    "prefix_identity": true
+  },
+  "generated_at_utc": "2026-08-04T06:55:21.486891+00:00",
+  "historical_identity": {
+    "admissions": 338,
+    "raw_turns": 1493
+  },
+  "manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+  "outcomes_exposed": false,
+  "post_generation_raw_turns": 0,
+  "preregistration_sha256": "cc694029267a5024b42eab5c4e8086a1c771aa4032a3961d3862bfb4e78f3bec",
+  "schema": "mcl.predictive-intelligence-prospective-event-join.v1",
+  "service_invocation": {
+    "exec_main_start_utc": "2026-08-04T04:49:31+00:00",
+    "invocation_id": "60d5377f917c4edaa980b3aed89bf9e8",
+    "restarts_at_freeze": 0,
+    "state_at_freeze": "active/running",
+    "unit": "tradebot-mcl-turn-tape.service"
+  },
+  "snapshot_sha256": "b150879efb5c791cce3804b3ddd3b9dd041d3e4302a112036b6bc4d1516fdd31",
+  "submitted_orders": 0,
+  "tape": {
+    "appended_common_bars": 565,
+    "appended_first_close_utc": "2026-08-03T20:27:00+00:00",
+    "appended_last_close_utc": "2026-08-04T06:52:00+00:00",
+    "historical": {
+      "duplicates": 0,
+      "first": "2024-08-04T22:01:00+00:00",
+      "last": "2026-08-03T20:26:00+00:00",
+      "pairs": [
+        {
+          "common_rows": 9653,
+          "missing_mcl_at_cl_timestamp": 0,
+          "selected_cl_rows": 9653,
+          "suffix": "U4"
+        },
+        {
+          "common_rows": 31568,
+          "missing_mcl_at_cl_timestamp": 0,
+          "selected_cl_rows": 31568,
+          "suffix": "V4"
+        },
+        {
+          "common_rows": 30338,
+          "missing_mcl_at_cl_timestamp": 0,
+          "selected_cl_rows": 30338,
+          "suffix": "X4"
+        },
+        {
+          "common_rows": 28959,
+          "missing_mcl_at_cl_timestamp": 0,
+          "selected_cl_rows": 28959,
+          "suffix": "Z4"
+        },
+        {
+          "common_rows": 28676,
+          "missing_mcl_at_cl_timestamp": 0,
+          "selected_cl_rows": 28676,
+          "suffix": "F5"
+        },
+        {
+          "common_rows": 27386,
+          "missing_mcl_at_cl_timestamp": 0,
+          "selected_cl_rows": 27386,
+          "suffix": "G5"
+        },
+        {
+          "common_rows": 31568,
+          "missing_mcl_at_cl_timestamp": 0,
+          "selected_cl_rows": 31568,
+          "suffix": "H5"
+        },
+        {
+          "common_rows": 27431,
+          "missing_mcl_at_cl_timestamp": 0,
+          "selected_cl_rows": 27431,
+          "suffix": "J5"
+        },
+        {
+          "common_rows": 30338,
+          "missing_mcl_at_cl_timestamp": 0,
+          "selected_cl_rows": 30338,
+          "suffix": "K5"
+        },
+        {
+          "common_rows": 27580,
+          "missing_mcl_at_cl_timestamp": 0,
+          "selected_cl_rows": 27580,
+          "suffix": "M5"
+        },
+        {
+          "common_rows": 30189,
+          "missing_mcl_at_cl_timestamp": 0,
+          "selected_cl_rows": 30189,
+          "suffix": "N5"
+        },
+        {
+          "common_rows": 31329,
+          "missing_mcl_at_cl_timestamp": 0,
+          "selected_cl_rows": 31329,
+          "suffix": "Q5"
+        },
+        {
+          "common_rows": 28959,
+          "missing_mcl_at_cl_timestamp": 0,
+          "selected_cl_rows": 28959,
+          "suffix": "U5"
+        },
+        {
+          "common_rows": 31568,
+          "missing_mcl_at_cl_timestamp": 0,
+          "selected_cl_rows": 31568,
+          "suffix": "V5"
+        },
+        {
+          "common_rows": 28959,
+          "missing_mcl_at_cl_timestamp": 0,
+          "selected_cl_rows": 28959,
+          "suffix": "X5"
+        },
+        {
+          "common_rows": 30338,
+          "missing_mcl_at_cl_timestamp": 0,
+          "selected_cl_rows": 30338,
+          "suffix": "Z5"
+        },
+        {
+          "common_rows": 28676,
+          "missing_mcl_at_cl_timestamp": 0,
+          "selected_cl_rows": 28676,
+          "suffix": "F6"
+        },
+        {
+          "common_rows": 26007,
+          "missing_mcl_at_cl_timestamp": 0,
+          "selected_cl_rows": 26007,
+          "suffix": "G6"
+        },
+        {
+          "common_rows": 32947,
+          "missing_mcl_at_cl_timestamp": 0,
+          "selected_cl_rows": 32947,
+          "suffix": "H6"
+        },
+        {
+          "common_rows": 27427,
+          "missing_mcl_at_cl_timestamp": 0,
+          "selected_cl_rows": 27427,
+          "suffix": "J6"
+        },
+        {
+          "common_rows": 28959,
+          "missing_mcl_at_cl_timestamp": 0,
+          "selected_cl_rows": 28959,
+          "suffix": "K6"
+        },
+        {
+          "common_rows": 27580,
+          "missing_mcl_at_cl_timestamp": 0,
+          "selected_cl_rows": 27580,
+          "suffix": "M6"
+        },
+        {
+          "common_rows": 31568,
+          "missing_mcl_at_cl_timestamp": 0,
+          "selected_cl_rows": 31568,
+          "suffix": "N6"
+        },
+        {
+          "common_rows": 29860,
+          "missing_mcl_at_cl_timestamp": 0,
+          "selected_cl_rows": 29860,
+          "suffix": "Q6"
+        },
+        {
+          "common_rows": 19273,
+          "missing_mcl_at_cl_timestamp": 0,
+          "selected_cl_rows": 19273,
+          "suffix": "U6"
+        }
+      ],
+      "roll_mode": "dual_volume",
+      "rolls": [
+        {
+          "boundary": "2024-08-14",
+          "forced": "2024-08-14",
+          "from": "U4",
+          "to": "V4",
+          "volume_cross": null
+        },
+        {
+          "boundary": "2024-09-16",
+          "forced": "2024-09-16",
+          "from": "V4",
+          "to": "X4",
+          "volume_cross": null
+        },
+        {
+          "boundary": "2024-10-16",
+          "forced": "2024-10-16",
+          "from": "X4",
+          "to": "Z4",
+          "volume_cross": null
+        },
+        {
+          "boundary": "2024-11-14",
+          "forced": "2024-11-14",
+          "from": "Z4",
+          "to": "F5",
+          "volume_cross": null
+        },
+        {
+          "boundary": "2024-12-13",
+          "forced": "2024-12-13",
+          "from": "F5",
+          "to": "G5",
+          "volume_cross": null
+        },
+        {
+          "boundary": "2025-01-14",
+          "forced": "2025-01-14",
+          "from": "G5",
+          "to": "H5",
+          "volume_cross": null
+        },
+        {
+          "boundary": "2025-02-14",
+          "forced": "2025-02-14",
+          "from": "H5",
+          "to": "J5",
+          "volume_cross": null
+        },
+        {
+          "boundary": "2025-03-14",
+          "forced": "2025-03-14",
+          "from": "J5",
+          "to": "K5",
+          "volume_cross": null
+        },
+        {
+          "boundary": "2025-04-15",
+          "forced": "2025-04-15",
+          "from": "K5",
+          "to": "M5",
+          "volume_cross": null
+        },
+        {
+          "boundary": "2025-05-14",
+          "forced": "2025-05-14",
+          "from": "M5",
+          "to": "N5",
+          "volume_cross": null
+        },
+        {
+          "boundary": "2025-06-13",
+          "forced": "2025-06-13",
+          "from": "N5",
+          "to": "Q5",
+          "volume_cross": null
+        },
+        {
+          "boundary": "2025-07-16",
+          "forced": "2025-07-16",
+          "from": "Q5",
+          "to": "U5",
+          "volume_cross": null
+        },
+        {
+          "boundary": "2025-08-14",
+          "forced": "2025-08-14",
+          "from": "U5",
+          "to": "V5",
+          "volume_cross": null
+        },
+        {
+          "boundary": "2025-09-16",
+          "forced": "2025-09-16",
+          "from": "V5",
+          "to": "X5",
+          "volume_cross": null
+        },
+        {
+          "boundary": "2025-10-15",
+          "forced": "2025-10-15",
+          "from": "X5",
+          "to": "Z5",
+          "volume_cross": null
+        },
+        {
+          "boundary": "2025-11-14",
+          "forced": "2025-11-14",
+          "from": "Z5",
+          "to": "F6",
+          "volume_cross": null
+        },
+        {
+          "boundary": "2025-12-15",
+          "forced": "2025-12-15",
+          "from": "F6",
+          "to": "G6",
+          "volume_cross": null
+        },
+        {
+          "boundary": "2026-01-13",
+          "forced": "2026-01-13",
+          "from": "G6",
+          "to": "H6",
+          "volume_cross": null
+        },
+        {
+          "boundary": "2026-02-16",
+          "forced": "2026-02-16",
+          "from": "H6",
+          "to": "J6",
+          "volume_cross": null
+        },
+        {
+          "boundary": "2026-03-16",
+          "forced": "2026-03-16",
+          "from": "J6",
+          "to": "K6",
+          "volume_cross": null
+        },
+        {
+          "boundary": "2026-04-15",
+          "forced": "2026-04-15",
+          "from": "K6",
+          "to": "M6",
+          "volume_cross": null
+        },
+        {
+          "boundary": "2026-05-13",
+          "forced": "2026-05-13",
+          "from": "M6",
+          "to": "N6",
+          "volume_cross": null
+        },
+        {
+          "boundary": "2026-06-15",
+          "forced": "2026-06-15",
+          "from": "N6",
+          "to": "Q6",
+          "volume_cross": null
+        },
+        {
+          "boundary": "2026-07-15",
+          "forced": "2026-07-15",
+          "from": "Q6",
+          "to": "U6",
+          "volume_cross": null
+        }
+      ],
+      "rows": 707136,
+      "within_session_gap_minutes": {}
+    },
+    "historical_last_common_close_utc": "2026-08-03T20:26:00+00:00",
+    "snapshot_cutoff_utc": "2026-08-04T06:52:00+00:00",
+    "snapshot_id": "54bc19c5a07657c624e3e12ba08f5752d70b0003a14c0b00ac2598cb671b9e60"
+  },
+  "treatments": [],
+  "v18_owner_sha256": "0a8d182c7a437c918fe24f8d5775a14192b55bf0791adeb28de582bec7f66b7b",
+  "verdict": "ACCUMULATE"
+}
