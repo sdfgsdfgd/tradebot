@@ -1,0 +1,114 @@
+{
+  "schema": "mcl.shock-crest-stage113-first-prospective-episode-accumulation.v1",
+  "recorded_at_utc": "2026-08-04T23:31:20Z",
+  "authority": "prospective_morphology_only_no_outcomes_no_orders_no_capital",
+  "hawkeye_checkpoint": "4_of_6",
+  "generation_id": "fd2dd70f9238a0ea423d9e7fe4c7317ca80aab93ba79488ab163223cfe6b3756",
+  "selection_id": "083ecba8798ea6e60f32b1c42d4896e1a016703a77eeac2f32ac7ce3f5d54a91",
+  "frozen_prefix": {
+    "cutoff_utc": "2026-08-04T23:25:42+00:00",
+    "event_records": 1898,
+    "event_record_ids_sha256": "3759b2344b79380a992cfeb2cfff5c8addfde8357206f62d669b8dc323d4ae86",
+    "bar_cutoff_utc": "2026-08-04T23:25:00+00:00",
+    "bar_rows": 5605,
+    "bar_sha256": "276fe73906d2a5e828b451f993fc1c9cb18ca31f91f7ad6cd6d3d43fbcd77b5c",
+    "eligible_observations": 312,
+    "natural_and_replay_prefix_identity": true,
+    "whole_file_hash_note": {
+      "natural_invocation_sha256": "eb545a16f1890f79f15daf43926b941df8ddaa61b5ff7fdaa3df3e12ec8bdf5b",
+      "fixed_cutoff_replay_sha256": "ce23c0b0004e5b90da572627ba6c7541d4ebf19cc2d6ed0b27fab52df8ca97ba",
+      "meaning": "The source JSONL continued appending after the natural invocation. Prefix identity is the unchanged selected record-ID SHA plus finalized-bar SHA; whole-file SHA is a mutable container hash."
+    }
+  },
+  "evaluator": {
+    "path_on_q": "/var/tmp/mcl_stage113_first_prospective_episode.py",
+    "sha256": "d880b5ad62611a08ee92453db2b26fc25e34ac1313268af4a8a19a3806472d70"
+  },
+  "result": {
+    "path_on_q": "/var/tmp/mcl-stage113-first-prospective-episode.json",
+    "sha256": "06dad925fc144b68801c9b1c835c0636d9889c0b72608865be4b869aeaca5288"
+  },
+  "episode": {
+    "started_at_utc": "2026-08-04T23:15:28+00:00",
+    "first_valid_volume_multiple": 8.733333333333333,
+    "shock_direction": "down",
+    "maximum_level": "MAJOR_PROTECT_10_TO_12X",
+    "maximum_volume_multiple": 11.666666666666666,
+    "maximum_volume_at_utc": "2026-08-04T23:15:54+00:00",
+    "episode_records_at_frozen_prefix": 106,
+    "episode_record_ids_sha256": "f60449d0d961175fc1e315edc9bea1948ba0c4e4bd278a6f153e356314fe30e2",
+    "causal_crest_at_utc": "2026-08-04T23:16:05+00:00",
+    "first_complete_post_crest_reacceleration_except_12x": {
+      "observed_at_utc": "2026-08-04T23:18:47+00:00",
+      "volume_multiple": 1.1071428571428572,
+      "joint_speed_ticks_per_second": 0.7916666666663019,
+      "prior_joint_speed_ticks_per_second": 0.7083333333331628,
+      "all_cl_mcl_5s_15s_60s_15m_velocity_acceleration_and_flow_aligned_down": true,
+      "continuation_emitted": false,
+      "reason": "The episode never reached the frozen 12x tradeable level."
+    },
+    "prefix_microprice_path": {
+      "first": 75.114,
+      "maximum": 75.18199999999999,
+      "maximum_at_utc": "2026-08-04T23:15:53+00:00",
+      "minimum": 75.09454545454545,
+      "minimum_at_utc": "2026-08-04T23:21:55+00:00",
+      "last": 75.124,
+      "last_at_utc": "2026-08-04T23:25:27+00:00"
+    },
+    "reached_tradeable_12x": false,
+    "reached_regime_20x": false,
+    "continuation_emitted": false,
+    "open_at_frozen_prefix": true,
+    "interpretation": "This is the first genuine prospective Stage-113 episode. Exceptional flow created a coherent down warning and causal crest, but volume stopped below 12x and the subsequent path was rotational. The frozen hierarchy correctly preserves major countertrend protection without manufacturing a continuation trade."
+  },
+  "first_natural_follow_up": {
+    "cutoff_utc": "2026-08-04T23:30:00+00:00",
+    "last_event_bucket_utc": "2026-08-04T23:30:38+00:00",
+    "event_records": 1987,
+    "event_record_ids_sha256": "1fb7418af7745213d4a55bade1c5de0bc77201977a5f3883f327b68a10a94cae",
+    "bar_rows": 5610,
+    "bar_sha256": "eb60aed3165792e4ac51a4f1d1b01b4372857580b96c24eba842e2e95233371b",
+    "open_episode_records": 114,
+    "maximum_volume_multiple": 11.666666666666666,
+    "episode_still_open": true,
+    "continuation_count": 0,
+    "complete_episode_count": 0
+  },
+  "stage112_live": {
+    "source_checkpoint_id": "2386dec7069aef5edd27f2f5b3cbfbeb7580c1720f1984c6f33fb9b1f80f5030",
+    "execution_checkpoint_id": "3b2d16922714a7eae6e711237f5aa1d8a9dd3f6ab06bbdf1fa5c1d84cb882591",
+    "latest_decision_at_utc": "2026-08-04T23:30:00+00:00",
+    "decision": "weak_direction",
+    "trend_state": "down",
+    "target": null,
+    "position": 0,
+    "open_orders": 0,
+    "fills": 0,
+    "closed_trades": 0,
+    "run_net_usd": 0.0,
+    "drawdown_usd": 0.0,
+    "safety_breaches": [],
+    "submitted_orders": 0
+  },
+  "cohorts": {
+    "stage113_complete_episodes": 0,
+    "stage113_required_complete_episodes": 30,
+    "stage87_to_90_complete_turns": 3,
+    "stage87_to_90_required_complete_turns": 30
+  },
+  "invariants": {
+    "stage112_live_changed": false,
+    "stage113_thresholds_changed": false,
+    "twelve_x_rounded_or_lowered": false,
+    "future_return_exposed": false,
+    "pnl_exposed": false,
+    "market_orders_permitted": false,
+    "direction_authority": "none",
+    "timing_authority": "none",
+    "order_authority": "none",
+    "capital_authority": "none"
+  },
+  "outcomes_exposed": false,
+  "submitted_orders": 0
+}
