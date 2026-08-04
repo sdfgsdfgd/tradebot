@@ -34,8 +34,8 @@ from .mcl_live_transport import (
     MCL_LIVE_LEDGER_PATH,
     MCL_LIVE_SOURCE_SCHEMA,
     MCL_LIVE_SOURCE_VERSION,
+    _bar_map,
     load_mcl_live_selection_from_mapping,
-    mcl_finalized_minute_source,
     mcl_live_contracts,
 )
 from .mcl_predictive_onset import (
@@ -386,6 +386,38 @@ def _read_event_window(
         "prefix_end_exclusive_utc": (last + timedelta(seconds=1)).isoformat(),
         "generation_sha256": expected_generation_sha256,
         "window_sha256": _identity([row.get("record_id") for row in rows]),
+    }
+
+async def _recent_bars(
+    client: IBKRClient, *, cl_contract, mcl_contract, observed_at: datetime
+) -> tuple[dict[str, dict[datetime, OhlcvBar]], dict[str, object]]:
+    now = _utc(observed_at)
+    raw = await asyncio.gather(
+        *(
+            client.historical_bars_ohlcv(
+                contract,
+                duration_str="3 D",
+                bar_size="1 min",
+                use_rth=False,
+                what_to_show="TRADES",
+                cache_ttl_sec=0,
+            )
+            for contract in (cl_contract, mcl_contract)
+        )
+    )
+    cutoff = now.replace(second=0, microsecond=0)
+    maps = {
+        symbol: _bar_map(rows, cutoff=cutoff, name=f"predictive {symbol}")
+        for symbol, rows in zip(("CL", "MCL"), raw, strict=True)
+    }
+    common = sorted(set(maps["CL"]) & set(maps["MCL"]))
+    if len(common) < 500 or not 0 <= (now - common[-1]).total_seconds() <= 8 * 60:
+        raise ValueError("MCL predictive finalized bars are incomplete or stale")
+    return maps, {
+        "cutoff_utc": cutoff.isoformat(),
+        "first_common_close_utc": common[0].isoformat(),
+        "last_common_close_utc": common[-1].isoformat(),
+        "common_rows": len(common),
     }
 
 def _mcl_session(stamp: datetime) -> date | None:
@@ -790,7 +822,7 @@ async def advance_mcl_predictive_accumulator(
     await client.connect()
     try:
         cl_contract, mcl_contract = mcl_live_contracts(selected)
-        fresh, snapshot = await mcl_finalized_minute_source(
+        fresh, snapshot = await _recent_bars(
             client,
             cl_contract=cl_contract,
             mcl_contract=mcl_contract,

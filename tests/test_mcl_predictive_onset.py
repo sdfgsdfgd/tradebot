@@ -690,7 +690,6 @@ def test_predictive_cohort_never_opens_outcomes_implicitly() -> None:
 def test_predictive_accumulator_service_is_separate_read_only_and_bounded() -> None:
     root = Path(__file__).resolve().parents[1]
     source = root / "tradebot/research/mcl_predictive_accumulator.py"
-    live_source = (root / "tradebot/research/mcl_live_transport.py").read_text()
     tree = ast.parse(source.read_text(), filename=str(source))
     calls = {
         node.func.attr
@@ -710,9 +709,7 @@ def test_predictive_accumulator_service_is_separate_read_only_and_bounded() -> N
         "preview_limit_order",
         "submit_order",
     }
-    assert "historical_bars_ohlcv" not in source.read_text()
-    assert "mcl_finalized_minute_source" in source.read_text()
-    assert "mcl_finalized_minute_source" in live_source
+    assert "historical_bars_ohlcv" in source.read_text()
     assert "Environment=IBKR_READONLY=1" in service
     assert "mcl_predictive_accumulator" in service
     assert "tradebot-mcl-live.service" not in service
