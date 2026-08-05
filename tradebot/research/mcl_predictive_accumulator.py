@@ -636,7 +636,7 @@ def _replay_treatment(
     recent_minutes: Sequence[MclPredictiveMinute],
     weekly_prior: MclWeeklyPrior | None,
     news: MclOnsetNewsContext | None,
-) -> tuple[object, object, object]:
+) -> tuple[object, object | None, object]:
     turn = _utc(candidate["observed_at_utc"])
     engine = MclTwoSpeedAuctionEngine()
     minute_rows = []
@@ -671,8 +671,8 @@ def _replay_treatment(
         previous = row
         if row.ts >= turn + timedelta(minutes=5):
             break
-    if raw is None or maturation is None or completed is None:
-        raise ValueError("MCL predictive replay did not complete raw turn and maturation")
+    if raw is None or completed is None:
+        raise ValueError("MCL predictive replay did not reproduce the raw turn")
     return raw, maturation, completed
 
 
@@ -867,9 +867,14 @@ async def advance_mcl_predictive_accumulator(
             raw_turn_at_utc=turn,
             raw_direction=int(raw.raw_direction),
             proposed=raw.proposed_direction is not None,
-            admitted=maturation.admitted_direction is not None,
-            route=maturation.route,
-            routed_direction=maturation.admitted_direction,
+            admitted=(
+                maturation is not None
+                and maturation.admitted_direction is not None
+            ),
+            route=maturation.route if maturation is not None else None,
+            routed_direction=(
+                maturation.admitted_direction if maturation is not None else None
+            ),
             event_morphology=event,
             velocity_jerk=velocity,
             completed_bar=completed,
@@ -881,7 +886,9 @@ async def advance_mcl_predictive_accumulator(
                 "source_checkpoint_id": candidate["source_checkpoint_id"],
                 "source_event_id": candidate["event_id"],
                 "raw_decision": raw.as_payload(),
-                "maturation_decision": maturation.as_payload(),
+                "maturation_decision": (
+                    maturation.as_payload() if maturation is not None else None
+                ),
                 "event_window": event_evidence,
                 "finalized_snapshot": snapshot,
                 "historical_context": manifest,

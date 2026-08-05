@@ -30,6 +30,18 @@ from tradebot.research.mcl_shock_evidence import (
     _slow_context,
     build_mcl_shock_observations,
 )
+from tradebot.research.mcl_shock_waves import (
+    MCL_SHOCK_WAVE_AUTHORITY,
+    MCL_SHOCK_WAVE_VERSION,
+    MclAuthorityBoundShockWaveEngine,
+    mcl_shock_full_alignment,
+)
+from tradebot.research.mcl_shock_wave_accumulator import (
+    MCL_SHOCK_WAVE_GENERATION_PATH,
+    load_mcl_shock_wave_generation,
+    mcl_shock_wave_cohort,
+    replay_mcl_shock_wave_episodes,
+)
 from tradebot.research.mcl_minute_shock import MclMinuteShockEngine, MclShockMinute
 
 
@@ -274,6 +286,166 @@ def test_time_must_increase_and_contract_roll_resets_state() -> None:
     assert rolled.shock_direction is None
 
 
+def test_stage114_attention_is_directionless_until_full_major_alignment() -> None:
+    engine = MclAuthorityBoundShockWaveEngine()
+
+    attention = engine.update(
+        _observation(0, multiple=6.1, velocity=2.0, price=80.0)
+    )
+    bound = engine.update(
+        _observation(1, multiple=10.1, velocity=-3.0, price=79.9)
+    )
+
+    assert attention.event == "ATTENTION_OPENED"
+    assert attention.authority_direction is None
+    assert attention.wave_sequence == 0
+    assert bound.event == "AUTHORITY_BOUND"
+    assert bound.authority_direction == -1
+    assert bound.authority_level == "MAJOR_PROTECT_10_TO_12X"
+    assert bound.wave_sequence == 1
+    assert bound.crest is not None
+    assert bound.crest.shock_direction == -1
+    assert bound.as_payload()["schema"] == MCL_SHOCK_WAVE_VERSION
+    assert bound.as_payload()["authority"] == MCL_SHOCK_WAVE_AUTHORITY
+    assert bound.as_payload()["submitted_orders"] == 0
+
+
+def test_stage114_only_higher_level_opposite_alignment_hands_off() -> None:
+    engine = MclAuthorityBoundShockWaveEngine()
+    bound = engine.update(
+        _observation(0, multiple=10.1, velocity=-5.0, price=80.0)
+    )
+    same_level_opposite = engine.update(
+        _observation(1, multiple=11.0, velocity=4.0, price=80.1)
+    )
+    handoff = engine.update(
+        _observation(2, multiple=12.1, velocity=3.0, price=80.2)
+    )
+
+    assert bound.authority_direction == -1
+    assert same_level_opposite.authority_direction == -1
+    assert same_level_opposite.event != "AUTHORITY_HANDOFF"
+    assert handoff.event == "AUTHORITY_HANDOFF"
+    assert handoff.handoff_from_direction == -1
+    assert handoff.authority_direction == 1
+    assert handoff.authority_level == "TRADEABLE_SHOCK_12_TO_20X"
+    assert handoff.wave_sequence == 2
+    assert handoff.crest is not None
+    assert handoff.crest.shock_direction == 1
+    assert handoff.crest.crest_at_utc is None
+
+
+def test_stage114_requires_fresh_complete_alignment_for_every_binding() -> None:
+    down = _book(-2.0)
+    up = _book(2.0)
+    mixed = MclShockObservation(
+        observed_at_utc=START,
+        contract_key="202608",
+        mcl_microprice=80.0,
+        volume_multiple=10.1,
+        cl=down,
+        mcl=up,
+    )
+    stale = MclShockObservation(
+        observed_at_utc=START + timedelta(seconds=1),
+        contract_key="202608",
+        mcl_microprice=79.9,
+        volume_multiple=10.2,
+        cl=down,
+        mcl=down,
+        fresh_top=False,
+    )
+    engine = MclAuthorityBoundShockWaveEngine()
+
+    assert mcl_shock_full_alignment(mixed) is None
+    assert mcl_shock_full_alignment(stale) is None
+    assert engine.update(mixed).event == "AUTHORITY_PENDING"
+    pending = engine.update(stale)
+    assert pending.authority_direction is None
+    assert pending.wave_sequence == 0
+
+
+def test_stage114_same_direction_escalation_keeps_one_wave() -> None:
+    engine = MclAuthorityBoundShockWaveEngine()
+    engine.update(_observation(0, multiple=10.1, velocity=-2.0, price=80.0))
+
+    escalated = engine.update(
+        _observation(1, multiple=20.1, velocity=-4.0, price=79.8)
+    )
+
+    assert escalated.event == "AUTHORITY_ESCALATED"
+    assert escalated.authority_direction == -1
+    assert escalated.authority_level == "REGIME_20X_PLUS"
+    assert escalated.wave_sequence == 1
+
+
+def test_stage114_episode_preserves_each_authoritative_wave() -> None:
+    observations = [
+        _observation(0, multiple=6.1, velocity=2.0, price=80.0),
+        _observation(1, multiple=10.1, velocity=-4.0, price=79.8),
+        _observation(2, multiple=12.1, velocity=3.0, price=80.0),
+        _observation(4, multiple=1.0, velocity=0.0, price=80.0),
+    ]
+    source = [_episode_row(index) for index in (0, 1, 2, 4)]
+    complete, opened = replay_mcl_shock_wave_episodes(
+        list(zip(source, observations, strict=True)),
+        resets=[{"at_utc": START + timedelta(seconds=3), "reasons": ["release"]}],
+        generation=_episode_generation(),
+        rows=source,
+        bars=_episode_bars(),
+    )
+
+    assert opened is None
+    assert len(complete) == 1
+    episode = complete[0]
+    assert episode["initial_authority_direction"] == -1
+    assert episode["terminal_authority_direction"] == 1
+    assert episode["reached_tradeable_12x"] is True
+    assert [wave["event"] for wave in episode["authority_waves"]] == [
+        "AUTHORITY_BOUND",
+        "AUTHORITY_HANDOFF",
+    ]
+    assert [wave["direction"] for wave in episode["authority_waves"]] == [-1, 1]
+    assert episode["authority_waves"][1]["handoff_from_direction"] == -1
+    assert episode["outcomes_exposed"] is False
+    assert episode["submitted_orders"] == 0
+
+
+def test_stage114_wave_cohort_counts_handoffs_without_opening_outcomes() -> None:
+    observations = [
+        _observation(0, multiple=10.1, velocity=-4.0, price=79.8),
+        _observation(1, multiple=12.1, velocity=3.0, price=80.0),
+        _observation(3, multiple=1.0, velocity=0.0, price=80.0),
+    ]
+    source = [_episode_row(index) for index in (0, 1, 3)]
+    episodes, _opened = replay_mcl_shock_wave_episodes(
+        list(zip(source, observations, strict=True)),
+        resets=[{"at_utc": START + timedelta(seconds=2), "reasons": ["release"]}],
+        generation=_episode_generation(),
+        rows=source,
+        bars=_episode_bars(),
+    )
+    gate = {
+        "complete_episodes": 1,
+        "authority_bound_episodes": 1,
+        "each_authority_direction": 1,
+        "tradeable_episodes": 1,
+        "regime_episodes": 0,
+        "causal_crests": 0,
+        "continuations": 0,
+        "each_continuation_direction": 0,
+        "authority_handoffs": 1,
+        "each_handoff_direction": 0,
+    }
+
+    cohort = mcl_shock_wave_cohort(episodes, gate)
+
+    assert cohort["authority_directions"] == {"down": 1, "up": 1}
+    assert cohort["authority_handoffs"] == 1
+    assert cohort["handoff_directions"] == {"up": 1}
+    assert cohort["verdict"] == "COHORT_READY_FOR_PREREGISTERED_MATCHED_CONTROLS"
+
+
 def _minute(index: int, close: float, volume: float, width: float) -> MclShockMinute:
     observed = START.replace(second=0) + timedelta(minutes=index)
     bar = OhlcvBar(
@@ -480,7 +652,7 @@ def test_shock_episode_ledger_is_content_addressed_and_idempotent(
     assert cohort["verdict"] == "ACCUMULATE"
 
 
-def test_stage113_generation_binds_one_shared_observer_service() -> None:
+def test_stage113_generation_and_service_remain_immutable() -> None:
     generation = load_mcl_shock_generation(MCL_SHOCK_GENERATION_PATH)
     root = Path(__file__).resolve().parents[1]
     service = (
@@ -508,6 +680,29 @@ def test_stage113_generation_binds_one_shared_observer_service() -> None:
     assert "MCL_SHOCK_LEDGER=" in service
     assert "Unit=tradebot-mcl-predictive-onset.service" in timer
     assert "MCL_LIVE_SELECTION_PATH" not in accumulator
+
+
+def test_stage114_generation_owns_one_successor_observer_service() -> None:
+    generation = load_mcl_shock_wave_generation(MCL_SHOCK_WAVE_GENERATION_PATH)
+    root = Path(__file__).resolve().parents[1]
+    service = (
+        root / "deploy/systemd/tradebot-mcl-predictive-onset-stage114.service"
+    ).read_text()
+    timer = (
+        root / "deploy/systemd/tradebot-mcl-predictive-onset-stage114.timer"
+    ).read_text()
+
+    assert generation["generation_id"] == (
+        "39d5d311561ffce71a3f88551a53a61fc905ceff108dae51e38346165ba5537d"
+    )
+    assert generation["state_law"]["attention_directionless_below_multiple"] == 10.0
+    assert generation["state_law"]["handoff_resets_inner_crest_state"] is True
+    assert service.count("ExecStart=") == 2
+    assert "-m tradebot.research.mcl_predictive_accumulator" in service
+    assert "-m tradebot.research.mcl_shock_wave_accumulator" in service
+    assert "-m tradebot.research.mcl_shock_accumulator" not in service
+    assert "MCL_SHOCK_WAVE_LEDGER=" in service
+    assert "Unit=tradebot-mcl-predictive-onset-stage114.service" in timer
 
 
 def _reset_bars(stamps: tuple[datetime, ...]) -> dict[str, dict[datetime, OhlcvBar]]:

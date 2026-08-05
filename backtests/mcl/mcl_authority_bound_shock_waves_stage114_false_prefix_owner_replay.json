@@ -1,0 +1,87 @@
+{
+  "schema": "mcl.authority-bound-shock-waves-architecture-replay-receipt.v1",
+  "recorded_at_utc": "2026-08-05T07:20:21+00:00",
+  "authority": "architecture_morphology_only_no_outcomes_no_orders_no_capital",
+  "generation": {
+    "id": "39d5d311561ffce71a3f88551a53a61fc905ceff108dae51e38346165ba5537d",
+    "preregistration_path": "backtests/mcl/mcl_authority_bound_shock_waves_stage114_preregistration.json",
+    "preregistration_sha256": "e034a47c515675016910b55765daf26efb4af22b20b901a6fb8292589b034707",
+    "eligible_start_utc": "2026-08-05T07:14:07+00:00"
+  },
+  "owners": {
+    "wave_state_path": "tradebot/research/mcl_shock_waves.py",
+    "wave_state_sha256": "ef3e14ec390756c26724c9372df48b4e70be43194c81471519385af6f78e87fa",
+    "evaluator_path_on_q": "/var/tmp/mcl_stage114_false_prefix_owner_replay.py",
+    "evaluator_sha256": "1a50943b9522080d7f20899d1f59ce42efa2e9551dae06546f1dc8bb55f5e624"
+  },
+  "result": {
+    "path_on_q": "/var/tmp/mcl-stage114-false-prefix-owner-replay.json",
+    "sha256": "8820bd383a71c41ce12c847a5cf410f7b4c3dfbf7d57586fd0a71b78f85e4be2"
+  },
+  "fixed_prefix": {
+    "first_bucket_utc": "2026-08-04T22:00:00+00:00",
+    "last_bucket_utc": "2026-08-05T00:15:45+00:00",
+    "records": 3332,
+    "record_ids_sha256": "923b7118537c21c215b15703061d3ab66a488a0845fdb5925d899751579f02e7",
+    "completed_common_minutes": 5655,
+    "completed_bar_snapshot_sha256": "6b43d914cb874580cfdbb5d4cb73120a21da88c6db9f4d551eb75628e3b628cb"
+  },
+  "causal_transitions": [
+    {
+      "at_utc": "2026-08-05T00:00:31+00:00",
+      "event": "ATTENTION_OPENED",
+      "volume_multiple": 5.5064935064935066,
+      "authority_direction": null,
+      "wave_sequence": 0
+    },
+    {
+      "at_utc": "2026-08-05T00:05:13+00:00",
+      "event": "AUTHORITY_BOUND",
+      "volume_multiple": 11.922480620155039,
+      "authority_direction": -1,
+      "authority_level": "MAJOR_PROTECT_10_TO_12X",
+      "wave_sequence": 1
+    },
+    {
+      "at_utc": "2026-08-05T00:05:14+00:00",
+      "event": "AUTHORITY_ESCALATED",
+      "volume_multiple": 12.294573643410853,
+      "authority_direction": -1,
+      "authority_level": "TRADEABLE_SHOCK_12_TO_20X",
+      "wave_sequence": 1
+    },
+    {
+      "at_utc": "2026-08-05T00:05:20+00:00",
+      "event": "CREST_CONFIRMED",
+      "volume_multiple": 13.317829457364342,
+      "authority_direction": -1,
+      "wave_sequence": 1
+    },
+    {
+      "at_utc": "2026-08-05T00:05:55+00:00",
+      "event": "CONTINUATION",
+      "volume_multiple": 17.069767441860463,
+      "authority_direction": -1,
+      "continuation_direction": -1,
+      "wave_sequence": 1
+    },
+    {
+      "at_utc": "2026-08-05T00:06:45+00:00",
+      "event": "ROTATION_EXIT",
+      "volume_multiple": 1.6752767527675276,
+      "authority_direction": -1,
+      "wave_sequence": 1
+    }
+  ],
+  "proof": {
+    "attention_directionless_below_binding_level": true,
+    "first_bind_requires_full_dual_book_alignment": true,
+    "same_direction_escalation_preserves_wave_identity": true,
+    "opposite_authority_handoffs": 0,
+    "release_invented_direction": false,
+    "matches_corrected_stage113_morphology": true,
+    "stage112_live_changed": false,
+    "outcomes_exposed": false,
+    "submitted_orders": 0
+  }
+}

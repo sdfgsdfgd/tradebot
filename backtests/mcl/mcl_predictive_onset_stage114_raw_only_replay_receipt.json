@@ -1,0 +1,75 @@
+{
+  "schema": "mcl.predictive-onset-stage114-raw-only-replay-receipt.v1",
+  "recorded_at_utc": "2026-08-05T07:27:10+00:00",
+  "authority": "prospective_morphology_only_no_outcomes_no_orders_no_capital",
+  "generation": {
+    "id": "a547ac14fe6d21b3f4923a6d944c268cdcf5aac6269c02afc916c58f0a1e98b6",
+    "path": "backtests/mcl/mcl_predictive_onset_stage114_successor_generation.json",
+    "sha256": "ce3c940afdb23a13eb0603d401f68bb5bfd15e9cf1c737e3aaa864475986b165"
+  },
+  "owner": {
+    "path": "tradebot/research/mcl_predictive_accumulator.py",
+    "sha256": "ddf202f18da424729449a321b880adf74085e12ecf5b4654c64ead4bf3f7fed3"
+  },
+  "proof": {
+    "evaluator_path_on_q": "/var/tmp/mcl_stage114_predictive_raw_only_probe.py",
+    "evaluator_sha256": "b2341ba070346250b674ec40884d003b2563ff75ddf45045778480d0b7070153",
+    "result_path_on_q": "/var/tmp/mcl-stage114-predictive-raw-only-proof-r2.json",
+    "result_sha256": "27c72f7479ced6afea8347a9def635e5bf74e1cfcf5ef846868bd4ad0461919d",
+    "disposable_ledger_path_on_q": "/var/tmp/mcl-stage114-predictive-raw-only-proof-r2.jsonl",
+    "disposable_ledger_sha256": "adc880c01f8359c1d2e56c841f059b1582f7184485b4433bafa04916e1c4ca42"
+  },
+  "inherited_prefix": {
+    "records": 3,
+    "production_ledger_sha256_before_and_after": "bfcc0147faf6b8ebf1abf67d68fa3075a51ef4496bbd2d17c9851e2c0b06aab5",
+    "production_ledger_changed": false
+  },
+  "prospective_treatments": [
+    {
+      "raw_turn_at_utc": "2026-08-05T01:15:00+00:00",
+      "raw_direction": 1,
+      "proposed": false,
+      "maturation_present": false,
+      "admitted": false,
+      "route": null,
+      "treatment_id": "c814f0467db29bce6909376d75a0dc19c02f0d49da25d386e29054221b99e5a7"
+    },
+    {
+      "raw_turn_at_utc": "2026-08-05T03:15:00+00:00",
+      "raw_direction": -1,
+      "proposed": false,
+      "maturation_present": false,
+      "admitted": false,
+      "route": null,
+      "treatment_id": "02261b58a81ba0d3cb7c5b9cb1f9bf6d8e78fd781e0de742f2fe4af6a952ce81"
+    },
+    {
+      "raw_turn_at_utc": "2026-08-05T05:15:00+00:00",
+      "raw_direction": 1,
+      "proposed": true,
+      "maturation_present": true,
+      "admitted": false,
+      "route": "continuation",
+      "treatment_id": "1dcb22c08900357800b94a800723aa22beddc7b2b920a7fcd8e677a39bfe2d1f"
+    }
+  ],
+  "cohort_after_replay": {
+    "complete_turns": 6,
+    "directions": {
+      "down": 3,
+      "up": 3
+    },
+    "admitted_turns": 1,
+    "resolved_handoffs": 2,
+    "pending_candidates": 0,
+    "verdict": "ACCUMULATE"
+  },
+  "invariants": {
+    "raw_only_abstention_is_complete_evidence": true,
+    "missing_maturation_does_not_imply_admission": true,
+    "stage112_live_changed": false,
+    "production_ledger_changed": false,
+    "outcomes_exposed": false,
+    "submitted_orders": 0
+  }
+}

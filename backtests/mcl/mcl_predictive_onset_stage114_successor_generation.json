@@ -1,0 +1,111 @@
+{
+  "artifacts": {
+    "accumulator_owner": {
+      "path": "tradebot/research/mcl_predictive_accumulator.py",
+      "sha256": "ddf202f18da424729449a321b880adf74085e12ecf5b4654c64ead4bf3f7fed3"
+    },
+    "completed_bar_event_owner": {
+      "path": "tradebot/research/mcl_predictive_onset.py",
+      "sha256": "71373f19591486ce4fe8f2d8d9d29ae31b9f37dddd7e40d5ccef0ed812390b3f"
+    },
+    "generation_owner": {
+      "path": "tradebot/research/mcl_predictive_generation.py",
+      "sha256": "58fca60de5005cadab0e5b7309b2e02a0f33114223d7d27382055be234b1e8cd"
+    },
+    "minute_shock_owner": {
+      "path": "tradebot/research/mcl_minute_shock.py",
+      "sha256": "d9f170ddce49a48d3868c0c23f797ba0544d635aa4804f6534139a6679b17f64"
+    },
+    "news_contract_owner": {
+      "path": "tradebot/news/contract.py",
+      "sha256": "8f59b02ae8e65bcf23117f610d226f4a549bf708c53140af75dd718e4610a431"
+    },
+    "seconds_shock_owner": {
+      "path": "tradebot/research/mcl_shock_crest.py",
+      "sha256": "0363b3416b4ca5771e0d7a6947f9a01a76eb99c9cae0e6c1904d0b88205c6019"
+    },
+    "selected_live_source_owner": {
+      "path": "tradebot/research/mcl_live_transport.py",
+      "sha256": "8b204647072bfe91ae2f29425c34c5c581c2305fa25022c4270360cab8a97add"
+    },
+    "shock_arbiter_owner": {
+      "path": "tradebot/research/mcl_shock_arbiter.py",
+      "sha256": "e4b217c61c4cc51b813a20ff20741a11ea26d09f5d2223a88925a981f2bcddff"
+    },
+    "stage88_seed": {
+      "path": "backtests/mcl/mcl_predictive_closing_ignition_stage88_accumulation_r2.json",
+      "sha256": "d571f6cda47e6ce155b660f26df0bdad92a0ec88fff54a4dc72263f5d7f33371"
+    },
+    "stage89_seed": {
+      "path": "backtests/mcl/mcl_predictive_velocity_jerk_stage89_accumulation.json",
+      "sha256": "8ef53f7da72831f1cb4ec4ce9a33c18c48ac263688d49afc02c7070badab6c0b"
+    },
+    "stage90_preregistration": {
+      "path": "backtests/mcl/mcl_predictive_cross_scale_stage90_preregistration.json",
+      "sha256": "db9c73c399063033ec7bcb96d78bb8dc92ca17a43a08072033b30ab7866d78ab"
+    },
+    "stage90_seed": {
+      "path": "backtests/mcl/mcl_predictive_cross_scale_stage90_accumulation.json",
+      "sha256": "336aa2f88ed0c102c698eeb21275f22dbdf941931feeaef2b6a11da77154f0b4"
+    },
+    "turn_tape_generation": {
+      "path": "backtests/mcl/mcl_turn_authenticity_microstructure_generation.json",
+      "sha256": "b3805c9f95713a13c26cb0ada08dc043f00069f42177212d3c575abe28c3ee7f"
+    },
+    "v18_owner": {
+      "path": "tradebot/research/mcl_two_speed_auction.py",
+      "sha256": "03d0c958dab724a9e1b8f36070a1cbbb8df700e4d37683ffd6977061d5b866b7"
+    },
+    "velocity_jerk_owner": {
+      "path": "tradebot/research/mcl_predictive_velocity.py",
+      "sha256": "b69f02225b8ae4ecbe7dc99d339fd54d5e5b24c2d9aa8ec06af6e5d380fd69ec"
+    }
+  },
+  "authority": "prospective_morphology_only_no_outcomes_no_orders_no_capital",
+  "cohort_gate": {
+    "admitted_turns": 20,
+    "complete_turns": 30,
+    "each_admitted_route": 5,
+    "each_raw_direction": 10,
+    "resolved_handoffs": 20
+  },
+  "eligible_start_utc": "2026-08-04T19:10:47.046060+00:00",
+  "generated_at_utc": "2026-08-05T07:10:00+00:00",
+  "generation_id": "a547ac14fe6d21b3f4923a6d944c268cdcf5aac6269c02afc916c58f0a1e98b6",
+  "historical_manifest_sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55",
+  "inherited_prefix": {
+    "treatment_count": 3,
+    "treatment_ids": [
+      "7254aedd5ed15716c92527650359f026622ee2d6b97612266459642d13e9d5db",
+      "d8c651ef30c1bd3efb66b628488a702af0dc84dd68d8213c0f84adaa14f6201d",
+      "e5edcf062c93d046abc35e31364c59653f7e1b0b6b162a4606f0eb38d1f3a395"
+    ],
+    "treatment_ids_sha256": "6eb61acd10063061f81078cd987605feac9b8ec9c43529f01471b33e8722a329"
+  },
+  "invariants": {
+    "broker_access_only_after_unseen_complete_turn": true,
+    "capital_authority": "none",
+    "classifier_authority": "none",
+    "direction_authority": "V18_only",
+    "empty_cycles_append_nothing": true,
+    "live_worker_dependency": "none",
+    "order_authority": "none",
+    "predecessor_treatments_preserved": true,
+    "selection_switch_is_not_a_new_cohort": true,
+    "stage112_shock_source_used_as_direction": false,
+    "timing_authority": "none",
+    "turn_recorder_dependency": "read_only_files_after_flush"
+  },
+  "outcomes_exposed": false,
+  "predecessor": {
+    "path": "backtests/mcl/mcl_predictive_onset_accumulator_generation.json",
+    "schema": "mcl.predictive-onset-accumulator-generation.v1",
+    "selection_id": "591db0104449f4388b9063bd613ffd8c9b076dcb281c46fb45545080e28898b2",
+    "sha256": "b8a53baf54f657cd4cdedc6456e3c9c958a2e03e566e8f3b4b69a6bf51ea0845"
+  },
+  "schema": "mcl.predictive-onset-accumulator-generation.v2",
+  "selection_id": "083ecba8798ea6e60f32b1c42d4896e1a016703a77eeac2f32ac7ce3f5d54a91",
+  "strategy_version": "mcl.two-speed-shock-arbiter.v112",
+  "submitted_orders": 0,
+  "turn_tape_generation_sha256": "b3805c9f95713a13c26cb0ada08dc043f00069f42177212d3c575abe28c3ee7f"
+}

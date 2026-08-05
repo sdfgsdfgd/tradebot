@@ -1,0 +1,168 @@
+{
+  "schema": "mcl.authority-bound-shock-waves-generation.v1",
+  "generation_id": "39d5d311561ffce71a3f88551a53a61fc905ceff108dae51e38346165ba5537d",
+  "registered_at_utc": "2026-08-05T07:14:07+00:00",
+  "eligible_start_utc": "2026-08-05T07:14:07+00:00",
+  "authority": "prospective_morphology_only_no_outcomes_no_orders_no_capital",
+  "strategy_version": "mcl.two-speed-shock-arbiter.v112",
+  "selection_id": "083ecba8798ea6e60f32b1c42d4896e1a016703a77eeac2f32ac7ce3f5d54a91",
+  "selection_file_sha256": "3ffcdd1d7471456095f34ff1a7251679edd56b1898227f869e8112f41af16f7a",
+  "capital_plan_id": "851714c27f22abca7652d7df762ccfd464daff0ce4001fed6888079d54829f37",
+  "predictive_generation_id": "a547ac14fe6d21b3f4923a6d944c268cdcf5aac6269c02afc916c58f0a1e98b6",
+  "predictive_generation_file_sha256": "ce3c940afdb23a13eb0603d401f68bb5bfd15e9cf1c737e3aaa864475986b165",
+  "turn_tape_generation_sha256": "b3805c9f95713a13c26cb0ada08dc043f00069f42177212d3c575abe28c3ee7f",
+  "seconds_owner_version": "mcl.authority-bound-shock-waves.v1",
+  "pre_outcome_basis": {
+    "stage113_generation_sha256": "64f564b273d78b0661860673b02c87cdfc925a6a403521754dc90c580e1454ea",
+    "stage113_terminal_falsification_sha256": "8a426898d41161a4622b2d612f823834c6fb674247b9bde6592d4c2cf5234f60",
+    "hawkeye_ranking_sha256": "0eee84d59a064d5b373a6885e095a29ec134eb201b8667133c4d882d2e47cfe3",
+    "exposure": "Prospective morphology, categorical clocks, and the stale Stage-113 direction-provenance defect only; no Stage-114 return, MFE, MAE, PnL, matched-control label, threshold winner, order, or capital evidence existed before registration.",
+    "decision": "Supersede the active Stage-113 observer without rewriting its two-row ledger. Stage 112 remains the unchanged live owner."
+  },
+  "frozen_levels": {
+    "attention": 5.0,
+    "major": 10.0,
+    "tradeable": 12.0,
+    "regime": 20.0
+  },
+  "state_law": {
+    "attention_directionless_below_multiple": 10.0,
+    "initial_authority_current_multiple": 10.0,
+    "binding_requires": [
+      "fresh_type_1_top",
+      "spread_eligible",
+      "CL_and_MCL_5s_15s_60s_velocity",
+      "CL_and_MCL_15m_velocity_and_acceleration",
+      "CL_and_MCL_signed_15s_flow",
+      "all_nonzero_and_same_sign"
+    ],
+    "handoff_requires_strictly_higher_current_level": true,
+    "handoff_resets_inner_crest_state": true,
+    "ordinary_rotation_may_invent_direction": false,
+    "inner_crest_version": "mcl.shock-crest-continuation-relay.v2"
+  },
+  "episode_law": {
+    "attention": "A causal current partial-minute multiple at or above 5x opens one directionless attention episode.",
+    "initial_bind": "Only a current 10x-or-higher observation with a fresh eligible top and complete nonzero same-sign CL/MCL multiscale velocity, acceleration, and signed-flow vector may bind the first directional wave.",
+    "same_level": "Opposite evidence at the incumbent authority level may rotate or release the existing wave but cannot steal direction authority.",
+    "higher_level_handoff": "While the current volume observation occupies a strictly higher 12x or 20x level than the incumbent authority, complete opposite alignment may bind a new wave and reset the exact inner crest, peak-speed, continuation, rotation, and reversal state.",
+    "same_direction_escalation": "Complete same-direction alignment at a higher current level strengthens the existing wave without resetting its identity.",
+    "release": "Normalization, rotation, or an external Stage-112 reset may release or terminate the current wave but may never invent the next direction.",
+    "terminal": "The exact Stage-112 V18 raw turn, completed-minute release, roll, first unscheduled missing minute, scheduled maintenance, Friday flat, or seconds normalization ends the episode.",
+    "clock": "IBKR TCP packet receipt UTC owns seconds evidence; finalized broker close UTC owns completed-minute and slower context. Exchange time is not inferred."
+  },
+  "cohort_gate": {
+    "complete_episodes": 30,
+    "authority_bound_episodes": 20,
+    "each_authority_direction": 10,
+    "tradeable_episodes": 10,
+    "regime_episodes": 5,
+    "causal_crests": 20,
+    "continuations": 10,
+    "each_continuation_direction": 5,
+    "authority_handoffs": 5,
+    "each_handoff_direction": 2
+  },
+  "settlement_law": {
+    "before_gate": "Append only complete immutable morphology episodes and categorical wave counts. Expose no return, MFE, MAE, PnL, control outcome, or winner.",
+    "after_gate": "Freeze matched controls, action candidates, and economic settlement in a successor preregistration before opening any treatment outcome.",
+    "thresholds": "Do not refit 5x, 10x, 12x, 20x, full-alignment membership, crest persistence, continuation, reversal, handoff, or reset laws from this prospective cohort."
+  },
+  "artifacts": {
+    "wave_accumulator_owner": {
+      "path": "tradebot/research/mcl_shock_wave_accumulator.py",
+      "sha256": "24ba59f321e5ba64c7d5a463dbc5dafc8b8f058d288c775d19500302eaa17e68"
+    },
+    "wave_state_owner": {
+      "path": "tradebot/research/mcl_shock_waves.py",
+      "sha256": "ef3e14ec390756c26724c9372df48b4e70be43194c81471519385af6f78e87fa"
+    },
+    "immutable_stage113_accumulator_support": {
+      "path": "tradebot/research/mcl_shock_accumulator.py",
+      "sha256": "ba9c1f4771dbed0c986b01b65a45e79778f3f3c720a0918e71bcf0d76169d646"
+    },
+    "immutable_inner_crest_owner": {
+      "path": "tradebot/research/mcl_shock_crest.py",
+      "sha256": "0363b3416b4ca5771e0d7a6947f9a01a76eb99c9cae0e6c1904d0b88205c6019"
+    },
+    "evidence_owner": {
+      "path": "tradebot/research/mcl_shock_evidence.py",
+      "sha256": "f435f744fb7db453230300685675122885e4277d0517cbb2f1ce15909088f803"
+    },
+    "completed_minute_owner": {
+      "path": "tradebot/research/mcl_minute_shock.py",
+      "sha256": "d9f170ddce49a48d3868c0c23f797ba0544d635aa4804f6534139a6679b17f64"
+    },
+    "stage112_arbiter_owner": {
+      "path": "tradebot/research/mcl_shock_arbiter.py",
+      "sha256": "e4b217c61c4cc51b813a20ff20741a11ea26d09f5d2223a88925a981f2bcddff"
+    },
+    "v18_signal_lifecycle_owner": {
+      "path": "tradebot/research/mcl_two_speed_auction.py",
+      "sha256": "03d0c958dab724a9e1b8f36070a1cbbb8df700e4d37683ffd6977061d5b866b7"
+    },
+    "live_selection_contract_owner": {
+      "path": "tradebot/research/mcl_live_transport.py",
+      "sha256": "8b204647072bfe91ae2f29425c34c5c581c2305fa25022c4270360cab8a97add"
+    },
+    "news_contract_owner": {
+      "path": "tradebot/news/contract.py",
+      "sha256": "8f59b02ae8e65bcf23117f610d226f4a549bf708c53140af75dd718e4610a431"
+    },
+    "turn_tape_generation": {
+      "path": "backtests/mcl/mcl_turn_authenticity_microstructure_generation.json",
+      "sha256": "b3805c9f95713a13c26cb0ada08dc043f00069f42177212d3c575abe28c3ee7f"
+    },
+    "stage112_crown": {
+      "path": "backtests/mcl/mcl_v18_shock_stage112_executable_crown.json",
+      "sha256": "c1e7aad0391a6a4ab1cd6cf2065af023d2c36058e411a464dae939599b0dd63f"
+    },
+    "stage112_owner_parity": {
+      "path": "backtests/mcl/mcl_v18_shock_stage112_durable_owner_parity.json",
+      "sha256": "aedda4a31b734fe3ac6ba857d9dc33e39758006f7f25d6fed2930bcc5e4e6204"
+    },
+    "stage113_generation": {
+      "path": "backtests/mcl/mcl_shock_crest_stage113_preregistration.json",
+      "sha256": "64f564b273d78b0661860673b02c87cdfc925a6a403521754dc90c580e1454ea"
+    },
+    "stage113_terminal_falsification": {
+      "path": "backtests/mcl/mcl_shock_crest_stage113_first_tradeable_episode_falsification.json",
+      "sha256": "8a426898d41161a4622b2d612f823834c6fb674247b9bde6592d4c2cf5234f60"
+    },
+    "hawkeye_block_ranking": {
+      "path": "backtests/mcl/mcl_predictive_intelligence_hawkeye_block_ranking_20260805.json",
+      "sha256": "0eee84d59a064d5b373a6885e095a29ec134eb201b8667133c4d882d2e47cfe3"
+    },
+    "predictive_successor_generation": {
+      "path": "backtests/mcl/mcl_predictive_onset_stage114_successor_generation.json",
+      "sha256": "ce3c940afdb23a13eb0603d401f68bb5bfd15e9cf1c737e3aaa864475986b165"
+    },
+    "successor_predictive_service": {
+      "path": "deploy/systemd/tradebot-mcl-predictive-onset-stage114.service",
+      "sha256": "0cdeab83c23fbf26d166b934e2499086f39b56d47901d376fa7c336dca0bbcc4"
+    },
+    "successor_predictive_timer": {
+      "path": "deploy/systemd/tradebot-mcl-predictive-onset-stage114.timer",
+      "sha256": "55e925d2efd18fecad8b3f4351aa4e48ae5320602447dfa51b2d4c303c778ef5"
+    }
+  },
+  "invariants": {
+    "stage112_live_signal_changed": false,
+    "stage112_live_lifecycle_changed": false,
+    "stage112_live_risk_changed": false,
+    "stage112_live_execution_changed": false,
+    "stage113_generation_rewritten": false,
+    "stage113_ledger_inherited": false,
+    "one_active_predictive_service": true,
+    "separate_fresh_append_only_ledger": true,
+    "empty_cycles_append_nothing": true,
+    "classifier_authority": "none",
+    "timing_authority": "none",
+    "direction_authority": "none",
+    "order_authority": "none",
+    "capital_authority": "none",
+    "market_orders_permitted": false
+  },
+  "outcomes_exposed": false,
+  "submitted_orders": 0
+}

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 from copy import deepcopy
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 import hashlib
 import json
@@ -25,9 +26,11 @@ from tradebot.research.mcl_predictive_accumulator import (
     _identity,
     _news_context,
     _read_event_window,
+    _replay_treatment,
     _seed_treatments,
     _source_candidates,
     load_mcl_predictive_generation,
+    MclPredictiveMinute,
     mcl_predictive_treatments,
 )
 from tradebot.research.mcl_predictive_onset import (
@@ -595,6 +598,50 @@ def test_predictive_accumulator_accepts_only_exact_live_raw_events() -> None:
         )
 
 
+def test_predictive_raw_only_abstention_completes_without_maturation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    raw = replace(
+        _decision(0, 0.1, 0.2, raw=True),
+        proposed_direction=None,
+        velocity_aligned=False,
+        parity_aligned=False,
+    )
+
+    class RawOnlyEngine:
+        def update(self, bar: MclAuctionBar) -> MclAuctionDecision:
+            return raw if bar.ts == TURN else replace(
+                _decision(0, 0.1, 0.2), observed_at_utc=bar.ts
+            )
+
+    monkeypatch.setattr(
+        "tradebot.research.mcl_predictive_accumulator.MclTwoSpeedAuctionEngine",
+        RawOnlyEngine,
+    )
+    monkeypatch.setattr(
+        "tradebot.research.mcl_predictive_accumulator.project_mcl_completed_bar_onset",
+        lambda *_args, **_kwargs: {"completed": True},
+    )
+    minutes = []
+    for offset in range(-9, 6):
+        stamp = TURN + timedelta(minutes=offset)
+        bar = OhlcvBar(stamp, 80.0, 80.1, 79.9, 80.0, 10.0)
+        minutes.append(
+            MclPredictiveMinute(stamp, TURN.date(), "202608", bar, bar)
+        )
+
+    replayed, maturation, completed = _replay_treatment(
+        {"observed_at_utc": TURN.isoformat(), "decision": raw.as_payload()},
+        recent_minutes=minutes,
+        weekly_prior=None,
+        news=None,
+    )
+
+    assert replayed.as_payload() == raw.as_payload()
+    assert maturation is None
+    assert completed == {"completed": True}
+
+
 def test_predictive_news_context_reuses_v3_v4_contract_and_legacy_identity() -> None:
     def snapshot(
         *, schema: str, at: str, direction: int, impact: int, change: str
@@ -719,10 +766,10 @@ def test_predictive_accumulator_service_is_separate_read_only_and_bounded() -> N
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
     }
     service = (
-        root / "deploy/systemd/tradebot-mcl-predictive-onset.service"
+        root / "deploy/systemd/tradebot-mcl-predictive-onset-stage114.service"
     ).read_text()
     timer = (
-        root / "deploy/systemd/tradebot-mcl-predictive-onset.timer"
+        root / "deploy/systemd/tradebot-mcl-predictive-onset-stage114.timer"
     ).read_text()
 
     assert not calls & {
