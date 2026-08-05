@@ -1,0 +1,91 @@
+{
+  "schema": "mcl.stage114-sliding-bar-prefix-replay-correction-receipt.v1",
+  "recorded_at_utc": "2026-08-05T23:41:32+00:00",
+  "authority": "operational_integrity_only_no_outcomes_no_orders_no_capital",
+  "preregistration": {
+    "path": "backtests/mcl/mcl_stage114_sliding_bar_prefix_replay_correction_preregistration.json",
+    "sha256": "a75ccf0fde0398a73d7a7b3498067fd2b1dfad01be792279306353e0eac1fece"
+  },
+  "diagnosis": {
+    "path_on_q": "/var/tmp/mcl-stage114-replay-drift-diagnostic.json",
+    "sha256": "c640c37e99de46c098e7824ef726089a79dbd1626ce6c68601225f9546934824",
+    "episode_id": "55cce9017d5a31aaf80b32538d945eb841f18ddff69357a4238e93f150d386b8",
+    "difference_count": 4,
+    "only_semantic_difference": "sliding_recent_broker_bar_prefix",
+    "decision_or_outcome_difference": false
+  },
+  "implementation": {
+    "commit": "fe554424f5294eb8e56acd1b748462ccd01c77e0",
+    "accumulator": {
+      "path": "tradebot/research/mcl_shock_wave_accumulator.py",
+      "sha256": "64c971e6916f0c25b7e67208f224afa1d7a44101b453d6751476dddb2c3a7a11"
+    },
+    "generation_owner": {
+      "path": "tradebot/research/mcl_shock_wave_generation.py",
+      "sha256": "2f023acd9c58dd5ec2ad46ae28f6b7afa594bb53aa815bf78eb440f9e0a8e738"
+    },
+    "replay_law": "compare full episode minus bar_prefix and episode_sha256 only after the stored episode passes its unchanged full first-write hash validation",
+    "decision_bearing_mismatch_still_fails": true,
+    "stored_ledger_validation_relaxed": false
+  },
+  "generation_succession": {
+    "predecessor_generation_id": "ce101ce983b8935eb904dbb18cbf1c0e7fc0811fc6b0ad4f43782753647082f7",
+    "successor_generation_id": "e01e06c86ca2c94564c201409595055498cdb223505d538442ccd23bd70fda98",
+    "successor_path": "db/calibration/shock_wave_generations/e01e06c86ca2c94564c201409595055498cdb223505d538442ccd23bd70fda98.json",
+    "successor_file_sha256": "cbcea20de62a06dbecf055f7e5164c1effd64dd14530035a92ce8c74b8b18ec7",
+    "registered_and_eligible_at_utc": "2026-08-05T23:38:53.038977+00:00",
+    "selection_id": "8adead895d3bd460b460f832d725046a3ea34079525a80a1662004ade2c17c93",
+    "predictive_generation_id": "2256c870f99cbc5a1b69edb24fa39b9d7f3cfffcf9b56949aa9d3d9ce3186986",
+    "inherited_episode_ids": [
+      "55cce9017d5a31aaf80b32538d945eb841f18ddff69357a4238e93f150d386b8"
+    ],
+    "generation_validation": "PASS",
+    "predecessor_rewritten": false
+  },
+  "proof": {
+    "focused_tests": {
+      "passed": 81,
+      "failed": 0
+    },
+    "full_repository_tests": {
+      "passed": 1242,
+      "deselected": 4,
+      "failed": 0
+    },
+    "isolated_runtime_invocation": {
+      "result": "success",
+      "predictive_appended": 0,
+      "shock_wave_appended": 0,
+      "predictive_cohort": "7/30_ACCUMULATE",
+      "shock_wave_cohort": "1/30_ACCUMULATE",
+      "submitted_orders": 0
+    },
+    "first_calendar_invocation": {
+      "started_at_local": "2026-08-06T09:40:45+10:00",
+      "result": "success",
+      "shock_wave_appended": 0,
+      "open_episode": null,
+      "submitted_orders": 0
+    },
+    "predictive_ledger_sha256_before_after": "c96f3d1e0062dc7ab147e02142dd8bcc04874a11cdb5fbf69d396ec4405ee4de",
+    "shock_wave_ledger_sha256_before_after": "8be62828b80c16489e7abdb0b49032ebef7b0c31b3689c220275ded8b54f06ed"
+  },
+  "live_safety": {
+    "stage112_selection_changed": false,
+    "capital_plan_changed": false,
+    "mcl_position": 0,
+    "mcl_orders": 0,
+    "mcl_fills": 0,
+    "mcl_run_net_usd": 0.0,
+    "safety_breaches": [],
+    "latest_reason": "flat_no_target",
+    "latest_market_data_type": 1,
+    "mcl_live_timer": "active_waiting",
+    "mcl_turn_tape": "active_running",
+    "predictive_timer": "active_waiting",
+    "submitted_orders": 0
+  },
+  "verdict": "PASS_OBSERVER_RESTORED_ACCUMULATE",
+  "outcomes_exposed": false,
+  "submitted_orders": 0
+}
