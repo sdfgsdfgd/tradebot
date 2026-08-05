@@ -1,0 +1,78 @@
+{
+  "schema": "xsp.opening-edge-v3-concurrent-mcl-capacity.v1",
+  "recorded_at_utc": "2026-08-05T16:31:37Z",
+  "authority": "read_only_capital_counterfactual_no_orders_no_capital_mutation",
+  "question": "Could one MCL minimum package have entered while the selected XSP sleeve held five UPRO shares?",
+  "answer": "ALLOW_AT_OBSERVED_SNAPSHOT",
+  "source": {
+    "mcl_checkpoint_id": "6a7308e2f219656aefafae9d7b779e317a521122ec57b07b46522e343060e0ca",
+    "observed_at_utc": "2026-08-05T15:52:28.949086+00:00",
+    "capital_plan_id": "ed07a506ff82c2d16ad87c38f1e315735d90601e914a98c64c798164eb33efb1",
+    "capital_plan_sha256": "d77aa7e3e31cf16b4fbe75b49a3a5519200069ee6275ca2501a3b64fcd95df44",
+    "mcl_selection_id": "8adead895d3bd460b460f832d725046a3ea34079525a80a1662004ade2c17c93",
+    "mcl_selection_sha256": "0d7057f9591b6de8379365935ba5724e50285a6cf26a59b77e6354faf91a1b9c",
+    "capacity_owner_path": "tradebot/live/capital_packages.py",
+    "capacity_owner_sha256": "3c217c37826b2f200cbd995a28d76864129673454477abfb85a3f39be3a41682"
+  },
+  "broker_snapshot": {
+    "account_type": "CASH",
+    "base_currency": "AUD",
+    "available_funds_base_cents": 323544,
+    "excess_liquidity_base_cents": 330732,
+    "equity_with_loan_base_cents": 363394,
+    "initial_margin_base_cents": 39850,
+    "maintenance_margin_base_cents": 32662,
+    "settled_cash_usd_cents": 22148,
+    "usd_to_base_rate_ppm": 1418209,
+    "positions": [
+      {
+        "symbol": "TQQQ",
+        "quantity": 1,
+        "market_value_base_cents": 10517
+      },
+      {
+        "symbol": "UPRO",
+        "quantity": 5,
+        "market_value_base_cents": 109285
+      }
+    ],
+    "open_orders": []
+  },
+  "candidate": {
+    "sleeve_id": "mcl-two-speed-auction-margin",
+    "package_id": "mcl-one-contract-stage91",
+    "contracts": 1,
+    "cash_debit_usd_cents": 76,
+    "initial_margin_base_cents": 265961,
+    "maintenance_margin_base_cents": 212769,
+    "stressed_loss_usd_cents": 30552
+  },
+  "decision": {
+    "status": "ALLOW",
+    "reasons": [],
+    "entry_capacity_policy": "first_admitter_just_in_time.v1",
+    "active_sleeves": [
+      "xsp-upro-spxu-rth-cash"
+    ],
+    "pending_sleeves": [],
+    "cash_reserved_usd_cents": 76,
+    "initial_margin_reserved_base_cents": 265961,
+    "maintenance_margin_reserved_base_cents": 212769,
+    "stressed_loss_reserved_base_cents": 53489,
+    "unmanaged_position_stress_base_cents": 10517,
+    "post_reservation_cash_usd_cents": 22072,
+    "post_reservation_available_funds_base_cents": 57475,
+    "post_stress_excess_liquidity_base_cents": 53957,
+    "minimum_buffer_base_cents": 30000
+  },
+  "interpretation": {
+    "active_package_principal_double_reserved": false,
+    "active_xsp_stress_reserved": true,
+    "unmanaged_tqqq_fully_stressed": true,
+    "flat_gold_package_reserved": false,
+    "fresh_broker_snapshot_required_at_real_admission": true,
+    "fresh_contract_margin_preview_required_at_real_admission": true,
+    "simultaneous_capacity_guaranteed": false
+  },
+  "submitted_orders": 0
+}
