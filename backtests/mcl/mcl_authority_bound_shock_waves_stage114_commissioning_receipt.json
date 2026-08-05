@@ -1,0 +1,108 @@
+{
+  "schema": "mcl.authority-bound-shock-waves-stage114-commissioning-receipt.v1",
+  "recorded_at_utc": "2026-08-05T07:38:51+00:00",
+  "authority": "prospective_morphology_only_no_outcomes_no_orders_no_capital",
+  "repository": {
+    "revision": "c72cd4898aad339646fe514c3b45e74a2d253226",
+    "mac_matches_origin": true,
+    "q_matches_origin": true,
+    "q_worktree_clean": true
+  },
+  "generation": {
+    "stage114_id": "39d5d311561ffce71a3f88551a53a61fc905ceff108dae51e38346165ba5537d",
+    "stage114_preregistration_sha256": "e034a47c515675016910b55765daf26efb4af22b20b901a6fb8292589b034707",
+    "predictive_successor_id": "a547ac14fe6d21b3f4923a6d944c268cdcf5aac6269c02afc916c58f0a1e98b6",
+    "predictive_runtime_sha256": "ce3c940afdb23a13eb0603d401f68bb5bfd15e9cf1c737e3aaa864475986b165",
+    "immutable_runtime_copy_sha256": "ce3c940afdb23a13eb0603d401f68bb5bfd15e9cf1c737e3aaa864475986b165"
+  },
+  "service_transition": {
+    "predecessor_timer": "tradebot-mcl-predictive-onset.timer",
+    "predecessor_timer_enabled": false,
+    "predecessor_timer_active": false,
+    "successor_service": "tradebot-mcl-predictive-onset-stage114.service",
+    "successor_service_sha256": "0cdeab83c23fbf26d166b934e2499086f39b56d47901d376fa7c336dca0bbcc4",
+    "successor_timer": "tradebot-mcl-predictive-onset-stage114.timer",
+    "successor_timer_sha256": "55e925d2efd18fecad8b3f4351aa4e48ae5320602447dfa51b2d4c303c778ef5",
+    "successor_timer_enabled": true,
+    "successor_timer_active": true,
+    "one_active_predictive_timer": true,
+    "stage112_live_timer_restarted": false,
+    "turn_tape_service_restarted": false
+  },
+  "first_natural_invocation": {
+    "invocation_id": "cde031fdbfba426c9999b2bf4908a7c8",
+    "started_at_local": "2026-08-05T17:35:50+10:00",
+    "exited_at_local": "2026-08-05T17:35:54+10:00",
+    "result": "success",
+    "exec_main_status": 0,
+    "restarts": 0,
+    "predictive_onset": {
+      "appended": 3,
+      "complete_turns": 6,
+      "directions": {
+        "down": 3,
+        "up": 3
+      },
+      "admitted_turns": 1,
+      "resolved_handoffs": 2,
+      "pending_candidates": 0,
+      "verdict": "ACCUMULATE"
+    },
+    "stage114": {
+      "source_records": 1262,
+      "eligible_observations": 1102,
+      "maximum_volume_multiple": 3.01010101010101,
+      "open_episode": null,
+      "complete_episodes": 0,
+      "appended": 0,
+      "verdict": "ACCUMULATE",
+      "completed_bar_sha256": "c1eaa2c16694bae077cd5fafd0885d837c2fb46e468a49bf57746a891fb0f731",
+      "event_record_ids_sha256": "d21bf4bf92d1f0b041440545e8c816f19495a010f37877a77aec49fb913b9a0a"
+    }
+  },
+  "idempotence_invocation": {
+    "invocation_id": "e18f556c2bb24b90b9e3ec87a00cb5fe",
+    "result": "success",
+    "exec_main_status": 0,
+    "restarts": 0,
+    "predictive_onset_appended": 0,
+    "stage114_appended": 0,
+    "predictive_ledger_rows_before_after": [
+      6,
+      6
+    ],
+    "predictive_ledger_sha256_before_after": "363a87b7da1d6864986e90ebe199d9c2aa68259b50d1bcf4557ce5765e018775",
+    "stage114_ledger_before_after": "absent_zero"
+  },
+  "post_deployment_live_isolation": {
+    "checkpoint_id": "b5f97b0a67fe6cd0f8da1e46be792acb29b8f92c7410d55054c09785c89fddb3",
+    "recorded_at_utc": "2026-08-05T07:37:27.966787+00:00",
+    "strategy_version": "mcl.two-speed-shock-arbiter.v112",
+    "reason": "flat_no_target",
+    "target_direction": null,
+    "market_data_type": 1,
+    "bid": 76.1,
+    "ask": 76.12,
+    "position": 0,
+    "open_orders": 0,
+    "fills": 0,
+    "run_net_usd": 0.0,
+    "safety_breaches": [],
+    "submitted_orders": 0
+  },
+  "invariants": {
+    "stage112_live_signal_changed": false,
+    "stage112_live_lifecycle_changed": false,
+    "stage112_live_risk_changed": false,
+    "stage112_live_execution_changed": false,
+    "stage113_generation_or_ledger_rewritten": false,
+    "market_orders_permitted": false,
+    "stage114_direction_authority": "none",
+    "stage114_timing_authority": "none",
+    "stage114_order_authority": "none",
+    "stage114_capital_authority": "none",
+    "outcomes_exposed": false,
+    "submitted_orders": 0
+  },
+  "verdict": "COMMISSIONED_ACCUMULATE"
+}
