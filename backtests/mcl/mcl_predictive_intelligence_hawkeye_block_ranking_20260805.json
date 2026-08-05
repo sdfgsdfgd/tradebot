@@ -2,6 +2,15 @@
   "schema": "mcl.predictive-intelligence-hawkeye-block-ranking.v1",
   "recorded_at_utc": "2026-08-05T00:19:07Z",
   "authority": "prospective_morphology_and_architecture_ranking_only_no_outcomes_no_orders_no_capital",
+  "pre_outcome_counterfactual_correction": {
+    "r1_evaluator_path_on_q": "/var/tmp/mcl_stage113_tradeable_open_snapshot.py",
+    "r1_evaluator_sha256": "bf0811ae3c3b52c96b337f413480090d541f6d1f283ceb867bed3d4531f02065",
+    "r1_result_path_on_q": "/var/tmp/mcl-stage113-tradeable-open-snapshot-0015.json",
+    "r1_result_sha256": "ab3c0d17d197ae932520afec8b828b2a68cd482ff26e7f0603b8ad813e723d32",
+    "defect": "The development-only authority replay reset the observed episode at the 10x crossing but its generic code could provisionally own direction below 10x and did not require full alignment before every possible first 10x bind. The observed incident still had exact full DOWN alignment and produced the same bind, crest, continuation, and rotation timestamps.",
+    "exposure": "Morphology and architecture ranking only; no return, MFE, MAE, PnL, threshold selection, classifier, timing, order, capital, or crown authority.",
+    "correction": "R2 stays directionless below 10x and creates an authority owner only when the current level is at least 10x and full dual-book alignment exists. A higher-level opposite rebind likewise requires full alignment. R2 preserves every incumbent finding and the observed development-only DOWN path exactly."
+  },
   "block": {
     "started_at_utc": "2026-08-04T22:25:00+00:00",
     "final_scheduled_predictor_cutoff_utc": "2026-08-05T00:05:00+00:00",
@@ -90,10 +99,10 @@
       "continuation_emitted": false
     },
     "first_tradeable_episode_fixed_prefix": {
-      "snapshot_evaluator_path_on_q": "/var/tmp/mcl_stage113_tradeable_open_snapshot.py",
-      "snapshot_evaluator_sha256": "bf0811ae3c3b52c96b337f413480090d541f6d1f283ceb867bed3d4531f02065",
-      "snapshot_result_path_on_q": "/var/tmp/mcl-stage113-tradeable-open-snapshot-0015.json",
-      "snapshot_result_sha256": "ab3c0d17d197ae932520afec8b828b2a68cd482ff26e7f0603b8ad813e723d32",
+      "snapshot_evaluator_path_on_q": "/var/tmp/mcl_stage113_tradeable_open_snapshot_r2.py",
+      "snapshot_evaluator_sha256": "987e926cf97d97cb722015999b526fd1d189d166a1a6371e202a0528a2a88bc5",
+      "snapshot_result_path_on_q": "/var/tmp/mcl-stage113-tradeable-open-snapshot-0015-r2.json",
+      "snapshot_result_sha256": "5242fc9710f42557d38f96b4409056a616393fa8117260251068a68aff62a390",
       "fixed_prefix_end_utc": "2026-08-05T00:15:45+00:00",
       "event_records": 3332,
       "event_record_ids_sha256": "923b7118537c21c215b15703061d3ab66a488a0845fdb5925d899751579f02e7",
