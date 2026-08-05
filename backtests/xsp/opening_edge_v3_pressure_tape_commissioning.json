@@ -1,0 +1,109 @@
+{
+  "schema": "xsp.opening-edge-v3-pressure-tape-commissioning.v1",
+  "recorded_at_utc": "2026-08-05T22:57:00Z",
+  "authority": "prospective_microstructure_observation_only_no_signal_no_outcomes_no_orders_no_capital",
+  "published_revision": "bf6e737d6f706d5b58a3aa04fb8a62b0b40887cf",
+  "artifacts": {
+    "preregistration": {
+      "path": "backtests/xsp/opening_edge_v3_pressure_tape_preregistration.json",
+      "sha256": "fc632b7f570c448214690c4e2c3b8f3a391e8a610668dd568160e2b1c8376e7a"
+    },
+    "generation": {
+      "path": "backtests/xsp/opening_edge_v3_pressure_tape_generation.json",
+      "sha256": "45111626d4fc4775c52f9a00f6b70984e6971f35edcbeb111f583f4814160eab"
+    },
+    "recorder": {
+      "path": "tradebot/research/xsp_pressure_tape.py",
+      "sha256": "60a9e4b2f9b0846267ee9d5a33ee5f4bf8947ea36af4386d894a2f42cd7c5c28"
+    }
+  },
+  "selection_identity": {
+    "canonical_live_selection_id": "1083c1813e6b0ca4cf5777a5275e06be651622bc6e6207e718b549296a9bdd87",
+    "strategy_version": "xsp.opening-edge-v3-regime-harmony-24x5.v1",
+    "selection_path": "db/calibration/selections/1083c1813e6b0ca4cf5777a5275e06be651622bc6e6207e718b549296a9bdd87.json",
+    "selection_sha256": "d5f616e43adb26f06534fbaa0c513358b70078a9755f3a9ecdcd81dc9cebc35d",
+    "resolved_by": [
+      "active live capital plan",
+      "latest execution checkpoint selection_id",
+      "latest selected cash-equity run_id"
+    ],
+    "legacy_pointer": {
+      "path": "db/calibration/xsp_selected_live_transport.json",
+      "selection_id": "b4799fa693ea3da1bf65a7b66412dde318c6ecb427fa14be73b5a5cf1dd40c20",
+      "decision": "not_the_active_consumer_identity"
+    }
+  },
+  "readonly_broker_smoke": {
+    "path_on_q": "/var/tmp/xsp-pressure-smoke.sjgjGN/2026-08-05.jsonl",
+    "sha256": "1f4ed9115a83debc2ac34d4536930d04f26e4c3acded8e503ba733d973d5fb8f",
+    "first_utc": "2026-08-05T22:54:18+00:00",
+    "last_utc": "2026-08-05T22:54:33+00:00",
+    "rows": 16,
+    "first_record_id": "05fe4527f5bdcb0cdd0f672522ee5a9f7cbdd8bdde8a40617774a7eb96ddd40e",
+    "last_record_id": "0248c52d6869210ca48e271bed11e9292ddf7fff19a48eccde9c75a367e39d6f",
+    "contracts": {
+      "SPY": 756733,
+      "UPRO": 61228752,
+      "SPXU": 828937771
+    },
+    "market_data_types": {
+      "SPY": 1,
+      "UPRO": 1,
+      "SPXU": 1
+    },
+    "changed_snapshots": {
+      "SPY": 16,
+      "UPRO": 17,
+      "SPXU": 16
+    },
+    "maximum_snapshot_age_seconds": {
+      "SPY": 3.8893909454345703,
+      "UPRO": 3.736419916152954,
+      "SPXU": 2.423923969268799
+    },
+    "duplicate_record_ids": 0,
+    "eligible_rows": 0,
+    "preeligible_rows_preserved_invalid": 16,
+    "submitted_orders": 0
+  },
+  "deployment": {
+    "timer": "tradebot-xsp-pressure-tape.timer",
+    "timer_enabled": true,
+    "timer_active": true,
+    "timer_substate": "waiting",
+    "next_invocation_utc": "2026-08-06T13:20:00Z",
+    "eligible_start_utc": "2026-08-06T13:20:00Z",
+    "production_rows_before_eligible_start": 0,
+    "xsp_live_timer": "tradebot-xsp-shadow.timer",
+    "xsp_live_timer_enabled": true,
+    "xsp_live_timer_active": true,
+    "xsp_live_order_authority_unchanged": "rth_cash_pair_limit_only",
+    "xsp_live_readonly": false
+  },
+  "proof": {
+    "focused_tests_passed": 16,
+    "repository_tests_passed": 1234,
+    "repository_tests_deselected": 4,
+    "generation_rehash": true,
+    "standard_l1_only": true,
+    "tick_by_tick_subscriptions": 0,
+    "max_snapshot_age_seconds": 5.0,
+    "preeligible_rows_cannot_be_valid": true,
+    "order_surface_present": false,
+    "live_strategy_changed": false,
+    "shared_ladder_changed": false,
+    "shared_capital_changed": false,
+    "mcl_changed": false,
+    "gold_changed": false
+  },
+  "cohort": {
+    "minimum_complete_targets": 30,
+    "minimum_each_direction": 10,
+    "complete_targets": 0,
+    "outcomes_open": false,
+    "classifier_open": false,
+    "permission_open": false
+  },
+  "verdict": "ARMED_ACCUMULATE",
+  "submitted_orders": 0
+}
