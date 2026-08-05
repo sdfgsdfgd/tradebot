@@ -1,0 +1,152 @@
+{
+  "authority": "cutoff_bound_evidence_reduction_only",
+  "boundaries": {
+    "broker_queried": false,
+    "order_authority_mutated": false,
+    "profitability_clock_mutated": false,
+    "selection_mutated": false,
+    "service_or_timer_mutated": false,
+    "submitted_orders": 0
+  },
+  "gates": {
+    "attribution": {
+      "evidence": {
+        "attribution_complete": true,
+        "state_rows": 515
+      },
+      "reasons": [],
+      "status": "PASS"
+    },
+    "capital_owner_stability": {
+      "evidence": {
+        "generation_path": "/home/x/Desktop/py/tradebot/db/calibration/portfolio_generations/ed07a506ff82c2d16ad87c38f1e315735d90601e914a98c64c798164eb33efb1.json",
+        "generation_sha256": "d5484fd3afc439d397c4e865e3c9b6c85d0446705e344d4524151d4e36909e66",
+        "path": "db/calibration/portfolio_capital_owner_stability.json",
+        "plan_id": "ed07a506ff82c2d16ad87c38f1e315735d90601e914a98c64c798164eb33efb1",
+        "sha256": "3d2bb2ee462517edf6c97fe1a5a875567d608692291f352dfbb6cf20f41a8f9c",
+        "sleeves": 3,
+        "source_revision": null
+      },
+      "reasons": [],
+      "status": "PASS"
+    },
+    "cash_risk_safety": {
+      "evidence": {
+        "closed_trades": 1,
+        "drawdown_usd": 11.003327999999954,
+        "fill_count": 2,
+        "latest_risk_fingerprint": "6349f959eda478cff1a1f32e1a4cfd6fc2000312fce159e22635d7aeb54de657",
+        "session_net_usd": -11.003327999999954,
+        "settled_cash_usd": 1307.046672,
+        "state_rows": 515
+      },
+      "reasons": [],
+      "status": "PASS"
+    },
+    "execution": {
+      "evidence": {
+        "commission_usd": 0.703328,
+        "fills": 2,
+        "limit_price_improvement_usd": 0.050000000000096634,
+        "orders": 2,
+        "quote_ineligible_transitions": 2,
+        "terminal_orders": 2
+      },
+      "reasons": [],
+      "status": "PASS"
+    },
+    "identity": {
+      "evidence": {
+        "ledger_prefix_records": 2115,
+        "ledger_prefix_sha256": "65e6667d7930f1d0f99fe3347633fecf22a1308aab2ce4b522a92359e61a5038",
+        "selection_file_sha256": "d5f616e43adb26f06534fbaa0c513358b70078a9755f3a9ecdcd81dc9cebc35d",
+        "selection_id": "1083c1813e6b0ca4cf5777a5275e06be651622bc6e6207e718b549296a9bdd87"
+      },
+      "reasons": [],
+      "status": "PASS"
+    },
+    "profitability": {
+      "evidence": {
+        "required_milestones": [
+          "24h",
+          "48h"
+        ],
+        "target": "48h"
+      },
+      "reasons": [
+        "incomplete_session_coverage"
+      ],
+      "status": "INVALID"
+    },
+    "restart": {
+      "evidence": {
+        "first_natural_checkpoint_id": "95dc4592d8b802af98dae018c52a9b3ebd4e6a0e03ff50513e246ed5c1700da4",
+        "restart_checkpoint_id": "52a7d9b2d733c664a1860f62abe9094f051b03b208af986343bc600d2da579dd",
+        "restart_recorded_at_utc": "2026-08-03T12:42:12.528163+00:00"
+      },
+      "reasons": [],
+      "status": "PASS"
+    },
+    "runtime_parity": {
+      "evidence": {
+        "observed_at_utc": "2026-07-31T22:10:27Z",
+        "ordered_ledger_sha256": "40708a28476fad504d29b1222e52b88481b1c0da8313ed4667076e2b6ed3f157",
+        "path": "backtests/xsp/opening_edge_v3_current_runtime_parity_audit.json",
+        "sha256": "f9f06b2b8683b121a7958f25a9a924bc47cca76059d51a60aa30510bdbabfe95"
+      },
+      "reasons": [],
+      "status": "PASS"
+    }
+  },
+  "identity": {
+    "ledger_prefix": {
+      "candidate_records": 2116,
+      "clock_regressions": 874,
+      "cutoff_utc": "2026-08-05T17:22:03.432270+00:00",
+      "excluded_for_dependency": 1,
+      "first_record_id": "ce0e72cc7ed591c38a3cf625c3dabef8638d0cceace1b3a7411391f9e5569928",
+      "included_records": 2115,
+      "last_record_id": "9a750d3f471c3e3dab4a31ddf78eef659695b2eabda7cb9f928fb04b755601e4",
+      "schema": "live.calibration-logical-prefix.v1",
+      "sha256": "65e6667d7930f1d0f99fe3347633fecf22a1308aab2ce4b522a92359e61a5038"
+    },
+    "selection": {
+      "capital_sleeve": "xsp-upro-spxu-rth-cash",
+      "execution_strategy_version": "xsp.opening-edge-v3-upro-spxu-live-execution.v1",
+      "path": "/home/x/Desktop/py/tradebot/db/calibration/selections/1083c1813e6b0ca4cf5777a5275e06be651622bc6e6207e718b549296a9bdd87.json",
+      "run_id": "1083c1813e6b0ca4cf5777a5275e06be651622bc6e6207e718b549296a9bdd87",
+      "run_started_at_utc": "2026-08-03T12:41:13.968661+00:00",
+      "selected_at_utc": "2026-08-03T12:41:13.968661+00:00",
+      "selection_file_sha256": "d5f616e43adb26f06534fbaa0c513358b70078a9755f3a9ecdcd81dc9cebc35d",
+      "selection_id": "1083c1813e6b0ca4cf5777a5275e06be651622bc6e6207e718b549296a9bdd87",
+      "signal_strategy_version": "xsp.opening-edge-v3-regime-harmony-24x5.v1"
+    },
+    "selection_file_sha256": "d5f616e43adb26f06534fbaa0c513358b70078a9755f3a9ecdcd81dc9cebc35d"
+  },
+  "reasons": [
+    "profitability:incomplete_session_coverage"
+  ],
+  "receipt_id": "064d14a56172ffa1e1653c1d37cb1e083da54f23743814bc290fd571c0eba2e5",
+  "remaining_requirements": [
+    "profitability:incomplete_session_coverage"
+  ],
+  "schema": "live.strategy-graduation.v1",
+  "subject": {
+    "account_fingerprint": "bddaf5682a861c6e5fb3ef815a84b8e64c366bf94a6cfe2d459040603badaced",
+    "capital_sleeve": "xsp-upro-spxu-rth-cash",
+    "execution_sleeve": "UPRO/SPXU",
+    "run_id": "1083c1813e6b0ca4cf5777a5275e06be651622bc6e6207e718b549296a9bdd87",
+    "selection_id": "1083c1813e6b0ca4cf5777a5275e06be651622bc6e6207e718b549296a9bdd87",
+    "signal_instrument": "XSP",
+    "strategy_id": "xsp.opening-edge-v3-regime-harmony-24x5.v1",
+    "strategy_version": "xsp.opening-edge-v3-upro-spxu-live-execution.v1"
+  },
+  "target": {
+    "cutoff_utc": "2026-08-05T17:22:03.432270+00:00",
+    "milestone": "48h",
+    "required_predecessors": [
+      "24h"
+    ]
+  },
+  "verdict": "QUARANTINE"
+}
