@@ -1,0 +1,12 @@
+[Unit]
+Description=Start the prospective XSP pressure tape before each cash session
+
+[Timer]
+OnCalendar=Mon..Fri *-*-* 09:20:00 America/New_York
+AccuracySec=15s
+RandomizedDelaySec=0
+Persistent=true
+Unit=tradebot-xsp-pressure-tape.service
+
+[Install]
+WantedBy=timers.target

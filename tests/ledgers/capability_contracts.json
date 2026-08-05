@@ -133,6 +133,7 @@
     "tests/test_xsp_live_transport_runtime.py": "market-realism-parity",
     "tests/test_xsp_opening_edge_v3.py": "market-realism-parity",
     "tests/test_xsp_pressure_onramp.py": "policy-risk-sizing",
+    "tests/test_xsp_pressure_tape.py": "live-market-data-contracts",
     "tests/test_xsp_transport_ranking.py": "market-realism-parity",
     "tests/test_news_signal.py": "signal-regime-intelligence",
     "tests/test_offline_cache_preflight.py": "backtest-data-cache",
@@ -410,15 +411,19 @@
         "tests/test_ui_favorites_md_indicator.py",
         "tests/test_ui_px_change_metrics.py",
         "tests/test_ui_search_contract_description.py",
-        "tests/test_ui_signal_timeout_fallback_ladder.py"
+        "tests/test_ui_signal_timeout_fallback_ladder.py",
+        "tests/test_xsp_pressure_tape.py"
       ],
       "owner_surface": [
         "deploy/systemd/tradebot-mcl-turn-tape.service",
+        "deploy/systemd/tradebot-xsp-pressure-tape.service",
+        "deploy/systemd/tradebot-xsp-pressure-tape.timer",
         "deploy/systemd/tradebot-xsp-quotes.service",
         "deploy/systemd/tradebot-xsp-quotes.timer",
         "tradebot/client.py",
         "tradebot/contract_identity.py",
         "tradebot/research/mcl_turn_tape.py",
+        "tradebot/research/xsp_pressure_tape.py",
         "tradebot/backtest/quotes.py",
         "tradebot/backtest/tools/record_quotes.py"
       ],

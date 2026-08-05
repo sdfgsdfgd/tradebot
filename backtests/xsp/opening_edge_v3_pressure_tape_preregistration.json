@@ -1,0 +1,116 @@
+{
+  "schema": "xsp.opening-edge-v3-pressure-tape-preregistration.v1",
+  "registered_at_utc": "2026-08-05T22:40:21Z",
+  "authority": "prospective_microstructure_observation_only_no_signal_no_outcomes_no_orders_no_capital",
+  "quest": "XSP Freshness and Pressure On-ramp prospective seconds evidence",
+  "incumbent": {
+    "strategy_version": "xsp.opening-edge-v3-regime-harmony-24x5.v1",
+    "selection_id": "1083c1813e6b0ca4cf5777a5275e06be651622bc6e6207e718b549296a9bdd87",
+    "direction_and_lifecycle_owner_unchanged": true
+  },
+  "hypothesis": "Fresh SPY cash discovery and matched UPRO/SPXU transport-book acceleration, divergence, or reconvergence immediately before the existing XSP submit clock may distinguish a stale crowned target from an authentic onset without redefining direction.",
+  "data_contract": {
+    "transport": "IBKR standard streaming L1 ticker updates",
+    "timestamp_semantics": "local_ib_insync_update_callback_receipt_utc_not_exchange_or_broker_event_time",
+    "symbols": [
+      "SPY",
+      "UPRO",
+      "SPXU"
+    ],
+    "exact_contracts": {
+      "SPY": {
+        "con_id": 756733,
+        "exchange": "SMART",
+        "primary_exchange": "ARCA",
+        "currency": "USD",
+        "tick_size": 0.01
+      },
+      "UPRO": {
+        "con_id": 61228752,
+        "exchange": "SMART",
+        "primary_exchange": "ARCA",
+        "currency": "USD",
+        "tick_size": 0.01
+      },
+      "SPXU": {
+        "con_id": 828937771,
+        "exchange": "SMART",
+        "primary_exchange": "ARCA",
+        "currency": "USD",
+        "tick_size": 0.01
+      }
+    },
+    "validity": "Every symbol must be marketDataType 1 with a finite positive two-sided book updated within five seconds; incomplete, stale, delayed, frozen, disconnected, contract-drifted, or late rows remain preserved but invalid.",
+    "max_snapshot_age_seconds": 5.0,
+    "explicitly_not_claimed": [
+      "exchange timestamps",
+      "market depth",
+      "hidden liquidity",
+      "perfect signed trade flow",
+      "tick-by-tick completeness",
+      "ES pressure"
+    ]
+  },
+  "broker_probe_before_outcome": {
+    "observed_at_utc": "2026-08-05T22:32:23Z",
+    "SPY": {
+      "market_data_type": 1,
+      "updates_in_12_seconds": 8
+    },
+    "UPRO": {
+      "market_data_type": 1,
+      "updates_in_12_seconds": 9
+    },
+    "SPXU": {
+      "market_data_type": 1,
+      "updates_in_12_seconds": 6
+    },
+    "ESU6": {
+      "con_id": 649180671,
+      "market_data_type": 3,
+      "broker_error": 354,
+      "decision": "excluded_as_delayed"
+    },
+    "submitted_orders": 0
+  },
+  "frozen_raw_coordinates": [
+    "per-symbol changed L1 snapshots and callback offsets within each UTC second",
+    "mid and microprice OHLC",
+    "spread-bps min/max/close",
+    "imbalance open/min/max/close",
+    "same-price bid/ask size add/remove proxies",
+    "last-price OHLC and cumulative-volume delta",
+    "first midpoint-move callback offset",
+    "SPY/UPRO/inverse-SPXU displacement and alignment",
+    "cash-versus-transport divergence and first-move order",
+    "XSP session and trading-date labels"
+  ],
+  "future_causal_join": {
+    "source": "unchanged Opening Edge v3 source and live execution checkpoints",
+    "formation_window": "60 seconds ending at the crowned signal-bar close",
+    "transport_window": "signal-bar close through the first live transport evaluation",
+    "execution_window": "first transport evaluation through terminal fill/cancel, attribution only",
+    "minimum_complete_targets": 30,
+    "minimum_each_direction": 10,
+    "first_stage": "count_and_morphology_only",
+    "outcomes_open": false
+  },
+  "excluded_predecessors": [
+    "All retired July 2026 XSP microtapes are controls only and cannot enter this generation.",
+    "The retired tick-by-tick callback reprocessed cumulative tick lists and produced duplicated event counts; it is not inherited.",
+    "The rejected historical Quest I broad and narrow permission economics cannot train this prospective tape."
+  ],
+  "invariants": {
+    "read_only": true,
+    "standard_l1_only": true,
+    "tick_by_tick_subscriptions": 0,
+    "max_snapshot_age_seconds": 5.0,
+    "mcl_turn_tape_unchanged": true,
+    "gold_unchanged": true,
+    "xsp_live_owner_unchanged": true,
+    "shared_limit_ladder_unchanged": true,
+    "shared_capital_owner_unchanged": true,
+    "order_authority": "none",
+    "submitted_orders": 0
+  }
+}

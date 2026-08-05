@@ -1,0 +1,64 @@
+{
+  "schema": "xsp.pressure-microstructure-generation.v1",
+  "registered_at_utc": "2026-08-05T22:40:21Z",
+  "eligible_start_utc": "2026-08-06T13:20:00Z",
+  "authority": "prospective_microstructure_observation_only_no_signal_no_outcomes_no_orders_no_capital",
+  "timestamp_semantics": "local_ib_insync_update_callback_receipt_utc_not_exchange_or_broker_event_time",
+  "preregistration_path": "backtests/xsp/opening_edge_v3_pressure_tape_preregistration.json",
+  "preregistration_sha256": "fc632b7f570c448214690c4e2c3b8f3a391e8a610668dd568160e2b1c8376e7a",
+  "recorder_path": "tradebot/research/xsp_pressure_tape.py",
+  "recorder_sha256": "60a9e4b2f9b0846267ee9d5a33ee5f4bf8947ea36af4386d894a2f42cd7c5c28",
+  "incumbent_strategy_version": "xsp.opening-edge-v3-regime-harmony-24x5.v1",
+  "selection_id": "1083c1813e6b0ca4cf5777a5275e06be651622bc6e6207e718b549296a9bdd87",
+  "symbols": [
+    "SPY",
+    "UPRO",
+    "SPXU"
+  ],
+  "contracts": {
+    "SPY": {
+      "symbol": "SPY",
+      "sec_type": "STK",
+      "con_id": 756733,
+      "local_symbol": "SPY",
+      "exchange": "SMART",
+      "primary_exchange": "ARCA",
+      "currency": "USD",
+      "tick_size": 0.01
+    },
+    "UPRO": {
+      "symbol": "UPRO",
+      "sec_type": "STK",
+      "con_id": 61228752,
+      "local_symbol": "UPRO",
+      "exchange": "SMART",
+      "primary_exchange": "ARCA",
+      "currency": "USD",
+      "tick_size": 0.01
+    },
+    "SPXU": {
+      "symbol": "SPXU",
+      "sec_type": "STK",
+      "con_id": 828937771,
+      "local_symbol": "SPXU",
+      "exchange": "SMART",
+      "primary_exchange": "ARCA",
+      "currency": "USD",
+      "tick_size": 0.01
+    }
+  },
+  "standard_l1_only": true,
+  "tick_by_tick_subscriptions": 0,
+  "flush_lag_seconds": 3,
+  "max_snapshot_age_seconds": 5.0,
+  "write_cadence": "one content-addressed row per connected UTC second",
+  "eligible_sessions": [
+    "RTH"
+  ],
+  "excluded_before_eligible_start": true,
+  "outcomes_open": false,
+  "classifier_open": false,
+  "permission_open": false,
+  "order_authority": "none",
+  "submitted_orders": 0
+}
