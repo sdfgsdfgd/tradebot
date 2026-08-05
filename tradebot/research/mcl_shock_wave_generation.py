@@ -59,6 +59,19 @@ def _bound_artifact(root: Path, relative: object, digest: object) -> dict[str, s
     return artifact
 
 
+def _predecessor_path(root: Path, requested: Path | None) -> Path:
+    if requested is not None:
+        return requested
+    current = root / MCL_SHOCK_WAVE_RUNTIME_GENERATION_PATH
+    if current.is_file():
+        generation = json.loads(current.read_text())
+        generation_id = str(generation.get("generation_id") or "")
+        if not _is_sha(generation_id):
+            raise ValueError("current MCL shock-wave generation identity drifted")
+        return MCL_SHOCK_WAVE_GENERATION_DIRECTORY / f"{generation_id}.json"
+    return MCL_SHOCK_WAVE_GENERATION_PATH
+
+
 def build_mcl_shock_wave_successor_generation(
     *,
     repository_root: Path,
@@ -73,9 +86,10 @@ def build_mcl_shock_wave_successor_generation(
     predictive_file_sha256: str,
     inherited_episode_ids: Sequence[str],
     generated_at: datetime,
-    predecessor_path: Path = MCL_SHOCK_WAVE_GENERATION_PATH,
+    predecessor_path: Path | None = None,
 ) -> dict[str, object]:
     root = repository_root.resolve()
+    predecessor_path = _predecessor_path(root, predecessor_path)
     predecessor_file = (root / predecessor_path).resolve()
     if root not in predecessor_file.parents:
         raise ValueError("MCL shock-wave predecessor escaped repository")

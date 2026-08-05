@@ -44,6 +44,7 @@ from tradebot.research.mcl_shock_wave_accumulator import (
     replay_mcl_shock_wave_episodes,
 )
 from tradebot.research.mcl_shock_wave_generation import (
+    _predecessor_path,
     build_mcl_shock_wave_successor_generation,
     validate_mcl_shock_wave_successor_generation,
 )
@@ -774,6 +775,23 @@ def test_stage114_runtime_service_uses_one_validated_generation_pointer() -> Non
     assert "-m tradebot.research.mcl_shock_wave_accumulator" in service
     assert "IBKR_READONLY=1" in service
     assert "Unit=tradebot-mcl-predictive-onset-runtime.service" in timer
+
+
+def test_stage114_successor_uses_the_current_immutable_generation(
+    tmp_path: Path,
+) -> None:
+    generation_id = "6" * 64
+    immutable = (
+        tmp_path
+        / "db/calibration/shock_wave_generations"
+        / f"{generation_id}.json"
+    )
+    current = tmp_path / "db/calibration/mcl_shock_wave_generation.json"
+    immutable.parent.mkdir(parents=True)
+    immutable.write_text("{}")
+    current.write_text(f'{{"generation_id":"{generation_id}"}}')
+
+    assert _predecessor_path(tmp_path, None) == immutable.relative_to(tmp_path)
 
 
 def _reset_bars(stamps: tuple[datetime, ...]) -> dict[str, dict[datetime, OhlcvBar]]:
