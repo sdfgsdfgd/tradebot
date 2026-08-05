@@ -1,0 +1,167 @@
+{
+  "schema": "mcl.shock-crest-stage113-first-tradeable-episode-falsification.v1",
+  "recorded_at_utc": "2026-08-05T00:31:43Z",
+  "authority": "prospective_morphology_and_direction_provenance_falsification_only_no_outcomes_no_orders_no_capital",
+  "lineage": {
+    "generation_id": "fd2dd70f9238a0ea423d9e7fe4c7317ca80aab93ba79488ab163223cfe6b3756",
+    "selection_id": "083ecba8798ea6e60f32b1c42d4896e1a016703a77eeac2f32ac7ce3f5d54a91",
+    "hawkeye_ranking_receipt": "backtests/mcl/mcl_predictive_intelligence_hawkeye_block_ranking_20260805.json",
+    "hawkeye_ranking_receipt_sha256": "0eee84d59a064d5b373a6885e095a29ec134eb201b8667133c4d882d2e47cfe3",
+    "fixed_prefix_evaluator_path_on_q": "/var/tmp/mcl_stage113_tradeable_open_snapshot_r2.py",
+    "fixed_prefix_evaluator_sha256": "987e926cf97d97cb722015999b526fd1d189d166a1a6371e202a0528a2a88bc5",
+    "fixed_prefix_result_path_on_q": "/var/tmp/mcl-stage113-tradeable-open-snapshot-0015-r2.json",
+    "fixed_prefix_result_sha256": "5242fc9710f42557d38f96b4409056a616393fa8117260251068a68aff62a390"
+  },
+  "natural_completion": {
+    "predictor_recorded_at_utc": "2026-08-05T00:30:45.920126+00:00",
+    "episode_id": "15a3445287dc3b4d240b0b65b31d16e944a4ab8a357cc99a93377a6a514058f4",
+    "checkpoint_id": "cf4dbbeb2f51d05036c896d5e6bbfa312819cea5994bc8a60edd2372cc9ee785",
+    "episode_sha256": "d6c03b35b27d343ac780a474c9071d8e952fa263b442b1d1436f6d9602c5dc24",
+    "started_at_utc": "2026-08-05T00:00:31+00:00",
+    "terminal_at_utc": "2026-08-05T00:26:00+00:00",
+    "duration_seconds": 1529.0,
+    "terminal_reason": "seconds_owner_normalized",
+    "source_records": 853,
+    "source_record_ids_sha256": "8602d32be6404afa20856f9c270083485bf6c96d490d70227b6e276ef764ccf2",
+    "bar_prefix_sha256": "0739550434d4371280fb92add059aa89cc65bb38d1c6ac0c8de307b6592d6a53",
+    "maximum_level": "TRADEABLE_SHOCK_12_TO_20X",
+    "maximum_volume_multiple": 17.31782945736434,
+    "reached_tradeable_12x": true,
+    "reached_regime_20x": false,
+    "incumbent_direction": "up",
+    "incumbent_continuation_direction": "up",
+    "outcomes_exposed": false,
+    "submitted_orders": 0
+  },
+  "incumbent_causal_path": [
+    {
+      "at_utc": "2026-08-05T00:00:31+00:00",
+      "event": "attention_latched_directionless",
+      "volume_multiple": 5.5064935064935066,
+      "mcl_microprice": 75.26333333333334
+    },
+    {
+      "at_utc": "2026-08-05T00:00:35+00:00",
+      "event": "direction_acquired",
+      "direction": "up",
+      "volume_multiple": 6.025974025974026
+    },
+    {
+      "at_utc": "2026-08-05T00:00:43+00:00",
+      "event": "first_fully_opposite_fast_alignment",
+      "direction": "down"
+    },
+    {
+      "at_utc": "2026-08-05T00:05:13+00:00",
+      "event": "major_level_cross",
+      "volume_multiple": 11.922480620155039,
+      "mcl_microprice": 74.75250000000001,
+      "full_dual_book_alignment": "down",
+      "retained_incumbent_direction": "up"
+    },
+    {
+      "at_utc": "2026-08-05T00:05:14+00:00",
+      "event": "tradeable_level_cross",
+      "volume_multiple": 12.294573643410853,
+      "mcl_microprice": 74.77799999999999,
+      "full_dual_book_alignment": "down",
+      "retained_incumbent_direction": "up"
+    },
+    {
+      "at_utc": "2026-08-05T00:05:23+00:00",
+      "event": "incumbent_crest_confirmed",
+      "incumbent_direction": "up",
+      "volume_multiple": 13.813953488372093,
+      "mcl_microprice": 74.73666666666666
+    },
+    {
+      "at_utc": "2026-08-05T00:06:16+00:00",
+      "event": "incumbent_continuation_emitted",
+      "continuation_direction": "up",
+      "volume_multiple": 0.6125461254612546,
+      "mcl_microprice": 74.775
+    },
+    {
+      "at_utc": "2026-08-05T00:26:00+00:00",
+      "event": "incumbent_normalized",
+      "volume_multiple": 0.0,
+      "mcl_microprice": 75.34333333333332
+    }
+  ],
+  "direction_conflict": {
+    "opposite_fast_alignment_observations_through_fixed_prefix": 106,
+    "finding": "The immutable UP direction captured a brief sub-10x twitch, survived the later fully DOWN 10x/12x escalation, interpreted a rebound near the down-shock low as UP continuation, then remained open throughout the recovery until fast and fifteen-minute velocities finally opposed UP at 00:26Z. One episode therefore conflated a DOWN shock wave and its UP recovery wave.",
+    "promotion_verdict": "FALSIFIED_FOR_DIRECTION_OR_TIMING_PROMOTION"
+  },
+  "corrected_development_only_authority_path": {
+    "law": "5x attention is directionless; at or above 10x a wave may bind only from full dual-book alignment; a new higher level may hand off only through opposite full alignment and fresh crest state",
+    "bind": {
+      "at_utc": "2026-08-05T00:05:13+00:00",
+      "direction": "down"
+    },
+    "crest_at_utc": "2026-08-05T00:05:20+00:00",
+    "continuation": {
+      "at_utc": "2026-08-05T00:05:55+00:00",
+      "direction": "down"
+    },
+    "rotation_release_at_utc": "2026-08-05T00:06:45+00:00",
+    "warning": "This path was defined after morphology exposure. It is a state-semantics demonstration only, not a return, PnL, classifier, threshold, timing, or crown result."
+  },
+  "stage113_ledger": {
+    "path_on_q": "/home/x/.local/state/tradebot/research/mcl_shock_crest.jsonl",
+    "rows": 2,
+    "sha256": "8995ba2716c0ddc0a8b4384c76cff3f60ad31555d0222f0fbf1d18397bd399ef",
+    "complete_episodes": 2,
+    "resolved_directions": {
+      "down": 1,
+      "up": 1
+    },
+    "causal_crests": 2,
+    "tradeable_12x_episodes": 1,
+    "regime_20x_episodes": 0,
+    "continuations": 1,
+    "continuation_directions": {
+      "up": 1
+    },
+    "cohort_verdict": "ACCUMULATE",
+    "promotion_verdict": "REJECT_DIRECTION_PROVENANCE"
+  },
+  "concurrent_stage112_boundary": {
+    "recorded_at_utc": "2026-08-05T00:31:11.141784+00:00",
+    "source_checkpoint_id": "a2e2e86526014e7b8fd6a2585060c7f7b5f1974de99f507a40bf9c22d75c54e3",
+    "execution_checkpoint_id": "f93266b9c321bca03393ce12acca24ac296cdf9d3c88e29d66cd47373f40ca9b",
+    "plan_reason": "flat_no_target",
+    "position": 0,
+    "fills": 0,
+    "closed_trades": 0,
+    "run_net_usd": 0.0,
+    "drawdown_usd": 0.0,
+    "safety_breaches": [],
+    "mcl_quote": {
+      "bid": 75.35,
+      "ask": 75.37,
+      "market_data_type": 1
+    },
+    "submitted_orders": 0
+  },
+  "decision": {
+    "stage112": "UNCHANGED_CROWNED_CANARY_LIVE",
+    "stage113": "PRESERVE_IMMUTABLE_TWO_EPISODE_FALSIFICATION_GENERATION",
+    "stage114": "DECISION_REQUIRED_NOT_IMPLEMENTED",
+    "recommended_successor": "Stage 114 Authority-Bound Shock Waves",
+    "successor_generation": "fresh_only_after_user_architecture_confirmation"
+  },
+  "invariants": {
+    "future_return_exposed": false,
+    "pnl_exposed": false,
+    "stage112_changed": false,
+    "stage113_generation_rewritten": false,
+    "stage114_implemented": false,
+    "direction_authority": "none",
+    "timing_authority": "none",
+    "order_authority": "none",
+    "capital_authority": "none",
+    "market_orders_permitted": false
+  },
+  "submitted_orders": 0
+}
