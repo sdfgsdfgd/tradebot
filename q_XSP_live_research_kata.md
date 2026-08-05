@@ -1,13 +1,15 @@
 # XSP / Gold / MCL Mastery — Live Research Kata
 
 - **Status:** `[ACTIVE] Opening Edge v3 is the frozen historical crown and
-  package-sized Tiered UPRO/SPXU RTH selection `1083c181…` is live-capable. Fresh
-  SMART books, quote-derived `5 UPRO / 21 SPXU`, cash, conservative Tiered
-  commission range, flat broker state, immutable identity, and restart proof
-  passed. Its cold start, immediate restart, and natural `13:47Z` recurrence
-  remained flat with zero submissions; the five-minute capital owner is active and the first
-  read-only dwell capture is terminally audited `ACCUMULATE`. GTH cash
-  authority remains disabled. Gold Stage 76/77 is separately armed on q as
+  package-sized Tiered UPRO/SPXU RTH selection `1083c181…` is live. Current
+  quote + immutable package notional + centralized conservative Tiered cost now
+  own package quantity; the historical share range is descriptive provenance,
+  not a live cap. Its first live round trip bought `5 UPRO @ 155.54`, honored
+  the `60m` minimum hold, released after the required second opposite
+  confirmation, and sold `5 @ 153.48`: `-$10.30` gross / `-$11.003328`
+  after cost. The reconciled broker state is flat with no open order or safety
+  breach; both legs were LMT/AUTO. GTH cash authority remains disabled. Gold
+  Stage 76/77 is separately armed on q as
   flat one-contract 1OZ canary `62344ce2…`; only a fresh causal admission may
   enter during GTH or RTH, and operational graduation remains pending. MCL's
   executable HF research crown is now **Shock-Aware Two-Speed Arbiter — Stage
@@ -74,12 +76,13 @@
   `A$2,685.52/A$2,148.42` initial/maintenance margin and `$0.76` commission.
   This proves the MCL minimum
   alone; it does not promise simultaneous ownership of all three. The selected
-  XSP transport retains a conservative
-  maximum completed-ticket commission of `$0.45034925`. The first round trip
-  bought `23 SPXU @ $39.10` for `$0.318126`, then sold all `23 @ $38.56` for
-  `$0.340881`: realized `-$13.079007`, current settled USD `$1,318.051`, no
-  relevant position/order, and no safety breach. One unrelated TQQQ share
-  remains outside this run
+  XSP transport recomputes conservative Tiered commission from current
+  quantity/notional through one shared owner. Its first live round trip bought
+  `5 UPRO @ $155.54` for `$0.343272`, then sold all `5 @ $153.48` for
+  `$0.360056`: realized `-$11.003328`, current relevant position/order `0/0`,
+  and no safety breach. Archived predecessor `daf1609b…` separately retains its
+  `23 SPXU` `-$13.079007` round trip and cannot transfer economics. One
+  unrelated TQQQ share remains outside this run
 
 **Operating rule:** update this file only when the frontier, authority, strategy,
 evidence conclusion, risk boundary, or next action changes. Routine test/lint
@@ -93,7 +96,7 @@ output belongs in commit/final verification, not in this management brain.
 | Authority | Current truth |
 |---|---|
 | Broker/order strategy | XSP: Tiered UPRO/SPXU RTH cash pair. Gold: one `1OZZ6` limit-only canary on fresh Stage-76 admission. MCL: Stage-112 selection `8adead89…` is armed flat for one matched `CLU6 → MCLU6` contract, LMT-only, with ordinary/shock AUTO phase speed `1×/2×`; old V18 remains permanently breached. One account lock serializes broker mutation |
-| Selected live run | `1083c181…` / file `d5f616e4…`, selected flat at `12:41:13Z` as the package-sized successor to `b4799fa6…`; XSP owns `xsp-usd-800`, zero inherited fills/P&L/DD. Invalid `daf1609b…` and earlier identities remain archived evidence only |
+| Selected live run | `1083c181…` / file `d5f616e4…`, selected flat at `12:41:13Z` as the package-sized successor to `b4799fa6…`; XSP owns `xsp-usd-800` and inherited no economics. Its first live round trip is terminal: `5 UPRO 155.54→153.48`, `-$11.003328` after cost, `67m` logical hold, broker-flat/no-order/no-breach. Invalid `daf1609b…` and earlier identities remain archived evidence only |
 | Gold live canary | `62344ce2…` / file `5fc9048d…`, selected flat at `12:41:13Z` as the package-bound successor to `12b15bd2…`; `1OZZ6` execution and `GCZ6` corroboration, zero inherited fills/P&L/DD, no synthetic midcycle entry |
 | XSP research crown | **Opening Edge v3 — Regime Harmony 24/5**; `xsp.opening-edge-v3-regime-harmony-24x5.v1` |
 | MCL crown/live | **Shock-Aware Two-Speed Arbiter — Stage 112**, crown `c1e7aad0…`; `388/388` final parity, ledger `e4d18b52…`, `+$3,942.99`, DD `$603.63`, PnL/DD `6.532`. Gap-free successor `8adead89…` is `CANARY_LIVE`, flat with zero orders/fills/P&L/DD. Preliminary cutoff `f2d2f789…` is lawful `HOLD`; the older `083ecba…/6d99e5c6…` clocks remain quarantined evidence only |
@@ -102,10 +105,10 @@ output belongs in commit/final verification, not in this management brain.
 | Goal snapshot | authoritative attachment SHA `565777a3…` is read in full; `q_XSP_goal_objective.md` is its whitespace-normalized tracked backup. Both explicitly require autonomous ideal-safe decisions, continued multi-week profitability/sharpening work, and no routine decision blocking. The attachment owns the Goal while this kata remains the detailed resume authority |
 | Observer cadence | Stage-112 live and the sole runtime predictive timer are active/waiting. Predictive generation `2256c870…` has `7/30` treatments (`4 down/3 up`), one admission, two resolved handoffs, SHA `c96f3d1e…`. Stage-113 is terminally preserved at three rows / `249d5a3f…`; correction `mcl_stage114_pre_outcome_predecessor_ledger_correction.json` discloses the third pre-registration episode without altering or inheriting it. Stage-114 runtime generation `ce101ce9…` directly binds immutable predecessor `1540c9a5…`; its fresh ledger is `1/30` / `8be62828…` after a DOWN `10.501×` major-protect wave bound at `13:39:58Z`, crested at `13:40:18Z`, and terminated at the `14:15Z` V18 raw turn without reaching `12×`, continuation, handoff, outcome, or live authority. Stage 115 stays derivation-only and now has one lawful complete episode ID. The predecessor timer is disabled; exactly one successor observer and the unchanged event tape are active |
 | RTH signal freshness | **cleared:** after the user activated `CBOE Streaming Market Indexes`, zero-order receipt `acce7ed3…` returned live type-1 XSP, current five-minute history, and real-time `TRADES` bars without a Gateway restart; the natural `10:07 ET` centralized v2 checkpoint then evaluated with both XSP and SPY through `10:05` and `120s` age |
-| Order/capital authority | Plan `ed07a506…` binds XSP `1083c181…` / `xsp-usd-800`, Gold `62344ce2…` / `gold-one-contract`, and Stage-112 MCL `8adead89…` / `mcl-one-contract-stage91`. Flat strategies reserve no fictional capacity: each fresh entry admits its own indivisible minimum only if candidate + actual positions + uniquely owned pending orders pass the same fresh full-account stress proof. Later entries may honestly `HOLD`; risk reduction is unconditional. Every champion is LMT-only; broker-wide market-order rejection is centralized |
+| Order/capital authority | Plan `ed07a506…` binds XSP `1083c181…` / `xsp-usd-800`, Gold `62344ce2…` / `gold-one-contract`, and Stage-112 MCL `8adead89…` / `mcl-one-contract-stage91`. Flat strategies reserve no fictional capacity: each fresh entry admits its own indivisible minimum only if candidate + actual positions + uniquely owned pending orders pass the same fresh full-account stress proof. For XSP packages, current quote + immutable notional + shared conservative Tiered cost own quantity; the historical share range cannot veto a still-affordable package. Later entries may honestly `HOLD`; risk reduction is unconditional. Every champion is LMT-only; broker-wide market-order rejection is centralized |
 | Profitability clock | Old V18 and the gapped `083ecba…/6d99e5c6…` clocks are closed evidence. Fresh Stage-112 clock `8adead89…` began `11:39:22Z`; cutoff `11:42:45Z` proves complete matured-minute coverage and returns `HOLD`, not quarantine. Runtime, identity, restart, capital, risk, and attribution pass; zero authentic fills and insufficient elapsed sessions remain. Earliest 24h evidence boundary is `2026-08-06T11:39:55Z`; no slot is backfilled and no trade is forced |
-| Execution verdict | Stage-112 MCL position/orders/fills are zero; read-only broker audit `6d11b168…` found no open order/execution and only unrelated `TQQQ 1`. Both live/predictive timers are active. A fresh causal V18-or-shock admission may submit one broker-enforced LMT through the shared ladder; market orders remain impossible. Predictive Stages 87–90 and Stage 114 cannot submit or alter live direction |
-| Next irreversible evidence | Preserve the gap-free `8adead89…` prefix and reduce immutable `24h`, `48h`, and five-session milestones only when due. Derive Stage-115's already-frozen bind/crest/flow geometry from the first complete Stage-114 episode, then continue accumulation without promoting thresholds, outcomes, direction, execution, or capital before the frozen cohorts pass |
+| Execution verdict | XSP is flat after its first selected-run round trip: two LMT/AUTO fills, one closed trade, `-$11.003328` net, zero relevant position/order/breach. The `60m` minimum plus one recovering-long confirmation held for `67m`; the confirmed post-`11:50 ET` DOWN state reduced UPRO but could not open SPXU. Stage-112 MCL remains flat; both MCL live/predictive timers are active. A fresh causal V18-or-shock admission may submit one broker-enforced LMT through the shared ladder; market orders remain impossible. Predictive Stages 87–90 and Stage 114 cannot submit or alter live direction |
+| Next irreversible evidence | Preserve XSP's reconciled first-round-trip prefix and reduce its authentic profitability milestones without disguising the `-$11.003328` start. Preserve the gap-free MCL `8adead89…` prefix and reduce immutable `24h`, `48h`, and five-session milestones only when due. Derive Stage-115's already-frozen bind/crest/flow geometry from the first complete Stage-114 episode, then continue accumulation without promoting thresholds, outcomes, direction, execution, or capital before the frozen cohorts pass |
 | First active work | MCL remains Priority Zero. Commissioning is complete; active work is live graduation plus Predictive Intelligence Sharpening of Onsets, especially seconds-to-multiscale velocity/range/volume morphology, while XSP/Gold remain unchanged |
 
 <!-- RESUME-CAPSULE:END -->
@@ -2507,6 +2510,8 @@ and
 | E-525 | post-audit Hawkeye receipt `mcl_stage112_hawkeye_20260805T1305Z.json` (`f2bd6c08…`) starts a fresh review block without pretending continuity through the governance/process audit. Stage-112 source/execution `b71d048f…/9cd18835…` remained `flat_no_target` on live type-1 `MCLU6 75.88/75.89`, with zero position/order/fill/trade/gross/cost/net/DD/MFE/MAE/breach/submission and `$999.53` settled USD / `A$3,608.62` available. The second opposed-news pre-turn specimen failed even faster than the first: at `13:00Z`, all five `30/60/120/240/480m` slopes and four velocities were positive, coherence was `1.0`, and ATR ratio/velocity/acceleration were `1.0850/+0.01296/+0.01634`; one bar later the first four slopes and all five velocities were negative, ATR expanded to `1.2343` with velocity/acceleration `+0.05506/+0.04210`, but conviction remained weak and no raw turn/proposal/target formed. Bearish four-hour MCL pressure was weakening (`-0.2821→-0.2484`, `+0.00808/h`), while Stage 114 independently stayed non-authoritative at maximum `5.2409×`, zero open/complete/authority-bound episode and sealed outcomes. This is a clean ordinary-regime velocity-first torsion control, not a shock or live rule. Stage 87–90 stayed exactly `6/30`, SHA `363a87b7…`. XSP stayed flat after its entry window closed while fast downside rolled over inside an entrenched all-up daily climate; Gold stayed flat in D1-down/H4-up conflict with H4 acceleration slightly cresting. Primary outcome-blind candidate remains **MCL pre-turn technical/news polarity survival**; runner-up is **MCL range-conditioned velocity breadth**, separating ordinary range expansion from frozen `10×+` shock authority. Three/six-bar boundaries are `13:15/13:30Z`; no threshold, outcome, signal, execution, order, capital, or champion authority changed |
 | E-526 | Hawkeye review `2/6` receipt `mcl_stage112_hawkeye_20260805T1330Z.json` (`b63bad24…`) closes the exact `13:00→13:30Z` specimen. The broad UP origin failed at `+1` bar, four velocities repaired at `+3`, then `30/60m` velocities and four slopes were negative again at `+6`; V18 stayed weak/holding and never emitted a raw turn, proposal, route, or target. Stage 112 therefore remained correctly `flat_no_target` on live type-1 `75.76/75.78`, with zero position/order/fill/trade/gross/cost/net/DD/MFE/MAE/breach/submission and unchanged cash capacity. The immutable seconds prefix exposes a more distinct outcome-exposed discovery seed: `296` active seconds contained about `61.9/62.53` direction-normalized CL/MCL ticks, a large simultaneous first-minute ignition, adverse third-minute recoil, then renewed fourth/fifth-minute downside transport; initial leader counts were near-equal with median lead `0us`, so it is not evidence of clean initial CL leadership. **MCL Subshock Ignition–Recoil–Reacceleration Bridge** replaces the duplicate range-conditioned-breadth runner-up, which overlapped V15, Stage 85, and E-504–E-510. Any future bridge cohort must begin prospectively before the next eligible trigger and remain below `10×` Stage-114 authority; this observed seed cannot train or authorize it. Stage 114 remained sealed at `5.2409×`, `0/30`; Stage 87–90 remained `6/30`, SHA `363a87b7…`. An independent XSP `09:27 ET` closed-calendar receipt entered selected cash transport and failed while parsing its intentionally absent timestamp; it was flat and submitted zero orders, recovered naturally at `09:37`, and minimal commit `be821c3…` now prevents only explicit `CLOSED` sources from entering RTH transport. `59` focused and `1,210` full-suite tests passed; q fast-forwarded without restart and its next natural `09:47` RTH invocation passed flat. Gold remained flat in D1-down/H4-up conflict. No champion, threshold, direction, execution, capital, or order authority changed |
 | E-527 | Hawkeye review `3/6` receipt `mcl_stage112_hawkeye_20260805T1420Z.json` (`bbcd02b5…`) preserves the first complete unseen Stage-114 major wave and the independent Stage-112 boundary. Fixed-prefix inspector/result `4cec8740…/c5782759…` matched the natural `14:10Z` record-ID and finalized-bar identities: directionless `6.414×` attention at `13:39:53Z`; fresh fully aligned DOWN authority at `10.256×` five seconds later; maximum `10.501×`; causal fast crest at `13:40:18Z` as `15s/15m` velocity rotated while `5s/60s` stayed down. The canonical timer then appended exactly one morphology row at V18's `14:15Z` raw DOWN turn: episode `55cce901…`, `2,107s`, ledger `1/8be62828…`, one DOWN authority wave/crest, zero handoff, zero `12×/20×`, zero continuation, outcome, order, or capital. V18 had all five returns/slopes down and coherence `1.0`, but weak conviction proposed/admitted nothing; Stage 112 stayed `flat_no_target` on live type-1 `74.89/74.90`, zero position/order/fill/net/DD/MFE/MAE/breach/submission. Stage 87–90 independently appended the same raw-turn treatment after its full window and is `7/30` (`4 down/3 up`) / `c96f3d1e…`; the two ledgers share a causal boundary but no authority. XSP stayed flat with mixed `5/15/30m` turns inside all-UP `5/10/21/42/63/84` context; Gold stayed flat D1-down/H4-up; latest news remained weakening MCL-down/XSP-up/Gold-up attribution. Primary seed remains **Subshock Ignition–Recoil–Reacceleration Bridge** below `10×`; outcome-blind runner-up **Major-Protect Residual Energy** may only reuse Stage-115 geometry after complete episode IDs. Stage 114 cannot contaminate Stage-112's immutable `388`-trade crown or profitability reducer |
+| E-528 | XSP package-boundary receipt `opening_edge_v3_package_quantity_boundary_repair_20260805.json` (`21cffef0…`) closes a transport-only hierarchy defect. At source `28fa639f…`, immutable `$800.46` notional and live SPXU `34.68/34.69` supported `23` shares plus `$0.44695125` conservative Tiered cost, but the descriptive historical `[3,22]` share range raised before preview on `13` natural invocations; no order was submitted. Revision `8d4a66c…` makes current quote + immutable package notional + centrally recomputed Tiered ceiling authoritative for package quantity while retaining the historical range as provenance. Exact replay is `23 SPXU`, LMT/AUTO, `$798.31695125` required cash, `ACTIONABLE`; non-package behavior, signal, lifecycle, capital owner, risk, and every other product remain unchanged. Focused/full proof is `178/1,210` with `4` deselected; q deployed cleanly without service restart |
+| E-529 | selected XSP run `1083c181…` completed its first authentic live round trip. It bought `5 UPRO @ 155.54` at `14:57:34Z` and held through the frozen `12×5m=60m` minimum. The `15:55Z` DOWN state only armed one recovering-long confirmation because strictly-prior `5/10/21/42/63/84` context was all UP; at `16:00Z`, all five intraday slopes/velocities were DOWN, coherence was `1.0`, and ATR velocity had re-expanded positive, so the incumbent released. Because the `11:50 ET` entry cutoff had passed, the state could flatten but could not late-open SPXU. LMT/AUTO sold `5 @ 153.48` at `16:02:30Z`: `-$10.30` gross, `$0.703328` cost, `-$11.003328` net over `67m` logical / `64m56s` fill-to-fill. Terminal `16:12Z` checkpoint `bcba1d7d…` proves `UPRO/SPXU 0/0`, no open order/breach/submission, two fills, and one closed trade. This is authentic negative profitability evidence, not a lifecycle failure or reason to rewrite the hold law from one trade |
 
 ### Decision anchors
 
@@ -2584,6 +2589,7 @@ and
 | D-210 | the MCL maintenance reopen is a reconciliation clock, never a signal clock. Exactly Sunday–Thursday `18:00 ET`, the selected runtime may reuse only its identity-valid prior `16:59 ET` finalized source (Friday at Sunday reopen) to observe broker position/orders, mark risk, retain an incumbent, or flatten; it may not enter. At `18:01` strict fresh finalized history resumes. Source authority is part of transition identity and profitability evidence; general stale fallback, slot exclusion, backfill, timer weakening, and Gold/XSP changes remain forbidden. A flat selection successor must atomically publish matching capital, predictive, and shock-wave generations; frozen observer generations remain immutable and exactly one read-only runtime pointer may be active |
 | D-211 | observer succession authenticates an immutable predecessor by its canonical generation ID plus the predecessor file SHA embedded in the new generation; it must not reinterpret historical artifact bindings against today’s evolved owner bytes. The newly active generation still strictly rehashes every current artifact before publication and on every runtime invocation. This asymmetry is the minimal condition for both real immutability and safe owner evolution; failure before plan activation restores the prior live timer, while failure after activation leaves live disabled for reconciliation |
 | D-212 | successor preregistration must disclose every predecessor ledger row that existed before registration, whether or not it was actively inspected. A later count correction preserves the immutable preregistration and append-only predecessor; it may not rewrite thresholds, law, generation, outcomes, or economics. Stage-113's third morphology-only row is therefore explicit pre-registration-accessible evidence, but it is not inherited by Stage 114 and cannot contaminate Stage-112 crown P&L or live authority |
+| D-213 | an immutable fixed-dollar XSP package is sized from current actionable quote plus the one shared conservative Tiered commission law. A frozen historical share range remains descriptive provenance and may still be validated, but it cannot veto a quote-derived quantity that fits the selected notional. Non-package selections retain their prior boundary contract. This repair changes no signal, lifecycle, risk, settlement, capital allocation, product, or LIMIT-only execution behavior |
 
 ---
 
@@ -2665,12 +2671,15 @@ the frozen `40708a28…` RTH ledger exactly; the `9e04807f…` GTH lane remains
 unchanged. There is no date router, news authority, generic stop/trail, quota,
 or sizing change.
 
-Tiered UPRO/SPXU RTH cash execution is live-capable under package-sized
-selection `1083c181…` / `d5f616e4…`. Fresh type-1 SMART books and conservative
-Tiered what-if ranges proved `5 UPRO / 21 SPXU` inside the allocated `$800.46`
-package, flat broker state, and zero orders. Its cold start, immediate restart,
-and first natural recurrence remained `flat_target` with null leg and zero
-submissions. Current plan `955967b2…` binds XSP, Gold, and MCL through one
+Tiered UPRO/SPXU RTH cash execution is live under package-sized selection
+`1083c181…` / `d5f616e4…`. Current quote, immutable `$800.46` notional, and one
+central conservative Tiered-cost owner now determine package quantity; the
+historical quantity range is provenance rather than a stale live cap. Its first
+authentic round trip bought `5 UPRO @ 155.54`, retained the incumbent through
+the `60m` minimum, and sold `5 @ 153.48` only after the required second opposite
+confirmation: `-$11.003328` after cost over `67m` logical hold. Terminal broker
+reconciliation is flat with no open order or safety breach, and both legs were
+LMT/AUTO. Current plan `ed07a506…` binds XSP, Gold, and MCL through one
 first-admitter law: flat sleeves reserve no fictional capacity, while every new
 candidate is tested beside actual positions and pending orders against its
 cash/margin, stressed-loss, FX, unrelated-position, and buffer package. This
@@ -2752,3 +2761,11 @@ handoff. Stage 115 will reuse that episode ID and tape to ask whether level
 escalation, CL→MCL transport, volume-flow jerk, residual energy, and price-speed
 crest occur in a causally useful order. It remains sealed until real waves
 accumulate and cannot touch the crowned Stage-112 live path.
+
+For XSP, the first selected-run trade proves the intended patience/surrender
+boundary rather than profitability: one early opposite bar did not shake out a
+long protected by the slow all-UP context, while a second fully coherent
+multihorizon DOWN bar ended it before the hard close. The next reliable question
+is not whether to weaken that `60m` floor from one `-$11.00` trade, but whether
+the growing authentic cohort shows systematic giveback before the second
+confirmation across both directions and volatility regimes.

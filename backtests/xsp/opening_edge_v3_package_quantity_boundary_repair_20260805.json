@@ -1,0 +1,175 @@
+{
+  "schema": "xsp.opening-edge-v3-package-quantity-boundary-repair.v1",
+  "recorded_at_utc": "2026-08-05T16:12:00+00:00",
+  "authority": "runtime_boundary_repair_no_signal_or_lifecycle_change",
+  "selection": {
+    "selection_id": "1083c1813e6b0ca4cf5777a5275e06be651622bc6e6207e718b549296a9bdd87",
+    "selection_sha256": "d5f616e43adb26f06534fbaa0c513358b70078a9755f3a9ecdcd81dc9cebc35d",
+    "strategy_version": "xsp.opening-edge-v3-regime-harmony-24x5.v1",
+    "package_id": "xsp-usd-800",
+    "package_notional_usd": 800.46
+  },
+  "incident": {
+    "source_checkpoint_id": "28fa639f46128c9a8212f60a2b277261e417e097779d065ef43feb11da4fe2cc",
+    "source_recorded_at_utc": "2026-08-04T14:32:06.218842+00:00",
+    "signal_bar_utc": "2026-08-04T14:25:00+00:00",
+    "direction": "down",
+    "target_symbol": "SPXU",
+    "admission_controls": [
+      "directional_impulse:turn",
+      "directional_impulse_admission:pass:core"
+    ],
+    "quote": {
+      "bid": 34.68,
+      "ask": 34.69
+    },
+    "historical_quantity_range": [
+      3,
+      22
+    ],
+    "quote_derived_quantity": 23,
+    "failed_natural_invocations": 13,
+    "exception": "ValueError: quote-derived quantity left its historical range",
+    "submitted_orders": 0
+  },
+  "root_cause": {
+    "defect": "A descriptive historical share-count range overruled the selected fixed-dollar package after the ETF price changed.",
+    "invalid_hierarchy": "historical_quantity_range_over_fixed_notional_current_quote_and_commission",
+    "economic_fact": "Twenty-three SPXU shares at the observed ask plus the conservative dynamic Tiered commission remained inside the immutable package notional.",
+    "signal_or_strategy_defect": false,
+    "broker_or_gateway_defect": false
+  },
+  "repair": {
+    "law": "For package selections, current quote plus the immutable package notional and a centrally recomputed conservative Tiered commission own quantity. The frozen historical range remains validated provenance, not a live cap.",
+    "shared_commission_owner": "tradebot.live.order_evidence.tiered_us_stock_commission_ceiling",
+    "quantity": 23,
+    "ask": 34.69,
+    "commission_limit_usd": 0.44695125,
+    "required_cash_usd": 798.31695125,
+    "package_cash_pass": true,
+    "order_type": "LMT",
+    "chase_mode": "AUTO",
+    "status": "ACTIONABLE",
+    "submitted_orders": 0
+  },
+  "unchanged": [
+    "Opening Edge v3 signal and direction",
+    "entry and incumbent-exit lifecycle",
+    "fixed package notional",
+    "central capital-owner decision",
+    "cash settlement law",
+    "limit-only execution ladder",
+    "risk and drawdown limits",
+    "non-package historical-range behavior"
+  ],
+  "implementation": {
+    "revision": "8d4a66c466a1fca227ceb61f790c475270a49592",
+    "files": {
+      "tradebot/live/order_evidence.py": "4252ee5bad3352eede44a9d231b11f4473d8dda69f5eb5b12f35197e518660f8",
+      "tradebot/research/xsp_live_transport.py": "1a82dd439563d0a0c97c66cda186c12e88146fe9d6a75a10ca2e4c025faddcdf",
+      "tradebot/research/xsp_live_transport_allocation.py": "c03dc05b0d4b04603e229f30e5696a15fea27652d7f5726d2370508331f459b6",
+      "tradebot/research/xsp_live_transport_runtime.py": "5b157b2343f7060bba425383df7507a1774bafaa68c11a3c51b45ae2505b8549",
+      "tradebot/research/xsp_live_transport_v3.py": "8fc2e8f8af0d36d0226ff908a5f2fa39593ceeeaa1f7a4332e1b0f13a4fad48a"
+    },
+    "focused_tests_passed": 178,
+    "full_tests_passed": 1210,
+    "full_tests_deselected": 4,
+    "architecture_boundary_lines": 999
+  },
+  "deployment": {
+    "mac_head": "8d4a66c466a1fca227ceb61f790c475270a49592",
+    "origin_head": "8d4a66c466a1fca227ceb61f790c475270a49592",
+    "q_head": "8d4a66c466a1fca227ceb61f790c475270a49592",
+    "q_clean": true,
+    "timer": "tradebot-xsp-shadow.timer",
+    "timer_active": true,
+    "gateway_tunnel": "tradebot-ib-gateway-tunnel.service",
+    "gateway_tunnel_active": true,
+    "first_post_deploy_runtime_checkpoint_id": "30f4a3921d0bff1ee52d2a4441835e24ec04d663a0cdaff86e468133e56a0265",
+    "first_post_deploy_runtime_at_utc": "2026-08-05T15:52:02.873989+00:00",
+    "post_deploy_status": "UNCHANGED",
+    "post_deploy_reason": "target_already_owned",
+    "post_deploy_holdings": {
+      "UPRO": 5,
+      "SPXU": 0
+    },
+    "post_deploy_safety_breaches": [],
+    "post_deploy_submitted_orders": 0
+  },
+  "first_live_round_trip": {
+    "direction": "up",
+    "symbol": "UPRO",
+    "quantity": 5,
+    "logical_entry_at_utc": "2026-08-05T14:55:00+00:00",
+    "entry": {
+      "filled_at_utc": "2026-08-05T14:57:34.592013+00:00",
+      "action": "BUY",
+      "price": 155.54,
+      "commission_usd": 0.343272,
+      "order_type": "LMT",
+      "chase_mode": "AUTO",
+      "order_ref": "XSPV3-b0152345e442c49f8abf9fe6"
+    },
+    "hold_lifecycle": {
+      "minimum_hold_bars": 12,
+      "minimum_hold_minutes": 60,
+      "first_post_minimum_opposite_bar_utc": "2026-08-05T15:55:00+00:00",
+      "first_opposite_pending_flip_count": 1,
+      "daily_context_at_first_opposite": "all_5_10_21_42_63_84_up",
+      "required_additional_confirmation_bars": 1,
+      "confirmed_release_bar_utc": "2026-08-05T16:00:00+00:00",
+      "release_directional_coherence": 1.0,
+      "release_velocity_pct_per_bar": {
+        "5m": -0.05687922732198203,
+        "15m": -0.017228457516649254,
+        "30m": -0.0008775255703567311,
+        "60m": -0.00987260560041207,
+        "120m": -0.008046559569775218
+      },
+      "release_atr_ratio": 0.7243334683148192,
+      "release_atr_velocity_pct": 0.01599422678634599,
+      "late_inverse_entry_permitted": false,
+      "late_inverse_entry_reason": "The 11:50 ET admission cutoff had passed; the confirmed opposite state could reduce the incumbent but could not create SPXU exposure."
+    },
+    "exit": {
+      "filled_at_utc": "2026-08-05T16:02:30.799590+00:00",
+      "action": "SELL",
+      "price": 153.48,
+      "commission_usd": 0.360056,
+      "order_type": "LMT",
+      "chase_mode": "AUTO",
+      "order_ref": "XSPV3-b0f30a8fa116f60f4443a63c",
+      "reason": "sell_incumbent_before_target"
+    },
+    "duration": {
+      "logical_minutes": 67,
+      "actual_fill_seconds": 3896.207577
+    },
+    "economics": {
+      "gross_usd": -10.3,
+      "cost_usd": 0.703328,
+      "after_cost_net_usd": -11.003328,
+      "drawdown_usd": 11.003328
+    },
+    "terminal_reconciliation": {
+      "checkpoint_id": "bcba1d7d280799f2f488d9c91636ec890868963211bddfff50f7be910530bb31",
+      "recorded_at_utc": "2026-08-05T16:12:00.522807+00:00",
+      "closed_trades": 1,
+      "fill_count": 2,
+      "positions": {
+        "UPRO": 0,
+        "SPXU": 0
+      },
+      "open_orders": [],
+      "safety_breaches": [],
+      "submitted_orders": 0
+    }
+  },
+  "invariants": {
+    "selection_rewritten": false,
+    "historical_crown_changed": false,
+    "current_position_manually_changed": false,
+    "market_orders_allowed": false,
+    "unrelated_products_changed": false
+  }
+}
