@@ -1,0 +1,454 @@
+{
+  "schema": "mcl.stage112-cross-champion-hawkeye.v1",
+  "recorded_at_utc": "2026-08-05T13:48:32Z",
+  "authority": "causal_observation_only_no_signal_order_or_capital_change",
+  "prior_hawkeye": {
+    "path": "backtests/mcl/mcl_stage112_hawkeye_20260805T1305Z.json",
+    "sha256": "f2bd6c084ada953aa5050a9c42f7573008a3e273ce98471551a318f17600457f"
+  },
+  "block": {
+    "review": 2,
+    "reviews_required": 6,
+    "economic_outcomes_exposed": false
+  },
+  "mcl": {
+    "selection_id": "8adead895d3bd460b460f832d725046a3ea34079525a80a1662004ade2c17c93",
+    "strategy_version": "mcl.two-speed-shock-arbiter.v112",
+    "source_checkpoint_id": "1472b49b62e5ce7f03b1fd9552a6264c4efa931f5624b4eb6a32c91cf153f680",
+    "execution_checkpoint_id": "e041293ef444e70a8aeb2d927286b602663be0deae3f088a9a8ebc3055eb1e2c",
+    "decision_close_utc": "2026-08-05T13:30:00Z",
+    "plan_reason": "flat_no_target",
+    "position": 0,
+    "fills": 0,
+    "closed_trades": 0,
+    "gross_usd": 0.0,
+    "cost_usd": 0.0,
+    "net_usd": 0.0,
+    "drawdown_usd": 0.0,
+    "mfe_usd": 0.0,
+    "mae_usd": 0.0,
+    "safety_breaches": [],
+    "quote": {
+      "market_data_type": 1,
+      "bid": 75.76,
+      "ask": 75.78,
+      "last": 75.77
+    },
+    "account": {
+      "settled_cash_usd": 999.53,
+      "available_funds_aud": 3608.14,
+      "excess_liquidity_aud": 3614.58
+    },
+    "open_orders": [],
+    "submitted_orders": 0,
+    "pre_turn_specimen": {
+      "origin_close_utc": "2026-08-05T13:00:00Z",
+      "origin_checkpoint_id": "3a0b95656bd9d4ac25397abb496f1d675ad291cd07726991df378f05c04cf799",
+      "origin": {
+        "trend_state": "up",
+        "state_age_bars": 93,
+        "abstain_reason": "weak_direction",
+        "direction_score": 0.04459757169445455,
+        "smoothed_direction_score": 0.016460723654940532,
+        "conviction": 0.045545655060218,
+        "coherence": 1.0,
+        "atr_ratio": 1.0850345280912537,
+        "atr_velocity_pct": 0.012963097108293964,
+        "atr_acceleration_pct": 0.01633890874624977,
+        "returns_30_60_120_240_480": [
+          0.1964122037449112,
+          0.6047856955035513,
+          0.38042765315491334,
+          0.3672612801678854,
+          1.8230206254158166
+        ],
+        "slopes_30_60_120_240_480": [
+          0.03273536729081853,
+          0.05039880795862928,
+          0.015851152214788056,
+          0.007651276670164279,
+          0.018989798181414757
+        ],
+        "velocities_30_60_120_240_480": [
+          -0.02647515902497085,
+          0.026291860774759385,
+          0.028921339118461363,
+          0.0071048285827328885,
+          0.0036059503900363905
+        ],
+        "raw_turn": null,
+        "target": null
+      },
+      "followup": [
+        {
+          "bars_after_origin": 1,
+          "close_utc": "2026-08-05T13:05:00Z",
+          "checkpoint_id": "b71d048f48bce59cdf0667c8b2965d7dbab8aec6e9c0a3bf459d21a1607086e0",
+          "direction_score": -0.04963512678716817,
+          "smoothed_direction_score": 0.006546346088624227,
+          "conviction": 0.042033954508377006,
+          "coherence": 0.8,
+          "atr_ratio": 1.2342950677466336,
+          "atr_velocity_pct": 0.055058548065855806,
+          "atr_acceleration_pct": 0.04209545095756184,
+          "slopes_30_60_120_240_480": [
+            -0.0983219716832721,
+            -0.038286514395730054,
+            -0.02512343251627608,
+            -0.010115923009623948,
+            0.007471111701421128
+          ],
+          "velocities_30_60_120_240_480": [
+            -0.13105733897409064,
+            -0.08868532235435933,
+            -0.040974584731064134,
+            -0.017767199679788227,
+            -0.011518686479993628
+          ],
+          "raw_turn": null,
+          "target": null
+        },
+        {
+          "bars_after_origin": 3,
+          "close_utc": "2026-08-05T13:15:00Z",
+          "checkpoint_id": "341c998ce71b42cc6195b8f16676f24d8b52eb7026a94d753ad9c168180d17fe",
+          "direction_score": -0.032606624410355244,
+          "smoothed_direction_score": -0.006018945142353962,
+          "conviction": 0.027542797872062177,
+          "coherence": 0.8,
+          "atr_ratio": 1.22349727549766,
+          "atr_velocity_pct": -0.006553441569613128,
+          "atr_acceleration_pct": -0.014324860265025219,
+          "slopes_30_60_120_240_480": [
+            -0.0961748633879785,
+            -0.010977912440169693,
+            -0.012603015956514271,
+            -0.0021961611103791154,
+            0.007891414141414135
+          ],
+          "velocities_30_60_120_240_480": [
+            0.019459818289378303,
+            0.018576796610138745,
+            0.0005375885112910792,
+            0.003555120603831313,
+            -0.0008318345625602415
+          ],
+          "raw_turn": null,
+          "target": null
+        },
+        {
+          "bars_after_origin": 6,
+          "close_utc": "2026-08-05T13:30:00Z",
+          "checkpoint_id": "1472b49b62e5ce7f03b1fd9552a6264c4efa931f5624b4eb6a32c91cf153f680",
+          "direction_score": -0.08710857930660179,
+          "smoothed_direction_score": -0.025343390738063354,
+          "conviction": 0.0723223112744547,
+          "coherence": 0.8,
+          "atr_ratio": 1.1512737235615507,
+          "atr_velocity_pct": -0.023841360051147342,
+          "atr_acceleration_pct": -0.026075981414682314,
+          "slopes_30_60_120_240_480": [
+            -0.1459313469245512,
+            -0.05674130330409107,
+            -0.01913823272091016,
+            -0.011744013284391055,
+            0.008724408402020767
+          ],
+          "velocities_30_60_120_240_480": [
+            -0.05196692229276213,
+            -0.0391974436549684,
+            0.0032661388637889033,
+            0.0010874199047934217,
+            0.0002780882283312056
+          ],
+          "raw_turn": null,
+          "target": null
+        }
+      ],
+      "finding": "The origin's broad UP structure failed within one bar. Four horizon velocities repaired by bar three, but by bar six the 30/60-minute velocities and four slopes were negative again. V18 remained weak/holding and produced no raw turn, proposal, or target throughout."
+    },
+    "news": {
+      "publication_id": "7be8c3882bd64d32131566b18293a81e736085962389473b9c17779475787505",
+      "signal_as_of_utc": "2026-08-05T12:21:52Z",
+      "snapshot_as_of_utc": "2026-08-05T12:33:53Z",
+      "direction": "down",
+      "impact": 27,
+      "horizon_hours": 4,
+      "change": "weakening",
+      "signed_pressure": -0.2484,
+      "previous_signed_pressure": -0.2821,
+      "pressure_delta": 0.0337,
+      "pressure_velocity_per_hour": 0.008075079872204469,
+      "confidence": 0.92,
+      "authority": "attribution_only"
+    }
+  },
+  "subshock_seconds_discovery_seed": {
+    "name": "MCL Subshock Ignition-Recoil-Reacceleration Bridge",
+    "disclosure": "This seed was inspected after the completed 13:00-13:30 path was visible. It is outcome-exposed discovery evidence and cannot enter a prospective cohort, choose a threshold, or receive signal, execution, order, or capital authority.",
+    "trigger": "The first completed-horizon velocity opposed an otherwise aligned multihorizon slope/velocity state before any exact V18 raw turn and below Stage-114 authority.",
+    "window_utc": [
+      "2026-08-05T13:00:00Z",
+      "2026-08-05T13:05:00Z"
+    ],
+    "active_seconds": 296,
+    "direction_normalization": "down",
+    "five_minute_features": {
+      "cl_microprice_displacement_ticks": 61.9,
+      "mcl_microprice_displacement_ticks": 62.533,
+      "cl_signed_print_proxy": 159.0,
+      "mcl_signed_print_proxy": 270.0,
+      "cl_same_price_pressure_proxy": 197.0,
+      "mcl_same_price_pressure_proxy": 387.0,
+      "first_mid_move_leaders": {
+        "CL": 108,
+        "MCL": 89,
+        "SIMULTANEOUS": 77
+      },
+      "median_mcl_minus_cl_first_mid_move_us": 0,
+      "basis_open_close_ticks": [
+        0.0,
+        1.0
+      ],
+      "maximum_spread_ticks": 3.0
+    },
+    "minute_anatomy_rounded": [
+      {
+        "minute": 1,
+        "cl_mcl_displacement_ticks": [
+          45.9,
+          46.277
+        ],
+        "cl_mcl_signed_print_proxy": [
+          197.0,
+          131.0
+        ],
+        "cl_mcl_same_price_pressure_proxy": [
+          312.0,
+          192.0
+        ],
+        "leaders_cl_mcl_simultaneous": [
+          23,
+          22,
+          15
+        ],
+        "cl_mcl_slope_velocity": [
+          -1.341,
+          -1.332
+        ],
+        "shape": "large simultaneous dual-book ignition whose within-minute speed was already cresting"
+      },
+      {
+        "minute": 2,
+        "cl_mcl_displacement_ticks": [
+          3.77,
+          4.65
+        ],
+        "cl_mcl_signed_print_proxy": [
+          104.0,
+          33.0
+        ],
+        "cl_mcl_slope_velocity": [
+          0.586,
+          0.575
+        ],
+        "shape": "continued downside with renewed within-minute acceleration"
+      },
+      {
+        "minute": 3,
+        "cl_mcl_signed_print_proxy": [
+          -305.0,
+          -46.0
+        ],
+        "shape": "flat-to-opposite recoil with adverse flow"
+      },
+      {
+        "minute": 4,
+        "cl_mcl_displacement_ticks": [
+          3.55,
+          3.08
+        ],
+        "cl_mcl_signed_print_proxy": [
+          45.0,
+          72.0
+        ],
+        "shape": "range and quote intensity re-expanded down while within-minute speed crested"
+      },
+      {
+        "minute": 5,
+        "cl_mcl_displacement_ticks": [
+          9.49,
+          9.17
+        ],
+        "cl_mcl_signed_print_proxy": [
+          118.0,
+          80.0
+        ],
+        "leaders_cl_mcl_simultaneous": [
+          26,
+          14,
+          13
+        ],
+        "shape": "renewed downside transport with stronger CL leadership"
+      }
+    ],
+    "finding": "The seed is an ignition-recoil-reacceleration sequence, not persistent monotonic acceleration and not clear initial CL leadership. The useful future question is whether this dual-book sequence precedes an authentic raw turn more often than ordinary subshock torsion."
+  },
+  "predictive_observers": {
+    "stage87_90": {
+      "ledger_path": "/home/x/.local/state/tradebot/research/mcl_predictive_onset.jsonl",
+      "ledger_sha256": "363a87b7da1d6864986e90ebe199d9c2aa68259b50d1bcf4557ce5765e018775",
+      "complete_turns": 6,
+      "directions": {
+        "down": 3,
+        "up": 3
+      },
+      "admitted_turns": 1,
+      "admitted_routes": {
+        "failed_auction": 1
+      },
+      "resolved_handoffs": 2,
+      "verdict": "ACCUMULATE"
+    },
+    "stage114": {
+      "generation_id": "ce101ce983b8935eb904dbb18cbf1c0e7fc0811fc6b0ad4f43782753647082f7",
+      "cutoff_utc": "2026-08-05T13:30:00Z",
+      "record_ids_sha256": "17a5621e9cc5ea59d37ab9157d368b93c6888f2dcb40a77d34a0e663c43b33b0",
+      "bar_prefix_sha256": "685cdb1eda0b57219d30fd052d00d11bbd6051cd26e656c629e35fa2ef3425a7",
+      "eligible_observations": 5703,
+      "source_records": 6232,
+      "maximum_volume_multiple": 5.240924092409241,
+      "open_episode": null,
+      "complete_episodes": 0,
+      "authority_bound_episodes": 0,
+      "verdict": "ACCUMULATE",
+      "outcomes_exposed": false
+    }
+  },
+  "xsp": {
+    "selection_id": "1083c1813e6b0ca4cf5777a5275e06be651622bc6e6207e718b549296a9bdd87",
+    "post_deploy_checkpoint_id": "d0a27223c4ddbe73d09733ab82c6349c5e4fbd75f2c740b1899b425eac24e751",
+    "recorded_at_utc": "2026-08-05T13:47:03.299223Z",
+    "session": "RTH",
+    "plan_reason": "flat_target",
+    "entry_window_open": true,
+    "holdings": {
+      "SPXU": 0,
+      "UPRO": 0
+    },
+    "fills": 0,
+    "net_usd": 0.0,
+    "drawdown_usd": 0.0,
+    "safety_breaches": [],
+    "submitted_orders": 0,
+    "closed_source_incident": {
+      "failed_at_utc": "2026-08-05T13:27:00Z",
+      "cause": "The scheduled 09:27 ET closed-calendar source was passed into the selected RTH cash transport, which attempted to parse an intentionally absent source timestamp.",
+      "impact": "One observer invocation failed closed; broker holdings and open orders were already flat, no signal or order path changed, and zero orders were submitted.",
+      "natural_recovery_at_utc": "2026-08-05T13:37:02.936089Z",
+      "repair_commit": "be821c322f30e78a380d3d409ed4cc967787b9c8",
+      "repair_law": "A source receipt explicitly marked CLOSED is a successful observer no-op and cannot enter selected RTH cash transport.",
+      "owner_path": "tradebot/research/xsp_shadow_cli.py",
+      "owner_sha256": "b1891a990edc232dc2e8eb01f1e5ebfa3f596fbfbbe792d842c61ae5e5b86789",
+      "test_path": "tests/test_xsp_opening_edge_v3.py",
+      "test_sha256": "cf2c5892add4b14a5bd995805bcbf02e1354f73af56b3fc4cf0f08e9c38af509",
+      "proof": "59 focused tests and the complete 1210-test repository suite passed; q fast-forwarded without restart and the next natural 09:47 ET invocation passed flat with zero submissions."
+    },
+    "daily": {
+      "directions_5_10_21_42_63_84": [
+        "up",
+        "up",
+        "up",
+        "up",
+        "up",
+        "up"
+      ],
+      "hard_direction": "up",
+      "hard_age": 78,
+      "transition": "aligned_up",
+      "tr_phase": "high_up"
+    },
+    "news": {
+      "signed_pressure": 0.4888,
+      "pressure_delta": -0.0846,
+      "pressure_velocity_per_hour": -0.02014,
+      "confidence": 0.94,
+      "authority": "attribution_only"
+    }
+  },
+  "gold": {
+    "selection_id": "62344ce21bf7c6f01095abab14b6ca8ef79c9806abb35294859fc9574a5f7574",
+    "checkpoint_id": "19cc4e63d166de1659b31a5fa5cb97884d6effd6323b8191c70741c746231d88",
+    "recorded_at_utc": "2026-08-05T13:32:00.690518Z",
+    "plan_reason": "flat_no_target",
+    "position": 0,
+    "fills": 0,
+    "net_usd": 0.0,
+    "drawdown_usd": 0.0,
+    "safety_breaches": [],
+    "submitted_orders": 0,
+    "quote": {
+      "market_data_type": 1,
+      "bid": 4260.0,
+      "ask": 4260.5,
+      "last": 4260.25
+    },
+    "daily": {
+      "hard_direction": "down",
+      "hard_age": 150,
+      "soft_direction": "up",
+      "atr_ratio_14_63": 0.8518383274930698,
+      "atr_velocity": -0.0006477487141364777
+    },
+    "h4": {
+      "raw_direction": "up",
+      "hard_direction": "up",
+      "signed_fast_slope_dollars": 18.983670642414836,
+      "signed_fast_acceleration_dollars": -0.23533446926103352,
+      "signed_spread_velocity_dollars": 9.187313363531302,
+      "atr_velocity_dollars": 1.779285714285738,
+      "proposed_direction": null
+    },
+    "news": {
+      "signed_pressure": 0.1394,
+      "pressure_delta": -0.0538,
+      "pressure_velocity_per_hour": -0.012891,
+      "confidence": 0.82,
+      "authority": "attribution_only"
+    }
+  },
+  "candidate_block": {
+    "review": 2,
+    "reviews_required": 6,
+    "primary": "MCL pre-turn technical/news polarity survival",
+    "runner_up": "MCL Subshock Ignition-Recoil-Reacceleration Bridge",
+    "primary_question": "When a subthreshold completed-bar technical state opposes fresh causal-news pressure, does its polarity survive one, three, and six five-minute bars or become the next raw turn?",
+    "runner_up_question": "Before an exact V18 raw turn and below 10x shock authority, does dual-book seconds ignition followed by recoil and renewed CL-to-MCL transport distinguish an authentic impending turn from ordinary torsion?",
+    "retired_duplicate": {
+      "name": "MCL range-conditioned velocity breadth",
+      "reason": "It substantially duplicated V15 velocity breadth, Stage-85 cross-scale volatility/torsion, and the E-504-to-E-510 low-volume torsion controls. Renaming an existing family would not be a novel Hawkeye candidate."
+    },
+    "current_specimens": {
+      "primary": 2,
+      "runner_up_outcome_exposed_seed_only": 1
+    },
+    "current_finding": "The second polarity specimen's technical UP state did not survive: it collapsed at +1 bar, briefly repaired velocity at +3, then resumed fast downside by +6 without a raw turn. The seconds seed shows simultaneous dual-book ignition, recoil, and renewed downside transport; it does not yet prove a predictive classifier or clean initial CL lead.",
+    "controls": [
+      "same pre-turn technical trigger with aligned news",
+      "same pre-turn technical trigger with neutral or unavailable news",
+      "same trigger without dual-book seconds ignition",
+      "seconds ignition without renewed one-to-five-minute transport",
+      "Stage-114 10x-or-higher authority-bound shock",
+      "matched no-next-turn controls"
+    ],
+    "authority": "observation_only_no_threshold_outcome_signal_execution_order_or_capital_change"
+  },
+  "interpretation": "MCL's 13:00Z UP structure failed causally but did not become an exact V18 turn: the six-bar path alternated collapse, repair, and renewed downside while Stage 112 correctly stayed flat. The seconds tape adds a distinct pre-turn bridge candidate, but because this seed was selected after the path was visible it has no prospective authority. Stage 114 stayed below its 10x directional bind at 5.2409x and remains 0/30; Stage 87-90 remains 6/30. XSP's isolated 09:27 ET closed-calendar adapter failure was fail-closed, recovered naturally, and is now repaired centrally without changing its live RTH strategy. Gold remained flat in D1-down/H4-up conflict. All three champions ended flat with zero fills, PnL, drawdown, breaches, or submissions.",
+  "next_boundaries": {
+    "next_hawkeye_not_before_utc": "2026-08-05T13:50:00Z",
+    "stage112_24h_boundary_utc": "2026-08-06T11:39:55Z",
+    "xsp_next_natural_closed_gap_proof_utc": "2026-08-06T13:27:00Z",
+    "instruction": "Observe natural finalized checkpoints only; keep the new seconds bridge discovery-only, do not force a trade, open outcomes, retune thresholds, or create another recorder."
+  },
+  "submitted_orders": 0
+}
