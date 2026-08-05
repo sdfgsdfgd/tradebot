@@ -126,6 +126,17 @@
     "cohort_verdict": "ACCUMULATE",
     "promotion_verdict": "REJECT_DIRECTION_PROVENANCE"
   },
+  "post_completion_natural_idempotence": {
+    "predictor_recorded_after_utc": "2026-08-05T00:35:45+00:00",
+    "appended": 0,
+    "open_episode": null,
+    "complete_episodes_in_prefix": 2,
+    "ledger_rows": 2,
+    "ledger_sha256": "8995ba2716c0ddc0a8b4384c76cff3f60ad31555d0222f0fbf1d18397bd399ef",
+    "independent_onset_ledger_rows": 3,
+    "independent_onset_ledger_sha256": "bfcc0147faf6b8ebf1abf67d68fa3075a51ef4496bbd2d17c9851e2c0b06aab5",
+    "submitted_orders": 0
+  },
   "concurrent_stage112_boundary": {
     "recorded_at_utc": "2026-08-05T00:31:11.141784+00:00",
     "source_checkpoint_id": "a2e2e86526014e7b8fd6a2585060c7f7b5f1974de99f507a40bf9c22d75c54e3",
