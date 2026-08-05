@@ -1,0 +1,147 @@
+{
+  "actions": {
+    "ADMIT_NOW": 409,
+    "REVOKE": 10,
+    "WAIT": 6,
+    "terminal:ADMIT_NOW": 414,
+    "terminal:REVOKE": 11
+  },
+  "affected_directions": {
+    "down": 8,
+    "up": 8
+  },
+  "authority": "count_and_morphology_only_no_outcomes_no_orders_no_capital",
+  "crown_identity": {
+    "ledger_sha256": "40708a28476fad504d29b1222e52b88481b1c0da8313ed4667076e2b6ed3f157",
+    "trades": 425
+  },
+  "gates": {
+    "affected_targets_each_direction": true,
+    "affected_targets_total": false,
+    "both_directions_each_year": true,
+    "exact_crown_identity": true,
+    "nonordinary_pressure_levels": true,
+    "same_slot_rank_readiness_each_year": true,
+    "spy_join_rate_each_year": true
+  },
+  "joined": 425,
+  "outcomes_exposed": false,
+  "owner_sha256": "93056e5c13a0f48701cf343f0a5ad7cc52a289dbbcca97ebdf524585fe5b877b",
+  "periods": {
+    "year_1": {
+      "actions": {
+        "ADMIT_NOW": 148,
+        "REVOKE": 1,
+        "WAIT": 2,
+        "terminal:ADMIT_NOW": 150,
+        "terminal:REVOKE": 1
+      },
+      "directions": {
+        "down": 84,
+        "up": 67
+      },
+      "join_rate": 1.0,
+      "joined": 151,
+      "rank_readiness": 0.9536423841059603,
+      "rank_ready": 144,
+      "targets": 151
+    },
+    "year_2": {
+      "actions": {
+        "ADMIT_NOW": 120,
+        "REVOKE": 4,
+        "WAIT": 3,
+        "terminal:ADMIT_NOW": 123,
+        "terminal:REVOKE": 4
+      },
+      "directions": {
+        "down": 65,
+        "up": 62
+      },
+      "join_rate": 1.0,
+      "joined": 127,
+      "rank_readiness": 1.0,
+      "rank_ready": 127,
+      "targets": 127
+    },
+    "year_3": {
+      "actions": {
+        "ADMIT_NOW": 141,
+        "REVOKE": 5,
+        "WAIT": 1,
+        "terminal:ADMIT_NOW": 141,
+        "terminal:REVOKE": 6
+      },
+      "directions": {
+        "down": 76,
+        "up": 71
+      },
+      "join_rate": 1.0,
+      "joined": 147,
+      "rank_readiness": 1.0,
+      "rank_ready": 147,
+      "targets": 147
+    }
+  },
+  "preregistration_sha256": "fee3d06def442670767eae264443ab12104d93e72e8ce4b978d9e6f4654f742b",
+  "rank_ready": 418,
+  "reasons": {
+    "dual_authoritative_opposition": 10,
+    "no_authoritative_fresh_opposition": 409,
+    "single_source_or_cresting_opposition": 6,
+    "terminal:dual_authoritative_opposition": 10,
+    "terminal:no_authoritative_fresh_opposition": 409,
+    "terminal:one_wait_opposition_cleared": 5,
+    "terminal:one_wait_opposition_persisted": 1
+  },
+  "schema": "xsp.opening-edge-v3-freshness-pressure-onramp-count.v1",
+  "spy_path_states": {
+    "ALIGNED_ACCELERATING": 61,
+    "ALIGNED_DECELERATING": 4,
+    "ALIGNED_PERSISTENT": 45,
+    "MIXED": 289,
+    "OPPOSED_ACCELERATING": 23,
+    "OPPOSED_PERSISTENT": 3
+  },
+  "spy_pressure_levels": {
+    "ELEVATED": 31,
+    "ONE_SIDED": 19,
+    "ORDINARY": 358,
+    "SHOCK": 10,
+    "UNDERWARMED": 7
+  },
+  "submitted_orders": 0,
+  "tapes": {
+    "spy_bars": 214647,
+    "spy_paths": [
+      "/Users/x/Desktop/py/tradebot/db/SPY/SPY_2023-07-24_2024-07-23_5mins_full24.csv",
+      "/Users/x/Desktop/py/tradebot/db/SPY/SPY_2024-07-24_2026-06-29_5mins_full24.csv",
+      "/Users/x/Desktop/py/tradebot/db/SPY/SPY_2026-06-30_2026-07-06_5mins_full24.csv",
+      "/Users/x/Desktop/py/tradebot/db/SPY/SPY_2026-07-07_2026-07-13_5mins_full24.csv",
+      "/Users/x/Desktop/py/tradebot/db/SPY/SPY_2026-07-14_2026-07-20_5mins_full24.csv",
+      "/Users/x/Desktop/py/tradebot/db/SPY/SPY_2026-07-21_2026-07-23_5mins_full24.csv",
+      "/Users/x/Desktop/py/tradebot/db/SPY/SPY_2026-07-24_2026-07-24_5mins_full24.csv"
+    ],
+    "xsp_bars": 58560,
+    "xsp_paths": [
+      "/Users/x/Desktop/py/tradebot/db/XSP/XSP_2021-07-26_2024-07-23_5mins_rth.csv",
+      "/Users/x/Desktop/py/tradebot/db/XSP/XSP_2024-07-24_2024-10-23_5mins_rth.csv",
+      "/Users/x/Desktop/py/tradebot/db/XSP/XSP_2024-10-24_2025-01-23_5mins_rth.csv",
+      "/Users/x/Desktop/py/tradebot/db/XSP/XSP_2025-01-24_2025-04-23_5mins_rth.csv",
+      "/Users/x/Desktop/py/tradebot/db/XSP/XSP_2025-04-24_2025-07-23_5mins_rth.csv",
+      "/Users/x/Desktop/py/tradebot/db/XSP/XSP_2025-07-24_2026-06-30_5mins_rth.csv",
+      "/Users/x/Desktop/py/tradebot/db/XSP/XSP_2026-07-01_2026-07-23_5mins_rth.csv",
+      "/Users/x/Desktop/py/tradebot/db/XSP/XSP_2026-07-24_2026-07-24_5mins_rth.csv"
+    ]
+  },
+  "verdict": "REVISE_COUNT_ONLY",
+  "xsp_path_states": {
+    "ALIGNED_ACCELERATING": 108,
+    "ALIGNED_DECELERATING": 24,
+    "ALIGNED_PERSISTENT": 24,
+    "MIXED": 237,
+    "OPPOSED_ACCELERATING": 28,
+    "OPPOSED_DECELERATING": 1,
+    "OPPOSED_PERSISTENT": 3
+  }
+}

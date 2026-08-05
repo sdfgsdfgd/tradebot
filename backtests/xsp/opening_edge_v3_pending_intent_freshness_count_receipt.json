@@ -1,0 +1,90 @@
+{
+  "schema": "xsp.opening-edge-v3-pending-intent-freshness-count-receipt.v1",
+  "recorded_at_utc": "2026-08-05T20:31:25Z",
+  "authority": "count_morphology_and_incident_replay_only_no_orders_no_capital",
+  "preregistration": {
+    "path": "backtests/xsp/opening_edge_v3_pending_intent_freshness_preregistration.json",
+    "sha256": "a289a60e0061fd39bc31d27bba2bab644036185ec605b7cab4b82353ab0d7bd9"
+  },
+  "historical_census": {
+    "evaluator_path": "/tmp/xsp_stage_pending_intent_freshness_census.py",
+    "evaluator_sha256": "a511e756ce67ab595e110c4e8babd7622b83253305b743380b8f990bb78e74ca",
+    "result_path": "/tmp/xsp-stage-pending-intent-freshness-census.json",
+    "result_sha256": "bb093330b560c16866518d139a7a852306e6f7e14558b18353ba8535b612a754",
+    "all_predecessor_targets": 552,
+    "eligible_immediate_revocations": 13,
+    "directions": {
+      "up": 5,
+      "down": 8
+    },
+    "july_years": {
+      "2023": 2,
+      "2024": 4,
+      "2025": 7
+    },
+    "fresh_shape": {
+      "xsp_path": "OPPOSED_ACCELERATING",
+      "xsp_volatility": "EXPANDING",
+      "spy_path": "OPPOSED_ACCELERATING",
+      "spy_volatility": "EXPANDING",
+      "occurrences": 13
+    },
+    "reasons": {
+      "dual_authoritative_opposition": 13
+    },
+    "spy_pressure_levels": {
+      "ORDINARY": 8,
+      "ONE_SIDED": 2,
+      "ELEVATED": 2,
+      "SHOCK": 1
+    },
+    "later_same_session_natural_proposal": {
+      "same_direction": 2,
+      "opposite_direction": 0,
+      "none": 11
+    },
+    "all_count_gates_pass": true,
+    "outcomes_exposed": false
+  },
+  "live_incident": {
+    "broker_bar_snapshot_path": "/var/tmp/xsp-incident-bars-20260805.json",
+    "broker_bar_snapshot_sha256": "8e421373249c2dbe52f588a9232a7370158ef94021e0b0b149c1c9ee9168c512",
+    "snapshot_evaluator_sha256": "dc21bac30a25351c68de42e95c6c730204cde1ad0dd24470692a85d7f66ceb84",
+    "replay_evaluator_path": "/tmp/xsp_stage_pending_intent_incident_replay.py",
+    "replay_evaluator_sha256": "a2470f4e53ac9f755da33fc4406106d1b68753d580f6fab6462a7b5534f1efb8",
+    "replay_result_path": "/tmp/xsp-stage-pending-intent-incident-replay-r2.json",
+    "replay_result_sha256": "62a602ae0f2f6fb6aeb59eaafa259da5e866722ecce57064bac55065e33d6248",
+    "source_checkpoint_id": "8021c1ae655a8065f200b29cf15968e8a0f96a55e0e468a78775b82df11142dd",
+    "xsp_live_source_inputs_exact": true,
+    "xsp": {
+      "path": "OPPOSED_ACCELERATING",
+      "volatility": "EXPANDING",
+      "opposed_returns_slopes_velocities": "4/4/4"
+    },
+    "spy": {
+      "path": "OPPOSED_ACCELERATING",
+      "volatility": "EXPANDING",
+      "opposed_returns_slopes_velocities": "5/5/5",
+      "volume_rank": 0.9375,
+      "true_range_rank": 0.984375,
+      "pressure_level": "ELEVATED"
+    },
+    "decision": "REVOKE",
+    "counterfactual_orders": 0,
+    "counterfactual_position": "flat",
+    "actual_live_net_usd": -11.003328,
+    "incident_gate_pass": true,
+    "r1_display_correction": "The preserved r1 result compared the action token REVOKE to the preregistration prose REVOKE before order creation and printed REJECT; r2 compares the frozen first token only. Evidence and law are identical."
+  },
+  "gates": {
+    "minimum_revoked_targets": true,
+    "minimum_each_direction": true,
+    "minimum_represented_years": true,
+    "one_repeated_categorical_shape": true,
+    "exact_incident_source_identity": true,
+    "incident_revoked_before_order": true
+  },
+  "outcomes_exposed_for_threshold_selection": false,
+  "submitted_orders": 0,
+  "verdict": "COUNT_AND_INCIDENT_PASS_OPEN_ECONOMICS"
+}

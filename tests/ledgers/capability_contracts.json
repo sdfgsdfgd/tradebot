@@ -132,6 +132,7 @@
     "tests/test_xsp_live_transport.py": "market-realism-parity",
     "tests/test_xsp_live_transport_runtime.py": "market-realism-parity",
     "tests/test_xsp_opening_edge_v3.py": "market-realism-parity",
+    "tests/test_xsp_pressure_onramp.py": "policy-risk-sizing",
     "tests/test_xsp_transport_ranking.py": "market-realism-parity",
     "tests/test_news_signal.py": "signal-regime-intelligence",
     "tests/test_offline_cache_preflight.py": "backtest-data-cache",
@@ -306,13 +307,15 @@
         "tests/test_live_capital.py",
         "tests/test_live_portfolio_packages.py",
         "tests/test_spot_policy_graph.py",
-        "tests/test_spot_policy_kernel.py"
+        "tests/test_spot_policy_kernel.py",
+        "tests/test_xsp_pressure_onramp.py"
       ],
       "owner_surface": [
         "tradebot/engines/risk.py",
         "tradebot/live/capital.py",
         "tradebot/live/capital_packages.py",
         "tradebot/research/live_portfolio_packages.py",
+        "tradebot/research/xsp_pressure_onramp.py",
         "tradebot/spot/entry_control.py",
         "tradebot/spot/gates.py",
         "tradebot/spot/graph.py",

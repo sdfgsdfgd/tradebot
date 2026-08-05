@@ -1,0 +1,108 @@
+{
+  "schema": "xsp.opening-edge-v3-pending-intent-freshness-preregistration.v1",
+  "registered_at_utc": "2026-08-05T20:31:25Z",
+  "authority": "outcome_exposed_historical_development_only_no_orders_no_capital",
+  "quest": "XSP Freshness & Pressure On-ramp",
+  "disclosure": {
+    "predecessor_outcomes_exposed": true,
+    "predecessor_rejection_receipt": "backtests/xsp/opening_edge_v3_freshness_pressure_onramp_economics_rejection.json",
+    "predecessor_rejection_sha256": "b89da2d00ea9c4ebf1f2b0e14afe53ed6a19ba66862acd8c0c42155c62b28295",
+    "known_predecessor_anatomy": "broad WAIT and delayed admission caused avoidable latency and downstream cash/lifecycle churn; immediate REVOKE was a distinct frozen predecessor action",
+    "selection_status": "post-outcome bounded successor requiring strict multi-period superiority and exact incident replay"
+  },
+  "unchanged_owners": {
+    "direction_and_lifecycle": "xsp.opening-edge-v3-regime-harmony-24x5.v1",
+    "fresh_pressure_profile": {
+      "path": "tradebot/research/xsp_pressure_onramp.py",
+      "sha256": "b40974c26d1afd6b26b707494195668e777eb2caad20f0d9e6f61b6d5d07d570"
+    },
+    "exact_cash_latency_runner": {
+      "path": "/tmp/xsp_v3_upro_spxu_entry_latency.py",
+      "sha256": "ec94afc4d987b2e2c9d44e9df5c9dd1c86436ab2563eb6c4fa53028c5fe6a36f"
+    },
+    "capital": "first_admitter_just_in_time.v1",
+    "execution": "shared LMT AUTO ladder",
+    "products_isolated": [
+      "MCL Stage 112",
+      "Gold Stage 76"
+    ]
+  },
+  "causal_clock": {
+    "target_origin": "one exact crowned RTH entry proposal at completed five-minute close j",
+    "pre_submit_observation": "completed XSP and SPY five-minute state j+1, available to the actual timer before any ETF order submission",
+    "admitted_execution": "unchanged published cash-latency owner and shared live LIMIT ladder",
+    "reacquisition": "only a distinct later crowned entry proposal; no injected, retained, or backfilled target",
+    "held_position_scope": "excluded; crowned lifecycle remains the sole exit and surrender owner"
+  },
+  "frozen_law": {
+    "eligible": [
+      "broker holds neither UPRO nor SPXU",
+      "no relevant open order exists",
+      "target is a fresh post-selection crowned RTH entry identity",
+      "the target has not yet submitted an order",
+      "the completed j+1 XSP/SPY observation is identity-complete"
+    ],
+    "decision": {
+      "REVOKE": "the unchanged freshness-pressure owner returns REVOKE on its first invocation",
+      "ADMIT_NOW": "the unchanged owner returns ADMIT_NOW or WAIT on its first invocation"
+    },
+    "forbidden": [
+      "waiting or shifting an otherwise admitted target",
+      "calling the second-invocation wait law",
+      "creating or reversing direction",
+      "flattening or resizing an incumbent",
+      "injecting a replacement admission",
+      "reusing a revoked target identity",
+      "changing GTH, daily context, crown lifecycle, sizing, costs, cash, capital, ladder, MCL, or Gold"
+    ]
+  },
+  "count_first": {
+    "outcomes_closed": true,
+    "report": [
+      "eligible and revoked target counts by direction and July-to-July year",
+      "fresh XSP/SPY path, volatility, and pressure states",
+      "later natural same/opposite crown proposal incidence and latency",
+      "exact Wednesday 2026-08-05 eligibility and action"
+    ],
+    "minimums": {
+      "revoked_targets": 6,
+      "each_direction": 2,
+      "represented_years": 2
+    }
+  },
+  "economic_gates": {
+    "exact_published_latency_baseline": true,
+    "candidate_full_net_not_below_baseline": true,
+    "candidate_profit_factor_not_below_baseline": true,
+    "candidate_intrabar_drawdown_not_above_baseline": true,
+    "all_three_july_to_july_years_positive": true,
+    "pnl_dd_improves_at_least_5pct_in_two_of_three_years": true,
+    "both_directions_positive": true,
+    "recent_four_weeks_positive": true,
+    "ordinary_elevated_shock_regimes_positive": true,
+    "same_date_rth_entries_only": true,
+    "zero_unavailable_execution_bars": true,
+    "no_unexplained_trade_or_cash_lifecycle_changes": true,
+    "combined_annualized_trades_above_200": true,
+    "note": "This permission layer is not a new crown and cannot create more trades than the crown; the global more-trades-than-incumbent crown gate remains inapplicable unless scope later expands beyond permission. Failure of any listed transport gate preserves the current live owner unchanged."
+  },
+  "incident_gate": {
+    "date": "2026-08-05",
+    "actual_target": "UP",
+    "actual_source_signal_close_utc": "2026-08-05T14:50:00Z",
+    "actual_pre_submit_completed_close_utc": "2026-08-05T14:55:00Z",
+    "actual_order_fill_utc": "2026-08-05T14:57:34Z",
+    "required_action": "REVOKE before order creation",
+    "required_orders": 0,
+    "required_position": "flat",
+    "no_incident_threshold_fitting": true
+  },
+  "promotion_boundary": {
+    "live_owner_changed_before_pass": false,
+    "selection_changed_before_pass": false,
+    "order_authority": "none",
+    "capital_authority": "none",
+    "runtime_integration_after_pass": "one centralized pre-submit permission call inside the existing XSP transport; no second strategy, service, timer, selection direction, or product-global knob"
+  },
+  "submitted_orders": 0
+}

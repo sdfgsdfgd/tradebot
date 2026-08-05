@@ -1,0 +1,133 @@
+{
+  "schema": "xsp.opening-edge-v3-pending-intent-freshness-economics-rejection.v1",
+  "recorded_at_utc": "2026-08-05T20:31:25Z",
+  "authority": "historical_development_rejection_only_no_orders_no_capital",
+  "quest": "XSP Freshness & Pressure On-ramp",
+  "artifacts": {
+    "preregistration": {
+      "path": "backtests/xsp/opening_edge_v3_pending_intent_freshness_preregistration.json",
+      "sha256": "a289a60e0061fd39bc31d27bba2bab644036185ec605b7cab4b82353ab0d7bd9"
+    },
+    "count_and_incident_receipt": {
+      "path": "backtests/xsp/opening_edge_v3_pending_intent_freshness_count_receipt.json",
+      "sha256": "39ef4020ab60d75a5785964c45a3bd06026d5e8daa0c90e4d9f3dc898232616d"
+    },
+    "economics_evaluator": {
+      "path": "/tmp/xsp_stage_pending_intent_freshness_economics.py",
+      "sha256": "379b705b58c81d122cb6a6e0f7e25948bfc7e4768697319f7a4149e265533962"
+    },
+    "economics_result": {
+      "path": "/tmp/xsp-stage-pending-intent-freshness-economics.json",
+      "sha256": "97256352865a775e7e93bc4945c58beee70d24a1374a6c9c367e7d3f889371fa"
+    }
+  },
+  "frozen_law": "At the first complete pre-submit observation, preserve ADMIT_NOW and WAIT as unchanged admission; revoke only the predecessor owner's immediate REVOKE. Never delay, inject, reverse, resize, or affect an incumbent.",
+  "morphology": {
+    "all_targets": 552,
+    "eligible_revocations": 13,
+    "directions": {
+      "up": 5,
+      "down": 8
+    },
+    "represented_july_years": 3,
+    "single_repeated_shape": "XSP OPPOSED_ACCELERATING/EXPANDING plus SPY OPPOSED_ACCELERATING/EXPANDING",
+    "same_session_natural_reacquisition": 2,
+    "no_same_session_reacquisition": 11
+  },
+  "incident": {
+    "date": "2026-08-05",
+    "target": "UP",
+    "xsp_opposed_returns_slopes_velocities": "4/4/4",
+    "spy_opposed_returns_slopes_velocities": "5/5/5",
+    "spy_volume_rank": 0.9375,
+    "spy_true_range_rank": 0.984375,
+    "decision": "REVOKE",
+    "orders": 0,
+    "position": "flat",
+    "actual_avoided_trade_net_usd": -11.003328,
+    "incident_gate_pass": true
+  },
+  "exact_latency_baseline": {
+    "trades": 422,
+    "net_usd": 721.7140029509861,
+    "profit_factor": 1.6261813155205795,
+    "intrabar_drawdown_usd": 110.98218855000164
+  },
+  "candidate": {
+    "trades": 413,
+    "net_usd": 713.8430508599866,
+    "profit_factor": 1.635506981651435,
+    "intrabar_drawdown_usd": 110.98218855000118,
+    "directions_net_usd": {
+      "up": 192.12037150698404,
+      "down": 521.7226793530026
+    },
+    "unchanged_gth_plus_candidate_rth_trades": 592,
+    "annualized_combined_trades": 197.2842700729927
+  },
+  "yearly_pnl_dd": {
+    "year_1": {
+      "baseline": 2.673612917862389,
+      "candidate": 2.8077414882705645,
+      "change": 0.05016753528981832
+    },
+    "year_2": {
+      "baseline": 1.7202984985435603,
+      "candidate": 1.7072858804842355,
+      "change": -0.007564162888209047
+    },
+    "year_3": {
+      "baseline": 4.241510932916505,
+      "candidate": 4.259755050194635,
+      "change": 0.004301325062384231
+    }
+  },
+  "exact_delta": {
+    "removed_trades": 11,
+    "later_natural_added_trades": 2,
+    "common_trade_mutations": 0,
+    "trade_delta": -9,
+    "net_delta_usd": -7.870952090999481
+  },
+  "passed": [
+    "incident_gate",
+    "exact_published_latency_baseline",
+    "profit_factor_not_below_baseline",
+    "drawdown_not_above_baseline",
+    "all_years_positive",
+    "both_directions_positive",
+    "both_lanes_positive",
+    "recent_positive",
+    "ordinary_elevated_shock_positive",
+    "same_date_rth_entries",
+    "zero_unavailable_execution_bars",
+    "no_common_trade_mutation",
+    "no_unmatched_cash_attribution"
+  ],
+  "failed": [
+    "full_net_not_below_baseline",
+    "pnl_dd_improves_at_least_5pct_in_two_of_three_years",
+    "combined_annualized_trades_above_200"
+  ],
+  "final_anatomy_boundary": {
+    "incident_origin": "MIXED/EXPANDING, four horizons, one aligned versus three opposed return/slope horizons, with all four velocities initially target-aligned before complete reversal",
+    "exact_historical_origin_matches": 0,
+    "nearest_same_clock_historical_matches": 1,
+    "nearest_match_direction_balance": false,
+    "nearest_match_baseline_net_usd": 15.862637918000019,
+    "decision": "The incident-specific origin is not historically testable, and its nearest historical neighbor was a profitable recovery. Do not narrow further from exposed outcomes or install an incident patch."
+  },
+  "verdict": "REJECT",
+  "promotion": {
+    "current_xsp_crown_preserved": true,
+    "live_owner_changed": false,
+    "selection_changed": false,
+    "observer_only_followup": "Accumulate the exact pending-intent morphology prospectively if it recurs; no runtime permission until an unseen balanced cohort and separately frozen economics pass.",
+    "mcl_changed": false,
+    "gold_changed": false,
+    "order_authority": "none",
+    "capital_authority": "none"
+  },
+  "outcomes_exposed": true,
+  "submitted_orders": 0
+}

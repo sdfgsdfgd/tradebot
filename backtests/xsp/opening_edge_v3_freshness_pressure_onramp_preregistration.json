@@ -1,0 +1,126 @@
+{
+  "schema": "xsp.opening-edge-v3-freshness-pressure-onramp-preregistration.v1",
+  "registered_at_utc": "2026-08-05T19:05:46Z",
+  "authority": "historical_count_then_development_and_prospective_seconds_only_no_orders_no_capital",
+  "quest": "XSP Freshness & Pressure On-ramp",
+  "known_exposure": {
+    "incident": "The 2026-08-05 live UP submission used a lawful older crown target while the newly completed 14:55Z XSP state was coherently and increasingly DOWN.",
+    "simple_diagnostic": "An already-exposed five-minute stale-target veto removed eight of 425 RTH entries and modestly improved aggregate cash economics, but was too small and one year weakened; it cannot select this richer law.",
+    "classification": "adaptive_post_incident_development_not_unseen_validation"
+  },
+  "immutable_owners": {
+    "direction_and_lifecycle": {
+      "path": "tradebot/research/xsp_opening_edge_state.py",
+      "sha256": "643b6a04478e598fe7fbdc2d5aa6deabe6935761b3fa83cf487a9fdd16a265bc"
+    },
+    "crown": {
+      "path": "backtests/xsp/opening_edge_v3_regime_harmony_24x5.json",
+      "sha256": "d47eb39cef3d2ca575d779d6b5b87e3b88e08606fd09a8801b8cb55c350208db",
+      "rth_trades": 425,
+      "rth_ledger_sha256": "40708a28476fad504d29b1222e52b88481b1c0da8313ed4667076e2b6ed3f157"
+    },
+    "permission_only_candidate": {
+      "path": "tradebot/research/xsp_pressure_onramp.py",
+      "sha256": "93056e5c13a0f48701cf343f0a5ad7cc52a289dbbcca97ebdf524585fe5b877b",
+      "version": "xsp.opening-edge-v3-freshness-pressure-onramp.v1"
+    },
+    "latency_contract": {
+      "path": "backtests/xsp/opening_edge_v3_regime_harmony_entry_latency_receipt.json",
+      "sha256": "8323f6370386c0dcc8c2a2be4598f4d6fd816f67805cd2e6159ac9ed0c84e8ce"
+    }
+  },
+  "causal_clock": {
+    "crown_target": "unchanged Opening Edge v3 target produced at a completed XSP five-minute close",
+    "permission_observation": "the next completed XSP and SPY five-minute close visible to the real :02/:07 timer invocation",
+    "admit_fill": "following interval open; the two-minute in-bar LIMIT chase receives no favorable interpolation",
+    "wait": "exactly one further natural five-minute invocation",
+    "wait_terminal": "admit only if opposition cleared; otherwise revoke",
+    "exit_and_flip": "unchanged crown lifecycle",
+    "maximum_wait_invocations": 1
+  },
+  "frozen_law": {
+    "direction_authority": "opening_edge_v3_crown_only",
+    "outputs": [
+      "ADMIT_NOW",
+      "WAIT",
+      "REVOKE"
+    ],
+    "path_states": [
+      "ALIGNED_ACCELERATING",
+      "ALIGNED_PERSISTENT",
+      "ALIGNED_DECELERATING",
+      "MIXED",
+      "OPPOSED_DECELERATING",
+      "OPPOSED_PERSISTENT",
+      "OPPOSED_ACCELERATING",
+      "UNDERWARMED"
+    ],
+    "path_inputs": "target-signed return, slope, and slope-velocity over completed 5/15/30/60/120-minute evidence; at least three path horizons and two velocity horizons",
+    "volatility_inputs": "ATR ratio is recorded; ATR velocity and acceleration jointly label EXPANDING, CONTRACTING, or TRANSITIONAL",
+    "spy_pressure_reference": "volume and normalized true range are ranked only against the same RTH five-minute slot in the preceding 63 sessions, with 21 required",
+    "spy_pressure_levels": {
+      "ORDINARY": "neither joint rank reaches the elevated band and neither one-sided rank reaches the shock band",
+      "ONE_SIDED": "volume or true range rank is at least 0.95 without joint confirmation",
+      "ELEVATED": "both ranks are at least 0.80",
+      "SHOCK": "both ranks are at least 0.95"
+    },
+    "revoke": "dual authoritative opposition, pressure-confirmed opposition, or opposition that persists through the single wait",
+    "wait": "one authoritative source or an opposed path whose directional velocity is cresting/decelerating",
+    "admit_now": "no authoritative fresh opposition, or opposition cleared after the single wait",
+    "forbidden": [
+      "invent or reverse direction",
+      "copy MCL 10x/20x thresholds into equities",
+      "use current/future same-slot observations in a percentile",
+      "use ES or MES as a required input without live entitlement",
+      "threshold grid search",
+      "change sizing, capital, execution ladder, exit, flip, or order type"
+    ]
+  },
+  "count_first_gate": {
+    "exact_crown_identity": true,
+    "minimum_spy_join_rate_each_year": 0.99,
+    "minimum_same_slot_rank_readiness_each_year": 0.95,
+    "minimum_affected_targets_total": 20,
+    "minimum_affected_targets_each_direction": 5,
+    "minimum_each_nonordinary_pressure_level": 5,
+    "both_directions_each_year": true,
+    "outcomes_visible_before_pass": false
+  },
+  "economic_gate_after_count_pass": {
+    "baseline": "exact existing one-extra-completed-bar Tiered cash latency contract",
+    "annualized_combined_rth_plus_unchanged_gth_trades_minimum": 200.0,
+    "full_net_positive": true,
+    "full_profit_factor_above_one": true,
+    "both_directions_positive": true,
+    "both_lanes_positive": true,
+    "all_available_one_year_periods_positive": true,
+    "pnl_over_drawdown_improvement_minimum_in_most_years": 0.05,
+    "maximum_drawdown_not_worse": true,
+    "low_volume_chop_elevated_and_shock_regimes_positive": true,
+    "Wednesday_incident_revoked_or_improved": true,
+    "selection": "one declared law only; no best-cell selection"
+  },
+  "prospective_seconds_companion": {
+    "symbol": "SPY",
+    "bar_size": "5 secs",
+    "authority": "morphology_only_no_historical_backfill_no_orders_no_capital",
+    "families": [
+      "price velocity and jerk",
+      "true-range velocity and acceleration",
+      "volume-flow velocity and acceleration",
+      "signed CL-like handoff analogue from XSP completed state to SPY execution pressure",
+      "crest, recoil, and reacceleration around ADMIT_NOW/WAIT/REVOKE"
+    ],
+    "minimum_complete_targets": 30,
+    "minimum_each_direction": 10,
+    "may_change_live_permission_before_unseen_proof": false
+  },
+  "isolation": {
+    "current_xsp_live_selection_changed": false,
+    "mcl_stage112_changed": false,
+    "gold_changed": false,
+    "shared_capital_changed": false,
+    "shared_limit_ladder_changed": false,
+    "submitted_orders": 0
+  }
+}

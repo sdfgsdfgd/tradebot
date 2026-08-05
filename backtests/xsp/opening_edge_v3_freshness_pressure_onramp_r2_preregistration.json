@@ -1,0 +1,50 @@
+{
+  "schema": "xsp.opening-edge-v3-freshness-pressure-onramp-preregistration.v2",
+  "registered_at_utc": "2026-08-05T19:16:58Z",
+  "authority": "historical_count_then_development_and_prospective_seconds_only_no_orders_no_capital",
+  "quest": "XSP Freshness & Pressure On-ramp",
+  "supersedes": {
+    "r1_preregistration_path": "backtests/xsp/opening_edge_v3_freshness_pressure_onramp_preregistration.json",
+    "r1_preregistration_sha256": "fee3d06def442670767eae264443ab12104d93e72e8ce4b978d9e6f4654f742b",
+    "r1_count_path": "backtests/xsp/opening_edge_v3_freshness_pressure_onramp_count_r1.json",
+    "r1_count_sha256": "fab9b84f7c3d32fca3c3ef113c294f1f048c616b34bda25176796fdeed047962",
+    "r1_verdict": "REVISE_COUNT_ONLY"
+  },
+  "pre_outcome_correction": {
+    "exposure": "R1 exposed only counts and categorical morphology; return, MFE, MAE, PnL, drawdown, trade outcomes, and winner selection remained sealed.",
+    "r1_observation": "R1 affected 16 balanced targets and missed its frozen 20-target breadth floor. The cross-tab showed 16 additional fully opposed XSP paths admitted only because ATR was contracting or transitional.",
+    "correction": "Any fully opposed XSP return-plus-slope path now receives WAIT unless dual authoritative opposition already requires REVOKE. Directional velocity may be accelerating, persistent, or decelerating; ATR contraction cannot convert a fully stale target into ADMIT_NOW.",
+    "unchanged": [
+      "Opening Edge v3 sole direction and lifecycle ownership",
+      "ADMIT_NOW/WAIT/REVOKE output vocabulary",
+      "exactly one natural wait invocation",
+      "SPY same-slot 63-session causal ranks with 21-session minimum",
+      "0.80 elevated and 0.95 shock rank levels",
+      "latency, economic, annual, direction, lane, regime, and crown gates",
+      "no threshold grid, ES dependency, news authority, sizing, capital, execution, exit, flip, order, or live authority"
+    ]
+  },
+  "owners": {
+    "permission_path": "tradebot/research/xsp_pressure_onramp.py",
+    "permission_sha256": "b40974c26d1afd6b26b707494195668e777eb2caad20f0d9e6f61b6d5d07d570",
+    "permission_version": "xsp.opening-edge-v3-freshness-pressure-onramp.v2",
+    "crown_rth_ledger_sha256": "40708a28476fad504d29b1222e52b88481b1c0da8313ed4667076e2b6ed3f157"
+  },
+  "count_first_gate": {
+    "exact_crown_identity": true,
+    "minimum_spy_join_rate_each_year": 0.99,
+    "minimum_same_slot_rank_readiness_each_year": 0.95,
+    "minimum_affected_targets_total": 20,
+    "minimum_affected_targets_each_direction": 5,
+    "minimum_each_nonordinary_pressure_level": 5,
+    "both_directions_each_year": true,
+    "outcomes_visible_before_pass": false
+  },
+  "inherited_law_and_gates": {
+    "source": "r1 preregistration fee3d06d... except the one explicit pre-outcome correction above",
+    "economic_gate_unchanged": true,
+    "prospective_seconds_gate_unchanged": true,
+    "live_selection_changed": false,
+    "submitted_orders": 0
+  }
+}
