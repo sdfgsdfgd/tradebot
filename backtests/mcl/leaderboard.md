@@ -24,7 +24,8 @@ The first does not grant the second.
 |---:|---|---|---|---|
 | 1 | Shock-aware CL discovery → MCL transport | **MCL Shock-Aware Two-Speed Arbiter — Stage 112** | `mcl.v18-shock-stage112-executable-crown.v1` | **Executable HF research crown**; exact V18 direction plus frozen shock continuation and the mandatory live risk envelope |
 | 2 | Two-speed CL discovery → MCL transport | **MCL Two-Speed Auction Relay — V18** | `mcl.two-speed-auction-relay-v18-research-crown.v1` | Preserved predecessor; its hidden magnitude inversion produced the first live loss and it is no longer selectable alone |
-| — | Seconds-tight predictive timing | **Stages 87/88/89/90** | event generation `b3805c9f…` | Active challenger; autonomous `ACCUMULATE`, `3/30` complete unseen turns, `1/20` admission |
+| — | Seconds-tight predictive timing | **Stages 87/88/89/90** | predictive generation `a547ac14…` | Active challenger; autonomous `ACCUMULATE`, `6/30` complete unseen turns, balanced `3 up / 3 down`, `1/20` admission |
+| — | Authority-bound shock morphology | **Stage 114 + Stage 115 ignition geometry** | wave generation `39d5d311…`; geometry preregistration `2c658e81…` | Active challenger; Stage 114 `ACCUMULATE 0/30`; Stage 115 is a derived, outcome-blind view with no recorder, ledger, or live authority |
 | — | Operational/live | **Stage 112 bounded canary** | selection `083ecba…` | **CANARY_LIVE / graduation HOLD**; flat, zero inherited fills/P&L/DD, armed only for a fresh causal Stage-112 admission |
 
 Machine pointer: `backtests/mcl/current-hf.json`, bound to immutable crown
@@ -43,12 +44,12 @@ artifact `backtests/mcl/mcl_v18_shock_stage112_executable_crown.json` at SHA-256
 | Stability | Year 1/year 2 `+$2,071.68 / +$1,871.31`, PnL/DD `3.496 / 3.100`; both directions and both V18/shock owners positive |
 | Cadence | `194.42` annualized under the user-authorized `≥194/year` exception; one contract, no quota, no forced trade |
 | Prospective tape | q generation `b3805c9f…` continuously records matched live NYMEX L1 CL/MCL seconds; independent accumulator `df806968…` joins exact V18 turns, completed multiscale context, and causal news without outcome/order/capital authority |
-| Predictive challenger | Stages 87–90 now hold `3/30` complete turns, `2 down / 1 up`, `1/20` admission, `1` failed-auction route, and `2/20` resolved handoffs; outcomes remain sealed |
+| Predictive challenger | Stages 87–90 now hold `6/30` complete turns, balanced `3 down / 3 up`, `1/20` admission, `1` failed-auction route, and `2/20` resolved handoffs; outcomes remain sealed. Stage 114 independently remains `0/30`; Stage 115 freezes only its future ignition geometry |
 | Live-canary exception | **Inherited:** Stage 112 may commission as the bounded MCL canary before the seconds cohort matures; the seconds layer still has no direction/order authority and no broker/safety gate is waived |
 | Live source/shadow | **PASS:** read-only finalized U6 replay through `18:43Z`, `4,003` exact common minutes, flat selection boundary, no synthetic position, zero orders; receipt `d3d5f2e4…` |
 | Native commissioning | **PASS:** fresh LMT preview, selection `083ecba…`, plan `851714c2…`, predictive generation `d0443eb0…`, observe-only restart, and natural recurrence are bound by receipt `mcl_v18_shock_stage112_live_commissioning_receipt.json` (`33e1fdce…`) |
 | Alternative transport frontier | **Closed for this V18 generation:** MCO is executable but destroyed the edge; IBUSOIL 75 units was the closest near-miss but failed frozen stress PnL/DD and branch gates and lacks current CFD permission/data; OOO/UCO/SCO/USO fail bidirectional hours/economics |
-| Next irreversible evidence | Accumulate authentic Stage-112 execution and continuous after-cost `24h → 48h → five-session` evidence while the independent seconds/onset cohort grows beyond `3/30`; never force either clock |
+| Next irreversible evidence | Accumulate authentic Stage-112 execution and continuous after-cost `24h → 48h → five-session` evidence while the independent onset cohort grows beyond `6/30` and Stage 114 grows beyond `0/30`; Stage 115 derives only complete future wave geometry and never forces either clock |
 | Live boundary | **Flat / armed:** old selection `591db010…` remains permanently breached after `-$318.52`; Stage 112 selection `083ecba…` is current, MCL position/orders/fills are zero, and the live/predictive timers plus seconds tape are active |
 
 ## Live transport frontier
@@ -305,10 +306,28 @@ every sign transition without an outcome, score, union, or winner. The down
 control has no resolved first-minute alignment; the up control aligns CL/MCL
 together only at `+15→+30s`, while its independent frozen hypotheses overlap
 `ORDERED_IGNITION + TRANSPORT_REFUSAL + WHIPSAW`. That overlap is preserved,
-not resolved after the fact. Status remains `ACCUMULATE`: `3/30` complete,
-`2 down / 1 up`, `1/20` admitted, failed-auction `1/5`, continuation `0/5`,
-`2/20` resolved handoffs, zero order or timing authority. Observer ledger SHA is
-`bfcc0147…`; commissioning receipt is `12f993f0…`.
+not resolved after the fact. The successor accumulator has since preserved those
+three rows byte-for-byte and appended three complete unseen abstentions once.
+Status remains `ACCUMULATE`: `6/30` complete, balanced `3 down / 3 up`, `1/20`
+admitted, failed-auction `1/5`, continuation `0/5`, `2/20` resolved handoffs,
+zero order or timing authority. Observer ledger SHA is `363a87b7…`.
+
+Stage 114 is the separate authority-bound shock-wave challenger. It leaves `5×`
+attention directionless, binds only from full fresh CL/MCL alignment at `10×+`,
+and permits an opposite handoff only at a strictly higher frozen level. Its sole
+successor observer is commissioned and idempotent at `0/30`; the latest causal
+prefix through `07:55:41Z` contains `2,020` eligible observations, maximum
+`3.0101×`, no open or complete episode, and no outcome or order.
+
+Stage-115 preregistration
+`mcl_authority_wave_ignition_geometry_stage115_preregistration.json`
+(`2c658e81…`) freezes the next derived question before the first eligible wave:
+the exact ordering of `5×→10×→12×→20×` passage, CL/MCL transport alignment,
+volume-flow jerk, authority bind, joint price-speed crest, continuation, handoff,
+and release. It consumes only complete immutable Stage-114 episode IDs and their
+existing tape/bar identities. It adds no owner, recorder, timer, ledger, score,
+outcome, direction, execution, order, capital, or graduation authority. The old
+V76/V77 post-entry first-adverse race remains closed.
 
 ## Closed search boundary
 
@@ -347,8 +366,10 @@ Do not reopen these historical rescue families without genuinely new data:
 7. **Active:** accumulate authentic after-cost `24h → 48h → five-session`
    evidence. Preliminary status is `HOLD`, never a zero-trade graduation.
 8. **Concurrent Priority Zero:** autonomous Stage 87–90 predictive-onset and
-   causal-news sharpening remains `3/30`; preserve unseen morphology until its
-   frozen cohort opens matched controls and sealed economics. The accumulator
+   causal-news sharpening remains `6/30`; Stage 114 independently accumulates
+   authority-bound waves at `0/30`, while Stage 115 freezes only their future
+   ignition geometry. Preserve unseen morphology until the frozen cohorts open
+   separately preregistered controls and sealed economics. The onset accumulator
    may observe V18 turns inside Stage 112 but never consume shock direction.
 
 No milestone, deadline, crown, or empty tape may force a trade.

@@ -1,0 +1,107 @@
+{
+  "schema": "mcl.authority-wave-ignition-geometry-stage115-preregistration.v1",
+  "registered_at_utc": "2026-08-05T08:00:45+00:00",
+  "eligible_episode_start_utc": "2026-08-05T08:00:45+00:00",
+  "authority": "prospective_derived_morphology_only_no_outcomes_no_orders_no_capital",
+  "campaign": "mcl.predictive-intelligence-sharpening-stage115",
+  "candidate": "Authority-Wave Ignition Geometry",
+  "hypothesis": "The useful early distinction inside an exceptional-volume regime is the causal ordering of level escalation, per-book transport alignment, volume-flow acceleration, joint price-speed crest, and explicit authority handoff. Volume magnitude is attention; full CL/MCL alignment owns direction; a crest confirmed before transport is stale impulse, while authority followed by a later crest and renewed alignment is a continuation candidate.",
+  "pre_outcome_boundary": {
+    "last_examined_stage114_cutoff_utc": "2026-08-05T07:55:41+00:00",
+    "eligible_stage114_observations": 2020,
+    "maximum_volume_multiple": 3.01010101010101,
+    "open_episodes": 0,
+    "complete_episodes": 0,
+    "stage114_outcomes_exposed": false,
+    "decision": "Freeze the geometry before the first eligible Stage-114 episode. Any episode whose attention began before the eligible start is excluded even if it ends later."
+  },
+  "immutable_inputs": {
+    "stage114_generation_id": "39d5d311561ffce71a3f88551a53a61fc905ceff108dae51e38346165ba5537d",
+    "stage114_preregistration_sha256": "e034a47c515675016910b55765daf26efb4af22b20b901a6fb8292589b034707",
+    "stage114_commissioning_receipt_sha256": "6354b5c3f5a6a5707c146cb26f643d9d6d36086eb59a8a8a3742240eec46dc64",
+    "stage114_state_owner_sha256": "ef3e14ec390756c26724c9372df48b4e70be43194c81471519385af6f78e87fa",
+    "stage114_accumulator_sha256": "24ba59f321e5ba64c7d5a463dbc5dafc8b8f058d288c775d19500302eaa17e68",
+    "stage113_inner_crest_owner_sha256": "0363b3416b4ca5771e0d7a6947f9a01a76eb99c9cae0e6c1904d0b88205c6019",
+    "stage89_velocity_jerk_preregistration_sha256": "1514046f150b93f9f32ff12cff50df23d60ebab4c27957902571640d46b26f85",
+    "turn_tape_generation_sha256": "b3805c9f95713a13c26cb0ada08dc043f00069f42177212d3c575abe28c3ee7f",
+    "closed_v77_post_entry_first_passage_rejection_sha256": "e29c72969fe3f1401a5ec5fbb7d8ff4acfd5ba701c8be1bc48f2cdfb424f9f11"
+  },
+  "architecture": {
+    "state_owner": "Stage 114 remains the sole authority-wave state owner.",
+    "derivation": "Join only complete immutable Stage-114 episode IDs to their existing source record IDs and finalized bar-prefix identities. Re-read the canonical raw tape; do not create another recorder, timer, runtime owner, or treatment ledger.",
+    "identity": "One treatment is one complete Stage-114 episode whose started_at_utc is at or after eligible_episode_start_utc. One derived subunit is one Stage-114 authority wave within that episode.",
+    "pre_bind_direction": "Directionless. Preserve raw CL and MCL signs and per-book alignment states; never sign pre-bind evidence with an eventual authority direction.",
+    "post_bind_direction": "Only the contemporaneous Stage-114 authority direction may sign evidence from the bind timestamp forward. A handoff starts a new wave and a new signing boundary.",
+    "missingness": "Retain missing, zero, mixed, stale-top, spread-ineligible, and unresolved evidence categorically. Never drop an episode to improve a shape."
+  },
+  "frozen_levels": {
+    "attention": 5.0,
+    "major": 10.0,
+    "tradeable": 12.0,
+    "regime": 20.0,
+    "source": "Unchanged Stage-114 levels; no adjacent magnitude sweep."
+  },
+  "frozen_anchor_order": [
+    "first_attention_5x",
+    "first_major_10x",
+    "first_tradeable_12x",
+    "first_regime_20x",
+    "authority_bind_or_handoff",
+    "joint_price_speed_peak",
+    "causal_crest_confirmation",
+    "continuation_or_rotation_or_normalization"
+  ],
+  "frozen_anchor_intervals_seconds": [
+    [-60, -30],
+    [-30, -15],
+    [-15, -5],
+    [-5, 0],
+    [0, 5],
+    [5, 15],
+    [15, 30],
+    [30, 60]
+  ],
+  "exact_geometry_law": {
+    "clock": "IBKR TCP packet receipt UTC for seconds evidence; finalized broker close UTC for completed-minute and slower evidence. Do not infer exchange sequencing.",
+    "level_first_passage": "For each frozen level, retain the first causal observation at or above the level and exact elapsed seconds from attention. Missing levels remain null.",
+    "level_latency": "Retain exact elapsed seconds for 5x-to-10x, 10x-to-12x, and 12x-to-20x. Do not bin, clip, rank, or optimize latency.",
+    "per_book_alignment": "For each book and observation, classify ALIGNED_UP or ALIGNED_DOWN only when its 5s, 15s, 60s, 15m velocity, 15m acceleration, and signed 15s flow are all nonzero and share one sign; otherwise MIXED_OR_ZERO.",
+    "transport_order": "Within the frozen Stage-89 interval widths around each anchor, retain CL_LEADS, SAME_INTERVAL, MCL_LEADS, CONFLICT, or UNRESOLVED from the first per-book alignment. No future authority direction participates.",
+    "volume_flow_jerk": "For CL and MCL separately, current volume_velocity_5s minus the immediately preceding valid observation's volume_velocity_5s inside the same receipt-time minute; a minute boundary is unresolved, never a zero continuation.",
+    "joint_price_speed": "After authority binds, the minimum of contemporaneous authority-signed CL and MCL 5s velocity when both are positive; otherwise unresolved.",
+    "joint_price_speed_peak": "Between bind and causal crest confirmation, use the earliest maximum joint_price_speed. The peak becomes known only when the unchanged Stage-113 three-lower-observation and three-second crest law confirms it.",
+    "volume_flow_crest": "Record the earliest running CL/MCL volume-flow peak that is followed by at least three strictly lower valid observations spanning at least three seconds, reusing the inner crest persistence rather than adding a tuned clock.",
+    "crest_order": "Retain exact ordering and latency among authority bind, volume-flow crest, joint-price-speed peak, and causal price crest. Ties remain ties.",
+    "handoff": "Use only Stage-114 AUTHORITY_HANDOFF. Reset all geometry at the new wave boundary; never merge opposite waves into one sequence.",
+    "cross_scale": "At existing Stage-114 transitions retain the already-causal completed 15m evidence, rolling 240m slope/TR state, 30m MCL-minus-CL basis velocity, prior five-session context, and available four-hour news state as non-scoring context. Missing clocks stay missing."
+  },
+  "categorical_hypotheses": {
+    "ORDERED_AUTHORITY_IGNITION": "A frozen level escalates, CL aligns no later than MCL, joint alignment binds at 10x or higher, and the joint price-speed crest occurs after binding.",
+    "LEVEL_WITHOUT_TRANSPORT": "A 10x-or-higher level is reached without a fresh full CL/MCL bind before the level retreats or the episode terminates.",
+    "CREST_BEFORE_AUTHORITY": "Fast price or volume-flow acceleration causally crests before any eligible authority bind; classify as stale impulse, never as automatic reversal.",
+    "POST_BIND_REACCELERATION": "Authority binds, a causal joint-speed crest forms, and the unchanged Stage-114 continuation transition later reappears in the same direction.",
+    "ORDERED_HIGHER_LEVEL_HANDOFF": "A strictly higher frozen level plus opposite fresh full alignment emits the exact Stage-114 handoff and resets the wave geometry.",
+    "MAX_LEVEL_OPPOSITION_CONTROL": "After incumbent authority already owns the 20x regime, opposite fresh full alignment occurs without a strictly higher level. Preserve as a negative control; it cannot modify Stage 114 or imply reversal authority.",
+    "FLOW_PRICE_DECOUPLING": "Frozen volume level or positive volume-flow jerk persists while joint price speed is mixed, unresolved, or contracting; preserve the topology without selecting an action."
+  },
+  "count_gate": {
+    "inherit_every_stage114_cohort_gate": true,
+    "minimum_repeated_occurrences_per_actionable_geometry": 5,
+    "complete_episode_inclusion": "Every eligible Stage-114 episode must be present; unresolved fields are categorical evidence, not exclusions.",
+    "verdict_before_pass": "ACCUMULATE"
+  },
+  "future_action_boundary": {
+    "current": "Freeze and later derive morphology only after complete Stage-114 episodes exist; do not run outcomes, controls, rankings, scores, or economic settlement.",
+    "after_count_pass": "Preregister matched ordinary-volume and same-level-opposition controls plus sealed economic settlement before testing any timing, chase, hold, release, or handoff action.",
+    "never": [
+      "reopen the rejected V76/V77 post-entry first-adverse race",
+      "retune Stage-114 levels, alignment membership, crest persistence, or handoff law",
+      "use terminal direction to label pre-bind evidence",
+      "let volume magnitude alone create direction",
+      "invent exchange time, depth, queue position, or identified cancellation from L1",
+      "modify Stage 112, suppress unconditional risk reduction, submit an order, resize capital, or grant graduation authority"
+    ]
+  },
+  "outcomes_exposed": false,
+  "submitted_orders": 0
+}
