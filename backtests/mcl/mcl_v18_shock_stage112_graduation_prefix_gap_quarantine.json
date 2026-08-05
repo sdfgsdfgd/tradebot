@@ -1,0 +1,94 @@
+{
+  "schema": "mcl.v18-shock-stage112-graduation-prefix-gap-quarantine.v1",
+  "recorded_at_utc": "2026-08-05T08:38:27Z",
+  "authority": "read_only_cutoff_audit_no_broker_no_orders_no_capital",
+  "selection": {
+    "strategy_version": "mcl.two-speed-shock-arbiter.v112",
+    "selection_id": "083ecba8798ea6e60f32b1c42d4896e1a016703a77eeac2f32ac7ce3f5d54a91",
+    "selection_file_sha256": "3ffcdd1d7471456095f34ff1a7251679edd56b1898227f869e8112f41af16f7a"
+  },
+  "diagnostic_cutoff": {
+    "target": "24h",
+    "cutoff_utc": "2026-08-05T08:22:55Z",
+    "q_result_path": "/var/tmp/mcl-stage112-24h-audit-20260805T082255Z.json",
+    "result_sha256": "f93582abe881044c08bac80d58cd17577097c348ddc2e8a929621a71b5ebb2b5",
+    "receipt_id": "7d4aed992adc19ca586df377eaf7f15f3b658967f2de0ba10edf7b5580d3c45f",
+    "ledger_prefix_sha256": "eb7560759fd4bbbae2958eba1674d1a333d27efffe49dd926c019cfc11fbb7f9",
+    "ledger_prefix_records": 2149,
+    "verdict": "QUARANTINE",
+    "reasons": [
+      "execution:execution_not_observed",
+      "profitability:incomplete_session_coverage"
+    ]
+  },
+  "coverage": {
+    "coverage_started_at_utc": "2026-08-04T19:13:00Z",
+    "due_slots": 729,
+    "evaluated_slots": 723,
+    "missing_slots": [
+      "2026-08-04T19:25:00Z",
+      "2026-08-04T19:41:00Z",
+      "2026-08-04T19:42:00Z",
+      "2026-08-04T19:43:00Z",
+      "2026-08-04T19:44:00Z",
+      "2026-08-04T22:00:00Z"
+    ],
+    "conflicting_slots": [],
+    "causes": [
+      {
+        "slots": [
+          "2026-08-04T19:25:00Z"
+        ],
+        "cause": "commissioning timer stop at 19:24:44Z and restart at 19:26:28Z"
+      },
+      {
+        "slots": [
+          "2026-08-04T19:41:00Z",
+          "2026-08-04T19:42:00Z",
+          "2026-08-04T19:43:00Z",
+          "2026-08-04T19:44:00Z"
+        ],
+        "cause": "deployment timer stop at 19:40:56Z and restart at 19:45:26Z"
+      },
+      {
+        "slots": [
+          "2026-08-04T22:00:00Z"
+        ],
+        "cause": "the first 18:00 ET maintenance-reopen invocation rejected the prior finalized source as stale before a new completed reopen minute could exist; natural 22:01Z invocation succeeded"
+      }
+    ]
+  },
+  "gates": {
+    "identity": "PASS",
+    "runtime_parity": "PASS",
+    "capital_owner_stability": "PASS",
+    "restart": "PASS",
+    "cash_risk_safety": "PASS",
+    "attribution": "PASS",
+    "execution": "HOLD_NO_EXECUTION",
+    "profitability": "INVALID_INCOMPLETE_SESSION_COVERAGE"
+  },
+  "live_boundary": {
+    "checkpoint_id": "5d461434e8498d2a86a5d7388b684a9578c04494fd5c7d6512f32ac28248780a",
+    "recorded_at_utc": "2026-08-05T08:36:10.933517Z",
+    "reason": "flat_no_target",
+    "position": 0,
+    "fills": 0,
+    "net_usd": 0.0,
+    "drawdown_usd": 0.0,
+    "safety_breaches": [],
+    "submitted_orders": 0
+  },
+  "decision": "Preserve the preliminary HOLD receipt and this later QUARANTINE independently. Do not backfill or exclude any missing minute and do not force a trade. Stage 112 remains the unchanged live crown. Before starting a fresh evidence run, repair the exact 18:00 ET causal reopen so broker, book, position, and risk reduction can reconcile while the prior finalized source is entry-stale; then use the existing nontransmitting commissioning and immutable-selection path from a flat zero-economics boundary.",
+  "invariants": {
+    "stage112_signal_lifecycle_execution_unchanged": true,
+    "preliminary_receipt_rewritten": false,
+    "missing_slots_backfilled": false,
+    "broker_queried_by_graduation_audit": false,
+    "service_or_timer_mutated_by_graduation_audit": false,
+    "selection_mutated_by_graduation_audit": false,
+    "order_authority_mutated": false,
+    "profitability_clock_mutated": false
+  },
+  "submitted_orders": 0
+}

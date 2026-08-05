@@ -49,14 +49,15 @@ artifact `backtests/mcl/mcl_v18_shock_stage112_executable_crown.json` at SHA-256
 | Live source/shadow | **PASS:** read-only finalized U6 replay through `18:43Z`, `4,003` exact common minutes, flat selection boundary, no synthetic position, zero orders; receipt `d3d5f2e4…` |
 | Native commissioning | **PASS:** fresh LMT preview, selection `083ecba…`, plan `851714c2…`, predictive generation `d0443eb0…`, observe-only restart, and natural recurrence are bound by receipt `mcl_v18_shock_stage112_live_commissioning_receipt.json` (`33e1fdce…`) |
 | Alternative transport frontier | **Closed for this V18 generation:** MCO is executable but destroyed the edge; IBUSOIL 75 units was the closest near-miss but failed frozen stress PnL/DD and branch gates and lacks current CFD permission/data; OOO/UCO/SCO/USO fail bidirectional hours/economics |
-| Next irreversible evidence | Accumulate authentic Stage-112 execution and continuous after-cost `24h → 48h → five-session` evidence while the independent onset cohort grows beyond `6/30` and Stage 114 grows beyond `0/30`; Stage 115 derives only complete future wave geometry and never forces either clock |
+| Graduation evidence | Preliminary cutoff `e68194d8…` remains immutable `HOLD`; extended read-only audit `f93582ab…` found `729` due / `723` evaluated minutes and six gaps, so the first Stage-112 evidence run is `QUARANTINE`, not eligible for 24h graduation. Signal/lifecycle/live authority remain unchanged |
+| Next irreversible evidence | After confirmation, repair only the causal `18:00 ET` reopen boundary and recommission the unchanged Stage-112 crown from a fresh flat zero-economics selection; then accumulate authentic continuous after-cost `24h → 48h → five-session` evidence while the independent onset cohort grows beyond `6/30` and Stage 114 grows beyond `0/30` |
 | Live boundary | **Flat / armed:** old selection `591db010…` remains permanently breached after `-$318.52`; Stage 112 selection `083ecba…` is current, MCL position/orders/fills are zero, and the live/predictive timers plus seconds tape are active |
 
 ## Live transport frontier
 
 | Rank | Transport | Exact result | Decision |
 |---:|---|---|---|
-| 1 | Native `MCLU6`, Stage 112 | Exact `388/388` executable lifecycle parity, live type-1 source, one-contract risk envelope, LMT-only ordinary/shock chase at `1×/2×`, immutable selection `083ecba…`, restart and natural recurrence | **Crowned; CANARY_LIVE; graduation HOLD** |
+| 1 | Native `MCLU6`, Stage 112 | Exact `388/388` executable lifecycle parity, live type-1 source, one-contract risk envelope, LMT-only ordinary/shock chase at `1×/2×`, immutable selection `083ecba…`, restart and natural recurrence | **Crowned; CANARY_LIVE; first graduation prefix QUARANTINE** |
 | 2 | Native `MCLU6`, V18 | First live round trip bought the crash at `$80.16`, flattened at `$76.99`, and realized `-$318.52`; selection is flat but permanently breached | **Retired from selection** |
 | 3 | `IBUSOIL` CFD | `75` units: primary `+$1,468.98`, PnL/DD `3.511`; stress `+$675.69`, PnL/DD `.911`, failed-auction `-$79.75`. Live quote/preview absent because CFD permission/data is disabled | **Frozen generation rejected; future challenger only on genuinely new executable evidence** |
 | 4 | `MCO` long calls/puts | Live premium/margin fits, but ATM replay was `-$1,918.94`; the only liquid symmetric ITM corridor was `-$1,428.12`; both stress cases and both directions lost | **Rejected** |
@@ -70,7 +71,10 @@ Receipts: `mcl_v18_native_margin_hold.json`,
 `mcl_oil_etf_transport_rejection.json`; Stage-112 commissioning and preliminary
 graduation are bound by `mcl_v18_shock_stage112_live_commissioning_receipt.json`
 (`33e1fdce…`)
-and `mcl_v18_shock_stage112_preliminary_24h_graduation.json` (`e68194d8…`). The
+and `mcl_v18_shock_stage112_preliminary_24h_graduation.json` (`e68194d8…`).
+The later extended-prefix quarantine is preserved by
+`mcl_v18_shock_stage112_graduation_prefix_gap_quarantine.json`; it changes no
+selection, strategy, or live authority. The
 retired V18 run remains frozen in `mcl_v18_live_commissioning_receipt.json`
 (`8ec07209…`) and `mcl_predictive_onset_accumulator_commissioning_receipt.json`
 (`12f993f0…`).
@@ -363,8 +367,11 @@ Do not reopen these historical rescue families without genuinely new data:
 6. **Done:** observe-only restart, reconciliation, flat source, zero market
    orders/submissions, and natural recurrence passed; the timer is armed and the
    new profitability clock starts from exact zero.
-7. **Active:** accumulate authentic after-cost `24h → 48h → five-session`
-   evidence. Preliminary status is `HOLD`, never a zero-trade graduation.
+7. **Decision-gated:** the first Stage-112 evidence run is `QUARANTINE` after
+   six proven coverage gaps. Preserve it unchanged; repair the causal
+   maintenance-reopen boundary, then use the existing nontransmitting
+   commissioning path to start one fresh flat zero-economics run before
+   accumulating `24h → 48h → five-session` evidence.
 8. **Concurrent Priority Zero:** autonomous Stage 87–90 predictive-onset and
    causal-news sharpening remains `6/30`; Stage 114 independently accumulates
    authority-bound waves at `0/30`, while Stage 115 freezes only their future
