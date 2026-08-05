@@ -10,7 +10,9 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Mapping, Sequence
 
+from ..engines.market import xsp_rth_cash_evaluation_slots
 from ..live.capital import validate_live_capital_decision
+from ..time_utils import ET_ZONE
 from .live_graduation import (
     evidence_sha256,
     live_calibration_logical_prefix,
@@ -89,6 +91,8 @@ class XspProfitabilityPolicy:
     slot_tolerance_seconds: float = 90.0
     unit: str = "$1_per_XSP_point"
     equity_schema: str = SELECTED_EQUITY_SCHEMA
+    coverage_epoch_id: str | None = None
+    coverage_started_at_utc: str | None = None
 
 
 def xsp_profitability_contract(
@@ -123,6 +127,28 @@ def xsp_profitability_contract(
         or not 0 <= policy.slot_tolerance_seconds < 150
     ):
         errors.append("invalid_slot_tolerance")
+    if (policy.coverage_epoch_id is None) != (
+        policy.coverage_started_at_utc is None
+    ):
+        errors.append("incomplete_coverage_epoch_identity")
+    elif policy.coverage_epoch_id is not None:
+        try:
+            coverage_start = _utc(policy.coverage_started_at_utc)
+        except (TypeError, ValueError):
+            errors.append("invalid_coverage_epoch_start")
+        else:
+            if len(policy.coverage_epoch_id) != 64 or any(
+                value not in "0123456789abcdef"
+                for value in policy.coverage_epoch_id
+            ):
+                errors.append("invalid_coverage_epoch_identity")
+            slots = xsp_rth_cash_evaluation_slots(
+                coverage_start.astimezone(ET_ZONE).date()
+            )
+            if coverage_start not in {
+                slot.astimezone(timezone.utc) for slot in slots
+            }:
+                errors.append("coverage_epoch_not_on_cash_slot")
     return contract, errors
 
 
@@ -165,6 +191,14 @@ def empty_xsp_profitability_receipt(
             "capital_sleeve": policy.capital_sleeve,
             "unit": policy.unit,
             "equity_schema": policy.equity_schema,
+            **(
+                {
+                    "coverage_epoch_id": policy.coverage_epoch_id,
+                    "coverage_started_at_utc": policy.coverage_started_at_utc,
+                }
+                if policy.coverage_epoch_id is not None
+                else {}
+            ),
         },
         "clock": {
             "run_started_at_utc": None,
@@ -880,6 +914,14 @@ def xsp_live_graduation_inputs(
         "execution_strategy_version": policy.strategy_version,
         "capital_sleeve": policy.capital_sleeve,
         "selection_file_sha256": selection_sha,
+        **(
+            {
+                "coverage_epoch_id": policy.coverage_epoch_id,
+                "coverage_started_at_utc": policy.coverage_started_at_utc,
+            }
+            if policy.coverage_epoch_id is not None
+            else {}
+        ),
     }
     return {
         "subject": subject,
@@ -887,6 +929,11 @@ def xsp_live_graduation_inputs(
         "selection_file_sha256": selection_sha,
         "ledger_prefix": {
             **prefix,
+            **(
+                {"coverage_epoch_id": policy.coverage_epoch_id}
+                if policy.coverage_epoch_id is not None
+                else {}
+            ),
             "gates": {
                 "restart": restart,
                 "cash_risk_safety": risk,

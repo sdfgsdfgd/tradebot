@@ -26,6 +26,9 @@ from tradebot.research.live_calibration import (
     XspProfitabilityPolicy,
     calibration_fingerprint,
 )
+from tradebot.research.xsp_profitability_epoch import (
+    xsp_profitability_receipt_with_coverage_epoch,
+)
 from tradebot.research.xsp_benchmarks import (
     XSP_DIRECTIONAL_SHADOW_POLICY,
     XSP_SELECTED_SHADOW_RUN_VERSION,
@@ -1572,6 +1575,141 @@ def test_profitability_milestones_cannot_rewrite_earlier_losses(tmp_path) -> Non
     assert receipt["milestones"]["48h"]["reasons"] == ["net_not_positive"]
     assert receipt["milestones"]["five_session_week"]["passed"] is True
     assert receipt["milestones"]["five_session_week"]["economics"]["net_points"] == 5.5
+
+
+def test_profitability_coverage_epoch_ignores_old_gaps_but_not_old_loss(
+    tmp_path,
+) -> None:
+    ledger = LiveCalibrationLedger(tmp_path / "coverage-epoch.jsonl")
+    run_id = "a" * 64
+    started = datetime(2026, 7, 27, 9, 37, tzinfo=ET_ZONE)
+    coverage_started = datetime(2026, 7, 29, 9, 37, tzinfo=ET_ZONE)
+    policy = XspProfitabilityPolicy(
+        run_id=run_id,
+        strategy_id="xsp.opening-edge-v3-regime-harmony-24x5.v1",
+        strategy_version="xsp.opening-edge-v3-upro-spxu-execution.v1",
+        config_fingerprint=run_id,
+        capital_sleeve="xsp-upro-spxu-rth-cash",
+        max_drawdown_points=135.0,
+        max_session_loss_points=67.5,
+        minimum_week_closed_trades=2,
+        maximum_top_five_win_share=0.5,
+        unit="USD",
+        equity_schema=SELECTED_CASH_EQUITY_SCHEMA,
+        coverage_epoch_id="b" * 64,
+        coverage_started_at_utc=coverage_started.astimezone(
+            timezone.utc
+        ).isoformat(),
+    )
+    values = _append_selected_session(
+        ledger,
+        policy=policy,
+        day=date(2026, 7, 27),
+        cumulative_gross=0.0,
+        cumulative_costs=0.0,
+        closed_trades=0,
+        gross_wins=0.0,
+        top_five_wins=0.0,
+        omit_slot=10,
+        session_gross=-10.3,
+        session_cost=0.703328,
+        run_started=started,
+    )
+    terminal = {
+        "schema": SELECTED_CASH_EQUITY_SCHEMA,
+        "run_id": run_id,
+        "run_started_at_utc": started.astimezone(timezone.utc).isoformat(),
+        "cumulative_gross_usd": values[0],
+        "cumulative_cost_usd": values[1],
+        "cumulative_net_usd": values[0] - values[1],
+        "cumulative_realized_net_usd": values[0] - values[1],
+        "open_mark_usd": 0.0,
+        "closed_trades": values[2],
+        "gross_wins_usd": values[3],
+        "top_five_gross_wins_usd": values[4],
+    }
+    values = _append_selected_session(
+        ledger,
+        policy=policy,
+        day=date(2026, 7, 29),
+        cumulative_gross=values[0],
+        cumulative_costs=values[1],
+        closed_trades=values[2],
+        gross_wins=values[3],
+        top_five_wins=values[4],
+        session_gross=5.0,
+        session_cost=0.5,
+        run_started=started,
+    )
+    _append_selected_session(
+        ledger,
+        policy=policy,
+        day=date(2026, 7, 30),
+        cumulative_gross=values[0],
+        cumulative_costs=values[1],
+        closed_trades=values[2],
+        gross_wins=values[3],
+        top_five_wins=values[4],
+        session_gross=8.0,
+        session_cost=0.5,
+        run_started=started,
+    )
+    epoch = {
+        "epoch_id": policy.coverage_epoch_id,
+        "eligible_start_utc": policy.coverage_started_at_utc,
+        "selection": {"selection_id": run_id},
+        "terminal_checkpoint": {"selected_cash_equity": terminal},
+    }
+    records = tuple(ledger.records())
+    not_started = xsp_profitability_receipt_with_coverage_epoch(
+        ledger=ledger,
+        policy=policy,
+        epoch=epoch,
+        as_of=coverage_started,
+        records=tuple(
+            row for row in records if row["trading_date"] == "2026-07-27"
+        ),
+    )
+    assert not_started["status"] == "NOT_STARTED"
+    assert not_started["reasons"] == ["no_selected_checkpoints"]
+
+    receipt = xsp_profitability_receipt_with_coverage_epoch(
+        ledger=ledger,
+        policy=policy,
+        epoch=epoch,
+        as_of=datetime(2026, 7, 30, 16, 18, 30, tzinfo=ET_ZONE),
+        records=records,
+    )
+
+    assert receipt["status"] == "ACTIVE"
+    assert receipt["reasons"] == []
+    assert receipt["clock"]["coverage_broken"] is False
+    assert receipt["clock"]["complete_sessions"] == 2
+    assert receipt["clock"]["run_started_at_utc"] == started.astimezone(
+        timezone.utc
+    ).isoformat()
+    assert receipt["clock"]["coverage_started_at_utc"] == (
+        coverage_started.astimezone(timezone.utc).isoformat()
+    )
+    assert receipt["economics"]["net_usd"] == pytest.approx(0.996672)
+    assert receipt["economics"]["maximum_drawdown_usd"] == pytest.approx(
+        11.003328
+    )
+    milestone = receipt["milestones"]["24h"]
+    assert milestone["passed"] is False
+    assert milestone["economics"]["net_usd"] == pytest.approx(-6.503328)
+    assert milestone["reasons"] == ["net_not_positive"]
+
+    terminal["cumulative_cost_usd"] = 2.0
+    invalid = xsp_profitability_receipt_with_coverage_epoch(
+        ledger=ledger,
+        policy=policy,
+        epoch=epoch,
+        as_of=datetime(2026, 7, 30, 16, 18, 30, tzinfo=ET_ZONE),
+        records=records,
+    )
+    assert invalid["status"] == "INVALID_EVIDENCE"
+    assert "coverage_epoch_economics_regressed" in invalid["reasons"]
 
 
 def test_profitability_clock_starts_at_first_owned_mid_session_slot(tmp_path) -> None:

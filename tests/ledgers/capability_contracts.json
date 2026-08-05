@@ -737,6 +737,7 @@
         "tradebot/research/xsp_live_transport.py",
         "tradebot/research/xsp_live_transport_runtime.py",
         "tradebot/research/xsp_profitability.py",
+        "tradebot/research/xsp_profitability_epoch.py",
         "tradebot/research/xsp_shadow.py",
         "tradebot/research/xsp_shadow_cli.py",
         "tradebot/ui/bot_journal.py"

@@ -27,6 +27,10 @@ from tradebot.research.xsp_profitability import (
     xsp_live_graduation_inputs,
     xsp_runtime_parity_graduation_gate,
 )
+from tradebot.research.xsp_profitability_epoch import (
+    build_xsp_profitability_coverage_epoch,
+    load_xsp_profitability_coverage_epoch,
+)
 from tradebot.research.xsp_capital_stability import (
     XSP_CAPITAL_OWNER_GENERATION_SCHEMA,
     xsp_zero_capital_migration_evidence,
@@ -282,6 +286,40 @@ def test_later_target_requires_predecessor_milestones() -> None:
     assert receipt["target"]["required_predecessors"] == ["24h"]
     assert receipt["gates"]["profitability"]["status"] == "FAIL"
     assert receipt["verdict"] == "REVISE"
+
+
+def test_graduation_identity_requires_the_bound_coverage_epoch() -> None:
+    inputs = _reducer_inputs()
+    inputs["profitability_receipt"]["policy"].update(
+        {
+            "coverage_epoch_id": "e" * 64,
+            "coverage_started_at_utc": "2026-08-06T13:37:00+00:00",
+        }
+    )
+
+    rejected = reduce_live_graduation(
+        target_milestone="24h",
+        cutoff_utc=CUTOFF,
+        **inputs,
+    )
+    assert rejected["verdict"] == "QUARANTINE"
+    assert rejected["gates"]["identity"]["reasons"] == [
+        "profitability_coverage_epoch_mismatch"
+    ]
+
+    inputs["selection"].update(
+        {
+            "coverage_epoch_id": "e" * 64,
+            "coverage_started_at_utc": "2026-08-06T13:37:00+00:00",
+        }
+    )
+    inputs["ledger_prefix"]["coverage_epoch_id"] = "e" * 64
+    accepted = reduce_live_graduation(
+        target_milestone="24h",
+        cutoff_utc=CUTOFF,
+        **inputs,
+    )
+    assert accepted["gates"]["identity"]["status"] == "PASS"
 
 
 def test_receipt_is_immutable_idempotent_and_structurally_validated(
@@ -908,3 +946,173 @@ def test_cli_graduation_branch_never_loads_broker_config(
         "db/calibration/portfolio_capital_owner_stability.json"
     )
     assert json.loads(capsys.readouterr().out) == receipt
+
+    epoch_path = tmp_path / "coverage-epoch.json"
+    epoch_path.write_text("{}", encoding="utf-8")
+    epoch = {"epoch_id": "e" * 64}
+
+    def _load_epoch(path: Path, **kwargs: object) -> dict[str, object]:
+        captured["epoch_load"] = (path, kwargs)
+        return epoch
+
+    def _epoch_receipt(**kwargs: object) -> dict[str, object]:
+        captured["epoch_receipt"] = kwargs
+        return {"profitability": True}
+
+    monkeypatch.setattr(
+        xsp_shadow_cli,
+        "load_xsp_profitability_coverage_epoch",
+        _load_epoch,
+    )
+    monkeypatch.setattr(
+        xsp_shadow_cli,
+        "xsp_profitability_policy_with_coverage_epoch",
+        lambda policy, value: (policy, value),
+    )
+    monkeypatch.setattr(
+        xsp_shadow_cli,
+        "xsp_profitability_receipt_with_coverage_epoch",
+        _epoch_receipt,
+    )
+    status = asyncio.run(
+        xsp_shadow_cli._main_async(
+            (
+                "--mode",
+                "opening-edge-v3",
+                "--ledger",
+                str(tmp_path / "ledger.jsonl"),
+                "--selected-transport",
+                str(selected),
+                "--graduation-target",
+                "24h",
+                "--graduation-cutoff",
+                CUTOFF.isoformat(),
+                "--graduation-output",
+                str(output),
+                "--graduation-coverage-epoch",
+                str(epoch_path),
+            )
+        )
+    )
+
+    assert status == 0
+    assert captured["epoch_load"][0] == epoch_path
+    assert captured["epoch_receipt"]["epoch"] == epoch
+    assert captured["epoch_receipt"]["records"] == ()
+    assert json.loads(capsys.readouterr().out) == receipt
+
+
+def test_xsp_coverage_epoch_rehashes_selection_receipts_and_terminal_state(
+    tmp_path: Path,
+) -> None:
+    selection_path = tmp_path / "db/calibration/selections/selected.json"
+    selection_path.parent.mkdir(parents=True)
+    selection_path.write_text(
+        json.dumps({"selection_id": SELECTION_ID}) + "\n",
+        encoding="utf-8",
+    )
+    registered = datetime(2026, 8, 5, 21, 0, tzinfo=timezone.utc)
+    eligible = datetime(2026, 8, 6, 13, 37, tzinfo=timezone.utc)
+    evidence = {
+        "phase": "STATE",
+        "broker_state": {
+            "positions": {"SPXU": 0.0, "UPRO": 0.0},
+            "open_orders": [],
+        },
+        "selected_cash_equity": {
+            "schema": SELECTED_CASH_EQUITY_SCHEMA,
+            "run_id": SELECTION_ID,
+            "cumulative_gross_usd": -10.3,
+            "cumulative_cost_usd": 0.703328,
+            "cumulative_net_usd": -11.003328,
+            "cumulative_realized_net_usd": -11.003328,
+            "open_mark_usd": 0.0,
+            "closed_trades": 1,
+            "gross_wins_usd": 0.0,
+            "top_five_gross_wins_usd": 0.0,
+            "reconciled": True,
+            "attribution_complete": True,
+            "safety_breaches": [],
+            "fill_ledger_fingerprint": "d" * 64,
+        },
+        "submitted_orders": 0,
+    }
+    terminal = {
+        "kind": "checkpoint",
+        "recorded_at_utc": "2026-08-05T20:17:00+00:00",
+        "evaluation_as_of_utc": "2026-08-05T20:17:00+00:00",
+        "strategy_id": "xsp.opening-edge-v3-regime-harmony-24x5.v1",
+        "strategy_version": "xsp.opening-edge-v3-upro-spxu-live-execution.v1",
+        "trading_date": "2026-08-05",
+        "session": "CURB",
+        "status": "EVALUATED",
+        "evidence": evidence,
+    }
+    terminal["checkpoint_id"] = evidence_sha256(
+        {
+            key: terminal[key]
+            for key in (
+                "evaluation_as_of_utc",
+                "strategy_id",
+                "strategy_version",
+                "trading_date",
+                "session",
+                "status",
+                "evidence",
+            )
+        }
+    )
+    receipts = []
+    for index, target in enumerate(("24h", "48h", "48h")):
+        cutoff = CUTOFF + timedelta(minutes=index)
+        inputs = deepcopy(_reducer_inputs())
+        inputs["ledger_prefix"]["cutoff_utc"] = cutoff.isoformat()
+        inputs["profitability_receipt"]["as_of_utc"] = cutoff.isoformat()
+        receipt = reduce_live_graduation(
+            target_milestone=target,
+            cutoff_utc=cutoff,
+            **inputs,
+        )
+        path = tmp_path / f"backtests/xsp/predecessor-{index}.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(receipt, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        receipts.append(path)
+    epoch = build_xsp_profitability_coverage_epoch(
+        selection={"selection_id": SELECTION_ID},
+        selection_path=selection_path,
+        records=(terminal,),
+        predecessor_receipt_paths=receipts,
+        registered_at_utc=registered,
+        eligible_start_utc=eligible,
+        repo_root=tmp_path,
+    )
+    epoch_path = tmp_path / "backtests/xsp/coverage-epoch.json"
+    epoch_path.write_text(
+        json.dumps(epoch, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    assert load_xsp_profitability_coverage_epoch(
+        epoch_path,
+        selection={"selection_id": SELECTION_ID},
+        selection_path=selection_path,
+        records=(terminal,),
+        repo_root=tmp_path,
+    ) == epoch
+    assert epoch["terminal_checkpoint"]["selected_cash_equity"][
+        "cumulative_net_usd"
+    ] == pytest.approx(-11.003328)
+    assert epoch["invariants"]["runtime_risk_reset"] is False
+
+    receipts[0].write_text("{}\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="invalid XSP profitability coverage"):
+        load_xsp_profitability_coverage_epoch(
+            epoch_path,
+            selection={"selection_id": SELECTION_ID},
+            selection_path=selection_path,
+            records=(terminal,),
+            repo_root=tmp_path,
+        )

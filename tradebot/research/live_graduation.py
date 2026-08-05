@@ -238,6 +238,14 @@ def _identity_gate(
         }
         if any(str(policy.get(key) or "") != str(value or "") for key, value in expected.items()):
             reasons.append("profitability_policy_identity_mismatch")
+        coverage_epoch_id = policy.get("coverage_epoch_id")
+        coverage_started_at = policy.get("coverage_started_at_utc")
+        if coverage_epoch_id is not None and (
+            selection.get("coverage_epoch_id") != coverage_epoch_id
+            or selection.get("coverage_started_at_utc") != coverage_started_at
+            or ledger_prefix.get("coverage_epoch_id") != coverage_epoch_id
+        ):
+            reasons.append("profitability_coverage_epoch_mismatch")
     if profitability_receipt.get("as_of_utc") != cutoff.isoformat():
         reasons.append("profitability_cutoff_mismatch")
     return {

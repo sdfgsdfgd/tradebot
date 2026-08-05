@@ -76,6 +76,11 @@ from .xsp_live_transport_runtime import (
     advance_xsp_v2_live_transport,
 )
 from .xsp_profitability import xsp_live_graduation_inputs
+from .xsp_profitability_epoch import (
+    load_xsp_profitability_coverage_epoch,
+    xsp_profitability_receipt_with_coverage_epoch,
+    xsp_profitability_policy_with_coverage_epoch,
+)
 
 
 async def _main_async(argv: Sequence[str] | None = None) -> int:
@@ -137,6 +142,7 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
         default=PORTFOLIO_CAPITAL_STABILITY_PATH.as_posix(),
     )
     parser.add_argument("--graduation-output")
+    parser.add_argument("--graduation-coverage-epoch")
     args = parser.parse_args(argv)
 
     selected_path = Path(args.selected_run).expanduser()
@@ -167,6 +173,7 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
             args.graduation_target,
             args.graduation_cutoff,
             args.graduation_output,
+            args.graduation_coverage_epoch,
         )
     )
     if graduation_requested:
@@ -187,17 +194,43 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
         if cutoff.tzinfo is None:
             raise ValueError("graduation cutoff must be timezone-aware")
         selection = load_xsp_v3_transport_selection(selected_transport_path)
-        policy = xsp_v3_transport_profitability_policy(selection)
         ledger = LiveCalibrationLedger(args.ledger)
         records = tuple(ledger.records())
+        policy = xsp_v3_transport_profitability_policy(selection)
+        coverage_epoch = (
+            load_xsp_profitability_coverage_epoch(
+                Path(args.graduation_coverage_epoch).expanduser(),
+                selection=selection,
+                selection_path=selected_transport_path,
+                records=records,
+                repo_root=Path(__file__).resolve().parents[2],
+            )
+            if args.graduation_coverage_epoch
+            else None
+        )
+        if coverage_epoch is not None:
+            policy = xsp_profitability_policy_with_coverage_epoch(
+                policy,
+                coverage_epoch,
+            )
         _, graduation_records = live_calibration_logical_prefix(
             records,
             cutoff_utc=cutoff,
         )
-        profitability = ledger.xsp_profitability_receipt(
-            policy=policy,
-            as_of=cutoff,
-            _records=graduation_records,
+        profitability = (
+            xsp_profitability_receipt_with_coverage_epoch(
+                ledger=ledger,
+                policy=policy,
+                epoch=coverage_epoch,
+                as_of=cutoff,
+                records=graduation_records,
+            )
+            if coverage_epoch is not None
+            else ledger.xsp_profitability_receipt(
+                policy=policy,
+                as_of=cutoff,
+                _records=graduation_records,
+            )
         )
         reducer_inputs = xsp_live_graduation_inputs(
             selection=selection,

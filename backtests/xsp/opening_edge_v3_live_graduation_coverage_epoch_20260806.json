@@ -1,0 +1,85 @@
+{
+  "authority": "prospective_coverage_clock_only_cumulative_economics_unchanged",
+  "eligible_start_utc": "2026-08-06T13:37:00+00:00",
+  "epoch_id": "f2fd8a90a6533eadd5386de17318d5ab8c4950894f8e6a634e250de256146f41",
+  "invariants": {
+    "broker_or_timer_mutated": false,
+    "capital_plan_changed": false,
+    "missing_slots_backfilled": false,
+    "pre_epoch_economics_inherited": true,
+    "profitability_threshold_changed": false,
+    "runtime_risk_reset": false,
+    "strategy_selection_changed": false
+  },
+  "predecessor_receipts": [
+    {
+      "cutoff_utc": "2026-08-04T13:38:30+00:00",
+      "milestone": "24h",
+      "path": "backtests/xsp/opening_edge_v3_live_graduation_24h_revise_20260804.json",
+      "receipt_id": "88e3ab6503e7dd69a0651ea6669fedf5aa2635cf916ba77ec5463808bbeabfe5",
+      "sha256": "0197a10e4f34c375e9365baffb76d6c65e391a563a909fcd57ff707f49bf9f30",
+      "verdict": "REVISE"
+    },
+    {
+      "cutoff_utc": "2026-08-05T13:38:30+00:00",
+      "milestone": "48h",
+      "path": "backtests/xsp/opening_edge_v3_live_graduation_48h_quarantine_20260805.json",
+      "receipt_id": "78d5f04be802958d8dc45d84a1dd4cd7bf24647d719c118ea3fc9348a95256e0",
+      "sha256": "6c1d177addf5e47e716191629275f5858e4ac74c633c3d99cdfe62f31a17325c",
+      "verdict": "QUARANTINE"
+    },
+    {
+      "cutoff_utc": "2026-08-05T17:22:03.432270+00:00",
+      "milestone": "48h",
+      "path": "backtests/xsp/opening_edge_v3_live_graduation_after_first_trade_20260805.json",
+      "receipt_id": "064d14a56172ffa1e1653c1d37cb1e083da54f23743814bc290fd571c0eba2e5",
+      "sha256": "75443a63ea2584044d7c70131a8043561697ea4fdf87540ce165c2e5c8ae51e0",
+      "verdict": "QUARANTINE"
+    }
+  ],
+  "registered_at_utc": "2026-08-05T21:46:45+00:00",
+  "schema": "xsp.live-profitability-coverage-epoch.v1",
+  "selection": {
+    "path": "db/calibration/selections/1083c1813e6b0ca4cf5777a5275e06be651622bc6e6207e718b549296a9bdd87.json",
+    "selection_id": "1083c1813e6b0ca4cf5777a5275e06be651622bc6e6207e718b549296a9bdd87",
+    "sha256": "d5f616e43adb26f06534fbaa0c513358b70078a9755f3a9ecdcd81dc9cebc35d"
+  },
+  "submitted_orders": 0,
+  "terminal_checkpoint": {
+    "broker_open_orders": [],
+    "broker_positions": {
+      "SPXU": 0.0,
+      "UPRO": 0.0
+    },
+    "checkpoint_id": "09bbd2646b018fc2685f13adaf62f8dba171f2200e2de37f0ccefff45e95d8bf",
+    "evaluation_as_of_utc": "2026-08-05T20:17:00.564148+00:00",
+    "evidence_sha256": "96300d7c32eeb9784ce509745a73754fe8e99b5bf01b941fea5b6334455a1c29",
+    "recorded_at_utc": "2026-08-05T20:17:00.564148+00:00",
+    "selected_cash_equity": {
+      "attribution_complete": true,
+      "authority": "selected_live_cash_evidence",
+      "capital_sleeve": "xsp-upro-spxu-rth-cash",
+      "closed_trades": 1,
+      "config_fingerprint": "1083c1813e6b0ca4cf5777a5275e06be651622bc6e6207e718b549296a9bdd87",
+      "cumulative_cost_usd": 0.703328,
+      "cumulative_gross_usd": -10.299999999999955,
+      "cumulative_net_usd": -11.003327999999954,
+      "cumulative_realized_net_usd": -11.003327999999954,
+      "fill_ledger_fingerprint": "c3c2d7701485afa7ec0ab958298d1fe0f786a47130b7cd62ca2e38fd91262df8",
+      "gross_wins_usd": 0.0,
+      "open_mark_usd": 0.0,
+      "order_authority": "rth_cash_pair_limit_only",
+      "reconciled": true,
+      "run_id": "1083c1813e6b0ca4cf5777a5275e06be651622bc6e6207e718b549296a9bdd87",
+      "run_started_at_utc": "2026-08-03T12:41:13.968661+00:00",
+      "safety_breaches": [],
+      "schema": "xsp.selected-cash-equity.v1",
+      "session_cost_usd": 0.703328,
+      "session_gross_usd": -10.299999999999955,
+      "session_net_usd": -11.003327999999954,
+      "top_five_gross_wins_usd": 0.0,
+      "unit": "USD"
+    },
+    "submitted_orders": 0
+  }
+}
