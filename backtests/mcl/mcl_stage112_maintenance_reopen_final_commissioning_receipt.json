@@ -1,0 +1,143 @@
+{
+  "schema": "mcl.stage112-maintenance-reopen-final-commissioning.v1",
+  "recorded_at_utc": "2026-08-05T11:45:12.553212+00:00",
+  "authority": "bounded_live_successor_commissioning_and_preliminary_graduation_only",
+  "repository": {
+    "commit": "39998f7aa49716e9f62f2e8ee3c698ac39f4243b",
+    "full_test_result": "1209 passed, 4 deselected, 1 warning",
+    "focused_test_result": "79 passed, 1 warning"
+  },
+  "strategy": {
+    "version": "mcl.two-speed-shock-arbiter.v112",
+    "crown_sha256": "c1e7aad0391a6a4ab1cd6cf2065af023d2c36058e411a464dae939599b0dd63f",
+    "historical_trades": 388,
+    "historical_ledger_sha256": "e4d18b52dd6f791371722077c111bd717e4feb63654b4a9fc068b58c06b83aa7",
+    "historical_primary_net_usd": 3942.99,
+    "historical_intrabar_drawdown_usd": 603.63,
+    "historical_pnl_to_drawdown": 6.532
+  },
+  "selection": {
+    "selection_id": "8adead895d3bd460b460f832d725046a3ea34079525a80a1662004ade2c17c93",
+    "selected_at_utc": "2026-08-05T11:39:22.450404+00:00",
+    "path": "db/calibration/selections/8adead895d3bd460b460f832d725046a3ea34079525a80a1662004ade2c17c93.json",
+    "sha256": "0d7057f9591b6de8379365935ba5724e50285a6cf26a59b77e6354faf91a1b9c",
+    "capital_plan_id": "ed07a506ff82c2d16ad87c38f1e315735d90601e914a98c64c798164eb33efb1",
+    "capital_plan_sha256": "d77aa7e3e31cf16b4fbe75b49a3a5519200069ee6275ca2501a3b64fcd95df44",
+    "capital_stability_sha256": "3d2bb2ee462517edf6c97fe1a5a875567d608692291f352dfbb6cf20f41a8f9c",
+    "supersedes_plan_id": "8c2f29eddc0dd6f0ee3964c687036dcce89f517b0fb134fe9e9e994458984036",
+    "market_orders_allowed": false,
+    "order_type": "LMT",
+    "ordinary_entry_phase_speed_multiplier": 1.0,
+    "shock_entry_phase_speed_multiplier": 2.0,
+    "submitted_orders": 0
+  },
+  "successor_generations": {
+    "predictive": {
+      "generation_id": "2256c870f99cbc5a1b69edb24fa39b9d7f3cfffcf9b56949aa9d3d9ce3186986",
+      "sha256": "46e32242fdd3c95e378fb505f57a9d2e2ffdb26c9b1f5631bb4c1ece65e5e8df",
+      "inherited_treatments": 6,
+      "ledger_rows": 6,
+      "ledger_sha256": "363a87b7da1d6864986e90ebe199d9c2aa68259b50d1bcf4557ce5765e018775"
+    },
+    "authority_bound_shock_waves": {
+      "generation_id": "ce101ce983b8935eb904dbb18cbf1c0e7fc0811fc6b0ad4f43782753647082f7",
+      "sha256": "7abf7476faed37d667964638b63ba7f622ac0693115ee1f5cab176a4614fd057",
+      "predecessor_generation_id": "1540c9a57083ca695b876e5a9812880b1c7074e020d43d404f0a9af444be755f",
+      "predecessor_sha256": "90d11b3e3eb90bd4f9ab22f2fceb84ce730fb593c5cfbc48d8f4b3350e96b89d",
+      "successor_owner_sha256": "58ae5803cd3f899737981999d4ca2c9d7e55717e2a0c6a309f543a6b741325b5",
+      "frozen_accumulator_sha256": "24ba59f321e5ba64c7d5a463dbc5dafc8b8f058d288c775d19500302eaa17e68",
+      "inherited_complete_episodes": 0,
+      "complete_episodes": 0,
+      "wave_ledger": "absent",
+      "outcomes_exposed": false,
+      "submitted_orders": 0
+    }
+  },
+  "restart_and_natural_proof": {
+    "commissioning_receipt_sha256": "55ba19fb54a50f956f6a1115428b93c3c45b35387cafa4b537516567440f0429",
+    "observe_only_receipt_sha256": "6f2f91bb22625c8c1dc8580cf487cdd79c75c2cf80945c6bb8fe02dd61841d01",
+    "observe_only_checkpoint_id": "8ed3187c2c7691f5f1f7acf65e6a179e80cbd0a039fbecd5a7cc7a0748609df4",
+    "first_natural_checkpoint_id": "886696cbf65707474d20aef0eaf301c70167e7edefaf3428e0d2b6927e9c3e11",
+    "first_natural_recorded_at_utc": "2026-08-05T11:40:11.337254+00:00",
+    "source_authority": "fresh_finalized",
+    "reason": "flat_no_target",
+    "position": 0,
+    "fills": 0,
+    "run_net_usd": 0.0,
+    "drawdown_usd": 0.0,
+    "safety_breaches": [],
+    "market_data_type": 1,
+    "submitted_orders": 0,
+    "observer_first_natural": {
+      "eligible_observations": 70,
+      "maximum_volume_multiple": 2.402173913043478,
+      "open_episode": null,
+      "appended": 0
+    },
+    "observer_immediate_replay": {
+      "predictive_ledger_byte_identical": true,
+      "wave_ledger_remained_absent": true,
+      "appended": 0
+    }
+  },
+  "preliminary_graduation": {
+    "path_on_q": "/var/tmp/mcl-stage112-final-preliminary-graduation-r2.json",
+    "sha256": "f2d2f789951ca12f946a77097797c8627f8a9d403f9cfb65c07fad25ff9364cd",
+    "cutoff_utc": "2026-08-05T11:42:45+00:00",
+    "verdict": "HOLD",
+    "pass_gates": [
+      "runtime_parity",
+      "identity",
+      "restart",
+      "capital_owner_stability",
+      "cash_risk_safety",
+      "attribution"
+    ],
+    "hold_gates": {
+      "execution": "execution_not_observed",
+      "profitability": [
+        "elapsed_time_incomplete",
+        "eligible_sessions_incomplete"
+      ]
+    },
+    "coverage_invalid": false,
+    "first_24h_evidence_as_of_utc": "2026-08-06T11:39:55+00:00"
+  },
+  "broker_audit": {
+    "path_on_q": "/var/tmp/mcl-stage112-final-broker-audit-r2.json",
+    "sha256": "6d11b1684b99f4512a34ee1bcf52be1042bda086675d48578b2d40f7d8b277f7",
+    "observed_at_utc": "2026-08-05T11:45:12.553212+00:00",
+    "readonly": true,
+    "mcl_position": 0,
+    "open_orders": 0,
+    "executions": 0,
+    "unrelated_positions": [
+      "TQQQ 1"
+    ]
+  },
+  "fail_closed_history": {
+    "first_successor_selection_id": "6d99e5c6eba51a7d65a204fc4d3a875f15a8e27bf77f68f0dec66a6adf12bbd8",
+    "first_successor_disposition": "preserved_commissioning_proof_but_graduation_ineligible_after_one_missing_deployment_minute",
+    "owner_drift_attempt": "aborted_before_selection_when_the_immutable_predecessor_rehashed_the_evolved_successor_owner",
+    "service_overlap_attempt": "aborted_before_commissioning_when_a_natural_live_invocation_was_still_active",
+    "backfilled_slots": 0,
+    "forced_trades": 0
+  },
+  "services": {
+    "live_timer": "active/waiting",
+    "runtime_observer_timer": "active/waiting",
+    "predecessor_stage114_timer": "inactive/dead",
+    "seconds_tape": "active/running"
+  },
+  "invariants": {
+    "stage112_signal_changed": false,
+    "stage112_historical_economics_changed": false,
+    "maintenance_reopen_entry_authority": "none",
+    "predictive_order_authority": "none",
+    "shock_wave_order_authority": "none",
+    "gold_changed": false,
+    "xsp_changed": false,
+    "submitted_orders": 0
+  },
+  "verdict": "COMMISSIONED_GAP_FREE_PREFIX_HOLD"
+}

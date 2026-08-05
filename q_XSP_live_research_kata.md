@@ -16,22 +16,23 @@
   trades, `+$3,942.99`, DD `$603.63`, PnL/DD `6.532`, with exact ledger SHA
   `e4d18b52…`. The old V18 canary `591db010…` is flat and fail-closed after its
   first round trip realized `-$318.52`; it will not be rearmed. Stage 112 is now
-  the bounded live canary under selection `083ecba…` and plan `851714c2…` after
-  fresh LMT preview, predictive-generation continuity, observe-only restart,
-  and natural recurrence passed. The original preliminary graduation receipt
-  remains `HOLD`, but a later read-only extended-prefix audit is correctly
-  `QUARANTINE`: six expected minutes are absent from commissioning/deployment
-  timer stops and the first maintenance-reopen source boundary. No slot is
-  backfilled. The causal reopen repair is now proven locally and on q without
-  changing Stage-112 signal, risk, or execution; Stage 112 remains flat/live
-  while one fresh immutable successor cutover awaits deployment. Stage
+  the bounded live canary under gap-free successor selection `8adead89…` and
+  plan `ed07a506…`. Fresh LMT preview, the MCL-local maintenance-reopen owner,
+  predictive/Stage-114 generation succession, observe-only restart, and natural
+  recurrence passed with zero position/order/fill/P&L/DD/breach/submission.
+  Preliminary graduation `f2d2f789…` is correctly `HOLD`, not `QUARANTINE`:
+  coverage, runtime, identity, restart, capital, risk, and attribution pass;
+  authentic execution and elapsed sessions remain pending. The earlier
+  `083ecba…` and `6d99e5c6…` prefixes remain preserved but ineligible; no slot is
+  backfilled and no trade was forced. Stage
   87–90 remains non-authoritative `ACCUMULATE` at `6/30`. Stage 113 is
   commissioned and retains its immutable `2/30` ledger, but its first unseen
   `12×+` episode falsified earliest-`5×` direction ownership; it cannot be
   promoted for direction or timing. Stage-114 Authority-Bound Shock Waves are
-  now preregistered under fresh generation `39d5d311…`: fixed-prefix owner
-  replay binds the genuine DOWN wave exactly and the successor observer is
-  commissioned on q as `ACCUMULATE 0/30`, but remains non-authoritative.
+  now continue under immutable runtime generation `ce101ce9…`, chained directly
+  to predecessor `1540c9a5…`. Its natural and immediate invocations appended
+  zero, preserved the six-treatment onset ledger byte-for-byte, and remain
+  `ACCUMULATE 0/30` with no wave ledger or live authority.
   Stage-115 Authority-Wave Ignition Geometry (`2c658e81…`) is frozen before its
   first eligible wave as a derived-only view; it adds no runtime owner or ledger.
 - **Authority:** canonical resume state, active task tree, critical evidence
@@ -49,7 +50,7 @@
   restart, and broker-permission gates passed; its narrower `141/year` RTH cash
   scope is explicitly accepted for the first canary. GTH cash execution remains
   separately unqualified
-- **Capital premise:** current plan `851714c2…` owns immutable XSP, Gold, and Stage-112 MCL
+- **Capital premise:** current plan `ed07a506…` owns immutable XSP, Gold, and Stage-112 MCL
   under the general successor law
   `first_admitter_just_in_time.v1`: each active champion must independently fit
   its indivisible minimum, but flat sleeves do not pretend to reserve three
@@ -80,20 +81,20 @@ output belongs in commit/final verification, not in this management brain.
 
 | Authority | Current truth |
 |---|---|
-| Broker/order strategy | XSP: Tiered UPRO/SPXU RTH cash pair. Gold: one `1OZZ6` limit-only canary on fresh Stage-76 admission. MCL: Stage-112 selection `083ecba…` is armed flat for one matched `CLU6 → MCLU6` contract, LMT-only, with ordinary/shock AUTO phase speed `1×/2×`; old V18 remains permanently breached. One account lock serializes broker mutation |
+| Broker/order strategy | XSP: Tiered UPRO/SPXU RTH cash pair. Gold: one `1OZZ6` limit-only canary on fresh Stage-76 admission. MCL: Stage-112 selection `8adead89…` is armed flat for one matched `CLU6 → MCLU6` contract, LMT-only, with ordinary/shock AUTO phase speed `1×/2×`; old V18 remains permanently breached. One account lock serializes broker mutation |
 | Selected live run | `1083c181…` / file `d5f616e4…`, selected flat at `12:41:13Z` as the package-sized successor to `b4799fa6…`; XSP owns `xsp-usd-800`, zero inherited fills/P&L/DD. Invalid `daf1609b…` and earlier identities remain archived evidence only |
 | Gold live canary | `62344ce2…` / file `5fc9048d…`, selected flat at `12:41:13Z` as the package-bound successor to `12b15bd2…`; `1OZZ6` execution and `GCZ6` corroboration, zero inherited fills/P&L/DD, no synthetic midcycle entry |
 | XSP research crown | **Opening Edge v3 — Regime Harmony 24/5**; `xsp.opening-edge-v3-regime-harmony-24x5.v1` |
-| MCL crown/live | **Shock-Aware Two-Speed Arbiter — Stage 112**, crown `c1e7aad0…`; `388/388` final parity, ledger `e4d18b52…`, `+$3,942.99`, DD `$603.63`, PnL/DD `6.532`. Selection `083ecba…` is `CANARY_LIVE`, currently flat with zero orders/fills/P&L/DD. Preliminary cutoff `e68194d8…` remains `HOLD`; extended-prefix audit `f93582ab…` is `QUARANTINE` for six proven missing evidence minutes, not strategy economics |
+| MCL crown/live | **Shock-Aware Two-Speed Arbiter — Stage 112**, crown `c1e7aad0…`; `388/388` final parity, ledger `e4d18b52…`, `+$3,942.99`, DD `$603.63`, PnL/DD `6.532`. Gap-free successor `8adead89…` is `CANARY_LIVE`, flat with zero orders/fills/P&L/DD. Preliminary cutoff `f2d2f789…` is lawful `HOLD`; the older `083ecba…/6d99e5c6…` clocks remain quarantined evidence only |
 | Runtime parity | Central v3 owner reproduces RTH `40708a28…` exactly over `425/425` trades; unchanged GTH Down Sleeve reproduces `9e04807f…` over `179/179`; combined `604`, `+291.1756`, PF `2.0919`, DD `17.63` |
-| Runtime source anchor | V18 owner is byte-exact at `03d0c958…`; Stage-112 owners `d9f170dd…/e4b217c6…` replay all `707,136` minutes exactly. Live selection `083ecba…`, plan `851714c2…`, generation `21a0a8c9…`, and capital proof `4c5a339c…` are current; checkpoint `de40e0fe…` is flat/zero-order under q revision `7aa49db…` |
+| Runtime source anchor | V18 owner is byte-exact at `03d0c958…`; Stage-112 owners `d9f170dd…/e4b217c6…` replay all `707,136` minutes exactly. Live selection `8adead89…`, plan `ed07a506…`, predictive generation `2256c870…`, shock-wave generation `ce101ce9…`, and capital proof `3d2bb2ee…` are current; first natural checkpoint `886696cb…` is fresh/flat/zero-order under q revision `39998f7…` |
 | Goal snapshot | `q_XSP_goal_objective.md` is the byte-identical tracked backup of the active inline Goal at SHA `86636416…`; it preserves rather than replaces the attachment-owned Goal, while this kata remains the detailed resume authority |
-| Observer cadence | Stage-112 live and the Stage-114 successor predictive timer are active/waiting. Predictive generation `a547ac14…` inherited the exact three-row prefix, then naturally appended three raw-only/matured abstentions once; onset ledger is now `6/30`, balanced `3 up/3 down`, SHA `363a87b7…`. Stage-113 generation `fd2dd70f…` remains terminally preserved at two rows / `8995ba27…`. Stage-114 generation `39d5d311…` is commissioned `0/30`: natural cutoff `08:50:00Z` held `4,844` eligible seconds, maximum `3.6133×`, no attention/open/complete wave or append, and the wave ledger remains absent. Stage 115 is preregistered derivation-only from future complete Stage-114 episodes. The predecessor timer is disabled; exactly one successor observer timer and the unchanged event tape are active |
+| Observer cadence | Stage-112 live and the sole runtime predictive timer are active/waiting. Predictive generation `2256c870…` inherited all six treatments; ledger remains `6/30`, balanced `3 up/3 down`, SHA `363a87b7…`. Stage-113 remains terminally preserved at two rows / `8995ba27…`. Stage-114 runtime generation `ce101ce9…` directly binds immutable predecessor `1540c9a5…`; first natural and immediate replay appended zero, opened no wave, preserved the absent wave ledger, and remain `0/30`. Stage 115 stays derivation-only. The predecessor timer is disabled; exactly one successor observer and the unchanged event tape are active |
 | RTH signal freshness | **cleared:** after the user activated `CBOE Streaming Market Indexes`, zero-order receipt `acce7ed3…` returned live type-1 XSP, current five-minute history, and real-time `TRADES` bars without a Gateway restart; the natural `10:07 ET` centralized v2 checkpoint then evaluated with both XSP and SPY through `10:05` and `120s` age |
-| Order/capital authority | Plan `851714c2…` binds XSP `1083c181…` / `xsp-usd-800`, Gold `62344ce2…` / `gold-one-contract`, and Stage-112 MCL `083ecba…` / `mcl-one-contract-stage91`. Flat strategies reserve no fictional capacity: each fresh entry admits its own indivisible minimum only if candidate + actual positions + uniquely owned pending orders pass the same fresh full-account stress proof. Later entries may honestly `HOLD`; risk reduction is unconditional. Every champion is LMT-only; broker-wide market-order rejection is centralized |
-| Profitability clock | Old V18 clock is permanently closed negative. Stage 112 selection `083ecba…` remains exact-zero, but its first evidence run is ineligible: read-only cutoff `08:22:55Z` found `729` due / `723` evaluated minutes and six missing slots (`19:25`, `19:41–19:44`, `22:00Z`), so profitability is `QUARANTINE`, not a 24h candidate. Receipt `mcl_v18_shock_stage112_graduation_prefix_gap_quarantine.json`; no slot is backfilled and no trade is forced. Exact `18:00 ET` reconciliation proof now passes; the next lawful clock begins only from a fresh flat immutable selection after deployment |
-| Execution verdict | Stage-112 MCL position/orders/fills are zero and both live/predictive timers are active. A fresh causal V18-or-shock admission may submit one broker-enforced LMT through the shared ladder; market orders remain impossible. Predictive Stages 87–90 cannot submit or alter direction |
-| Next irreversible evidence | Publish the proven MCL-local `18:00 ET` reconciliation owner, then at one verified flat/no-order boundary recommission the unchanged crown through the existing LMT preview/capital/immutable-selection path. Atomically succeed the predictive and Stage-114 generations, enable exactly one runtime observer, and start one gap-free zero-economics clock; no historical slot is repaired or forced trade created |
+| Order/capital authority | Plan `ed07a506…` binds XSP `1083c181…` / `xsp-usd-800`, Gold `62344ce2…` / `gold-one-contract`, and Stage-112 MCL `8adead89…` / `mcl-one-contract-stage91`. Flat strategies reserve no fictional capacity: each fresh entry admits its own indivisible minimum only if candidate + actual positions + uniquely owned pending orders pass the same fresh full-account stress proof. Later entries may honestly `HOLD`; risk reduction is unconditional. Every champion is LMT-only; broker-wide market-order rejection is centralized |
+| Profitability clock | Old V18 and the gapped `083ecba…/6d99e5c6…` clocks are closed evidence. Fresh Stage-112 clock `8adead89…` began `11:39:22Z`; cutoff `11:42:45Z` proves complete matured-minute coverage and returns `HOLD`, not quarantine. Runtime, identity, restart, capital, risk, and attribution pass; zero authentic fills and insufficient elapsed sessions remain. Earliest 24h evidence boundary is `2026-08-06T11:39:55Z`; no slot is backfilled and no trade is forced |
+| Execution verdict | Stage-112 MCL position/orders/fills are zero; read-only broker audit `6d11b168…` found no open order/execution and only unrelated `TQQQ 1`. Both live/predictive timers are active. A fresh causal V18-or-shock admission may submit one broker-enforced LMT through the shared ladder; market orders remain impossible. Predictive Stages 87–90 and Stage 114 cannot submit or alter live direction |
+| Next irreversible evidence | Preserve the gap-free `8adead89…` prefix and reduce immutable `24h`, `48h`, and five-session milestones only when due. Continue Stage-114/115 onset accumulation without promoting thresholds, outcomes, direction, execution, or capital before their frozen cohorts pass |
 | First active work | MCL remains Priority Zero. Commissioning is complete; active work is live graduation plus Predictive Intelligence Sharpening of Onsets, especially seconds-to-multiscale velocity/range/volume morphology, while XSP/Gold remain unchanged |
 
 ### Immediate sequence
@@ -2482,6 +2483,7 @@ and
 | E-520 | architecture receipt `mcl_stage112_maintenance_reopen_architecture_audit.json` binds the exact deployed MCL transport/lifecycle/timer/service and Gold precedent before any repair. At `18:00 ET`, systemd made three attempts (`:10/:18/:27`); each died with `MCL finalized source is stale` before live quote, pending-order/position reconciliation, risk projection, or checkpoint, while `18:01` succeeded as soon as the first reopen minute existed. The timer and profitability clock correctly treat `18:00` as the first required open minute, making a completed `18:00–18:01` source causally impossible at `18:00:10`. Gold already embodies the correct separation: old source blocks entry but does not erase broker/quote/risk/flatten observability. Recommended Quest I is therefore MCL-scoped: only at Sunday–Thursday `18:00 ET`, reuse one identity-valid prior source for reconciliation, retain the existing `120s` target-age entry refusal, require fresh source again at `18:01`, and explicitly mark the checkpoint. General stale fallback, slot exclusion, reducer weakening, and prefix backfill are rejected. Stage 112, Gold, XSP, thresholds, LIMIT ladder, capital, and current selection remain unchanged; status is `DECISION_REQUIRED_NOT_IMPLEMENTED` |
 | E-521 | Hawkeye `2/6` receipt `mcl_stage112_hawkeye_20260805T0912Z.json` freezes MCL source/execution `27d8df6e…/517f5d9f…`, Gold `e17ca588…`, XSP `080208e3…`, Stage-114 prefix `110625d8…`, and unchanged causal news `397c8979…`. Stage 112 remained flat/no-target on live type-1 `75.97/75.99`, `$999.53` settled USD, `A$3,608.37` available, and zero position/order/fill/trade/net/DD/MFE/MAE/breach/submission. The `08:50Z` all-five-horizon upside alignment did not become a missed long: after one bar 30m/60m velocity was negative; after three bars all five velocities were negative; after four bars the 30m slope was negative, four velocities were negative, ATR velocity/acceleration were `-0.01440/-0.01436`, conviction collapsed `0.06357→0.01278`, and no raw turn/proposal/target formed. Stage 114 independently reached `5,783` eligible seconds but remained below even attention at maximum `3.6133×`, with no episode/ledger; Stage 87–90 stayed `6/30`. The original E-519 **sub-5× rebound** label is explicitly closed as duplicate of E-504/E-505/E-507/E-510 rather than promoted. The genuinely narrower observation-only candidate is **MCL pre-turn technical/news polarity survival**: compare one/three/six-bar persistence and next-raw-turn incidence when fully aligned but subthreshold technical state opposes fresh news, against aligned/neutral-news and no-turn controls. This first bearish-news/opposed specimen decayed before a turn; it is one control, not a news veto. Gold stayed flat D1-down/H4-up/no-proposal; XSP stayed flat in GTH despite positive 5/15/30m slope and all-positive velocity because 60/120m slopes remained down and its entry window was closed. No live or research authority changed |
 | E-522 | confirmed maintenance-reopen implementation freezes one MCL-local authority owner `mcl_live_reopen.py` (`40f6fb82…`) and binding receipt `mcl_stage112_maintenance_reopen_runtime_binding.json` (`b515b970…`). Synthetic q proof `7074c9a4…` passes weekday, Sunday-Friday, DST-start/end, adjacent-boundary refusal, unchanged fresh admission, reopen entry lock, incumbent hold, unconditional RELENTLESS risk reduction, and source-authority transition identity. The immutable selection contract remains byte-exact `8b204647…`; Stage-113/114 generation rehashes and all `1,208` repository tests pass. Fresh Stage-112 replay remains exact `388/388`, ledger `e4d18b52…`, all arbitration, eight loss-cap, and sixteen Friday-flat events identical. New `mcl_shock_wave_generation.py` (`665e8ee8…`) plus one read-only runtime service/timer (`0b3d6174…/1360533f…`) preserves the old Stage-114 generation, inherits complete episode IDs, starts at the new selection boundary, resolves every later successor through the immediately prior immutable generation rather than its mutable pointer, and makes that pointer the sole runtime binding. q remains flat/no-target with zero MCL positions/orders/fills/P&L/submissions; old Stage-114 is `0/30`, maximum `3.6133×`, open episode null. Status is `PROVEN_AWAITING_FLAT_CUTOVER`, not live yet |
+| E-523 | final commissioning receipt `mcl_stage112_maintenance_reopen_final_commissioning_receipt.json` (`eba77ed6…`) closes the cutover without hiding two fail-closed discoveries. First successor `6d99e5c6…` remains graduation-ineligible after one deployment minute was missed; a later attempt created no selection when immutable predecessor `1540c9a5…` correctly rejected the evolved generation-owner path. Successor owner `mcl_shock_wave_generation.py` (`58ae5803…`) now authenticates the predecessor by its own generation ID and frozen file SHA `90d11b3…`, while every newly active artifact still rehashes strictly; frozen Stage-114 accumulator remains byte-exact `24ba59f3…`. Full proof is `1,209 passed`; final flat selection `8adead89…` / plan `ed07a506…` atomically binds predictive `2256c870…` (all `6` treatments) and shock-wave `ce101ce9…` (`0` inherited episodes). Observe-only `8ed3187c…`, first natural live `886696cb…`, natural observer, and immediate replay all passed fresh/flat/zero-order; onset SHA stayed `363a87b7…` and wave ledger remained absent. Preliminary graduation `f2d2f789…` is lawful `HOLD` with complete matured-minute coverage and every non-economic gate PASS; earliest 24h evidence is `2026-08-06T11:39:55Z`. Read-only broker audit `6d11b168…` found no MCL position, order, or execution and only unrelated `TQQQ 1`; old Stage-114 timer is disabled, sole runtime observer/live timers and seconds tape are active. No slot, trade, outcome, Gold/XSP authority, or market order was manufactured |
 
 ### Decision anchors
 
@@ -2557,6 +2559,7 @@ and
 | D-208 | standing user authorization permits a rigorously proven MCL successor to be crowned, centralized, commissioned, and promoted without another ceremonial confirmation. It does not waive fresh preregistration, immutable generations/selections, exact historical/runtime/restart parity, unseen stability and economic gates, flat-boundary owner changes, shared-capital proof, centralized risk reduction, broker reconciliation, or LMT-only execution. Reusable execution knobs must remain centrally owned and explicitly product/route scoped so an MCL-specific multiplier cannot alter XSP, Gold, or ordinary MCL behavior accidentally |
 | D-209 | Stage 115 is one outcome-blind derived view over complete immutable Stage-114 episode IDs, never another state owner or runtime path. Pre-bind seconds remain directionless and may not be signed by the eventual wave; only contemporaneous Stage-114 authority signs post-bind geometry, and each handoff starts a new wave boundary. Exact level latencies, transport order, volume-flow jerk, bind/crest/continuation ordering, cross-scale context, and same-level 20× opposition are morphology and negative controls only. No geometry may affect Stage 112 or Stage 114 until the inherited Stage-114 cohort and repeated-shape gates pass and a new preregistration freezes matched controls plus sealed economics |
 | D-210 | the MCL maintenance reopen is a reconciliation clock, never a signal clock. Exactly Sunday–Thursday `18:00 ET`, the selected runtime may reuse only its identity-valid prior `16:59 ET` finalized source (Friday at Sunday reopen) to observe broker position/orders, mark risk, retain an incumbent, or flatten; it may not enter. At `18:01` strict fresh finalized history resumes. Source authority is part of transition identity and profitability evidence; general stale fallback, slot exclusion, backfill, timer weakening, and Gold/XSP changes remain forbidden. A flat selection successor must atomically publish matching capital, predictive, and shock-wave generations; frozen observer generations remain immutable and exactly one read-only runtime pointer may be active |
+| D-211 | observer succession authenticates an immutable predecessor by its canonical generation ID plus the predecessor file SHA embedded in the new generation; it must not reinterpret historical artifact bindings against today’s evolved owner bytes. The newly active generation still strictly rehashes every current artifact before publication and on every runtime invocation. This asymmetry is the minimal condition for both real immutability and safe owner evolution; failure before plan activation restores the prior live timer, while failure after activation leaves live disabled for reconciliation |
 
 ---
 
@@ -2667,23 +2670,23 @@ positive after-cost 24h, 48h, and five-session evidence.
 MCL Shock-Aware Two-Speed Arbiter Stage 112 is the executable research crown and
 bounded live canary. Its final `388/388` replay, risk events, finalized U6 source,
 one-contract LIMIT architecture, and user-authorized `194.42/year` cadence pass.
-Selection `083ecba…`, plan `851714c2…`, predictive generation `d0443eb0…`,
-observe-only restart, and natural recurrence are live; the old V18 selection is
-flat and permanently breached after `-$318.52`, and its history cannot transfer.
-Selection `083ecba…` remains exact-zero and live, but its first graduation
-prefix is no longer eligible: a later read-only audit found six missing timer
-minutes and returned `QUARANTINE`. The preliminary `HOLD` receipt remains
-immutable; nothing is backfilled. The causal-reopen repair now passes exact
-weekday/Sunday/DST, entry-lock, incumbent, risk-reduction, transition-identity,
-full-suite, and `388/388` historical parity proof. It is not deployed yet; a
-fresh clock requires the existing flat commissioning path and one atomic
-capital/predictive/Stage-114 generation successor cutover. Stage 87–90 remains an
-observation-only timing challenger at `6/30`. Stage 113 retains its immutable
+Gap-free selection `8adead89…`, plan `ed07a506…`, predictive generation
+`2256c870…`, observe-only restart, and natural recurrence are live; the old V18
+selection is flat and permanently breached after `-$318.52`, and its history
+cannot transfer. The earlier `083ecba…/6d99e5c6…` clocks remain immutable but
+graduation-ineligible; nothing is backfilled. The deployed maintenance-reopen
+owner passes exact weekday/Sunday/DST, entry-lock, incumbent, risk-reduction,
+transition-identity, full-suite, and `388/388` historical parity proof. Fresh
+preliminary graduation `f2d2f789…` is `HOLD` with complete coverage and every
+non-economic gate PASS; authentic fills and elapsed sessions are the only
+remaining 24h boundary. Stage 87–90 remains an observation-only timing
+challenger at `6/30`. Stage 113 retains its immutable
 two-row ledger and no live authority, but its first unseen tradeable episode
 falsified earliest-`5×` direction ownership; it is evidence, not a promotion
 candidate. Stage 114 is now a fresh, preregistered, commissioned observation
-successor; its fixed-prefix owner replay and q idempotence are exact, but its
-untouched unseen cohort is still `0/30` and it has no live
+successor; runtime generation `ce101ce9…` chains immutable predecessor
+`1540c9a5…`, and natural plus immediate q idempotence are exact. Its untouched
+unseen cohort is still `0/30` and it has no live
 direction, timing, execution, order, or capital authority. Stage 115 is frozen
 before the first eligible wave as a derived ignition-geometry atlas. The new
 generation-pointer runtime preserves that same law across immutable selection
