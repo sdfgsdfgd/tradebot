@@ -1,0 +1,62 @@
+{
+  "schema": "mcl.stage114-sliding-bar-prefix-replay-correction-preregistration.v1",
+  "registered_at_utc": "2026-08-05T23:32:14+00:00",
+  "authority": "pre_outcome_operational_integrity_only_no_outcomes_no_orders_no_capital",
+  "defect": {
+    "failed_service": "tradebot-mcl-predictive-onset-runtime.service",
+    "error": "MCL shock-wave episode changed across replay",
+    "diagnostic_path_on_q": "/var/tmp/mcl-stage114-replay-drift-diagnostic.json",
+    "diagnostic_sha256": "c640c37e99de46c098e7824ef726089a79dbd1626ce6c68601225f9546934824",
+    "diagnostic_owner_path": "/tmp/mcl_stage114_replay_drift_diagnostic.py",
+    "diagnostic_owner_sha256": "094a0718147dbc1fbcfb89993e8d0c0acf7c92cd9f0b4091c7821310516c6446",
+    "generation_id": "ce101ce983b8935eb904dbb18cbf1c0e7fc0811fc6b0ad4f43782753647082f7",
+    "episode_id": "55cce9017d5a31aaf80b32538d945eb841f18ddff69357a4238e93f150d386b8",
+    "stored_episode_sha256": "dba408e35a3de9b10872a7fd1b2d52f595619c7086a95ba9cfc489a18a7fa4d1",
+    "replayed_episode_sha256": "76aff8b84f0c004eeb28ab7398b1a9c6971511b9e9b91dd6a3f33874c547757f",
+    "differences": [
+      "bar_prefix.common_rows:6495->5115",
+      "bar_prefix.first_common_close_utc:2026-07-29T22:01:00+00:00->2026-07-30T22:01:00+00:00",
+      "bar_prefix.sha256:d7ac8ff8267fec12a090970b4c3dd7301776e2608d431b1936102c351e57a718->a3f8d50a3b842ac6dbbe8940581a68dc9798de02657e5baa7c7bd2f20e292246",
+      "episode_sha256:dba408e35a3de9b10872a7fd1b2d52f595619c7086a95ba9cfc489a18a7fa4d1->76aff8b84f0c004eeb28ab7398b1a9c6971511b9e9b91dd6a3f33874c547757f"
+    ],
+    "finding": "The broker history fetch is a sliding recent window. The stored bar_prefix is valid first-write audit evidence, but it is not a stable replay identity. Direction, authority waves, crests, transitions, source record identities, volume-clock audit, news, terminal state, and outcome seals were identical."
+  },
+  "correction_law": {
+    "first_write_episode_hash": "unchanged_full_episode_body",
+    "stored_ledger_validation": "unchanged_full_episode_body_and_episode_sha256",
+    "same_generation_replay_identity": "full_episode_minus_bar_prefix_and_episode_sha256",
+    "excluded_replay_fields": [
+      "bar_prefix",
+      "episode_sha256"
+    ],
+    "all_decision_bearing_fields_remain_exact": true,
+    "mismatched_decision_bearing_field": "hard_fail",
+    "existing_episode_or_ledger_mutation": false
+  },
+  "deployment_law": {
+    "publish_fresh_immutable_successor_generation": true,
+    "refresh_wave_accumulator_owner_hash": true,
+    "inherit_existing_complete_episode_ids": true,
+    "fresh_eligibility_at_publication": true,
+    "runtime_pointer_is_only_mutable_binding": true,
+    "stage112_live_selection_or_capital_change": false
+  },
+  "proof_gates": [
+    "focused replay-equivalence and strict-ledger tests pass",
+    "complete repository suite passes",
+    "fresh successor generation rehashes exactly",
+    "isolated q observer replay appends zero and preserves the existing ledger SHA",
+    "first natural observer invocation succeeds without an order or outcome",
+    "runtime observer timer is restored while Stage112 live and the raw seconds recorder remain active"
+  ],
+  "unchanged": [
+    "Stage112 signal, lifecycle, shock arbiter, risk envelope, selection, capital, and limit-only execution",
+    "Stage114 state law, frozen levels, episode law, cohort gates, and existing complete episode",
+    "Stage115 derived morphology law",
+    "MCL predictive treatments and raw seconds tape",
+    "XSP and Gold signals, execution, capital, and graduation",
+    "returns, MFE, MAE, PnL, controls, classifiers, orders, and capital authority"
+  ],
+  "outcomes_exposed": false,
+  "submitted_orders": 0
+}

@@ -110,6 +110,7 @@ def build_mcl_shock_wave_successor_generation(
     inherited_episode_ids: Sequence[str],
     generated_at: datetime,
     predecessor_path: Path | None = None,
+    successor_reason: str = "fresh Stage-112 maintenance-reopen runtime selection",
 ) -> dict[str, object]:
     root = repository_root.resolve()
     predecessor_path = _predecessor_path(root, predecessor_path)
@@ -120,6 +121,7 @@ def build_mcl_shock_wave_successor_generation(
     selection_id = str(selected.get("selection_id") or "")
     predictive_id = str(predictive.get("generation_id") or "")
     inherited_ids = list(inherited_episode_ids)
+    successor_reason = successor_reason.strip()
     if (
         selected.get("strategy_version") != MCL_TWO_SPEED_SHOCK_VERSION
         or selected.get("authority") != "selected_live_bounded_canary"
@@ -130,6 +132,7 @@ def build_mcl_shock_wave_successor_generation(
         or not _is_sha(capital_plan_id)
         or any(not _is_sha(value) for value in inherited_ids)
         or len(set(inherited_ids)) != len(inherited_ids)
+        or not successor_reason
     ):
         raise ValueError("MCL shock-wave successor identity is invalid")
     artifacts = dict(predecessor["artifacts"])
@@ -153,6 +156,9 @@ def build_mcl_shock_wave_successor_generation(
             ),
             "successor_generation_owner": _artifact(
                 root, "tradebot/research/mcl_shock_wave_generation.py"
+            ),
+            "wave_accumulator_owner": _artifact(
+                root, "tradebot/research/mcl_shock_wave_accumulator.py"
             ),
             "successor_predictive_service": _artifact(
                 root, MCL_SHOCK_WAVE_RUNTIME_SERVICE_PATH
@@ -179,9 +185,7 @@ def build_mcl_shock_wave_successor_generation(
         "pre_outcome_basis": {
             "predecessor_generation_id": predecessor["generation_id"],
             "predecessor_generation_sha256": _sha256(predecessor_file),
-            "selection_successor_reason": (
-                "fresh Stage-112 maintenance-reopen runtime selection"
-            ),
+            "selection_successor_reason": successor_reason,
             "exposure": (
                 "Inherited morphology identities only; no return, MFE, MAE, PnL, "
                 "matched-control label, order, or capital authority opened."

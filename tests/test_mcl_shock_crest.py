@@ -40,8 +40,9 @@ from tradebot.research.mcl_shock_waves import (
 )
 from tradebot.research.mcl_shock_wave_accumulator import (
     MCL_SHOCK_WAVE_GENERATION_PATH,
-    load_mcl_shock_wave_generation,
+    _episode_replay_identity,
     mcl_shock_wave_cohort,
+    mcl_shock_wave_episodes,
     replay_mcl_shock_wave_episodes,
 )
 from tradebot.research.mcl_shock_wave_generation import (
@@ -420,6 +421,67 @@ def test_stage114_episode_preserves_each_authoritative_wave() -> None:
     assert episode["submitted_orders"] == 0
 
 
+def test_stage114_replay_identity_ignores_only_the_sliding_bar_prefix() -> None:
+    source = [_episode_row(index) for index in (0, 1, 3)]
+    episodes, _opened = replay_mcl_shock_wave_episodes(
+        list(
+            zip(
+                source,
+                (
+                    _observation(0, multiple=10.1, velocity=-4.0, price=79.8),
+                    _observation(1, multiple=12.1, velocity=-3.0, price=79.7),
+                    _observation(3, multiple=1.0, velocity=0.0, price=79.7),
+                ),
+                strict=True,
+            )
+        ),
+        resets=[{"at_utc": START + timedelta(seconds=2), "reasons": ["release"]}],
+        generation=_episode_generation(),
+        rows=source,
+        bars=_episode_bars(),
+    )
+    original = episodes[0]
+    replayed = json.loads(json.dumps(original))
+    replayed["bar_prefix"]["common_rows"] += 1
+    replayed["bar_prefix"]["sha256"] = "9" * 64
+    replayed["episode_sha256"] = "8" * 64
+
+    assert _episode_replay_identity(replayed) == _episode_replay_identity(original)
+
+    replayed["authority_waves"][0]["direction"] = 1
+    assert _episode_replay_identity(replayed) != _episode_replay_identity(original)
+
+
+def test_stage114_stored_episode_validation_keeps_full_bar_prefix_hash() -> None:
+    source = [_episode_row(index) for index in (0, 1, 3)]
+    episodes, _opened = replay_mcl_shock_wave_episodes(
+        list(
+            zip(
+                source,
+                (
+                    _observation(0, multiple=10.1, velocity=-4.0, price=79.8),
+                    _observation(1, multiple=12.1, velocity=-3.0, price=79.7),
+                    _observation(3, multiple=1.0, velocity=0.0, price=79.7),
+                ),
+                strict=True,
+            )
+        ),
+        resets=[{"at_utc": START + timedelta(seconds=2), "reasons": ["release"]}],
+        generation=_episode_generation(),
+        rows=source,
+        bars=_episode_bars(),
+    )
+    episode = episodes[0]
+    assert mcl_shock_wave_episodes([{"kind": "checkpoint", "evidence": episode}]) == [
+        episode
+    ]
+
+    changed = json.loads(json.dumps(episode))
+    changed["bar_prefix"]["common_rows"] += 1
+    with pytest.raises(ValueError, match="episode identity drifted"):
+        mcl_shock_wave_episodes([{"kind": "checkpoint", "evidence": changed}])
+
+
 def test_stage114_wave_cohort_counts_handoffs_without_opening_outcomes() -> None:
     observations = [
         _observation(0, multiple=10.1, velocity=-4.0, price=79.8),
@@ -692,8 +754,10 @@ def test_stage113_generation_and_service_remain_immutable() -> None:
 
 
 def test_stage114_generation_owns_one_successor_observer_service() -> None:
-    generation = load_mcl_shock_wave_generation(MCL_SHOCK_WAVE_GENERATION_PATH)
     root = Path(__file__).resolve().parents[1]
+    generation = _load_immutable_predecessor(
+        MCL_SHOCK_WAVE_GENERATION_PATH, root
+    )
     service = (
         root / "deploy/systemd/tradebot-mcl-predictive-onset-stage114.service"
     ).read_text()
@@ -742,12 +806,15 @@ def test_stage114_runtime_successor_preserves_law_and_inherits_identity() -> Non
         predictive_file_sha256=digest,
         inherited_episode_ids=["4" * 64, "5" * 64],
         generated_at=datetime(2026, 8, 5, 10, 1, tzinfo=timezone.utc),
+        successor_reason="sliding broker bar-prefix replay normalization",
     )
 
     validated = validate_mcl_shock_wave_successor_generation(
         generation, repository_root=root
     )
-    predecessor = load_mcl_shock_wave_generation(MCL_SHOCK_WAVE_GENERATION_PATH)
+    predecessor = _load_immutable_predecessor(
+        MCL_SHOCK_WAVE_GENERATION_PATH, root
+    )
 
     assert validated["state_law"] == predecessor["state_law"]
     assert validated["episode_law"] == predecessor["episode_law"]
@@ -758,6 +825,13 @@ def test_stage114_runtime_successor_preserves_law_and_inherits_identity() -> Non
     assert validated["registered_at_utc"] == validated["eligible_start_utc"]
     assert validated["outcomes_exposed"] is False
     assert validated["submitted_orders"] == 0
+    assert validated["pre_outcome_basis"]["selection_successor_reason"] == (
+        "sliding broker bar-prefix replay normalization"
+    )
+    accumulator = root / "tradebot/research/mcl_shock_wave_accumulator.py"
+    assert validated["artifacts"]["wave_accumulator_owner"]["sha256"] == (
+        hashlib.sha256(accumulator.read_bytes()).hexdigest()
+    )
 
 
 def test_stage114_runtime_service_uses_one_validated_generation_pointer() -> None:
@@ -799,7 +873,10 @@ def test_stage114_successor_uses_the_current_immutable_generation(
 def test_stage114_historical_predecessor_does_not_rehash_current_owner(
     tmp_path: Path,
 ) -> None:
-    generation = load_mcl_shock_wave_generation(MCL_SHOCK_WAVE_GENERATION_PATH)
+    root = Path(__file__).resolve().parents[1]
+    generation = _load_immutable_predecessor(
+        MCL_SHOCK_WAVE_GENERATION_PATH, root
+    )
     generation["artifacts"]["wave_state_owner"]["sha256"] = "0" * 64
     body = {key: value for key, value in generation.items() if key != "generation_id"}
     generation["generation_id"] = hashlib.sha256(

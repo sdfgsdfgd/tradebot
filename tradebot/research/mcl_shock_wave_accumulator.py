@@ -428,6 +428,16 @@ def mcl_shock_wave_episodes(
     return episodes
 
 
+def _episode_replay_identity(value: Mapping[str, object]) -> str:
+    return _identity(
+        {
+            key: item
+            for key, item in value.items()
+            if key not in {"bar_prefix", "episode_sha256"}
+        }
+    )
+
+
 def mcl_shock_wave_cohort(
     episodes: Sequence[Mapping[str, object]], gate: Mapping[str, object]
 ) -> dict[str, object]:
@@ -545,7 +555,7 @@ def advance_mcl_shock_wave_accumulator(
         episode_id = str(episode["episode_id"])
         existing = prior.get(episode_id)
         if existing is not None:
-            if existing.get("episode_sha256") != episode.get("episode_sha256"):
+            if _episode_replay_identity(existing) != _episode_replay_identity(episode):
                 raise ValueError("MCL shock-wave episode changed across replay")
             continue
         terminal = _utc(episode["terminal_at_utc"])
