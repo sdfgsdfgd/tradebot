@@ -1,0 +1,316 @@
+{
+  "schema": "mcl.stage112-cross-champion-hawkeye.v1",
+  "recorded_at_utc": "2026-08-05T13:10:19Z",
+  "authority": "causal_observation_only_no_signal_order_or_capital_change",
+  "prior_hawkeye": {
+    "path": "backtests/mcl/mcl_stage112_hawkeye_20260805T0912Z.json",
+    "sha256": "52f0462fa5e77916c31d3d904de4702f759c02f273eea519fea690c432d39fb6"
+  },
+  "block": {
+    "review": 1,
+    "reviews_required": 6,
+    "reason_for_new_block": "The repository, runtime, process, and predecessor-ledger audit interrupted the earlier Hawkeye sequence. This is a fresh causal block rather than a false continuation of its review count.",
+    "economic_outcomes_exposed": false
+  },
+  "mcl": {
+    "selection_id": "8adead895d3bd460b460f832d725046a3ea34079525a80a1662004ade2c17c93",
+    "strategy_version": "mcl.two-speed-shock-arbiter.v112",
+    "source_checkpoint_id": "b71d048f48bce59cdf0667c8b2965d7dbab8aec6e9c0a3bf459d21a1607086e0",
+    "execution_checkpoint_id": "9cd18835f081922f302c789f583fcb9ab848057c3b3b971c11cb0d310856d63f",
+    "decision_close_utc": "2026-08-05T13:05:00Z",
+    "plan_reason": "flat_no_target",
+    "position": 0,
+    "fills": 0,
+    "closed_trades": 0,
+    "gross_usd": 0.0,
+    "cost_usd": 0.0,
+    "net_usd": 0.0,
+    "drawdown_usd": 0.0,
+    "mfe_usd": 0.0,
+    "mae_usd": 0.0,
+    "safety_breaches": [],
+    "quote": {
+      "market_data_type": 1,
+      "bid": 75.88,
+      "ask": 75.89,
+      "last": 75.9
+    },
+    "account": {
+      "settled_cash_usd": 999.53,
+      "available_funds_aud": 3608.62,
+      "excess_liquidity_aud": 3615.04
+    },
+    "open_orders": [],
+    "submitted_orders": 0,
+    "pre_turn_specimen": {
+      "origin_close_utc": "2026-08-05T13:00:00Z",
+      "origin_checkpoint_id": "3a0b95656bd9d4ac25397abb496f1d675ad291cd07726991df378f05c04cf799",
+      "origin": {
+        "phase": "STATE",
+        "trend_state": "up",
+        "state_age_bars": 93,
+        "abstain_reason": "weak_direction",
+        "direction_score": 0.04459757169445455,
+        "smoothed_direction_score": 0.016460723654940532,
+        "conviction": 0.045545655060218,
+        "coherence": 1.0,
+        "atr_ratio": 1.0850345280912537,
+        "atr_velocity_pct": 0.012963097108293964,
+        "atr_acceleration_pct": 0.01633890874624977,
+        "returns_30_60_120_240_480": [
+          0.1964122037449112,
+          0.6047856955035513,
+          0.38042765315491334,
+          0.3672612801678854,
+          1.8230206254158166
+        ],
+        "slopes_30_60_120_240_480": [
+          0.03273536729081853,
+          0.05039880795862928,
+          0.015851152214788056,
+          0.007651276670164279,
+          0.018989798181414757
+        ],
+        "velocities_30_60_120_240_480": [
+          -0.02647515902497085,
+          0.026291860774759385,
+          0.028921339118461363,
+          0.0071048285827328885,
+          0.0036059503900363905
+        ],
+        "raw_turn": null,
+        "target": null
+      },
+      "followup": [
+        {
+          "bars_after_origin": 1,
+          "close_utc": "2026-08-05T13:05:00Z",
+          "checkpoint_id": "b71d048f48bce59cdf0667c8b2965d7dbab8aec6e9c0a3bf459d21a1607086e0",
+          "trend_state": "up",
+          "abstain_reason": "weak_direction",
+          "direction_score": -0.04963512678716817,
+          "smoothed_direction_score": 0.006546346088624227,
+          "conviction": 0.042033954508377006,
+          "coherence": 0.8,
+          "atr_ratio": 1.2342950677466336,
+          "atr_velocity_pct": 0.055058548065855806,
+          "atr_acceleration_pct": 0.04209545095756184,
+          "returns_30_60_120_240_480": [
+            -0.5899318300996326,
+            -0.45943817274876064,
+            -0.6029623803906259,
+            -0.48556430446194954,
+            0.7172267233364282
+          ],
+          "slopes_30_60_120_240_480": [
+            -0.0983219716832721,
+            -0.038286514395730054,
+            -0.02512343251627608,
+            -0.010115923009623948,
+            0.007471111701421128
+          ],
+          "velocities_30_60_120_240_480": [
+            -0.13105733897409064,
+            -0.08868532235435933,
+            -0.040974584731064134,
+            -0.017767199679788227,
+            -0.011518686479993628
+          ],
+          "raw_turn": null,
+          "target": null
+        }
+      ],
+      "three_bar_followup_due_utc": "2026-08-05T13:15:00Z",
+      "six_bar_followup_due_utc": "2026-08-05T13:30:00Z",
+      "economic_outcomes_exposed": false
+    },
+    "news": {
+      "publication_id": "7be8c3882bd64d32131566b18293a81e736085962389473b9c17779475787505",
+      "signal_as_of_utc": "2026-08-05T12:21:52Z",
+      "snapshot_as_of_utc": "2026-08-05T12:33:53Z",
+      "direction": "down",
+      "impact": 27,
+      "horizon_hours": 4,
+      "change": "weakening",
+      "signed_pressure": -0.2484,
+      "previous_signed_pressure": -0.2821,
+      "pressure_delta": 0.0337,
+      "pressure_interval_seconds": 15024.0,
+      "pressure_velocity_per_hour": 0.008075079872204469,
+      "confidence": 0.92,
+      "authority": "attribution_only"
+    }
+  },
+  "predictive_observers": {
+    "stage87_90": {
+      "ledger_path": "/home/x/.local/state/tradebot/research/mcl_predictive_onset.jsonl",
+      "ledger_sha256": "363a87b7da1d6864986e90ebe199d9c2aa68259b50d1bcf4557ce5765e018775",
+      "complete_turns": 6,
+      "directions": {
+        "down": 3,
+        "up": 3
+      },
+      "admitted_turns": 1,
+      "admitted_routes": {
+        "failed_auction": 1
+      },
+      "resolved_handoffs": 2,
+      "verdict": "ACCUMULATE"
+    },
+    "stage114": {
+      "generation_id": "ce101ce983b8935eb904dbb18cbf1c0e7fc0811fc6b0ad4f43782753647082f7",
+      "cutoff_utc": "2026-08-05T13:05:00Z",
+      "record_ids_sha256": "d6f9a3af3ab61a58fcb3de7d55bfefcc60ed55c7519542a97305769b7da23dcc",
+      "bar_prefix_sha256": "a61ce82915e38081ff0359e3b52fc8c6b57d79abea5ac8507cebbb1536b73816",
+      "eligible_observations": 4309,
+      "source_records": 4782,
+      "maximum_volume_multiple": 5.240924092409241,
+      "open_episode": null,
+      "complete_episodes": 0,
+      "authority_bound_episodes": 0,
+      "verdict": "ACCUMULATE",
+      "outcomes_exposed": false
+    }
+  },
+  "xsp": {
+    "selection_id": "1083c1813e6b0ca4cf5777a5275e06be651622bc6e6207e718b549296a9bdd87",
+    "checkpoint_id": "ad4c306f4c57105c25f57e0bc25e65ac89c3bc9e86b756f9c53ed23985d7aaf",
+    "recorded_at_utc": "2026-08-05T13:02:00.781200Z",
+    "session": "GTH",
+    "plan_reason": "flat_target",
+    "entry_window_open": false,
+    "holdings": {
+      "SPXU": 0,
+      "UPRO": 0
+    },
+    "fills": 0,
+    "net_usd": 0.0,
+    "drawdown_usd": 0.0,
+    "safety_breaches": [],
+    "quotes": {
+      "SPXU": {
+        "market_data_type": 1,
+        "bid": 33.27,
+        "ask": 33.28
+      },
+      "UPRO": {
+        "market_data_type": 1,
+        "bid": 156.42,
+        "ask": 156.46
+      }
+    },
+    "intraday": {
+      "trend_state": "down",
+      "state_age_bars": 0,
+      "abstain_reason": "weak_direction",
+      "direction_score": -0.11312161342944597,
+      "conviction": 0.06452800427773264,
+      "coherence": 0.6,
+      "slopes_5_15_30_60_120": [
+        -0.00516228947538,
+        -0.012041612371897307,
+        -0.008170040033197065,
+        0.0015060176161041383,
+        0.0012910388990011734
+      ],
+      "velocities_5_15_30_60_120": [
+        0.03353989719816486,
+        -0.0034400167759129907,
+        -0.001289828810711417,
+        -0.0022598528379528617,
+        -0.00037661760249237575
+      ],
+      "atr_ratio": 0.8028691612782914,
+      "atr_velocity": 0.0021537070259381175,
+      "atr_acceleration": 0.001720296951661357
+    },
+    "daily_context": {
+      "directions_5_10_21_42_63_84": [
+        "up",
+        "up",
+        "up",
+        "up",
+        "up",
+        "up"
+      ],
+      "hard_direction": "up",
+      "hard_age": 78,
+      "soft_direction": "up",
+      "transition": "aligned_up",
+      "tr_phase": "high_up"
+    },
+    "news": {
+      "signed_pressure": 0.4888,
+      "pressure_delta": -0.0846,
+      "pressure_velocity_per_hour": -0.02014,
+      "confidence": 0.94,
+      "authority": "attribution_only"
+    }
+  },
+  "gold": {
+    "selection_id": "62344ce21bf7c6f01095abab14b6ca8ef79c9806abb35294859fc9574a5f7574",
+    "checkpoint_id": "87c3bfc5a5968744f6b1da6d0a08db6a4cc210269cadd59f250db174593c862e",
+    "recorded_at_utc": "2026-08-05T13:02:25.640410Z",
+    "plan_reason": "flat_no_target",
+    "position": 0,
+    "fills": 0,
+    "net_usd": 0.0,
+    "drawdown_usd": 0.0,
+    "safety_breaches": [],
+    "quote": {
+      "market_data_type": 1,
+      "bid": 4250.25,
+      "ask": 4251.0,
+      "last": 4250.75
+    },
+    "daily": {
+      "hard_direction": "down",
+      "hard_age": 150,
+      "soft_direction": "up",
+      "atr_ratio_14_63": 0.8518383274930698,
+      "atr_velocity": -0.0006477487141364777
+    },
+    "h4": {
+      "raw_direction": "up",
+      "hard_direction": "up",
+      "signed_fast_slope_dollars": 18.983670642414836,
+      "signed_fast_acceleration_dollars": -0.23533446926103352,
+      "signed_spread_velocity_dollars": 9.187313363531302,
+      "atr_velocity_dollars": 1.779285714285738,
+      "proposed_direction": null
+    },
+    "news": {
+      "signed_pressure": 0.1394,
+      "pressure_delta": -0.0538,
+      "pressure_velocity_per_hour": -0.012891,
+      "confidence": 0.82,
+      "authority": "attribution_only"
+    }
+  },
+  "candidate_block": {
+    "review": 1,
+    "reviews_required": 6,
+    "primary": "MCL pre-turn technical/news polarity survival",
+    "runner_up": "MCL range-conditioned velocity breadth",
+    "primary_question": "When a subthreshold completed-bar technical state opposes fresh causal-news pressure, does its polarity survive one, three, and six five-minute bars or become the next raw turn?",
+    "runner_up_question": "Can ordinary velocity-first multihorizon repair be separated from exceptional shock ignition by requiring the same directional velocity/range expansion plus frozen Stage-114 volume authority?",
+    "current_specimens": 2,
+    "current_finding": "The second opposed-news specimen began with five positive slopes and four positive velocities at 13:00Z, but one bar later four slopes and all five velocities were negative while ATR velocity accelerated. V18 still produced no raw turn or target, and Stage 114 remained at 5.2409x with no 10x authority. This is a clean nonshock control, not evidence for a live rule.",
+    "controls": [
+      "same pre-turn technical state with aligned news",
+      "same pre-turn technical state with neutral or unavailable news",
+      "matched no-next-turn controls",
+      "same velocity/range morphology with Stage-114 10x-or-higher authority"
+    ],
+    "authority": "observation_only_no_threshold_outcome_or_live_change"
+  },
+  "interpretation": "MCL's 13:00Z rebound state had broad positive slope structure and four-of-five positive velocities, but its 30-minute velocity was already negative. At 13:05Z the next completed bar turned the 30/60/120/240-minute slopes and every measured velocity negative while ATR ratio, velocity, and acceleration expanded. Stage 112 correctly remained flat because conviction stayed weak and no raw turn matured. Stage 114 independently remained below the frozen 10x directional bind, so this was rapid ordinary-regime torsion rather than an authority-bound shock. The bearish four-hour MCL news state was weakening rather than strengthening, so the technical collapse cannot be attributed to a newly escalating news score. XSP remained a fast downside rollover inside an entrenched all-up daily climate after its entry window closed. Gold remained a D1-down/H4-up conflict with strong H4 slope but slightly negative fast acceleration. All three champions stayed flat with zero fills, PnL, drawdown, safety breaches, or submissions.",
+  "next_boundaries": {
+    "mcl_three_bar_followup_utc": "2026-08-05T13:15:00Z",
+    "mcl_six_bar_followup_utc": "2026-08-05T13:30:00Z",
+    "next_hawkeye_not_before_utc": "2026-08-05T13:30:00Z",
+    "stage112_24h_boundary_utc": "2026-08-06T11:39:55Z",
+    "instruction": "Observe natural finalized checkpoints only; do not force a trade, open outcomes, retune thresholds, or create another observer."
+  },
+  "submitted_orders": 0
+}
