@@ -1,0 +1,104 @@
+{
+  "schema": "mcl.stage114-pre-outcome-predecessor-ledger-correction.v1",
+  "recorded_at_utc": "2026-08-05T12:32:43Z",
+  "authority": "governance_correction_only_no_law_outcomes_orders_or_capital",
+  "defect": {
+    "statement": "The Stage-114 preregistration and task brain described the terminal Stage-113 predecessor ledger as two rows even though a third natural Stage-113 episode had appended before Stage-114 registration.",
+    "scope": "predecessor morphology count and ledger identity only",
+    "economic_contamination": false
+  },
+  "chronology": {
+    "stage113_two_row_receipt_recorded_at_utc": "2026-08-05T00:30:45.920126+00:00",
+    "third_episode_started_at_utc": "2026-08-05T01:00:17+00:00",
+    "third_episode_terminal_at_utc": "2026-08-05T01:15:00+00:00",
+    "third_episode_appended_at_utc": "2026-08-05T01:15:46.155732+00:00",
+    "stage114_registered_at_utc": "2026-08-05T07:14:07+00:00",
+    "stage114_commissioned_at_utc": "2026-08-05T07:38:51+00:00",
+    "current_gap_free_stage114_generation_registered_at_utc": "2026-08-05T11:39:22.498930+00:00"
+  },
+  "artifacts": {
+    "stage113_generation": {
+      "path": "backtests/mcl/mcl_shock_crest_stage113_preregistration.json",
+      "sha256": "64f564b273d78b0661860673b02c87cdfc925a6a403521754dc90c580e1454ea"
+    },
+    "stage113_two_row_receipt": {
+      "path": "backtests/mcl/mcl_shock_crest_stage113_first_tradeable_episode_falsification.json",
+      "ledger_rows": 2,
+      "ledger_sha256": "8995ba2716c0ddc0a8b4384c76cff3f60ad31555d0222f0fbf1d18397bd399ef"
+    },
+    "stage113_actual_terminal_ledger": {
+      "path_on_q": "/home/x/.local/state/tradebot/research/mcl_shock_crest.jsonl",
+      "ledger_rows": 3,
+      "ledger_sha256": "249d5a3f4deaa4b44e9827143fae1344c6bb1e0718c57c228a8267a62deff80e"
+    },
+    "stage114_preregistration": {
+      "path": "backtests/mcl/mcl_authority_bound_shock_waves_stage114_preregistration.json",
+      "sha256": "e034a47c515675016910b55765daf26efb4af22b20b901a6fb8292589b034707"
+    },
+    "current_gap_free_stage114_generation": {
+      "path_on_q": "/home/x/Desktop/py/tradebot/db/calibration/mcl_shock_wave_generation.json",
+      "generation_id": "ce101ce983b8935eb904dbb18cbf1c0e7fc0811fc6b0ad4f43782753647082f7",
+      "sha256": "7abf7476faed37d667964638b63ba7f622ac0693115ee1f5cab176a4614fd057"
+    }
+  },
+  "third_stage113_episode": {
+    "checkpoint_id": "f3a69a749f6b8ae816c8994fcfb865bfc0f4b6d7bf9df2630237c41dbee5d4d0",
+    "checkpoint_row_sha256": "4ed81ef39de092d6d24cadd69cdf4a7b4a0eebb336d68fe917135d81f73b0454",
+    "episode_id": "152d77507b954d74ac32fd219c7f2b60ed5b9c1d3ef6c3dd36889fb1aa8fbf5c",
+    "duration_seconds": 883.0,
+    "shock_direction": "up",
+    "maximum_level": "TRADEABLE_SHOCK_12_TO_20X",
+    "maximum_volume_multiple": 12.305555555555555,
+    "reached_tradeable_12x": true,
+    "reached_regime_20x": false,
+    "terminal_reason": "stage112_v18_raw_turn",
+    "source_records": 716,
+    "source_record_ids_sha256": "4d2ec69611b43d7944f519f89b2ad92c666be8a51b5615f368cbc707464a7ccb",
+    "bar_prefix_sha256": "33da9420e09ee89f3ad2be5153812387525c3079e0a6e51c8b776a1bc5a3edcd",
+    "outcomes_exposed": false,
+    "submitted_orders": 0
+  },
+  "stage114_state_at_correction": {
+    "selection_id": "8adead895d3bd460b460f832d725046a3ea34079525a80a1662004ade2c17c93",
+    "complete_episodes": 0,
+    "ledger_exists": false,
+    "open_attention_episode": true,
+    "open_attention_maximum_volume_multiple": 5.230088495575221,
+    "authority_direction": null,
+    "outcomes_exposed": false,
+    "submitted_orders": 0
+  },
+  "first_natural_resolution_after_correction": {
+    "cutoff_utc": "2026-08-05T12:35:00+00:00",
+    "bars_sha256": "209c08fa4b2425f69ff89182412271196c819e52538a79f3dac65e6016cb5e02",
+    "event_record_ids_sha256": "479abc79853ef3e97dee3aea0a5ab85b13fdd669b2c7c565457ac27d5210ee66",
+    "maximum_volume_multiple": 5.230088495575221,
+    "maximum_level": "ELEVATED_5_TO_10X",
+    "authority_direction": null,
+    "eligible": false,
+    "open_episode": false,
+    "complete_episodes": 0,
+    "ledger_exists": false,
+    "outcomes_exposed": false,
+    "submitted_orders": 0,
+    "interpretation": "The first Stage-114 directionless attention episode normalized without reaching the frozen 10x authority bind, writing a cohort row, or creating any trading authority."
+  },
+  "interpretation": {
+    "pre_registration_accessibility": "The third Stage-113 row existed before Stage-114 registration and is therefore disclosed as pre-registration-accessible morphology whether or not it was actively inspected.",
+    "stage112_crown_economics_changed": false,
+    "stage112_live_authority_changed": false,
+    "stage114_law_or_threshold_changed": false,
+    "stage114_generation_rewritten": false,
+    "stage113_ledger_inherited_by_stage114": false,
+    "stage114_economic_outcome_opened": false
+  },
+  "invariants": {
+    "original_stage114_preregistration_preserved_immutable": true,
+    "stage113_append_only_ledger_preserved_immutable": true,
+    "stage112_388_trade_ledger_unchanged": true,
+    "stage112_order_and_capital_authority_unchanged": true,
+    "stage114_direction_timing_order_and_capital_authority": "none",
+    "market_orders_permitted": false
+  },
+  "submitted_orders": 0
+}
