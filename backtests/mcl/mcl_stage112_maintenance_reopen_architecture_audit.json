@@ -1,0 +1,122 @@
+{
+  "schema": "mcl.stage112-maintenance-reopen-architecture-audit.v1",
+  "recorded_at_utc": "2026-08-05T09:02:26Z",
+  "authority": "read_only_architecture_and_runtime_failure_audit_no_orders_no_capital",
+  "selection": {
+    "strategy_version": "mcl.two-speed-shock-arbiter.v112",
+    "selection_id": "083ecba8798ea6e60f32b1c42d4896e1a016703a77eeac2f32ac7ce3f5d54a91",
+    "live_state_changed": false
+  },
+  "bound_sources": {
+    "mcl_live_transport": {
+      "path": "tradebot/research/mcl_live_transport.py",
+      "sha256": "8b204647072bfe91ae2f29425c34c5c581c2305fa25022c4270360cab8a97add"
+    },
+    "mcl_live_lifecycle": {
+      "path": "tradebot/research/mcl_live.py",
+      "sha256": "a43017f81869d9b818882d5b264cf3195c9195d3e069354f8e05bdde3ba30c35"
+    },
+    "mcl_profitability": {
+      "path": "tradebot/research/mcl_profitability.py",
+      "sha256": "195ac8ce4cdcea3fd4d4d4a6e4b8c4a884dc7b5d9b69f4a549d6859d88da1a0c"
+    },
+    "gold_live_state_precedent": {
+      "path": "tradebot/research/gold_live_state.py",
+      "sha256": "05d4d42d990424a70729916dff5338dde3436e1015885f943bd10e6a342f82c4"
+    },
+    "gold_live_runtime_precedent": {
+      "path": "tradebot/research/gold_live_runtime.py",
+      "sha256": "13cd5247c5ca6d195a2edd14ba941d3bf2f8a91099b56207e4c67e47b1060c41"
+    },
+    "timer": {
+      "path": "deploy/systemd/tradebot-mcl-live.timer",
+      "sha256": "3c2bc337ae887ddbd338cf8c6ecc99c9eb9c61b495a41e1ef8dafc4902d4e299",
+      "deployed_sha256": "3c2bc337ae887ddbd338cf8c6ecc99c9eb9c61b495a41e1ef8dafc4902d4e299"
+    },
+    "service": {
+      "path": "deploy/systemd/tradebot-mcl-live.service",
+      "sha256": "0d3142b94d1ec0f624bdc6ccfa2c2a1ee05c1ef0f21e42a1d84044e80aaef260",
+      "deployed_sha256": "0d3142b94d1ec0f624bdc6ccfa2c2a1ee05c1ef0f21e42a1d84044e80aaef260"
+    },
+    "tests": {
+      "path": "tests/test_mcl_live.py",
+      "sha256": "651909ce1c08ab3f59d2e6a9028ae7b73d62085d15db1388d6d1e89626d5ddf9"
+    }
+  },
+  "failure": {
+    "reopen_utc": "2026-08-04T22:00:00Z",
+    "reopen_et": "2026-08-04T18:00:00-04:00",
+    "attempts_et": [
+      "2026-08-04T18:00:10.181501-04:00",
+      "2026-08-04T18:00:18.946595-04:00",
+      "2026-08-04T18:00:27.196907-04:00"
+    ],
+    "exception": "ValueError: MCL finalized source is stale",
+    "failed_before": [
+      "live quote capture",
+      "pending-order reconciliation",
+      "broker-position reconciliation",
+      "risk-state projection",
+      "execution checkpoint"
+    ],
+    "natural_recovery_utc": "2026-08-04T22:01:10Z",
+    "natural_recovery": "the first completed reopen minute existed and the unchanged worker succeeded"
+  },
+  "root_cause": {
+    "timer_law": "Sunday through Thursday resumes at exactly 18:00 ET after excluding the 17:00-18:00 ET maintenance hour",
+    "profitability_law": "18:00 ET is the first required market-open evaluation minute",
+    "source_law": "refresh_mcl_source_if_due requires the current minute while mcl_source_snapshot also rejects the pre-maintenance finalized minute after eight minutes",
+    "causal_impossibility": "at 18:00:10 ET no completed 18:00-18:01 reopen minute can yet exist",
+    "call_order": "broker snapshot -> finalized-source refresh -> quote -> order/position reconciliation -> risk -> plan -> checkpoint",
+    "consequence": "the impossible source refresh aborts all downstream reconciliation and creates a required evidence gap"
+  },
+  "existing_safety": {
+    "admission_max_age_seconds": 120.0,
+    "stale_target_result": "entry_source_stale",
+    "risk_reduction_precedence": "an existing position with a safety breach or exit trigger is flattened before entry logic",
+    "limit_only": true,
+    "market_orders_allowed": false,
+    "weekly_flat_unchanged": true
+  },
+  "gold_precedent": {
+    "architecture": "the source checkpoint is supplied independently to the live runtime after broker and quote acquisition",
+    "action_source_max_age_seconds": 900.0,
+    "hold_source_max_age_seconds": 15600.0,
+    "law": "old source blocks a fresh entry while broker, quote, position, pending-order, risk, exit, and flatten ownership remain observable",
+    "reuse_boundary": "semantic precedent only; no Gold source, timer, strategy, selection, or live authority should change"
+  },
+  "recommended_resolution": {
+    "name": "Causal Maintenance-Reopen Reconciliation",
+    "scope": "MCL product adapter only",
+    "law": "at exactly Sunday-through-Thursday 18:00 ET, if the due finalized reopen minute does not yet exist and one identity-valid prior selected source checkpoint exists, reuse that checkpoint for broker/quote/order/position/risk reconciliation only",
+    "entry_law": "retain the existing 120-second admission-age check, so no pre-maintenance target can enter",
+    "next_minute_law": "at 18:01 ET require the newly completed reopen minute and resume the unchanged strict refresh path",
+    "evidence_law": "mark the plan/checkpoint as reopen reconciliation; never disguise general feed staleness or backfill the existing gap",
+    "selection_law": "after proof, use the existing two-sided nontransmitting LIMIT commissioning path to create a fresh flat Stage-112 selection and evidence clock",
+    "shared_system_changes": [],
+    "gold_changes": [],
+    "xsp_changes": [],
+    "signal_or_threshold_changes": [],
+    "order_or_capital_authority_changes": []
+  },
+  "rejected_alternatives": [
+    {
+      "name": "exclude the 18:00 ET slot",
+      "reason": "would remove the first reopen reconciliation minute from profitability evidence and weaken safety observability"
+    },
+    {
+      "name": "allow stale source whenever refresh fails",
+      "reason": "would conceal ordinary feed outages and is broader than the proven causal impossibility"
+    },
+    {
+      "name": "backfill or rebase the existing prefix",
+      "reason": "would rewrite missing evidence instead of preserving the quarantined run"
+    },
+    {
+      "name": "change the shared futures reducer",
+      "reason": "the reducer correctly detected the gap; the defect is upstream MCL runtime coverage"
+    }
+  ],
+  "implementation_status": "DECISION_REQUIRED_NOT_IMPLEMENTED",
+  "submitted_orders": 0
+}
