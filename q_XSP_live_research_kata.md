@@ -1,4 +1,4 @@
-# XSP Mastery — Live Research Kata
+# XSP / Gold / MCL Mastery — Live Research Kata
 
 - **Status:** `[ACTIVE] Opening Edge v3 is the frozen historical crown and
   package-sized Tiered UPRO/SPXU RTH selection `1083c181…` is live-capable. Fresh
@@ -39,6 +39,11 @@
   first eligible wave as a derived-only view; it adds no runtime owner or ledger.
 - **Authority:** canonical resume state, active task tree, critical evidence
   index, and promotion contract
+- **Fast resume:** read [`q_XSP_goal_objective.md`](q_XSP_goal_objective.md),
+  then the bounded `RESUME-CAPSULE`, current `[WIP]` rows, and
+  [Conclusion](#conclusion). Open the evidence/decision indexes only when exact
+  provenance is needed; do not reload this entire long-horizon ledger by
+  default.
 - **Cold history:** [`q_XSP_live_research_kata-archive.md`](q_XSP_live_research_kata-archive.md)
 - **Leaderboard:** [`backtests/xsp/leaderboard.md`](backtests/xsp/leaderboard.md)
 - **MCL leaderboard:** [`backtests/mcl/leaderboard.md`](backtests/mcl/leaderboard.md)
@@ -79,6 +84,7 @@ output belongs in commit/final verification, not in this management brain.
 
 ---
 
+<!-- RESUME-CAPSULE:BEGIN -->
 ## 0. Resume now
 
 | Authority | Current truth |
@@ -98,6 +104,8 @@ output belongs in commit/final verification, not in this management brain.
 | Execution verdict | Stage-112 MCL position/orders/fills are zero; read-only broker audit `6d11b168…` found no open order/execution and only unrelated `TQQQ 1`. Both live/predictive timers are active. A fresh causal V18-or-shock admission may submit one broker-enforced LMT through the shared ladder; market orders remain impossible. Predictive Stages 87–90 and Stage 114 cannot submit or alter live direction |
 | Next irreversible evidence | Preserve the gap-free `8adead89…` prefix and reduce immutable `24h`, `48h`, and five-session milestones only when due. Continue Stage-114/115 onset accumulation without promoting thresholds, outcomes, direction, execution, or capital before their frozen cohorts pass |
 | First active work | MCL remains Priority Zero. Commissioning is complete; active work is live graduation plus Predictive Intelligence Sharpening of Onsets, especially seconds-to-multiscale velocity/range/volume morphology, while XSP/Gold remain unchanged |
+
+<!-- RESUME-CAPSULE:END -->
 
 ### Immediate sequence
 
@@ -2581,6 +2589,12 @@ Keep only:
 - exact current runtime/data/architecture boundaries;
 - compact critical evidence and decision indexes;
 - the next executable action.
+
+Resume readers load, in order: the tracked Goal backup, the bounded
+`RESUME-CAPSULE`, current `[WIP]` entries, and Conclusion. Search evidence or
+decision IDs only when the active work depends on their exact provenance. The
+stable markers are an access boundary, not a second authority or generated
+summary.
 
 ### Archive
 
