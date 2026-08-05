@@ -15,7 +15,6 @@ from .mcl_live_transport import _identity, _utc
 from .mcl_shock_arbiter import MCL_TWO_SPEED_SHOCK_VERSION
 from .mcl_shock_wave_accumulator import (
     MCL_SHOCK_WAVE_GENERATION_PATH,
-    load_mcl_shock_wave_generation,
     validate_mcl_shock_wave_generation,
 )
 
@@ -72,6 +71,30 @@ def _predecessor_path(root: Path, requested: Path | None) -> Path:
     return MCL_SHOCK_WAVE_GENERATION_PATH
 
 
+def _load_immutable_predecessor(path: Path, root: Path) -> dict[str, object]:
+    value = json.loads(path.read_text())
+    if not isinstance(value, Mapping):
+        raise ValueError("MCL shock-wave predecessor must be one object")
+    generation = dict(value)
+    body = dict(generation)
+    generation_id = str(body.pop("generation_id", ""))
+    artifacts = generation.get("artifacts")
+    if (
+        not _is_sha(generation_id)
+        or _identity(body) != generation_id
+        or not isinstance(artifacts, Mapping)
+    ):
+        raise ValueError("MCL shock-wave predecessor identity drifted")
+    for name, item in artifacts.items():
+        if not isinstance(item, Mapping) or not _is_sha(item.get("sha256")):
+            raise ValueError(f"MCL shock-wave predecessor artifact {name} is invalid")
+        relative = Path(str(item.get("path") or ""))
+        artifact = (root / relative).resolve()
+        if relative.is_absolute() or root not in artifact.parents:
+            raise ValueError(f"MCL shock-wave predecessor artifact {name} escaped")
+    return generation
+
+
 def build_mcl_shock_wave_successor_generation(
     *,
     repository_root: Path,
@@ -93,9 +116,7 @@ def build_mcl_shock_wave_successor_generation(
     predecessor_file = (root / predecessor_path).resolve()
     if root not in predecessor_file.parents:
         raise ValueError("MCL shock-wave predecessor escaped repository")
-    predecessor = load_mcl_shock_wave_generation(
-        predecessor_file, repository_root=root
-    )
+    predecessor = _load_immutable_predecessor(predecessor_file, root)
     selection_id = str(selected.get("selection_id") or "")
     predictive_id = str(predictive.get("generation_id") or "")
     inherited_ids = list(inherited_episode_ids)

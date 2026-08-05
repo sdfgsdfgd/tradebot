@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
@@ -44,6 +45,7 @@ from tradebot.research.mcl_shock_wave_accumulator import (
     replay_mcl_shock_wave_episodes,
 )
 from tradebot.research.mcl_shock_wave_generation import (
+    _load_immutable_predecessor,
     _predecessor_path,
     build_mcl_shock_wave_successor_generation,
     validate_mcl_shock_wave_successor_generation,
@@ -792,6 +794,23 @@ def test_stage114_successor_uses_the_current_immutable_generation(
     current.write_text(f'{{"generation_id":"{generation_id}"}}')
 
     assert _predecessor_path(tmp_path, None) == immutable.relative_to(tmp_path)
+
+
+def test_stage114_historical_predecessor_does_not_rehash_current_owner(
+    tmp_path: Path,
+) -> None:
+    generation = load_mcl_shock_wave_generation(MCL_SHOCK_WAVE_GENERATION_PATH)
+    generation["artifacts"]["wave_state_owner"]["sha256"] = "0" * 64
+    body = {key: value for key, value in generation.items() if key != "generation_id"}
+    generation["generation_id"] = hashlib.sha256(
+        json.dumps(body, separators=(",", ":"), sort_keys=True).encode()
+    ).hexdigest()
+
+    predecessor = tmp_path / "predecessor.json"
+    predecessor.write_text(json.dumps(generation))
+    assert _load_immutable_predecessor(predecessor, tmp_path)["generation_id"] == (
+        generation["generation_id"]
+    )
 
 
 def _reset_bars(stamps: tuple[datetime, ...]) -> dict[str, dict[datetime, OhlcvBar]]:
