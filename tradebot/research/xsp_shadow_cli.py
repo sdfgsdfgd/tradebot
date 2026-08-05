@@ -444,7 +444,10 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
                 news_snapshot=tuple(news),
                 spec=v3_spec,
             )
-            if selected_transport is not None:
+            if (
+                selected_transport is not None
+                and receipt.get("evaluation_status") != "CLOSED"
+            ):
                 transport_execution = await advance_xsp_live_transport(
                     ledger,
                     client=client,

@@ -512,3 +512,88 @@ def test_shadow_cli_v3_accepts_safe_closed_noop_without_v2_execution_authority(
     assert output["v3_run_started_at_utc"] == run_start.isoformat()
     assert output["selected_transport_id"] is None
     assert output["order_authority"] == "none"
+
+
+def test_shadow_cli_v3_closed_source_never_enters_selected_cash_transport(
+    tmp_path,
+    monkeypatch,
+    capsys,
+) -> None:
+    from tradebot.research.xsp_shadow_cli import _main_async
+
+    selection_path = tmp_path / "selected.json"
+    selection_path.write_text("{}")
+    selected = {
+        "selection_id": "1" * 64,
+        "strategy_version": XSP_OPENING_EDGE_V3_VERSION,
+        "order_authority": "rth_cash_pair_limit_only",
+    }
+    run_start = datetime(2026, 7, 30, 0, 15, tzinfo=timezone.utc)
+
+    class _Client:
+        def __init__(self, _config):
+            pass
+
+        async def disconnect(self):
+            pass
+
+    async def _advance(_ledger, **_kwargs):
+        return {
+            "status": "ok",
+            "evaluation_status": "CLOSED",
+            "broker_request_skipped": "closed_calendar",
+            "order_authority": "none",
+        }
+
+    async def _forbidden(*_args, **_kwargs):
+        raise AssertionError("closed source must not enter selected cash transport")
+
+    monkeypatch.setattr("tradebot.client.IBKRClient", _Client)
+    monkeypatch.setattr(
+        "tradebot.research.xsp_shadow_cli.load_xsp_opening_edge_v3_spec",
+        lambda: "v3-spec",
+    )
+    monkeypatch.setattr(
+        "tradebot.research.xsp_shadow_cli.xsp_opening_edge_v3_run_start",
+        lambda *_args, **_kwargs: run_start,
+    )
+    monkeypatch.setattr(
+        "tradebot.research.xsp_shadow_cli.advance_xsp_opening_edge_v3_from_ibkr",
+        _advance,
+    )
+    monkeypatch.setattr(
+        "tradebot.research.xsp_shadow_cli.load_xsp_v3_transport_selection",
+        lambda _path: selected,
+    )
+    monkeypatch.setattr(
+        "tradebot.research.xsp_shadow_cli.xsp_v3_transport_profitability_policy",
+        lambda _selection: None,
+    )
+    monkeypatch.setattr(
+        "tradebot.research.xsp_shadow_cli.advance_xsp_live_transport",
+        _forbidden,
+    )
+
+    assert (
+        asyncio.run(
+            _main_async(
+                (
+                    "--mode",
+                    "opening-edge-v3",
+                    "--ledger",
+                    str(tmp_path / "ledger.jsonl"),
+                    "--news-signal",
+                    str(tmp_path / "missing-news.json"),
+                    "--selected-transport",
+                    str(selection_path),
+                    "--capital-plan",
+                    str(tmp_path / "missing-capital.json"),
+                )
+            )
+        )
+        == 0
+    )
+    output = json.loads(capsys.readouterr().out)
+    assert output["selected_transport_id"] == selected["selection_id"]
+    assert output["transport_execution"] is None
+    assert output["order_authority"] == "rth_cash_pair_limit_only"
