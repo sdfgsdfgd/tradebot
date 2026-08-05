@@ -904,4 +904,7 @@ def test_cli_graduation_branch_never_loads_broker_config(
     assert captured["published"] == (output, receipt)
     assert captured["profitability"]["_records"] == ()
     assert captured["inputs"]["records"] == raw_records
+    assert captured["inputs"]["capital_owner_stability_path"] == Path(
+        "db/calibration/portfolio_capital_owner_stability.json"
+    )
     assert json.loads(capsys.readouterr().out) == receipt

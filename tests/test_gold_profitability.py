@@ -546,6 +546,7 @@ def test_gold_cli_graduation_branch_never_loads_broker_config(
     selected = tmp_path / "selected.json"
     selected.write_text("{}", encoding="utf-8")
     output = tmp_path / "graduation.json"
+    captured: dict[str, object] = {}
     monkeypatch.setattr(gold_live_cli, "load_live_capital_plan", lambda _path: {"schema": "old"})
     monkeypatch.setattr(gold_live_cli, "load_gold_live_selection", lambda _path: {})
     monkeypatch.setattr(
@@ -554,7 +555,11 @@ def test_gold_cli_graduation_branch_never_loads_broker_config(
         lambda _path: type("Ledger", (), {"records": lambda self: ()})(),
     )
     monkeypatch.setattr(gold_live_cli, "gold_live_profitability_receipt", lambda *_args, **_kwargs: {})
-    monkeypatch.setattr(gold_live_cli, "gold_live_graduation_inputs", lambda **_kwargs: {})
+    monkeypatch.setattr(
+        gold_live_cli,
+        "gold_live_graduation_inputs",
+        lambda **kwargs: captured.setdefault("inputs", kwargs) and {},
+    )
     monkeypatch.setattr(
         gold_live_cli,
         "reduce_live_graduation",
@@ -588,3 +593,6 @@ def test_gold_cli_graduation_branch_never_loads_broker_config(
     )
     assert code == 0
     assert json.loads(output.read_text()) == {"verdict": "HOLD"}
+    assert captured["inputs"]["capital_owner_stability_path"] == Path(
+        "db/calibration/portfolio_capital_owner_stability.json"
+    )

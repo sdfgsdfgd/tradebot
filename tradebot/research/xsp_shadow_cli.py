@@ -15,6 +15,7 @@ from ..config import auxiliary_client_config, load_config
 from ..engines.market import xsp_trading_date
 from ..live.capital import load_live_capital_plan
 from ..live.capital_packages import load_allocated_live_selection
+from ..live.capital_stability import PORTFOLIO_CAPITAL_STABILITY_PATH
 from ..news.contract import NewsError, load_news_history
 from .live_calibration import LiveCalibrationLedger
 from .live_graduation import (
@@ -133,7 +134,7 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
     )
     parser.add_argument(
         "--graduation-capital-stability",
-        default="backtests/portfolio_capital_owner_stability_20260803.json",
+        default=PORTFOLIO_CAPITAL_STABILITY_PATH.as_posix(),
     )
     parser.add_argument("--graduation-output")
     args = parser.parse_args(argv)
