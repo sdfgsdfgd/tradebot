@@ -1,0 +1,59 @@
+{
+  "schema": "mcl.stage112-maintenance-reopen-runtime-binding.v1",
+  "recorded_at_utc": "2026-08-05T10:36:32.912028+00:00",
+  "authority": "selected_runtime_reconciliation_binding_no_orders_no_capital",
+  "strategy_version": "mcl.two-speed-shock-arbiter.v112",
+  "architecture_audit": {
+    "path": "backtests/mcl/mcl_stage112_maintenance_reopen_architecture_audit.json",
+    "sha256": "a1df828d14eeb3c7e1b89421d92c72c9f5716fe6c65d1b27634b33d2c6608026"
+  },
+  "source_shadow_path": "backtests/mcl/mcl_v18_shock_stage112_live_source_shadow.json",
+  "source_shadow_sha256": "d3d5f2e42245b913512aa30b19bf7433d42b16d1697980359f66093242d54f72",
+  "owners": {
+    "transport_path": "tradebot/research/mcl_live_transport.py",
+    "transport_sha256": "8b204647072bfe91ae2f29425c34c5c581c2305fa25022c4270360cab8a97add",
+    "reopen_path": "tradebot/research/mcl_live_reopen.py",
+    "reopen_sha256": "40f6fb82540b5bbf56efd3ed3982f740981678572d937dbcba0f377441b46d06",
+    "live_path": "tradebot/research/mcl_live.py",
+    "live_sha256": "b54fd8b9a681ad796c6519e7587ad9ab3fa4ec0ddf4533ef0c0800351a498f05",
+    "cli_path": "tradebot/research/mcl_live_cli.py",
+    "cli_sha256": "6682662458b034ed4ca4d703e498296bae2b6d7b30609ffb922a00fc69fbf8f7",
+    "profitability_path": "tradebot/research/mcl_profitability.py",
+    "profitability_sha256": "913389cce7f2a96a906443eae7ce1ce878a98dbbe479a32529682278d7a9161e"
+  },
+  "runtime_proof": {
+    "evaluator_path_on_q": "/var/tmp/mcl_stage112_maintenance_reopen_proof.py",
+    "evaluator_sha256": "ee4ff9699f4c15a5ed515a0e191f06ae1e01583f00769b48cff1704fde69fcf9",
+    "result_path_on_q": "/var/tmp/mcl-stage112-maintenance-reopen-runtime-proof-r5.json",
+    "result_sha256": "7074c9a47c3603a708e977434f454a023ca17df6b2473d25c6cd442d0bf82dde",
+    "selection_id": "083ecba8798ea6e60f32b1c42d4896e1a016703a77eeac2f32ac7ce3f5d54a91"
+  },
+  "law": {
+    "scope": "Sunday through Thursday exactly 18:00 ET",
+    "reconciliation_source": "exact identity-valid prior 16:59 ET finalized source; Friday 16:59 ET at Sunday reopen",
+    "entry_authority": "none",
+    "incumbent_authority": "hold or flatten under unchanged source identity and risk priority",
+    "next_minute": "strict fresh finalized 18:01 ET source required",
+    "general_stale_fallback": false,
+    "profitability_slot_excluded": false
+  },
+  "gates": {
+    "selection_contract_owner_unchanged": true,
+    "stage113_generation_owner_unchanged": true,
+    "stage114_generation_owner_unchanged": true,
+    "weekday_exact_prior_only": true,
+    "sunday_exact_friday_prior_only": true,
+    "dst_start_exact": true,
+    "dst_end_exact": true,
+    "adjacent_and_closed_boundaries_strict": true,
+    "fresh_admission_unchanged": true,
+    "reopen_entry_locked": true,
+    "risk_reduction_preserved": true,
+    "incumbent_hold_preserved": true,
+    "authority_changes_transition_identity": true,
+    "source_shadow_unchanged": true,
+    "submitted_orders_zero": true
+  },
+  "verdict": "PASS",
+  "submitted_orders": 0
+}

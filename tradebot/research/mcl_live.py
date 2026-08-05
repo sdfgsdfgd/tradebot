@@ -41,11 +41,16 @@ from .mcl_live_transport import (
     _utc,
     load_mcl_live_selection_from_mapping,
     mcl_live_contracts,
-    refresh_mcl_source_if_due,
+)
+from .mcl_live_reopen import (
+    MCL_LIVE_SOURCE_AUTHORITY_FRESH,
+    MCL_LIVE_SOURCE_AUTHORITY_REOPEN,
+    refresh_mcl_live_source,
 )
 from .mcl_two_speed_auction import (
     MCL_TWO_SPEED_AUCTION_MULTIPLIER,
 )
+
 
 def _latest_execution_by_ref(
     records: Sequence[Mapping[str, object]], *, selection_id: str
@@ -337,6 +342,7 @@ def project_mcl_transport_plan(
     *,
     selection: Mapping[str, object],
     source_checkpoint: Mapping[str, object],
+    source_authority: str,
     broker_position: float,
     risk_state: Mapping[str, object],
     consumed_admissions: set[str],
@@ -344,6 +350,11 @@ def project_mcl_transport_plan(
 ) -> dict[str, object]:
     selected = load_mcl_live_selection_from_mapping(selection)
     now = _utc(observed_at)
+    if source_authority not in {
+        MCL_LIVE_SOURCE_AUTHORITY_FRESH,
+        MCL_LIVE_SOURCE_AUTHORITY_REOPEN,
+    }:
+        raise ValueError("MCL live source authority is invalid")
     evidence = source_checkpoint.get("evidence")
     if (
         source_checkpoint.get("strategy_version") != MCL_LIVE_SOURCE_VERSION
@@ -410,6 +421,12 @@ def project_mcl_transport_plan(
         reason = breaches[0]
     elif held_direction is None and _weekly_flat_due(now):
         reason = "weekly_closure_entry_lock"
+    elif held_direction is None and source_authority == MCL_LIVE_SOURCE_AUTHORITY_REOPEN:
+        reason = (
+            "maintenance_reopen_entry_locked"
+            if target_direction is not None
+            else "maintenance_reopen_reconciliation_only"
+        )
     elif held_direction is None and target_direction is not None:
         assert target_at is not None and admission_id is not None
         due_at = target_at + timedelta(minutes=1)
@@ -435,6 +452,7 @@ def project_mcl_transport_plan(
         "strategy_version": selected["strategy_version"],
         "selection_id": selected["selection_id"],
         "source_checkpoint_id": source_checkpoint["checkpoint_id"],
+        "source_authority": source_authority,
         "source_recorded_at_utc": source_checkpoint["recorded_at_utc"],
         "source_age_seconds": source_age,
         "admission_event_id": admission_id,
@@ -468,6 +486,7 @@ def project_mcl_transport_plan(
             "selection_id",
             "strategy_version",
             "source_checkpoint_id",
+            "source_authority",
             "admission_event_id",
             "target_direction",
             "target_route",
@@ -710,7 +729,7 @@ async def advance_mcl_live_transport(
     broker = await broker_account_snapshot(client, base_currency="AUD")
     if broker["account_id"] != selected["broker_at_selection"]["account_id"]:
         raise ValueError("MCL selected broker account changed")
-    source = await refresh_mcl_source_if_due(
+    source, source_authority = await refresh_mcl_live_source(
         ledger,
         client=client,
         selection=selected,
@@ -790,6 +809,7 @@ async def advance_mcl_live_transport(
     plan = project_mcl_transport_plan(
         selection=selected,
         source_checkpoint=source,
+        source_authority=source_authority,
         broker_position=broker_position,
         risk_state=risk,
         consumed_admissions=_consumed_admissions(

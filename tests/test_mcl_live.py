@@ -10,9 +10,17 @@ from pathlib import Path
 import pytest
 
 from tradebot.chart_data.series import OhlcvBar
+from tradebot.research.live_calibration import LiveCalibrationLedger
 from tradebot.research.mcl_live import (
+    advance_mcl_live_transport,
     mcl_transport_risk_state,
     project_mcl_transport_plan,
+)
+from tradebot.research.mcl_live_reopen import (
+    MCL_LIVE_SOURCE_AUTHORITY_FRESH,
+    MCL_LIVE_SOURCE_AUTHORITY_REOPEN,
+    bind_mcl_maintenance_reopen_selection,
+    refresh_mcl_live_source,
 )
 from tradebot.research.mcl_live_transport import (
     MCL_LIVE_EXECUTION_VERSION,
@@ -21,6 +29,7 @@ from tradebot.research.mcl_live_transport import (
     build_mcl_live_selection,
     load_mcl_live_selection_from_mapping,
     mcl_source_snapshot,
+    persist_mcl_source_checkpoint,
 )
 from tradebot.research.mcl_profitability import (
     mcl_live_evaluation_slots,
@@ -77,10 +86,13 @@ def _preview() -> dict[str, object]:
 
 
 def _selection():
-    return build_mcl_live_selection(
+    return bind_mcl_maintenance_reopen_selection(
+        build_mcl_live_selection(
+            repository_root=ROOT,
+            preview=_preview(),
+            selected_at=AT + timedelta(seconds=1),
+        ),
         repository_root=ROOT,
-        preview=_preview(),
-        selected_at=AT + timedelta(seconds=1),
     )
 
 
@@ -154,6 +166,185 @@ def test_mcl_source_uses_completed_et_minutes_and_never_adopts_history() -> None
     assert source["synthetic_midcycle_entry_authority"] == "none"
 
 
+@pytest.mark.parametrize(
+    ("observed_at", "prior_at"),
+    (
+        (
+            datetime(2026, 8, 4, 22, 0, 10, tzinfo=timezone.utc),
+            datetime(2026, 8, 4, 20, 59, tzinfo=timezone.utc),
+        ),
+        (
+            datetime(2026, 8, 9, 22, 0, 10, tzinfo=timezone.utc),
+            datetime(2026, 8, 7, 20, 59, tzinfo=timezone.utc),
+        ),
+        (
+            datetime(2026, 3, 8, 22, 0, 10, tzinfo=timezone.utc),
+            datetime(2026, 3, 6, 21, 59, tzinfo=timezone.utc),
+        ),
+        (
+            datetime(2026, 11, 1, 23, 0, 10, tzinfo=timezone.utc),
+            datetime(2026, 10, 30, 20, 59, tzinfo=timezone.utc),
+        ),
+    ),
+)
+def test_mcl_reopen_reuses_only_the_exact_prior_close_for_reconciliation(
+    tmp_path: Path, observed_at: datetime, prior_at: datetime
+) -> None:
+    selected = _selection()
+    ledger = LiveCalibrationLedger(tmp_path / "mcl.jsonl")
+    saved = persist_mcl_source_checkpoint(
+        ledger,
+        selection=selected,
+        source={
+            "schema": "mcl.two-speed-auction-finalized-source-snapshot.v1",
+            "strategy_version": selected["strategy_version"],
+            "contract_month": str(selected["contracts"]["MCL"]["expiry"])[:6],
+            "latest_common_close_utc": prior_at.isoformat(),
+            "target": None,
+            "submitted_orders": 0,
+        },
+        observed_at=prior_at + timedelta(seconds=10),
+    )
+
+    class Client:
+        async def historical_bars_ohlcv(self, *_args, **_kwargs):
+            raise AssertionError("exact reopen reconciliation requested history")
+
+    source, authority = asyncio.run(
+        refresh_mcl_live_source(
+            ledger,
+            client=Client(),
+            selection=selected,
+            observed_at=observed_at,
+        )
+    )
+
+    assert source["checkpoint_id"] == saved["checkpoint_id"]
+    assert authority == MCL_LIVE_SOURCE_AUTHORITY_REOPEN
+    assert len(tuple(ledger.records())) == 1
+
+
+@pytest.mark.parametrize(
+    ("observed_at", "prior_at"),
+    (
+        (
+            datetime(2026, 8, 4, 22, 0, 10, tzinfo=timezone.utc),
+            datetime(2026, 8, 4, 20, 58, tzinfo=timezone.utc),
+        ),
+        (
+            datetime(2026, 8, 4, 22, 1, 10, tzinfo=timezone.utc),
+            datetime(2026, 8, 4, 20, 59, tzinfo=timezone.utc),
+        ),
+        (
+            datetime(2026, 8, 7, 22, 0, 10, tzinfo=timezone.utc),
+            datetime(2026, 8, 7, 20, 59, tzinfo=timezone.utc),
+        ),
+    ),
+)
+def test_mcl_reopen_never_generalizes_to_an_adjacent_or_closed_boundary(
+    tmp_path: Path, observed_at: datetime, prior_at: datetime
+) -> None:
+    selected = _selection()
+    ledger = LiveCalibrationLedger(tmp_path / "mcl.jsonl")
+    persist_mcl_source_checkpoint(
+        ledger,
+        selection=selected,
+        source={
+            "schema": "mcl.two-speed-auction-finalized-source-snapshot.v1",
+            "strategy_version": selected["strategy_version"],
+            "contract_month": str(selected["contracts"]["MCL"]["expiry"])[:6],
+            "latest_common_close_utc": prior_at.isoformat(),
+            "target": None,
+            "submitted_orders": 0,
+        },
+        observed_at=prior_at + timedelta(seconds=10),
+    )
+
+    class Client:
+        async def historical_bars_ohlcv(self, *_args, **_kwargs):
+            raise RuntimeError("strict history requested")
+
+    with pytest.raises(RuntimeError, match="strict history requested"):
+        asyncio.run(
+            refresh_mcl_live_source(
+                ledger,
+                client=Client(),
+                selection=selected,
+                observed_at=observed_at,
+            )
+        )
+
+
+def test_mcl_reopen_advance_emits_the_required_reconciliation_state(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from tradebot.research import mcl_live as runtime
+
+    selected = _selection()
+    ledger = LiveCalibrationLedger(tmp_path / "mcl.jsonl")
+    prior = datetime(2026, 8, 4, 20, 59, tzinfo=timezone.utc)
+    observed = datetime(2026, 8, 4, 22, 0, 10, tzinfo=timezone.utc)
+    persist_mcl_source_checkpoint(
+        ledger,
+        selection=selected,
+        source={
+            "schema": "mcl.two-speed-auction-finalized-source-snapshot.v1",
+            "strategy_version": selected["strategy_version"],
+            "contract_month": str(selected["contracts"]["MCL"]["expiry"])[:6],
+            "latest_common_close_utc": prior.isoformat(),
+            "target": None,
+            "submitted_orders": 0,
+        },
+        observed_at=prior + timedelta(seconds=10),
+    )
+
+    async def broker(*_args, **_kwargs):
+        return {
+            **selected["broker_at_selection"],
+            "positions": [],
+            "open_orders": [],
+        }
+
+    async def quote(*_args, **_kwargs):
+        return object(), {
+            "bid": 75.0,
+            "ask": 75.01,
+            "last": 75.0,
+            "close": 75.0,
+            "age_seconds": 0.1,
+            "market_data_type": 1,
+            "health": {"eligible": True},
+        }
+
+    class Client:
+        async def historical_bars_ohlcv(self, *_args, **_kwargs):
+            raise AssertionError("reopen reconciliation requested history")
+
+    monkeypatch.setattr(runtime, "broker_account_snapshot", broker)
+    monkeypatch.setattr(runtime, "_live_quote", quote)
+    result = asyncio.run(
+        advance_mcl_live_transport(
+            ledger,
+            client=Client(),
+            selection=selected,
+            capital_plan={},
+            selection_file_sha256="a" * 64,
+            observed_at=observed,
+        )
+    )
+    records = tuple(ledger.records())
+    state = records[-1]
+
+    assert result["status"] == "HOLD"
+    assert result["plan"]["reason"] == "maintenance_reopen_reconciliation_only"
+    assert result["plan"]["source_authority"] == MCL_LIVE_SOURCE_AUTHORITY_REOPEN
+    assert result["plan"]["leg"] is None
+    assert result["submitted_orders"] == 0
+    assert state["evaluation_as_of_utc"] == observed.isoformat()
+    assert state["evidence"]["phase"] == "STATE"
+    assert state["evidence"]["risk_state"]["position_from_fills"] == 0
+
+
 def _source_checkpoint(
     selected, *, event_at: datetime, event_id: str, owner: str = "v18"
 ):
@@ -192,6 +383,7 @@ def test_mcl_plan_waits_for_next_minute_and_consumes_each_admission_once() -> No
     early = project_mcl_transport_plan(
         selection=selected,
         source_checkpoint=source,
+        source_authority=MCL_LIVE_SOURCE_AUTHORITY_FRESH,
         broker_position=0,
         risk_state=risk,
         consumed_admissions=set(),
@@ -200,6 +392,7 @@ def test_mcl_plan_waits_for_next_minute_and_consumes_each_admission_once() -> No
     fresh = project_mcl_transport_plan(
         selection=selected,
         source_checkpoint=source,
+        source_authority=MCL_LIVE_SOURCE_AUTHORITY_FRESH,
         broker_position=0,
         risk_state=risk,
         consumed_admissions=set(),
@@ -208,6 +401,7 @@ def test_mcl_plan_waits_for_next_minute_and_consumes_each_admission_once() -> No
     consumed = project_mcl_transport_plan(
         selection=selected,
         source_checkpoint=source,
+        source_authority=MCL_LIVE_SOURCE_AUTHORITY_FRESH,
         broker_position=0,
         risk_state=risk,
         consumed_admissions={event_id},
@@ -228,6 +422,71 @@ def test_mcl_plan_waits_for_next_minute_and_consumes_each_admission_once() -> No
     assert consumed["reason"] == "admission_already_consumed"
 
 
+def test_mcl_reopen_authority_blocks_entry_but_preserves_incumbent_reduction() -> None:
+    selected = _selection()
+    event_at = datetime.fromisoformat(selected["selected_at_utc"]) + timedelta(
+        minutes=5
+    )
+    event_id = "8" * 64
+    source = _source_checkpoint(
+        selected, event_at=event_at, event_id=event_id, owner="shock"
+    )
+    source["evidence"]["target"]["route"] = "shock_continuation"
+    now = event_at + timedelta(minutes=1, seconds=5)
+
+    fresh = project_mcl_transport_plan(
+        selection=selected,
+        source_checkpoint=source,
+        source_authority=MCL_LIVE_SOURCE_AUTHORITY_FRESH,
+        broker_position=0,
+        risk_state={"safety_breaches": []},
+        consumed_admissions=set(),
+        observed_at=now,
+    )
+    blocked = project_mcl_transport_plan(
+        selection=selected,
+        source_checkpoint=source,
+        source_authority=MCL_LIVE_SOURCE_AUTHORITY_REOPEN,
+        broker_position=0,
+        risk_state={"safety_breaches": []},
+        consumed_admissions=set(),
+        observed_at=now,
+    )
+    reduced = project_mcl_transport_plan(
+        selection=selected,
+        source_checkpoint=source,
+        source_authority=MCL_LIVE_SOURCE_AUTHORITY_REOPEN,
+        broker_position=1,
+        risk_state={
+            "safety_breaches": ["raw_loss_cap"],
+            "admission_event_id": event_id,
+        },
+        consumed_admissions=set(),
+        observed_at=now,
+    )
+    retained = project_mcl_transport_plan(
+        selection=selected,
+        source_checkpoint=source,
+        source_authority=MCL_LIVE_SOURCE_AUTHORITY_REOPEN,
+        broker_position=1,
+        risk_state={"safety_breaches": [], "admission_event_id": event_id},
+        consumed_admissions=set(),
+        observed_at=now,
+    )
+
+    assert fresh["reason"] == "fresh_source_admission"
+    assert fresh["status"] == "ACTIONABLE"
+    assert blocked["reason"] == "maintenance_reopen_entry_locked"
+    assert blocked["source_authority"] == MCL_LIVE_SOURCE_AUTHORITY_REOPEN
+    assert blocked["leg"] is None
+    assert blocked["transition_id"] != fresh["transition_id"]
+    assert reduced["reason"] == "raw_loss_cap"
+    assert reduced["leg"]["action"] == "SELL"
+    assert reduced["leg"]["chase_mode"] == "RELENTLESS"
+    assert retained["reason"] == "target_already_owned"
+    assert retained["leg"] is None
+
+
 def test_mcl_shock_entry_uses_accelerated_limit_ladder_and_friday_lock() -> None:
     selected = _selection()
     event_at = datetime.fromisoformat(selected["selected_at_utc"]) + timedelta(minutes=5)
@@ -239,6 +498,7 @@ def test_mcl_shock_entry_uses_accelerated_limit_ladder_and_friday_lock() -> None
     active = project_mcl_transport_plan(
         selection=selected,
         source_checkpoint=source,
+        source_authority=MCL_LIVE_SOURCE_AUTHORITY_FRESH,
         broker_position=0,
         risk_state=risk,
         consumed_admissions=set(),
@@ -247,6 +507,7 @@ def test_mcl_shock_entry_uses_accelerated_limit_ladder_and_friday_lock() -> None
     locked = project_mcl_transport_plan(
         selection=selected,
         source_checkpoint=source,
+        source_authority=MCL_LIVE_SOURCE_AUTHORITY_FRESH,
         broker_position=0,
         risk_state=risk,
         consumed_admissions=set(),
@@ -272,6 +533,7 @@ def test_mcl_same_direction_cannot_inherit_a_new_admission_across_restart() -> N
     retained = project_mcl_transport_plan(
         selection=selected,
         source_checkpoint=source,
+        source_authority=MCL_LIVE_SOURCE_AUTHORITY_FRESH,
         broker_position=1,
         risk_state={"safety_breaches": [], "admission_event_id": "6" * 64},
         consumed_admissions=set(),
@@ -280,6 +542,7 @@ def test_mcl_same_direction_cannot_inherit_a_new_admission_across_restart() -> N
     replaced = project_mcl_transport_plan(
         selection=selected,
         source_checkpoint=source,
+        source_authority=MCL_LIVE_SOURCE_AUTHORITY_FRESH,
         broker_position=1,
         risk_state={"safety_breaches": [], "admission_event_id": "7" * 64},
         consumed_admissions=set(),

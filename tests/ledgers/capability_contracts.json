@@ -261,6 +261,8 @@
       ],
       "owner_surface": [
         "deploy/systemd/tradebot-mcl-predictive-onset.service",
+        "deploy/systemd/tradebot-mcl-predictive-onset-runtime.service",
+        "deploy/systemd/tradebot-mcl-predictive-onset-runtime.timer",
         "deploy/systemd/tradebot-mcl-predictive-onset-stage114.service",
         "deploy/systemd/tradebot-mcl-predictive-onset-stage114.timer",
         "deploy/systemd/tradebot-mcl-predictive-onset.timer",
@@ -279,6 +281,7 @@
         "tradebot/research/mcl_shock_crest.py",
         "tradebot/research/mcl_shock_evidence.py",
         "tradebot/research/mcl_shock_wave_accumulator.py",
+        "tradebot/research/mcl_shock_wave_generation.py",
         "tradebot/research/mcl_shock_waves.py",
         "tradebot/research/mcl_two_speed_auction.py",
         "tradebot/spot_engine.py"
@@ -715,6 +718,7 @@
         "tradebot/research/live_graduation.py",
         "tradebot/research/mcl_live.py",
         "tradebot/research/mcl_live_cli.py",
+        "tradebot/research/mcl_live_reopen.py",
         "tradebot/research/mcl_live_transport.py",
         "tradebot/research/mcl_profitability.py",
         "tradebot/research/xsp_capital_stability.py",

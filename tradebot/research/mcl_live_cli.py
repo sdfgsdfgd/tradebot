@@ -31,6 +31,7 @@ from .live_portfolio_packages import build_xsp_gold_mcl_portfolio_package_plan
 from .mcl_live import (
     advance_mcl_live_transport,
 )
+from .mcl_live_reopen import bind_mcl_maintenance_reopen_selection
 from .mcl_live_transport import (
     MCL_LIVE_CAPITAL_SLEEVE,
     MCL_LIVE_EXECUTION_VERSION,
@@ -50,6 +51,14 @@ from .mcl_predictive_generation import (
 from .mcl_profitability import (
     mcl_live_graduation_inputs,
     mcl_live_profitability_receipt,
+)
+from .mcl_shock_wave_accumulator import (
+    MCL_SHOCK_WAVE_LEDGER_PATH,
+    mcl_shock_wave_episodes,
+)
+from .mcl_shock_wave_generation import (
+    build_mcl_shock_wave_successor_generation,
+    publish_mcl_shock_wave_generation,
 )
 from .gold_live_transport import GOLD_LIVE_CAPITAL_SLEEVE
 from .xsp_live_transport import XSP_V3_TRANSPORT_CAPITAL_SLEEVE
@@ -79,10 +88,13 @@ async def _commission(
     preview = await capture_mcl_commissioning_preview(
         client, repository_root=repository_root, observed_at=now
     )
-    selected = build_mcl_live_selection(
+    selected = bind_mcl_maintenance_reopen_selection(
+        build_mcl_live_selection(
+            repository_root=repository_root,
+            preview=preview,
+            selected_at=datetime.now(timezone.utc),
+        ),
         repository_root=repository_root,
-        preview=preview,
-        selected_at=datetime.now(timezone.utc),
     )
     mcl_path, mcl_sha = publish_immutable_live_selection(repository_root, selected)
     predictive_records = tuple(
@@ -142,6 +154,26 @@ async def _commission(
     generation_path, generation_sha = publish_portfolio_package_generation(
         repository_root, plan
     )
+    wave_episodes = mcl_shock_wave_episodes(
+        tuple(LiveCalibrationLedger(MCL_SHOCK_WAVE_LEDGER_PATH).records())
+    )
+    wave = build_mcl_shock_wave_successor_generation(
+        repository_root=repository_root,
+        selected=selected,
+        selection_path=mcl_path,
+        selection_file_sha256=mcl_sha,
+        capital_plan_id=str(plan["plan_id"]),
+        portfolio_generation_path=generation_path,
+        portfolio_generation_sha256=generation_sha,
+        predictive=predictive,
+        predictive_path=predictive_path,
+        predictive_file_sha256=predictive_sha,
+        inherited_episode_ids=[str(row["episode_id"]) for row in wave_episodes],
+        generated_at=datetime.now(timezone.utc),
+    )
+    wave_path, wave_sha = publish_mcl_shock_wave_generation(
+        repository_root, wave
+    )
     stability_path, stability_sha = publish_portfolio_capital_owner_stability(
         repository_root,
         generation_path=generation_path,
@@ -168,6 +200,12 @@ async def _commission(
         "predictive_generation_sha256": predictive_sha,
         "predictive_inherited_treatments": predictive["inherited_prefix"][
             "treatment_count"
+        ],
+        "shock_wave_generation_id": wave["generation_id"],
+        "shock_wave_generation_path": wave_path,
+        "shock_wave_generation_sha256": wave_sha,
+        "shock_wave_inherited_episodes": wave["inherited_prefix"][
+            "episode_count"
         ],
         "supersedes_plan_id": predecessor["plan_id"],
         "preview_fingerprint": selected["allocation_successor"][

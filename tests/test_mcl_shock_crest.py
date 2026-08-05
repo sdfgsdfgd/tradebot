@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
@@ -42,6 +43,11 @@ from tradebot.research.mcl_shock_wave_accumulator import (
     mcl_shock_wave_cohort,
     replay_mcl_shock_wave_episodes,
 )
+from tradebot.research.mcl_shock_wave_generation import (
+    build_mcl_shock_wave_successor_generation,
+    validate_mcl_shock_wave_successor_generation,
+)
+from tradebot.research.mcl_shock_arbiter import MCL_TWO_SPEED_SHOCK_VERSION
 from tradebot.research.mcl_minute_shock import MclMinuteShockEngine, MclShockMinute
 
 
@@ -703,6 +709,71 @@ def test_stage114_generation_owns_one_successor_observer_service() -> None:
     assert "-m tradebot.research.mcl_shock_accumulator" not in service
     assert "MCL_SHOCK_WAVE_LEDGER=" in service
     assert "Unit=tradebot-mcl-predictive-onset-stage114.service" in timer
+
+
+def test_stage114_runtime_successor_preserves_law_and_inherits_identity() -> None:
+    root = Path(__file__).resolve().parents[1]
+    artifact = "backtests/mcl/mcl_v18_shock_stage112_live_source_shadow.json"
+    digest = hashlib.sha256((root / artifact).read_bytes()).hexdigest()
+    selected = {
+        "selection_id": "1" * 64,
+        "strategy_version": MCL_TWO_SPEED_SHOCK_VERSION,
+        "authority": "selected_live_bounded_canary",
+        "selected_at_utc": "2026-08-05T10:00:00+00:00",
+    }
+    predictive = {
+        "generation_id": "2" * 64,
+        "selection_id": selected["selection_id"],
+        "strategy_version": MCL_TWO_SPEED_SHOCK_VERSION,
+    }
+    generation = build_mcl_shock_wave_successor_generation(
+        repository_root=root,
+        selected=selected,
+        selection_path=artifact,
+        selection_file_sha256=digest,
+        capital_plan_id="3" * 64,
+        portfolio_generation_path=artifact,
+        portfolio_generation_sha256=digest,
+        predictive=predictive,
+        predictive_path=artifact,
+        predictive_file_sha256=digest,
+        inherited_episode_ids=["4" * 64, "5" * 64],
+        generated_at=datetime(2026, 8, 5, 10, 1, tzinfo=timezone.utc),
+    )
+
+    validated = validate_mcl_shock_wave_successor_generation(
+        generation, repository_root=root
+    )
+    predecessor = load_mcl_shock_wave_generation(MCL_SHOCK_WAVE_GENERATION_PATH)
+
+    assert validated["state_law"] == predecessor["state_law"]
+    assert validated["episode_law"] == predecessor["episode_law"]
+    assert validated["cohort_gate"] == predecessor["cohort_gate"]
+    assert validated["selection_id"] == selected["selection_id"]
+    assert validated["predictive_generation_id"] == predictive["generation_id"]
+    assert validated["inherited_prefix"]["episode_count"] == 2
+    assert validated["registered_at_utc"] == validated["eligible_start_utc"]
+    assert validated["outcomes_exposed"] is False
+    assert validated["submitted_orders"] == 0
+
+
+def test_stage114_runtime_service_uses_one_validated_generation_pointer() -> None:
+    root = Path(__file__).resolve().parents[1]
+    service = (
+        root / "deploy/systemd/tradebot-mcl-predictive-onset-runtime.service"
+    ).read_text()
+    timer = (
+        root / "deploy/systemd/tradebot-mcl-predictive-onset-runtime.timer"
+    ).read_text()
+
+    assert service.count("ExecStart=") == 2
+    assert service.count("ExecStartPre=") == 1
+    assert service.count("db/calibration/mcl_shock_wave_generation.json") == 3
+    assert "mcl_authority_bound_shock_waves_stage114_preregistration" not in service
+    assert "-m tradebot.research.mcl_predictive_accumulator" in service
+    assert "-m tradebot.research.mcl_shock_wave_accumulator" in service
+    assert "IBKR_READONLY=1" in service
+    assert "Unit=tradebot-mcl-predictive-onset-runtime.service" in timer
 
 
 def _reset_bars(stamps: tuple[datetime, ...]) -> dict[str, dict[datetime, OhlcvBar]]:
