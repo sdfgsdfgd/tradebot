@@ -18,6 +18,7 @@ from ..live.execution import LiveOrderExecution, order_ids
 from ..live.order_evidence import (
     broker_trade_snapshot,
     execution_price_for_ticker,
+    tiered_us_stock_commission_ceiling,
     terminal_broker_snapshot_complete,
 )
 from .live_calibration import LiveCalibrationLedger, calibration_fingerprint
@@ -32,6 +33,7 @@ from .xsp_live_transport import (
     XSP_V2_TRANSPORT_PLAN_SCHEMA,
     XSP_V2_TRANSPORT_SELECTION_SCHEMA,
     XSP_V3_IMMEDIATE_PROCEEDS_SETTLEMENT,
+    XSP_V3_PACKAGE_SELECTION_SCHEMA,
     XSP_V3_TRANSPORT_EXECUTION_SCHEMA,
     XSP_V3_TRANSPORT_EXECUTION_VERSION,
     XSP_V3_TRANSPORT_PLAN_SCHEMA,
@@ -328,12 +330,27 @@ async def execute_xsp_transport_plan(
         nominee = selected["nominee"]
         assert isinstance(nominee, Mapping)
         commission_limits = nominee.get("commission_limits_usd")
+        if selected["schema"] == XSP_V3_PACKAGE_SELECTION_SCHEMA:
+            commission_limit = tiered_us_stock_commission_ceiling(quantity)
+            if not math.isclose(
+                float(leg.get("commission_limit_usd", float("nan"))),
+                commission_limit,
+                abs_tol=1e-12,
+            ):
+                raise ValueError("package plan commission identity drifted")
+        else:
+            commission_limit = (
+                float(commission_limits[symbol])
+                if isinstance(commission_limits, Mapping)
+                else float("nan")
+            )
         if (
             not commission_values
             or str(preview.commission_currency or "").upper() != "USD"
-            or not isinstance(commission_limits, Mapping)
+            or not math.isfinite(commission_limit)
+            or commission_limit <= 0
             or max(float(value) for value in commission_values)
-            > float(commission_limits[symbol]) + 0.01
+            > commission_limit + 0.01
         ):
             raise ValueError("fresh broker preview exceeds selected commission")
         if prior is None:

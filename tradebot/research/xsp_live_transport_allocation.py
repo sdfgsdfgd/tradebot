@@ -14,6 +14,7 @@ from pathlib import Path
 from ib_insync import Stock
 
 from ..backtest.quotes import contract_from_ticker
+from ..live.order_evidence import tiered_us_stock_commission_ceiling
 from .live_calibration import calibration_fingerprint
 from .xsp_live_transport import (
     XSP_V2_TRANSPORT_ORDER_AUTHORITY,
@@ -35,7 +36,6 @@ from .xsp_live_transport_state import xsp_v2_broker_snapshot
 from .xsp_live_transport_v3 import (
     _IMMEDIATE_PROCEEDS_SHA256,
     _sha256_identity,
-    _tiered_commission_limit,
     load_xsp_v3_transport_selection_from_mapping,
 )
 from .xsp_opening_edge_v3 import (
@@ -111,7 +111,7 @@ def _package_cell(
 def xsp_package_cash_debit_usd_cents(notional_usd: int) -> int:
     """Reserve fixed purchase notional plus the crown's global fee ceiling."""
 
-    commission_cents = math.ceil(_tiered_commission_limit(24) * 100)
+    commission_cents = math.ceil(tiered_us_stock_commission_ceiling(24) * 100)
     return notional_usd * 100 + commission_cents
 
 
@@ -305,7 +305,7 @@ def _preview_nominee(
         bid = _number(book.get("bid"), name=f"{symbol} bid") if isinstance(book, Mapping) else 0
         ask = _number(book.get("ask"), name=f"{symbol} ask") if isinstance(book, Mapping) else 0
         quantity = order.get("quantity") if isinstance(order, Mapping) else None
-        limit = _tiered_commission_limit(int(bounds[1]))
+        limit = tiered_us_stock_commission_ceiling(int(bounds[1]))
         observed_commission = max(
             (
                 _number(value, name=f"{symbol} commission")
@@ -529,7 +529,7 @@ def load_xsp_v3_package_selection_from_mapping(
             )
             and commissions
             == {
-                symbol: _tiered_commission_limit(int(ranges[symbol][1]))
+                symbol: tiered_us_stock_commission_ceiling(int(ranges[symbol][1]))
                 for symbol in _V3_SYMBOLS
             }
             and all(

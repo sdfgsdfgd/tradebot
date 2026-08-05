@@ -12,6 +12,7 @@ from pathlib import Path
 
 from ..engines.execution import execution_policy_contract
 from ..engines.market import equity_rth_close_time_et, xsp_session_label_et
+from ..live.order_evidence import tiered_us_stock_commission_ceiling
 from ..time_utils import ET_ZONE
 from .live_calibration import calibration_fingerprint
 from .xsp_execution_observer import xsp_v2_position_state
@@ -26,9 +27,7 @@ XSP_V3_PACKAGE_SELECTION_SCHEMA = "xsp.opening-edge-v3-upro-spxu-selected-run.v3
 XSP_V3_TRANSPORT_PLAN_SCHEMA = "xsp.opening-edge-v3-upro-spxu-transport-plan.v1"
 XSP_V2_TRANSPORT_ORDER_AUTHORITY = "rth_cash_pair_limit_only"
 XSP_V2_TRANSPORT_EXECUTION_VERSION = "xsp.opening-edge-v2-spyu-spxu-live-execution.v1"
-XSP_V2_TRANSPORT_EXECUTION_SCHEMA = (
-    "xsp.opening-edge-v2-spyu-spxu-execution-checkpoint.v1"
-)
+XSP_V2_TRANSPORT_EXECUTION_SCHEMA = "xsp.opening-edge-v2-spyu-spxu-execution-checkpoint.v1"
 XSP_V3_TRANSPORT_EXECUTION_VERSION = "xsp.opening-edge-v3-upro-spxu-live-execution.v1"
 XSP_V3_TRANSPORT_EXECUTION_SCHEMA = (
     "xsp.opening-edge-v3-upro-spxu-execution-checkpoint.v1"
@@ -55,6 +54,7 @@ _NAV_MAX_AGE_SECONDS = 30.0
 _STARTING_CASH_IDENTITY_USD = 1_350.0
 _FIXED_NOTIONALS_USD = frozenset({1_050.0, 1_150.0, 1_200.0})
 _POSITION_STATE_FIELDS = ("lane", "direction", "entry_time", "trading_date", "entry_price")
+
 
 def _execution_contract() -> dict[str, object]:
     return {
@@ -844,6 +844,15 @@ def project_xsp_transport_plan(
             raise ValueError("actionable transport has no causal signal context")
         symbol = held[0]
         bid, ask = _fresh_quote(quotes.get(symbol), symbol=symbol)
+        leg = {
+            "action": "SELL", "symbol": symbol, "quantity": holdings[symbol],
+            "initial_mode": "OPTIMISTIC", "chase_mode": "AUTO",
+            "outside_rth": not equity_rth_open, "bid": bid, "ask": ask,
+        }
+        if selected["schema"] == XSP_V3_PACKAGE_SELECTION_SCHEMA:
+            leg["commission_limit_usd"] = tiered_us_stock_commission_ceiling(
+                holdings[symbol]
+            )
         return {
             **base,
             "status": "ACTIONABLE",
@@ -852,16 +861,7 @@ def project_xsp_transport_plan(
                 if not entry_window_open
                 else "sell_incumbent_before_target"
             ),
-            "leg": {
-                "action": "SELL",
-                "symbol": symbol,
-                "quantity": holdings[symbol],
-                "initial_mode": "OPTIMISTIC",
-                "chase_mode": "AUTO",
-                "outside_rth": not equity_rth_open,
-                "bid": bid,
-                "ask": ask,
-            },
+            "leg": leg,
         }
     if held or target_symbol is None:
         return {
@@ -928,15 +928,15 @@ def project_xsp_transport_plan(
     if not isinstance(ranges, Mapping) or not isinstance(commissions, Mapping):
         raise ValueError("selected quantity or commission identity is missing")
     bounds = ranges[target_symbol]
-    if (
-        not isinstance(bounds, list)
-        or len(bounds) != 2
-        or not int(bounds[0]) <= quantity <= int(bounds[1])
-    ):
+    if not isinstance(bounds, list) or len(bounds) != 2:
+        raise ValueError("selected quantity identity is invalid")
+    package = selected["schema"] == XSP_V3_PACKAGE_SELECTION_SCHEMA
+    if not package and not int(bounds[0]) <= quantity <= int(bounds[1]):
         raise ValueError("quote-derived quantity left its historical range")
-    commission = _number(
-        commissions[target_symbol],
-        name=f"{target_symbol} commission limit",
+    commission = (
+        tiered_us_stock_commission_ceiling(quantity)
+        if package
+        else _number(commissions[target_symbol], name=f"{target_symbol} commission limit")
     )
     required_cash = quantity * ask + commission
     if _number(settled_cash_usd, name="settled cash") < required_cash:
@@ -978,6 +978,7 @@ def project_xsp_transport_plan(
             "bid": bid,
             "ask": ask,
             "fixed_entry_notional_usd": notional,
+            "commission_limit_usd": commission,
             "required_settled_cash_usd": required_cash,
             "spyu_nav_divergence": divergence,
         },

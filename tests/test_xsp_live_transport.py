@@ -1145,7 +1145,7 @@ def test_v3_selection_requires_explicit_rth_scope_and_binds_tiered_identity(
 def test_v3_package_successor_freezes_the_allocated_notional_and_clean_run(
     tmp_path: Path,
 ) -> None:
-    predecessor, _inherited, _source = _v3_rotation_selection(tmp_path)
+    predecessor, _inherited, _seed_source = _v3_rotation_selection(tmp_path)
     sold_at = SELECTED_AT + timedelta(minutes=16)
     selected_at = SELECTED_AT + timedelta(minutes=20)
     terminal_sale = {
@@ -1253,6 +1253,39 @@ def test_v3_package_successor_freezes_the_allocated_notional_and_clean_run(
         predecessor["selection_id"]
     )
     assert load_xsp_v3_transport_selection_from_mapping(selected) == selected
+
+    # Historical share counts describe the replay, but fixed notional owns live
+    # exposure. A lower ETF price must not turn a valid $800 target into a crash.
+    observed_at = selected_at + timedelta(minutes=4)
+    source = _source(
+        _position("down", entry_time=selected_at + timedelta(minutes=1)),
+        recorded_at=observed_at - timedelta(seconds=30),
+        checkpoint="package-lower-price",
+    )
+    plan = project_xsp_transport_plan(
+        selection=selected,
+        source_receipt=source,
+        observed_at=observed_at,
+        positions={"UPRO": 0, "SPXU": 0},
+        open_orders=[],
+        settled_cash_usd=1_187.8,
+        quotes={
+            "SPXU": {
+                "bid": 34.68,
+                "ask": 34.69,
+                "age_seconds": 0.5,
+                "market_data_type": 1,
+            }
+        },
+    )
+    assert selected["nominee"]["historical_quantity_ranges"]["SPXU"] == [3, 22]
+    assert plan["status"] == "ACTIONABLE"
+    assert plan["leg"]["quantity"] == 23
+    assert plan["leg"]["fixed_entry_notional_usd"] == 800.0
+    assert plan["leg"]["required_settled_cash_usd"] < 800.46
+    assert plan["leg"]["commission_limit_usd"] > selected["nominee"][
+        "commission_limits_usd"
+    ]["SPXU"]
 
     tampered = deepcopy(selected)
     tampered["nominee"]["fixed_entry_notional_usd"] = 850.0

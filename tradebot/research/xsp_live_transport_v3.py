@@ -10,6 +10,7 @@ from datetime import date, datetime
 from pathlib import Path
 
 from ..engines.market import xsp_trading_date
+from ..live.order_evidence import tiered_us_stock_commission_ceiling
 from .live_calibration import (
     SELECTED_CASH_EQUITY_SCHEMA,
     XspProfitabilityPolicy,
@@ -67,17 +68,6 @@ _RESET_SCHEMA = "xsp.opening-edge-v3-flat-reset.v1"
 def _sha256_identity(value: object) -> bool:
     text = str(value or "")
     return len(text) == 64 and all(character in "0123456789abcdef" for character in text)
-
-
-def _tiered_commission_limit(quantity: int) -> float:
-    # Selection must cover the dearer sell side, including SEC and TAF.
-    base = max(0.35, quantity * 0.0035)
-    return (
-        base
-        + quantity * (0.003 + 0.00020 + 0.000003 + 0.000195)
-        + base * (0.000175 + 0.00056)
-        + 900.0 * 0.0000206
-    )
 
 
 def _validated_nominee(
@@ -207,7 +197,7 @@ def _validated_nominee(
         preview_quantities[symbol] = quantity
         contract_ids[symbol] = int(contract["con_id"])
     commission_limits = {
-        symbol: _tiered_commission_limit(int(ranges[symbol][1]))
+        symbol: tiered_us_stock_commission_ceiling(int(ranges[symbol][1]))
         for symbol in _V3_SYMBOLS
     }
     return {
@@ -596,7 +586,7 @@ def _load_xsp_v3_initial_selection_from_mapping(
             and ranges == {"UPRO": [6, 24], "SPXU": [3, 24]}
             and commissions
             == {
-                symbol: _tiered_commission_limit(24)
+                symbol: tiered_us_stock_commission_ceiling(24)
                 for symbol in _V3_SYMBOLS
             }
             and set(contract_ids) == set(_V3_SYMBOLS)
@@ -857,7 +847,7 @@ def _load_xsp_v3_rotation_selection_from_mapping(
             and ranges == {"UPRO": [6, 24], "SPXU": [3, 24]}
             and commissions
             == {
-                symbol: _tiered_commission_limit(24)
+                symbol: tiered_us_stock_commission_ceiling(24)
                 for symbol in _V3_SYMBOLS
             }
             and set(contract_ids) == set(_V3_SYMBOLS)

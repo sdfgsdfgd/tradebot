@@ -18,6 +18,15 @@ from .capital import validate_live_capital_decision
 from .execution import LiveOrderExecution, order_ids
 
 
+def tiered_us_stock_commission_ceiling(quantity: int) -> float:
+    """Return the conservative IBKR tiered all-in ceiling for one stock leg."""
+
+    if not isinstance(quantity, int) or isinstance(quantity, bool) or quantity <= 0:
+        raise ValueError("stock commission quantity must be a positive integer")
+    base = max(0.35, quantity * 0.0035)
+    return base + quantity * 0.003398 + base * 0.000735 + 900.0 * 0.0000206
+
+
 def _evidence_sha256(value: object) -> str:
     return hashlib.sha256(
         json.dumps(
