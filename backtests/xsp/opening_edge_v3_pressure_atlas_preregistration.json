@@ -1,0 +1,121 @@
+{
+  "schema": "xsp.opening-edge-v3-pressure-morphology-atlas-preregistration.v1",
+  "registered_at_utc": "2026-08-05T23:12:06Z",
+  "eligible_start_utc": "2026-08-06T13:20:00Z",
+  "authority": "prospective_count_and_morphology_only_no_outcomes_no_permission_no_orders_no_capital",
+  "quest": "XSP Freshness and Pressure On-ramp outcome-blind multiscale atlas",
+  "incumbent": {
+    "strategy_version": "xsp.opening-edge-v3-regime-harmony-24x5.v1",
+    "selection_id": "1083c1813e6b0ca4cf5777a5275e06be651622bc6e6207e718b549296a9bdd87",
+    "selection_sha256": "d5f616e43adb26f06534fbaa0c513358b70078a9755f3a9ecdcd81dc9cebc35d",
+    "direction_and_lifecycle_owner_unchanged": true
+  },
+  "source": {
+    "pressure_tape_generation_path": "backtests/xsp/opening_edge_v3_pressure_tape_generation.json",
+    "pressure_tape_generation_sha256": "45111626d4fc4775c52f9a00f6b70984e6971f35edcbeb111f583f4814160eab",
+    "formation": "exactly 60 contiguous, content-addressed, eligible, valid, standard-L1 RTH seconds ending at the crowned signal-bar close",
+    "partial_window_policy": "reject",
+    "cross_generation_policy": "reject",
+    "invalid_or_stale_policy": "reject",
+    "preeligible_policy": "reject"
+  },
+  "hypothesis": "The topology of SPY cash discovery, leverage-normalized UPRO/inverse-SPXU transport response, liquidity pressure, volatility/volume acceleration, and existing slower XSP context may distinguish authentic fresh pressure, cresting pressure, cross-book refusal, and reconvergence without changing the crowned direction.",
+  "seconds_clocks": {
+    "formation_seconds": 60,
+    "horizons_seconds": [
+      1,
+      3,
+      5,
+      10,
+      15,
+      30,
+      45
+    ],
+    "price_law": "For each horizon h and each direction-normalized book, slope(t,h)=10000*(log(mid_t)-log(mid_t-h))/h. Velocity change, acceleration, and jerk are the first, second, and third one-second finite differences of that rolling slope.",
+    "flow_law": "For true range, cumulative-volume delta, valid quote updates, spread, imbalance, and same-price size pressure, use the rolling h-second mean and its first, second, and third one-second finite differences.",
+    "inverse_law": "SPXU price, imbalance, and same-price size pressure are sign-inverted into market direction; unsigned range, volume, quote intensity, and spread are not inverted.",
+    "transport_law": "UPRO and inverse-SPXU returns are each divided by their known 3x exposure before averaging; basis is SPY cash slope minus that scaled transport slope.",
+    "basis_law": "A sign crossing is CROSSING; otherwise falling absolute basis displacement is RECONVERGING, rising absolute displacement is DIVERGING, and equality is STABLE.",
+    "no_magnitude_thresholds": true
+  },
+  "frozen_evidence_families": [
+    "midpoint and microprice slope, velocity change, acceleration, and jerk",
+    "true-range, cumulative-volume, quote-intensity, and spread velocity change, acceleration, and jerk",
+    "direction-normalized imbalance and same-price size-pressure level and velocity",
+    "SPY versus scaled UPRO/inverse-SPXU acceptance, refusal, divergence, crossing, and reconvergence",
+    "first midpoint-move leader counts and simultaneous leader signatures",
+    "full path and velocity alignment at every seconds clock",
+    "existing XSP and SPY directional-impulse return, slope, velocity, and ATR phase",
+    "existing XSP 5/10/21/42/63/84-session return, velocity, acceleration, and TR phase"
+  ],
+  "frozen_morphology_families": {
+    "ignition": [
+      "ORDERED_CASH_IGNITION",
+      "ORDERED_TRANSPORT_IGNITION",
+      "SIMULTANEOUS_OR_TIED_IGNITION",
+      "ALIGNED_PATH_WITHOUT_ALIGNED_ACCELERATION",
+      "CONFLICTED_OR_FLAT"
+    ],
+    "transport": [
+      "FULL_ACCEPTANCE",
+      "FULL_REFUSAL",
+      "PARTIAL_OR_CONFLICTED",
+      "NO_DISPLACEMENT"
+    ],
+    "basis": [
+      "DIVERGING",
+      "RECONVERGING",
+      "CROSSING",
+      "STABLE"
+    ],
+    "volatility_flow": [
+      "TR_AND_VOLUME_EXPANDING",
+      "TR_AND_VOLUME_CONTRACTING",
+      "TR_ONLY_EXPANDING",
+      "VOLUME_ONLY_EXPANDING",
+      "MIXED"
+    ],
+    "liquidity": [
+      "FULLY_SUPPORTIVE",
+      "FULLY_HOSTILE",
+      "IMBALANCE_SUPPORTIVE",
+      "IMBALANCE_HOSTILE",
+      "MIXED"
+    ],
+    "cross_scale": [
+      "ALL_CLOCKS_WITH_TARGET",
+      "ALL_CLOCKS_AGAINST_TARGET",
+      "MIXED_CLOCKS",
+      "UNDERWARMED"
+    ]
+  },
+  "selection_law": "No morphology is a winner, score, permission, veto, direction, chase mode, or capital instruction. Preserve exact family coordinates together until the unseen, direction-balanced cohort passes.",
+  "cohort_gate": {
+    "minimum_complete_crowned_targets": 30,
+    "minimum_each_crowned_direction": 10,
+    "minimum_repeated_morphologies_each_candidate_family": 5,
+    "count_and_morphology_first": true,
+    "outcomes_open": false,
+    "classifier_open": false,
+    "permission_open": false
+  },
+  "excluded": [
+    "The rejected historical broad and narrow pressure-permission policies cannot train this atlas.",
+    "The preeligible broker smoke cannot enter this atlas.",
+    "ES is excluded because the current subscription returns delayed marketDataType 3.",
+    "No exchange timestamps, depth, hidden liquidity, signed-print completeness, or tick-by-tick completeness are claimed.",
+    "No threshold grid, score optimization, outcome ranking, or winner selection is permitted before the cohort gate."
+  ],
+  "invariants": {
+    "one_raw_tape": true,
+    "new_recorder": false,
+    "new_timer": false,
+    "xsp_live_owner_unchanged": true,
+    "shared_limit_ladder_unchanged": true,
+    "shared_capital_owner_unchanged": true,
+    "mcl_stage112_unchanged": true,
+    "gold_unchanged": true,
+    "order_authority": "none",
+    "submitted_orders": 0
+  }
+}

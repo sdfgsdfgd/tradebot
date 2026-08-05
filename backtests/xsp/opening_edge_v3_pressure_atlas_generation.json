@@ -1,0 +1,38 @@
+{
+  "schema": "xsp.pressure-morphology-generation.v1",
+  "registered_at_utc": "2026-08-05T23:12:06Z",
+  "eligible_start_utc": "2026-08-06T13:20:00Z",
+  "authority": "prospective_count_and_morphology_only_no_outcomes_no_permission_no_orders_no_capital",
+  "preregistration": {
+    "path": "backtests/xsp/opening_edge_v3_pressure_atlas_preregistration.json",
+    "sha256": "be2258492aa731f680c46415b2762f7803943aa67ec44a822da101325739cb68"
+  },
+  "pressure_tape_generation": {
+    "path": "backtests/xsp/opening_edge_v3_pressure_tape_generation.json",
+    "sha256": "45111626d4fc4775c52f9a00f6b70984e6971f35edcbeb111f583f4814160eab"
+  },
+  "owner_path": "tradebot/research/xsp_pressure_atlas.py",
+  "owner_sha256": "47bb47a8378a68e3c8785f945900e7ea5f2c11a9f14421dae5fd2903526823ce",
+  "incumbent_strategy_version": "xsp.opening-edge-v3-regime-harmony-24x5.v1",
+  "selection_id": "1083c1813e6b0ca4cf5777a5275e06be651622bc6e6207e718b549296a9bdd87",
+  "formation_seconds": 60,
+  "horizons_seconds": [
+    1,
+    3,
+    5,
+    10,
+    15,
+    30,
+    45
+  ],
+  "seconds_clock": "local callback-receipt UTC seconds from the immutable standard-L1 tape",
+  "slower_clocks": [
+    "existing XSP and SPY 5-minute directional-impulse horizons",
+    "existing XSP 5/10/21/42/63/84-session daily context"
+  ],
+  "classifier": "none",
+  "outcomes_open": false,
+  "permission_open": false,
+  "order_authority": "none",
+  "submitted_orders": 0
+}
