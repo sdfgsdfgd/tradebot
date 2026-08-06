@@ -20,13 +20,56 @@ An impressive backtest can earn the first. It cannot grant the second.
 
 | Rank | Track | Crown | Identity | State |
 |---:|---|---|---|---|
-| 1 | Regime-harmonized 24/5, one `$1/XSP-point` research unit | **Opening Edge v3 — Regime Harmony 24/5** | `xsp.opening-edge-v3-regime-harmony-24x5.v1` | Frozen historical crown; SPY selector is non-submitting |
-| 2 | Balanced 24/5, one `$1/XSP-point` research unit | **Opening Edge v2 — Balanced 24/5** | `xsp.opening-edge-v2-balanced-24x5.v1` | Immutable predecessor |
-| 3 | RTH directional, one `$1/XSP-point` unit | **Opening Edge v1** | `xsp.opening-edge-directional.v1` | Immutable predecessor |
-| — | Previously selected synthetic shadow | **Opening Edge v1** | `9fac460e…` | Unchanged; v3 has not inherited its prospective evidence |
-| — | Operational/live | **Vacant** | `NO_TRADE` | Profitability clock not started; order authority `none` |
+| 1 | Dual-clock opening bridge + exact v3 lifecycle, one `$1/XSP-point` research unit | **Opening Edge v4 — P-009 Dual-Clock Arbitration** | `xsp.opening-edge-v4-dual-clock-arbitration-p009.v1` | **Research crown / bounded live canary**; fresh selection `e0f61f74…`, RTH cash authority only, graduation pending |
+| 2 | Regime-harmonized 24/5, one `$1/XSP-point` research unit | **Opening Edge v3 — Regime Harmony 24/5** | `xsp.opening-edge-v3-regime-harmony-24x5.v1` | Immutable predecessor; terminal live run preserved without evidence transfer |
+| 3 | Balanced 24/5, one `$1/XSP-point` research unit | **Opening Edge v2 — Balanced 24/5** | `xsp.opening-edge-v2-balanced-24x5.v1` | Immutable predecessor |
+| 4 | RTH directional, one `$1/XSP-point` unit | **Opening Edge v1** | `xsp.opening-edge-directional.v1` | Immutable predecessor |
+| — | Operational/live | **P-009 bounded canary** | selection `e0f61f74…`; plan `5dc25036…` | Flat, orderless, LMT/AUTO only; authentic `24h/48h/five-session` graduation pending |
 
-### #1 — Opening Edge v3 — Regime Harmony 24/5
+### #1 — Opening Edge v4 — P-009 Dual-Clock Arbitration
+
+**Crown thesis:** the opening bridge was early and independently profitable;
+the failed P-008 composition destroyed it by advancing every mature v3
+lifecycle transition onto a one-minute clock. P-009 changes only that ownership
+seam: bridge-owned flat intervals may enter on native completed opening minutes,
+while all ordinary v3 decisions/exits stay byte-exact on completed five-minute
+boundaries. Same-direction v3 takeover is an explicit handoff; opposite v3
+authority releases before reversal.
+
+| Contract | Frozen value |
+|---|---|
+| Opening bridge | Minute `5–7`, true range `>=0.50×`, volume authority `>=20×` |
+| Slow context | Existing completed `15 × 5m = 75m` front; no synthetic current slow bar |
+| Ordinary owner | Unchanged v3 completed-five-minute direction and lifecycle |
+| GTH owner | Unchanged v3 research sleeve; live cash execution remains disabled |
+| Execution | Existing shared `LMT/AUTO` ladder only |
+| Capital | Existing `first_admitter_just_in_time.v1` owner |
+| Crown artifact | `backtests/xsp/opening_edge_v4_dual_clock_arbitration_p009_crown.json` |
+| Durable parity | `backtests/xsp/opening_edge_v4_dual_clock_arbitration_p009_durable_owner_parity.json` |
+| Live commissioning | `backtests/xsp/opening_edge_v4_dual_clock_arbitration_p009_live_commissioning.json` |
+
+| Slice | Trades | Net | Stress | DD | PnL/DD | Gain vs v3 |
+|---|---:|---:|---:|---:|---:|---:|
+| Year 1 | `219` | `+68.0848` | `+46.1848` | `10.4801` | `6.4966` | `+29.39%` |
+| Year 2 | `195` | `+90.1283` | `+70.6283` | `14.0432` | `6.4179` | `+45.23%` |
+| Year 3 | `234` | `+147.4024` | `+124.0024` | `16.7600` | `8.7949` | `+4.19%` |
+| Complete tape | **`648`** | **`+305.6156`** | **`+240.8156`** | **`16.7600`** | **`18.2348`** | **`+11.93%`** |
+
+Cadence is `216.8606/year`; PF is `2.042`. Both directions
+(`up +113.7100`, `down +191.9056`) and both lanes
+(`RTH +295.4100`, `GTH +10.2056`) are positive. Against the exact P-009-span
+v3 comparator, it adds `45` trades, `+18.4000` primary, `+13.9000` stressed,
+and removes `0.87` drawdown points. The standing majority-year crown law passes
+without retuning. The stricter all-three-years `>=5%` curiosity gate remains an
+immutable Year-3 miss by `0.813` percentage points.
+
+Every trailing `5/10/21/42/63/84`-session P-009 window is positive, but it is
+less efficient than v3 from `10–84` sessions. That does not invalidate the
+three-year crown; it requires bounded prospective graduation and forbids a
+post-exposure threshold rescue. Historical GTH profitability is evidence only,
+not overnight cash-order authority.
+
+### #2 — Opening Edge v3 — Regime Harmony 24/5
 
 **Crown thesis:** retain v2's causal five-minute XSP turn sensor and unchanged
 GTH Down Sleeve, then let one centralized state owner alter only the proof
@@ -1051,6 +1094,17 @@ its predecessor’s numbers.
   tape, then independent news/microstructure admission evidence.
 
 ### Reproduce
+
+Opening Edge v4 P-009 is reproduced by its crown, exact durable parity,
+recent-window disclosure, and live commissioning receipts:
+
+```text
+backtests/xsp/opening_edge_v4_dual_clock_arbitration_p009_crown.json
+backtests/xsp/opening_edge_v4_dual_clock_arbitration_p009_durable_owner_parity.json
+backtests/xsp/opening_edge_v4_dual_clock_arbitration_p009_recent_window_disclosure.json
+backtests/xsp/opening_edge_v4_dual_clock_arbitration_p009_live_commissioning.json
+tradebot/research/xsp_dual_clock.py
+```
 
 Opening Edge v3 is reproduced by its content-addressed crown, cash, and runtime
 receipts:
