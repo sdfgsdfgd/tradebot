@@ -297,6 +297,10 @@ class _RefreshClient:
     async def hard_refresh(self) -> None:
         self._events.append("hard")
 
+    def start_market_data(self) -> None:
+        self.start_index_tickers()
+        self.start_proxy_tickers()
+
     def start_index_tickers(self) -> None:
         self._events.append("index")
 
