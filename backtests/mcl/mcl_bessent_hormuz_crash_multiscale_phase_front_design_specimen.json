@@ -1,0 +1,177 @@
+{
+  "schema": "mcl.multiscale-phase-front-bessent-hormuz-design-specimen.v1",
+  "recorded_at_utc": "2026-08-06T04:27:18+00:00",
+  "authority": "post_incident_outcome_exposed_design_specimen_no_prospective_proof_no_threshold_training_no_orders_no_capital",
+  "headline_context": {
+    "source": "user_supplied_not_independently_verified_for_this_receipt",
+    "description": "Scott Bessent said the Iran or Strait of Hormuz issue would resolve today or tomorrow; the user identified it as the primary relief headline around the WTI crash.",
+    "permitted_use": "causal-clock hypothesis and incident labeling only",
+    "forbidden_use": "news truth inference, threshold fitting, prospective validation, or live direction authority"
+  },
+  "sources": {
+    "second_anatomy": {
+      "path_on_q": "/var/tmp/mcl-incident-second-ignition-r3.json",
+      "sha256": "4e53b8bbe3ec6d34ac09c55dbffb4d82cf50b38349472636993469f33ab0ca02"
+    },
+    "multiscale_evaluator": {
+      "path_on_q": "/var/tmp/mcl_incident_phase_front.py",
+      "sha256": "e9e3191b4fa97a10299c0a01434e6d385a7fc7008debf406730386010f7a9042"
+    },
+    "multiscale_result": {
+      "path_on_q": "/var/tmp/mcl-incident-multiscale-phase-front.json",
+      "sha256": "8fdb5265df1b323ccffd57340905ca3d6c50f87e45c65dacebb2e13f208afd0b"
+    },
+    "execution_diagnostic": {
+      "path_on_q": "/var/tmp/mcl-stage94-incident-spine-hold-replay.json",
+      "sha256": "2c2e77cc129115151c7a762e505933732a5830774adbc0893c6f83ed9469c48d"
+    }
+  },
+  "seconds_authority_wave": {
+    "first_tick_shock_utc": "2026-08-04T10:44:26+00:00",
+    "first_full_dual_book_5_15_60_down_alignment_utc": "2026-08-04T10:44:26+00:00",
+    "full_alignment_seconds_after_tick_shock": 0,
+    "levels": {
+      "5x": {
+        "time_utc": "2026-08-04T10:44:27+00:00",
+        "seconds_after_tick_shock": 1,
+        "multiple": 5.617977528089888,
+        "mcl_microprice": 81.7057142857143
+      },
+      "10x": {
+        "time_utc": "2026-08-04T10:44:29+00:00",
+        "seconds_after_tick_shock": 3,
+        "multiple": 10.898876404494382,
+        "mcl_microprice": 81.45
+      },
+      "20x": {
+        "time_utc": "2026-08-04T10:44:33+00:00",
+        "seconds_after_tick_shock": 7,
+        "multiple": 22.134831460674157,
+        "mcl_microprice": 81.35571428571428
+      }
+    },
+    "peak_down_velocity": {
+      "time_utc": "2026-08-04T10:44:31+00:00",
+      "dual_fast_velocity_ticks_per_second": 10.63571428571457
+    },
+    "crest_confirmation": {
+      "time_utc": "2026-08-04T10:44:35+00:00",
+      "seconds_after_peak": 4,
+      "dual_fast_velocity_ticks_per_second": 0.26190476190492973
+    },
+    "post_crest_reacceleration": {
+      "time_utc": "2026-08-04T10:44:39+00:00",
+      "seconds_after_tick_shock": 13,
+      "partial_minute_volume_multiple": 24.786516853932586,
+      "mcl_microprice": 81.388
+    }
+  },
+  "completed_bar_phase_front": [
+    {
+      "time_utc": "2026-08-04T10:40:00+00:00",
+      "slope_signs_30_60_120_240_480": "UUUUU",
+      "velocity_signs_30_60_120_240_480": "UUDUU",
+      "atr_ratio": 1.3670574471845185,
+      "coherence": 1.0
+    },
+    {
+      "time_utc": "2026-08-04T10:45:00+00:00",
+      "slope_signs_30_60_120_240_480": "DDDUU",
+      "velocity_signs_30_60_120_240_480": "DDDDD",
+      "atr_ratio": 1.4403493372594418,
+      "coherence": 0.6
+    },
+    {
+      "time_utc": "2026-08-04T10:50:00+00:00",
+      "slope_signs_30_60_120_240_480": "DDDUD",
+      "velocity_signs_30_60_120_240_480": "DDDDD",
+      "atr_ratio": 1.6807537933171801,
+      "coherence": 0.8
+    },
+    {
+      "time_utc": "2026-08-04T10:55:00+00:00",
+      "slope_signs_30_60_120_240_480": "DDDUD",
+      "velocity_signs_30_60_120_240_480": "DDDDD",
+      "atr_ratio": 1.7253769489748807,
+      "coherence": 0.8
+    },
+    {
+      "time_utc": "2026-08-04T11:00:00+00:00",
+      "slope_signs_30_60_120_240_480": "DDDUD",
+      "velocity_signs_30_60_120_240_480": "DUUUD",
+      "atr_ratio": 1.648764670191285,
+      "coherence": 0.8
+    },
+    {
+      "time_utc": "2026-08-04T11:05:00+00:00",
+      "slope_signs_30_60_120_240_480": "DDDUD",
+      "velocity_signs_30_60_120_240_480": "DDDDD",
+      "atr_ratio": 1.704042447648997,
+      "coherence": 0.8
+    },
+    {
+      "time_utc": "2026-08-04T11:10:00+00:00",
+      "slope_signs_30_60_120_240_480": "DDDDD",
+      "velocity_signs_30_60_120_240_480": "DDDDD",
+      "atr_ratio": 1.8060684961418616,
+      "coherence": 1.0,
+      "v18_phase": "RAW_TURN",
+      "raw_direction": "down"
+    }
+  ],
+  "lead_time": {
+    "seconds_full_authority_before_v18_raw_turn": 1534,
+    "approximate_minutes_full_authority_before_v18_raw_turn": 25.5667,
+    "seconds_full_authority_before_old_live_long_fill": 1913.261999,
+    "approximate_minutes_full_authority_before_old_live_long_fill": 31.8877
+  },
+  "outcome_exposed_execution_diagnostic": {
+    "disclosure": "The crash, bottom, and old live loss were already known; these figures test architectural plausibility only.",
+    "entry": {
+      "intent_at_utc": "2026-08-04T10:44:41+00:00",
+      "fill_at_utc": "2026-08-04T10:44:48+00:00",
+      "action": "SELL",
+      "price": 81.445,
+      "order_type": "LMT",
+      "phase_speed_multiplier": 2.0
+    },
+    "first_raw_turn_flatten": {
+      "fill_at_utc": "2026-08-04T11:10:05+00:00",
+      "price": 80.42,
+      "primary_net_usd": 98.97999999999915
+    },
+    "shock_reacquisition": {
+      "fill_at_utc": "2026-08-04T11:15:07+00:00",
+      "action": "SELL",
+      "price": 80.2675,
+      "exit_at_utc": "2026-08-04T12:07:05+00:00",
+      "exit_price": 77.65,
+      "primary_net_usd": 258.2299999999993
+    },
+    "combined_primary_net_usd": 357.20999999999844,
+    "combined_stress_net_usd": 353.20999999999844,
+    "combined_intrabar_drawdown_usd": 106.86000000000018,
+    "market_orders": 0
+  },
+  "design_conclusion": {
+    "positive_specimen": "FAST_AUTHORITY_TO_SLOW_SLOPE_CASCADE",
+    "necessary_components": [
+      "full_CL_MCL_seconds_alignment",
+      "exceptional_volume_level_escalation",
+      "post_peak_crest_confirmation",
+      "post_crest_same_direction_reacceleration",
+      "persistent_velocity_propagation",
+      "ordered_fast_to_slow_slope_crosses",
+      "recoil_survival_or_explicit_authority_handoff"
+    ],
+    "negative_controls": [
+      "simultaneous_positive_slow_velocities_without_fast_ownership",
+      "slow_repair_that_collapses_before_any_fast_slope_cross",
+      "large_volume_without aligned_directional_range_and_velocity"
+    ],
+    "architectural_seam": "one derived phase-front dimension inside the existing ranked MCL Subshock Bridge candidate; Stage 116 remains its 5x-to-below-10x exceptional-volume subcase, not a separate strategy",
+    "live_effect": "none; Stage 112 remains unchanged and solely live",
+    "bounded_replay_budget_used": 0
+  },
+  "submitted_orders": 0
+}
