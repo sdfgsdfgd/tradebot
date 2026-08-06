@@ -1,0 +1,157 @@
+{
+  "schema": "mcl.multiscale-phase-front-stage117-preregistration.v1",
+  "registered_at_utc": "2026-08-06T04:42:00+00:00",
+  "eligible_event_start_utc": "2026-08-06T04:45:00+00:00",
+  "authority": "prospective_count_and_morphology_only_no_outcomes_no_orders_no_capital",
+  "campaign": "mcl.predictive-intelligence-sharpening-stage117",
+  "candidate": "MCL Subshock Bridge plus Multiscale Phase-Front Authority",
+  "hypothesis": "A true MCL reversal is an ordered causal phase front rather than a simultaneous indicator snapshot: seconds-level dual-book authority or the first completed 30-minute velocity sign change establishes a provisional direction; velocity alignment then propagates from short to long horizons, slope signs cross behind it, and a legitimate front retains fast ownership through recoil until the unchanged V18 raw-turn clock accepts or rejects it. A fast velocity repair that collapses before the 30-minute slope crosses is a failed repair, not a pivot.",
+  "architectural_seam": {
+    "candidate_slot": "Evolve the existing rank-1 MCL Subshock Bridge candidate; do not create a third incubator candidate or a second trading strategy.",
+    "state_owner": "The exact Stage-112 V18 owner remains the sole live direction and lifecycle owner. Stage-114 owns 10x-plus seconds authority; Stage-116 remains the 5x-to-under-10x provisional subshock morphology owner.",
+    "derivation": "One on-demand outcome-blind evaluator joins immutable seconds records to unique finalized Stage-112 source decisions. It adds no recorder, service, timer, mutable ledger, live permission, or broker path.",
+    "future_integration_if_proven": "At most one centralized permission/timing projection may later consume the atlas; no live integration is authorized by this preregistration."
+  },
+  "pre_outcome_design_disclosures": [
+    {
+      "name": "Tuesday Bessent-Hormuz relief crash",
+      "path": "backtests/mcl/mcl_bessent_hormuz_crash_multiscale_phase_front_design_specimen.json",
+      "sha256": "6ab0f9e2beb25452cd03056288ee0ad06780dd804afa7c525495781149299ea1",
+      "status": "outcome_exposed_positive_design_specimen_permanently_excluded",
+      "use": "Defines fields and causal ordering only. It cannot select a threshold, pass a count gate, validate economics, or authorize a trade."
+    },
+    {
+      "name": "2026-08-06 03:40Z all-velocity repair",
+      "path": "backtests/portfolio_hawkeye_20260806T0352Z.json",
+      "sha256": "39d5635212bfc206a6034a813371d624453847da30d15016ec47e9f052566a9b",
+      "status": "morphology_exposed_negative_design_control_permanently_excluded",
+      "use": "Defines failed fast ownership: all five slopes remained down, all five velocities briefly repaired up, the 30-minute velocity failed before any slope crossed, and the next exact V18 raw turn was down."
+    },
+    {
+      "name": "Stage-116 prospective subshock prefix",
+      "path": "backtests/mcl/mcl_subshock_ignition_recoil_reacceleration_stage116_block_close_accumulation.json",
+      "sha256": "ff5aa6fcc8155afd58a7712c2a659b7d5a90e67e359bc58226821c1b324d8d43",
+      "status": "outcome_sealed_but_morphology_exposed_predecessor_not_unseen_stage117_proof",
+      "use": "Preserves four complete sub-10x shapes as predecessor context; Stage 117 may join their schema but cannot count them as post-registration treatments."
+    }
+  ],
+  "immutable_inputs": {
+    "v18_stage112_owner": {
+      "path": "tradebot/research/mcl_two_speed_auction.py",
+      "sha256": "03d0c958dab724a9e1b8f36070a1cbbb8df700e4d37683ffd6977061d5b866b7"
+    },
+    "stage114_wave_owner": {
+      "path": "tradebot/research/mcl_shock_waves.py",
+      "sha256": "ef3e14ec390756c26724c9372df48b4e70be43194c81471519385af6f78e87fa"
+    },
+    "seconds_evidence_owner": {
+      "path": "tradebot/research/mcl_shock_evidence.py",
+      "sha256": "f435f744fb7db453230300685675122885e4277d0517cbb2f1ce15909088f803"
+    },
+    "stage116_preregistration": {
+      "path": "backtests/mcl/mcl_subshock_ignition_recoil_reacceleration_stage116_preregistration.json",
+      "sha256": "2d081df5058a44ff736e0d26705a09b78f97c8b1b703a4ffd4d255f7d2920154"
+    },
+    "turn_tape_generation_sha256": "b3805c9f95713a13c26cb0ada08dc043f00069f42177212d3c575abe28c3ee7f"
+  },
+  "frozen_pre_eligibility_prefix": {
+    "source_path_on_q": "/var/tmp/mcl-stage117-source-prefix-20260806T0445Z.jsonl",
+    "source_rows": 1978,
+    "source_sha256": "d9dfd79ab067f194ff0dea4116843ee3d0a72e2693fbe695f837397880e79dd5",
+    "last_source_checkpoint_id": "2936b375b4e309b34fdec823c6e7790761bfa2a07eade3d5f59cbd39582e5455",
+    "last_completed_decision_utc": "2026-08-06T04:40:00+00:00",
+    "turn_tape_path_on_q": "/var/tmp/mcl-stage117-turn-prefix-20260806T0445Z.jsonl",
+    "turn_tape_rows": 75349,
+    "turn_tape_sha256": "81313e70cf609b3b32788785423022437510b07758617b5f85c39f07294ca9",
+    "last_turn_record_id": "6b4b860f0a32ec8e4defdf793a65792927f46610fdc0ef6aed35fea26c163abd"
+  },
+  "frozen_clocks": {
+    "seconds": [5, 15, 60],
+    "completed_minutes": [30, 60, 120, 240, 480],
+    "completed_bar_stride_minutes": 5,
+    "session_context": [5, 10, 21, 42, 63, 84],
+    "news_horizon_hours": 4,
+    "news_authority": "non_scoring_context_only"
+  },
+  "origin_lanes": {
+    "MAJOR_SHOCK": "First post-eligibility Stage-114 fresh full CL/MCL authority bind at 10x or higher.",
+    "SUBSHOCK": "First post-eligibility Stage-116 provisional full CL/MCL alignment inside one complete 5x-to-under-10x attention episode.",
+    "ORDINARY_VELOCITY_FRONT": "No active shock owner; all five completed-minute slopes share one incumbent sign, the prior 30-minute velocity was not opposite that incumbent, and the current 30-minute velocity first becomes opposite. The provisional direction is opposite the incumbent slope sign."
+  },
+  "event_identity": {
+    "one_active_front": "At most one front is active per contract. Later qualifying observations are path evidence, not duplicate treatments.",
+    "start": "The exact seconds authority/provisional-alignment record ID for shock lanes, or the unique finalized Stage-112 decision timestamp and source checkpoint ID for an ordinary lane.",
+    "terminal": "The first subsequent exact V18 RAW_TURN, contract reset/roll, or irrecoverable source gap. Stage-114 normalization alone does not terminate the slower phase front.",
+    "acceptance": "A V18 raw turn in the provisional direction is V18_ACCEPTED morphology; the opposite raw turn is V18_REJECTED morphology. Neither is an economic outcome.",
+    "no_future_label": "Direction is fixed at onset. A later raw turn, price move, terminal state, MFE, MAE, return, or PnL may never back-label the onset."
+  },
+  "phase_projection": {
+    "per_finalized_bar": [
+      "five slope signs in exact 30/60/120/240/480-minute order",
+      "five slope-velocity signs in exact 30/60/120/240/480-minute order",
+      "directional slope breadth and velocity breadth from zero through five",
+      "first direction-aligned velocity time for each horizon",
+      "first direction-aligned slope time for each horizon",
+      "ATR ratio, velocity, acceleration, coherence, conviction, retrace ATR, and V18 phase",
+      "Stage-114 authority direction, level, handoff, crest, continuation, and normalization events when present"
+    ],
+    "ordered_front": "First-alignment times must be nondecreasing from 30 through 480 minutes; equal timestamps are lawful ties. Missing horizons remain explicit and cannot be inferred.",
+    "fast_ownership": "The 30-minute velocity must remain direction-aligned until the first 30-minute slope cross. If it turns opposite first, the candidate has failed fast ownership.",
+    "recoil": "After the 30-minute slope cross, a temporary opposite 30-minute velocity is recorded as recoil. It is survived only if direction-aligned 30-minute velocity returns while the 30-minute slope and any higher Stage-114 authority remain unchanged.",
+    "no_magnitude_score": "No slope, velocity, ATR, volume, quote, or flow magnitude is fitted or summed. Only exact sign, order, breadth, owner identity, and causal timing are recorded."
+  },
+  "categorical_morphology": {
+    "FAILED_FAST_OWNERSHIP": "The 30-minute velocity loses the provisional direction before the 30-minute slope first aligns.",
+    "FAST_CROSS_ONLY": "The 30-minute slope aligns while fast ownership remains intact, but no slower slope aligns before terminal.",
+    "PARTIAL_ORDERED_CASCADE": "At least two slope horizons align and their first-alignment times are nondecreasing, but not all five align before terminal.",
+    "PARTIAL_DISORDERED_CASCADE": "At least two slopes align but first-alignment order violates the short-to-long partial order.",
+    "FULL_PHASE_LOCK": "All five slopes and all five velocities are direction-aligned on one finalized bar before terminal.",
+    "RECOIL_SURVIVED": "A fast slope cross occurs, the 30-minute velocity recoils, and fast velocity reacquires while the 30-minute slope and authority owner remain direction-aligned.",
+    "RECOIL_FAILED": "After a fast slope cross, the 30-minute slope or higher authority owner reverses before fast velocity reacquires.",
+    "UNDERWARM_OR_GAP": "A required finalized horizon, prior velocity sign, source identity, or contract-contiguous clock is unavailable."
+  },
+  "categorical_precedence": [
+    "Any missing required identity or clock is UNDERWARM_OR_GAP.",
+    "Loss of fast ownership before the first fast slope cross is FAILED_FAST_OWNERSHIP.",
+    "After a fast slope cross, an authority or fast-slope reversal before velocity reacquisition is RECOIL_FAILED.",
+    "After a fast slope cross, successful velocity reacquisition is RECOIL_SURVIVED.",
+    "All five slopes and velocities aligned together is FULL_PHASE_LOCK.",
+    "Two or more slope crosses in nondecreasing horizon order is PARTIAL_ORDERED_CASCADE; an order violation is PARTIAL_DISORDERED_CASCADE.",
+    "Every remaining fast slope cross is FAST_CROSS_ONLY."
+  ],
+  "count_gate": {
+    "minimum_complete_fronts": 30,
+    "minimum_each_provisional_direction": 10,
+    "minimum_v18_accepted": 10,
+    "minimum_v18_rejected": 10,
+    "minimum_repeated_failed_fast_ownership": 5,
+    "minimum_repeated_ordered_or_full_cascade": 5,
+    "minimum_both_market_sessions": true,
+    "verdict_before_pass": "ACCUMULATE"
+  },
+  "replay_budget": {
+    "block": "2026-08-06T03:29Z six-review Hawkeye block",
+    "maximum_bounded_replays": 1,
+    "used_before_registration": 0,
+    "next_action": "Implement and self-test the frozen evaluator, bind its SHA before reading any post-eligibility morphology, then spend at most this one replay."
+  },
+  "future_action_boundary": {
+    "current": "Identity, count, missingness, timing, phase-front morphology, and non-scoring causal news context only.",
+    "after_count_pass": "Preregister matched failed-repair, accepted-pivot, shock, subshock, ordinary, RTH/GTH, direction, and regime controls before exposing returns, MFE, MAE, PnL, or actions.",
+    "never": [
+      "count Tuesday or the 03:40Z repair as unseen proof",
+      "fit a magnitude threshold or weighted score to either disclosed specimen",
+      "let news manufacture direction",
+      "interpolate missing horizons or cross a contract roll",
+      "invent exchange sequencing, queue position, depth, or colocated HFT claims",
+      "change Stage-112 live direction, lifecycle, raw-turn flatten, Friday flat, risk cap, sizing, selection, execution, order, capital, or crown authority"
+    ]
+  },
+  "pre_outcome_implementation": {
+    "evaluator_path": "/var/tmp/mcl_stage117_multiscale_phase_front.py",
+    "evaluator_sha256": "PENDING_PRE_OUTCOME_IMPLEMENTATION",
+    "self_test": "PENDING"
+  },
+  "outcomes_exposed": false,
+  "submitted_orders": 0
+}
