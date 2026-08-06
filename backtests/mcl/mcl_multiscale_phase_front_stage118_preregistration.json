@@ -1,0 +1,124 @@
+{
+  "schema": "mcl.multiscale-phase-front-stage118-preregistration.v1",
+  "derivation_schema": "mcl.multiscale-phase-front-stage118-derivation.v1",
+  "registered_at_utc": "2026-08-06T22:36:15+00:00",
+  "eligible_event_start_utc": "2026-08-06T22:45:00+00:00",
+  "authority": "prospective_count_and_morphology_only_no_outcomes_no_orders_no_capital",
+  "campaign": "mcl.predictive-intelligence-sharpening-stage118",
+  "candidate": "MCL Subshock Bridge plus Multiscale Phase-Front Authority",
+  "hypothesis": "Unchanged from Stage 117: a true MCL reversal is an ordered causal phase front whose provisional seconds or first 30-minute velocity authority propagates through progressively slower velocities and slope crosses, retains fast ownership through recoil, and terminates only at the next exact V18 raw turn, contract reset, or genuinely missing open-session source clock.",
+  "predecessor": {
+    "stage117_preregistration_path": "backtests/mcl/mcl_multiscale_phase_front_stage117_preregistration.json",
+    "stage117_preregistration_sha256": "09b6da8390814df545fc4e1009c661cc6bd8da480e73e0160c2fa92736474701",
+    "stage117_schema_rejection_path": "backtests/mcl/mcl_multiscale_phase_front_stage117_schema_rejection.json",
+    "stage117_schema_rejection_sha256": "7f4452b80ec574fc749c7271485f35464ad02c8ded6ad7e58b803a31995da49c",
+    "stage117_result_sha256": "fce62e292d4bbb684520cf246f5b3d3e49b162658f7fd96cb20193527e8c7932",
+    "exposed_front_ids": [
+      "920afbef40f4e851003afce9994ee3b67e05825298fb2c88e880444025554d09",
+      "2dbf74304aef24ce855cb776b4b70fd1214b5dc08a276845d0acb923f0a19355"
+    ],
+    "exposed_external_anchors": 11,
+    "reuse_as_unseen_count_prohibited": true
+  },
+  "only_changes": {
+    "neutral_sign": "Exact numeric 0.0 is the explicit neutral sign 0; only a missing value is unavailable.",
+    "close_stamped_maintenance": "Availability is evaluated over the interval preceding each source close stamp, so 18:00 ET remains maintenance and 18:05 ET is the first expected reopened five-minute close.",
+    "preregistration_routing": "The same evaluator accepts one explicit preregistration path so generation succession never aliases Stage 117.",
+    "threshold_or_score_change": false,
+    "origin_law_change": false,
+    "terminal_law_change": false,
+    "count_gate_change": false
+  },
+  "architectural_seam": {
+    "state_owner": "Stage 112 remains the sole live MCL signal, lifecycle, risk, and execution owner.",
+    "seconds_owners": "Stage 114 remains the 10x-plus authority owner and Stage 116 remains the 5x-to-under-10x provisional morphology owner.",
+    "derivation": "One on-demand evaluator only; no new recorder, ledger, timer, service, live permission, direction owner, order path, or capital surface.",
+    "one_active_front": "At most one front is active per contract; later qualifying origins are immutable overlays, never duplicate treatments."
+  },
+  "immutable_inputs": {
+    "v18_stage112_owner": {
+      "path": "tradebot/research/mcl_two_speed_auction.py",
+      "sha256": "03d0c958dab724a9e1b8f36070a1cbbb8df700e4d37683ffd6977061d5b866b7"
+    },
+    "stage114_wave_owner": {
+      "path": "tradebot/research/mcl_shock_waves.py",
+      "sha256": "ef3e14ec390756c26724c9372df48b4e70be43194c81471519385af6f78e87fa"
+    },
+    "seconds_evidence_owner": {
+      "path": "tradebot/research/mcl_shock_evidence.py",
+      "sha256": "f435f744fb7db453230300685675122885e4277d0517cbb2f1ce15909088f803"
+    },
+    "stage116_preregistration": {
+      "path": "backtests/mcl/mcl_subshock_ignition_recoil_reacceleration_stage116_preregistration.json",
+      "sha256": "2d081df5058a44ff736e0d26705a09b78f97c8b1b703a4ffd4d255f7d2920154"
+    },
+    "turn_tape_generation_sha256": "b3805c9f95713a13c26cb0ada08dc043f00069f42177212d3c575abe28c3ee7f"
+  },
+  "frozen_pre_eligibility_prefix": {
+    "cutoff_utc": "2026-08-06T22:40:00+00:00",
+    "source_path_on_q": "/var/tmp/mcl-stage118-source-prefix-20260806T2240Z.jsonl",
+    "source_rows": "PENDING_PRE_ELIGIBILITY_FREEZE",
+    "source_sha256": "PENDING_PRE_ELIGIBILITY_FREEZE",
+    "last_source_checkpoint_id": "PENDING_PRE_ELIGIBILITY_FREEZE",
+    "last_completed_decision_utc": "PENDING_PRE_ELIGIBILITY_FREEZE",
+    "turn_tape_path_on_q": "/var/tmp/mcl-stage118-turn-prefix-20260806T2240Z.jsonl",
+    "turn_tape_rows": "PENDING_PRE_ELIGIBILITY_FREEZE",
+    "turn_tape_sha256": "PENDING_PRE_ELIGIBILITY_FREEZE",
+    "last_turn_record_id": "PENDING_PRE_ELIGIBILITY_FREEZE"
+  },
+  "event_and_phase_law": {
+    "origin_lanes": [
+      "MAJOR_SHOCK: first fresh post-eligibility Stage-114 full CL/MCL authority bind at 10x or higher",
+      "SUBSHOCK: first fresh post-eligibility Stage-116 provisional full CL/MCL alignment in a complete 5x-to-under-10x episode",
+      "ORDINARY_VELOCITY_FRONT: all five slopes share an incumbent sign and the 30-minute velocity first flips opposite it"
+    ],
+    "terminal": "First subsequent exact V18 RAW_TURN, contract reset/roll, or genuinely missing expected open-session five-minute close.",
+    "fast_ownership": "The first aligned 30-minute velocity may not reverse before the first aligned 30-minute slope cross.",
+    "recoil": "After the fast slope cross, opposite fast velocity is survived only by reacquisition before fast slope or higher Stage-114 authority reverses.",
+    "ordered_cascade": "First slope-alignment times are nondecreasing across exact 30/60/120/240/480-minute clocks; equal timestamps are lawful ties.",
+    "no_magnitude_score": true,
+    "news_authority": "non_scoring_context_only"
+  },
+  "categorical_precedence": [
+    "UNDERWARM_OR_GAP",
+    "FAILED_FAST_OWNERSHIP",
+    "RECOIL_FAILED",
+    "RECOIL_SURVIVED",
+    "FULL_PHASE_LOCK",
+    "PARTIAL_ORDERED_CASCADE_OR_PARTIAL_DISORDERED_CASCADE",
+    "FAST_CROSS_ONLY"
+  ],
+  "count_gate": {
+    "minimum_complete_fronts": 30,
+    "minimum_each_provisional_direction": 10,
+    "minimum_v18_accepted": 10,
+    "minimum_v18_rejected": 10,
+    "minimum_repeated_failed_fast_ownership": 5,
+    "minimum_repeated_ordered_or_full_cascade": 5,
+    "minimum_both_market_sessions": true,
+    "verdict_before_pass": "ACCUMULATE"
+  },
+  "pre_outcome_implementation": {
+    "evaluator_path_on_q": "/var/tmp/mcl_stage118_multiscale_phase_front.py",
+    "evaluator_sha256": "53cc0f208c757504d57d884ea706b940db83e2d137b60e705313c5b370abb8ed",
+    "self_test": "PASS_MAC_COMPILE_LINT_SYNTHETIC_NEUTRAL_AND_CLOSE_STAMPED_MAINTENANCE"
+  },
+  "replay_boundary": {
+    "all_onsets_before_eligible_start_are_exposed_controls": true,
+    "historical_backfill": false,
+    "same_stage117_prefix_replay": false,
+    "first_derivation": "Only after at least one post-eligibility terminal and a fresh replay budget."
+  },
+  "invariants": {
+    "stage112_live_changed": false,
+    "xsp_p009_changed": false,
+    "gold_changed": false,
+    "direction_authority": "none",
+    "timing_authority": "none",
+    "order_authority": "none",
+    "capital_authority": "none",
+    "market_orders_permitted": false
+  },
+  "outcomes_exposed": false,
+  "submitted_orders": 0
+}

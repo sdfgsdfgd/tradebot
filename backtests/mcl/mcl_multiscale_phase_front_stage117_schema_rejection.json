@@ -1,0 +1,87 @@
+{
+  "schema": "mcl.multiscale-phase-front-stage117-schema-rejection.v1",
+  "recorded_at_utc": "2026-08-06T22:32:31+00:00",
+  "authority": "post_replay_schema_audit_no_outcomes_no_orders_no_capital",
+  "campaign": "mcl.predictive-intelligence-sharpening-stage117",
+  "candidate": "MCL Subshock Bridge plus Multiscale Phase-Front Authority",
+  "verdict": "REJECT_EVALUATOR_SCHEMA_NO_COUNT_AUTHORITY",
+  "immutable_replay": {
+    "preregistration_path": "backtests/mcl/mcl_multiscale_phase_front_stage117_preregistration.json",
+    "preregistration_sha256": "09b6da8390814df545fc4e1009c661cc6bd8da480e73e0160c2fa92736474701",
+    "evaluator_path_on_q": "/var/tmp/mcl_stage117_multiscale_phase_front_7a7214ff.py",
+    "evaluator_sha256": "7a7214ff77cd845971e1c35fa50e0be4454420dd61a8cadb29a3e81e1f00d78f",
+    "stage116_input_path_on_q": "/var/tmp/mcl-stage116-stage117-input-20260806T2228Z.json",
+    "stage116_input_sha256": "e87938447c1d975dfd5549c333b975555f6b49d00e7c3aba0caaccf1980135c3",
+    "stage114_ledger_path_on_q": "/home/x/.local/state/tradebot/research/mcl_shock_waves.jsonl",
+    "stage114_ledger_rows": 4,
+    "stage114_ledger_sha256": "5a83f28180e5390b831fd6257bf991dd24423573566bef636129c0a253b29415",
+    "result_path_on_q": "/var/tmp/mcl-stage117-first-post-eligibility-20260806T2228Z.json",
+    "result_sha256": "fce62e292d4bbb684520cf246f5b3d3e49b162658f7fd96cb20193527e8c7932"
+  },
+  "raw_replay_boundary": {
+    "generated_at_utc": "2026-08-06T22:29:46.577191+00:00",
+    "eligible_event_start_utc": "2026-08-06T04:45:00+00:00",
+    "unique_finalized_source_decisions": 693,
+    "last_source_decision_utc": "2026-08-06T22:25:00+00:00",
+    "major_shock_anchors": 3,
+    "subshock_anchors": 8,
+    "stage114_transitions": 22,
+    "complete_fronts_reported": 2,
+    "open_front_reported": false,
+    "reported_directions": {
+      "down": 1,
+      "up": 1
+    },
+    "reported_sessions": {
+      "GTH": 2
+    },
+    "reported_verdict": "ACCUMULATE",
+    "count_authority": "none_due_to_schema_defects"
+  },
+  "schema_defects": [
+    {
+      "name": "neutral_sign_conflated_with_missingness",
+      "evidence": "Five finalized observations carried exact numeric 0.0 slope values, but the evaluator projected them as null and then assigned UNDERWARM_OR_GAP.",
+      "impact": "Both complete fronts were categorically quarantined even though their source horizons were present.",
+      "correction": "Reserve null for unavailable values; project exact zero as the explicit neutral sign 0."
+    },
+    {
+      "name": "maintenance_reopen_close_stamp_off_by_one_bar",
+      "evidence": "The source correctly ended at the 17:00 ET close and resumed at the first 18:05 ET completed bar. The evaluator treated the non-existent 18:00 close as an expected open-session observation.",
+      "impact": "The second front was falsely terminated at 2026-08-06T22:00:00Z as an irrecoverable gap.",
+      "correction": "Evaluate source availability by the interval immediately preceding each close stamp; 18:00 ET is maintenance and 18:05 ET is the first reopened close."
+    }
+  ],
+  "exposure_boundary": {
+    "permanently_exposed_front_ids": [
+      "920afbef40f4e851003afce9994ee3b67e05825298fb2c88e880444025554d09",
+      "2dbf74304aef24ce855cb776b4b70fd1214b5dc08a276845d0acb923f0a19355"
+    ],
+    "permanently_exposed_external_anchors": 11,
+    "reuse_as_unseen_count_prohibited": true,
+    "same_prefix_replay_prohibited": true,
+    "economic_settlement_opened": false
+  },
+  "successor_boundary": {
+    "generation": "Stage-118 schema-correct phase-front successor",
+    "same_hypothesis_and_thresholds": true,
+    "new_eligibility_required": true,
+    "earliest_eligible_start_utc": "2026-08-06T22:45:00+00:00",
+    "historical_backfill_permitted": false,
+    "corrected_evaluator_sha256": "53cc0f208c757504d57d884ea706b940db83e2d137b60e705313c5b370abb8ed"
+  },
+  "invariants": {
+    "stage112_live_signal_changed": false,
+    "stage112_live_lifecycle_changed": false,
+    "stage112_live_risk_changed": false,
+    "stage112_live_execution_changed": false,
+    "threshold_changed": false,
+    "direction_authority": "none",
+    "timing_authority": "none",
+    "order_authority": "none",
+    "capital_authority": "none",
+    "market_orders_permitted": false
+  },
+  "outcomes_exposed": false,
+  "submitted_orders": 0
+}
