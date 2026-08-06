@@ -1,0 +1,369 @@
+{
+  "schema": "live.portfolio-hawkeye.v1",
+  "observed_at_utc": "2026-08-06T12:17:39+00:00",
+  "authority": "read_only_causal_observation_and_incubator_reconciliation_no_signal_no_orders_no_capital",
+  "review_block": {
+    "review": 6,
+    "required": 6,
+    "review_started_at_utc": "2026-08-06T12:09:27+00:00",
+    "prior_review_utc": "2026-08-06T11:55:57.456+00:00",
+    "scheduled_boundary_utc": "2026-08-06T12:07:05+00:00",
+    "started_seconds_after_boundary": 142,
+    "settlement_completed_at_utc": "2026-08-06T12:17:39+00:00",
+    "preemption": "canonical_hawkeye_preempted_mcl_stage112_24h_coverage_diagnosis",
+    "missed_slots_backfilled": 0,
+    "status": "BLOCK_CLOSED_RETAIN_TWO_P004_REPLAY_SELECTED"
+  },
+  "portfolio": {
+    "account_id": "U12825049",
+    "base_currency": "AUD",
+    "broker_capture": "read_only_after_review_start",
+    "broker_snapshot_sha256": "bdf6fb4ebdf41c4a8aa8fd5e76c72dfb0284565743cbb13354f16d5c7f58c547",
+    "available_funds_aud": 3627.88,
+    "excess_liquidity_aud": 3627.88,
+    "equity_with_loan_aud": 3627.88,
+    "net_liquidation_aud": 3627.88,
+    "cash_balance_aud": 2119.39,
+    "cash_balance_usd": 1062.21,
+    "positions": [],
+    "open_orders": []
+  },
+  "xsp": {
+    "selection_id": "1083c1813e6b0ca4cf5777a5275e06be651622bc6e6207e718b549296a9bdd87",
+    "source_checkpoint_id": "35704ffbec27fdc6629cd7926df36c1008fe12b6bfccec10a3edd780e664cea1",
+    "live_checkpoint_id": "774f4349c3ca0fce99690f764c1cf4ac025a71fd39b68c06b11ffb5800a83670",
+    "source_recorded_at_utc": "2026-08-06T12:12:07.562541+00:00",
+    "live_recorded_at_utc": "2026-08-06T12:12:03.116668+00:00",
+    "session": "GTH",
+    "plan_reason": "flat_target",
+    "entry_window_open": false,
+    "source_proposed_direction": null,
+    "position": {
+      "UPRO": 0,
+      "SPXU": 0
+    },
+    "orders": 0,
+    "fills": 2,
+    "closed_trades": 1,
+    "run_gross_usd": -10.299999999999955,
+    "run_cost_usd": 0.703328,
+    "run_net_usd": -11.003327999999954,
+    "drawdown_usd": 11.003327999999954,
+    "safety_breaches": [],
+    "quotes": {
+      "UPRO": {
+        "bid": 153.67,
+        "ask": 153.71,
+        "market_data_type": 1
+      },
+      "SPXU": {
+        "bid": 33.88,
+        "ask": 33.88,
+        "market_data_type": 1
+      }
+    },
+    "directional_impulse": {
+      "latest_bar_utc": "2026-08-06T12:10:00+00:00",
+      "horizons_minutes": [
+        5,
+        15,
+        30,
+        60,
+        120
+      ],
+      "slope_pct_per_bar": [
+        -0.020760617109361057,
+        -0.0030279435937400714,
+        -0.019012803394648687,
+        -0.0006488534759087802,
+        -0.004753200848662172
+      ],
+      "slope_velocity_pct_per_bar": [
+        0.007777085086735358,
+        -0.0030279435937400714,
+        -0.0030251786803751415,
+        -0.0031365448118223878,
+        -0.00048650998607790985
+      ],
+      "slope_signs": "DDDDD",
+      "velocity_signs": "UDDDD",
+      "trend_state": "up",
+      "direction": null,
+      "turn_event": null,
+      "turn_sequence_direction": "down",
+      "turn_sequence_order": "long_to_short",
+      "coherence": 1.0,
+      "conviction": 0.17700985054013138,
+      "atr_ratio": 1.1251301370112916,
+      "atr_velocity_pct": 0.0025965984269223155,
+      "atr_acceleration_pct": 0.01600449697669999,
+      "entry_control": "directional_impulse_cascade:block:no_proposal",
+      "allowed_gth_directions": [
+        "down"
+      ]
+    },
+    "daily_context": {
+      "as_of_day": "2026-08-05",
+      "directions": {
+        "5": "up",
+        "10": "up",
+        "21": "up",
+        "42": "up",
+        "63": "up",
+        "84": "up"
+      },
+      "hard_direction": "up",
+      "hard_age": 79,
+      "transition": "aligned_up",
+      "tr_phase": "high_down"
+    },
+    "phase_front_observation": {
+      "classification": "OPPOSITE_DOWN_FRONT_PERSISTS_FAST_VELOCITY_REPAIR_BEGINS",
+      "prior_bar_utc": "2026-08-06T11:50:00+00:00",
+      "prior_slope_signs": "DDDDD",
+      "prior_velocity_signs": "DDDDD",
+      "interpretation": "The 11:50Z opposite DOWN reassertion persisted through 12:10Z with all five slopes still DOWN, fresh 15m/60m DOWN turns, coherence 1.0, and re-expanding ATR. The 5m velocity has already repaired UP while every slower velocity remains DOWN, the all-UP daily stack still resists, and no fresh crowned proposal exists. This is the first recoil test of the opposite front, not retrospective permission to short."
+    },
+    "pressure_onramp": {
+      "eligible_start_utc": "2026-08-06T13:20:00+00:00",
+      "complete_crowned_targets": 0,
+      "required_complete_crowned_targets": 30,
+      "permission_authority": "none"
+    }
+  },
+  "gold": {
+    "selection_id": "62344ce21bf7c6f01095abab14b6ca8ef79c9806abb35294859fc9574a5f7574",
+    "source_checkpoint_id": "4967bbf1ccfa0e1532a73e6d9dddb3306b28572cbd438356ae584ad1f08747c7",
+    "live_checkpoint_id": "15e23ab0ab6612bd8685d198efc0c27785fe99f37d141737b03fd42c619e68e3",
+    "recorded_at_utc": "2026-08-06T12:12:00.710447+00:00",
+    "plan_reason": "flat_no_target",
+    "position": 0,
+    "orders": 0,
+    "fills": 0,
+    "closed_trades": 0,
+    "run_net_usd": 0,
+    "drawdown_usd": 0,
+    "safety_breaches": [],
+    "quote": {
+      "contract": "1OZZ6",
+      "bid": 4315.0,
+      "ask": 4315.25,
+      "market_data_type": 1
+    },
+    "signal": {
+      "decision_bar_end_utc": "2026-08-06T12:00:00+00:00",
+      "decision_close": 4263.36,
+      "daily_hard_direction": "down",
+      "daily_soft_direction": "up",
+      "daily_hard_age": 151,
+      "daily_atr_ratio_14_63": 0.9453211385571413,
+      "h4_hard_direction": "up",
+      "h4_raw_direction": "up",
+      "h4_fast_slope_dollars": 7.509328427396213,
+      "h4_fast_acceleration_dollars": -2.002665264969437,
+      "h4_spread_velocity_dollars": -1.5679922972703935,
+      "h4_atr_velocity_dollars": -0.572857142857174,
+      "raw_turn": null,
+      "proposed_direction": null,
+      "admitted_direction": null
+    },
+    "interpretation": "The new 12:00Z H4 bar remains UP against D1-DOWN, but H4 slope, spread velocity, acceleration, and ATR velocity are all decelerating. No fresh turn, proposal, position, or order exists, so the mixed-clock abstention remains coherent."
+  },
+  "mcl": {
+    "selection_id": "8adead895d3bd460b460f832d725046a3ea34079525a80a1662004ade2c17c93",
+    "source_checkpoint_id": "64eb5dfad33092a21b0fb4db4724243cc340b5172d6c991bdd6d6321223b7a6b",
+    "live_checkpoint_id": "723a1e85ffba2ff81bd62a14b41b3dce3e03a4fcca038f69b1d4891c836f3bba",
+    "recorded_at_utc": "2026-08-06T12:13:11.238252+00:00",
+    "plan_reason": "flat_no_target",
+    "position": 0,
+    "orders": 0,
+    "fills": 0,
+    "closed_trades": 0,
+    "run_net_usd": 0,
+    "drawdown_usd": 0,
+    "mfe_usd": 0,
+    "mae_usd": 0,
+    "safety_breaches": [],
+    "quote": {
+      "contract": "MCLU6",
+      "bid": 76.1,
+      "ask": 76.11,
+      "market_data_type": 1
+    },
+    "directional_impulse": {
+      "latest_bar_utc": "2026-08-06T12:10:00+00:00",
+      "horizons_minutes": [
+        30,
+        60,
+        120,
+        240,
+        480
+      ],
+      "slope_pct_per_bar": [
+        0.048353773792253474,
+        0.013170025023045984,
+        0.03759232232099415,
+        0.017959770114942448,
+        0.01655868732745568
+      ],
+      "slope_velocity_pct_per_bar": [
+        0.06813486307090295,
+        0.021962779793115637,
+        0.008787926327021488,
+        0.011337253558651079,
+        0.003891085207094006
+      ],
+      "slope_signs": "UUUUU",
+      "velocity_signs": "UUUUU",
+      "trend_state": "up",
+      "direction": null,
+      "turn_event": null,
+      "turn_sequence_direction": "up",
+      "turn_sequence_order": "long_to_short",
+      "abstain_reason": "weak_direction",
+      "coherence": 1.0,
+      "conviction": 0.05109195406062071,
+      "atr_ratio": 1.093933572913107,
+      "atr_velocity_pct": 0.02845539331574093,
+      "atr_acceleration_pct": 0.020732710067894455
+    },
+    "phase_front_observation": {
+      "classification": "ALL_CLOCK_UP_SLOPE_VELOCITY_CASCADE_NO_FRESH_OWNER",
+      "prior_bar_utc": "2026-08-06T11:50:00+00:00",
+      "prior_slope_signs": "UDUUU",
+      "prior_velocity_signs": "UUUUU",
+      "interpretation": "The lone resisting 60m slope crossed UP by 12:10Z, fresh 30m and 60m UP turns appeared, every 30/60/120/240/480m slope and velocity is now UP, and ATR is re-expanding. V18 still reports weak_direction with no fresh owner or target. This is a completed multiscale phase-front specimen before admission, not authority to synthesize a midcycle long."
+    },
+    "predictive_cohorts": {
+      "stage87_90": {
+        "complete": 9,
+        "required": 30,
+        "ledger_sha256": "0e4e5e51cbbb8e0cccb5acb2f6e680748db3f0aedfa31a23502b77b444982099",
+        "outcomes_exposed": false,
+        "verdict": "ACCUMULATE"
+      },
+      "stage114": {
+        "complete": 2,
+        "required": 30,
+        "ledger_sha256": "0d4ec7c76823516540185a4c60f1a131d24b85ed0f12826ea3da358ba4602546",
+        "outcomes_exposed": false,
+        "verdict": "ACCUMULATE"
+      }
+    }
+  },
+  "news": {
+    "publication_id": "c45ea4fae7c8f90f6ff58ee404852fd3cf9c822cdfadeeaced1a32fc940358f4",
+    "signal_as_of_utc": "2026-08-06T09:52:14+00:00",
+    "snapshot_as_of_utc": "2026-08-06T10:01:39+00:00",
+    "run_status": "published",
+    "xsp": {
+      "direction": 1,
+      "impact": 31,
+      "confidence": 0.95,
+      "change": "weakening",
+      "signed_pressure": 0.2945,
+      "pressure_delta": -0.0665,
+      "pressure_velocity_per_hour": -0.015997,
+      "authority": "context_only"
+    },
+    "gold": {
+      "direction": 1,
+      "impact": 14,
+      "confidence": 0.84,
+      "change": "unchanged",
+      "signed_pressure": 0.1176,
+      "pressure_delta": 0.0,
+      "pressure_velocity_per_hour": 0.0,
+      "authority": "context_only"
+    },
+    "mcl": {
+      "direction": 1,
+      "impact": 16,
+      "confidence": 0.93,
+      "change": "strengthening",
+      "authority": "context_only"
+    }
+  },
+  "research": {
+    "xsp_p004": {
+      "status": "R2_COUNT_PASS_ECONOMICS_STILL_SEALED",
+      "preregistration_sha256": "dc5ed784f3c60942917d2b1e944973694956f65e1aba8f7063665302156aea7c",
+      "r2_generation_sha256": "bfbc7b36c12b6fe52776b060a91edbca6ff9c7bea0e4b19cdd529f35ae568242",
+      "corrected_evaluator_sha256": "b5fab0eb05a7d305e278d13b26898844bc9e5cc837c4cce35f7c8c99a41dfe38",
+      "r2_result_sha256": "2e05e5431dccaadfde26190a2e1114ec132d86009ba6172a101c719e790fd56b",
+      "verdict": "COUNT_PASS_FREEZE_ONE_ECONOMIC_REPLAY",
+      "emissions": 1046,
+      "unmatched_emission_controls": 958,
+      "relapsed_pressure_controls": 2392,
+      "stable_pressure_or_shock_matches": 88,
+      "outcomes_exposed": false,
+      "live_authority": "none"
+    }
+  },
+  "incubator": {
+    "block_reconciliation": "CLOSE_BLOCK_RETAIN_TWO_SELECT_XSP_P004_FOR_ONLY_BOUNDED_REPLAY",
+    "retained": [
+      {
+        "rank": 1,
+        "candidate": "XSP Pressure/Shock Phase-Front P004",
+        "status": "COUNT_PASS_REPLAY_LAW_FREEZE_SELECTED",
+        "next_evidence": "freeze one exact baseline, timing-only, complementary-flat, and deterministic composition law before one Y1/Y2-selected and Y3-locked economic replay"
+      },
+      {
+        "rank": 2,
+        "candidate": "MCL Subshock plus Multiscale Phase-Front Bridge",
+        "status": "OUTCOME_BLIND_INCUBATION_COMPLETED_CASCADE_SPECIMEN",
+        "next_evidence": "test whether the completed all-clock UP cascade survives first recoil and gains a fresh V18 or shock owner without synthesizing midcycle authority"
+      }
+    ],
+    "retired_or_merged": [],
+    "promoted": [],
+    "bounded_replay_selected": "XSP Pressure/Shock Phase-Front P004",
+    "outcome_replays_started_this_block": 0,
+    "outcome_replay_budget": 1,
+    "outcome_access_preempted_by": "mcl_stage112_24h_graduation_coverage_diagnosis",
+    "next_block_replay_budget_used": 0
+  },
+  "services": {
+    "timers_active_waiting": [
+      "tradebot-xsp-shadow.timer",
+      "tradebot-xsp-pressure-tape.timer",
+      "tradebot-gold-onset.timer",
+      "tradebot-gold-live.timer",
+      "tradebot-mcl-live.timer",
+      "tradebot-mcl-predictive-onset-runtime.timer",
+      "tradebot-news.timer"
+    ],
+    "continuous_active_running": [
+      "tradebot-mcl-turn-tape.service"
+    ],
+    "mcl_turn_tape_nrestarts": 4,
+    "mcl_turn_tape_invocation_id": "f12d25bc3fc842959122d814f19d2d94",
+    "failed_units": 0,
+    "service_restart_or_schedule_change": false
+  },
+  "interpretation": {
+    "xsp": "The opposite DOWN front remains broad, but fast velocity has already begun repairing while the all-UP daily stack and absent fresh owner resist. This is a high-value recoil/handoff control for P004, not a missed short.",
+    "gold": "D1-DOWN versus H4-UP remains unresolved, and the new H4 bar is decelerating across slope, spread, ATR velocity, and acceleration; continued abstention is coherent.",
+    "mcl": "Every slope and velocity clock is UP with fresh 30m/60m turns and re-expanding ATR, but V18 still has no fresh direction or target. This is the cleanest completed ordinary phase-front specimen yet and now requires recoil survival plus owner acquisition.",
+    "portfolio": "All three champions remain broker-flat and order-free. Block close retains P004 and the MCL phase-front bridge only; no observational morphology is promoted into live authority."
+  },
+  "boundaries": {
+    "next_hawkeye_utc": "2026-08-06T12:27:05+00:00",
+    "next_hawkeye_block_position": "1/6",
+    "mcl_24h_reduction_utc": "2026-08-06T11:39:55+00:00",
+    "mcl_24h_reduction_status": "QUARANTINE_PENDING_EXACT_COVERAGE_GAP_CLASSIFICATION",
+    "xsp_pressure_prospective_eligible_utc": "2026-08-06T13:20:00+00:00",
+    "gold_24h_reduction_utc": "2026-08-07T02:03:30+00:00"
+  },
+  "invariants": {
+    "champion_changed": false,
+    "selection_changed": false,
+    "capital_changed": false,
+    "execution_changed": false,
+    "market_orders": 0,
+    "p004_outcomes_exposed": false,
+    "stage114_law_or_authority_changed": false
+  },
+  "submitted_orders": 0
+}
