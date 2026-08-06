@@ -19,6 +19,11 @@ HeldDirection = Callable[[float], object]
 ExcludedSlots = Callable[[datetime, datetime], int]
 
 
+FUTURES_PROFITABILITY_COVERAGE_EPOCH_SCHEMA = (
+    "live.futures-profitability-coverage-epoch.v1"
+)
+
+
 @dataclass(frozen=True)
 class FuturesProfitabilitySpec:
     """Product identity, clock, and risk law for one futures canary."""
@@ -40,7 +45,7 @@ class FuturesProfitabilitySpec:
     excluded_slots: ExcludedSlots = lambda _start, _end: 0
 
 
-_RISK_FIELDS = (
+FUTURES_RISK_FIELDS = (
     "position_from_fills",
     "run_realized_gross_usd",
     "run_realized_cost_usd",
@@ -186,7 +191,7 @@ def single_contract_position(
 
 
 def _risk_numbers(risk: Mapping[str, object]) -> dict[str, float]:
-    return {field: float(risk[field]) for field in _RISK_FIELDS}
+    return {field: float(risk[field]) for field in FUTURES_RISK_FIELDS}
 
 
 def _empty_receipt(
@@ -197,7 +202,17 @@ def _empty_receipt(
     spec: FuturesProfitabilitySpec,
     status: str,
     reasons: Sequence[str],
+    coverage_started_at: datetime | None = None,
+    coverage_epoch_id: str | None = None,
 ) -> dict[str, object]:
+    epoch_identity = (
+        {
+            "coverage_epoch_id": coverage_epoch_id,
+            "coverage_started_at_utc": coverage_started_at.isoformat(),
+        }
+        if coverage_epoch_id is not None and coverage_started_at is not None
+        else {}
+    )
     return {
         "schema": spec.receipt_schema,
         "authority": spec.authority,
@@ -212,10 +227,20 @@ def _empty_receipt(
             "unit": "USD",
             "max_drawdown_usd": spec.max_drawdown_usd,
             "slot_tolerance_seconds": spec.slot_tolerance_seconds,
+            **epoch_identity,
         },
         "clock": {
             "run_started_at_utc": _utc(run_started_at).isoformat(),
-            "coverage_started_at_utc": None,
+            "coverage_started_at_utc": (
+                coverage_started_at.isoformat()
+                if coverage_started_at is not None
+                else None
+            ),
+            **(
+                {"coverage_epoch_id": coverage_epoch_id}
+                if coverage_epoch_id is not None
+                else {}
+            ),
             "elapsed_seconds": 0.0,
             "complete_sessions": 0,
             "coverage_broken": False,
@@ -238,12 +263,49 @@ def single_contract_profitability_receipt(
     con_id: int,
     spec: FuturesProfitabilitySpec,
     as_of: datetime | str,
+    coverage_epoch: Mapping[str, object] | None = None,
 ) -> dict[str, object]:
     """Reduce one reconciled futures prefix without recalculating broker fills."""
 
     cutoff = _utc(as_of)
     run_started = _utc(run_started_at)
     tolerance = spec.slot_tolerance_seconds
+    coverage_epoch_id = None
+    fixed_coverage_start = None
+    terminal_values: dict[str, float] | None = None
+    if coverage_epoch is not None:
+        epoch_selection = coverage_epoch.get("selection")
+        terminal = coverage_epoch.get("terminal_checkpoint")
+        terminal_risk = (
+            terminal.get("risk_state") if isinstance(terminal, Mapping) else None
+        )
+        if (
+            coverage_epoch.get("schema")
+            != FUTURES_PROFITABILITY_COVERAGE_EPOCH_SCHEMA
+            or not isinstance(epoch_selection, Mapping)
+            or epoch_selection.get("selection_id") != selection_id
+            or not isinstance(terminal_risk, Mapping)
+        ):
+            raise ValueError("coverage epoch does not own this futures run")
+        try:
+            coverage_epoch_id = str(coverage_epoch["epoch_id"])
+            fixed_coverage_start = _utc(coverage_epoch["eligible_start_utc"])
+            terminal_values = _risk_numbers(terminal_risk)
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError("futures coverage epoch evidence is invalid") from exc
+        if (
+            len(coverage_epoch_id) != 64
+            or any(
+                value not in "0123456789abcdef" for value in coverage_epoch_id
+            )
+            or fixed_coverage_start < run_started
+            or fixed_coverage_start
+            not in spec.evaluation_slots(
+                fixed_coverage_start, fixed_coverage_start, True
+            )
+            or not all(math.isfinite(value) for value in terminal_values.values())
+        ):
+            raise ValueError("futures coverage epoch evidence is invalid")
     if (
         not math.isfinite(tolerance)
         or tolerance < 0
@@ -251,6 +313,19 @@ def single_contract_profitability_receipt(
         or spec.max_drawdown_usd < 0
     ):
         raise ValueError("futures profitability policy is invalid")
+    if fixed_coverage_start is not None and cutoff < (
+        fixed_coverage_start + timedelta(seconds=tolerance)
+    ):
+        return _empty_receipt(
+            selection_id=selection_id,
+            run_started_at=run_started,
+            cutoff=cutoff,
+            spec=spec,
+            status="NOT_STARTED",
+            reasons=["coverage_epoch_not_started", "elapsed_time_incomplete"],
+            coverage_started_at=fixed_coverage_start,
+            coverage_epoch_id=coverage_epoch_id,
+        )
     rows = _state_rows(records, selection_id=selection_id, spec=spec)
     aligned = []
     for row in rows:
@@ -258,7 +333,10 @@ def single_contract_profitability_receipt(
             stamp = _utc(str(row["evaluation_as_of_utc"]))
         except (KeyError, TypeError, ValueError):
             continue
-        if run_started <= stamp <= cutoff and spec.natural_slot(stamp):
+        if (
+            (fixed_coverage_start or run_started) <= stamp <= cutoff
+            and spec.natural_slot(stamp)
+        ):
             aligned.append((stamp, row))
     if not aligned:
         return _empty_receipt(
@@ -266,12 +344,25 @@ def single_contract_profitability_receipt(
             run_started_at=run_started,
             cutoff=cutoff,
             spec=spec,
-            status="NOT_STARTED",
-            reasons=["no_selected_timer_checkpoint"],
+            status=(
+                "INVALID_EVIDENCE"
+                if fixed_coverage_start is not None
+                else "NOT_STARTED"
+            ),
+            reasons=(
+                [
+                    "incomplete_session_coverage",
+                    "invalid_coverage_epoch_baseline",
+                ]
+                if fixed_coverage_start is not None
+                else ["no_selected_timer_checkpoint"]
+            ),
+            coverage_started_at=fixed_coverage_start,
+            coverage_epoch_id=coverage_epoch_id,
         )
-    coverage_start = min(aligned, key=lambda item: item[0])[0].replace(
-        second=0, microsecond=0
-    )
+    coverage_start = fixed_coverage_start or min(
+        aligned, key=lambda item: item[0]
+    )[0].replace(second=0, microsecond=0)
     baseline, conflict = _aligned_state(
         rows,
         coverage_start,
@@ -280,14 +371,18 @@ def single_contract_profitability_receipt(
     )
     errors: set[str] = set()
     if baseline is None or conflict:
-        errors.add("invalid_zero_baseline_checkpoint")
+        errors.add(
+            "invalid_coverage_epoch_baseline"
+            if coverage_epoch is not None
+            else "invalid_zero_baseline_checkpoint"
+        )
     baseline_risk = _risk(baseline, spec)
     try:
         baseline_values = _risk_numbers(baseline_risk or {})
     except (KeyError, TypeError, ValueError):
         baseline_values = {}
         errors.add("invalid_zero_baseline_checkpoint")
-    if baseline_values and any(
+    if coverage_epoch is None and baseline_values and any(
         abs(baseline_values[field]) > 1e-9
         for field in (
             "position_from_fills",
@@ -306,6 +401,66 @@ def single_contract_profitability_receipt(
         )
     ):
         errors.add("nonzero_run_baseline")
+    if coverage_epoch is not None and baseline_values:
+        baseline_evidence = (
+            baseline.get("evidence") if isinstance(baseline, Mapping) else None
+        )
+        baseline_broker = (
+            baseline_evidence.get("broker_state")
+            if isinstance(baseline_evidence, Mapping)
+            else None
+        )
+        baseline_plan = (
+            baseline_evidence.get("plan")
+            if isinstance(baseline_evidence, Mapping)
+            else None
+        )
+        baseline_risk = _risk(baseline, spec)
+        try:
+            broker_position = (
+                single_contract_position(
+                    baseline_broker, symbol=spec.symbol, con_id=con_id
+                )
+                if isinstance(baseline_broker, Mapping)
+                else None
+            )
+        except (AttributeError, TypeError, ValueError):
+            broker_position = None
+        if (
+            not isinstance(baseline_risk, Mapping)
+            or baseline_risk.get("valid") is not True
+            or baseline_risk.get("attribution_complete") is not True
+            or baseline_risk.get("safety_breaches") != []
+            or not isinstance(baseline_broker, Mapping)
+            or baseline_broker.get("open_orders") != []
+            or broker_position != 0
+            or not isinstance(baseline_plan, Mapping)
+            or baseline_plan.get("held_direction") is not None
+            or baseline_evidence.get("submitted_orders") != 0
+            or abs(baseline_values["position_from_fills"]) > 1e-9
+            or any(
+                abs(baseline_values[field]) > 1e-9
+                for field in (
+                    "open_mark_gross_usd",
+                    "open_mark_cost_usd",
+                    "open_mark_net_usd",
+                )
+            )
+        ):
+            errors.add("invalid_coverage_epoch_baseline")
+        assert terminal_values is not None
+        if any(
+            baseline_values[field] < terminal_values[field] - 1e-9
+            for field in (
+                "run_cost_usd",
+                "drawdown_usd",
+                "closed_trades",
+                "gross_wins_usd",
+                "top_five_gross_wins_usd",
+                "fill_count",
+            )
+        ):
+            errors.add("coverage_epoch_economics_regressed")
 
     matured_to = cutoff - timedelta(seconds=tolerance)
     due_slots = spec.evaluation_slots(coverage_start, matured_to, False)
@@ -334,6 +489,7 @@ def single_contract_profitability_receipt(
     prior_fill = prior_cost = prior_trades = 0.0
     final_risk: Mapping[str, object] | None = None
     equity_path = [0.0]
+    reported_drawdown = 0.0
     for row in (value for value in ordered if isinstance(value, Mapping)):
         evidence = row.get("evidence")
         risk = _risk(row, spec)
@@ -396,13 +552,18 @@ def single_contract_profitability_receipt(
         prior_fill = values["fill_count"]
         prior_cost = values["run_cost_usd"]
         prior_trades = values["closed_trades"]
+        reported_drawdown = max(reported_drawdown, values["drawdown_usd"])
         final_risk = risk
         equity_path.append(values["run_net_usd"])
 
     sessions = []
     complete_sessions = 0
     session_start = coverage_start
-    prior_net = 0.0
+    prior_net = (
+        baseline_values.get("run_net_usd", 0.0)
+        if coverage_epoch is not None
+        else 0.0
+    )
     while session_start + timedelta(hours=24, seconds=tolerance) <= cutoff:
         session_end = session_start + timedelta(hours=24)
         expected = spec.evaluation_slots(session_start, session_end, False)
@@ -433,12 +594,14 @@ def single_contract_profitability_receipt(
     final_values = (
         _risk_numbers(final_risk)
         if final_risk is not None
-        else {field: 0.0 for field in _RISK_FIELDS}
+        else {field: 0.0 for field in FUTURES_RISK_FIELDS}
     )
     high = maximum_drawdown = 0.0
     for value in equity_path:
         high = max(high, value)
         maximum_drawdown = max(maximum_drawdown, high - value)
+    if coverage_epoch is not None:
+        maximum_drawdown = max(maximum_drawdown, reported_drawdown)
     gross_wins = final_values["gross_wins_usd"]
     top_five = final_values["top_five_gross_wins_usd"]
     economics = {
@@ -519,10 +682,23 @@ def single_contract_profitability_receipt(
             "unit": "USD",
             "max_drawdown_usd": spec.max_drawdown_usd,
             "slot_tolerance_seconds": tolerance,
+            **(
+                {
+                    "coverage_epoch_id": coverage_epoch_id,
+                    "coverage_started_at_utc": coverage_start.isoformat(),
+                }
+                if coverage_epoch_id is not None
+                else {}
+            ),
         },
         "clock": {
             "run_started_at_utc": run_started.isoformat(),
             "coverage_started_at_utc": coverage_start.isoformat(),
+            **(
+                {"coverage_epoch_id": coverage_epoch_id}
+                if coverage_epoch_id is not None
+                else {}
+            ),
             "elapsed_seconds": elapsed,
             "complete_sessions": complete_sessions,
             "coverage_broken": bool(missing or conflicts),

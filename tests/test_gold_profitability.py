@@ -20,14 +20,19 @@ from tradebot.live.order_evidence import single_contract_execution_graduation_ga
 from tradebot.research import gold_profitability
 from tradebot.research.gold_profitability import (
     GOLD_LIVE_EXECUTION_VERSION,
+    build_gold_profitability_coverage_epoch,
     gold_1oz_evaluation_slots,
     gold_1oz_maintenance,
     gold_live_graduation_inputs,
     gold_live_profitability_receipt,
     gold_runtime_parity_graduation_gate,
+    load_gold_profitability_coverage_epoch,
 )
 from tradebot.research.gold_regime_harmony import GOLD_REGIME_HARMONY_VERSION
-from tradebot.research.live_graduation import reduce_live_graduation
+from tradebot.research.live_graduation import evidence_sha256, reduce_live_graduation
+from tradebot.research.live_futures_profitability import (
+    FUTURES_PROFITABILITY_COVERAGE_EPOCH_SCHEMA,
+)
 from tradebot.research.xsp_capital_stability import (
     xsp_capital_owner_stability_graduation_gate,
 )
@@ -175,6 +180,153 @@ def test_positive_24h_requires_a_complete_timer_prefix_and_authentic_fill(
     assert receipt["milestones"]["24h"]["passed"] is True
     assert receipt["milestones"]["48h"]["passed"] is False
     assert receipt["economics"]["net_usd"] == 4.0
+
+
+def test_gold_coverage_epoch_inherits_economics_and_quarantines_new_gaps(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_selection(monkeypatch)
+    start = datetime(2026, 8, 6, 2, 2, tzinfo=UTC)
+    end = start + timedelta(hours=24)
+    terminal_risk = _risk(net=-11.0, fills=2, trades=1)
+    terminal_risk["drawdown_usd"] = 11.0
+    epoch = {
+        "schema": FUTURES_PROFITABILITY_COVERAGE_EPOCH_SCHEMA,
+        "epoch_id": "c" * 64,
+        "eligible_start_utc": start.isoformat(),
+        "selection": {"selection_id": GOLD_ID},
+        "terminal_checkpoint": {"risk_state": terminal_risk},
+    }
+    baseline = _state(start, net=-11.0, fills=2, trades=1)
+    baseline["evidence"]["risk_state"]["drawdown_usd"] = 11.0
+    rows = [baseline]
+    for slot in gold_1oz_evaluation_slots(start, end):
+        row = _state(slot, net=5.0, fills=4, trades=2)
+        row["evidence"]["risk_state"]["drawdown_usd"] = 11.0
+        rows.append(row)
+
+    before = gold_live_profitability_receipt(
+        rows,
+        selection=_selection(),
+        as_of=start,
+        coverage_epoch=epoch,
+    )
+    receipt = gold_live_profitability_receipt(
+        rows,
+        selection=_selection(),
+        as_of=end + timedelta(seconds=90),
+        coverage_epoch=epoch,
+    )
+    missing = gold_live_profitability_receipt(
+        rows[:-2] + rows[-1:],
+        selection=_selection(),
+        as_of=end + timedelta(seconds=90),
+        coverage_epoch=epoch,
+    )
+
+    assert before["status"] == "NOT_STARTED"
+    assert before["clock"]["coverage_epoch_id"] == "c" * 64
+    assert receipt["milestones"]["24h"]["passed"] is True
+    assert receipt["clock"]["coverage_started_at_utc"] == start.isoformat()
+    assert receipt["clock"]["coverage_epoch_id"] == "c" * 64
+    assert receipt["economics"]["net_usd"] == 5.0
+    assert receipt["economics"]["fills"] == 4
+    assert receipt["economics"]["closed_trades"] == 2
+    assert receipt["economics"]["maximum_drawdown_usd"] == 11.0
+    assert receipt["sessions"][0]["net_usd"] == 16.0
+    assert missing["status"] == "INVALID_EVIDENCE"
+    assert "incomplete_session_coverage" in missing["reasons"]
+
+
+def test_gold_coverage_epoch_rehashes_selection_receipts_and_terminal_state(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    selected_id = (
+        "62344ce21bf7c6f01095abab14b6ca8ef79c9806abb35294859fc9574a5f7574"
+    )
+    selected = {**_selection(), "selection_id": selected_id}
+    _patch_selection(monkeypatch)
+    selection_path = tmp_path / f"db/calibration/selections/{selected_id}.json"
+    selection_path.parent.mkdir(parents=True)
+    selection_path.write_text(json.dumps(selected), encoding="utf-8")
+    predecessor_paths = []
+    for name in (
+        "one_oz_stage76_live_graduation_24h_quarantine_20260804.json",
+        "one_oz_stage76_live_graduation_48h_quarantine_20260805.json",
+    ):
+        destination = tmp_path / "backtests/gold" / name
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes((ROOT / "backtests/gold" / name).read_bytes())
+        predecessor_paths.append(destination)
+    registered = datetime(2026, 8, 6, 0, 37, 11, tzinfo=UTC)
+    eligible = datetime(2026, 8, 6, 2, 2, tzinfo=UTC)
+    preregistration_path = tmp_path / "backtests/gold/preregistration.json"
+    preregistration_path.write_text(
+        json.dumps(
+            {
+                "registered_at_utc": registered.isoformat(),
+                "eligible_start_utc": eligible.isoformat(),
+                "selection": {
+                    "selection_id": selected_id,
+                    "path": selection_path.relative_to(tmp_path).as_posix(),
+                    "sha256": hashlib.sha256(selection_path.read_bytes()).hexdigest(),
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    terminal = _state(registered - timedelta(seconds=10))
+    terminal.update(
+        {
+            "trading_date": registered.date().isoformat(),
+            "session": "GOLD_GTH",
+        }
+    )
+    terminal["evidence"]["selection_id"] = selected_id
+    fields = (
+        "evaluation_as_of_utc",
+        "strategy_id",
+        "strategy_version",
+        "trading_date",
+        "session",
+        "status",
+        "evidence",
+        "recorded_at_utc",
+    )
+    terminal["checkpoint_id"] = evidence_sha256(
+        {field: terminal[field] for field in fields}
+    )
+    epoch = build_gold_profitability_coverage_epoch(
+        selection=selected,
+        selection_path=selection_path,
+        records=(terminal,),
+        predecessor_receipt_paths=predecessor_paths,
+        preregistration_path=preregistration_path,
+        registered_at_utc=registered,
+        eligible_start_utc=eligible,
+        repo_root=tmp_path,
+    )
+    epoch_path = tmp_path / "backtests/gold/epoch.json"
+    epoch_path.write_text(json.dumps(epoch), encoding="utf-8")
+
+    assert load_gold_profitability_coverage_epoch(
+        epoch_path,
+        selection=selected,
+        selection_path=selection_path,
+        records=(terminal,),
+        repo_root=tmp_path,
+    ) == epoch
+    tampered = json.loads(epoch_path.read_text())
+    tampered["terminal_checkpoint"]["submitted_orders"] = 1
+    epoch_path.write_text(json.dumps(tampered), encoding="utf-8")
+    with pytest.raises(ValueError, match="futures profitability coverage epoch"):
+        load_gold_profitability_coverage_epoch(
+            epoch_path,
+            selection=selected,
+            selection_path=selection_path,
+            records=(terminal,),
+            repo_root=tmp_path,
+        )
 
 
 def _package(
@@ -554,7 +706,17 @@ def test_gold_cli_graduation_branch_never_loads_broker_config(
         "LiveCalibrationLedger",
         lambda _path: type("Ledger", (), {"records": lambda self: ()})(),
     )
-    monkeypatch.setattr(gold_live_cli, "gold_live_profitability_receipt", lambda *_args, **_kwargs: {})
+    epoch = {"epoch_id": "e" * 64}
+    monkeypatch.setattr(
+        gold_live_cli,
+        "load_gold_profitability_coverage_epoch",
+        lambda *_args, **_kwargs: epoch,
+    )
+    monkeypatch.setattr(
+        gold_live_cli,
+        "gold_live_profitability_receipt",
+        lambda *_args, **kwargs: captured.setdefault("profitability", kwargs) and {},
+    )
     monkeypatch.setattr(
         gold_live_cli,
         "gold_live_graduation_inputs",
@@ -588,6 +750,8 @@ def test_gold_cli_graduation_branch_never_loads_broker_config(
                 "2026-08-03T13:00:00+00:00",
                 "--graduation-output",
                 str(output),
+                "--graduation-coverage-epoch",
+                str(tmp_path / "epoch.json"),
             ]
         )
     )
@@ -596,3 +760,5 @@ def test_gold_cli_graduation_branch_never_loads_broker_config(
     assert captured["inputs"]["capital_owner_stability_path"] == Path(
         "db/calibration/portfolio_capital_owner_stability.json"
     )
+    assert captured["profitability"]["coverage_epoch"] == epoch
+    assert captured["inputs"]["coverage_epoch"] == epoch

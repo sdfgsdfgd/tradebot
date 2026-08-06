@@ -22,6 +22,7 @@ from .gold_live_runtime import (
 from .gold_profitability import (
     gold_live_graduation_inputs,
     gold_live_profitability_receipt,
+    load_gold_profitability_coverage_epoch,
 )
 from .gold_live_transport import (
     GOLD_LIVE_CAPITAL_SLEEVE,
@@ -62,6 +63,7 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
         default=PORTFOLIO_CAPITAL_STABILITY_PATH.as_posix(),
     )
     parser.add_argument("--graduation-output")
+    parser.add_argument("--graduation-coverage-epoch")
     args = parser.parse_args(argv)
     selection_path = Path(args.selection).expanduser()
     capital_path = Path(args.capital_plan).expanduser()
@@ -76,7 +78,12 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
     selection = load_gold_live_selection(selection_path)
     records = tuple(ledger.records())
     graduation_requested = any(
-        (args.graduation_target, args.graduation_cutoff, args.graduation_output)
+        (
+            args.graduation_target,
+            args.graduation_cutoff,
+            args.graduation_output,
+            args.graduation_coverage_epoch,
+        )
     )
     if graduation_requested:
         if not all(
@@ -91,8 +98,23 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
         _, graduation_records = live_calibration_logical_prefix(
             records, cutoff_utc=cutoff
         )
+        root = Path(__file__).resolve().parents[2]
+        coverage_epoch = (
+            load_gold_profitability_coverage_epoch(
+                Path(args.graduation_coverage_epoch).expanduser(),
+                selection=selection,
+                selection_path=selection_path,
+                records=records,
+                repo_root=root,
+            )
+            if args.graduation_coverage_epoch
+            else None
+        )
         profitability = gold_live_profitability_receipt(
-            graduation_records, selection=selection, as_of=cutoff
+            graduation_records,
+            selection=selection,
+            as_of=cutoff,
+            coverage_epoch=coverage_epoch,
         )
         inputs = gold_live_graduation_inputs(
             selection=selection,
@@ -104,7 +126,8 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
             capital_owner_stability_path=Path(
                 args.graduation_capital_stability
             ).expanduser(),
-            repo_root=Path(__file__).resolve().parents[2],
+            repo_root=root,
+            coverage_epoch=coverage_epoch,
         )
         receipt = reduce_live_graduation(
             target_milestone=args.graduation_target,

@@ -27,6 +27,10 @@ from .live_futures_profitability import (
     single_contract_restart_gate,
     single_contract_risk_gates,
 )
+from .live_futures_profitability_epoch import (
+    build_futures_profitability_coverage_epoch,
+    load_futures_profitability_coverage_epoch,
+)
 
 
 GOLD_LIVE_PROFITABILITY_SCHEMA = "gold.live-profitability.v1"
@@ -135,6 +139,7 @@ def gold_live_profitability_receipt(
     selection: Mapping[str, object],
     as_of: datetime | str,
     slot_tolerance_seconds: float = 90.0,
+    coverage_epoch: Mapping[str, object] | None = None,
 ) -> dict[str, object]:
     selected = load_gold_live_selection_from_mapping(selection)
     return single_contract_profitability_receipt(
@@ -144,6 +149,53 @@ def gold_live_profitability_receipt(
         con_id=int(selected["contract"]["con_id"]),
         spec=_gold_spec(slot_tolerance_seconds),
         as_of=as_of,
+        coverage_epoch=coverage_epoch,
+    )
+
+
+def build_gold_profitability_coverage_epoch(
+    *,
+    selection: Mapping[str, object],
+    selection_path: Path,
+    records: Sequence[Mapping[str, object]],
+    predecessor_receipt_paths: Sequence[Path],
+    preregistration_path: Path,
+    registered_at_utc: datetime | str,
+    eligible_start_utc: datetime | str,
+    repo_root: Path,
+) -> dict[str, object]:
+    selected = load_gold_live_selection_from_mapping(selection)
+    return build_futures_profitability_coverage_epoch(
+        selection_id=str(selected["selection_id"]),
+        selection_path=selection_path,
+        records=records,
+        spec=_gold_spec(),
+        con_id=int(selected["contract"]["con_id"]),
+        predecessor_receipt_paths=predecessor_receipt_paths,
+        preregistration_path=preregistration_path,
+        registered_at_utc=registered_at_utc,
+        eligible_start_utc=eligible_start_utc,
+        repo_root=repo_root,
+    )
+
+
+def load_gold_profitability_coverage_epoch(
+    path: Path,
+    *,
+    selection: Mapping[str, object],
+    selection_path: Path,
+    records: Sequence[Mapping[str, object]],
+    repo_root: Path,
+) -> dict[str, object]:
+    selected = load_gold_live_selection_from_mapping(selection)
+    return load_futures_profitability_coverage_epoch(
+        path,
+        selection_id=str(selected["selection_id"]),
+        selection_path=selection_path,
+        records=records,
+        spec=_gold_spec(),
+        con_id=int(selected["contract"]["con_id"]),
+        repo_root=repo_root,
     )
 
 
@@ -309,6 +361,7 @@ def gold_live_graduation_inputs(
     runtime_parity_path: Path,
     capital_owner_stability_path: Path,
     repo_root: Path,
+    coverage_epoch: Mapping[str, object] | None = None,
 ) -> dict[str, object]:
     """Project Gold raw truth into the shared live-graduation reducer."""
 
@@ -335,6 +388,14 @@ def gold_live_graduation_inputs(
         "run_id": selected["selection_id"],
         "account_fingerprint": hashlib.sha256(account_id.encode()).hexdigest(),
     }
+    epoch_identity = (
+        {
+            "coverage_epoch_id": coverage_epoch["epoch_id"],
+            "coverage_started_at_utc": coverage_epoch["eligible_start_utc"],
+        }
+        if coverage_epoch is not None
+        else {}
+    )
     return {
         "subject": subject,
         "selection": {
@@ -347,10 +408,12 @@ def gold_live_graduation_inputs(
             "execution_strategy_version": GOLD_LIVE_EXECUTION_VERSION,
             "capital_sleeve": GOLD_LIVE_CAPITAL_SLEEVE,
             "selection_file_sha256": selection_sha,
+            **epoch_identity,
         },
         "selection_file_sha256": selection_sha,
         "ledger_prefix": {
             **prefix,
+            **epoch_identity,
             "gates": {
                 "restart": restart,
                 "cash_risk_safety": risk,

@@ -727,6 +727,7 @@
         "tradebot/research/gold_profitability.py",
         "tradebot/research/gold_regime_harmony.py",
         "tradebot/research/live_futures_profitability.py",
+        "tradebot/research/live_futures_profitability_epoch.py",
         "tradebot/research/live_graduation.py",
         "tradebot/research/mcl_live.py",
         "tradebot/research/mcl_live_cli.py",
