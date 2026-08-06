@@ -1,0 +1,121 @@
+{
+  "schema": "mcl.subshock-ignition-recoil-reacceleration-stage116-block-close-accumulation.v1",
+  "recorded_at_utc": "2026-08-06T03:04:22.612668+00:00",
+  "authority": "prospective_derived_morphology_only_no_outcomes_no_orders_no_capital",
+  "campaign": "Predictive Intelligence Sharpening of Onsets",
+  "candidate": "Subshock Ignition-Recoil-Reacceleration Bridge",
+  "immutable_owners": {
+    "preregistration_path": "backtests/mcl/mcl_subshock_ignition_recoil_reacceleration_stage116_preregistration.json",
+    "preregistration_sha256": "2d081df5058a44ff736e0d26705a09b78f97c8b1b703a4ffd4d255f7d2920154",
+    "evaluator_path_on_q": "/var/tmp/mcl_stage116_subshock_morphology.py",
+    "evaluator_sha256": "e17032307a01799345fc6c26770718da2044ce874983d74458ee2b3889d8da6e",
+    "result_path_on_q": "/var/tmp/mcl-stage116-block-close-20260806T0300Z.json",
+    "result_sha256": "50031cae081c6d3e5032e186110b89c2f62c9ff81fa3dfc50a21887457e2bc7f",
+    "stage114_generation_id": "e01e06c86ca2c94564c201409595055498cdb223505d538442ccd23bd70fda98",
+    "selection_id": "8adead895d3bd460b460f832d725046a3ea34079525a80a1662004ade2c17c93"
+  },
+  "prefix": {
+    "eligible_episode_start_utc": "2026-08-05T23:50:00+00:00",
+    "tape": {
+      "first_bucket_utc": "2026-08-05T23:37:56+00:00",
+      "last_bucket_utc": "2026-08-06T03:04:20+00:00",
+      "records": 8235,
+      "record_ids_sha256": "b67af6f5cf843f49618170906aacb2b2530cc60fd2219be67488b6f1989d777c",
+      "files": [
+        {
+          "path": "2026-08-05.jsonl",
+          "sha256": "01767e7d4235b874c1b22cad9e08650b7c6d7884078725dfedeb6b77d3bcc90b"
+        },
+        {
+          "path": "2026-08-06.jsonl",
+          "sha256": "db3378e9e4f854847437f12e1184aa846ae9276447def98cf1a0fbc525ab3fd8"
+        }
+      ]
+    },
+    "bars": {
+      "common_rows": 5824,
+      "first_common_close_utc": "2026-07-30T22:01:00+00:00",
+      "last_common_close_utc": "2026-08-06T03:04:00+00:00",
+      "cutoff_utc": "2026-08-06T03:04:00+00:00",
+      "sha256": "628ac782657f4ada0e61fa6c33c8852124b76327059cf420ee5c27fdd0a6dfbf"
+    },
+    "complete_attention_episodes": 4,
+    "complete_subshock_episodes": 4,
+    "open_episode": null
+  },
+  "new_episode": {
+    "episode_id": "0a51f5af57b46ef16597a7fcf50f55b7e83dadc1f31d03b9d3391d53f394004f",
+    "started_at_utc": "2026-08-06T02:46:56+00:00",
+    "terminal_at_utc": "2026-08-06T02:55:46+00:00",
+    "receipt_session": "GTH",
+    "maximum_volume_multiple": 6.043478260869565,
+    "provisional_direction": "down",
+    "shape": "IGNITION_RECOIL_REACCELERATION",
+    "provisional_alignment": {
+      "direction": "down",
+      "observed_at_utc": "2026-08-06T02:46:56+00:00"
+    },
+    "causal_price_speed_crest": {
+      "peak_at_utc": "2026-08-06T02:46:57+00:00",
+      "confirmed_at_utc": "2026-08-06T02:47:31+00:00",
+      "confirmation_latency_seconds": 34.0,
+      "confirmation_observations": 3,
+      "peak_speed_ticks_per_second": 0.819256756756559
+    },
+    "opposite_full_alignment_recoil": {
+      "direction": "up",
+      "observed_at_utc": "2026-08-06T02:47:29+00:00",
+      "volume_multiple": 0.6086956521739131
+    },
+    "renewed_original_full_alignment": {
+      "direction": "down",
+      "observed_at_utc": "2026-08-06T02:48:12+00:00",
+      "volume_multiple": 0.6274509803921569
+    },
+    "interval_order": "SAME_INTERVAL",
+    "outcomes_exposed": false,
+    "submitted_orders": 0
+  },
+  "cohort": {
+    "complete_subshock_episodes": 4,
+    "provisional_directions": {
+      "down": 1,
+      "up": 3
+    },
+    "sessions": {
+      "GTH": 4
+    },
+    "directionless_controls": 0,
+    "shapes": {
+      "IGNITION_RECOIL": 2,
+      "IGNITION_RECOIL_REACCELERATION": 1,
+      "MIXED_TORSION": 1
+    },
+    "gates": {
+      "at_least_30_complete_subshock_episodes": false,
+      "at_least_10_each_provisional_direction": false,
+      "at_least_10_directionless_controls": false,
+      "at_least_5_repeated_occurrences_per_bridge_shape": false,
+      "both_market_sessions": false
+    },
+    "verdict": "ACCUMULATE"
+  },
+  "interpretation": "The frozen bridge shape now exists prospectively and bidirectionally at the morphology-sign level: the fourth episode is the first provisional DOWN path and the first complete ignition-recoil-reacceleration order. Four GTH episodes, one DOWN observation, zero directionless controls, and sealed outcomes are far below action authority; no threshold, shape precedence, or live law changes.",
+  "invariants": {
+    "stage112_live_changed": false,
+    "stage112_selection_changed": false,
+    "stage114_or_stage115_changed": false,
+    "threshold_changed": false,
+    "future_return_exposed": false,
+    "mfe_or_mae_exposed": false,
+    "pnl_exposed": false,
+    "direction_authority": "none",
+    "timing_authority": "none",
+    "execution_authority": "none",
+    "order_authority": "none",
+    "capital_authority": "none",
+    "market_orders_permitted": false
+  },
+  "outcomes_exposed": false,
+  "submitted_orders": 0
+}
