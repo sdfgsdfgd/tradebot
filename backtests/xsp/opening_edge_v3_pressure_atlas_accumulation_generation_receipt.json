@@ -1,0 +1,80 @@
+{
+  "schema": "xsp.pressure-atlas-accumulation-generation-receipt.v1",
+  "recorded_at_utc": "2026-08-06T00:10:19Z",
+  "authority": "prospective_count_and_morphology_only_no_outcomes_no_permission_no_orders_no_capital",
+  "quest": "XSP Freshness and Pressure On-ramp",
+  "generation": {
+    "path": "backtests/xsp/opening_edge_v3_pressure_atlas_accumulation_generation.json",
+    "sha256": "40884c4e3eea0f674f644a21dbcf563ba74e9e4421a3204337eefb5ffd5d3a75",
+    "generation_id": "015d888b73ed3f3f1b81dc833c04aeb3f6ccea0ecc30b4700047b46d4dce37e5",
+    "eligible_start_utc": "2026-08-06T13:20:00Z"
+  },
+  "preregistration": {
+    "path": "backtests/xsp/opening_edge_v3_pressure_atlas_accumulation_preregistration.json",
+    "sha256": "90884b6fc622155ec04f68d406e71b67f668c4b9d613e0aeb955193d8f693b2f"
+  },
+  "owners": {
+    "accumulator": {
+      "path": "tradebot/research/xsp_pressure_accumulator.py",
+      "sha256": "ac5dab681f10acb12e4f8393177a460a46fc2cda8433f41373f6524c657bbeb2"
+    },
+    "observer_binding": {
+      "path": "tradebot/research/xsp_shadow_cli.py",
+      "sha256": "d8e1544da613f56c9bb5f9706ac2f5c48fc36ab2f8886b4f3208f6dc372fb1e8"
+    },
+    "immutable_atlas": {
+      "path": "tradebot/research/xsp_pressure_atlas.py",
+      "sha256": "47bb47a8378a68e3c8785f945900e7ea5f2c11a9f14421dae5fd2903526823ce"
+    },
+    "immutable_tape_generation": {
+      "path": "backtests/xsp/opening_edge_v3_pressure_tape_generation.json",
+      "sha256": "45111626d4fc4775c52f9a00f6b70984e6971f35edcbeb111f583f4814160eab"
+    }
+  },
+  "runtime": {
+    "existing_observer_service": "tradebot-xsp-shadow.service",
+    "new_service": false,
+    "new_timer": false,
+    "new_recorder": false,
+    "placement": "after crowned source, live transport, and broker disconnect",
+    "recovery": "rescan immutable source prefix on every existing observer invocation",
+    "research_failure_changes_live_return_code": false
+  },
+  "proof": {
+    "focused_tests": 18,
+    "full_tests_passed": 1246,
+    "full_tests_deselected": 4,
+    "generation_rehash": true,
+    "single_append": true,
+    "byte_identical_idempotence": true,
+    "incomplete_window_appends_nothing": true,
+    "conflicting_target_fails_closed": true,
+    "observation_failure_occurs_after_disconnect": true,
+    "observation_failure_preserves_live_success": true
+  },
+  "preeligible_smoke": {
+    "source_candidates": 0,
+    "appended": 0,
+    "complete_targets": 0,
+    "verdict": "FROZEN_ACCUMULATE",
+    "historical_backfill": false,
+    "permission": "none",
+    "outcomes": null,
+    "submitted_orders": 0
+  },
+  "invariants": {
+    "xsp_crown_changed": false,
+    "xsp_live_selection_changed": false,
+    "xsp_lifecycle_changed": false,
+    "xsp_limit_ladder_changed": false,
+    "shared_capital_changed": false,
+    "mcl_stage112_changed": false,
+    "gold_changed": false,
+    "classifier_authority": "none",
+    "permission_authority": "none",
+    "order_authority": "none",
+    "capital_authority": "none",
+    "submitted_orders": 0
+  },
+  "verdict": "ARMED_FROZEN_ACCUMULATE_0_OF_30"
+}

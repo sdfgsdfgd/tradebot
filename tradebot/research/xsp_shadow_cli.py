@@ -81,6 +81,7 @@ from .xsp_profitability_epoch import (
     xsp_profitability_receipt_with_coverage_epoch,
     xsp_profitability_policy_with_coverage_epoch,
 )
+from .xsp_pressure_accumulator import accumulate_xsp_pressure_atlas
 
 
 async def _main_async(argv: Sequence[str] | None = None) -> int:
@@ -535,6 +536,26 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
     finally:
         await client.disconnect()
     completed_at = datetime.now(tz=timezone.utc)
+    pressure_atlas_accumulation = None
+    if args.mode == "opening-edge-v3":
+        try:
+            pressure_atlas_accumulation = accumulate_xsp_pressure_atlas(
+                tuple(ledger.records()),
+                observed_at=completed_at,
+            )
+        except Exception as exc:
+            pressure_atlas_accumulation = {
+                "schema": "xsp.pressure-atlas-accumulation-status.v1",
+                "status": "OBSERVATION_ERROR",
+                "error_type": type(exc).__name__,
+                "error": str(exc),
+                "live_invocation_changed": False,
+                "permission": "none",
+                "outcomes": None,
+                "order_authority": "none",
+                "capital_authority": "none",
+                "submitted_orders": 0,
+            }
     fundamental_benchmark = (
         xsp_fundamental_defensive_benchmark(ledger)
         if args.mode == "directional-v1"
@@ -604,6 +625,7 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
                     else None
                 ),
                 "transport_execution": transport_execution,
+                "pressure_atlas_accumulation": pressure_atlas_accumulation,
                 "completed_at_utc": completed_at.isoformat(),
             },
             allow_nan=False,

@@ -468,6 +468,10 @@ def test_shadow_cli_v3_accepts_safe_closed_noop_without_v2_execution_authority(
     async def _forbidden(*_args, **_kwargs):
         raise AssertionError("v3 must not enter a v2 cash execution owner")
 
+    def _failed_observation(*_args, **_kwargs):
+        assert captured["disconnected"] is True
+        raise RuntimeError("synthetic pressure-ledger failure")
+
     monkeypatch.setattr("tradebot.client.IBKRClient", _Client)
     monkeypatch.setattr(
         "tradebot.research.xsp_shadow_cli.load_xsp_opening_edge_v3_spec",
@@ -484,6 +488,10 @@ def test_shadow_cli_v3_accepts_safe_closed_noop_without_v2_execution_authority(
     monkeypatch.setattr(
         "tradebot.research.xsp_shadow_cli.advance_xsp_v2_etf_execution_observer",
         _forbidden,
+    )
+    monkeypatch.setattr(
+        "tradebot.research.xsp_shadow_cli.accumulate_xsp_pressure_atlas",
+        _failed_observation,
     )
 
     assert (
@@ -512,6 +520,18 @@ def test_shadow_cli_v3_accepts_safe_closed_noop_without_v2_execution_authority(
     assert output["v3_run_started_at_utc"] == run_start.isoformat()
     assert output["selected_transport_id"] is None
     assert output["order_authority"] == "none"
+    assert output["pressure_atlas_accumulation"] == {
+        "schema": "xsp.pressure-atlas-accumulation-status.v1",
+        "status": "OBSERVATION_ERROR",
+        "error_type": "RuntimeError",
+        "error": "synthetic pressure-ledger failure",
+        "live_invocation_changed": False,
+        "permission": "none",
+        "outcomes": None,
+        "order_authority": "none",
+        "capital_authority": "none",
+        "submitted_orders": 0,
+    }
 
 
 def test_shadow_cli_v3_closed_source_never_enters_selected_cash_transport(

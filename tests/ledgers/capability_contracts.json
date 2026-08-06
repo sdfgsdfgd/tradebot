@@ -288,6 +288,7 @@
         "tradebot/research/mcl_shock_wave_generation.py",
         "tradebot/research/mcl_shock_waves.py",
         "tradebot/research/mcl_two_speed_auction.py",
+        "tradebot/research/xsp_pressure_accumulator.py",
         "tradebot/research/xsp_pressure_atlas.py",
         "tradebot/spot_engine.py"
       ],

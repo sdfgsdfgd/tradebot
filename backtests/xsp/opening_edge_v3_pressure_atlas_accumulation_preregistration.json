@@ -1,0 +1,88 @@
+{
+  "schema": "xsp.opening-edge-v3-pressure-atlas-accumulation-preregistration.v1",
+  "registered_at_utc": "2026-08-06T00:00:38Z",
+  "eligible_start_utc": "2026-08-06T13:20:00Z",
+  "authority": "prospective_count_and_morphology_only_no_outcomes_no_permission_no_orders_no_capital",
+  "quest": "XSP Freshness and Pressure On-ramp prospective crowned-target accumulation",
+  "hypothesis": "An exact pre-signal swarm of real-time SPY cash discovery and leverage-normalized UPRO/inverse-SPXU transport pressure, joined to the unchanged crown's multihorizon XSP and daily state, may later distinguish fresh admission, lawful waiting, and revocation without creating direction.",
+  "incumbent": {
+    "strategy_version": "xsp.opening-edge-v3-regime-harmony-24x5.v1",
+    "source_strategy_version": "xsp.opening-edge-v3-regime-harmony-spy-transport.v1",
+    "selection_id": "1083c1813e6b0ca4cf5777a5275e06be651622bc6e6207e718b549296a9bdd87",
+    "selection_sha256": "d5f616e43adb26f06534fbaa0c513358b70078a9755f3a9ecdcd81dc9cebc35d",
+    "direction_and_lifecycle_owner_unchanged": true
+  },
+  "frozen_inputs": {
+    "pressure_tape_generation": {
+      "path": "backtests/xsp/opening_edge_v3_pressure_tape_generation.json",
+      "sha256": "45111626d4fc4775c52f9a00f6b70984e6971f35edcbeb111f583f4814160eab"
+    },
+    "pressure_atlas_generation": {
+      "path": "backtests/xsp/opening_edge_v3_pressure_atlas_generation.json",
+      "sha256": "1559c83998a5a850f8bf140b711da7462dc671d7d3c88ddef95d2135fef3a7fb"
+    },
+    "pressure_atlas_owner": {
+      "path": "tradebot/research/xsp_pressure_atlas.py",
+      "sha256": "47bb47a8378a68e3c8785f945900e7ea5f2c11a9f14421dae5fd2903526823ce"
+    }
+  },
+  "treatment_identity": {
+    "source": "one profile-parity-checked crowned RTH position admission from the immutable XSP live-calibration ledger",
+    "deduplication": "selection ID plus direction, canonical signal-bar close, entry time, and decision-trace fingerprint",
+    "formation": "exactly 60 contiguous eligible standard-live-L1 seconds in [signal_bar_close-60s, signal_bar_close)",
+    "signal_clock": "the crown's canonical UTC-naive completed five-minute signal_bar_ts interpreted by xsp_signal_utc",
+    "later_recovery": "every observer invocation rescans immutable source checkpoints so a missed observational append can be recovered without replaying broker execution",
+    "conflict_policy": "the same target identity with different causal morphology fails closed"
+  },
+  "context_law": {
+    "seconds": [
+      1,
+      3,
+      5,
+      10,
+      15,
+      30,
+      45
+    ],
+    "xsp_impulse": "the exact directional_impulse frozen in the crowned admission attribution",
+    "daily": "the exact 5/10/21/42/63/84-session context state frozen in the same source checkpoint",
+    "spy_slow": "UNDERWARMED until an exact same-clock RTH SPY impulse is durably present; GTH or later SPY state may not be substituted",
+    "es": "excluded because the current subscription does not provide standard-live data",
+    "news": "not an input to this count-and-morphology cohort"
+  },
+  "cohort_gate": {
+    "minimum_complete_crowned_targets": 30,
+    "minimum_each_crowned_direction": 10,
+    "minimum_repeated_morphologies_each_candidate_family": 5,
+    "count_and_morphology_first": true,
+    "outcomes_open": false,
+    "classifier_open": false,
+    "permission_open": false
+  },
+  "runtime_boundary": {
+    "placement": "after the existing XSP source and live-transport invocation and after broker disconnect",
+    "failure_policy": "report OBSERVATION_ERROR without changing the live invocation verdict or return code",
+    "new_service": false,
+    "new_timer": false,
+    "new_recorder": false,
+    "live_import_into_transport": false
+  },
+  "excluded": [
+    "Historical broad and narrow pressure-policy outcomes may not train this prospective cohort.",
+    "Preeligible seconds, partial windows, gaps, delayed or frozen books, invalid rows, mixed generations, and hash drift may not enter.",
+    "No threshold grid, score, winner, economic outcome, order, capital instruction, exchange timestamp, depth, hidden liquidity, or complete signed-flow claim is opened.",
+    "No observer failure may delay, veto, duplicate, or mutate the existing crowned source, broker transport, risk reduction, or LIMIT ladder."
+  ],
+  "invariants": {
+    "xsp_live_owner_unchanged": true,
+    "shared_limit_ladder_unchanged": true,
+    "shared_capital_owner_unchanged": true,
+    "mcl_stage112_unchanged": true,
+    "gold_unchanged": true,
+    "outcomes_open": false,
+    "permission_open": false,
+    "order_authority": "none",
+    "capital_authority": "none",
+    "submitted_orders": 0
+  }
+}

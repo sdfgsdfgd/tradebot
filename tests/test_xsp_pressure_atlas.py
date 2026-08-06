@@ -13,6 +13,16 @@ from tradebot.research.xsp_pressure_atlas import (
     load_xsp_pressure_atlas_generation,
     project_xsp_pressure_atlas,
 )
+from tradebot.research.live_calibration import LiveCalibrationLedger
+from tradebot.research.xsp_opening_edge_v3 import (
+    XSP_OPENING_EDGE_V3_TRANSPORT_VERSION,
+)
+from tradebot.research.xsp_pressure_accumulator import (
+    XSP_PRESSURE_ACCUMULATOR_AUTHORITY,
+    accumulate_xsp_pressure_atlas,
+    load_xsp_pressure_accumulator_generation,
+    xsp_pressure_treatments,
+)
 from tradebot.research.xsp_pressure_tape import XspPressureTapeRecorder
 
 
@@ -43,9 +53,10 @@ def _records(
     tmp_path: Path,
     *,
     cresting: bool = False,
+    generation_sha256: str = "a" * 64,
 ) -> list[dict[str, object]]:
     recorder = XspPressureTapeRecorder(
-        generation_sha256="a" * 64,
+        generation_sha256=generation_sha256,
         contracts=_contracts(),
         output_dir=tmp_path,
         eligible_start_utc=START,
@@ -120,6 +131,55 @@ def _daily() -> dict[str, object]:
         },
         "tr_velocity": 0.01,
         "tr_acceleration": 0.001,
+    }
+
+
+def _source(
+    *,
+    signal_at: datetime,
+    direction: str = "up",
+    decision_trace: str = "d" * 64,
+) -> dict[str, object]:
+    entry_at = signal_at + timedelta(minutes=5)
+    entry = {
+        "signal_bar_ts": signal_at.replace(tzinfo=None).isoformat(),
+        "directional_impulse": _impulse(),
+        "market_state": {"hard_dir": direction},
+        "control": {
+            "source": "directional_impulse",
+            "direction": direction,
+            "proposed_direction": direction,
+        },
+        "local_extrema": None,
+    }
+    position = {
+        "lane": "rth",
+        "direction": direction,
+        "entry_time": entry_at.replace(tzinfo=None).isoformat(),
+        "attribution": {
+            "decision_trace_fingerprint": decision_trace,
+            "entry": entry,
+        },
+    }
+    profile = {"latest_position": position}
+    return {
+        "kind": "checkpoint",
+        "checkpoint_id": "c" * 64,
+        "recorded_at_utc": entry_at.isoformat(),
+        "strategy_version": XSP_OPENING_EDGE_V3_TRANSPORT_VERSION,
+        "session": "RTH",
+        "status": "EVALUATED",
+        "evidence": {
+            "rth_provenance_fresh": True,
+            "order_authority": "none",
+            "paired_equity": {
+                "daily_context_state": {"state": _daily()},
+                "profiles": {
+                    "research": profile,
+                    "broker": profile,
+                },
+            },
+        },
     }
 
 
@@ -237,3 +297,117 @@ def test_committed_atlas_generation_rehashes_all_owners() -> None:
     assert generation["outcomes_open"] is False
     assert generation["permission_open"] is False
     assert generation["order_authority"] == "none"
+
+
+def test_pressure_accumulator_generation_rehashes_every_owner() -> None:
+    root = Path(__file__).resolve().parents[1]
+    generation, generation_sha = load_xsp_pressure_accumulator_generation(
+        root
+        / "backtests/xsp/opening_edge_v3_pressure_atlas_accumulation_generation.json",
+        root=root,
+    )
+
+    assert len(generation_sha) == 64
+    assert generation["authority"] == XSP_PRESSURE_ACCUMULATOR_AUTHORITY
+    assert generation["cohort_gate"] == {
+        "minimum_complete_crowned_targets": 30,
+        "minimum_each_crowned_direction": 10,
+        "minimum_repeated_morphologies_each_candidate_family": 5,
+    }
+    assert generation["outcomes_open"] is False
+    assert generation["permission_open"] is False
+    assert generation["submitted_orders"] == 0
+
+
+def test_pressure_accumulator_appends_one_target_exactly_once(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[1]
+    generation, generation_sha = load_xsp_pressure_accumulator_generation(
+        root
+        / "backtests/xsp/opening_edge_v3_pressure_atlas_accumulation_generation.json",
+        root=root,
+    )
+    tape = tmp_path / "tape"
+    _records(
+        tape,
+        generation_sha256=str(generation["pressure_tape_generation_sha256"]),
+    )
+    signal_at = START + timedelta(seconds=60)
+    source = _source(signal_at=signal_at)
+    ledger = tmp_path / "atlas.jsonl"
+
+    first = accumulate_xsp_pressure_atlas(
+        (source,),
+        observed_at=signal_at + timedelta(minutes=6),
+        tape_dir=tape,
+        ledger_path=ledger,
+        repository_root=root,
+    )
+    before = ledger.read_bytes()
+    second = accumulate_xsp_pressure_atlas(
+        (source,),
+        observed_at=signal_at + timedelta(minutes=7),
+        tape_dir=tape,
+        ledger_path=ledger,
+        repository_root=root,
+    )
+
+    assert first["generation_sha256"] == generation_sha
+    assert first["appended"] == 1
+    assert second["appended"] == 0
+    assert ledger.read_bytes() == before
+    assert first["cohort"]["complete_targets"] == 1
+    assert first["cohort"]["directions"] == {"up": 1}
+    assert first["cohort"]["verdict"] == "FROZEN_ACCUMULATE"
+    assert not any(first["cohort"]["gates"].values())
+    treatments = xsp_pressure_treatments(
+        tuple(LiveCalibrationLedger(ledger).records())
+    )
+    assert len(treatments) == 1
+    assert treatments[0]["atlas"]["target_direction"] == "up"
+    assert treatments[0]["slow_spy_status"].startswith("UNDERWARMED")
+    assert treatments[0]["outcomes"] is None
+    assert treatments[0]["permission"] == "none"
+    assert treatments[0]["submitted_orders"] == 0
+
+
+def test_pressure_accumulator_leaves_an_incomplete_window_unwritten(
+    tmp_path: Path,
+) -> None:
+    root = Path(__file__).resolve().parents[1]
+    signal_at = START + timedelta(seconds=60)
+    ledger = tmp_path / "atlas.jsonl"
+    result = accumulate_xsp_pressure_atlas(
+        (_source(signal_at=signal_at),),
+        observed_at=signal_at + timedelta(minutes=6),
+        tape_dir=tmp_path / "missing-tape",
+        ledger_path=ledger,
+        repository_root=root,
+    )
+
+    assert result["source_candidates"] == 1
+    assert result["appended"] == 0
+    assert result["incomplete"][0]["reason"].endswith(
+        "requires 60 contiguous source seconds"
+    )
+    assert not ledger.exists()
+    assert result["cohort"]["complete_targets"] == 0
+    assert result["permission"] == "none"
+    assert result["submitted_orders"] == 0
+
+
+def test_pressure_accumulator_rejects_conflicting_target_provenance(
+    tmp_path: Path,
+) -> None:
+    root = Path(__file__).resolve().parents[1]
+    signal_at = START + timedelta(seconds=60)
+    with pytest.raises(ValueError, match="target identity conflicts"):
+        accumulate_xsp_pressure_atlas(
+            (
+                _source(signal_at=signal_at, decision_trace="1" * 64),
+                _source(signal_at=signal_at, decision_trace="2" * 64),
+            ),
+            observed_at=signal_at + timedelta(minutes=6),
+            tape_dir=tmp_path / "tape",
+            ledger_path=tmp_path / "atlas.jsonl",
+            repository_root=root,
+        )
