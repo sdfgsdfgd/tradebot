@@ -415,6 +415,7 @@ gate after outcomes.
 | First live phase-front specimen | Hawkeye `6883a553…`: completed `05:55→06:00Z` GTH changed all `5/15/30/60/120m` slopes and velocities `DDDDD/DDDDD→UUUUU/UUUUU`, ATR ratio `1.644×`, score `+0.2062`, coherence `1.0`, daily stack all-UP | Preserve as prospective morphology only; GTH-UP transport is disabled and recoil, terminal, ETF acceptance, and outcome remain unknown |
 | First specimen continuation | Hawkeye `2b167598…`: by `06:25Z`, the visually complete `UUUUU/UUUUU` flip had relapsed to `UDDDD/UUUUU` at elevated `1.919×` ATR; four slopes did not persist even though every velocity repaired again | High-value prospective negative control: neither a perfect simultaneous flip nor a renewed velocity spark alone is a durable pivot; P-002 must track survival, ordered propagation, and recoil without assigning an outcome |
 | Second specimen continuation | Hawkeye `e0a0c975…`: by `07:05Z`, slopes were `NUUDD` and velocities `DDUUD` at compressed `0.526×` ATR. The 15m/30m slope repair arrived, but fast velocity relapsed before the 60m/120m front crossed | Stronger negative control: partial slope propagation is still insufficient when arrival order loses fast sponsorship before the slow front accepts |
+| Third specimen continuation | Hawkeye `e009ccfa…`: by `07:25Z`, slopes had progressed to `DUUUD`, but every `5/15/30/60/120m` velocity was DOWN before the 120m slope crossed | The same unseen front now supplies an unusually clean failure boundary: middle-clock slope crosses cannot rescue a front whose entire velocity stack has relapsed; this is recoil/relapse, never an UP permission |
 | MCL failed-repair control | Simultaneous positive velocity under all-negative slopes relapsed before ordered crosses | A repair spark alone is not a pivot; method reference only |
 | MCL headline/shock study | Demonstrates urgency, explicit authority handoff, and phase-front geometry | Inspiration only; no XSP threshold/outcome transfer |
 
@@ -440,8 +441,8 @@ gate after outcomes.
    causal phase-front owners; nine synthetic order, relapse, recoil, handoff,
    censoring, pre-confirmation-extreme, acceleration/jerk, gap, and
    clock-integrity paths pass.
-3. `[ACTIVE]` Freeze the P-002 owner generation, then run count/morphology only
-   over the complete historical tape;
+3. `[ACTIVE]` Publish the frozen P-002 owner generation, then run
+   count/morphology only over the complete historical tape;
    reject underrepresented families before P&L opens.
 4. `[PENDING]` Open one discovery/validation replay and settle every landing.
 5. `[PENDING]` If a stable family exists, compare timing-only versus genuinely
@@ -452,7 +453,7 @@ gate after outcomes.
 
 ## Conclusion: XSP Multiscale Phase-Front Pivot Mastery
 
-**Status:** `ACTIVE / AUTHORIZED / P002_PRECOUNT_CAUSALITY_CORRECTED / NINE_SYNTHETIC_PATHS_GREEN / GENERATION_FREEZE_NEXT`.
+**Status:** `ACTIVE / AUTHORIZED / P002_PRECOUNT_CAUSALITY_CORRECTED / TEN_SYNTHETIC_PATHS_GREEN / GENERATION_FROZEN_PUBLICATION_NEXT`.
 
 The decisive insight is:
 
