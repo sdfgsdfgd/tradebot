@@ -39,8 +39,8 @@ transcripts and routine test output do not belong here.
 | Active hypothesis | A true pivot is the ordered propagation and survival of a new-direction velocity/slope phase front—not one velocity flip, one high-volume bar, or one later-confirmed chart bottom |
 | Current authority | Concept and experiment management only. No classifier, direction, permission, timing, chase, order, or capital authority |
 | Landmark authority | P-001 preregistration `opening_edge_v4_phase_front_pivot_landmarks_preregistration.json` (`07506749…`) freezes the `0.25×` prior-scale causal confirmation / `0.50×` serious outgoing-wave oracle, landing schema, and diagnostic-only neighbors before landmark outcomes |
-| First work | Build the pure landmark/phase-front owners against synthetic paths, re-prove the incumbent ledger exactly, then run one count-first multiscale census with economics sealed |
-| Hawkeye | Portfolio Hawkeye remains the preemptive outer loop. Slice this quest around its lawful 20-minute reviews; do not backfill missed reviews or manufacture market evidence |
+| First work | Pure oracle and causal phase-front owners pass seven synthetic order, relapse, recoil, handoff, censoring, gap, and nonmonotonic-clock paths. Freeze their content-addressed P-002 generation before opening the full-tape count/morphology census; economics remain sealed |
+| Hawkeye | Portfolio Hawkeye remains the preemptive outer loop. Latest canonical review is `2/6` at `06:27Z`; the next lawful boundary is `06:47:05Z`. Do not backfill missed reviews or manufacture market evidence |
 
 <!-- PIVOT-RESUME:END -->
 
@@ -413,6 +413,7 @@ gate after outcomes.
 | Prospective pressure atlas | Frozen `1/3/5/10/15/30/45s`; eligible `2026-08-06T13:20Z`; `0/30` | Accumulate outcome-blind |
 | P-001 landmark preregistration | `07506749…` binds `184,957` bars / `754` complete sessions / tape `6d239c88…`; prior-21-session scale, `0.25×` causal confirmation, `0.50×` serious outgoing excursion, diagnostic-only `0.20/0.40` and `0.30/0.60` neighbors | Landmark outcome access remains closed; implement and test synthetically before count-only replay |
 | First live phase-front specimen | Hawkeye `6883a553…`: completed `05:55→06:00Z` GTH changed all `5/15/30/60/120m` slopes and velocities `DDDDD/DDDDD→UUUUU/UUUUU`, ATR ratio `1.644×`, score `+0.2062`, coherence `1.0`, daily stack all-UP | Preserve as prospective morphology only; GTH-UP transport is disabled and recoil, terminal, ETF acceptance, and outcome remain unknown |
+| First specimen continuation | Hawkeye `2b167598…`: by `06:25Z`, the visually complete `UUUUU/UUUUU` flip had relapsed to `UDDDD/UUUUU` at elevated `1.919×` ATR; four slopes did not persist even though every velocity repaired again | High-value prospective negative control: neither a perfect simultaneous flip nor a renewed velocity spark alone is a durable pivot; P-002 must track survival, ordered propagation, and recoil without assigning an outcome |
 | MCL failed-repair control | Simultaneous positive velocity under all-negative slopes relapsed before ordered crosses | A repair spark alone is not a pivot; method reference only |
 | MCL headline/shock study | Demonstrates urgency, explicit authority handoff, and phase-front geometry | Inspiration only; no XSP threshold/outcome transfer |
 
@@ -434,9 +435,11 @@ gate after outcomes.
 
 1. `[COMPLETE]` Verify the incumbent metric/ledger hashes and freeze the exact
    serious-pivot landmark plus landing schema before inspecting its outcomes.
-2. `[ACTIVE]` Build one pure derived phase-front atlas from existing tapes and
-   prove synthetic order, relapse, recoil, and handoff controls.
-3. `[PENDING]` Run count/morphology only over the complete historical tape;
+2. `[COMPLETE]` Build physically separated future-aware landmark and strictly
+   causal phase-front owners; seven synthetic order, relapse, recoil, handoff,
+   censoring, gap, and clock-integrity paths pass.
+3. `[ACTIVE]` Freeze the P-002 owner generation, then run count/morphology only
+   over the complete historical tape;
    reject underrepresented families before P&L opens.
 4. `[PENDING]` Open one discovery/validation replay and settle every landing.
 5. `[PENDING]` If a stable family exists, compare timing-only versus genuinely
@@ -447,7 +450,7 @@ gate after outcomes.
 
 ## Conclusion: XSP Multiscale Phase-Front Pivot Mastery
 
-**Status:** `ACTIVE / AUTHORIZED / BASELINE_AND_LANDMARK_LAW_FROZEN / COUNT_FIRST_NEXT`.
+**Status:** `ACTIVE / AUTHORIZED / P002_SYNTHETIC_OWNERS_GREEN / GENERATION_FREEZE_NEXT`.
 
 The decisive insight is:
 
