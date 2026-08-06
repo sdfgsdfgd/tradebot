@@ -412,6 +412,7 @@ gate after outcomes.
 | Historical pressure economics | Candidate removed `32`, added `20`, net trade delta `-12`, delta `-$31.07`; yearly PnL/DD improved only Y2 | Broad timing overlay rejected permanently |
 | Prospective pressure atlas | Frozen `1/3/5/10/15/30/45s`; eligible `2026-08-06T13:20Z`; `0/30` | Accumulate outcome-blind |
 | P-001 landmark preregistration | `07506749…` binds `184,957` bars / `754` complete sessions / tape `6d239c88…`; prior-21-session scale, `0.25×` causal confirmation, `0.50×` serious outgoing excursion, diagnostic-only `0.20/0.40` and `0.30/0.60` neighbors | Landmark outcome access remains closed; implement and test synthetically before count-only replay |
+| First live phase-front specimen | Hawkeye `6883a553…`: completed `05:55→06:00Z` GTH changed all `5/15/30/60/120m` slopes and velocities `DDDDD/DDDDD→UUUUU/UUUUU`, ATR ratio `1.644×`, score `+0.2062`, coherence `1.0`, daily stack all-UP | Preserve as prospective morphology only; GTH-UP transport is disabled and recoil, terminal, ETF acceptance, and outcome remain unknown |
 | MCL failed-repair control | Simultaneous positive velocity under all-negative slopes relapsed before ordered crosses | A repair spark alone is not a pivot; method reference only |
 | MCL headline/shock study | Demonstrates urgency, explicit authority handoff, and phase-front geometry | Inspiration only; no XSP threshold/outcome transfer |
 
