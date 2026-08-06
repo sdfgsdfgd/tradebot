@@ -1,0 +1,136 @@
+{
+  "schema": "xsp.opening-edge-v4-pressure-phase-front-p004-preregistration.v1",
+  "registered_at_utc": "2026-08-06T10:01:47Z",
+  "authority": "historical_count_and_morphology_only_no_outcomes_no_signal_no_orders_no_capital",
+  "quest": "P-004 causal pressure/shock phase-front timing challenger",
+  "hypothesis": "Prior-only nonordinary SPY volume/range pressure identifies when an XSP reversal front deserves attention, but direction and timing become authoritative only when the existing strictly causal XSP phase-front candidate propagates and both SPY and XSP accept that same direction. This may identify serious pressure/shock pivots earlier than the future-aware landmark confirmation while retaining every false alarm.",
+  "pre_outcome_evidence": {
+    "hawkeye_receipt_path": "backtests/portfolio_hawkeye_20260806T0947Z.json",
+    "hawkeye_receipt_sha256": "1b1904bcd1cb708f956d0b327f363b83d64d42edace0d56c5946a5ecdb52c190",
+    "observation": "The three-scale-stable oracle contains 200 RTH pressure/shock landmarks. Existing causal phase fronts match 143; 94 land early, 37 at the same close, and 12 late. Opening landmarks are an explicit contrast: only 47 of 446 match and 45 are late.",
+    "exposure": "Counts, class identity, and causal landing timestamps only. No future prices, return, MFE, MAE, PnL, drawdown, trade outcome, or selected action was exposed."
+  },
+  "source_identity": {
+    "tape_sha256": "6d239c88dadbbb259a8e1e691c7311a05436859db7f1fe330b21d84daa3c67df",
+    "rth_history_manifest_sha256": "0de9666963dee022398f6341ef124d562d470559d98837dec338c03e498030f6",
+    "spy_full24_history_manifest_sha256": "f9302ba328dff742bee245db21a148873d8d33f2c6ff943f2e75ee65e083a0cb",
+    "crown_path": "backtests/xsp/opening_edge_v3_regime_harmony_24x5.json",
+    "crown_sha256": "d47eb39cef3d2ca575d779d6b5b87e3b88e08606fd09a8801b8cb55c350208db",
+    "phase_owner_path": "tradebot/research/xsp_phase_front.py",
+    "phase_owner_sha256": "49578ec261c7fd47730bd2929033aa45f753da42318572eaf690eb0c6d3d1c08",
+    "pressure_owner_path": "tradebot/research/xsp_pressure_onramp.py",
+    "pressure_owner_sha256": "b40974c26d1afd6b26b707494195668e777eb2caad20f0d9e6f61b6d5d07d570",
+    "landmark_owner_path": "tradebot/research/xsp_pivot_landmarks.py",
+    "landmark_owner_sha256": "09e7f453d1779ca7f25726a5317b2af9a4120d420bc1aa8e411692f53e670527",
+    "landmark_preregistration_sha256": "075067497250eba891d4f10a2c6b17831f0851459bca089aaf112dc74c2e0056"
+  },
+  "windows": {
+    "year_1_discovery": [
+      "2023-07-24",
+      "2024-07-23"
+    ],
+    "year_2_validation": [
+      "2024-07-24",
+      "2025-07-23"
+    ],
+    "year_3_locked_final": [
+      "2025-07-24",
+      "2026-07-24"
+    ],
+    "visibility": "All periods may expose identity, readiness, counts, categorical phase shapes, emission timestamps, and future-aware landmark matches. Prices after an emission and all economics remain sealed until the count gate passes."
+  },
+  "causal_law": {
+    "lane": "RTH only",
+    "clock": "completed five-minute closes only",
+    "session_reset": "phase, pressure, incumbent, candidate, and one-emission ownership reset at every RTH session or causal tape gap",
+    "pressure": {
+      "source": "SPY same-RTH-slot prior-only percentile ranks",
+      "reference_sessions": 63,
+      "minimum_reference_sessions": 21,
+      "ordinary": "neither joint rank reaches 0.80 and neither one-sided rank reaches 0.95",
+      "one_sided": "volume or normalized true-range rank reaches 0.95 without joint confirmation",
+      "elevated": "both ranks reach 0.80",
+      "shock": "both ranks reach 0.95",
+      "eligible_levels": [
+        "ONE_SIDED",
+        "ELEVATED",
+        "SHOCK"
+      ],
+      "memory_bars": 0,
+      "direction_authority": "none"
+    },
+    "direction": "The existing XspPhaseFrontEngine candidate_direction is the sole candidate direction. Pressure magnitude, bar body, future landmark direction, and crown outcome may not create or reverse it.",
+    "cross_instrument_acceptance": {
+      "horizons_in_completed_five_minute_bars": [
+        1,
+        3,
+        6,
+        12,
+        24
+      ],
+      "full_acceptance": "For the candidate direction, both current XSP and SPY close-to-close returns are positive, each instrument has at least three of five aligned slopes, and each has at least three of five aligned slope velocities.",
+      "refusal": "Either current return is opposite or either instrument has at least three of five slopes and velocities opposite the candidate direction.",
+      "partial": "Every other fully warmed state.",
+      "underwarmed": "Any missing current return, slope, velocity, rank, or required clock; never synthesize it."
+    },
+    "emission": {
+      "eligible_phases": [
+        "CROSS_CONVERGING",
+        "FRONT_PROPAGATING",
+        "FAST_SLOPE_CROSS",
+        "REACCELERATION",
+        "SLOW_SLOPE_CASCADE",
+        "PIVOT_ACCEPTED"
+      ],
+      "required_pressure": "ONE_SIDED, ELEVATED, or SHOCK on the same completed close",
+      "required_transport": "FULL_ACCEPTANCE",
+      "deduplication": "Emit the first eligible state once per uninterrupted candidate wave and direction. Do not re-emit until RELAPSED, PIVOT_ACCEPTED, an opposite candidate, a gap, or the RTH terminal closes that wave.",
+      "bare_repair_spark": "attention/control only",
+      "bare_pressure": "attention/control only",
+      "recoil_test": "control only until same-direction REACCELERATION",
+      "output": "one immutable morphology emission with no action, permission, sizing, lifecycle, execution, order, or capital authority"
+    },
+    "false_alarm_completeness": [
+      "every eligible causal emission, whether or not a future serious landmark exists",
+      "every nonordinary-pressure observation with no emission",
+      "every nonordinary-pressure candidate wave that relapses",
+      "every emission unmatched to the three-scale-stable pressure/shock oracle",
+      "every underwarmed, gap-reset, partial-transport, and refused-transport state"
+    ],
+    "oracle_join": "Evaluation only: greedy one-to-one same RTH date and direction. An emission may match a three-scale-stable PRESSURE_PIVOT or SHOCK_HANDOFF_PIVOT only when it occurs from the landmark extreme through its terminal. Timing is EARLY, SAME_CLOSE, or LATE versus immutable causal_confirmation_utc. Oracle membership never enters the causal law."
+  },
+  "count_gate": {
+    "exact_tape_and_owner_identity": true,
+    "minimum_rank_readiness_each_year": 0.95,
+    "minimum_causal_emissions_total": 60,
+    "minimum_causal_emissions_each_direction": 15,
+    "minimum_causal_emissions_each_direction_each_year": 5,
+    "minimum_emissions_each_pressure_level": 5,
+    "minimum_matched_stable_pressure_or_shock_each_direction": 10,
+    "matched_stable_pressure_or_shock_both_directions_each_year": true,
+    "minimum_unmatched_emission_controls": 20,
+    "minimum_relapsed_pressure_controls": 20,
+    "outcomes_visible_before_pass": false
+  },
+  "next_stage_law": {
+    "on_count_pass": "Freeze exactly one economic replay law before opening prices: compare timing-only cooperation with v3 against a complementary pressure-pivot sleeve, preserve all attribution, and select on Years 1 and 2 before one locked Year 3 challenge.",
+    "on_count_fail": "Reject P-004 count-only. Do not lower rank, breadth, transport, phase, direction, or control gates after seeing counts.",
+    "crown_gate": "Any successor must exceed 200 trades per year and improve PnL/drawdown by at least 5 percent in most available one-year periods, with both directions and ordinary, choppy, pressure, shock, crash, rebound, and upside-spike stability.",
+    "live_authority": "none"
+  },
+  "invariants": {
+    "opening_edge_v3_changed": false,
+    "current_xsp_live_selection_changed": false,
+    "new_live_direction_owner": false,
+    "gth_live_authority": false,
+    "new_recorder": false,
+    "new_service": false,
+    "new_timer": false,
+    "shared_limit_ladder_changed": false,
+    "shared_capital_owner_changed": false,
+    "mcl_changed": false,
+    "gold_changed": false,
+    "market_orders_permitted": false,
+    "submitted_orders": 0
+  }
+}
