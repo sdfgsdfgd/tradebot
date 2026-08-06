@@ -260,7 +260,9 @@ class PositionsApp(
         self._dirty = False
         self._dirty_needs_snapshot = False
         self._dirty_task: asyncio.Task | None = None
+        self._market_strip_task: asyncio.Task | None = None
         self._last_snapshot_fetch_mono: float = 0.0
+        self._last_table_render_mono: float = 0.0
         self._row_count = 0
         self._row_keys: list[str] = []
         self._row_item_by_key: dict[str, PortfolioItem] = {}
@@ -354,11 +356,15 @@ class PositionsApp(
         self._table.focus()
         self._bot_runtime.install(self)
         self._client.set_update_callback(self._mark_stream_dirty)
+        self._client.start_market_data()
+        self._schedule_market_strip_render()
         self._mark_dirty(fetch_snapshot=True)
 
     async def on_unmount(self) -> None:
         if self._dirty_task and not self._dirty_task.done():
             self._dirty_task.cancel()
+        if self._market_strip_task and not self._market_strip_task.done():
+            self._market_strip_task.cancel()
         self._cancel_search_task()
         self._clear_search_tickers()
         await self._client.disconnect()

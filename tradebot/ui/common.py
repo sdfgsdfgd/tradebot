@@ -658,16 +658,53 @@ def _remember_ticker_display(
         if (price is None or price <= 0) and ticker is not None and allow_display_fallback:
             price = _ticker_price(ticker)
         close = _ticker_close(ticker) if ticker is not None else None
-        if (price is not None and price > 0) or (close is not None and close > 0):
+        cached = memory.get(symbol)
+        cached_price = _ticker_actionable_price(cached) if cached is not None else None
+        if (
+            (cached_price is None or cached_price <= 0)
+            and cached is not None
+            and allow_display_fallback
+        ):
+            cached_price = _ticker_price(cached)
+        cached_close = _ticker_close(cached) if cached is not None else None
+
+        if price is not None and price > 0:
+            snapshot = copy(ticker)
+            contract = getattr(ticker, "contract", None)
+            if contract is not None:
+                snapshot.contract = copy(contract)
+            if (close is None or close <= 0) and cached_close is not None and cached_close > 0:
+                snapshot.close = float(cached_close)
+                setattr(snapshot, "tbDisplayCloseHeld", True)
+            setattr(snapshot, "tbDisplayHeld", False)
+            memory[symbol] = snapshot
+            visible[symbol] = snapshot
+            continue
+
+        # A close-only replacement is lower quality than a recent actionable
+        # price.  Fold its newer baseline into presentation memory without
+        # letting route churn demote the strip to Closed/warming.
+        if cached_price is not None and cached_price > 0:
+            snapshot = copy(cached)
+            if close is not None and close > 0:
+                snapshot.close = float(close)
+            setattr(snapshot, "tbDisplayHeld", False)
+            memory[symbol] = snapshot
+            held = copy(snapshot)
+            setattr(held, "tbDisplayHeld", True)
+            visible[symbol] = held
+            continue
+
+        if close is not None and close > 0:
             snapshot = copy(ticker)
             contract = getattr(ticker, "contract", None)
             if contract is not None:
                 snapshot.contract = copy(contract)
             setattr(snapshot, "tbDisplayHeld", False)
             memory[symbol] = snapshot
-            visible[symbol] = ticker
+            visible[symbol] = snapshot
             continue
-        cached = memory.get(symbol)
+
         if cached is not None:
             held = copy(cached)
             setattr(held, "tbDisplayHeld", True)

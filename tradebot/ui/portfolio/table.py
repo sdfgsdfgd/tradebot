@@ -35,53 +35,74 @@ class PortfolioTable:
                 self._dirty_needs_snapshot = True
             return
         async with self._refresh_lock:
-            streams_warmed = False
+            snapshot_succeeded = False
             if fetch_snapshot:
                 try:
                     if hard:
                         await self._client.hard_refresh()
                     items = await self._client.fetch_portfolio()
                     self._snapshot.update(items, None)
-                    self._last_snapshot_fetch_mono = time.monotonic()
-                    streams_warmed = True
+                    snapshot_succeeded = True
                 except Exception as exc:  # pragma: no cover - UI surface
-                    self._snapshot.update([], str(exc))
+                    self._snapshot.update(list(self._snapshot.items), str(exc))
+                self._last_snapshot_fetch_mono = time.monotonic()
             elif hard:
                 try:
                     await self._client.hard_refresh()
                 except Exception as exc:  # pragma: no cover - UI surface
                     self._snapshot.update([], str(exc))
-            if streams_warmed:
-                # Gate non-critical streams behind a successful account snapshot
-                # so startup doesn't fan out while API session init is unstable.
+            if snapshot_succeeded:
+                # Mount owns first paint; this idempotent call is the low-rate
+                # retry heartbeat for a lane that failed during cold start.
                 self._client.start_market_data()
-            self._sync_session_tickers()
-            ticker_memory = getattr(self, "_ticker_display_memory", None)
-            if ticker_memory is None:
-                ticker_memory = {}
-                self._ticker_display_memory = ticker_memory
-            self._index_tickers = _remember_ticker_display(
-                self._client.index_tickers(),
-                ticker_memory,
-                allow_display_fallback=True,
-            )
-            self._index_error = self._client.index_error()
-            self._proxy_tickers = _remember_ticker_display(
-                self._client.proxy_tickers(),
-                ticker_memory,
-            )
-            self._proxy_error = self._client.proxy_error()
+            self._sync_market_strip()
             self._pnl = self._client.pnl()
             self._net_liq = self._client.account_value("NetLiquidation")
             self._buying_power = self._client.account_value("BuyingPower")
             self._maybe_update_buying_power_anchor()
             self._prime_change_data(self._snapshot.items)
             self._render_table()
+            self._last_table_render_mono = time.monotonic()
             if self._search_active:
                 self._render_search()
 
+    def _sync_market_strip(self) -> None:
+        self._sync_session_tickers()
+        ticker_memory = getattr(self, "_ticker_display_memory", None)
+        if ticker_memory is None:
+            ticker_memory = {}
+            self._ticker_display_memory = ticker_memory
+        self._index_tickers = _remember_ticker_display(
+            self._client.index_tickers(),
+            ticker_memory,
+            allow_display_fallback=True,
+        )
+        self._index_error = self._client.index_error()
+        self._proxy_tickers = _remember_ticker_display(
+            self._client.proxy_tickers(),
+            ticker_memory,
+        )
+        self._proxy_error = self._client.proxy_error()
+
     def _mark_stream_dirty(self) -> None:
+        self._schedule_market_strip_render()
         self._mark_dirty(fetch_snapshot=False)
+
+    def _schedule_market_strip_render(self) -> None:
+        task = getattr(self, "_market_strip_task", None)
+        if task and not task.done():
+            return
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        self._market_strip_task = loop.create_task(self._flush_market_strip())
+
+    async def _flush_market_strip(self) -> None:
+        # Coalesce each ib_insync event burst into one three-line widget update.
+        await asyncio.sleep(0)
+        self._sync_market_strip()
+        self._render_ticker_bar()
 
     def _mark_dirty(self, *, fetch_snapshot: bool = False) -> None:
         self._dirty = True
@@ -101,7 +122,20 @@ class PortfolioTable:
             fetch_snapshot = bool(self._dirty_needs_snapshot)
             self._dirty_needs_snapshot = False
             if not fetch_snapshot:
-                if not self._snapshot.items:
+                min_interval = max(0.0, float(self._config.refresh_sec))
+                elapsed = time.monotonic() - float(
+                    getattr(self, "_last_table_render_mono", 0.0)
+                )
+                if elapsed < min_interval:
+                    await asyncio.sleep(min_interval - elapsed)
+                    # All stream events received while sleeping are represented
+                    # by the current client state rendered below.
+                    self._dirty = False
+                    if self._dirty_needs_snapshot:
+                        fetch_snapshot = True
+                        self._dirty_needs_snapshot = False
+            if not fetch_snapshot:
+                if self._last_snapshot_fetch_mono <= 0.0:
                     fetch_snapshot = True
                 else:
                     throttle_sec = max(

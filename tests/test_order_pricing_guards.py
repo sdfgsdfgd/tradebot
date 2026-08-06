@@ -154,6 +154,50 @@ def test_ticker_display_memory_never_regresses_from_closed_to_warming() -> None:
     assert "warming" not in rendered[0]
 
 
+def test_ticker_display_memory_never_downgrades_a_live_quote() -> None:
+    memory: dict[str, object] = {}
+
+    def _ticker(*, bid=None, ask=None, close=None):
+        return types.SimpleNamespace(
+            contract=types.SimpleNamespace(symbol="TQQQ", conId=72539702),
+            bid=bid,
+            ask=ask,
+            last=None,
+            close=close,
+            prevLast=close,
+            marketDataType=1,
+        )
+
+    sources = (
+        _ticker(bid=100.0, ask=100.2, close=90.0),
+        _ticker(close=91.0),
+        _ticker(),
+        _ticker(bid=102.0, ask=102.2),
+    )
+    rendered: list[str] = []
+    for source in sources:
+        visible = _remember_ticker_display(  # type: ignore[arg-type]
+            {"TQQQ": source},
+            memory,  # type: ignore[arg-type]
+        )
+        rendered.append(
+            _ticker_line(
+                ("TQQQ",),
+                {"TQQQ": "TQQQ"},
+                visible,
+                None,
+                "",
+            ).plain
+        )
+
+    assert all("warming" not in line and "Closed" not in line and "n/a" not in line for line in rendered)
+    assert "100.10" in rendered[0]
+    assert "100.10" in rendered[1]
+    assert "100.10" in rendered[2]
+    assert "102.10" in rendered[3]
+    assert "+11.10" in rendered[3]
+
+
 def test_ticker_line_labels_initial_empty_state_as_warming() -> None:
     text = _ticker_line(
         ("TQQQ",),

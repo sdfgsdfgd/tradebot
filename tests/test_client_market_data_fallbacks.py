@@ -46,6 +46,7 @@ def _new_client() -> IBKRClient:
         reconnect_interval_sec=5.0,
         reconnect_timeout_sec=60.0,
         reconnect_slow_interval_sec=60.0,
+        client_id_state_file="",
     )
     return IBKRClient(cfg)
 
@@ -882,6 +883,97 @@ def test_connect_rotates_client_id_on_conflict_and_persists_pair(tmp_path) -> No
     assert int(persisted["proxy_client_id"]) == 503
 
 
+def test_cold_market_sockets_share_one_settled_main_topology() -> None:
+    client = _new_client()
+    client._ib = _FakeConnectIB()
+    client._ib_proxy = _FakeConnectIB()
+    client._ib_index = _FakeConnectIB()
+    client._request_reconnect = lambda: None  # type: ignore[method-assign]
+    events: list[str] = []
+
+    async def _main() -> None:
+        events.append("main")
+        await asyncio.sleep(0)
+        client._ib.connected = True
+
+    async def _proxy() -> None:
+        assert client._ib.isConnected()
+        events.append("proxy")
+        await asyncio.sleep(0)
+        client._ib_proxy.connected = True
+
+    async def _index() -> None:
+        assert client._ib.isConnected()
+        events.append("index")
+        await asyncio.sleep(0)
+        client._ib_index.connected = True
+
+    client._connect_main_with_client_id_pool = _main  # type: ignore[method-assign]
+    client._connect_proxy_with_client_id_pool = _proxy  # type: ignore[method-assign]
+    client._connect_index_with_client_id_pool = _index  # type: ignore[method-assign]
+
+    async def _run() -> None:
+        await asyncio.gather(client.connect_proxy(), client.connect_index())
+
+    asyncio.run(_run())
+
+    assert events[0] == "main"
+    assert events.count("main") == 1
+    assert set(events[1:]) == {"proxy", "index"}
+
+
+def test_proxy_conflict_resets_settled_topology_without_mixing_pairs() -> None:
+    client = _new_client()
+    client._ib = _FakeConnectIB(connected=True)
+    client._ib_proxy = _FakeConnectIB()
+    client._ib_index = _FakeConnectIB(connected=True)
+    client._connected_main_client_id = 301
+    client._connected_index_client_id = 303
+    attempted: list[int] = []
+
+    async def _conflict(_ib, *, client_id: int) -> None:
+        attempted.append(int(client_id))
+        raise RuntimeError("Client id already in use")
+
+    client._connect_ib = _conflict  # type: ignore[method-assign]
+    client._request_reconnect = lambda: None  # type: ignore[method-assign]
+
+    with pytest.raises(ConnectionError, match="topology reset"):
+        asyncio.run(client.connect_proxy())
+
+    assert attempted == [302]
+    assert int(client._main_client_id) == 301
+    assert int(client._proxy_client_id) == 302
+    assert client._ib.isConnected() is False
+    assert client._ib_index.isConnected() is False
+    assert client._connected_main_client_id is None
+    assert client._connected_index_client_id is None
+
+
+def test_main_disconnect_drops_auxiliary_sockets_before_pair_rotation() -> None:
+    client = _new_client()
+    client._ib = _FakeConnectIB()
+    client._ib_proxy = _FakeConnectIB(connected=True)
+    client._ib_index = _FakeConnectIB(connected=True)
+    client._connected_main_client_id = 301
+    client._connected_proxy_client_id = 302
+    client._connected_index_client_id = 303
+    client._proxy_required = True
+    client._index_required = True
+    client._start_reconnect_loop = lambda: None  # type: ignore[method-assign]
+
+    client._on_disconnected_main()
+
+    assert client._ib_proxy.isConnected() is False
+    assert client._ib_index.isConnected() is False
+    assert client._connected_main_client_id is None
+    assert client._connected_proxy_client_id is None
+    assert client._connected_index_client_id is None
+    assert client._resubscribe_main_needed is True
+    assert client._resubscribe_proxy_needed is True
+    assert client._resubscribe_index_needed is True
+
+
 def test_connect_rotates_client_id_on_api_init_timeout_and_quarantines_pair(tmp_path) -> None:
     _ensure_event_loop()
     cfg = IBKRConfig(
@@ -1045,6 +1137,88 @@ def test_client_id_state_loads_valid_pair(tmp_path) -> None:
     client = IBKRClient(cfg)
     assert int(client._main_client_id) == 504
     assert int(client._proxy_client_id) == 505
+
+
+def test_proven_proxy_route_is_persisted_and_reused(tmp_path, monkeypatch) -> None:
+    state_path = tmp_path / "ids.json"
+    cfg = IBKRConfig(
+        host="127.0.0.1",
+        port=4001,
+        client_id=500,
+        proxy_client_id=501,
+        account=None,
+        refresh_sec=0.25,
+        detail_refresh_sec=0.5,
+        reconnect_interval_sec=5.0,
+        reconnect_timeout_sec=60.0,
+        reconnect_slow_interval_sec=60.0,
+        client_id_pool_start=500,
+        client_id_pool_end=505,
+        client_id_state_file=str(state_path),
+    )
+    client = IBKRClient(cfg)
+    client._ib = _FakeConnectIB(connected=True)
+    client._ib_proxy = _FakeConnectIB(connected=True)
+    client._connected_main_client_id = 500
+    client._connected_proxy_client_id = 501
+    contract = Stock("TQQQ", "PEARL", "USD", primaryExchange="NASDAQ")
+    contract.conId = 72539702
+    ticker = SimpleNamespace(
+        contract=contract,
+        bid=72.04,
+        ask=72.07,
+        last=None,
+        close=None,
+        tbRequestedMdType=1,
+    )
+    client._proxy_tickers = {"TQQQ": ticker}
+
+    client._remember_proxy_live_route(ticker)  # type: ignore[arg-type]
+
+    payload = json.loads(state_path.read_text(encoding="utf-8"))
+    assert payload["proxy_live_routes"]["TQQQ"]["route"] == "PEARL"
+
+    reloaded = IBKRClient(cfg)
+    now = datetime(2026, 8, 6, 7, 0)
+    monkeypatch.setattr("tradebot.client._now_et", lambda: now)
+    reloaded._proxy_phase_epoch = "2026-08-06:PRE"
+    smart = Stock("TQQQ", "SMART", "USD", primaryExchange="NASDAQ")
+    smart.conId = 72539702
+
+    requested, md_type = reloaded._proxy_market_data_spec(
+        smart,
+        include_overnight=False,
+    )
+
+    assert md_type == 1
+    assert requested.exchange == "PEARL"
+
+
+def test_proven_route_falls_through_every_other_live_venue(monkeypatch) -> None:
+    client = _new_client()
+    now = datetime(2026, 8, 6, 7, 0)
+    monkeypatch.setattr("tradebot.client._now_et", lambda: now)
+    client._proxy_phase_epoch = "2026-08-06:PRE"
+    client._proxy_live_route_preferences["TQQQ"] = ("PEARL", int(time.time()))
+    failed = Stock("TQQQ", "PEARL", "USD", primaryExchange="NASDAQ")
+    failed.conId = 72539702
+    client._proxy_contract_live_routes[72539702] = "PEARL"
+    attempts: list[int] = []
+    client._start_proxy_contract_live_resubscribe = (  # type: ignore[method-assign]
+        lambda _contract: attempts.append(1)
+    )
+
+    client._start_proxy_contract_market_data_recovery(failed)
+
+    assert attempts == [1]
+    assert client._proxy_contract_live_routes[72539702] == "SMART"
+    assert client._proxy_live_routes_for_contract(failed, now=now) == (
+        "PEARL",
+        "SMART",
+        "ARCA",
+        "DRCTEDGE",
+        "MEMX",
+    )
 
 
 def test_ensure_proxy_tickers_reloads_on_session_route_change(monkeypatch) -> None:
@@ -1718,6 +1892,78 @@ def test_proxy_stock_recovery_walks_live_routes_before_delayed(monkeypatch) -> N
     assert client._proxy_contract_live_retry_at_mono == {con_id: 400.0}
 
 
+def test_top_strip_races_live_routes_and_keeps_only_first_actionable(monkeypatch) -> None:
+    client = _new_client()
+    client._ib = _FakeConnectIB(connected=True)
+    now = datetime(2026, 8, 6, 5, 0)
+    monkeypatch.setattr("tradebot.client._now_et", lambda: now)
+    client._proxy_phase_epoch = "2026-08-06:PRE"
+
+    class _RaceIB:
+        def __init__(self) -> None:
+            self.requests: list[object] = []
+            self.cancels: list[object] = []
+
+        @staticmethod
+        def isConnected() -> bool:
+            return True
+
+        @staticmethod
+        def reqMarketDataType(_md_type: int) -> None:
+            return None
+
+        def reqMktData(self, contract):
+            self.requests.append(contract)
+            live = str(getattr(contract, "exchange", "") or "") == "PEARL"
+            return SimpleNamespace(
+                contract=contract,
+                bid=72.04 if live else None,
+                ask=72.07 if live else None,
+                last=None,
+                close=None,
+                marketDataType=1,
+            )
+
+        def cancelMktData(self, contract) -> None:
+            self.cancels.append(contract)
+
+    client._ib_proxy = _RaceIB()  # type: ignore[assignment]
+    contract = Stock("TQQQ", "SMART", "USD", primaryExchange="NASDAQ")
+    contract.conId = 72539702
+    current = SimpleNamespace(
+        contract=contract,
+        bid=None,
+        ask=None,
+        last=None,
+        close=None,
+        tbRequestedMdType=1,
+    )
+    client._proxy_tickers = {"TQQQ": current}
+
+    async def _run() -> None:
+        task = client._start_proxy_contract_market_data_recovery(contract)
+        assert task is not None
+        await task
+
+    asyncio.run(_run())
+
+    requested_routes = {
+        str(getattr(request, "exchange", "") or "")
+        for request in client._ib_proxy.requests
+    }
+    assert requested_routes == {"ARCA", "DRCTEDGE", "MEMX", "PEARL"}
+    winner = client._proxy_tickers["TQQQ"]
+    assert winner.contract.exchange == "PEARL"
+    assert client._ticker_has_data(winner) is True
+    assert client._proxy_contract_live_routes[72539702] == "PEARL"
+    assert 72539702 not in client._proxy_contract_force_delayed
+    cancelled_routes = {
+        str(getattr(request, "exchange", "") or "")
+        for request in client._ib_proxy.cancels
+    }
+    assert cancelled_routes == {"SMART", "ARCA", "DRCTEDGE", "MEMX"}
+
+
 def test_proxy_delayed_contracts_retry_live_after_cooldown(monkeypatch) -> None:
     client = _new_client()
     client._proxy_contract_force_delayed = {1, 2}
@@ -2059,7 +2305,7 @@ def test_proxy_probe_retries_empty_symbol_once_with_requalification(
         for symbol in ("QQQ", "SPY", "DIA", "TQQQ")
     }
     calls: list[tuple[tuple[str, ...], bool]] = []
-    primes: list[int] = []
+    prime_ready_states: list[bool] = []
 
     async def _sleep(_seconds: float) -> None:
         return
@@ -2071,7 +2317,7 @@ def test_proxy_probe_retries_empty_symbol_once_with_requalification(
             client._proxy_tickers["QQQ"].ask = 500.1
 
     async def _prime() -> None:
-        primes.append(1)
+        prime_ready_states.append(client._proxy_probe_complete)
 
     monkeypatch.setattr("asyncio.sleep", _sleep)
     client._resubscribe_missing_proxy_quotes = _recover  # type: ignore[method-assign]
@@ -2084,7 +2330,7 @@ def test_proxy_probe_retries_empty_symbol_once_with_requalification(
     assert client._proxy_probe_complete is True
     assert client._proxy_probe_failures == 0
     assert client._proxy_probe_retry_at_mono == 0.0
-    assert primes == [1]
+    assert prime_ready_states == [True]
 
 
 def test_proxy_probe_backs_off_after_bounded_empty_recovery(

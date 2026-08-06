@@ -80,10 +80,12 @@ _PROXY_LIVE_ROUTE_LADDERS: dict[str, tuple[str, ...]] = {
     "POST": _PROXY_LIT_LIVE_ROUTES,
 }
 _PROXY_ROUTE_SETTLE_SEC = 3.0
+_PROXY_ROUTE_RACE_SEC = 4.5
 _PROXY_CONTRACT_QUOTE_PROBE_INITIAL_SEC = _PROXY_ROUTE_SETTLE_SEC
 _PROXY_CONTRACT_QUOTE_PROBE_RETRY_SEC = 12.0
 _PROXY_STRIP_RETRY_BASE_SEC = 15.0
 _PROXY_STRIP_RETRY_MAX_SEC = 300.0
+_PROXY_ROUTE_PREFERENCE_TTL_SEC = 7 * 24 * 60 * 60
 _MARKET_DATA_LIVE_RETRY_SEC = 300.0
 _INDEX_QUOTE_PROBE_INITIAL_SEC = 2.0
 _INDEX_DELAYED_QUOTE_SETTLE_SEC = 12.0
@@ -512,6 +514,13 @@ class IBKRClient:
             "main_client_id": int(main_id),
             "proxy_client_id": int(proxy_id),
             "updated_at_epoch": int(time.time()),
+            "proxy_live_routes": {
+                symbol: {
+                    "route": route,
+                    "updated_at_epoch": int(updated_at),
+                }
+                for symbol, (route, updated_at) in self._proxy_live_route_preferences.items()
+            },
         }
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -539,6 +548,38 @@ class IBKRClient:
         if not self._pair_is_in_pool(main_id, proxy_id):
             return None
         return int(main_id), int(proxy_id)
+
+    def _load_persisted_proxy_live_routes(self) -> dict[str, tuple[str, int]]:
+        path = self._client_id_state_path
+        if path is None or not path.exists():
+            return {}
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            return {}
+        entries = payload.get("proxy_live_routes") if isinstance(payload, dict) else None
+        if not isinstance(entries, dict):
+            return {}
+        now_epoch = int(time.time())
+        routes: dict[str, tuple[str, int]] = {}
+        for symbol_raw, entry in entries.items():
+            if not isinstance(entry, dict):
+                continue
+            symbol = str(symbol_raw or "").strip().upper()
+            route = str(entry.get("route") or "").strip().upper()
+            try:
+                updated_at = int(entry.get("updated_at_epoch") or 0)
+            except (TypeError, ValueError):
+                continue
+            if (
+                symbol not in _PROXY_SYMBOLS
+                or route not in _PROXY_LIT_LIVE_ROUTES
+                or updated_at <= 0
+                or (now_epoch - updated_at) > _PROXY_ROUTE_PREFERENCE_TTL_SEC
+            ):
+                continue
+            routes[symbol] = (route, updated_at)
+        return routes
 
     async def _connect_main_with_client_id_pool(self) -> None:
         cooldown = self._client_id_backoff_remaining_sec()
@@ -594,11 +635,22 @@ class IBKRClient:
         cooldown = self._client_id_backoff_remaining_sec()
         if cooldown > 0:
             raise ConnectionError(f"IBKR client-id backoff active ({cooldown:.1f}s remaining)")
-        preferred = (int(self._main_client_id), int(self._proxy_client_id))
+        connected_main_id = self._connected_main_client_id
+        topology_settled = bool(connected_main_id is not None and self._ib.isConnected())
+        preferred_main_id = int(connected_main_id or self._main_client_id)
+        preferred_proxy_id = int(self._proxy_client_id)
+        if not self._pair_is_in_pool(preferred_main_id, preferred_proxy_id):
+            preferred_proxy_id = preferred_main_id + 1
+        preferred = (preferred_main_id, preferred_proxy_id)
         last_exc: Exception | None = None
         conflict_detected = False
         rotatable_detected = False
-        candidates = self._candidate_pairs(preferred_pair=preferred)
+        # Once main is connected its pair is authoritative. Rotating only the
+        # proxy would produce a mixed topology; a failed auxiliary ID instead
+        # tears down the trio so main can select the next pair coherently.
+        candidates = [preferred] if topology_settled else self._candidate_pairs(
+            preferred_pair=preferred
+        )
         for main_id, proxy_id in candidates:
             if len(candidates) > 1 and (int(main_id), int(proxy_id)) == preferred:
                 self._fast_connect_probe_client_ids.add(int(proxy_id))
@@ -621,6 +673,15 @@ class IBKRClient:
                     self._safe_disconnect(self._ib_proxy)
                     self._connected_proxy_client_id = None
                     last_exc = exc if isinstance(exc, Exception) else Exception(str(exc))
+                    if topology_settled:
+                        self._safe_disconnect(self._ib_index)
+                        self._safe_disconnect(self._ib)
+                        self._connected_index_client_id = None
+                        self._connected_main_client_id = None
+                        raise ConnectionError(
+                            "IBKR proxy client failed for the settled client-ID pair; "
+                            "topology reset requested"
+                        ) from exc
                     continue
                 raise
         if conflict_detected:
@@ -751,6 +812,7 @@ class IBKRClient:
         self._proxy_contract_live_routes: dict[int, str] = {}
         self._proxy_contract_live_retry_at_mono: dict[int, float] = {}
         self._proxy_contract_probe_tasks: dict[int, asyncio.Task] = {}
+        self._proxy_contract_route_race_tasks: dict[int, asyncio.Task] = {}
         self._proxy_contract_live_tasks: dict[int, asyncio.Task] = {}
         self._proxy_contract_delayed_tasks: dict[int, asyncio.Task] = {}
         self._main_contract_probe_tasks: dict[int, asyncio.Task] = {}
@@ -835,6 +897,7 @@ class IBKRClient:
         state_path = self._resolve_path_template(str(self._config.client_id_state_file))
         self._client_id_state_path: Path | None = Path(state_path) if state_path else None
         self._persisted_client_id_pair = self._load_persisted_client_id_pair()
+        self._proxy_live_route_preferences = self._load_persisted_proxy_live_routes()
         if self._persisted_client_id_pair is not None:
             persisted_main, persisted_proxy = self._persisted_client_id_pair
             self._main_client_id = int(persisted_main)
@@ -956,6 +1019,11 @@ class IBKRClient:
         self._proxy_required = True
         if self._ib_proxy.isConnected():
             return
+        # Main owns client-pair selection.  Let proxy/index fan out only after
+        # that shared topology is settled, otherwise simultaneous cold starts
+        # can mutate the pair beneath each other's connection attempts.
+        if not self._ib.isConnected():
+            await self.connect()
         if self._reconnect_in_progress() and asyncio.current_task() is not self._reconnect_task:
             raise ConnectionError("IBKR reconnect in progress")
         async with self._connect_proxy_lock:
@@ -977,6 +1045,8 @@ class IBKRClient:
         self._index_required = True
         if self._ib_index.isConnected():
             return
+        if not self._ib.isConnected():
+            await self.connect()
         if self._reconnect_in_progress() and asyncio.current_task() is not self._reconnect_task:
             raise ConnectionError("IBKR reconnect in progress")
         async with self._connect_index_lock:
@@ -1011,6 +1081,7 @@ class IBKRClient:
             self._proxy_task,
             self._proxy_probe_task,
             *self._proxy_contract_probe_tasks.values(),
+            *self._proxy_contract_route_race_tasks.values(),
             *self._proxy_contract_live_tasks.values(),
             *self._proxy_contract_delayed_tasks.values(),
             *self._main_contract_probe_tasks.values(),
@@ -1092,6 +1163,7 @@ class IBKRClient:
         self._proxy_contract_live_retry_at_mono = {}
         self._proxy_phase_epoch = None
         self._proxy_contract_probe_tasks = {}
+        self._proxy_contract_route_race_tasks = {}
         self._proxy_contract_live_tasks = {}
         self._proxy_contract_delayed_tasks = {}
         self._main_contract_probe_tasks = {}
@@ -5505,6 +5577,9 @@ class IBKRClient:
             for task in self._proxy_contract_probe_tasks.values():
                 if task and not task.done():
                     task.cancel()
+            for task in self._proxy_contract_route_race_tasks.values():
+                if task and not task.done():
+                    task.cancel()
             for task in self._proxy_contract_live_tasks.values():
                 if task and not task.done():
                     task.cancel()
@@ -5518,6 +5593,7 @@ class IBKRClient:
                 if task and not task.done():
                     task.cancel()
             self._proxy_contract_probe_tasks = {}
+            self._proxy_contract_route_race_tasks = {}
             self._proxy_contract_live_tasks = {}
             self._proxy_contract_delayed_tasks = {}
             self._main_contract_probe_tasks = {}
@@ -5838,13 +5914,27 @@ class IBKRClient:
         return qualified
 
     async def _load_index_tickers(self) -> None:
+        retry = False
         try:
             async with self._index_lock:
                 await self._ensure_index_tickers()
-            self._index_error = None
-            self._start_index_probe()
+            if self._index_tickers:
+                self._index_error = None
+                self._start_index_probe()
+            else:
+                self._index_error = "index contract qualification unavailable"
+                retry = True
         except Exception as exc:
             self._index_error = str(exc)
+            retry = True
+        finally:
+            if self._update_callback:
+                self._update_callback()
+        if retry and self._index_required and not self._shutdown:
+            await asyncio.sleep(float(_PROXY_STRIP_RETRY_BASE_SEC))
+            if self._index_task is asyncio.current_task():
+                self._index_task = None
+            self.start_index_tickers()
 
     async def _reload_index_tickers(self) -> None:
         try:
@@ -6006,13 +6096,28 @@ class IBKRClient:
         return False
 
     async def _load_proxy_tickers(self) -> None:
+        retry = False
         try:
             async with self._proxy_lock:
                 await self._ensure_proxy_tickers()
-            self._proxy_error = None
-            self._start_proxy_probe()
+            phase = equity_market_phase_et(_now_et())
+            if self._proxy_tickers or not phase.tradable:
+                self._proxy_error = None
+                self._start_proxy_probe()
+            else:
+                self._proxy_error = "proxy contract qualification unavailable"
+                retry = True
         except Exception as exc:
             self._proxy_error = str(exc)
+            retry = True
+        finally:
+            if self._update_callback:
+                self._update_callback()
+        if retry and self._proxy_required and not self._shutdown:
+            await asyncio.sleep(float(_PROXY_STRIP_RETRY_BASE_SEC))
+            if self._proxy_task is asyncio.current_task():
+                self._proxy_task = None
+            self.start_proxy_tickers()
 
     @classmethod
     def _ticker_has_quote_or_close(cls, ticker: Ticker | None) -> bool:
@@ -6094,6 +6199,10 @@ class IBKRClient:
         if errorCode in _ENTITLEMENT_ERROR_CODES and contract is not None:
             con_id = int(getattr(contract, "conId", 0) or 0) if contract else 0
             if con_id:
+                race = self._proxy_contract_route_race_tasks.get(con_id)
+                if race is not None and not race.done():
+                    self._handle_conn_error(errorCode)
+                    return
                 sec_type = str(
                     getattr(contract, "secType", "") or ""
                 ).strip().upper()
@@ -6164,8 +6273,23 @@ class IBKRClient:
         proxy_id = int(self._connected_proxy_client_id or self._proxy_client_id or 0)
         if main_id > 0 and proxy_id > 0:
             self._quarantine_pair(main_id, proxy_id)
+        try:
+            current_task = asyncio.current_task()
+        except RuntimeError:
+            current_task = None
+        for task in (self._proxy_task, self._index_task):
+            if task and task is not current_task and not task.done():
+                task.cancel()
+        # Main owns the client-ID pair. Its loss invalidates both auxiliary
+        # sockets; retaining either would let the reconnect loop mix pairs.
+        self._safe_disconnect(self._ib_index)
+        self._safe_disconnect(self._ib_proxy)
         self._connected_main_client_id = None
+        self._connected_proxy_client_id = None
+        self._connected_index_client_id = None
         self._resubscribe_main_needed = True
+        self._resubscribe_proxy_needed = bool(self._proxy_required)
+        self._resubscribe_index_needed = bool(self._index_required)
         self._account_updates_started = False
         self._pnl = None
         self._pnl_account = None
@@ -6206,6 +6330,9 @@ class IBKRClient:
         for task in self._proxy_contract_probe_tasks.values():
             if task and not task.done():
                 task.cancel()
+        for task in self._proxy_contract_route_race_tasks.values():
+            if task and not task.done():
+                task.cancel()
         for task in self._proxy_contract_live_tasks.values():
             if task and not task.done():
                 task.cancel()
@@ -6213,6 +6340,7 @@ class IBKRClient:
             if task and not task.done():
                 task.cancel()
         self._proxy_contract_probe_tasks = {}
+        self._proxy_contract_route_race_tasks = {}
         self._proxy_contract_live_tasks = {}
         self._proxy_contract_delayed_tasks = {}
         self._reconnect_requested = True
@@ -6247,6 +6375,14 @@ class IBKRClient:
         contract: Contract,
     ) -> asyncio.Task | None:
         con_id = int(getattr(contract, "conId", 0) or 0)
+        race_task = self._proxy_contract_route_race_tasks.get(con_id)
+        try:
+            current_task = asyncio.current_task()
+        except RuntimeError:
+            current_task = None
+        if race_task and race_task is not current_task and not race_task.done():
+            self._proxy_contract_route_race_tasks.pop(con_id, None)
+            race_task.cancel()
         live_task = self._proxy_contract_live_tasks.pop(con_id, None)
         if live_task and not live_task.done():
             live_task.cancel()
@@ -6279,6 +6415,13 @@ class IBKRClient:
         con_id = int(getattr(contract, "conId", 0) or 0)
         if not con_id or con_id in self._proxy_contract_force_delayed:
             return None
+        race_task = self._proxy_contract_route_race_tasks.pop(con_id, None)
+        try:
+            current_task = asyncio.current_task()
+        except RuntimeError:
+            current_task = None
+        if race_task and race_task is not current_task and not race_task.done():
+            race_task.cancel()
         delayed_task = self._proxy_contract_delayed_tasks.pop(con_id, None)
         if delayed_task and not delayed_task.done():
             delayed_task.cancel()
@@ -6299,6 +6442,138 @@ class IBKRClient:
 
         task.add_done_callback(_cleanup)
         return task
+
+    def _start_proxy_live_route_race(self, contract: Contract) -> asyncio.Task | None:
+        con_id = int(getattr(contract, "conId", 0) or 0)
+        if not con_id:
+            return None
+        existing = self._proxy_contract_route_race_tasks.get(con_id)
+        if existing is not None and not existing.done():
+            return existing
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return None
+        task = loop.create_task(self._race_proxy_live_routes(contract))
+        self._proxy_contract_route_race_tasks[con_id] = task
+
+        def _cleanup(done_task: asyncio.Task, key: int = con_id) -> None:
+            current = self._proxy_contract_route_race_tasks.get(key)
+            if current is done_task:
+                self._proxy_contract_route_race_tasks.pop(key, None)
+
+        task.add_done_callback(_cleanup)
+        return task
+
+    async def _race_proxy_live_routes(self, contract: Contract) -> None:
+        """Race top-strip live venues, retaining only the first actionable stream."""
+        con_id = int(getattr(contract, "conId", 0) or 0)
+        symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
+        phase = self._reconcile_proxy_market_phase()
+        if not con_id or symbol not in _PROXY_SYMBOLS or not phase.tradable:
+            return
+        phase_epoch = phase.epoch
+        failed_route = str(getattr(contract, "exchange", "") or "").strip().upper()
+        routes = tuple(
+            route
+            for route in self._proxy_live_routes_for_contract(contract, now=_now_et())
+            if route != failed_route
+        )
+        if not routes:
+            self._proxy_contract_force_delayed.add(con_id)
+            self._proxy_contract_live_retry_at_mono[con_id] = (
+                time.monotonic() + float(_MARKET_DATA_LIVE_RETRY_SEC)
+            )
+            self._start_proxy_contract_delayed_resubscribe(contract)
+            return
+
+        requested: list[Ticker] = []
+        keep: Ticker | None = None
+        try:
+            await self.connect_proxy()
+            async with self._proxy_lock:
+                for route in routes:
+                    req_contract = copy.copy(contract)
+                    req_contract.exchange = route
+                    try:
+                        self._ib_proxy.reqMarketDataType(1)
+                        ticker = self._ib_proxy.reqMktData(req_contract)
+                    except Exception:
+                        continue
+                    setattr(ticker, "tbRequestedMdType", 1)
+                    requested.append(ticker)
+
+            deadline = time.monotonic() + float(_PROXY_ROUTE_RACE_SEC)
+            winner: Ticker | None = None
+            while time.monotonic() < deadline:
+                current = self._proxy_tickers.get(symbol)
+                current_id = int(
+                    getattr(getattr(current, "contract", None), "conId", 0) or 0
+                )
+                if current_id == con_id and self._ticker_has_data(current):
+                    keep = current
+                    return
+                winner = next(
+                    (ticker for ticker in requested if self._ticker_has_data(ticker)),
+                    None,
+                )
+                if winner is not None:
+                    break
+                await asyncio.sleep(0.05)
+
+            if winner is not None:
+                async with self._proxy_lock:
+                    current = self._proxy_tickers.get(symbol)
+                    current_id = int(
+                        getattr(getattr(current, "contract", None), "conId", 0) or 0
+                    )
+                    if (
+                        current_id != con_id
+                        or self._proxy_phase_epoch != phase_epoch
+                        or self._shutdown
+                    ):
+                        return
+                    if current is not winner:
+                        try:
+                            self._ib_proxy.cancelMktData(current.contract)
+                        except Exception:
+                            pass
+                    self._proxy_tickers[symbol] = winner
+                    winner_route = str(
+                        getattr(winner.contract, "exchange", "") or ""
+                    ).strip().upper()
+                    self._proxy_contract_live_routes[con_id] = winner_route
+                    self._proxy_contract_force_delayed.discard(con_id)
+                    self._proxy_contract_live_retry_at_mono.pop(con_id, None)
+                    keep = winner
+                self._remember_proxy_live_route(winner)
+                self._on_stream_update()
+                return
+
+            current = self._proxy_tickers.get(symbol)
+            current_id = int(
+                getattr(getattr(current, "contract", None), "conId", 0) or 0
+            )
+            if (
+                current_id == con_id
+                and not self._ticker_has_data(current)
+                and self._proxy_phase_epoch == phase_epoch
+                and not self._shutdown
+            ):
+                self._proxy_contract_live_routes.pop(con_id, None)
+                self._proxy_contract_force_delayed.add(con_id)
+                self._proxy_contract_live_retry_at_mono[con_id] = (
+                    time.monotonic() + float(_MARKET_DATA_LIVE_RETRY_SEC)
+                )
+                self._start_proxy_contract_delayed_resubscribe(contract)
+        finally:
+            for ticker in requested:
+                if ticker is keep:
+                    continue
+                try:
+                    self._ib_proxy.cancelMktData(ticker.contract)
+                except Exception:
+                    pass
 
     def _start_proxy_contract_market_data_recovery(
         self,
@@ -6321,7 +6596,14 @@ class IBKRClient:
         phase = self._reconcile_proxy_market_phase()
         if not phase.tradable:
             return None
-        ladder = _proxy_live_route_ladder(now)
+        symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
+        current = self._proxy_tickers.get(symbol)
+        current_id = int(
+            getattr(getattr(current, "contract", None), "conId", 0) or 0
+        )
+        if symbol in _PROXY_SYMBOLS and current_id == con_id:
+            return self._start_proxy_live_route_race(contract)
+        ladder = self._proxy_live_routes_for_contract(contract, now=now)
         failed_route = str(getattr(contract, "exchange", "") or "").strip().upper()
         selected_route = self._proxy_contract_live_routes.get(con_id)
         # A late error from a stream already replaced must not advance the new
@@ -6347,6 +6629,25 @@ class IBKRClient:
             time.monotonic() + float(_MARKET_DATA_LIVE_RETRY_SEC)
         )
         return self._start_proxy_contract_delayed_resubscribe(contract)
+
+    def _proxy_live_routes_for_contract(
+        self,
+        contract: Contract,
+        *,
+        now: datetime,
+    ) -> tuple[str, ...]:
+        routes = _proxy_live_route_ladder(now)
+        symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
+        preference = self._proxy_live_route_preferences.get(symbol)
+        if preference is None:
+            return routes
+        route, updated_at = preference
+        if (int(time.time()) - int(updated_at)) > _PROXY_ROUTE_PREFERENCE_TTL_SEC:
+            self._proxy_live_route_preferences.pop(symbol, None)
+            return routes
+        if route not in routes:
+            return routes
+        return (route, *(candidate for candidate in routes if candidate != route))
 
     @staticmethod
     def _stock_market_data_contract(
@@ -6381,8 +6682,9 @@ class IBKRClient:
     ) -> tuple[Contract, int]:
         """Resolve one proxy stream by contract, session, route, then data type."""
         con_id = int(getattr(contract, "conId", 0) or 0)
+        decision_now = _now_et()
         decision_epoch_is_current = (
-            self._proxy_phase_epoch == equity_market_phase_et(_now_et()).epoch
+            self._proxy_phase_epoch == equity_market_phase_et(decision_now).epoch
         )
         if requested_md_type is None:
             contract_delayed = bool(
@@ -6417,6 +6719,15 @@ class IBKRClient:
                     if decision_epoch_is_current
                     else None
                 )
+                if not selected_route and decision_epoch_is_current:
+                    routes = self._proxy_live_routes_for_contract(
+                        contract,
+                        now=decision_now,
+                    )
+                    canonical = _proxy_live_route_ladder(decision_now)
+                    if routes and routes != canonical:
+                        selected_route = routes[0]
+                        self._proxy_contract_live_routes[con_id] = selected_route
                 if selected_route:
                     req_contract = copy.copy(contract)
                     req_contract.exchange = selected_route
@@ -7198,6 +7509,7 @@ class IBKRClient:
             current_task = None
         for tasks in (
             self._proxy_contract_probe_tasks,
+            self._proxy_contract_route_race_tasks,
             self._proxy_contract_live_tasks,
             self._proxy_contract_delayed_tasks,
         ):
@@ -7334,10 +7646,13 @@ class IBKRClient:
                 base + random.uniform(-jitter, jitter),
             )
             return
-        await self._prime_proxy_close_baselines()
         self._proxy_probe_complete = True
         self._proxy_probe_failures = 0
         self._proxy_probe_retry_at_mono = 0.0
+        # Quote readiness must not wait for historical enrichment.  This probe
+        # already runs in the background; the close baseline keeps IBKR's
+        # deliberate historical pacing lock while live prices remain usable.
+        await self._prime_proxy_close_baselines()
 
     def _proxy_symbols_without_data(self) -> tuple[str, ...]:
         return tuple(
@@ -7377,7 +7692,7 @@ class IBKRClient:
 
     async def _prime_proxy_close_baselines(self) -> None:
         """Complete directed live quotes with broker historical closes."""
-        updated = False
+        resolved: list[tuple[str, int, float]] = []
         for symbol, ticker in tuple(self._proxy_tickers.items()):
             if not self._ticker_has_data(ticker) or self._ticker_has_close_data(ticker):
                 continue
@@ -7398,14 +7713,20 @@ class IBKRClient:
                 continue
             if prev_close is None or float(prev_close) <= 0:
                 continue
+            request_id = int(getattr(request_contract, "conId", 0) or 0)
+            resolved.append((symbol, request_id, float(prev_close)))
+
+        # Resolve under the canonical historical pacing lock above, then apply
+        # without an await so the UI can only observe the complete enrichment.
+        updated = False
+        for symbol, request_id, prev_close in resolved:
             current = self._proxy_tickers.get(symbol)
             if current is None or self._ticker_has_close_data(current):
                 continue
             current_id = int(getattr(getattr(current, "contract", None), "conId", 0) or 0)
-            request_id = int(getattr(request_contract, "conId", 0) or 0)
             if request_id and current_id != request_id:
                 continue
-            setattr(current, "close", float(prev_close))
+            setattr(current, "close", prev_close)
             setattr(current, "tbCloseSource", "historical-daily")
             updated = True
         if updated:
@@ -7530,6 +7851,7 @@ class IBKRClient:
         for ticker in event_tickers:
             self._sync_generic_ticks_for_ticker(ticker)
             self._sync_stream_quote_meta_for_ticker(ticker)
+            self._remember_proxy_live_route(ticker)
         if self._index_error and self._index_has_data():
             self._index_error = None
         if self._proxy_error and self._proxy_has_data():
@@ -7543,6 +7865,29 @@ class IBKRClient:
                 callback()
             except Exception:
                 continue
+
+    def _remember_proxy_live_route(self, ticker: Ticker) -> None:
+        if not self._ticker_has_data(ticker):
+            return
+        contract = getattr(ticker, "contract", None)
+        symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
+        route = str(getattr(contract, "exchange", "") or "").strip().upper()
+        if symbol not in _PROXY_SYMBOLS or route not in _PROXY_LIT_LIVE_ROUTES:
+            return
+        if self._proxy_tickers.get(symbol) is not ticker:
+            return
+        requested_raw = getattr(ticker, "tbRequestedMdType", None)
+        try:
+            requested = int(requested_raw) if requested_raw is not None else None
+        except (TypeError, ValueError):
+            requested = None
+        if requested != 1:
+            return
+        previous = self._proxy_live_route_preferences.get(symbol)
+        if previous is not None and previous[0] == route:
+            return
+        self._proxy_live_route_preferences[symbol] = (route, int(time.time()))
+        self._maybe_persist_client_id_pair()
 
     def _on_pnl_single(self, value: PnLSingle) -> None:
         if self._config.account and value.account and value.account != self._config.account:
