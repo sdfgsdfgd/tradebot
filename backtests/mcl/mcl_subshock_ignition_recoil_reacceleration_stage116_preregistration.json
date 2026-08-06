@@ -1,0 +1,135 @@
+{
+  "schema": "mcl.subshock-ignition-recoil-reacceleration-stage116-preregistration.v1",
+  "registered_at_utc": "2026-08-05T23:47:00+00:00",
+  "eligible_episode_start_utc": "2026-08-05T23:50:00+00:00",
+  "authority": "prospective_derived_morphology_only_no_outcomes_no_orders_no_capital",
+  "campaign": "mcl.predictive-intelligence-sharpening-stage116",
+  "candidate": "Subshock Ignition-Recoil-Reacceleration Bridge",
+  "hypothesis": "Inside an exceptional but sub-authority 5x-to-under-10x volume episode, the causal order of fresh dual-book alignment, speed or flow crest, opposite full-alignment recoil, and renewed original alignment may distinguish an early directional bridge from ordinary torsion before the exact V18 turn clock. Volume opens attention only; below 10x all direction remains morphology and cannot control Stage112 or Stage114.",
+  "pre_outcome_boundary": {
+    "last_inspected_seed_path": "backtests/mcl/mcl_stage112_hawkeye_20260805T1330Z.json",
+    "last_inspected_seed_sha256": "b63bad2453a8e5f7a4a74fb6bd82380b203982f05fb12c2481db856a4241e93d",
+    "seed_window_utc": [
+      "2026-08-05T13:00:00+00:00",
+      "2026-08-05T13:05:00+00:00"
+    ],
+    "seed_status": "outcome_exposed_discovery_only_permanently_excluded",
+    "last_stage114_review_path": "backtests/mcl/mcl_stage112_hawkeye_20260805T1420Z.json",
+    "last_stage114_review_sha256": "bbcd02b57e4c0deb6c28809f8ec8a5359c68efe0dba420c50d3271317c6ebe60",
+    "decision": "Begin only at the next clean five-minute boundary. Any attention episode beginning earlier is excluded even if it ends after eligibility."
+  },
+  "pre_morphology_count_boundary": {
+    "observed_at_utc": "2026-08-06T01:19:18+00:00",
+    "evidence": "The unchanged Stage114 runtime reported a directionless open attention at 2026-08-06T01:00:35Z, maximum prefix volume 7.061728395061729x, and no open episode by its 01:10Z invocation.",
+    "exposure": "Episode presence, maximum volume level, and terminal absence only; no Stage116 alignment, shape, latency, return, MFE, MAE, PnL, action, order, or capital field was read."
+  },
+  "pre_outcome_implementation": {
+    "evaluator_path": "/var/tmp/mcl_stage116_subshock_morphology.py",
+    "evaluator_sha256": "e17032307a01799345fc6c26770718da2044ce874983d74458ee2b3889d8da6e",
+    "self_test": "All six frozen categorical precedence paths pass before tape replay."
+  },
+  "immutable_inputs": {
+    "turn_tape_generation_sha256": "b3805c9f95713a13c26cb0ada08dc043f00069f42177212d3c575abe28c3ee7f",
+    "stage114_preregistration_sha256": "e034a47c515675016910b55765daf26efb4af22b20b901a6fb8292589b034707",
+    "stage114_state_owner_path": "tradebot/research/mcl_shock_waves.py",
+    "stage114_state_owner_sha256": "ef3e14ec390756c26724c9372df48b4e70be43194c81471519385af6f78e87fa",
+    "stage114_evidence_owner_path": "tradebot/research/mcl_shock_evidence.py",
+    "stage114_evidence_owner_sha256": "f435f744fb7db453230300685675122885e4277d0517cbb2f1ce15909088f803",
+    "stage113_crest_owner_path": "tradebot/research/mcl_shock_crest.py",
+    "stage113_crest_owner_sha256": "0363b3416b4ca5771e0d7a6947f9a01a76eb99c9cae0e6c1904d0b88205c6019",
+    "stage115_preregistration_sha256": "2c658e814f9b59809af416f0be4c9443e236eb1aea1291625bba238b44739571"
+  },
+  "architecture": {
+    "state_owner": "The unchanged Stage114 engine owns attention, reset, normalization, frozen levels, fresh-top/spread eligibility, and full-alignment membership.",
+    "derivation": "Reconstruct complete future attention episodes on demand from the one immutable seconds tape and finalized bars. Do not add a recorder, runtime service, timer, mutable state owner, or treatment ledger.",
+    "identity": "One treatment is one complete Stage114 attention episode whose first 5x observation is at or after eligible_episode_start_utc, whose maximum is at least 5x and strictly below 10x, and whose source record IDs and bar-prefix identity are complete.",
+    "ten_x_boundary": "Any episode reaching 10x belongs exclusively to Stage114 and Stage115 and is absent from Stage116.",
+    "direction": "Below 10x, the first exact fresh full CL/MCL alignment after attention is a provisional morphology sign only. No eventual turn, terminal move, return, or PnL may back-label it.",
+    "missingness": "Directionless, mixed, zero, stale, spread-ineligible, incomplete, reset, and normalized paths remain explicit controls; no row is dropped to improve a shape."
+  },
+  "frozen_levels": {
+    "attention_inclusive": 5.0,
+    "major_authority_exclusive": 10.0,
+    "source": "Unchanged Stage114 levels; no adjacent threshold or magnitude sweep."
+  },
+  "frozen_geometry": {
+    "alignment_membership": "Reuse mcl_shock_full_alignment exactly: fresh eligible top plus nonzero common sign across both books' 5s/15s/60s velocity, 15m velocity/acceleration, and signed 15s flow.",
+    "crest_confirmation": "Reuse the existing three strictly lower observations spanning at least three receipt-time seconds; no new persistence clock.",
+    "intervals_seconds": [
+      [-60, -30],
+      [-30, -15],
+      [-15, -5],
+      [-5, 0],
+      [0, 5],
+      [5, 15],
+      [15, 30],
+      [30, 60]
+    ],
+    "interval_source": "Unchanged Stage89 and Stage115 geometry.",
+    "per_book_fields": [
+      "microprice displacement and slope velocity",
+      "velocity jerk and price-speed crest",
+      "TR velocity and acceleration",
+      "volume velocity and flow jerk",
+      "signed-print and same-price size-pressure proxies",
+      "quote intensity and spread elasticity"
+    ],
+    "cross_book_fields": [
+      "first full-alignment order",
+      "CL/MCL first-mid-move receipt order without exchange-time claims",
+      "basis divergence and reconvergence",
+      "exact ignition-to-recoil and recoil-to-reacceleration latency"
+    ],
+    "cross_scale_context": [
+      "completed 15m velocity and acceleration",
+      "rolling 240m slope/TR velocity and acceleration",
+      "30m MCL-minus-CL basis velocity",
+      "prior five-session context",
+      "fresh four-hour news pressure as non-scoring context"
+    ]
+  },
+  "categorical_shapes": {
+    "DIRECTIONLESS_ATTENTION": "No fresh full dual-book alignment occurs before normalization or reset.",
+    "SAME_DIRECTION_PERSISTENCE": "A provisional alignment occurs and persists or repeats without an opposite full-alignment recoil.",
+    "IGNITION_ONLY": "A provisional alignment occurs, then causally crests or becomes mixed without opposite full alignment or renewed original alignment.",
+    "IGNITION_RECOIL": "A provisional alignment is followed by opposite fresh full alignment, but the original direction does not return before termination.",
+    "IGNITION_RECOIL_REACCELERATION": "A provisional alignment is followed by opposite fresh full alignment and later renewed original full alignment inside the same complete sub-10x episode.",
+    "MIXED_TORSION": "Alignment or flow signs alternate without a complete ignition-recoil-reacceleration order."
+  },
+  "categorical_precedence": [
+    "No full dual-book alignment before terminal is DIRECTIONLESS_ATTENTION.",
+    "First provisional direction followed by opposite full alignment and later renewed original full alignment is IGNITION_RECOIL_REACCELERATION.",
+    "First provisional direction followed by opposite full alignment without renewed original full alignment is IGNITION_RECOIL.",
+    "Without full opposite alignment, any opposite single-book alignment or signed-flow sign reversal is MIXED_TORSION.",
+    "Without torsion, a later repeated original full alignment is SAME_DIRECTION_PERSISTENCE.",
+    "Every remaining provisionally aligned path is IGNITION_ONLY; a causal three-lower-observation crest is evidence inside the shape, not a separate threshold or label."
+  ],
+  "market_sessions": {
+    "timezone": "America/New_York",
+    "RTH": "09:00:00 inclusive through 14:30:00 exclusive",
+    "GTH": "all other tradeable receipt times outside the daily 17:00-18:00 maintenance boundary",
+    "purpose": "count breadth only; session cannot change morphology or direction"
+  },
+  "count_gate": {
+    "minimum_complete_subshock_episodes": 30,
+    "minimum_each_provisional_direction": 10,
+    "minimum_directionless_controls": 10,
+    "minimum_repeated_occurrences_per_bridge_shape": 5,
+    "minimum_both_market_sessions": true,
+    "verdict_before_pass": "ACCUMULATE"
+  },
+  "future_action_boundary": {
+    "current": "Identity, count, missingness, and categorical morphology only.",
+    "after_count_pass": "Preregister matched directionless, persistence, recoil-only, 10x-plus Stage114, and no-next-turn controls plus sealed timing/economic settlement before testing any early permission.",
+    "never": [
+      "train on or count the August-5 exposed seed",
+      "lower or retune Stage114 levels",
+      "let sub-10x alignment create live direction",
+      "use a future V18 turn or terminal move to label earlier seconds",
+      "invent depth, queue position, identified cancellation, exchange sequencing, or colocated HFT",
+      "modify Stage112, Stage114, Stage115, risk reduction, execution, sizing, orders, capital, or crown authority"
+    ]
+  },
+  "outcomes_exposed": false,
+  "submitted_orders": 0
+}

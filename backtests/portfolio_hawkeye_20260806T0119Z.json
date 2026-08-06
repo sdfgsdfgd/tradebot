@@ -1,0 +1,201 @@
+{
+  "schema": "live.portfolio-hawkeye.v1",
+  "observed_at_utc": "2026-08-06T01:19:18+00:00",
+  "authority": "read_only_causal_observation_no_signal_no_orders_no_capital",
+  "review_block": {
+    "review": 2,
+    "required": 6,
+    "prior_review_utc": "2026-08-06T00:59:11.096001+00:00",
+    "missed_slots_backfilled": 0
+  },
+  "portfolio": {
+    "account_id": "U12825049",
+    "base_currency": "AUD",
+    "available_funds_aud": 3627.04,
+    "excess_liquidity_aud": 3627.04,
+    "equity_with_loan_aud": 3627.04,
+    "settled_cash_usd": 1062.2095,
+    "positions": [],
+    "open_orders": []
+  },
+  "xsp": {
+    "selection_id": "1083c1813e6b0ca4cf5777a5275e06be651622bc6e6207e718b549296a9bdd87",
+    "recorded_at_utc": "2026-08-06T01:17:03.184457+00:00",
+    "session": "GTH",
+    "plan_reason": "flat_target",
+    "entry_window_open": false,
+    "position": {"UPRO": 0, "SPXU": 0},
+    "orders": 0,
+    "fills": 2,
+    "closed_trades": 1,
+    "run_net_usd": -11.003327999999954,
+    "drawdown_usd": 11.003327999999954,
+    "safety_breaches": [],
+    "quotes": {
+      "UPRO": {"bid": 153.37, "ask": 153.49, "market_data_type": 1},
+      "SPXU": {"bid": 33.92, "ask": 33.95, "market_data_type": 1}
+    },
+    "directional_impulse": {
+      "latest_bar_utc": "2026-08-06T01:15:00+00:00",
+      "horizons_minutes": [5, 15, 30],
+      "slope_pct_per_bar": [-0.0038939799070547565, -0.013840052246198256, -0.011242125107555992],
+      "slope_velocity_pct_per_bar": [0.006488888360300926, 0.0012963265265416215, -0.0012967812581014346],
+      "coherence": 1.0,
+      "retrace_atr": 0.600157778236462,
+      "atr_ratio": null,
+      "atr_velocity_pct": 0.006059154806488283,
+      "atr_acceleration_pct": 0.0077860796284947645,
+      "ready": false,
+      "abstain_reason": "not_ready",
+      "turn_abstain_reason": "holding"
+    },
+    "daily_context": {
+      "directions": {"5": "up", "10": "up", "21": "up", "42": "up", "63": "up", "84": "up"},
+      "hard_direction": "up",
+      "hard_age": 79,
+      "transition": "aligned_up",
+      "tr_phase": "high_down",
+      "tr_velocity": -0.0014786344808673038,
+      "tr_acceleration": -0.0029572689617346076
+    },
+    "news": {
+      "signal_as_of_utc": "2026-08-05T21:03:20Z",
+      "last_signed_pressure": 0.513,
+      "last_pressure_delta": -0.0438,
+      "last_pressure_velocity_per_hour": -0.010476,
+      "fresh": false,
+      "authority": "attribution_only"
+    },
+    "pressure_onramp": {
+      "eligible_start_utc": "2026-08-06T13:20:00Z",
+      "complete_crowned_targets": 0,
+      "required_complete_crowned_targets": 30,
+      "permission_authority": "none"
+    }
+  },
+  "gold": {
+    "selection_id": "62344ce21bf7c6f01095abab14b6ca8ef79c9806abb35294859fc9574a5f7574",
+    "recorded_at_utc": "2026-08-06T01:17:00.680476+00:00",
+    "plan_reason": "flat_no_target",
+    "position": 0,
+    "orders": 0,
+    "fills": 0,
+    "closed_trades": 0,
+    "run_net_usd": 0.0,
+    "drawdown_usd": 0.0,
+    "safety_breaches": [],
+    "quote": {"contract": "1OZZ6", "bid": 4343.5, "ask": 4344.0, "market_data_type": 1},
+    "signal": {
+      "decision_bar_end_utc": "2026-08-06T00:00:00+00:00",
+      "daily_hard_direction": "down",
+      "daily_soft_direction": "up",
+      "daily_hard_age": 151,
+      "daily_atr_ratio_14_63": 0.9453211385571413,
+      "daily_atr_velocity": 0.0023954150101911193,
+      "h4_hard_direction": "up",
+      "h4_raw_direction": "up",
+      "h4_fast_slope_dollars": 20.35370385880924,
+      "h4_fast_acceleration_dollars": 2.9932274689108453,
+      "h4_spread_velocity_dollars": 6.766089974277747,
+      "raw_turn": null,
+      "proposed_direction": null,
+      "admitted_direction": null
+    },
+    "news": {
+      "signal_as_of_utc": "2026-08-05T21:03:20Z",
+      "last_signed_pressure": 0.064,
+      "last_pressure_delta": 0.0,
+      "last_pressure_velocity_per_hour": 0.0,
+      "fresh": false,
+      "authority": "attribution_only"
+    },
+    "graduation_epoch": {
+      "eligible_start_utc": "2026-08-06T02:02:00+00:00",
+      "status": "PREELIGIBLE_HOLD"
+    }
+  },
+  "mcl": {
+    "selection_id": "8adead895d3bd460b460f832d725046a3ea34079525a80a1662004ade2c17c93",
+    "recorded_at_utc": "2026-08-06T01:19:11.085017+00:00",
+    "plan_reason": "flat_no_target",
+    "position": 0,
+    "orders": 0,
+    "fills": 0,
+    "closed_trades": 0,
+    "run_net_usd": 0.0,
+    "drawdown_usd": 0.0,
+    "mfe_usd": 0.0,
+    "mae_usd": 0.0,
+    "safety_breaches": [],
+    "quote": {"contract": "MCLU6", "bid": 75.73, "ask": 75.75, "market_data_type": 1},
+    "directional_impulse": {
+      "latest_bar_utc": "2026-08-06T01:15:00+00:00",
+      "horizons_minutes": [30, 60, 120, 240, 480],
+      "slope_pct_per_bar": [0.09997334044254957, 0.07689221717036565, 0.027229483417800144, 0.010185214202889441, 0.010878296960771297],
+      "slope_velocity_pct_per_bar": [0.05550517964567995, 0.044614046118320504, 0.021678368753976402, 0.008054154000438978, 0.00614471413977862],
+      "trend_state": "down",
+      "coherence": 1.0,
+      "atr_ratio": 1.4660412840937826,
+      "atr_velocity_pct": 0.026347769543188043,
+      "atr_acceleration_pct": 0.02418181310172307,
+      "turn_event": null,
+      "proposed_direction": null,
+      "admitted_direction": null,
+      "abstain_reason": "weak_direction"
+    },
+    "news": {
+      "signal_as_of_utc": "2026-08-05T21:03:20Z",
+      "last_signed_pressure": 0.2,
+      "last_pressure_delta": 0.04,
+      "last_pressure_velocity_per_hour": 0.009567470599960137,
+      "fresh": false,
+      "authority": "attribution_only"
+    },
+    "predictive_cohorts": {
+      "stage87_90": {"complete": 7, "required": 30, "ledger_sha256": "c96f3d1e0062dc7ab147e02142dd8bcc04874a11cdb5fbf69d396ec4405ee4de"},
+      "stage114": {"complete": 1, "required": 30, "ledger_sha256": "8be62828b80c16489e7abdb0b49032ebef7b0c31b3689c220275ded8b54f06ed"},
+      "stage115": {"derived_complete": 1, "required": 30},
+      "stage116": {
+        "derived_complete": 0,
+        "candidate_complete_episode": true,
+        "candidate_maximum_volume_multiple": 7.061728395061729,
+        "derivation_status": "PENDING_PREOUTCOME_IDENTITY_REPLAY"
+      }
+    }
+  },
+  "incubator": {
+    "candidate_1": {
+      "name": "XSP Freshness & Pressure On-ramp",
+      "status": "PROSPECTIVE_ACCUMULATE_0_OF_30",
+      "decision": "retain; first lawful crowned target begins at the frozen RTH boundary"
+    },
+    "candidate_2": {
+      "name": "MCL Subshock Ignition-Recoil-Reacceleration Bridge",
+      "status": "FIRST_LAWFUL_DERIVATION_READY",
+      "decision": "promote to the one active bounded derivation; retain Stage114 as exclusive 10x-plus owner"
+    },
+    "ranked_candidates": 2,
+    "bounded_replays_started_this_block": 1
+  },
+  "integrated_interpretation": {
+    "xsp": "The 5m and 15m downside slopes are decelerating while the 30m slope and velocity remain negative inside an entrenched all-up daily climate. The state is underwarmed and the entry window is closed; flat is coherent and no late overnight reversal may be manufactured.",
+    "gold": "D1 hard-down and H4 hard-up remain opposed, with positive H4 slope and acceleration but no raw turn or admission. Flat remains coherent.",
+    "mcl": "All five 30m-to-480m slopes and velocities are now positive with expanding ATR and coherence 1.0, but conviction remains below V18 admission and no raw turn exists. This is a powerful rebound observation, not permission for a synthetic midcycle long.",
+    "portfolio": "No champion owns directional risk. The first clean sub-10x MCL attention episode is now the highest-value outcome-blind derivation; XSP pressure remains prospectively sealed until RTH."
+  },
+  "next_boundaries": {
+    "next_hawkeye_utc": "2026-08-06T01:39:18+00:00",
+    "gold_epoch_first_slot_utc": "2026-08-06T02:02:00+00:00",
+    "mcl_24h_reduction_earliest_utc": "2026-08-06T11:39:55+00:00",
+    "xsp_pressure_tape_eligible_utc": "2026-08-06T13:20:00+00:00",
+    "xsp_graduation_epoch_first_slot_utc": "2026-08-06T13:37:00+00:00"
+  },
+  "boundaries": {
+    "broker_mutated": false,
+    "services_or_timers_mutated": false,
+    "strategy_or_selection_mutated": false,
+    "capital_mutated": false,
+    "orders_submitted": 0
+  },
+  "submitted_orders": 0
+}
