@@ -3,6 +3,7 @@ from datetime import date, datetime, time, timedelta, timezone
 
 from tradebot.engines.market import (
     SESSION_ORDER,
+    equity_market_phase_et,
     expected_sessions,
     et_day_from_utc_naive,
     full24_post_close_time_et,
@@ -41,6 +42,51 @@ class BacktestTradingCalendarTests(unittest.TestCase):
         self.assertEqual(session_label_et(time(9, 30)), "RTH")
         self.assertEqual(session_label_et(time(16, 0)), "POST")
         self.assertEqual(session_label_et(time(20, 0)), "OVERNIGHT_LATE")
+
+    def test_equity_market_phase_has_dated_regular_session_epochs(self) -> None:
+        cases = (
+            (datetime(2026, 8, 6, 3, 49), "OVERNIGHT", date(2026, 8, 6), True),
+            (datetime(2026, 8, 6, 3, 50), "MAINT", date(2026, 8, 6), False),
+            (datetime(2026, 8, 6, 4, 0), "PRE", date(2026, 8, 6), True),
+            (datetime(2026, 8, 6, 9, 30), "RTH", date(2026, 8, 6), True),
+            (datetime(2026, 8, 6, 16, 0), "POST", date(2026, 8, 6), True),
+            (datetime(2026, 8, 6, 20, 0), "OVERNIGHT", date(2026, 8, 7), True),
+        )
+        for now, name, trading_date, tradable in cases:
+            with self.subTest(now=now):
+                phase = equity_market_phase_et(now)
+                self.assertEqual(phase.name, name)
+                self.assertEqual(phase.trading_date, trading_date)
+                self.assertEqual(phase.tradable, tradable)
+                self.assertEqual(phase.epoch, f"{trading_date.isoformat()}:{name}")
+
+    def test_equity_market_phase_closes_weekends_and_opens_sunday_evening(self) -> None:
+        friday_close = equity_market_phase_et(datetime(2026, 8, 7, 20, 0))
+        saturday = equity_market_phase_et(datetime(2026, 8, 8, 10, 0))
+        sunday_open = equity_market_phase_et(datetime(2026, 8, 9, 20, 0))
+
+        self.assertEqual((friday_close.name, friday_close.tradable), ("CLOSED", False))
+        self.assertEqual((saturday.name, saturday.tradable), ("CLOSED", False))
+        self.assertEqual(sunday_open.name, "OVERNIGHT")
+        self.assertEqual(sunday_open.trading_date, date(2026, 8, 10))
+
+    def test_equity_market_phase_honors_early_close_and_holidays(self) -> None:
+        self.assertEqual(
+            equity_market_phase_et(datetime(2025, 11, 28, 12, 59)).name,
+            "RTH",
+        )
+        self.assertEqual(
+            equity_market_phase_et(datetime(2025, 11, 28, 13, 0)).name,
+            "POST",
+        )
+        self.assertEqual(
+            equity_market_phase_et(datetime(2025, 11, 28, 17, 0)).name,
+            "CLOSED",
+        )
+        self.assertEqual(
+            equity_market_phase_et(datetime(2025, 1, 9, 10, 0)).name,
+            "CLOSED",
+        )
 
     def test_xsp_weekly_sessions_are_gth_rth_and_curb(self) -> None:
         self.assertEqual(xsp_session_label_et(datetime(2026, 7, 24, 8, 34)), "GTH")

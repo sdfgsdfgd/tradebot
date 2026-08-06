@@ -1,9 +1,15 @@
 from __future__ import annotations
 
+from datetime import datetime
 from time import monotonic
 from types import SimpleNamespace
 
-from tradebot.ui.common import _market_data_label, _quote_status_line
+from tradebot.ui.common import (
+    _market_data_label,
+    _market_data_tag,
+    _market_session_bucket,
+    _quote_status_line,
+)
 
 
 def test_quote_status_line_includes_fallback_source_and_non_entitlement_code() -> None:
@@ -74,8 +80,20 @@ def test_quote_status_line_without_fallback_metadata_remains_simple() -> None:
     assert "topchg " not in text
 
 
-def test_market_data_label_distinguishes_delayed_frozen() -> None:
-    assert _market_data_label(SimpleNamespace(marketDataType=1)) == "Live"
-    assert _market_data_label(SimpleNamespace(marketDataType=2)) == "Live-Frozen"
-    assert _market_data_label(SimpleNamespace(marketDataType=3)) == "Delayed"
-    assert _market_data_label(SimpleNamespace(marketDataType=4)) == "Delayed-Frozen"
+def test_market_data_presentation_distinguishes_all_ibkr_types() -> None:
+    expected = {
+        1: ("Live", " [L]"),
+        2: ("Frozen", " [F]"),
+        3: ("Delayed", " [D]"),
+        4: ("Delayed-Frozen", " [DF]"),
+    }
+    for md_type, presentation in expected.items():
+        ticker = SimpleNamespace(marketDataType=md_type)
+        assert (_market_data_label(ticker), _market_data_tag(ticker)) == presentation
+
+
+def test_ui_market_session_uses_calendar_aware_phase_authority() -> None:
+    assert _market_session_bucket(datetime(2025, 11, 28, 12, 59)) == "RTH"
+    assert _market_session_bucket(datetime(2025, 11, 28, 13, 0)) == "POST"
+    assert _market_session_bucket(datetime(2025, 11, 28, 17, 0)) == "CLOSED"
+    assert _market_session_bucket(datetime(2026, 8, 9, 20, 0)) == "OVERNIGHT"

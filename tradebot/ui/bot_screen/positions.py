@@ -403,7 +403,7 @@ class BotPositionsMixin:
         label = _market_data_label(ticker)
         code, style = {
             "Live": ("L", "bold black on #73d89e"),
-            "Live-Frozen": ("LF", "bold black on #7fc79f"),
+            "Frozen": ("F", "bold black on #7fc79f"),
             "Delayed": ("D", "bold black on #cfb473"),
             "Delayed-Frozen": ("DF", "bold black on #ad9b79"),
         }.get(label, ("?", "bold black on #7a8792"))

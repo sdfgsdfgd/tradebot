@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 
 from ..time_utils import ET_ZONE, NaiveTsModeInput, to_et, to_utc_naive, trade_date
@@ -28,6 +29,19 @@ NYSE_SPECIAL_CLOSED_DAYS = {
 
 _HOLIDAY_CACHE: dict[int, set[date]] = {}
 _EARLY_CLOSE_CACHE: dict[int, set[date]] = {}
+
+
+@dataclass(frozen=True)
+class EquityMarketPhase:
+    """One calendar-aware authority for US equity market-data behavior."""
+
+    name: str
+    trading_date: date | None
+    tradable: bool
+    outside_rth: bool
+    include_overnight: bool
+    epoch: str
+
 
 def is_maintenance_gap(t: time) -> bool:
     return time(3, 50) <= t <= time(3, 59)
@@ -306,6 +320,60 @@ def xsp_rth_cash_evaluation_slots(day: date) -> tuple[datetime, ...]:
 def full24_post_close_time_et(day: date) -> time:
     # IBKR full-session equity bars typically stop at 17:00 ET on NYSE half-days.
     return time(17, 0) if is_early_close_day(day) else time(20, 0)
+
+
+def equity_market_phase_et(now: datetime) -> EquityMarketPhase:
+    """Resolve the active US equity phase and its trading-date-scoped epoch.
+
+    Late overnight belongs to the next valid trading date.  Weekends, holidays,
+    the 03:50-04:00 ET maintenance gap, and the post-close remainder of an early
+    close are explicitly non-tradable instead of being mistaken for overnight.
+    """
+
+    if now.tzinfo is not None:
+        now = now.astimezone(ET_ZONE)
+    wall_date = now.date()
+    current = now.time().replace(tzinfo=None)
+    name = "CLOSED"
+    trading_date: date | None = None
+
+    if current < time(3, 50):
+        if is_trading_day(wall_date):
+            name = "OVERNIGHT"
+            trading_date = wall_date
+    elif current < time(4, 0):
+        if is_trading_day(wall_date):
+            name = "MAINT"
+            trading_date = wall_date
+    elif is_trading_day(wall_date):
+        rth_close = equity_rth_close_time_et(wall_date)
+        post_close = full24_post_close_time_et(wall_date)
+        if current < time(9, 30):
+            name = "PRE"
+            trading_date = wall_date
+        elif current < rth_close:
+            name = "RTH"
+            trading_date = wall_date
+        elif current < post_close:
+            name = "POST"
+            trading_date = wall_date
+
+    if name == "CLOSED" and current >= time(20, 0):
+        next_date = wall_date + timedelta(days=1)
+        if is_trading_day(next_date):
+            name = "OVERNIGHT"
+            trading_date = next_date
+
+    tradable = name in {"OVERNIGHT", "PRE", "RTH", "POST"}
+    epoch_date = trading_date or wall_date
+    return EquityMarketPhase(
+        name=name,
+        trading_date=trading_date,
+        tradable=tradable,
+        outside_rth=name in {"PRE", "POST"},
+        include_overnight=name == "OVERNIGHT",
+        epoch=f"{epoch_date.isoformat()}:{name}",
+    )
 
 
 def expected_sessions(day: date, *, session_mode: str) -> set[str]:

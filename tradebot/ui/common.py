@@ -23,9 +23,16 @@ from tradebot.engines.execution import (
     _ticker_price,
     quote_health as _quote_health,
 )
+from tradebot.engines.market import equity_market_phase_et
 from tradebot.ui.time_compat import now_et as _now_et
 
 _QUOTE_INFO_ERROR_CODES = {10167, 354, 10089, 10090, 10091, 10168}
+_MARKET_DATA_PRESENTATION = {
+    1: (" [L]", "Live"),
+    2: (" [F]", "Frozen"),
+    3: (" [D]", "Delayed"),
+    4: (" [DF]", "Delayed-Frozen"),
+}
 
 
 @dataclass
@@ -439,30 +446,23 @@ def _option_display_price(item: PortfolioItem, ticker: Ticker | None) -> float |
     return close_value
 
 
+def _market_data_type(ticker: Ticker) -> int | None:
+    raw = getattr(ticker, "marketDataType", None)
+    try:
+        return int(raw) if raw is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
 def _market_data_tag(ticker: Ticker) -> str:
-    md_type = getattr(ticker, "marketDataType", None)
-    if md_type in (1, 2):
-        return " [L]"
-    if md_type in (3, 4):
-        return " [D]"
-    return ""
+    return _MARKET_DATA_PRESENTATION.get(_market_data_type(ticker), ("", ""))[0]
 
 
 def _market_data_label(ticker: Ticker) -> str:
-    md_raw = getattr(ticker, "marketDataType", None)
-    try:
-        md_type = int(md_raw) if md_raw is not None else None
-    except (TypeError, ValueError):
-        md_type = None
-    if md_type == 1:
-        return "Live"
-    if md_type == 2:
-        return "Live-Frozen"
-    if md_type == 3:
-        return "Delayed"
-    if md_type == 4:
-        return "Delayed-Frozen"
-    return "n/a"
+    return _MARKET_DATA_PRESENTATION.get(
+        _market_data_type(ticker),
+        ("", "n/a"),
+    )[1]
 
 
 def _quote_source_label(
@@ -564,14 +564,12 @@ def _quote_status_line(ticker: Ticker) -> Text:
 
 
 def _market_session_bucket(ts_et: datetime | time) -> str:
-    current = ts_et.time() if isinstance(ts_et, datetime) else ts_et
-    if time(4, 0) <= current < time(9, 30):
-        return "PRE"
-    if time(9, 30) <= current < time(16, 0):
-        return "RTH"
-    if time(16, 0) <= current < time(20, 0):
-        return "POST"
-    return "OVERNIGHT"
+    resolved = (
+        ts_et
+        if isinstance(ts_et, datetime)
+        else datetime.combine(_now_et().date(), ts_et)
+    )
+    return equity_market_phase_et(resolved).name
 
 
 def _market_session_label() -> str:

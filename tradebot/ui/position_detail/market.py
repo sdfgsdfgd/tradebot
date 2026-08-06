@@ -129,7 +129,7 @@ class PositionMarketView:
         if md_type == 1:
             return "Live"
         if md_type == 2:
-            return "Live-Frozen"
+            return "Frozen"
         if md_type == 3:
             return "Delayed"
         if md_type == 4:
