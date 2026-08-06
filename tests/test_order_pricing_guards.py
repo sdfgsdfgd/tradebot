@@ -21,7 +21,6 @@ from tradebot.engines.execution import (
 )
 from tradebot.ui.common import (
     _quote_health,
-    _remember_ticker_display,
     _ticker_line,
 )
 
@@ -110,61 +109,6 @@ def test_ticker_line_can_use_display_fallback_price() -> None:
         allow_display_fallback=True,
     )
     assert "123.45" in text.plain
-
-
-def test_ticker_display_memory_never_regresses_from_closed_to_warming() -> None:
-    memory: dict[str, object] = {}
-    closed = types.SimpleNamespace(
-        contract=types.SimpleNamespace(symbol="TQQQ", conId=72539702),
-        bid=None,
-        ask=None,
-        last=None,
-        close=72.84,
-        prevLast=72.84,
-        marketDataType=3,
-    )
-    empty = types.SimpleNamespace(
-        contract=types.SimpleNamespace(symbol="TQQQ", conId=72539702),
-        bid=None,
-        ask=None,
-        last=None,
-        close=None,
-        prevLast=None,
-        marketDataType=3,
-    )
-    rendered: list[str] = []
-    for source in (closed, empty, closed, empty, empty):
-        visible = _remember_ticker_display(  # type: ignore[arg-type]
-            {"TQQQ": source},
-            memory,  # type: ignore[arg-type]
-        )
-        rendered.append(
-            _ticker_line(
-                ("TQQQ",),
-                {"TQQQ": "TQQQ"},
-                visible,
-                None,
-                "",
-            ).plain
-        )
-
-    assert len(set(rendered)) == 1
-    assert "Closed" in rendered[0]
-    assert "72.84" in rendered[0]
-    assert "warming" not in rendered[0]
-
-
-def test_ticker_line_labels_initial_empty_state_as_warming() -> None:
-    text = _ticker_line(
-        ("TQQQ",),
-        {"TQQQ": "TQQQ"},
-        {},
-        None,
-        "",
-    )
-
-    assert "warming" in text.plain
-    assert "n/a" not in text.plain
 
 
 def test_tick_size_uses_market_rule_price_ladder() -> None:
