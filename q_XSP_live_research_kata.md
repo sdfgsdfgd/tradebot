@@ -112,21 +112,21 @@ output belongs in commit/final verification, not in this management brain.
 | Authority | Current truth |
 |---|---|
 | Broker/order strategy | XSP: Tiered UPRO/SPXU RTH cash pair. Gold: one `1OZZ6` limit-only canary on fresh Stage-76 admission. MCL: Stage-112 selection `8adead89…` is armed flat for one matched `CLU6 → MCLU6` contract, LMT-only, with ordinary/shock AUTO phase speed `1×/2×`; old V18 remains permanently breached. One account lock serializes broker mutation |
-| Selected live run | `1083c181…` / file `d5f616e4…`, selected flat at `12:41:13Z` as the package-sized successor to `b4799fa6…`; XSP owns `xsp-usd-800` and inherited no economics. Its first live round trip is terminal: `5 UPRO 155.54→153.48`, `-$11.003328` after cost, `67m` logical hold, broker-flat/no-order/no-breach. Invalid `daf1609b…` and earlier identities remain archived evidence only |
+| Selected live run | P-009 `e0f61f74…` / file `c60e4f8b…`, selected flat at `2026-08-06T21:48:25Z` as the immutable successor to v3 `1083c181…`; XSP retains `xsp-usd-800` and inherits no fills/P&L/DD. The predecessor is terminal at two closed trades / `-$9.077374`, flat and orderless; its file remains byte-identical. Earlier invalid identities remain archived evidence only |
 | Gold live canary | `62344ce2…` / file `5fc9048d…`, selected flat at `12:41:13Z` as the package-bound successor to `12b15bd2…`; `1OZZ6` execution and `GCZ6` corroboration, zero inherited fills/P&L/DD, no synthetic midcycle entry. Coverage epoch `db896da2…` starts at the natural `2026-08-06T02:02Z` slot; pre-start receipt `b222d7f0…` is an honest HOLD with every non-execution gate PASS |
-| XSP research crown | **Opening Edge v3 — Regime Harmony 24/5**; `xsp.opening-edge-v3-regime-harmony-24x5.v1` |
-| XSP pivot challenger | Dedicated [`q_pivot.md`](q_pivot.md) freezes one causal phase-front program. P-002C `28e21742…` and P-002Q `3c79befd…` remain honest count rejections with economics sealed. Outcome-blind category audit `d588db94…` isolates the independent frontier: RTH pressure/shock landmarks produce `143/200` matched causal fronts, `131` early or same-close, while RTH opening produces only `47/446` matches and `45` are late. P-004 must now emit from causal pressure ranks plus phase state and count every false alarm; future-aware landmark membership can evaluate but never select |
+| XSP research crown | **Opening Edge v4 — P-009 Dual-Clock Arbitration**; `xsp.opening-edge-v4-dual-clock-arbitration-p009.v1`: `648`, `216.8606/year`, `+305.6156`, stress `+240.8156`, PF `2.042`, DD `16.76`, PnL/DD `18.2348`; Y1/Y2/Y3 PnL-DD gains `+29.39%/+45.23%/+4.19%` |
+| XSP pivot challenger | Dedicated [`q_pivot.md`](q_pivot.md) records P-004 through P-008 as immutable rejections and P-009 as the successful clock-seam repair. Ordinary v3 direction/lifecycle remains on its exact 5m clock; only bridge-owned pre-v3 intervals use native opening-minute timing. Recent `5/10/21/42/63/84` windows are all positive, but P-009 trails v3 efficiency at `10–84`; bounded live graduation is required and post-exposure retuning is forbidden |
 | MCL crown/live | **Shock-Aware Two-Speed Arbiter — Stage 112**, crown `c1e7aad0…`; `388/388` final parity, ledger `e4d18b52…`, `+$3,942.99`, DD `$603.63`, PnL/DD `6.532`. Gap-free successor `8adead89…` is `CANARY_LIVE`, flat with zero orders/fills/P&L/DD. Preliminary cutoff `f2d2f789…` is lawful `HOLD`; the older `083ecba…/6d99e5c6…` clocks remain quarantined evidence only |
-| Runtime parity | Central v3 owner reproduces RTH `40708a28…` exactly over `425/425` trades; unchanged GTH Down Sleeve reproduces `9e04807f…` over `179/179`; combined `604`, `+291.1756`, PF `2.0919`, DD `17.63` |
-| Runtime source anchor | V18 owner is byte-exact at `03d0c958…`; Stage-112 owners `d9f170dd…/e4b217c6…` replay all `707,136` minutes exactly. Live selection `8adead89…`, plan `ed07a506…`, predictive generation `2256c870…`, replay-corrected shock-wave generation `e01e06c8…`, and capital proof `3d2bb2ee…` are current; first natural checkpoint `886696cb…` is fresh/flat/zero-order under q revision `39998f7…` |
+| Runtime parity | Durable P-009 owner reproduces all `648/648` combined trades, RTH `469/469`, combined ledger `53d2682b…`, RTH ledger `3aa102fc…`, and disabled/ordinary-v3 parity exactly; durable receipt `6a81ea01…`. The unchanged GTH sleeve remains `179 / +10.2056` and has no cash-order authority |
+| Runtime source anchor | XSP crown `e3d4b968…`, durable parity `6a81ea01…`, current-runtime audit, selection `e0f61f74…`, plan `5dc25036…`, pressure generation `4c737948…`, and capital proof `280f06b4…` are current. MCL V18 remains byte-exact at `03d0c958…`; Stage-112 owners `d9f170dd…/e4b217c6…` still replay all `707,136` minutes exactly and selection `8adead89…` is unchanged |
 | Goal snapshot | authoritative attachment SHA `27a02647…` is read in full; `q_XSP_goal_objective.md` (`d8a22e58…`) is its tracked backup. Both explicitly require autonomous ideal-safe decisions, all-three Hawkeye/profitability continuity, continued multi-week sharpening, no routine decision blocking, and every progress/handoff to expose the last review, block position, retained candidates, replay budget, and next lawful boundary. The attachment owns the Goal while this kata remains the detailed resume authority |
-| Observer cadence | Stage-112 live and the sole runtime predictive timer are active/waiting. Predictive generation `2256c870…` has `9/30` treatments (`4 down/5 up`), one admission, three resolved handoffs, and one pending candidate. Stage-113 is terminally preserved at three rows / `249d5a3f…`; correction `mcl_stage114_pre_outcome_predecessor_ledger_correction.json` discloses the third pre-registration episode without altering or inheriting it. Stage-114 replay-corrected generation `e01e06c8…` now has `2/30`, one UP and one DOWN authority wave, one continuation, zero handoffs, no open episode, and ledger SHA `0d4ec7c…`; its second natural `14.619×` UP wave completed through normalization without outcomes or live authority. Stage-115 result `8a1085c8…` remains the first-episode derivation at `1/30`. Outcome-blind Stage-116 block-close receipt `mcl_subshock_ignition_recoil_reacceleration_stage116_block_close_accumulation.json` (`ff5aa6fc…`) derives four complete GTH sub-`10×` episodes at `4/30`: provisional `3 up/1 down`, two `IGNITION_RECOIL`, one `MIXED_TORSION`, and the first exact `IGNITION_RECOIL_REACCELERATION`. It remains morphology-only, outcome-sealed, and on demand; no runtime owner was added. XSP pressure tape `45111626…`, pure atlas `1559c839…`, and target accumulator `40884c4e…` are armed for `2026-08-06T13:20Z`; the existing observer joins only complete crowned targets after live transport/disconnect, currently `0/30`, with no new timer, classifier, permission, outcome, order, or capital authority. Exactly one successor MCL observer and the unchanged event tape are active |
+| Observer cadence | Stage-112 live and the sole runtime predictive timer remain active. Predictive generation `2256c870…`, terminal Stage-113, replay-corrected Stage-114, derived Stage-115, and on-demand Stage-116 retain their independent outcome-blind contracts. XSP keeps one pressure-tape service and one projection inside the existing central worker; P-009 generation `4c737948…` inherited exactly one outcome-blind treatment (`1/30`) without a second recorder, timer, classifier, permission, outcome, or order owner |
 | RTH signal freshness | **cleared:** after the user activated `CBOE Streaming Market Indexes`, zero-order receipt `acce7ed3…` returned live type-1 XSP, current five-minute history, and real-time `TRADES` bars without a Gateway restart; the natural `10:07 ET` centralized v2 checkpoint then evaluated with both XSP and SPY through `10:05` and `120s` age |
-| Order/capital authority | Plan `ed07a506…` binds XSP `1083c181…` / `xsp-usd-800`, Gold `62344ce2…` / `gold-one-contract`, and Stage-112 MCL `8adead89…` / `mcl-one-contract-stage91`. Flat strategies reserve no fictional capacity: each fresh entry admits its own indivisible minimum only if candidate + actual positions + uniquely owned pending orders pass the same fresh full-account stress proof. For XSP packages, current quote + immutable notional + shared conservative Tiered cost own quantity; the historical share range cannot veto a still-affordable package. Later entries may honestly `HOLD`; risk reduction is unconditional. Every champion is LMT-only; broker-wide market-order rejection is centralized |
-| Profitability clock | XSP selection `1083c181…` retains terminal `24h REVISE` receipt `88e3ab65…` plus `48h/post-trade QUARANTINE` receipts `78d5f04b…/064d14a5…`. Coverage epoch `f2fd8a90…` starts prospectively at Thursday's first cash slot `2026-08-06T13:37Z`; it excludes only impossible predecessor coverage, chains all three receipts, and inherits one closed trade / `-$11.003328` net and DD without changing selection, runtime risk, capital, timer, or economics. First lawful XSP boundaries are `24h 2026-08-07T13:38:30Z`, `48h 2026-08-08T13:38:30Z`, and five-session `2026-08-13T13:38:30Z`; genuine post-epoch gaps still quarantine and positive after-cost net remains mandatory. Old V18 and gapped MCL `083ecba…/6d99e5c6…` clocks are closed evidence. Fresh Stage-112 clock `8adead89…` began `11:39:22Z`; cutoff `11:42:45Z` proves complete matured-minute coverage and returns `HOLD`, not quarantine. The first authentic `24h` reduction at fixed cutoff `2026-08-06T11:39:55Z` passes runtime, identity, restart, capital, risk, and attribution but returns `QUARANTINE/incomplete_session_coverage`; exact missing-slot classification is active before the receipt becomes durable. No slot is backfilled and zero-fill uptime cannot graduate |
-| Execution verdict | XSP is flat after its first selected-run round trip: two LMT/AUTO fills, one closed trade, `-$11.003328` net, zero relevant position/order/breach. The `60m` minimum plus one recovering-long confirmation held for `67m`; the confirmed post-`11:50 ET` DOWN state reduced UPRO but could not open SPXU. Stage-112 MCL remains flat; both MCL live/predictive timers are active. A fresh causal V18-or-shock admission may submit one broker-enforced LMT through the shared ladder; market orders remain impossible. Predictive Stages 87–90 and Stage 114 cannot submit or alter live direction |
-| Next irreversible evidence | Observe XSP epoch `f2fd8a90…` from its first Thursday cash slot under unchanged selection `1083c181…`; preserve the first exact `60s` SPY/UPRO/SPXU pressure treatment only when a fresh post-`13:20Z` crowned target exists. Accumulator generation `40884c4e…` rescans idempotently after live transport, but incomplete or invalid windows append nothing. Do not backfill, reset the `-$11.003328` loss, or manufacture a profitable milestone. Preserve the gap-free MCL `8adead89…` prefix and reduce immutable `24h`, `48h`, and five-session milestones only when due. Accumulate the next Stage-114/115 authority wave and Stage-116 subshock morphology; no pressure threshold, outcome, direction, execution, or capital promotion occurs before frozen cohorts pass |
-| First active work | Daytime Hawkeye remains the preemptive outer loop. Review `6/6` closed the block at `12:17:39Z` without backfill; the next block begins at `12:27:05Z`. Reconciliation retains XSP Pressure/Shock Phase-Front P-004 rank `1` and MCL Phase-Front/Subshock rank `2`; P-004 owns the next single bounded replay slot, but outcome access remains `0/1` while active MCL `24h` coverage diagnosis preempts it. All champions remain flat/order-free. XSP's opposite DOWN front persists at `DDDDD/UDDDD`, with fast velocity already repairing and no fresh owner; Gold remains D1-DOWN/H4-UP with the new H4 bar decelerating; MCL completed an exact `UUUUU/UUUUU` cascade with fresh 30/60m UP turns and rising ATR but still no V18 target. Exact MCL missing-slot enumeration is next; no outcome, crown, strategy, threshold, selection, capital, or live authority changed |
+| Order/capital authority | Plan `5dc25036…` atomically supersedes `ed07a506…` and binds P-009 `e0f61f74…` / `xsp-usd-800`, unchanged Gold `62344ce2…`, and unchanged Stage-112 MCL `8adead89…`. Portfolio generation `847c74d6…` and stability proof `280f06b4…` rehash the current files exactly. First-admitter minimum-unit law, fresh full-account stress, unconditional risk reduction, and centralized broker-wide market-order rejection are unchanged; every champion remains LMT-only |
+| Profitability clock | P-009 is a fresh run with zero inherited fills/P&L/DD. Its first post-selection invocation landed in the closed maintenance window and honestly returned `NOT_STARTED`; the `24h/48h/five-session` clock begins only from the first lawful RTH evidence slot. The terminal v3 receipts and two closed trades / `-$9.077374` remain predecessor evidence and cannot transfer or be reset. MCL and Gold milestone owners are unchanged; no slot is backfilled and zero-fill uptime cannot graduate |
+| Execution verdict | P-009 is selected, flat, orderless, and breach-free. Non-transmitting live type-1 what-if previews qualified `5 UPRO @ 152.36` and `23 SPXU @ 34.21`; both were `LMT`, `transmit=false`, commission-bounded, and left open trades `0→0`. The first central-worker invocation returned `CLOSED`, emitted no transport execution, and submitted `0`. Stage-112 MCL and Gold remain unchanged; market orders remain impossible |
+| Next irreversible evidence | Preserve the fresh P-009 prefix and reduce immutable `24h`, `48h`, and five-session milestones only when naturally due. Generation `4c737948…` may append only complete outcome-blind pressure morphology for fresh P-009 targets; it cannot change direction, timing, thresholds, execution, capital, or outcomes. Continue the unchanged MCL/Gold evidence chains and do not manufacture activity to satisfy any milestone |
+| First active work | P-009 coronation and commissioning preempted Hawkeye. The last canonical all-three review remains `2026-08-06T12:17:39Z`, block `6/6`; missed reviews are not backfilled and overnight research is exempt. At the first lawful daytime continuation, resume from fresh broker/service truth with retained outcome-blind candidates XSP Pressure Atlas and MCL Phase-Front/Subshock, replay budget `0/1`; P-009 graduation itself preempts ordinary replay work when due |
 
 <!-- RESUME-CAPSULE:END -->
 
@@ -2611,6 +2611,8 @@ and
 | E-582 | canonical all-three Hawkeye `portfolio_hawkeye_20260806T1147Z.json` (`ccb125f0…`) is new-block review `5/6`, begun `111s` after its lawful boundary and settled without backfill after preempting the due MCL 24h reducer. Broker truth remains flat/no-order at `A$3,628.50` available/excess and `US$1,062.21` cash. The strongest prospective XSP UP repair in this block fully failed: `11:30Z UUUDU/UUUUU` became `11:50Z DDDDD/DDDDD`, with coherence `1.0`, conviction `0.2861`, expanding `1.310×` ATR, and fresh 30/60/120m DOWN turns. The all-UP daily stack still resists, the crown emits no proposal, and GTH remains flat; this is `PROPAGATED_UP_FRONT_FAILED_OPPOSITE_DOWN_FRONT_REASSERTED`, not a missed short. Gold remains zero-fill/net/DD at `4317.75/4318.00` under D1-DOWN/H4-UP conflict. MCL remains zero-fill/net/DD at `75.96/75.98`: `UDUUU/UUUUU` is a renewed repair front with the 60m slope resisting, compressed `0.727×` ATR, and only `0.0194` conviction, not authority. Stage 87-90 remains `9/30`; Stage 114 remains `2/30`; P-004 remains count-pass/outcome-sealed. The incubator retains the same two candidates, spends `0/1` replay budget, and changes no crown, strategy, threshold, selection, capital, live authority, order, outcome, service, or timer. MCL 24h reduction is now due and next; next Hawkeye is `12:07:05Z` as review `6/6` |
 | E-583 | canonical all-three Hawkeye `portfolio_hawkeye_20260806T1207Z.json` (`e0abf160…`) closes review `6/6`, begun `142s` after its lawful boundary and settled without backfill after preempting the active MCL 24h coverage diagnosis. Read-only broker truth remains flat/no-order at `A$3,627.88` available/excess and `US$1,062.21` cash. XSP remains one closed trade / `-$11.003328`: its opposite DOWN front persists at `12:10Z` with every slope DOWN, fresh 15m/60m DOWN turns, coherence `1.0`, and expanding `1.125×` ATR, but 5m velocity has already repaired UP (`DDDDD/UDDDD`) while the daily stack remains all-UP and no proposal exists; this is the first recoil test, not a missed short. Gold remains zero-fill/net/DD at `4315.00/4315.25`; the new `12:00Z` H4 bar remains UP against D1-DOWN but slope, spread velocity, acceleration, and ATR velocity are all decelerating. MCL remains zero-fill/net/DD at `76.10/76.11` and supplies the cleanest ordinary phase-front specimen yet: the resisting 60m slope crossed, fresh 30m/60m UP turns appeared, all `30/60/120/240/480m` slopes and velocities are UP, and ATR is re-expanding, but V18 remains `weak_direction/flat_no_target`; no midcycle long is synthesized. Stage 87-90 stays `9/30`; Stage 114 stays `2/30`. Block reconciliation retains P-004 rank `1` and MCL Phase-Front/Subshock rank `2`, selects P-004 for the next sole bounded replay, and keeps outcome access `0/1` while MCL commissioning evidence preempts. No crown, threshold, strategy, selection, capital, live authority, order, outcome, service, or timer changed; next Hawkeye is `12:27:05Z` as new-block review `1/6` |
 | E-584 | XSP opening sequence P-004 through P-007 is now settled without touching live v3. P-004 and P-005 fail completed-5m economics; P-006's historical minute proxy fails count breadth (`30` episodes, `0` crest-reaccelerations) while its first prospective seconds session retains a clean morphology-only `attention→UP bind→crest→recoil→20× reacceleration`; P-007 restores exact native-1m execution and passes `280`-emission count breadth, but exact disabled parity plus twelve frozen Y1/Y2 cells selects none. Best `acceptance_tr075` raises trades `389→513` and cadence `195.27→257.52/year` while net falls `138.3932→93.8832`, DD rises `17.0689→23.9789`, PF falls `1.809→1.3665`, and PnL/DD falls `8.1079→3.9152`. Receipt `opening_edge_v4_opening_micro_auction_p007_economic_rejection.json` preserves result `5763ab03…`; locked Y3 stays sealed, orders remain zero, and crowned/live v3, Gold, MCL, capital, execution, and services remain unchanged |
+| E-585 | P-008/P-009 closes the opening-clock question. P-008's nearest `5–7m / 0.50× / 20×` family had `28` bridge-owned trades with raw `+22.96`, PF `4.576`, positive Y1/Y2 and both directions, median entry `6m` after the pivot, `68.46%` median move remaining, and median session extreme `215.5m` later; the bridge was early, not exhausted. P-008 still had `0/108` passing cells because moving the entire v3 lifecycle to native 1m destroyed about `38.94` points. P-009 froze the actual repair: exact 5m v3 events plus bridge-only native-minute ownership. Its one-shot three-year settlement crowns `648` trades / `216.8606/year`, `+305.6156` primary / `+240.8156` stressed, PF `2.042`, DD `16.76`, PnL/DD `18.2348`, with Y1/Y2/Y3 gains `+29.39%/+45.23%/+4.19%`, both directions and RTH/GTH positive. The extra all-three 5% curiosity gate remains an honest Y3 miss; the standing `2/3` crown law passes. Crown `e3d4b968…`, durable parity `6a81ea01…`, recent disclosure `41919f72…`; no order was submitted |
+| E-586 | P-009 live succession is complete through the existing central XSP worker. Fresh flat selection `e0f61f74…` / file `c60e4f8b…` succeeds terminal v3 `1083c181…` without inheriting its two trades / `-$9.077374`; plan `5dc25036…` atomically preserves Gold `62344ce2…` and MCL `8adead89…`, generation `847c74d6…`, stability proof `280f06b4…`, and the first-admitter law. P-009 pressure generation `4c737948…` inherits one outcome-blind treatment only. Live type-1 non-transmitting what-if previews qualified `5 UPRO @ 152.36` and `23 SPXU @ 34.21`; both are LMT, zero-warning, commission-bounded, and left open trades `0→0`. Installed service/timer hashes match the repository; first post-selection invocation returned `CLOSED/NOT_STARTED`, no transport execution, and `0` orders. Read-only broker truth remained flat/orderless at `US$1,064.136` settled and `A$3,633.48` available/excess. Commissioning receipt `opening_edge_v4_dual_clock_arbitration_p009_live_commissioning.json` / `3230d496…`. Cash authority is RTH-only; positive GTH research is not overnight order permission |
 
 ### Decision anchors
 
@@ -2702,6 +2704,8 @@ and
 | D-224 | Hawkeye is the preemptive outer control loop, not background narration. Outside explicit overnight/weekend research, every continuation checks the last canonical all-three receipt before ordinary work and persists one when `20m` elapsed; missed periods are not reconstructed. A live fill, open-risk/safety response, or active commissioning boundary may temporarily preempt it. One six-review block maintains at most two evidence-backed incubator candidates and begins at most one bounded replay after retain/merge/retire/promote reconciliation. Monitoring may discover and rank work but never force a trade, novelty, threshold, strategy promotion, profitability milestone, or order |
 | D-225 | `q_pivot.md` is the dedicated XSP crown-challenger brain while this kata remains the sole portfolio/live authority. Begin with one oracle-isolated serious-pivot landing atlas and a timing-only derivative of the unchanged crown; open a complementary direction owner only for a material repeatable missed-pivot cohort, then compose through one deterministic arbiter. GTH research is allowed but earns independent after-cost economics, native transport, safety, and runtime proof before authority. Crown autonomously only after more than `604` genuine same-span trades, cadence above `201.8674/year`, at least `5%` PnL/DD improvement in `2/3` annual periods, robust full-history/tail/regime proof, exact replay, and fresh flat commissioning. No MCL threshold transfer, broad grid coronation, market order, or second simultaneous XSP owner is permitted |
 | D-226 | P-001's future-aware pivot oracle may label evaluation only: freeze scale from the prior `21` completed XSP RTH sessions, require `0.25×` reversal confirmation and `0.50×` outgoing seriousness, preserve every recoil-only and right-censored control, and never infer intrabar OHLC traversal. Its two neighbors are coverage diagnostics, not selectable candidates. P-002 must first prove the pure owner on synthetic paths, rehash the exact incumbent and tape, then open only count/morphology; trade P&L, MFE/MAE, action selection, and threshold ranking remain forbidden until one categorical causal law is frozen |
+| D-227 | P-009 is the new XSP crown and sole live direction/lifecycle owner. Its only economic change is deterministic dual-clock arbitration: ordinary v3 events remain byte-exact on completed 5m boundaries; bridge-owned flat intervals use native opening-minute timing; same-direction v3 takeover is an explicit handoff and opposite authority releases before reversal. The strict Y3 `+4.19%` versus `+5%` curiosity miss remains disclosed, while the standing majority-year law, cadence, full PnL/DD, stress, tail, direction, and lane gates pass |
+| D-228 | Live P-009 succession must remain one fresh immutable flat run through the existing shadow/transport worker, shared LMT/AUTO executor, shared account lock, and shared first-admitter capital owner. The v3 predecessor's fills/P&L/DD never transfer; Gold and MCL identities remain unchanged. Historical GTH profitability supplies context only and cannot enable cash orders. Recent-window weakness is answered only by prospective `24h/48h/five-session` graduation, never post-crown threshold adjustment |
 
 ---
 
@@ -2773,41 +2777,45 @@ five-session receipts exist and the final calibration/risk verdict is explicit.
 
 ## Conclusion
 
-Opening Edge v3 — Regime Harmony 24/5 is the historical research crown:
-recent `+11.2375/14`; annual `+62.9648/+75.4283/+152.7824`; full
-`+291.1756/604` (`201.87/year`), PF `2.0919`, DD `17.63`; both directions
-and both lanes are positive. One centralized owner over strictly-prior
-`5/10/21/42/63/84` context, multiscale velocity/acceleration, ordered
-maturation, phase-scoped short financing, and incumbent surrender reproduces
-the frozen `40708a28…` RTH ledger exactly; the `9e04807f…` GTH lane remains
-unchanged. There is no date router, news authority, generic stop/trail, quota,
-or sizing change.
+Opening Edge v4 — P-009 Dual-Clock Arbitration is the XSP research crown:
+`648` trades / `216.8606/year`, `+305.6156` primary / `+240.8156` stressed,
+PF `2.042`, DD `16.76`, and PnL/DD `18.2348`. It improves the exact v3 challenge
+baseline by `45` trades, `+18.40` net, `+13.90` stressed net, `-$0.87` DD, and
+`+11.93%` PnL/DD. Y1 and Y2 improve PnL/DD by `29.39%` and `45.23%`; locked Y3
+improves by `4.19%`, honestly missing the extra all-three `5%` curiosity gate
+while passing the standing majority-year crown law. UP `+113.71`, DOWN
+`+191.9056`, RTH `+295.41`, and unchanged GTH `+10.2056` are all positive.
 
-Tiered UPRO/SPXU RTH cash execution is live under package-sized selection
-`1083c181…` / `d5f616e4…`. Current quote, immutable `$800.46` notional, and one
-central conservative Tiered-cost owner now determine package quantity; the
-historical quantity range is provenance rather than a stale live cap. Its first
-authentic round trip bought `5 UPRO @ 155.54`, retained the incumbent through
-the `60m` minimum, and sold `5 @ 153.48` only after the required second opposite
-confirmation: `-$11.003328` after cost over `67m` logical hold. Terminal broker
-reconciliation is flat with no open order or safety breach, and both legs were
-LMT/AUTO. Current plan `ed07a506…` binds XSP, Gold, and MCL through one
-first-admitter law: flat sleeves reserve no fictional capacity, while every new
-candidate is tested beside actual positions and pending orders against its
-cash/margin, stressed-loss, FX, unrelated-position, and buffer package. This
-permits honest cross-product coexistence when resources really remain and a
-pre-order `HOLD` when they do not. Cash debit and futures margin are not
-interchangeable. At the exact `15:52Z` held-UPRO snapshot, the shared allocator
-did permit one MCL and left `A$574.75` available funds / `A$539.57` stressed
-excess over the `A$300` floor; that is preserved evidence, not standing
-capacity. No order is forced.
-XSP graduation now continues through prospective coverage epoch `f2fd8a90…`
-from `2026-08-06T13:37Z`, not through a new trading selection. The epoch chains
-all three failed predecessor receipts and preserves the authentic
-`-$11.003328` result, one closed trade, drawdown, fills, and selection identity.
-Only the coverage clock succeeds; a new missing slot still quarantines and the
-24h/48h/five-session milestones still require positive cumulative after-cost
-net. MCL's shared ledger owner remains byte-identical.
+The repair is architectural rather than threshold-driven. Ordinary v3 entries,
+holds, flips, and exits remain on their exact completed-5m clock. Only the
+already-frozen opening bridge may own a flat pre-v3 interval on native-minute
+timing, with explicit same-direction handoff and opposite-direction release.
+Durable replay reproduces all `648/648` trades, combined ledger `53d2682b…` and
+RTH ledger `3aa102fc…`; crown `e3d4b968…` and parity `6a81ea01…` are immutable.
+Every trailing `5/10/21/42/63/84`-session window is positive, but P-009 is less
+efficient than v3 from `10–84` sessions. That weakness is disclosed and forces
+a bounded canary; it does not authorize a post-crown rescue sweep.
+
+Tiered UPRO/SPXU RTH cash execution is live under fresh flat selection
+`e0f61f74…` / `c60e4f8b…`. Terminal v3 `1083c181…` remains immutable at two
+closed trades / `-$9.077374` and transfers no economics. Shared plan
+`5dc25036…` atomically binds P-009, unchanged Gold `62344ce2…`, and unchanged
+MCL `8adead89…`; generation `847c74d6…` and stability proof `280f06b4…` rehash
+the same first-admitter capital law. Current quote plus immutable `$800.46`
+notional and conservative Tiered cost still determine quantity. The shared
+account lock, stressed package proof, unconditional risk reduction, and
+broker-wide market-order rejection are unchanged.
+
+Non-transmitting live type-1 previews qualified `5 UPRO @ 152.36` and `23 SPXU
+@ 34.21`; each used LMT, produced no warning, stayed within commission bounds,
+and left open trades `0→0`. The installed central worker/timer match repository
+hashes. Its first post-selection invocation correctly returned `CLOSED`, no
+transport execution, `NOT_STARTED` profitability, and zero orders. Read-only
+broker verification was flat/orderless at `US$1,064.136` settled cash and
+`A$3,633.48` available/excess. The fresh P-009 `24h/48h/five-session` clock
+starts only at the first lawful RTH evidence slot; nothing is backfilled and
+positive after-cost economics remain mandatory. Research GTH remains positive,
+but cash execution is RTH-only until a separate native overnight proof exists.
 Bot Trade is now only the q-owned durable portfolio cockpit. Immutable machine
 crowns, cash/preview/selection proof, capital sleeves, product workers,
 append-only evidence, and graduation form one chain; README crowns remain
@@ -2892,22 +2900,18 @@ ordered and whose joint speed reaccelerates after authority. Stage 115 remains
 sealed until real waves accumulate and cannot touch the crowned Stage-112 live
 path.
 
-For XSP, the first selected-run trade proves the intended patience/surrender
-boundary rather than profitability: one early opposite bar did not shake out a
-long protected by the slow all-UP context, while a second fully coherent
-multihorizon DOWN bar ended it before the hard close. The next reliable question
-is not whether to weaken that `60m` floor from one `-$11.00` trade, but whether
-the growing authentic cohort shows systematic giveback before the second
-confirmation across both directions and volatility regimes. The rejected
-historical pressure gates do not answer that question. Prospective generation
-`45111626…` now captures the missing seconds immediately around each crowned
-target from live SPY/UPRO/SPXU books; its first lawful job is morphology and
-freshness attribution, not live permission. Derived generation `1559c839…`
-freezes that morphology before the first row: it can distinguish a fully
-aligned path whose velocity is still accelerating from the same path after its
-velocity has crested, while separately preserving cash-first discovery,
-transport acceptance/refusal, leverage-normalized basis divergence/
-reconvergence, TR/volume/quote pressure, liquidity, and slower-clock context.
-A stable causal precursor must repeat across both directions and ordinary,
-choppy, spike, crash, and upside-shock regimes before any action law is even
-proposed.
+For XSP, P-009 proves that the opening signal was not generally late or
+directionless: its precursor bridge entered a median `6m` after the pivot with
+`68.46%` of the directional session move still available. The defect was clock
+contamination—running every mature v3 lifecycle transition each minute—not the
+absence of pressure information. The fresh live question is therefore whether
+bridge-only ownership preserves that historical advantage after spreads,
+commissions, timer latency, and the currently weaker recent regime. Generation
+`4c737948…` carries the one prior outcome-blind pressure treatment into the new
+selection and continues the same SPY/UPRO/SPXU morphology without a second
+recorder, timer, classifier, or strategy. It may distinguish acceleration,
+crest, recoil, transport acceptance/refusal, normalized basis, range/volume,
+liquidity, and slow context; it cannot retune P-009 or authorize a trade. The
+next decisive evidence is authentic `24h/48h/five-session` after-cost behavior
+across both directions and ordinary, choppy, spike, crash, and upside-shock
+regimes.

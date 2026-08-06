@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from copy import deepcopy
 from datetime import date, datetime, timedelta, timezone
+from hashlib import sha256
 from pathlib import Path
 
 import pytest
@@ -1394,6 +1395,45 @@ def test_v3_package_successor_freezes_the_allocated_notional_and_clean_run(
     tampered["nominee"]["fixed_entry_notional_usd"] = 850.0
     with pytest.raises(ValueError, match="package-sized"):
         load_xsp_v3_transport_selection_from_mapping(tampered)
+
+
+def test_p009_live_commissioning_receipt_binds_fresh_flat_lmt_successor() -> None:
+    root = Path(__file__).resolve().parents[1]
+    path = root / (
+        "backtests/xsp/"
+        "opening_edge_v4_dual_clock_arbitration_p009_live_commissioning.json"
+    )
+    receipt = json.loads(path.read_text(encoding="utf-8"))
+
+    assert sha256(path.read_bytes()).hexdigest() == (
+        "3230d496c089ffc628adcebfb2df68cf8ab641f509a743c9122dcd19da3ac7d5"
+    )
+    assert receipt["selection_id"] == (
+        "e0f61f74286e1d2b655e253633b0842cb47d41ad7b66fb4567eece3aa46d674b"
+    )
+    assert receipt["capital_plan_id"] == (
+        "5dc2503640627b39b57b33ba9c0810c2ad9e1f778b937f241abd4ff571f2c8ea"
+    )
+    assert receipt["strategy_version"] == XSP_DUAL_CLOCK_VERSION
+    assert receipt["source_strategy_version"] == XSP_DUAL_CLOCK_SOURCE_VERSION
+    assert receipt["live_execution_scope"] == {
+        "cash_execution": "RTH_only",
+        "gth_signal_lane": "incumbent_v3_unchanged",
+        "market_orders": False,
+        "order_type": "LMT_only_shared_AUTO_chase",
+        "preview_outside_rth": "nontransmitting_what_if_only",
+    }
+    assert all(receipt["gates"].values())
+    assert all(
+        row["order"]["what_if"] is True
+        and row["order"]["transmit"] is False
+        and row["order"]["limit_price"] > 0
+        for row in receipt["preview"]["rows"]
+    )
+    assert receipt["first_nontransmitting_invocation"]["transport_execution"] is None
+    assert receipt["post_deployment_broker_verification"]["account_positions"] == []
+    assert receipt["post_deployment_broker_verification"]["open_orders"] == []
+    assert receipt["submitted_orders"] == 0
 
 
 @pytest.mark.parametrize(

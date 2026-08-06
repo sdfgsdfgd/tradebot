@@ -1,15 +1,13 @@
 # XSP Pivot / Phase-Front Mastery — Research Quest Brain
 
-- **Status:** `[ACTIVE / AUTHORIZED]` Build the most causally precise XSP pivot
-  detector that can beat Opening Edge v3 without weakening live safety. The
-  first authority is research-only. A new live selection may exist only after
-  exact historical, prospective, transport, execution, capital, restart, and
-  graduation proof.
-- **Target:** a new XSP crown with sharper opening landings, reliable quiet and
-  shock pivot recognition, and an independently qualified overnight lane when
-  it improves after-cost PnL/DD.
-- **Incumbent:** **Opening Edge v3 — Regime Harmony 24/5**,
-  `xsp.opening-edge-v3-regime-harmony-24x5.v1`.
+- **Status:** `[CROWNED / CANARY_LIVE / GRADUATION_PENDING]` Opening Edge v4
+  P-009 is the selected XSP successor. Continue authentic `24h/48h/five-session`
+  after-cost proof without post-exposure retuning.
+- **Target:** graduate P-009 while continuing outcome-blind pressure/pivot
+  accumulation and requiring any future challenger to beat the new crown
+  across cadence, annual PnL/DD, tail, and executable live evidence.
+- **Incumbent:** **Opening Edge v4 — P-009 Dual-Clock Arbitration**,
+  `xsp.opening-edge-v4-dual-clock-arbitration-p009.v1`.
 - **Primary portfolio authority:** [`q_XSP_live_research_kata.md`](q_XSP_live_research_kata.md).
   This file owns only the bounded XSP pivot quest. It may not silently change
   XSP, Gold, MCL, shared capital, execution, or Hawkeye behavior.
@@ -29,18 +27,18 @@ transcripts and routine test output do not belong here.
 
 | Authority | Current truth |
 |---|---|
-| Research crown | Opening Edge v3: `604` trades over three years, `201.8674/year`, `+291.1756` XSP points, PF `2.0919`, DD `17.63`, PnL/DD `16.516` |
-| Annual frontier | Y1 `202` / `+62.9648` / PnL-DD `5.0211`; Y2 `187` / `+75.4283` / `4.4190`; Y3 `215` / `+152.7824` / `8.6660` |
-| Attribution | UP `200 / +103.2600`; DOWN `404 / +187.9156`; RTH `425 / +280.9700`; GTH `179 / +10.2056` |
-| Live boundary | The live selection is the RTH UPRO/SPXU cash package. GTH cash transport remains unqualified and disabled. Research `24/5` is not overnight order authority |
-| Existing owner | Central v3 direction/lifecycle owner, prior `94` complete sessions, daily `5/10/21/42/63/84`, intraday `5/15/30/60/120m`, state-conditioned maturation/financing/surrender |
-| Existing seconds atlas | One content-addressed SPY/UPRO/SPXU tape and pure `1/3/5/10/15/30/45s` pressure atlas are frozen; first eligible treatment is `2026-08-06T13:20:00Z`; cohort `0/30` |
+| Research crown | P-009: `648` trades over the frozen three-year span, `216.8606/year`, `+305.6156` XSP points, stressed `+240.8156`, PF `2.042`, DD `16.76`, PnL/DD `18.2348`; ledger `53d2682b…` |
+| Annual frontier | Y1 `219 / +68.0848 / 6.4966` (`+29.39%` PnL/DD); Y2 `195 / +90.1283 / 6.4179` (`+45.23%`); Y3 `234 / +147.4024 / 8.7949` (`+4.19%`) |
+| Attribution | UP `+113.7100`; DOWN `+191.9056`; RTH `469 / +295.4100`; unchanged GTH `179 / +10.2056`; both directions and lanes positive |
+| Live boundary | Fresh immutable selection `e0f61f74…` is `CANARY_LIVE` through the existing RTH UPRO/SPXU cash transport. The positive historical GTH lane remains incumbent-v3 research behavior, not overnight cash order authority |
+| Existing owner | One central dual-clock arbiter: incumbent v3 entry/exit/lifecycle remains on its exact completed-5m clock; only bridge-owned pre-v3 intervals use native opening-minute timing, with explicit handoff/release |
+| Existing seconds atlas | One content-addressed SPY/UPRO/SPXU tape and pure `1/3/5/10/15/30/45s` pressure atlas are frozen. P-009 generation `4c737948…` inherited exactly one outcome-blind treatment across succession; cohort `1/30`, no permission or outcome authority |
 | Closed shortcut | Broad historical pressure `ADMIT_NOW/WAIT/REVOKE` passed count first, then failed economics: combined `589` trades, `196.28/year`, `-$31.07` versus exact-latency baseline, and only one of three yearly PnL/DD slices improved |
-| Active hypothesis | Opening volume magnitude is attention; entry quality requires causal SPY/XSP transport and multiscale acceptance, but the admission must earn an opening-native lifecycle rather than inherit v3 blindly |
-| Current authority | P-004, P-005, P-006, and P-007 are rejected research branches. No classifier, direction, permission, timing, chase, order, or capital authority changed |
+| Active hypothesis | Proven: the opening bridge contained early directional alpha; P-008 lost it by advancing the entire v3 lifecycle to one-minute evaluation. P-009 repairs only that clock seam and leaves ordinary v3 economics exact |
+| Current authority | P-004 through P-008 remain immutable rejections. P-009 is crowned, centrally selected, LMT-only, flat at succession, and bound to the shared capital owner; Gold and MCL selections are unchanged |
 | Landmark authority | P-001 preregistration `opening_edge_v4_phase_front_pivot_landmarks_preregistration.json` (`07506749…`) freezes the `0.25×` prior-scale causal confirmation / `0.50×` serious outgoing-wave oracle, landing schema, and diagnostic-only neighbors before landmark outcomes |
-| First work | P-007 exact one-minute composition is economically rejected: best cell `acceptance_tr075` raises cadence `195.27→257.52/year` but cuts combined net `138.3932→93.8832`, raises DD `17.0689→23.9789`, and cuts PnL/DD `8.1079→3.9152`; all `12/12` cells fail and locked Y3 remains sealed. Preserve P-006 seconds morphology as prospective evidence, not alpha, and isolate lifecycle-compatible timing before another outcome replay |
-| Hawkeye | Explicitly paused at the user's request while the opening sequence was settled; do not backfill missed reviews. Resume from fresh broker/service truth only after this research handoff |
+| First work | Preserve P-009 unchanged through its authentic `24h`, `48h`, and five-session reductions. Recent windows are all positive but weaker than v3 from `10–84` sessions, so live graduation—not a threshold rescue—decides the next promotion/hold/demote boundary |
+| Hawkeye | Commissioning preempted the outer loop and overnight research is exempt. Do not backfill. Resume at the first lawful daytime boundary from fresh all-three broker/service truth |
 
 <!-- PIVOT-RESUME:END -->
 
@@ -336,9 +334,9 @@ At most one outcome-bearing replay may be active inside a Hawkeye block.
 | P-005 | `[REJECTED_ECONOMIC]` | Completed-5m post-bell authority | Urgent 09:35 improved Y1 but worsened Y2; union/confirmed variants were decisively bad |
 | P-006 | `[REJECTED_COUNT_ONLY / PROSPECTIVE_MORPHOLOGY_RETAINED]` | Seconds opening micro-auction wave | Historical 1m proxy emitted only `30` episodes and erased crest/recoil order; no economics opened |
 | P-007 | `[REJECTED_ECONOMIC]` | Exact 1m acceptance/reacquisition/handoff composition | `280` count-testable emissions, but `0/12` selection cells passed; best cell halved PnL/DD and Y3 stayed sealed |
-| P-008 | `[NEXT_MECHANISM_ONLY]` | Lifecycle-compatible opening timing/permission | Must explain why P-007 entries lose under the incumbent lifecycle before any new replay |
-| P-009 | `[PENDING]` | Durable owner + exact replay parity | Frozen nominee ledger and arbitration are exact |
-| P-010 | `[PENDING]` | Non-transmitting commissioning and live succession | Runtime, LMT, capital, restart, safety, and graduation all pass |
+| P-008 | `[REJECTED_DEVELOPMENT / MECHANISM_FOUND]` | Stabilized opening bridge | `0/108` cells passed, but its `28` bridge-owned trades were early and profitable; advancing all v3 lifecycle events to 1m was the actual defect |
+| P-009 | `[COMPLETE / CROWNED]` | Dual-clock arbitration | Exact 5m v3 lifecycle plus bridge-only native-minute ownership: `648`, `+305.6156`, DD `16.76`, PnL/DD `18.2348`; durable parity exact |
+| P-010 | `[COMPLETE / CANARY_LIVE]` | Non-transmitting commissioning and fresh flat succession | Selection `e0f61f74…`, plan `5dc25036…`, LMT-only shared worker, zero orders at commissioning; graduation remains prospective |
 
 ## 9. Search discipline
 
@@ -371,18 +369,18 @@ The incumbent is not dethroned by a prettier chart or one dramatic opening.
 
 ### 10.1 Exact numeric frontier
 
-| Gate | Incumbent | Successor requirement |
+| Gate | P-009 incumbent | Future successor requirement |
 |---|---:|---:|
-| Full trades | `604` | `>604` genuine economic trades on the same span |
-| Annual cadence | `201.8674` | `>201.8674/year` and never achieved by trade splitting |
-| Full PnL/DD | `16.5159` | Prefer `>=17.3417` (`+5%`) after equal or harsher costs |
-| Y1 PnL/DD | `5.0211` | `>=5.2721` for a 5% win |
-| Y2 PnL/DD | `4.4190` | `>=4.6400` for a 5% win |
-| Y3 PnL/DD | `8.6660` | `>=9.0993` for a 5% win |
+| Full trades | `648` | `>648` genuine economic trades on the same span |
+| Annual cadence | `216.8606` | `>216.8606/year` and never achieved by trade splitting |
+| Full PnL/DD | `18.2348` | Prefer `>=19.1466` (`+5%`) after equal or harsher costs |
+| Y1 PnL/DD | `6.4966` | `>=6.8214` for a 5% win |
+| Y2 PnL/DD | `6.4179` | `>=6.7388` for a 5% win |
+| Y3 PnL/DD | `8.7949` | `>=9.2346` for a 5% win |
 | Majority annual stability | — | Beat incumbent PnL/DD by `>=5%` in at least `2/3` one-year periods |
 | Direction | Both positive | UP and DOWN each positive in discovery and validation |
 | Lane | RTH and GTH disclosed | Each enabled lane independently positive; combined improvement cannot hide a toxic lane |
-| Tail | DD `17.63` | No worse catastrophic tail, gap exposure, concentration, or regime-specific failure |
+| Tail | DD `16.76` | No worse catastrophic tail, gap exposure, concentration, or regime-specific failure |
 
 The same goal law also requires more than `200` trades/year; the exact incumbent
 cadence is the stricter comparator here. If an economically superior candidate
@@ -409,7 +407,7 @@ gate after outcomes.
 
 | Evidence | Result | Consequence |
 |---|---|---|
-| Opening Edge v3 crown | `604`, `+291.1756`, PF `2.0919`, DD `17.63`, PnL/DD `16.516` | Immutable baseline |
+| Opening Edge v3 crown | Frozen exact comparison: `603`, `+287.2156`, PF `2.077`, DD `17.63`, PnL/DD `16.2913` on the P-009 challenge span | Superseded live/research baseline; preserve immutable predecessor |
 | Historical pressure count R2 | Exact `425/425`; `32` affected targets; both directions/years; count gates pass | Morphology is testable |
 | Historical pressure economics | Candidate removed `32`, added `20`, net trade delta `-12`, delta `-$31.07`; yearly PnL/DD improved only Y2 | Broad timing overlay rejected permanently |
 | Prospective pressure atlas | Frozen `1/3/5/10/15/30/45s`; eligible `2026-08-06T13:20Z`; `0/30` | Accumulate outcome-blind |
@@ -446,6 +444,10 @@ gate after outcomes.
 | P-002Q quiet-transition settlement | Generation/evaluator/result `9a0a3912…/ee65b83c…/3c79befd…` count `11,886` candidate episodes, `8,923` clean quiet episodes, and `190` qualifying transitions (`107 down / 83 up`; Y1 `38/22`, Y2 `32/32`, Y3 `37/29`). Direct cascades number `188`, recoil-survived only `2`, and relapse controls `3,859 down / 2,938 up` | Reject count-only because `203` genuine RTH-close censors produce `2.275% > 2%`. All terminate at `20:15/21:15Z`, and `134` are one-bar close sparks. This is not a reducer defect; do not delete boundary events, weaken the denominator/gate, or inspect economics |
 | MCL failed-repair control | Simultaneous positive velocity under all-negative slopes relapsed before ordered crosses | A repair spark alone is not a pivot; method reference only |
 | MCL headline/shock study | Demonstrates urgency, explicit authority handoff, and phase-front geometry | Inspiration only; no XSP threshold/outcome transfer |
+| P-008 lifecycle diagnosis | Closest family's `28` bridge-owned trades: raw `+22.96`, PF `4.576`, both years/directions positive, median entry `6m` after pivot with `68.46%` move remaining; `0/108` composed cells pass because native-1m evaluation corrupts v3's 5m lifecycle | Reject P-008, retain the bridge, repair only the clock ownership seam |
+| P-009 crown | `648`, `216.8606/year`, `+305.6156` / stress `+240.8156`, PF `2.042`, DD `16.76`, PnL/DD `18.2348`; Y1/Y2/Y3 PnL-DD gains `+29.39%/+45.23%/+4.19%`; both directions and lanes positive | Root `2/3` annual law passes; strict extra all-three 5% curiosity gate remains an immutable Y3 miss |
+| P-009 recent disclosure | Every `5/10/21/42/63/84`-session window is net positive; equal to v3 at 5 sessions but less efficient at 10–84 | Crown remains valid, but commission only as bounded canary; no post-exposure threshold rescue |
+| P-009 commissioning | Crown `e3d4b968…`, durable parity `6a81ea01…`, selection `e0f61f74…`, plan `5dc25036…`; installed central worker/timer match repository, what-if previews pass, broker flat/orderless, submitted `0` | `CANARY_LIVE`; RTH cash only, GTH execution still disabled, authentic graduation starts from the fresh run |
 
 ## 12. Decision journal
 
@@ -463,6 +465,9 @@ gate after outcomes.
 | PD-010 | P-004 pressure magnitude is attention only. Direction belongs to the existing causal phase-front candidate and admission requires same-close dual-instrument slope/velocity acceptance; future-aware pressure/shock landmarks are evaluation labels only |
 | PD-011 | P-004 passed count breadth without outcomes. Spend the block's sole replay only after freezing exact baseline parity, timing-only cooperation, complementary flat-only ownership, deterministic non-overlap, Y1/Y2 selection, and one locked Y3 challenge; never search economics across thresholds |
 | PD-012 | P-007 proves that causal opening direction and high cadence are insufficient when grafted onto the incumbent lifecycle. The next mechanism may be timing/permission only and must diagnose exit/takeover incompatibility before another outcome-bearing replay |
+| PD-013 | P-009 is a dual-clock ownership repair, not a new threshold family: ordinary v3 events remain on the exact completed-5m clock; only bridge-owned flat intervals evaluate on the opening clock, and ownership transfers only at an authentic v3 boundary |
+| PD-014 | Crown P-009 under the standing majority-year law: Y1/Y2 beat v3 PnL/DD by more than 5%, Y3 improves by 4.19%, full PnL/DD improves 11.93%, cadence/net/stress improve, DD falls, and both directions/lanes stay positive. Preserve the stricter Y3 miss without retuning |
+| PD-015 | P-009 live cash execution remains RTH-only through the single shared LMT/AUTO worker. Positive unchanged GTH research cannot create overnight order authority. Recent 10–84-session underperformance requires bounded live graduation, not de-coronation or retrospective edits |
 
 ## 13. Current execution sequence
 
@@ -483,40 +488,43 @@ gate after outcomes.
    passes every frozen breadth gate with outcomes sealed.
 7. `[COMPLETE / REJECTED]` P-004 and P-005 fail completed-5m economics; P-006
    fails historical count testability; P-007 passes exact native-1m parity and
-   breadth but all twelve Y1/Y2 economic cells fail. Locked Year 3 stayed sealed.
-8. `[ACTIVE / MECHANISM_DIAGNOSIS_ONLY]` Attribute P-007 loss to entry quality,
-   v3 takeover timing, and lifecycle mismatch without threshold search or a new
-   outcome replay. Preserve the prospective seconds wave as timing evidence.
-9. `[PENDING]` Only a causally distinct, preregistered mechanism that explains
-   the rejected cohort may earn count-first testing, locked Year 3, robustness,
-   durable extraction, coronation, and non-transmitting commissioning.
+   breadth but all twelve Y1/Y2 economic cells fail.
+8. `[COMPLETE / MECHANISM_ISOLATED]` P-008 proves that bridge entries are early
+   and profitable while native-1m evaluation of every v3 lifecycle event causes
+   the economic damage. Reject its 108 cells; preserve only the clock diagnosis.
+9. `[COMPLETE / CROWNED]` P-009 freezes one dual-clock law, passes Y1/Y2, opens
+   locked Y3 once, satisfies the root majority-year crown law, reproduces `648`
+   trades through the durable owner, and publishes exact parity receipts.
+10. `[COMPLETE / CANARY_LIVE]` A fresh flat immutable selection, atomically
+    succeeded shared-capital plan, outcome-blind pressure generation, LMT-only
+    preview, restart proof, installed-unit parity, and zero-order broker proof
+    bind P-009 to the existing central worker.
+11. `[ACTIVE / GRADUATION]` Accumulate authentic P-009 evidence and reduce its
+    `24h`, `48h`, and five-session after-cost milestones. Do not retune from the
+    disclosed recent weakness or synthesize an overnight cash path.
 
-## Conclusion: XSP Multiscale Phase-Front Pivot Mastery
+## Conclusion: XSP P-009 Dual-Clock Arbitration
 
-**Status:** `ACTIVE / AUTHORIZED / P004_P005_P007_ECONOMIC_REJECTED / P006_COUNT_REJECTED / LOCKED_YEAR3_SEALED / LIVE_V3_UNCHANGED`.
+**Status:** `CROWNED / CANARY_LIVE / LMT_ONLY / RTH_CASH_ONLY / GRADUATION_PENDING`.
 
 The decisive insight is:
 
-> A pivot begins when new-direction velocity propagates from fast to slow
-> clocks; it becomes credible when crossing estimates converge in the same
-> order; it becomes actionable only after SPY-to-execution transport accepts
-> and the front survives recoil.
+> Opening pressure can earn early ownership without rewriting the incumbent
+> lifecycle: the bridge moves on its native opening clock, while every ordinary
+> v3 entry, hold, flip, and exit remains on the exact completed-5m clock.
 
-**Predictive observation:** the most valuable successor may not be one earlier
-version of every crown trade. It may be a minimal arbiter that leaves ordinary
-v3 trades byte-identical, improves a narrow stale-opening cohort, and adds a
-separate quiet/shock/GTH pivot only when the crown never acquired direction.
-That structure can raise cadence and PnL/DD without turning every deceleration
-into a trade.
+**Predictive observation:** P-009 validates a broader law: earlier detection is
+valuable only when its authority clock is isolated from the slower lifecycle
+that made the incumbent robust. The next evidence risk is not historical
+direction—the crown passed—but whether the added opening owner preserves its
+after-cost advantage prospectively during the recent weaker regime.
 
 ### See Also
 
-- The first high-value distinction is quiet structural pivot versus high-volume
-  authority handoff versus recoil-only repair. They can occupy the same chart
-  bar while having radically different causal arrival geometry.
-- The second is opening direction versus overnight inventory assimilation: an
-  overnight phase front may be genuine yet still be best monetized only after
-  the RTH cash book proves acceptance.
-- The third is signal alpha versus execution urgency. A fast front may justify
-  the shared accelerated LMT route, but only after direction is independently
-  owned; chase speed must never manufacture conviction.
+- The one-shot Y3 miss is intentionally visible: `+4.19%` PnL/DD, not the extra
+  `+5%` curiosity hurdle. It passed the actual `2/3` crown law; hiding the miss
+  would weaken future governance.
+- The recent `10–84`-session windows are positive but less efficient than v3.
+  That is why P-009 is a bounded canary pending live receipts, not a guarantee.
+- GTH remains a profitable historical lane and a useful context owner, but
+  overnight cash execution still requires its own native transport proof.

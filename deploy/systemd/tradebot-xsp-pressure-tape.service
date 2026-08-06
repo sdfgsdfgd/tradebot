@@ -23,7 +23,8 @@ Environment=IBKR_READONLY=1
 Environment=XSP_PRESSURE_TAPE_DIR=%h/.local/state/tradebot/research/xsp_pressure_tape
 ExecCondition=/usr/bin/test -x %h/.local/share/tradebot/venv/bin/python
 ExecStart=/usr/bin/env python3 -m tradebot.research.xsp_pressure_tape --generation backtests/xsp/opening_edge_v3_pressure_tape_generation.json
-Restart=on-failure
+Restart=no
+RestartForceExitStatus=1
 RestartSec=10s
 RuntimeMaxSec=6h50m
 TimeoutStopSec=30s

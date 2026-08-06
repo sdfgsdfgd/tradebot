@@ -1,0 +1,195 @@
+{
+  "broker": {
+    "account_resources": {
+      "available_funds_base_cents": 363347,
+      "base_currency": "AUD",
+      "excess_liquidity_base_cents": 363347,
+      "usd_to_base_rate_ppm": 1423184
+    },
+    "observed_at_utc": "2026-08-06T21:48:23.488923+00:00",
+    "open_orders": [],
+    "positions": {
+      "SPXU": 0.0,
+      "UPRO": 0.0
+    },
+    "settled_cash_usd": 1064.136
+  },
+  "capital_plan_id": "5dc2503640627b39b57b33ba9c0810c2ad9e1f778b937f241abd4ff571f2c8ea",
+  "capital_stability_current_path": "db/calibration/portfolio_capital_owner_stability.json",
+  "capital_stability_path": "db/calibration/portfolio_capital_stability/280f06b4e2cb0aa6cb0749a309b2f2c92328c0fe9d66ef36b32e73b45be905da.json",
+  "capital_stability_sha256": "280f06b4e2cb0aa6cb0749a309b2f2c92328c0fe9d66ef36b32e73b45be905da",
+  "order_authority": "selected_live_lmt_only_timer_active",
+  "portfolio_generation_path": "db/calibration/portfolio_generations/5dc2503640627b39b57b33ba9c0810c2ad9e1f778b937f241abd4ff571f2c8ea.json",
+  "portfolio_generation_sha256": "847c74d6ecf3c285cb302b02c5978daac399ff8a52f1e5aec5c8be8e06d1c60a",
+  "predecessor_closed_trades": 2,
+  "predecessor_realized_net_usd": -9.077373999999676,
+  "predecessor_selection_file_sha256": "d5f616e43adb26f06534fbaa0c513358b70078a9755f3a9ecdcd81dc9cebc35d",
+  "predecessor_selection_id": "1083c1813e6b0ca4cf5777a5275e06be651622bc6e6207e718b549296a9bdd87",
+  "pressure_inherited_treatments": 1,
+  "preview": {
+    "authority": "fresh_nontransmitting_what_if_only",
+    "notional_usd": 800.0,
+    "observed_at_utc": "2026-08-06T21:48:23.488766+00:00",
+    "open_trades_after": 0,
+    "open_trades_before": 0,
+    "order_authority": "none",
+    "relevant_open_orders": [],
+    "relevant_positions": [],
+    "rows": [
+      {
+        "book": {
+          "ask": 152.36,
+          "ask_size": 800.0,
+          "bid": 152.17,
+          "bid_size": 700.0,
+          "market_data_type": 1
+        },
+        "contract": {
+          "con_id": 61228752,
+          "currency": "USD",
+          "exchange": "SMART",
+          "primary_exchange": "ARCA"
+        },
+        "order": {
+          "action": "BUY",
+          "limit_price": 152.36,
+          "outside_rth": true,
+          "quantity": 5,
+          "transmit": false,
+          "what_if": true
+        },
+        "symbol": "UPRO",
+        "what_if": {
+          "commission": null,
+          "commission_currency": "USD",
+          "equity_with_loan_after": 3631.97,
+          "equity_with_loan_before": 3633.47,
+          "equity_with_loan_change": -1.5,
+          "init_margin_after": 357.37,
+          "init_margin_before": 0.0,
+          "init_margin_change": 357.37,
+          "maintenance_margin_after": 292.39,
+          "maintenance_margin_before": 0.0,
+          "maintenance_margin_change": 292.39,
+          "max_commission": 0.36627225,
+          "min_commission": 0.33577225,
+          "status": "PreSubmitted",
+          "warning_text": null
+        }
+      },
+      {
+        "book": {
+          "ask": 34.21,
+          "ask_size": 1000.0,
+          "bid": 34.17,
+          "bid_size": 1000.0,
+          "market_data_type": 1
+        },
+        "contract": {
+          "con_id": 828937771,
+          "currency": "USD",
+          "exchange": "SMART",
+          "primary_exchange": "ARCA"
+        },
+        "order": {
+          "action": "BUY",
+          "limit_price": 34.21,
+          "outside_rth": true,
+          "quantity": 23,
+          "transmit": false,
+          "what_if": true
+        },
+        "symbol": "SPXU",
+        "what_if": {
+          "commission": null,
+          "commission_currency": "USD",
+          "equity_with_loan_after": 3632.74,
+          "equity_with_loan_before": 3633.47,
+          "equity_with_loan_change": -0.7300000000000182,
+          "init_margin_after": 369.4,
+          "init_margin_before": 0.0,
+          "init_margin_change": 369.4,
+          "maintenance_margin_after": 302.24,
+          "maintenance_margin_before": 0.0,
+          "maintenance_margin_change": 302.24,
+          "max_commission": 0.42392625,
+          "min_commission": 0.28362625,
+          "status": "PreSubmitted",
+          "warning_text": null
+        }
+      }
+    ],
+    "schema": "xsp.opening-edge-v3-portfolio-package-preview.v1",
+    "submitted_orders": 0
+  },
+  "recorded_at_utc": "2026-08-06T21:48:25.382940+00:00",
+  "schema": "xsp.opening-edge-v4-dual-clock-p009-live-commissioning.v1",
+  "selection_file_sha256": "c60e4f8bfa190fe99c59572d9173b53ed8dab8447d42e9b1d05f21184843ae75",
+  "selection_id": "e0f61f74286e1d2b655e253633b0842cb47d41ad7b66fb4567eece3aa46d674b",
+  "selection_path": "db/calibration/selections/e0f61f74286e1d2b655e253633b0842cb47d41ad7b66fb4567eece3aa46d674b.json",
+  "source_strategy_version": "xsp.opening-edge-v4-dual-clock-source-p009.v1",
+  "strategy_version": "xsp.opening-edge-v4-dual-clock-arbitration-p009.v1",
+  "submitted_orders": 0,
+  "supersedes_plan_id": "ed07a506ff82c2d16ad87c38f1e315735d90601e914a98c64c798164eb33efb1",
+  "unchanged_gold_selection_id": "62344ce21bf7c6f01095abab14b6ca8ef79c9806abb35294859fc9574a5f7574",
+  "unchanged_mcl_selection_id": "8adead895d3bd460b460f832d725046a3ea34079525a80a1662004ade2c17c93",
+  "pressure_generation_id": "4c737948773013297d8fd90f50a588f90e3fbbed7107e10958f4a528779ae82c",
+  "pressure_generation_path": "backtests/xsp/opening_edge_v4_dual_clock_p009_pressure_atlas_accumulation_generation.json",
+  "pressure_generation_sha256": "d8f26874824be95c6e0eaa7532e31b1a7f8468602b454d4b700287ee05de0740",
+  "live_replacement_created": true,
+  "live_execution_scope": {
+    "cash_execution": "RTH_only",
+    "gth_signal_lane": "incumbent_v3_unchanged",
+    "order_type": "LMT_only_shared_AUTO_chase",
+    "market_orders": false,
+    "preview_outside_rth": "nontransmitting_what_if_only"
+  },
+  "deployment": {
+    "repository_revision_at_deployment": "bb66d2b2e75d0d59c79471e8368b96fe8e28a890",
+    "service_unit_sha256": "4be2bebba812c761ff8f0e6fc28a398f36eb5a35ccaaa2f1206b278c1d0f7aa7",
+    "timer_unit_sha256": "695b691526d1e33d9e33fb7c043479278be308e97134b606e1d3bd01e8ecb7da",
+    "installed_units_match_repository": true,
+    "timer_active": true,
+    "next_natural_invocation_utc": "2026-08-07T00:22:00+00:00"
+  },
+  "first_nontransmitting_invocation": {
+    "observed_after_utc": "2026-08-06T21:48:25.382940+00:00",
+    "mode": "opening-edge-p009",
+    "evaluation_status": "CLOSED",
+    "source_output_sha256": "95caee068b51580e7858807c11c8377c1768158c81f3e5fb0291bd546c710176",
+    "transport_execution": null,
+    "pressure_treatments_before": 1,
+    "pressure_treatments_appended": 0,
+    "profitability_status": "NOT_STARTED",
+    "submitted_orders": 0,
+    "service_result": "success"
+  },
+  "post_deployment_broker_verification": {
+    "observed_at_utc": "2026-08-06T21:50:58.114849+00:00",
+    "verification_authority": "read_only_auxiliary_client",
+    "xsp_positions": {
+      "UPRO": 0,
+      "SPXU": 0
+    },
+    "account_positions": [],
+    "open_orders": [],
+    "settled_cash_usd": 1064.136,
+    "available_funds_aud": 3633.48,
+    "excess_liquidity_aud": 3633.48,
+    "submitted_orders": 0
+  },
+  "gates": {
+    "immutable_selection_published": true,
+    "predecessor_archived_unchanged": true,
+    "gold_selection_unchanged": true,
+    "mcl_selection_unchanged": true,
+    "shared_capital_owner_switched_atomically": true,
+    "portfolio_generation_rehashed": true,
+    "capital_owner_stability_passed": true,
+    "pressure_prefix_inherited_outcome_blind": true,
+    "closed_session_restart_proof_passed": true,
+    "broker_flat_and_orderless_after_deployment": true,
+    "lmt_only_execution_bound": true,
+    "market_order_path_absent": true
+  }
+}

@@ -254,6 +254,8 @@ def test_pressure_service_is_bounded_readonly_and_uses_no_tick_by_tick() -> None
     assert "IBKR_READONLY=1" in service
     assert "IBKR_CLIENT_ID_POOL_START=3217" in service
     assert "IBKR_CLIENT_ID_POOL_END=3219" in service
+    assert "Restart=no" in service
+    assert "RestartForceExitStatus=1" in service
     assert "RuntimeMaxSec=6h50m" in service
     assert "-m tradebot.research.xsp_pressure_tape" in service
     assert "09:20:00 America/New_York" in timer
