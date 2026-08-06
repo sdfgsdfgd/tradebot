@@ -57,14 +57,14 @@
   "frozen_pre_eligibility_prefix": {
     "cutoff_utc": "2026-08-06T22:40:00+00:00",
     "source_path_on_q": "/var/tmp/mcl-stage118-source-prefix-20260806T2240Z.jsonl",
-    "source_rows": "PENDING_PRE_ELIGIBILITY_FREEZE",
-    "source_sha256": "PENDING_PRE_ELIGIBILITY_FREEZE",
-    "last_source_checkpoint_id": "PENDING_PRE_ELIGIBILITY_FREEZE",
-    "last_completed_decision_utc": "PENDING_PRE_ELIGIBILITY_FREEZE",
+    "source_rows": 2995,
+    "source_sha256": "d1bb50e559505c5906e5ba24e165fb84711f008b6366ac49e121105549dd1ac5",
+    "last_source_checkpoint_id": "f7459fa251bd66987faa42edec2a4bb37a2648970ef3defd3a11ffc035915752",
+    "last_completed_decision_utc": "2026-08-06T22:35:00+00:00",
     "turn_tape_path_on_q": "/var/tmp/mcl-stage118-turn-prefix-20260806T2240Z.jsonl",
-    "turn_tape_rows": "PENDING_PRE_ELIGIBILITY_FREEZE",
-    "turn_tape_sha256": "PENDING_PRE_ELIGIBILITY_FREEZE",
-    "last_turn_record_id": "PENDING_PRE_ELIGIBILITY_FREEZE"
+    "turn_tape_rows": 125674,
+    "turn_tape_sha256": "4de60a8602faf10b77ef0fa3be345fdee0d93dc4d71c729ba85357b6772fd05e",
+    "last_turn_record_id": "4d207b4f2e78609335869935b958311716f3890b7809987c9c421e9266181732"
   },
   "event_and_phase_law": {
     "origin_lanes": [
@@ -101,7 +101,7 @@
   "pre_outcome_implementation": {
     "evaluator_path_on_q": "/var/tmp/mcl_stage118_multiscale_phase_front.py",
     "evaluator_sha256": "53cc0f208c757504d57d884ea706b940db83e2d137b60e705313c5b370abb8ed",
-    "self_test": "PASS_MAC_COMPILE_LINT_SYNTHETIC_NEUTRAL_AND_CLOSE_STAMPED_MAINTENANCE"
+    "self_test": "PASS_MAC_AND_Q_COMPILE_LINT_SYNTHETIC_NEUTRAL_AND_CLOSE_STAMPED_MAINTENANCE"
   },
   "replay_boundary": {
     "all_onsets_before_eligible_start_are_exposed_controls": true,
