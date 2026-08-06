@@ -453,8 +453,8 @@ def _preview_nominee(
             or ask < bid
             or not isinstance(quantity, int)
             or isinstance(quantity, bool)
+            or quantity <= 0
             or quantity != math.floor(notional / ask)
-            or not int(bounds[0]) <= quantity <= int(bounds[1])
             or order.get("action") != "BUY"
             or order.get("what_if") is not True
             or order.get("transmit") is not False
@@ -692,9 +692,11 @@ def load_xsp_v3_package_selection_from_mapping(
                 for symbol in _V3_SYMBOLS
             }
             and all(
-                int(ranges[symbol][0])
-                <= int(nominee["preview_quantities"][symbol])
-                <= int(ranges[symbol][1])
+                isinstance(nominee["preview_quantities"][symbol], int)
+                and not isinstance(
+                    nominee["preview_quantities"][symbol], bool
+                )
+                and int(nominee["preview_quantities"][symbol]) > 0
                 and int(nominee["contract_ids"][symbol]) > 0
                 for symbol in _V3_SYMBOLS
             )

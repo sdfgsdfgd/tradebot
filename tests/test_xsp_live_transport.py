@@ -1266,6 +1266,16 @@ def test_v3_package_successor_freezes_the_allocated_notional_and_clean_run(
     p009_preview["observed_at_utc"] = (
         p009_at - timedelta(seconds=10)
     ).isoformat()
+    spxu_preview = next(
+        row for row in p009_preview["rows"] if row["symbol"] == "SPXU"
+    )
+    spxu_preview["book"].update(bid=34.17, ask=34.2)
+    spxu_preview["order"].update(quantity=23)
+    spxu_preview["what_if"].update(
+        commission=None,
+        min_commission=0.28362625,
+        max_commission=0.42392625,
+    )
     p009_broker = deepcopy(broker)
     p009_broker["observed_at_utc"] = (
         p009_at - timedelta(seconds=5)
@@ -1308,6 +1318,8 @@ def test_v3_package_successor_freezes_the_allocated_notional_and_clean_run(
     assert p009["strategy_version"] == XSP_DUAL_CLOCK_VERSION
     assert p009["source_strategy_version"] == XSP_DUAL_CLOCK_SOURCE_VERSION
     assert p009["evidence"]["successor_crown"] == crown
+    assert p009["nominee"]["historical_quantity_ranges"]["SPXU"] == [3, 22]
+    assert p009["nominee"]["preview_quantities"]["SPXU"] == 23
     assert xsp_v3_transport_profitability_policy(p009).strategy_id == (
         XSP_DUAL_CLOCK_VERSION
     )
