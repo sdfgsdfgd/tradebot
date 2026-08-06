@@ -39,8 +39,8 @@ transcripts and routine test output do not belong here.
 | Active hypothesis | A true pivot is the ordered propagation and survival of a new-direction velocity/slope phase front—not one velocity flip, one high-volume bar, or one later-confirmed chart bottom |
 | Current authority | Concept and experiment management only. No classifier, direction, permission, timing, chase, order, or capital authority |
 | Landmark authority | P-001 preregistration `opening_edge_v4_phase_front_pivot_landmarks_preregistration.json` (`07506749…`) freezes the `0.25×` prior-scale causal confirmation / `0.50×` serious outgoing-wave oracle, landing schema, and diagnostic-only neighbors before landmark outcomes |
-| First work | Pure oracle and causal phase-front owners pass nine synthetic order, relapse, recoil, handoff, censoring, pre-confirmation-extreme, acceleration/jerk, gap, and nonmonotonic-clock paths. A pre-count audit corrected the oracle so the binding bar contributes only its completed close, never its earlier high/low. Freeze their content-addressed P-002 generation before opening the full-tape count/morphology census; economics remain sealed |
-| Hawkeye | Portfolio Hawkeye remains the preemptive outer loop. Latest canonical review is `3/6`, actually begun at `07:04:10Z` after the `06:47:05Z` boundary; nothing was backfilled. The next lawful boundary is `07:27:05Z` |
+| First work | P-002's content-addressed owners and corrected generation are frozen. Its outcome-blind full-tape census found `2,641` serious landmarks across both directions and all three years, with every breadth/readiness gate green. Verdict is `REVISE_COUNT_ONLY`: the evaluator incorrectly treated one required terminal censor per independent lane as missing-data corruption and measured neighbor stability over recoil microevents rather than serious landmarks. Economics remain sealed while those two structural definitions are corrected without changing any threshold or action law |
+| Hawkeye | Portfolio Hawkeye remains the preemptive outer loop. Latest canonical review is `5/6`, begun at `07:47:14Z`, `9s` after its lawful boundary; nothing was backfilled. The next lawful boundary is `08:07:05Z` |
 
 <!-- PIVOT-RESUME:END -->
 
@@ -328,7 +328,7 @@ At most one outcome-bearing replay may be active inside a Hawkeye block.
 |---|---|---|---|
 | P-000 | `[COMPLETE]` | Freeze this quest brain and exact incumbent/crown frontier | File linked and identity verified |
 | P-001 | `[COMPLETE]` | Serious-pivot landmark + landing preregistration | `07506749…`; primary frozen before any landmark outcome |
-| P-002 | `[ACTIVE]` | Count-first full-tape phase-front census | Both directions, all years, quiet/shock/open/control breadth pass |
+| P-002 | `[REVISE_COUNT_ONLY]` | Count-first full-tape phase-front census | Correct terminal-censor integrity and serious-landmark neighbor correspondence before any P&L opens |
 | P-003 | `[ACCUMULATE]` | Existing prospective seconds pressure atlas | `30` complete targets, `10` each direction, repeated morphologies |
 | P-004 | `[PENDING]` | Historical timing-only challenger | P-002 selects one categorical law before outcomes |
 | P-005 | `[PENDING]` | Complementary missed-pivot sleeve | Material repeatable crown miss cohort exists |
@@ -416,6 +416,8 @@ gate after outcomes.
 | First specimen continuation | Hawkeye `2b167598…`: by `06:25Z`, the visually complete `UUUUU/UUUUU` flip had relapsed to `UDDDD/UUUUU` at elevated `1.919×` ATR; four slopes did not persist even though every velocity repaired again | High-value prospective negative control: neither a perfect simultaneous flip nor a renewed velocity spark alone is a durable pivot; P-002 must track survival, ordered propagation, and recoil without assigning an outcome |
 | Second specimen continuation | Hawkeye `e0a0c975…`: by `07:05Z`, slopes were `NUUDD` and velocities `DDUUD` at compressed `0.526×` ATR. The 15m/30m slope repair arrived, but fast velocity relapsed before the 60m/120m front crossed | Stronger negative control: partial slope propagation is still insufficient when arrival order loses fast sponsorship before the slow front accepts |
 | Third specimen continuation | Hawkeye `e009ccfa…`: by `07:25Z`, slopes had progressed to `DUUUD`, but every `5/15/30/60/120m` velocity was DOWN before the 120m slope crossed | The same unseen front now supplies an unusually clean failure boundary: middle-clock slope crosses cannot rescue a front whose entire velocity stack has relapsed; this is recoil/relapse, never an UP permission |
+| Fourth specimen continuation | Hawkeye `43a102b6…`: by `07:45Z`, slopes were `DDDUD` and velocities `UUDUD`; the failed UP repair had become broad DOWN reassertion, but new-direction velocity remained disordered and ATR compressed to `0.804×` | A failed UP pivot does not automatically authorize the opposite trade. P-002 must distinguish terminal relapse from a coherent opposite-direction handoff; the crowned cascade correctly remained flat |
+| P-002 count-only census | Result `d870058b…` preserved exact crown/tape identity and counted `2,641` serious landmarks (`1,256 down / 1,385 up`) across Y1 `733`, Y2 `934`, and Y3 `974`; opening, quiet, pressure/shock, GTH, recoil, direction, year, readiness, acceleration, and jerk breadth all passed with no outcomes exposed | `REVISE_COUNT_ONLY`, not an economic rejection. The `20.27%` censor share is expected one-per-lane termination under the frozen independent-lane oracle, while the `50.08%` higher-neighbor rate was computed over all recoil microevents instead of serious landmarks. Freeze one transparent count-definition successor; do not lower gates or inspect P&L |
 | MCL failed-repair control | Simultaneous positive velocity under all-negative slopes relapsed before ordered crosses | A repair spark alone is not a pivot; method reference only |
 | MCL headline/shock study | Demonstrates urgency, explicit authority handoff, and phase-front geometry | Inspiration only; no XSP threshold/outcome transfer |
 
@@ -441,9 +443,10 @@ gate after outcomes.
    causal phase-front owners; ten synthetic order, relapse, recoil, handoff,
    censoring, pre-confirmation-extreme, acceleration/jerk, gap, and
    clock-integrity paths pass.
-3. `[ACTIVE]` Publish the frozen P-002 owner generation, then run
-   count/morphology only over the complete historical tape;
-   reject underrepresented families before P&L opens.
+3. `[ACTIVE]` Preserve P-002's `REVISE_COUNT_ONLY` result, then correct only
+   terminal-censor integrity and serious-landmark neighbor correspondence in a
+   content-addressed count successor. Thresholds, phase laws, and economics
+   remain sealed.
 4. `[PENDING]` Open one discovery/validation replay and settle every landing.
 5. `[PENDING]` If a stable family exists, compare timing-only versus genuinely
    complementary ownership and add GTH only as an independent lane.
@@ -453,7 +456,7 @@ gate after outcomes.
 
 ## Conclusion: XSP Multiscale Phase-Front Pivot Mastery
 
-**Status:** `ACTIVE / AUTHORIZED / P002_PRECOUNT_CAUSALITY_CORRECTED / TEN_SYNTHETIC_PATHS_GREEN / GENERATION_FROZEN_PUBLICATION_NEXT`.
+**Status:** `ACTIVE / AUTHORIZED / P002_REVISE_COUNT_ONLY / 2641_SERIOUS_LANDMARKS / STRUCTURAL_GATE_CORRECTION_NEXT / ECONOMICS_SEALED`.
 
 The decisive insight is:
 
