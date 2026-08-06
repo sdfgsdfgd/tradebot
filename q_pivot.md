@@ -468,6 +468,7 @@ gate after outcomes.
 | PD-013 | P-009 is a dual-clock ownership repair, not a new threshold family: ordinary v3 events remain on the exact completed-5m clock; only bridge-owned flat intervals evaluate on the opening clock, and ownership transfers only at an authentic v3 boundary |
 | PD-014 | Crown P-009 under the standing majority-year law: Y1/Y2 beat v3 PnL/DD by more than 5%, Y3 improves by 4.19%, full PnL/DD improves 11.93%, cadence/net/stress improve, DD falls, and both directions/lanes stay positive. Preserve the stricter Y3 miss without retuning |
 | PD-015 | P-009 live cash execution remains RTH-only through the single shared LMT/AUTO worker. Positive unchanged GTH research cannot create overnight order authority. Recent 10–84-session underperformance requires bounded live graduation, not de-coronation or retrospective edits |
+| PD-016 | Keep the content-addressed pressure recorder immutable and bound its session lifetime centrally in systemd: intentional `6h50m` timeout stays stopped until the next `09:20 ET` timer activation; only genuine exit status `1` restarts. This removes after-hours waste without changing evidence, signals, or live authority |
 
 ## 13. Current execution sequence
 

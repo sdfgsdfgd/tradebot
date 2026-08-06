@@ -1,0 +1,122 @@
+{
+  "schema": "tradebot.live-service-efficiency-cleanup.v1",
+  "authority": "bounded_q_systemd_lifecycle_repair_no_strategy_signal_order_or_recorder_change",
+  "observed_at_utc": "2026-08-06T22:09:10Z",
+  "host": "q",
+  "supersedes_audit": {
+    "path": "backtests/live_service_efficiency_audit_20260807.json",
+    "sha256": "76358573cc4d1931f0183e5d89e8b3f9e2e270410de4db1704f804e58193c212"
+  },
+  "finding": {
+    "unit": "tradebot-xsp-pressure-tape.service",
+    "timer_start": "09:20:00 America/New_York",
+    "runtime_max": "6h50m",
+    "intended_terminal": "16:10:00 America/New_York",
+    "observed_timeout_at_local": "2026-08-07T06:10:00+10:00",
+    "observed_unnecessary_restart_at_local": "2026-08-07T06:10:10+10:00",
+    "root_cause": "Restart=on-failure classified the intentional RuntimeMaxSec timeout as restartable and resurrected the cash-session recorder after its bounded window",
+    "impact": "one approximately 32MiB read-only evidence process remained active after cash hours; no strategy, signal, order, fill, capital, or outcome changed"
+  },
+  "repair": {
+    "surface": "deploy/systemd/tradebot-xsp-pressure-tape.service",
+    "old_unit_sha256": "6fd2ac4f26cdc5718729b2682160b12c7d429b5eea64169c42c361cb07d92b73",
+    "new_unit_sha256": "7d8da6578b8196c3dfc63632d4586e64d055e8a7f5d606a20653c36c3cbe2749",
+    "restart": "no",
+    "restart_force_exit_status": 1,
+    "runtime_max": "6h50m",
+    "law": "intentional RuntimeMaxSec timeout terminates until the next timer activation; genuine recorder or IBKR disconnect failures exit 1 and retain the existing ten-second restart",
+    "installed_unit_matches_repository": true,
+    "systemd_analyze_verify_passed": true,
+    "service_stopped_after_cash_window": true,
+    "service_remained_inactive_after_twelve_seconds": true,
+    "timer_remained_active": true,
+    "next_timer_activation_local": "2026-08-07T23:20:00+10:00"
+  },
+  "immutable_evidence_identity": {
+    "recorder_path": "tradebot/research/xsp_pressure_tape.py",
+    "recorder_sha256": "60a9e4b2f9b0846267ee9d5a33ee5f4bf8947ea36af4386d894a2f42cd7c5c28",
+    "generation_path": "backtests/xsp/opening_edge_v3_pressure_tape_generation.json",
+    "generation_sha256": "45111626d4fc4775c52f9a00f6b70984e6971f35edcbeb111f583f4814160eab",
+    "generation_recorder_rehash_passed": true,
+    "recorder_changed": false,
+    "historical_or_prospective_rows_changed": false
+  },
+  "final_host_state": {
+    "repository_revision": "ab01e9600d23eb24fc25cecf3784fb77072eb1a4",
+    "load_average_1m_5m_15m": [
+      0.78,
+      0.48,
+      0.40
+    ],
+    "memory_total_gib": 61.0,
+    "memory_available_gib": 54.0,
+    "swap_used_gib": 0.0,
+    "failed_user_units": 0,
+    "running_tmp_or_var_tmp_backtest_processes": 0,
+    "unexpected_tradebot_services": 0,
+    "broker_positions": 0,
+    "broker_open_orders": 0,
+    "broker_open_trades": 0,
+    "account_available_funds_aud": 3632.94,
+    "account_excess_liquidity_aud": 3632.94
+  },
+  "retained_runtime": {
+    "persistent": [
+      {
+        "unit": "tradebot-mcl-turn-tape.service",
+        "reason": "unique prospective matched CL/MCL seconds evidence for the active MCL sharpening chain",
+        "memory_current_bytes": 29347840,
+        "decision": "RETAIN"
+      },
+      {
+        "unit": "tradebot-ib-gateway-tunnel.service",
+        "reason": "shared localhost-only broker transport for all three champions",
+        "memory_current_bytes": 2338816,
+        "decision": "RETAIN"
+      }
+    ],
+    "session_bounded": [
+      {
+        "unit": "tradebot-xsp-pressure-tape.service",
+        "reason": "unique prospective SPY/UPRO/SPXU seconds evidence; inactive outside its RTH acquisition window",
+        "decision": "RETAIN_BOUNDED"
+      }
+    ],
+    "canonical_timers": [
+      "tradebot-gold-live.timer",
+      "tradebot-gold-onset.timer",
+      "tradebot-mcl-live.timer",
+      "tradebot-mcl-predictive-onset-runtime.timer",
+      "tradebot-news.timer",
+      "tradebot-xsp-pressure-tape.timer",
+      "tradebot-xsp-quotes.timer",
+      "tradebot-xsp-shadow.timer"
+    ],
+    "disabled_zero_cost_predecessors": [
+      "tradebot-mcl-predictive-onset.timer",
+      "tradebot-mcl-predictive-onset-stage114.timer"
+    ]
+  },
+  "proof": {
+    "focused_tests": "74 passed",
+    "repository_tests": "1334 passed, 4 deselected, 6 subtests passed",
+    "diff_check_passed": true,
+    "json_validation_passed": true,
+    "xsp_commissioning_receipt_sha256": "3230d496c089ffc628adcebfb2df68cf8ab641f509a743c9122dcd19da3ac7d5",
+    "gold_strategy_changed": false,
+    "mcl_strategy_changed": false,
+    "xsp_strategy_changed_by_cleanup": false,
+    "capital_changed_by_cleanup": false,
+    "submitted_orders": 0
+  },
+  "mutations": {
+    "service_unit_files_changed": 1,
+    "services_stopped": 1,
+    "timers_disabled": 0,
+    "unit_files_removed": 0,
+    "state_files_deleted": 0,
+    "orders_cancelled": 0,
+    "submitted_orders": 0
+  },
+  "verdict": "PASS_SESSION_BOUNDED_XSP_PRESSURE_TAPE_NO_DANGLING_EXPERIMENT_RUNTIME"
+}
