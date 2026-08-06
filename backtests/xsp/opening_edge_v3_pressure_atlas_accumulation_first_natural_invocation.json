@@ -1,0 +1,66 @@
+{
+  "schema": "xsp.opening-edge-v3-pressure-atlas-accumulation-first-natural-invocation.v1",
+  "recorded_at_utc": "2026-08-06T00:23:42Z",
+  "authority": "deployment_identity_and_count_only_no_outcomes_no_permission_no_orders_no_capital",
+  "repository": {
+    "commit": "f084e06efa62fe6c38ddff768974677c6b44fd49",
+    "origin_commit": "f084e06efa62fe6c38ddff768974677c6b44fd49"
+  },
+  "owners": {
+    "accumulator_sha256": "ac5dab681f10acb12e4f8393177a460a46fc2cda8433f41373f6524c657bbeb2",
+    "generation_sha256": "40884c4e3eea0f674f644a21dbcf563ba74e9e4421a3204337eefb5ffd5d3a75",
+    "preregistration_sha256": "90884b6fc622155ec04f68d406e71b67f668c4b9d613e0aeb955193d8f693b2f"
+  },
+  "natural_invocation": {
+    "service": "tradebot-xsp-shadow.service",
+    "invocation_id": "7b572115d035471dbb06957966438e35",
+    "started_at_aest": "2026-08-06T10:22:00+10:00",
+    "finished_at_aest": "2026-08-06T10:22:31+10:00",
+    "result": "success",
+    "exit_status": 0,
+    "source_checkpoint_id": "f6d3ad4320226e1d0a93bba63466852ca08e4f9d887994f83bd1027c6ae6afa8",
+    "transport_checkpoint_id": "89cc10c3a9c058a18c3f54ee1a5b74576d889debd01529b6f000532b7c6a2320",
+    "session": "GTH",
+    "source_status": "EVALUATED",
+    "transport_reason": "flat_target"
+  },
+  "live_state": {
+    "selection_id": "1083c1813e6b0ca4cf5777a5275e06be651622bc6e6207e718b549296a9bdd87",
+    "upro_position": 0,
+    "spxu_position": 0,
+    "fill_count": 2,
+    "closed_trades": 1,
+    "run_net_usd": -11.003327999999954,
+    "drawdown_usd": 11.003327999999954,
+    "safety_breaches": [],
+    "submitted_orders": 0
+  },
+  "accumulation": {
+    "source_candidates": 0,
+    "appended": 0,
+    "incomplete": [],
+    "complete_targets": 0,
+    "directions": {},
+    "verdict": "FROZEN_ACCUMULATE",
+    "production_ledger_exists": false,
+    "classifier": "none",
+    "permission": "none",
+    "outcomes": null,
+    "order_authority": "none",
+    "capital_authority": "none",
+    "submitted_orders": 0
+  },
+  "timers": {
+    "xsp_shadow": "active_waiting",
+    "xsp_pressure_tape": "active_waiting",
+    "first_pressure_tape_boundary_utc": "2026-08-06T13:20:00Z"
+  },
+  "invariants": {
+    "natural_timer_invocation": true,
+    "broker_and_transport_completed_before_observation": true,
+    "preeligible_history_backfilled": false,
+    "live_direction_or_lifecycle_changed": false,
+    "live_selection_or_capital_changed": false,
+    "mcl_or_gold_changed": false
+  }
+}
