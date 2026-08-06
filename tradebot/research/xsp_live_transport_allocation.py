@@ -545,7 +545,6 @@ def reallocate_xsp_v3_transport(
         or risk_state["holdings_from_fills"] != {"UPRO": 0.0, "SPXU": 0.0}
         or risk_state["pending_settlement_usd"] != 0
         or risk_state["safety_breaches"]
-        or abs(float(risk_state["settled_cash_usd"]) - settled_cash) > 0.02
         or not 0
         <= (now - broker_at).total_seconds()
         <= _BROKER_SNAPSHOT_MAX_AGE_SECONDS
@@ -575,6 +574,10 @@ def reallocate_xsp_v3_transport(
         "predecessor_risk_state_fingerprint": calibration_fingerprint(risk_state),
         "predecessor_realized_net_usd": risk_state["run_realized_net_usd"],
         "predecessor_closed_trades": risk_state["closed_trades"],
+        "predecessor_projected_settled_cash_usd": risk_state[
+            "settled_cash_usd"
+        ],
+        "observed_account_settled_cash_usd": settled_cash,
         "package_id": package_id,
         "package_cash_debit_usd_cents": minimum_cash_cents,
         "broker_preview_fingerprint": calibration_fingerprint(preview),

@@ -1292,6 +1292,7 @@ def test_v3_package_successor_freezes_the_allocated_notional_and_clean_run(
     p009_broker["cash_observed_at_utc"] = (
         p009_at - timedelta(seconds=8)
     ).isoformat()
+    p009_broker["settled_cash_usd"] = 900.0
     crown = {
         "schema": "xsp.opening-edge-v4-dual-clock-p009-crown-binding.v1",
         "verdict": "CROWNED",
@@ -1329,6 +1330,13 @@ def test_v3_package_successor_freezes_the_allocated_notional_and_clean_run(
     assert p009["evidence"]["successor_crown"] == crown
     assert p009["nominee"]["historical_quantity_ranges"]["SPXU"] == [3, 22]
     assert p009["nominee"]["preview_quantities"]["SPXU"] == 23
+    assert p009["broker_at_selection"]["settled_cash_usd"] == 900.0
+    assert p009["allocation_successor"][
+        "predecessor_projected_settled_cash_usd"
+    ] == 1_187.8
+    assert p009["allocation_successor"][
+        "observed_account_settled_cash_usd"
+    ] == 900.0
     assert xsp_v3_transport_profitability_policy(p009).strategy_id == (
         XSP_DUAL_CLOCK_VERSION
     )

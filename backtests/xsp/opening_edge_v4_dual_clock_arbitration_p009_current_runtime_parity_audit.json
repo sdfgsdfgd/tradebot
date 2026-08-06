@@ -19,7 +19,7 @@
     "transport_plan_owner_sha256": "32a2e7fb563818d8c855ab95fcd5e1f2b12370eff172132e1e0e134ca01c9016",
     "transport_runtime_owner_sha256": "11776c517237cc21fca5201dcd1b10811964e77cf304576bd157851214b7471d",
     "transport_selection_owner_sha256": "951e415aebe19f6213dd74532f960f19f9d55cb2cff2b2ae05192e95d96d6f36",
-    "transport_allocation_owner_sha256": "141bdee5c39bd1e91e9734f7461b7c3990b50eaa64f5c37b216fe12612259059",
+    "transport_allocation_owner_sha256": "a652246708fd407658d0bc7b76824e27a1bc3d5e9e582b6559af25fb06b3a383",
     "transport_risk_owner_sha256": "265a35d1b8b7d365afa045b80aafeecfe3cf0322860c6ee57a26ea3647ee4863",
     "transport_state_owner_sha256": "759486b88f1fee04bcbd440191d9896f6be49f9b1ef9a91a4266b397932bcf30",
     "live_cli_owner_sha256": "c19bce8c6c37a47e7fe675884c074b3152ce65b4a3f0ea75a18a0bc4f7d61737",
