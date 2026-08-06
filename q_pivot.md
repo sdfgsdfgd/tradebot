@@ -39,8 +39,8 @@ transcripts and routine test output do not belong here.
 | Active hypothesis | A true pivot is the ordered propagation and survival of a new-direction velocity/slope phase front—not one velocity flip, one high-volume bar, or one later-confirmed chart bottom |
 | Current authority | Concept and experiment management only. No classifier, direction, permission, timing, chase, order, or capital authority |
 | Landmark authority | P-001 preregistration `opening_edge_v4_phase_front_pivot_landmarks_preregistration.json` (`07506749…`) freezes the `0.25×` prior-scale causal confirmation / `0.50×` serious outgoing-wave oracle, landing schema, and diagnostic-only neighbors before landmark outcomes |
-| First work | P-002Q generation/evaluator `9a0a3912…/ee65b83c…` now freeze one mechanism-defined quiet phase-transition law before count: RTH `ORDINARY` only, ordered persistent 5m/15m velocity plus structural arrival, both fast and at least two slower slope crosses, and explicit reacceleration after any recoil. Direct, recoil-survived, relapse, contaminated, incomplete, and censored paths pass synthetic preflight; economics remain sealed |
-| Hawkeye | Portfolio Hawkeye remains the preemptive outer loop. Review `3/6` began at `09:07:34Z`, `29s` after its lawful boundary, and settled at `09:12:36Z` without backfill. It retains only the MCL Phase-Front/Subshock and XSP Phase-Front/Pressure candidates, spends `0/1` replay budget, and sets the next lawful review at `09:27:05Z` |
+| First work | P-002Q result `3c79befd…` is honestly count-rejected. Its mechanism is broad—`190` clean quiet transitions (`107 down / 83 up`) across both directions in all three years plus `6,797` relapse controls—but genuine RTH-close censors are `203 / 8,923 = 2.275%`, above the frozen `2%` ceiling. All end exactly at the close; `134` begin on the final bar. Do not delete them, change the denominator, or open economics |
+| Hawkeye | Portfolio Hawkeye remains the preemptive outer loop. Review `4/6` began at `09:27:39Z`, `34s` after its lawful boundary, and settled at `09:29:44Z` without backfill. It retains only the MCL Phase-Front/Subshock and XSP Phase-Front/Pressure candidates, spends `0/1` replay budget, and sets the next lawful review at `09:47:05Z` |
 
 <!-- PIVOT-RESUME:END -->
 
@@ -330,9 +330,9 @@ At most one outcome-bearing replay may be active inside a Hawkeye block.
 | P-001 | `[COMPLETE]` | Serious-pivot landmark + landing preregistration | `07506749…`; primary frozen before any landmark outcome |
 | P-002 | `[REJECTED_COUNT_ONLY]` | Count-first full-tape phase-front census | Higher serious-neighbor correspondence `50.09% < 60%`; no economics opened |
 | P-002C | `[REJECTED_COUNT_ONLY]` | Three-profile scale-consensus serious-landmark census | Quiet structural DOWN `17 < 20`; every other frozen breadth gate passed; no economics opened |
-| P-002Q | `[FROZEN / COUNT NEXT]` | Quiet structural phase-transition landmark census | Generation/evaluator `9a0a3912…/ee65b83c…`; ordered completed-clock propagation supplies both directions/years and at least `20` quiet pivots each direction without an excursion-scale threshold |
+| P-002Q | `[REJECTED_COUNT_ONLY]` | Quiet structural phase-transition landmark census | `190` qualify across both directions/all years, but genuine RTH-close censor share is `2.275% > 2%`; economics remain sealed |
 | P-003 | `[ACCUMULATE]` | Existing prospective seconds pressure atlas | `30` complete targets, `10` each direction, repeated morphologies |
-| P-004 | `[PENDING]` | Historical timing-only challenger | P-002Q completes the frozen quiet family and one categorical regime atlas is fixed before outcomes |
+| P-004 | `[BLOCKED_BY_COUNT]` | Historical timing-only challenger | A materially independent count-valid landmark family replaces—not rescues—P-002Q before outcomes |
 | P-005 | `[PENDING]` | Complementary missed-pivot sleeve | Material repeatable crown miss cohort exists |
 | P-006 | `[PENDING]` | GTH/overnight signal and transport challenge | Honest native execution tape and independent GTH economics exist |
 | P-007 | `[PENDING]` | One deterministic crown/phase-front arbiter | P-004 or P-005 passes unseen and annual gates |
@@ -423,9 +423,11 @@ gate after outcomes.
 | Sixth specimen / mirrored repair | Hawkeye `63de4465…`: by `08:30Z`, the earlier available-clock DOWN pressure became `UUDD` slopes / `UUUU` velocities, with 5m/15m slopes crossed UP, 60m/120m slopes still marginally DOWN, 30m absent, coherence `0.5`, and ATR `1.423×` re-expanding | This is a live `REPAIR_SPARK`, not a pivot or UP permission. It gives P-002Q a clean prospective test: the fast repair must retain sponsorship, restore the missing clock, and propagate into slow slope acceptance rather than repeat the prior relapse |
 | Seventh specimen / propagated torsion | Hawkeye `a3096551…`: the `08:40Z` raw UP turn was blocked by the crowned GTH cascade; by `08:45Z`, slopes reached `DUUUU` but velocities were `UDUUU`, with 5m slope still DOWN, 15m velocity relapsed, ATR normalized to `0.879×`, and no proposal survived | Slow slope propagation alone is not acceptance when fast ownership is torsional. P-002Q must distinguish direct ordered cascade or recoil-then-reacceleration from this crossed-but-unsponsored control |
 | Eighth specimen / opposite-front reassertion | Hawkeye `006e5bb1…`: by `09:05Z`, the failed UP repair became `DDDUD` slopes and velocities with expanding `1.063×` ATR and a short-to-long DOWN turn sequence. The 5m/15m/30m/120m clocks agree DOWN, but 60m remains UP and the crown emits no proposal | This is the cleanest live proof that terminal failure and opposite authority are separate events. Broad reassertion deserves attention, but one resisting structural clock plus no fresh owner must remain an unaccepted DOWN front |
+| Ninth specimen / torsional snapback | Hawkeye `e617428d…`: by `09:25Z`, XSP had already rotated again to `UUDUD` slopes / `DUDUU` velocities, compressed `0.589×` ATR, and an UP sensor state without a turn or proposal | The preceding nearly coherent DOWN front was not durable either. Rapid two-way clock rotation under contracting range is the exact low-volume/choppy regime where persistence and recoil survival matter; it is neither a missed long nor a missed short |
 | P-002 count-only census | Result `d870058b…` preserved exact crown/tape identity and counted `2,641` serious landmarks (`1,256 down / 1,385 up`) across Y1 `733`, Y2 `934`, and Y3 `974`; opening, quiet, pressure/shock, GTH, recoil, direction, year, readiness, acceleration, and jerk breadth all passed with no outcomes exposed | `REVISE_COUNT_ONLY`, not an economic rejection. The `20.27%` censor share is expected one-per-lane termination under the frozen independent-lane oracle, while the `50.08%` higher-neighbor rate was computed over all recoil microevents instead of serious landmarks. Freeze one transparent count-definition successor; do not lower gates or inspect P&L |
 | P-002 R2 structural settlement | Generation/result `86e341d9…/77083184…` applies the unchanged `2%/60%` numeric gates to their intended objects. All `1,360` bound lane segments have exactly one terminal censor with zero anomalies; lower serious-neighbor correspondence is `1,933/2,641 = 73.19%`, but higher is `1,323/2,641 = 50.09%` | P-002 is honestly rejected as a single-threshold oracle. Preserve the 1,323 three-scale-stable core as the premise for a newly frozen consensus count law; never widen the match clock, lower 60%, inspect economics, or cherry-pick outcomes |
 | P-002C scale-consensus settlement | Generation/result `4c09bc2b…/28e21742…` intersects independent lower/higher serious matches under the unchanged profiles and five-minute clock. Stable core: `1,122` (`516 down / 606 up`), Y1/Y2/Y3 `304/428/390`, RTH `864`, GTH `254`, opening `547`, pressure/shock `200`; every frozen gate passes except quiet structural DOWN `17 < 20` (UP `29`) | Reject P-002C count-only and do not lower the floor by three. Scale-consensus remains a strong opening/pressure/shock oracle, but quiet pivots require a separately frozen propagation-defined landmark family before any unified categorical law or economics |
+| P-002Q quiet-transition settlement | Generation/evaluator/result `9a0a3912…/ee65b83c…/3c79befd…` count `11,886` candidate episodes, `8,923` clean quiet episodes, and `190` qualifying transitions (`107 down / 83 up`; Y1 `38/22`, Y2 `32/32`, Y3 `37/29`). Direct cascades number `188`, recoil-survived only `2`, and relapse controls `3,859 down / 2,938 up` | Reject count-only because `203` genuine RTH-close censors produce `2.275% > 2%`. All terminate at `20:15/21:15Z`, and `134` are one-bar close sparks. This is not a reducer defect; do not delete boundary events, weaken the denominator/gate, or inspect economics |
 | MCL failed-repair control | Simultaneous positive velocity under all-negative slopes relapsed before ordered crosses | A repair spark alone is not a pivot; method reference only |
 | MCL headline/shock study | Demonstrates urgency, explicit authority handoff, and phase-front geometry | Inspiration only; no XSP threshold/outcome transfer |
 
@@ -456,12 +458,11 @@ gate after outcomes.
 4. `[COMPLETE / REJECTED]` P-002C retained `1,122` three-profile-stable
    serious pivots but failed the frozen quiet-DOWN breadth floor `17 < 20`;
    outcomes remained sealed.
-5. `[FROZEN / COUNT NEXT]` P-002Q generation/evaluator
-   `9a0a3912…/ee65b83c…` bind one mechanism-defined quiet structural
-   phase-transition oracle without an excursion-scale threshold; run its
-   outcome-sealed count next.
-6. `[PENDING]` Freeze one categorical regime atlas, then open one
-   discovery/validation replay and settle every landing.
+5. `[COMPLETE / REJECTED]` P-002Q retained `190` broad quiet transitions but
+   failed the frozen close-censor ceiling `2.275% > 2%`; outcomes stayed sealed.
+6. `[ACTIVE]` Preserve P-002C/P-002Q anatomy, close their exposed rescue paths,
+   and identify one materially independent causal landmark family before any
+   categorical atlas or economic replay.
 7. `[PENDING]` If a stable family exists, compare timing-only versus genuinely
    complementary ownership and add GTH only as an independent lane.
 8. `[PENDING]` Apply local plateau, unseen, delay, placebo, and cost stress.
@@ -470,7 +471,7 @@ gate after outcomes.
 
 ## Conclusion: XSP Multiscale Phase-Front Pivot Mastery
 
-**Status:** `ACTIVE / AUTHORIZED / P002C_COUNT_REJECTED / P002Q_FROZEN / QUIET_PHASE_TRANSITION_COUNT_NEXT / ECONOMICS_SEALED`.
+**Status:** `ACTIVE / AUTHORIZED / P002C_COUNT_REJECTED / P002Q_COUNT_REJECTED / QUIET_CENSOR_2.275_PERCENT / ECONOMICS_SEALED / INDEPENDENT_FRONTIER_NEXT`.
 
 The decisive insight is:
 

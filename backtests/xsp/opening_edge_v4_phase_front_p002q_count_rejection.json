@@ -1,0 +1,120 @@
+{
+  "schema": "xsp.phase-front-pivot-p002q-quiet-count-rejection.v1",
+  "recorded_at_utc": "2026-08-06T09:23:55Z",
+  "authority": "count_and_morphology_only_no_outcomes_no_action_no_orders_no_capital",
+  "generation": {
+    "path": "backtests/xsp/opening_edge_v4_phase_front_p002q_generation.json",
+    "sha256": "9a0a3912621b21b36f861fd3dedae5259e1284c67d7365a89fb4e04e5018ae34"
+  },
+  "evaluator": {
+    "path": "/tmp/xsp_p002q_quiet_phase_census.py",
+    "sha256": "ee65b83c314f035bac446a136b82b7f5bd59f98454a3b5b237ee100491e6387d"
+  },
+  "full_result": {
+    "path": "/tmp/xsp-opening-edge-v4-phase-front-p002q-quiet-census.json",
+    "sha256": "2646c8148b4aa87e7792d2a61867c9702c48501d17cae13f022704ee2e0175a0",
+    "bytes": 14432013,
+    "lines": 469269
+  },
+  "identity": {
+    "tape_sha256": "6d239c88dadbbb259a8e1e691c7311a05436859db7f1fe330b21d84daa3c67df",
+    "bars": 184957,
+    "sessions": 754,
+    "incomplete_sessions": 0,
+    "crown_sha256": "d47eb39cef3d2ca575d779d6b5b87e3b88e08606fd09a8801b8cb55c350208db",
+    "runtime_parity_sha256": "f9f06b2b8683b121a7958f25a9a924bc47cca76059d51a60aa30510bdbabfe95",
+    "exact_content_identity": true,
+    "exact_incumbent_identity": true,
+    "exact_tape_identity": true
+  },
+  "counts": {
+    "candidate_episodes": 11886,
+    "quiet_episodes": 8923,
+    "qualifying_quiet_transitions": 190,
+    "qualifying_directions": {
+      "down": 107,
+      "up": 83
+    },
+    "qualifying_by_period_direction": {
+      "year_1_discovery": {
+        "down": 38,
+        "up": 22
+      },
+      "year_2_validation": {
+        "down": 32,
+        "up": 32
+      },
+      "year_3_locked_final": {
+        "down": 37,
+        "up": 29
+      }
+    },
+    "qualifying_morphologies": {
+      "direct_cascade": 188,
+      "recoil_survived_cascade": 2
+    },
+    "quiet_relapse_controls": {
+      "down": 3859,
+      "up": 2938
+    },
+    "classifications": {
+      "pressure_contaminated_control": 2586,
+      "quiet_direct_cascade": 188,
+      "quiet_incomplete_cascade_control": 1733,
+      "quiet_recoil_survived_cascade": 2,
+      "quiet_relapse_control": 6797,
+      "regime_underwarmed": 292,
+      "right_censored_all_regimes": 288
+    }
+  },
+  "censor_anatomy": {
+    "frozen_maximum_quiet_share": 0.02,
+    "observed_quiet": 203,
+    "observed_quiet_share": 0.022750196122380367,
+    "excess_events_over_frozen_floor": 25,
+    "all_terminal_at_rth_close": true,
+    "terminal_clocks_utc": {
+      "20:15": 136,
+      "21:15": 67
+    },
+    "single_observation_close_bar_sparks": 134,
+    "maximum_observations": 6,
+    "interpretation": "These are genuine incomplete RTH session-edge phase fronts, not missing bars or a reducer defect. Removing close-bar sparks or changing the denominator after count would weaken the frozen censor law."
+  },
+  "gates": {
+    "exact_content_identity": true,
+    "exact_incumbent_identity": true,
+    "exact_tape_identity": true,
+    "quiet_transitions_each_direction": true,
+    "both_directions_each_period": true,
+    "quiet_relapse_controls_each_direction": true,
+    "quiet_right_censored_share": false,
+    "phase_episodes_each_direction_each_year": true,
+    "rth_gth_phase_ready_each_year": true,
+    "recoil_relapse_cascade_breadth": true,
+    "acceleration_and_jerk_ready": true,
+    "historical_missing_dimensions_not_invented": true,
+    "outcomes_remain_sealed": true
+  },
+  "decision": {
+    "verdict": "REJECT_QUIET_TRANSITION_COUNT_ONLY_CENSOR_SHARE",
+    "p002q_crowned": false,
+    "economic_replay_opened": false,
+    "censor_gate_weakened": false,
+    "close_bar_sparks_deleted": false,
+    "p002c_preserved": true,
+    "next": "Do not rescue P-002Q from exposed counts. Preserve its 190-event anatomy as a descriptive mechanism family and return to a materially independent causal frontier before opening economics."
+  },
+  "invariants": {
+    "incumbent_strategy_changed": false,
+    "live_selection_changed": false,
+    "gth_live_authority_changed": false,
+    "mcl_changed": false,
+    "gold_changed": false,
+    "outcomes_exposed": false,
+    "future_prices_exposed": false,
+    "selected_threshold": null,
+    "selected_action": null,
+    "submitted_orders": 0
+  }
+}
