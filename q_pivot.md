@@ -438,7 +438,7 @@ gate after outcomes.
 1. `[COMPLETE]` Verify the incumbent metric/ledger hashes and freeze the exact
    serious-pivot landmark plus landing schema before inspecting its outcomes.
 2. `[COMPLETE]` Build physically separated future-aware landmark and strictly
-   causal phase-front owners; nine synthetic order, relapse, recoil, handoff,
+   causal phase-front owners; ten synthetic order, relapse, recoil, handoff,
    censoring, pre-confirmation-extreme, acceleration/jerk, gap, and
    clock-integrity paths pass.
 3. `[ACTIVE]` Publish the frozen P-002 owner generation, then run

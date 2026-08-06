@@ -132,6 +132,7 @@
     "tests/test_xsp_live_transport.py": "market-realism-parity",
     "tests/test_xsp_live_transport_runtime.py": "market-realism-parity",
     "tests/test_xsp_opening_edge_v3.py": "market-realism-parity",
+    "tests/test_xsp_phase_front.py": "signal-regime-intelligence",
     "tests/test_xsp_pressure_atlas.py": "signal-regime-intelligence",
     "tests/test_xsp_pressure_onramp.py": "policy-risk-sizing",
     "tests/test_xsp_pressure_tape.py": "live-market-data-contracts",
@@ -261,6 +262,7 @@
         "tests/test_news_signal.py",
         "tests/test_spot_context_requirements.py",
         "tests/test_spot_signal_time_mode.py",
+        "tests/test_xsp_phase_front.py",
         "tests/test_xsp_pressure_atlas.py"
       ],
       "owner_surface": [
@@ -288,6 +290,8 @@
         "tradebot/research/mcl_shock_wave_generation.py",
         "tradebot/research/mcl_shock_waves.py",
         "tradebot/research/mcl_two_speed_auction.py",
+        "tradebot/research/xsp_phase_front.py",
+        "tradebot/research/xsp_pivot_landmarks.py",
         "tradebot/research/xsp_pressure_accumulator.py",
         "tradebot/research/xsp_pressure_atlas.py",
         "tradebot/spot_engine.py"
