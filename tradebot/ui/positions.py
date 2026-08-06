@@ -111,6 +111,7 @@ class PositionDetailScreen(Screen):
             mode_price=self._exec_price_for_mode,
         )
         self._closes_task: asyncio.Task | None = None
+        self._portrait_task: asyncio.Task | None = None
         self._bootstrap_task: asyncio.Task | None = None
         self._stream_render_task: asyncio.Task | None = None
 
@@ -148,6 +149,8 @@ class PositionDetailScreen(Screen):
             self._bootstrap_task.cancel()
         if self._closes_task and not self._closes_task.done():
             self._closes_task.cancel()
+        if self._portrait_task and not self._portrait_task.done():
+            self._portrait_task.cancel()
         con_id = int(self._item.contract.conId or 0)
         if con_id:
             self._client.release_ticker(con_id, owner="details")
@@ -158,11 +161,14 @@ class PositionDetailScreen(Screen):
         try:
             await self._maybe_align_front_future_contract()
             self._ticker = await self._client.ensure_ticker(self._item.contract, owner="details")
+            self._market.start_probe(self._ticker)
             try:
                 loop = asyncio.get_running_loop()
                 self._closes_task = loop.create_task(self._load_session_closes())
+                self._portrait_task = loop.create_task(self._load_session_portrait())
             except RuntimeError:
                 self._closes_task = None
+                self._portrait_task = None
             await self._load_underlying()
         except asyncio.CancelledError:
             raise
@@ -233,6 +239,27 @@ class PositionDetailScreen(Screen):
         except Exception:
             return
         self._market.set_session_close(prev_close)
+        self._render_details_if_mounted(sample=False)
+
+    async def _load_session_portrait(self) -> None:
+        contract = self._item.contract
+        sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
+        if sec_type not in ("STK", "FUT"):
+            return
+        try:
+            bars = await self._client.historical_bars_ohlcv(
+                contract,
+                duration_str="2 D",
+                bar_size="5 mins",
+                use_rth=sec_type == "STK",
+                what_to_show="TRADES",
+                cache_ttl_sec=30.0,
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            bars = []
+        self._market.set_session_portrait(list(bars or []))
         self._render_details_if_mounted(sample=False)
 
     @staticmethod
@@ -431,8 +458,9 @@ class PositionDetailScreen(Screen):
         con_id = int(getattr(self._item.contract, "conId", 0) or 0)
         if con_id:
             latest = self._client.ticker_for_con_id(con_id)
-            if latest is not None:
+            if latest is not None and latest is not self._ticker:
                 self._ticker = latest
+                self._market.start_probe(latest)
         if self._underlying_con_id:
             latest_underlying = self._client.ticker_for_con_id(int(self._underlying_con_id))
             if latest_underlying is not None:

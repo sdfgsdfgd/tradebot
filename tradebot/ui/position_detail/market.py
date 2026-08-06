@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+from collections import deque
 from collections.abc import Callable
+import math
 from time import monotonic
 
 from ib_insync import PortfolioItem, Ticker
 from rich.text import Text
 
 from ...client import IBKRClient
+from ...chart_data.series import OhlcvBar
+from ...chart_data.realtime import resample
 from ...engines.execution import (
     _midpoint,
     _quote_num_actionable,
@@ -66,6 +70,12 @@ class PositionMarketView:
         self._md_probe_started_mono = 0.0
         self._derivative_actionable_px: float | None = None
         self._derivative_actionable_px_until_mono = 0.0
+        sec_type = str(getattr(item.contract, "secType", "") or "").strip().upper()
+        self._session_portrait_supported = sec_type in ("STK", "FUT")
+        self._session_portrait_state = (
+            "loading" if self._session_portrait_supported else "disabled"
+        )
+        self._session_portrait_bars: tuple[OhlcvBar, ...] = ()
 
     def bind(
         self,
@@ -83,6 +93,95 @@ class PositionMarketView:
 
     def set_session_close(self, previous: float | None) -> None:
         self._session_prev_close = previous
+
+    def set_session_portrait(self, bars: list[OhlcvBar]) -> None:
+        clean = [
+            bar
+            for bar in bars
+            if math.isfinite(float(bar.close)) and float(bar.close) > 0
+        ]
+        if clean:
+            latest_day = clean[-1].ts.date()
+            clean = [bar for bar in clean if bar.ts.date() == latest_day]
+        self._session_portrait_bars = tuple(clean[-240:])
+        self._session_portrait_state = "ready" if clean else "unavailable"
+
+    @staticmethod
+    def _compact_volume(value: float) -> str:
+        number = max(0.0, float(value))
+        for threshold, suffix in ((1_000_000_000.0, "B"), (1_000_000.0, "M"), (1_000.0, "K")):
+            if number >= threshold:
+                return f"{number / threshold:.1f}{suffix}"
+        return f"{number:,.0f}"
+
+    @staticmethod
+    def _contract_identity_row(contract: object) -> Text | None:
+        symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
+        label = str(
+            getattr(contract, "tbDescription", "")
+            or getattr(contract, "description", "")
+            or ""
+        ).strip()
+        primary = str(getattr(contract, "primaryExchange", "") or "").strip().upper()
+        route = str(getattr(contract, "exchange", "") or "").strip().upper()
+        currency = str(getattr(contract, "currency", "") or "").strip().upper()
+        con_id = int(getattr(contract, "conId", 0) or 0)
+        row = Text()
+        if label and label.upper() != symbol:
+            row.append(label, style="bold #b7cadc")
+        venue = primary or route
+        if venue:
+            if row.plain:
+                row.append("  ·  ", style="dim")
+            row.append(f"{venue}{' primary' if primary else ''}", style="cyan")
+        if route and primary and route != primary:
+            row.append("  ·  ", style="dim")
+            row.append(f"{route} route", style="dim")
+        if currency:
+            row.append("  ·  ", style="dim")
+            row.append(currency, style="dim")
+        if con_id > 0:
+            row.append("  ·  ", style="dim")
+            row.append(f"conId {con_id}", style="dim")
+        return row if row.plain else None
+
+    def _session_portrait_rows(self, width: int) -> list[Text]:
+        if not self._session_portrait_supported:
+            return []
+        if self._session_portrait_state != "ready" or not self._session_portrait_bars:
+            state = "loading 5m RTH history…" if self._session_portrait_state == "loading" else "unavailable"
+            return [Text(f"Session Portrait  ·  {state}", style="dim")]
+
+        bars = self._session_portrait_bars
+        closes = [float(bar.close) for bar in bars]
+        first = float(bars[0].open) if float(bars[0].open) > 0 else closes[0]
+        last = closes[-1]
+        low = min(float(bar.low) for bar in bars)
+        high = max(float(bar.high) for bar in bars)
+        change_pct = ((last - first) / first * 100.0) if first > 0 else 0.0
+        location = ((last - low) / (high - low) * 100.0) if high > low else 50.0
+        volume = sum(max(0.0, float(bar.volume)) for bar in bars)
+        color = "green" if change_pct > 0 else "red" if change_pct < 0 else "cyan"
+
+        prefix = "Session Portrait  "
+        suffix = f"  {_fmt_quote(last)}"
+        spark_width = max(8, int(width) - len(prefix) - len(suffix))
+        portrait = Text(prefix, style="bold #8fbfff")
+        portrait.append(
+            self.chart.sparkline(deque(resample(closes, spark_width)), spark_width),
+            style=color,
+        )
+        portrait.append(suffix, style=f"bold {color}")
+
+        meta = Text("RTH 5m", style="dim")
+        meta.append("  ·  Δ ", style="dim")
+        meta.append(f"{change_pct:+.2f}%", style=color)
+        meta.append(
+            f"  ·  range {_fmt_quote(low)}—{_fmt_quote(high)}  ·  loc {location:.0f}%"
+            f"  ·  vol {self._compact_volume(volume)}  ·  asof {bars[-1].ts:%H:%M}",
+            style="dim",
+        )
+        return [portrait, meta]
 
     def start_probe(self, ticker: Ticker | None) -> None:
         requested = getattr(ticker, "tbRequestedMdType", None) if ticker else None
@@ -441,17 +540,34 @@ class PositionMarketView:
         realized_num = self._float_or_none(getattr(self._item, "realizedPNL", None))
         realized = _fmt_money(realized_num) if realized_num is not None else "n/a"
 
+        market_data_ready = bool(
+            bid is not None or ask is not None or last is not None or close is not None
+        )
         md_row = Text("MD: ")
         if self._ticker:
             md_exchange = getattr(self._ticker.contract, "exchange", "") or "n/a"
-            md_label = _market_data_label(self._ticker)
-            md_row.append(f"{md_exchange} ({md_label})", style="bright_cyan")
             req_type_raw = getattr(self._ticker, "tbRequestedMdType", None)
             try:
                 req_type = int(req_type_raw) if req_type_raw is not None else None
             except (TypeError, ValueError):
                 req_type = None
-            if req_type in (1, 2, 3, 4):
+            actual_type = self._md_type_value(self._ticker)
+            if not market_data_ready:
+                pending_type = req_type if req_type in (1, 2, 3, 4) else actual_type
+                md_row.append(
+                    f"{md_exchange} (awaiting {self._md_type_name(pending_type)})",
+                    style="bright_cyan",
+                )
+            else:
+                md_row.append(
+                    f"{md_exchange} ({_market_data_label(self._ticker)})",
+                    style="bright_cyan",
+                )
+            if (
+                market_data_ready
+                and req_type in (1, 2, 3, 4)
+                and req_type != actual_type
+            ):
                 md_row.append(" req ", style="dim")
                 md_row.append(self._md_type_name(req_type), style="dim")
         else:
@@ -543,6 +659,7 @@ class PositionMarketView:
         )
         momentum_label_row = Text("Momentum", style="yellow")
         momentum_row = self.chart.mark_now(Text(self.chart.momentum(spark_width), style="yellow"))
+        portrait_rows = self._session_portrait_rows(inner)
 
         detail_row = Text(f"Avg {avg_cost}   MktVal {market_value}")
         ref_price = mid or price or mark
@@ -624,6 +741,7 @@ class PositionMarketView:
             box_row(tail_row, inner, style="#2d8fd5"),
             box_row(quote_row, inner, style="#2d8fd5"),
             box_row(price_row, inner, style="#2d8fd5"),
+            *[box_row(row, inner, style="#2d8fd5") for row in portrait_rows],
             box_row(aurora_label_row, inner, style="#2d8fd5"),
             box_row(aurora_row, inner, style="#2d8fd5"),
             box_row(trend_label_row, inner, style="#2d8fd5"),
@@ -633,6 +751,9 @@ class PositionMarketView:
             box_row(momentum_label_row, inner, style="#2d8fd5"),
             box_row(momentum_row, inner, style="#2d8fd5"),
         ]
+        identity_row = self._contract_identity_row(contract)
+        if identity_row is not None:
+            lines.insert(1, box_row(identity_row, inner, style="#2d8fd5"))
         md_probe_row = self._market_data_probe_row()
         badge_insert_idx = 3
         if md_probe_row is not None:

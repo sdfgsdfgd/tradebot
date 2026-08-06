@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import replace
+from datetime import datetime
 from types import SimpleNamespace
 from time import monotonic
 
@@ -9,6 +10,7 @@ from ib_insync import Contract, PortfolioItem
 import pytest
 
 from tradebot.engines.execution import EXECUTION_POLICY, _exec_chase_mode
+from tradebot.chart_data.series import OhlcvBar
 from tradebot.live.execution import CHASE_STATE_BY_ORDER
 from tradebot.ui.positions import PositionDetailScreen
 
@@ -130,6 +132,113 @@ def test_market_hud_unreal_shows_estimate_only_when_official_missing() -> None:
 
     tail_row = next(line.plain for line in lines if "✦ Unreal " in line.plain)
     assert "✦ Unreal 40.00 ≈est" in tail_row
+
+
+def test_stock_detail_identifies_contract_and_does_not_call_empty_feed_live() -> None:
+    _ensure_event_loop()
+    contract = Contract(
+        secType="STK",
+        symbol="ORCL",
+        exchange="SMART",
+        primaryExchange="NYSE",
+        currency="USD",
+    )
+    contract.conId = 272800
+    setattr(contract, "tbDescription", "ORACLE CORP")
+    item = _fut_item(contract, market_price=0.0)
+
+    class _Client:
+        @staticmethod
+        def pnl_single_unrealized(_con_id: int) -> float | None:
+            return None
+
+        @staticmethod
+        def pnl_single_daily(_con_id: int) -> float | None:
+            return None
+
+    screen = PositionDetailScreen(_Client(), item, refresh_sec=0.25)
+    requested = Contract(
+        secType="STK",
+        symbol="ORCL",
+        exchange="NYSE",
+        primaryExchange="NYSE",
+        currency="USD",
+    )
+    requested.conId = 272800
+    screen._ticker = SimpleNamespace(
+        contract=requested,
+        bid=None,
+        ask=None,
+        last=None,
+        close=None,
+        marketDataType=1,
+        tbRequestedMdType=3,
+        tbQuoteSource="awaiting-delayed",
+        tbQuoteErrorCode=10089,
+    )
+    screen._market.bind(item, screen._ticker)
+
+    lines = screen._market.render_hud(
+        panel_width=100,
+        bid=None,
+        ask=None,
+        last=None,
+        price=None,
+        mid=None,
+        close=None,
+        mark=None,
+        spread=None,
+    )
+    plain = "\n".join(line.plain for line in lines)
+
+    assert "ORACLE CORP" in plain
+    assert "NYSE primary" in plain
+    assert "SMART route" in plain
+    assert "conId 272800" in plain
+    assert "NYSE (awaiting Delayed)" in plain
+    assert "NYSE (Live) req Delayed" not in plain
+    assert "src awaiting-delayed" in plain
+    assert "code 10089" in plain
+
+
+def test_stock_detail_session_portrait_is_immediately_informative() -> None:
+    _ensure_event_loop()
+    contract = Contract(
+        secType="STK",
+        symbol="ORCL",
+        exchange="SMART",
+        primaryExchange="NYSE",
+        currency="USD",
+    )
+    contract.conId = 272800
+    item = _fut_item(contract, market_price=141.5)
+
+    class _Client:
+        @staticmethod
+        def pnl_single_unrealized(_con_id: int) -> float | None:
+            return None
+
+        @staticmethod
+        def pnl_single_daily(_con_id: int) -> float | None:
+            return None
+
+    screen = PositionDetailScreen(_Client(), item, refresh_sec=0.25)
+    screen._market.set_session_portrait(
+        [
+            OhlcvBar(datetime(2026, 8, 6, 9, 30), 144.0, 144.4, 143.8, 144.2, 10_000),
+            OhlcvBar(datetime(2026, 8, 6, 9, 35), 144.2, 144.2, 141.0, 141.5, 17_208),
+        ]
+    )
+
+    rows = screen._market._session_portrait_rows(100)
+    plain = "\n".join(row.plain for row in rows)
+
+    assert "Session Portrait" in plain
+    assert "RTH 5m" in plain
+    assert "Δ -1.74%" in plain
+    assert "range 141.00—144.40" in plain
+    assert "vol 27.2K" in plain
+    assert "asof 09:35" in plain
 
 
 def test_render_execution_block_supports_fut_contracts() -> None:

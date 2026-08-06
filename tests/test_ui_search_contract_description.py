@@ -87,6 +87,35 @@ def test_search_contract_description_option_includes_label_when_provided() -> No
     assert "MCL 20260220 PUT 66.00  •  Micro WTI Crude Oil" in text
 
 
+def test_stock_search_identity_shows_primary_listing_and_smart_route() -> None:
+    positions_app = _load_positions_app()
+    contract = Contract(
+        secType="STK",
+        symbol="ORCL",
+        exchange="SMART",
+        primaryExchange="NYSE",
+        currency="USD",
+        localSymbol="ORCL",
+    )
+    contract.conId = 272800
+    app = positions_app.__new__(positions_app)
+    app._search_symbol_labels = {"ORCL": "ORACLE CORP"}
+    app._search_opt_underlyer_descriptions = {}
+
+    description = positions_app._search_contract_description(
+        contract,
+        label="ORACLE CORP",
+    )
+    row = app._search_result_line(contract, row=0, active=False)
+
+    assert "ORCL  •  ORACLE CORP" in row.plain
+    assert "NYSE via SMART" in row.plain
+    assert "ORCL  •  ORACLE CORP" in description
+    assert "NYSE primary" in description
+    assert "SMART route" in description
+    assert "conId 272800" in description
+
+
 def test_portfolio_row_key_distinguishes_call_and_put_without_conid() -> None:
     positions_app = _load_positions_app()
     call_contract = Contract(

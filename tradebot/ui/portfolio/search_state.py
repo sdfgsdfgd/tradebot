@@ -886,9 +886,10 @@ class PortfolioSearchState:
                 [
                     f"db={self._timing_ms_text(timing.get('debounce_ms'))}",
                     f"contracts={self._timing_ms_text(timing.get('contracts_ms'))}",
-                    f"labels={self._timing_ms_text(timing.get('labels_ms'))}",
                 ]
             )
+            if timing.get("labels_ms") is not None:
+                parts.append(f"labels={self._timing_ms_text(timing.get('labels_ms'))}")
         total_ms = timing.get("total_ms")
         if total_ms is not None:
             parts.append(f"total={self._timing_ms_text(total_ms)}")

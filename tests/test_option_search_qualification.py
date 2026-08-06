@@ -350,6 +350,73 @@ def test_search_terms_opt_expands_bitcoin_aliases() -> None:
     assert "IBIT" in terms
 
 
+def test_stock_search_matches_contract_description_and_retains_identity() -> None:
+    client = _client()
+    match = Contract(
+        secType="STK",
+        symbol="ORCL",
+        exchange="",
+        primaryExchange="NYSE",
+        currency="USD",
+        description="ORACLE CORP",
+    )
+    match.conId = 272800
+
+    async def _matching_symbols(*_args, **_kwargs):
+        return [SimpleNamespace(contract=match, derivativeSecTypes=("OPT",))]
+
+    async def _qualify_proxy_contracts(*contracts: Contract):
+        raise AssertionError(f"canonical matching-symbol contracts need no requalification: {contracts}")
+
+    client._matching_symbols = _matching_symbols
+    client.qualify_proxy_contracts = _qualify_proxy_contracts
+    timing: dict[str, object] = {}
+
+    rows = asyncio.run(
+        client.search_contracts("oracle", mode="STK", limit=5, timing=timing)
+    )
+
+    assert len(rows) == 1
+    assert rows[0].symbol == "ORCL"
+    assert rows[0].exchange == "SMART"
+    assert rows[0].primaryExchange == "NYSE"
+    assert int(rows[0].conId) == 272800
+    assert getattr(rows[0], "tbDescription", "") == "ORACLE CORP"
+    assert timing["candidate_count"] == 1
+    assert timing["qualified_count"] == 1
+
+
+def test_stock_description_search_preserves_foreign_contract_identity() -> None:
+    client = _client()
+    match = Contract(
+        secType="STK",
+        symbol="ORC",
+        exchange="",
+        primaryExchange="IBIS",
+        currency="EUR",
+        description="ORACLE CORP",
+    )
+    match.conId = 48821635
+
+    async def _matching_symbols(*_args, **_kwargs):
+        return [SimpleNamespace(contract=match, derivativeSecTypes=("IOPT",))]
+
+    async def _qualify_proxy_contracts(*contracts: Contract):
+        raise AssertionError(f"canonical matching-symbol contracts need no requalification: {contracts}")
+
+    client._matching_symbols = _matching_symbols
+    client.qualify_proxy_contracts = _qualify_proxy_contracts
+
+    rows = asyncio.run(client.search_contracts("oracle", mode="STK", limit=5))
+
+    assert len(rows) == 1
+    assert int(rows[0].conId) == 48821635
+    assert rows[0].primaryExchange == "IBIS"
+    assert rows[0].currency == "EUR"
+    assert rows[0].exchange == "IBIS"
+    assert getattr(rows[0], "tbDescription", "") == "ORACLE CORP"
+
+
 def test_search_terms_fop_expands_micro_bitcoin_aliases() -> None:
     terms = IBKRClient._search_terms("micro bitcoin", mode="FOP")
 

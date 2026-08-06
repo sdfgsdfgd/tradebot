@@ -68,6 +68,9 @@ _INDEX_STRIP_EXCHANGE_HINTS: dict[str, str] = {
     "ES": "CME",
 }
 _PROXY_SYMBOLS = ("QQQ", "SPY", "DIA", "TQQQ")
+_US_STOCK_PRIMARY_EXCHANGES = frozenset(
+    {"AMEX", "ARCA", "BATS", "IEX", "NASDAQ", "NYSE"}
+)
 _PREMARKET_START = dtime(4, 0)
 _AFTER_END = dtime(20, 0)
 _PROXY_LIT_LIVE_ROUTES = ("SMART", "ARCA", "DRCTEDGE", "MEMX", "PEARL")
@@ -217,6 +220,14 @@ def _session_bucket(now: datetime) -> str:
 def _proxy_live_route_ladder(now: datetime) -> tuple[str, ...]:
     """Return the ordered live venue ladder for the active equity session."""
     return _PROXY_LIVE_ROUTE_LADDERS.get(_session_bucket(now), ())
+
+
+def _is_us_stock_contract(contract: Contract) -> bool:
+    currency = str(getattr(contract, "currency", "") or "").strip().upper()
+    primary = str(getattr(contract, "primaryExchange", "") or "").strip().upper()
+    return currency in ("", "USD") and (
+        not primary or primary in _US_STOCK_PRIMARY_EXCHANGES
+    )
 
 
 def _futures_session_is_open(now: datetime) -> bool:
@@ -3595,6 +3606,7 @@ class IBKRClient:
         if contract is not None:
             chunks.extend(
                 [
+                    str(getattr(contract, "description", "") or ""),
                     str(getattr(contract, "localSymbol", "") or ""),
                     str(getattr(contract, "tradingClass", "") or ""),
                 ]
@@ -3610,6 +3622,9 @@ class IBKRClient:
         contract = getattr(desc, "contract", None)
         if contract is None:
             return ""
+        description = str(getattr(contract, "description", "") or "").strip()
+        if description:
+            return description
         symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
         return symbol
 
@@ -4140,6 +4155,8 @@ class IBKRClient:
             prefix_symbols: list[str] = []
             contains_symbols: list[str] = []
             desc_symbols: list[str] = []
+            descriptions: dict[str, str] = {}
+            matched_contracts: dict[str, Contract] = {}
             seen_symbols: set[str] = set()
             for desc in matches:
                 contract = getattr(desc, "contract", None)
@@ -4151,6 +4168,10 @@ class IBKRClient:
                 if not symbol or symbol in seen_symbols:
                     continue
                 seen_symbols.add(symbol)
+                matched_contracts[symbol] = contract
+                description = str(self._desc_label(desc) or "").strip()
+                if description and description.upper() != symbol:
+                    descriptions[symbol] = description
                 desc_text = self._desc_text(desc)
                 if symbol in term_set and not (token_is_alias_seed and symbol == token):
                     exact_symbols.append(symbol)
@@ -4167,8 +4188,35 @@ class IBKRClient:
                 return []
             if exact_symbols:
                 symbols = exact_symbols
-            candidates = [Stock(symbol=symbol, exchange="SMART", currency="USD") for symbol in symbols]
-            qualified = await self.qualify_proxy_contracts(*candidates)
+            candidates: list[Contract] = []
+            for symbol in symbols[: max_rows * 2]:
+                matched = matched_contracts[symbol]
+                candidate = copy.copy(matched)
+                if not str(getattr(candidate, "currency", "") or "").strip():
+                    candidate.currency = "USD"
+                primary = str(
+                    getattr(candidate, "primaryExchange", "") or ""
+                ).strip().upper()
+                candidate.exchange = (
+                    "SMART"
+                    if _is_us_stock_contract(candidate)
+                    else str(getattr(candidate, "exchange", "") or "").strip().upper()
+                    or primary
+                    or "SMART"
+                )
+                candidates.append(candidate)
+            qualified = [
+                candidate
+                for candidate in candidates
+                if int(getattr(candidate, "conId", 0) or 0) > 0
+            ]
+            unresolved = [
+                candidate
+                for candidate in candidates
+                if int(getattr(candidate, "conId", 0) or 0) <= 0
+            ]
+            if unresolved:
+                qualified.extend(await self.qualify_proxy_contracts(*unresolved))
             by_symbol = {
                 str(getattr(contract, "symbol", "") or "").strip().upper(): contract
                 for contract in qualified
@@ -4180,9 +4228,23 @@ class IBKRClient:
                 resolved = by_symbol.get(symbol)
                 if resolved is None:
                     continue
+                description = descriptions.get(symbol)
+                if description:
+                    setattr(resolved, "tbDescription", description)
                 out.append(resolved)
                 if len(out) >= max_rows:
                     break
+            if timing is not None:
+                timing.update(
+                    {
+                        "source": "search_contracts_stk",
+                        "stage": "done",
+                        "candidate_count": len(candidates),
+                        "qualified_count": len(qualified),
+                        "result_count": len(out),
+                        "total_ms": (time.monotonic() - started_mono) * 1000.0,
+                    }
+                )
             return out
 
         if mode_clean == "FUT":
@@ -6199,6 +6261,17 @@ class IBKRClient:
         if errorCode in _ENTITLEMENT_ERROR_CODES and contract is not None:
             con_id = int(getattr(contract, "conId", 0) or 0) if contract else 0
             if con_id:
+                detail_entry = self._detail_tickers.get(con_id)
+                if detail_entry is not None and detail_entry[0] is self._ib_proxy:
+                    detail_ticker = detail_entry[1]
+                    if self._ticker_has_quote_or_close(detail_ticker):
+                        self._clear_ticker_quote_error(detail_ticker)
+                    else:
+                        self._set_ticker_quote_error(
+                            detail_ticker,
+                            error_code=int(errorCode),
+                            error_text=str(errorString or "").strip(),
+                        )
                 race = self._proxy_contract_route_race_tasks.get(con_id)
                 if race is not None and not race.done():
                     self._handle_conn_error(errorCode)
@@ -6466,12 +6539,36 @@ class IBKRClient:
         return task
 
     async def _race_proxy_live_routes(self, contract: Contract) -> None:
-        """Race top-strip live venues, retaining only the first actionable stream."""
+        """Race live venues for a tracked stock, retaining one actionable stream."""
         con_id = int(getattr(contract, "conId", 0) or 0)
         symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
         phase = self._reconcile_proxy_market_phase()
-        if not con_id or symbol not in _PROXY_SYMBOLS or not phase.tradable:
+        top_ticker = self._proxy_tickers.get(symbol)
+        top_id = int(
+            getattr(getattr(top_ticker, "contract", None), "conId", 0) or 0
+        )
+        detail_entry = self._detail_tickers.get(con_id)
+        detail_tracked = bool(
+            detail_entry is not None and detail_entry[0] is self._ib_proxy
+        )
+        top_tracked = bool(symbol in _PROXY_SYMBOLS and top_id == con_id)
+        detail_only = bool(detail_tracked and not top_tracked)
+        if not con_id or not (top_tracked or detail_tracked) or not phase.tradable:
             return
+        active_task = asyncio.current_task()
+        if active_task is not None:
+            # Phase reconciliation may have retained this task while clearing the
+            # registry. Keep entitlement callbacks aware that the race is active.
+            self._proxy_contract_route_race_tasks[con_id] = active_task
+
+        def _current_ticker() -> Ticker | None:
+            if detail_only:
+                current_entry = self._detail_tickers.get(con_id)
+                if current_entry is None or current_entry[0] is not self._ib_proxy:
+                    return None
+                return current_entry[1]
+            return self._proxy_tickers.get(symbol)
+
         phase_epoch = phase.epoch
         failed_route = str(getattr(contract, "exchange", "") or "").strip().upper()
         routes = tuple(
@@ -6501,12 +6598,13 @@ class IBKRClient:
                     except Exception:
                         continue
                     setattr(ticker, "tbRequestedMdType", 1)
+                    setattr(ticker, "tbQuoteSource", "probing-live-routes")
                     requested.append(ticker)
 
             deadline = time.monotonic() + float(_PROXY_ROUTE_RACE_SEC)
             winner: Ticker | None = None
             while time.monotonic() < deadline:
-                current = self._proxy_tickers.get(symbol)
+                current = _current_ticker()
                 current_id = int(
                     getattr(getattr(current, "contract", None), "conId", 0) or 0
                 )
@@ -6523,7 +6621,7 @@ class IBKRClient:
 
             if winner is not None:
                 async with self._proxy_lock:
-                    current = self._proxy_tickers.get(symbol)
+                    current = _current_ticker()
                     current_id = int(
                         getattr(getattr(current, "contract", None), "conId", 0) or 0
                     )
@@ -6538,7 +6636,10 @@ class IBKRClient:
                             self._ib_proxy.cancelMktData(current.contract)
                         except Exception:
                             pass
-                    self._proxy_tickers[symbol] = winner
+                    if detail_only:
+                        self._detail_tickers[con_id] = (self._ib_proxy, winner)
+                    else:
+                        self._proxy_tickers[symbol] = winner
                     winner_route = str(
                         getattr(winner.contract, "exchange", "") or ""
                     ).strip().upper()
@@ -6546,11 +6647,12 @@ class IBKRClient:
                     self._proxy_contract_force_delayed.discard(con_id)
                     self._proxy_contract_live_retry_at_mono.pop(con_id, None)
                     keep = winner
+                self._tag_ticker_quote_meta(winner, source="stream")
                 self._remember_proxy_live_route(winner)
                 self._on_stream_update()
                 return
 
-            current = self._proxy_tickers.get(symbol)
+            current = _current_ticker()
             current_id = int(
                 getattr(getattr(current, "contract", None), "conId", 0) or 0
             )
@@ -6591,6 +6693,9 @@ class IBKRClient:
             # Directed equity venues are invalid for options and futures.
             self._proxy_contract_force_delayed.add(con_id)
             return self._start_proxy_contract_delayed_resubscribe(contract)
+        if not _is_us_stock_contract(contract):
+            self._proxy_contract_force_delayed.add(con_id)
+            return self._start_proxy_contract_delayed_resubscribe(contract)
 
         now = _now_et()
         phase = self._reconcile_proxy_market_phase()
@@ -6601,7 +6706,15 @@ class IBKRClient:
         current_id = int(
             getattr(getattr(current, "contract", None), "conId", 0) or 0
         )
-        if symbol in _PROXY_SYMBOLS and current_id == con_id:
+        detail_entry = self._detail_tickers.get(con_id)
+        detail_tracked = bool(
+            detail_entry is not None and detail_entry[0] is self._ib_proxy
+        )
+        if detail_tracked:
+            detail_ticker = detail_entry[1]
+            if not self._ticker_has_quote_or_close(detail_ticker):
+                setattr(detail_ticker, "tbQuoteSource", "probing-live-routes")
+        if (symbol in _PROXY_SYMBOLS and current_id == con_id) or detail_tracked:
             return self._start_proxy_live_route_race(contract)
         ladder = self._proxy_live_routes_for_contract(contract, now=now)
         failed_route = str(getattr(contract, "exchange", "") or "").strip().upper()
@@ -6709,17 +6822,18 @@ class IBKRClient:
                 req_contract = copy.copy(contract)
                 req_contract.exchange = primary_exchange or "SMART"
             else:
+                us_stock = _is_us_stock_contract(contract)
                 req_contract = self._stock_market_data_contract(
                     contract,
-                    include_overnight=include_overnight,
+                    include_overnight=bool(include_overnight and us_stock),
                     delayed=False,
                 )
                 selected_route = (
                     self._proxy_contract_live_routes.get(con_id)
-                    if decision_epoch_is_current
+                    if decision_epoch_is_current and us_stock
                     else None
                 )
-                if not selected_route and decision_epoch_is_current:
+                if not selected_route and decision_epoch_is_current and us_stock:
                     routes = self._proxy_live_routes_for_contract(
                         contract,
                         now=decision_now,
@@ -7436,6 +7550,7 @@ class IBKRClient:
             )
             try:
                 setattr(ticker, "tbRequestedMdType", int(req_md_type))
+                setattr(ticker, "tbQuoteSource", "awaiting-live")
             except Exception:
                 pass
             con_id = int(getattr(req_contract, "conId", 0) or 0)
@@ -7481,6 +7596,7 @@ class IBKRClient:
             )
             try:
                 setattr(ticker, "tbRequestedMdType", int(req_md_type))
+                setattr(ticker, "tbQuoteSource", "awaiting-delayed")
             except Exception:
                 pass
             con_id = int(getattr(req_contract, "conId", 0) or 0)

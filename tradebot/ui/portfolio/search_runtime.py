@@ -354,7 +354,7 @@ class PortfolioSearchRuntime:
                     query,
                     mode=mode,
                     limit=fetch_limit,
-                    timing=contract_timing if self._is_option_search_mode(mode) else None,
+                    timing=contract_timing,
                 )
                 self._set_search_timing(
                     generation=generation,
@@ -373,21 +373,37 @@ class PortfolioSearchRuntime:
                     if not symbol or symbol in symbols:
                         continue
                     symbols.append(symbol)
-                self._search_symbol_labels = {}
-                if symbols:
+                self._search_symbol_labels = {
+                    str(getattr(contract, "symbol", "") or "").strip().upper(): str(
+                        getattr(contract, "tbDescription", "") or ""
+                    ).strip()
+                    for contract in results
+                    if str(getattr(contract, "symbol", "") or "").strip()
+                    and str(getattr(contract, "tbDescription", "") or "").strip()
+                }
+                missing_symbols = [
+                    symbol for symbol in symbols if symbol not in self._search_symbol_labels
+                ]
+                if missing_symbols:
                     self._set_search_timing(generation=generation, phase="labels")
                     labels_started = time.monotonic()
-                    self._search_symbol_labels = await self._client.search_contract_labels(
+                    labels = await self._client.search_contract_labels(
                         query,
                         mode=mode,
-                        symbols=symbols,
+                        symbols=missing_symbols,
                     )
+                    self._search_symbol_labels.update(labels)
                     self._set_search_timing(
                         generation=generation,
                         labels_ms=(time.monotonic() - labels_started) * 1000.0,
                     )
                     if generation != self._search_generation:
                         return
+                for contract in results:
+                    symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
+                    label = str(self._search_symbol_labels.get(symbol, "") or "").strip()
+                    if label:
+                        setattr(contract, "tbDescription", label)
         except asyncio.CancelledError:
             self._search_expiry_loading_more = False
             self._set_search_timing(generation=generation, phase="cancelled")
@@ -706,7 +722,12 @@ class PortfolioSearchRuntime:
         elif sec_type == "FUT" and expiry:
             line.append(f" {expiry}", style="dim")
         exchange = str(getattr(contract, "exchange", "") or "").strip().upper()
-        if exchange:
+        primary = str(getattr(contract, "primaryExchange", "") or "").strip().upper()
+        if sec_type == "STK" and primary:
+            line.append(f"  {primary}", style="dim")
+            if exchange and exchange != primary:
+                line.append(f" via {exchange}", style="dim")
+        elif exchange:
             line.append(f"  {exchange}", style="dim")
         if active:
             line.stylize("bold on #1d2a38")
@@ -795,6 +816,7 @@ class PortfolioSearchRuntime:
                 strike_text = str(strike_raw)
         local_symbol = str(getattr(contract, "localSymbol", "") or "").strip()
         exchange = str(getattr(contract, "exchange", "") or "").strip().upper()
+        primary = str(getattr(contract, "primaryExchange", "") or "").strip().upper()
         con_id = int(getattr(contract, "conId", 0) or 0)
         summary_parts: list[str] = [symbol]
         if expiry:
@@ -815,7 +837,11 @@ class PortfolioSearchRuntime:
         detail_parts: list[str] = []
         if local_symbol and local_symbol.upper() != summary.upper():
             detail_parts.append(local_symbol)
-        if exchange:
+        if sec_type == "STK" and primary:
+            detail_parts.append(f"{primary} primary")
+            if exchange and exchange != primary:
+                detail_parts.append(f"{exchange} route")
+        elif exchange:
             detail_parts.append(exchange)
         if con_id > 0:
             detail_parts.append(f"conId {con_id}")

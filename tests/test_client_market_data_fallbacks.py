@@ -1852,6 +1852,33 @@ def test_proxy_live_route_ladders_are_session_appropriate() -> None:
     ) == expected_lit
 
 
+def test_foreign_stock_never_inherits_us_overnight_or_lit_routes(monkeypatch) -> None:
+    client = _new_client()
+    now = datetime(2026, 8, 6, 21, 0)
+    monkeypatch.setattr("tradebot.client._now_et", lambda: now)
+    client._proxy_phase_epoch = "2026-08-07:OVERNIGHT"
+    contract = Stock("ORC", "IBIS", "EUR", primaryExchange="IBIS")
+    contract.conId = 11652126
+
+    requested, md_type = client._proxy_market_data_spec(
+        contract,
+        include_overnight=True,
+    )
+
+    assert md_type == 1
+    assert requested.exchange == "IBIS"
+
+    delayed: list[int] = []
+    client._start_proxy_contract_delayed_resubscribe = (  # type: ignore[method-assign]
+        lambda value: delayed.append(int(getattr(value, "conId", 0) or 0))
+    )
+    client._start_proxy_contract_market_data_recovery(contract)
+
+    assert delayed == [11652126]
+    assert 11652126 in client._proxy_contract_force_delayed
+    assert 11652126 not in client._proxy_contract_live_routes
+
+
 def test_proxy_stock_recovery_walks_live_routes_before_delayed(monkeypatch) -> None:
     client = _new_client()
     client._proxy_phase_epoch = "2026-08-06:PRE"
@@ -1962,6 +1989,76 @@ def test_top_strip_races_live_routes_and_keeps_only_first_actionable(monkeypatch
         for request in client._ib_proxy.cancels
     }
     assert cancelled_routes == {"SMART", "ARCA", "DRCTEDGE", "MEMX"}
+
+
+def test_searched_stock_races_live_routes_then_updates_detail_ticker(monkeypatch) -> None:
+    client = _new_client()
+    client._ib = _FakeConnectIB(connected=True)
+    now = datetime(2026, 8, 6, 9, 35)
+    monkeypatch.setattr("tradebot.client._now_et", lambda: now)
+    client._proxy_phase_epoch = "2026-08-06:RTH"
+
+    class _RaceIB:
+        def __init__(self) -> None:
+            self.requests: list[object] = []
+            self.cancels: list[object] = []
+
+        @staticmethod
+        def isConnected() -> bool:
+            return True
+
+        @staticmethod
+        def reqMarketDataType(_md_type: int) -> None:
+            return None
+
+        def reqMktData(self, contract):
+            self.requests.append(contract)
+            live = str(getattr(contract, "exchange", "") or "") == "PEARL"
+            return SimpleNamespace(
+                contract=contract,
+                bid=141.52 if live else None,
+                ask=141.72 if live else None,
+                last=None,
+                close=None,
+                marketDataType=1,
+            )
+
+        def cancelMktData(self, contract) -> None:
+            self.cancels.append(contract)
+
+    fake_ib = _RaceIB()
+    client._ib_proxy = fake_ib  # type: ignore[assignment]
+    contract = Stock("ORCL", "SMART", "USD", primaryExchange="NYSE")
+    contract.conId = 272800
+    current = SimpleNamespace(
+        contract=contract,
+        bid=None,
+        ask=None,
+        last=None,
+        close=None,
+        tbRequestedMdType=1,
+    )
+    client._detail_tickers[int(contract.conId)] = (fake_ib, current)
+
+    async def _run() -> None:
+        task = client._start_proxy_contract_market_data_recovery(contract)
+        assert task is not None
+        await task
+
+    asyncio.run(_run())
+
+    winner = client.ticker_for_con_id(int(contract.conId))
+    assert winner is not None
+    assert winner.contract.exchange == "PEARL"
+    assert client._ticker_has_data(winner) is True
+    assert client._proxy_contract_live_routes[272800] == "PEARL"
+    assert 272800 not in client._proxy_contract_force_delayed
+    assert str(getattr(winner, "tbQuoteSource", "")) == "stream"
+    requested_routes = {
+        str(getattr(request, "exchange", "") or "")
+        for request in fake_ib.requests
+    }
+    assert requested_routes == {"ARCA", "DRCTEDGE", "MEMX", "PEARL"}
 
 
 def test_proxy_delayed_contracts_retry_live_after_cooldown(monkeypatch) -> None:
