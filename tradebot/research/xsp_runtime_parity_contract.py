@@ -48,6 +48,9 @@ _XSP_P009_RUNTIME_OWNER_PATHS = {
     "transport_allocation_owner_sha256": (
         "tradebot/research/xsp_live_transport_allocation.py"
     ),
+    "transport_risk_owner_sha256": (
+        "tradebot/research/xsp_live_transport_risk.py"
+    ),
     "transport_state_owner_sha256": (
         "tradebot/research/xsp_live_transport_state.py"
     ),

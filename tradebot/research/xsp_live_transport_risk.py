@@ -271,6 +271,12 @@ def xsp_transport_risk_state(
         and is_trading_day(observed_et.date())
     ):
         trading_day = observed_et.date()
+    if (
+        trading_day is None
+        and observed_et.time() >= time(17, 0)
+        and is_trading_day(observed_et.date())
+    ):
+        trading_day = observed_et.date()
     if trading_day is None or not is_trading_day(trading_day):
         raise ValueError("risk observation is outside an XSP trading day")
     mature(trading_day)
