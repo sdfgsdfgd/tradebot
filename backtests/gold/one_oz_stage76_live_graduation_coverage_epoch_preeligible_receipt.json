@@ -1,0 +1,159 @@
+{
+  "authority": "cutoff_bound_evidence_reduction_only",
+  "boundaries": {
+    "broker_queried": false,
+    "order_authority_mutated": false,
+    "profitability_clock_mutated": false,
+    "selection_mutated": false,
+    "service_or_timer_mutated": false,
+    "submitted_orders": 0
+  },
+  "gates": {
+    "attribution": {
+      "evidence": {
+        "attribution_complete": true,
+        "state_rows": 719
+      },
+      "reasons": [],
+      "status": "PASS"
+    },
+    "capital_owner_stability": {
+      "evidence": {
+        "generation_path": "/home/x/Desktop/py/tradebot/db/calibration/portfolio_generations/ed07a506ff82c2d16ad87c38f1e315735d90601e914a98c64c798164eb33efb1.json",
+        "generation_sha256": "d5484fd3afc439d397c4e865e3c9b6c85d0446705e344d4524151d4e36909e66",
+        "path": "db/calibration/portfolio_capital_owner_stability.json",
+        "plan_id": "ed07a506ff82c2d16ad87c38f1e315735d90601e914a98c64c798164eb33efb1",
+        "sha256": "80e0bb50d3858042bc80be4d54a5e73f2013fbdc1ad53fdf20302c6b6d2180e1",
+        "sleeves": 3,
+        "source_revision": null
+      },
+      "reasons": [],
+      "status": "PASS"
+    },
+    "cash_risk_safety": {
+      "evidence": {
+        "closed_trades": 0,
+        "drawdown_usd": 0.0,
+        "fill_count": 0,
+        "latest_risk_fingerprint": "7e8e4b86c7d07762496d2f44603e3f5c0e9ccab5c419881331e55c1f6827c5f4",
+        "state_rows": 719
+      },
+      "reasons": [],
+      "status": "PASS"
+    },
+    "execution": {
+      "evidence": {
+        "fills": 0,
+        "orders": 0
+      },
+      "reasons": [
+        "execution_not_observed"
+      ],
+      "status": "HOLD"
+    },
+    "identity": {
+      "evidence": {
+        "ledger_prefix_records": 766,
+        "ledger_prefix_sha256": "cf63c171af7429037c291cb97f8cb45a4db780baad2ddc927897f3d23111d14e",
+        "selection_file_sha256": "5fc9048d37a42e00da621862dac02ebeea1f14f66e55ab2c17cad5bda90e81c8",
+        "selection_id": "62344ce21bf7c6f01095abab14b6ca8ef79c9806abb35294859fc9574a5f7574"
+      },
+      "reasons": [],
+      "status": "PASS"
+    },
+    "profitability": {
+      "evidence": {
+        "milestones": {
+          "24h": {
+            "evidence_as_of_utc": null,
+            "passed": false
+          }
+        },
+        "required_milestones": [
+          "24h"
+        ],
+        "target": "24h"
+      },
+      "reasons": [
+        "coverage_epoch_not_started",
+        "elapsed_time_incomplete"
+      ],
+      "status": "HOLD"
+    },
+    "restart": {
+      "evidence": {
+        "first_natural_checkpoint_id": "25a1cb9b4c14bf13c6a7b694ccadd5043ec87b9d5e911317acd232474d216492",
+        "restart_checkpoint_id": "c12b3611c3f76c5d51d5a1e044991e9f8b3dd61a7e1eddcb3b4515cb73017c16"
+      },
+      "reasons": [],
+      "status": "PASS"
+    },
+    "runtime_parity": {
+      "evidence": {
+        "path": "backtests/gold/one_oz_regime_harmony_runtime_parity_20260803.json",
+        "sha256": "191ba059a1639d3c2c895379aeb72b33401d035da0169c717ae21ffca826ba32",
+        "ten_year_ledger_sha256": "f5c212b19b9c5b6f697f01b6162a2f4382d8503afa4ebaa3844add45326a35a5",
+        "three_year_ledger_sha256": "c3add7cde287718b895de70936aa9aeab18b465bd6e68d3b8140c262650a3733"
+      },
+      "reasons": [],
+      "status": "PASS"
+    }
+  },
+  "identity": {
+    "ledger_prefix": {
+      "candidate_records": 766,
+      "clock_regressions": 3,
+      "coverage_epoch_id": "db896da2ae87a06a69344226fcf18c687d75eae4ca06868aebf039f9776e0651",
+      "coverage_started_at_utc": "2026-08-06T02:02:00+00:00",
+      "cutoff_utc": "2026-08-06T00:55:42+00:00",
+      "excluded_for_dependency": 0,
+      "first_record_id": "92c6361eb0140449d2fe6f1e036500087877eb30bf463ad9e6016b27921d2497",
+      "included_records": 766,
+      "last_record_id": "3d6c388e488318cd2a17b9f7be7f668453cb258b86467b08e5aec7385468c1a1",
+      "schema": "live.calibration-logical-prefix.v1",
+      "sha256": "cf63c171af7429037c291cb97f8cb45a4db780baad2ddc927897f3d23111d14e"
+    },
+    "selection": {
+      "capital_sleeve": "gold-1oz-stage76-margin",
+      "coverage_epoch_id": "db896da2ae87a06a69344226fcf18c687d75eae4ca06868aebf039f9776e0651",
+      "coverage_started_at_utc": "2026-08-06T02:02:00+00:00",
+      "execution_strategy_version": "gold.1oz-regime-harmony-live-execution.v1",
+      "path": "/home/x/Desktop/py/tradebot/db/calibration/selections/62344ce21bf7c6f01095abab14b6ca8ef79c9806abb35294859fc9574a5f7574.json",
+      "run_id": "62344ce21bf7c6f01095abab14b6ca8ef79c9806abb35294859fc9574a5f7574",
+      "run_started_at_utc": "2026-08-03T12:41:13.968661+00:00",
+      "selected_at_utc": "2026-08-03T12:41:13.968661+00:00",
+      "selection_file_sha256": "5fc9048d37a42e00da621862dac02ebeea1f14f66e55ab2c17cad5bda90e81c8",
+      "selection_id": "62344ce21bf7c6f01095abab14b6ca8ef79c9806abb35294859fc9574a5f7574",
+      "signal_strategy_version": "gold.1oz-regime-harmony-stage76.v1"
+    },
+    "selection_file_sha256": "5fc9048d37a42e00da621862dac02ebeea1f14f66e55ab2c17cad5bda90e81c8"
+  },
+  "reasons": [
+    "execution:execution_not_observed",
+    "profitability:coverage_epoch_not_started",
+    "profitability:elapsed_time_incomplete"
+  ],
+  "receipt_id": "b222d7f0d46d3be7830a4b1ba8e2ef852243fb1dd4d1f0e2ca107882849eace2",
+  "remaining_requirements": [
+    "execution:execution_not_observed",
+    "profitability:coverage_epoch_not_started",
+    "profitability:elapsed_time_incomplete"
+  ],
+  "schema": "live.strategy-graduation.v1",
+  "subject": {
+    "account_fingerprint": "bddaf5682a861c6e5fb3ef815a84b8e64c366bf94a6cfe2d459040603badaced",
+    "capital_sleeve": "gold-1oz-stage76-margin",
+    "execution_sleeve": "1OZ",
+    "run_id": "62344ce21bf7c6f01095abab14b6ca8ef79c9806abb35294859fc9574a5f7574",
+    "selection_id": "62344ce21bf7c6f01095abab14b6ca8ef79c9806abb35294859fc9574a5f7574",
+    "signal_instrument": "XAUUSD/GC",
+    "strategy_id": "gold.1oz-regime-harmony-stage76.v1",
+    "strategy_version": "gold.1oz-regime-harmony-live-execution.v1"
+  },
+  "target": {
+    "cutoff_utc": "2026-08-06T00:55:42+00:00",
+    "milestone": "24h",
+    "required_predecessors": []
+  },
+  "verdict": "HOLD"
+}
