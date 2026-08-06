@@ -1,0 +1,50 @@
+{
+  "schema": "xsp.opening-edge-v4-pressure-phase-front-p004-r2-generation.v1",
+  "registered_at_utc": "2026-08-06T10:44:45Z",
+  "authority": "pre_outcome_count_evaluator_correction_only_no_signal_no_orders_no_capital",
+  "mission": "Correct one enumeration defect in the sealed P-004 count evaluator, then rerun the identical frozen categorical law without opening future prices or economics.",
+  "preregistration": {
+    "path": "backtests/xsp/opening_edge_v4_pressure_phase_front_p004_preregistration.json",
+    "sha256": "dc5ed784f3c60942917d2b1e944973694956f65e1aba8f7063665302156aea7c"
+  },
+  "predecessor": {
+    "generation_path": "backtests/xsp/opening_edge_v4_pressure_phase_front_p004_generation.json",
+    "generation_sha256": "08f2969ddb86c8c775ec20b915f8c9be7575340ad3ec52ca3f176e3aab827f9b",
+    "evaluator_sha256": "ccf978ab018703dacca02d2309eb5d752c6fc807ce695e8ab10f4faae582c8a6",
+    "result_path": "/tmp/xsp-opening-edge-v4-pressure-phase-front-p004-count.json",
+    "result_sha256": "9354afcfbed8f547b9eebf4dc2107ab95a5172270a662a26503da60d1155797d"
+  },
+  "correction": {
+    "defect": "The evaluator iterated every key in preregistration.windows as an annual period, including the prose-only visibility field, and therefore created a false fourth-period failure after computing the three intended annual cohorts correctly.",
+    "scope": "Enumerate only window values that are two-element lists; no sensor, rank, phase, transport, emission, control, oracle, threshold, gate, timestamp, or cohort law changes.",
+    "exposure_before_correction": "Identity, readiness, categorical morphology, emissions, matches, unmatched controls, and relapses only. No future prices, returns, MFE, MAE, PnL, drawdown, selected action, order, or capital state was opened.",
+    "corrected_evaluator_path": "/tmp/xsp_p004_pressure_phase_front_count.py",
+    "corrected_evaluator_sha256": "b5fab0eb05a7d305e278d13b26898844bc9e5cc837c4cce35f7c8c99a41dfe38"
+  },
+  "consensus_source": {
+    "path": "/tmp/xsp_p002c_scale_consensus_census.py",
+    "sha256": "67e7daf6d2eb05724e903567bfb1c74d415d4ce140cc3f261d2cbbfd95472c3f"
+  },
+  "source_identity": {
+    "tape_sha256": "6d239c88dadbbb259a8e1e691c7311a05436859db7f1fe330b21d84daa3c67df",
+    "campaign_sha256": "dfba4165dad28d7d74a80132055cd9c317f0bd6a8917bec8a5da6e5623a97734",
+    "crown_sha256": "d47eb39cef3d2ca575d779d6b5b87e3b88e08606fd09a8801b8cb55c350208db",
+    "runtime_parity_sha256": "f9f06b2b8683b121a7958f25a9a924bc47cca76059d51a60aa30510bdbabfe95",
+    "pivot_preregistration_sha256": "075067497250eba891d4f10a2c6b17831f0851459bca089aaf112dc74c2e0056",
+    "phase_owner_sha256": "49578ec261c7fd47730bd2929033aa45f753da42318572eaf690eb0c6d3d1c08",
+    "pressure_owner_sha256": "b40974c26d1afd6b26b707494195668e777eb2caad20f0d9e6f61b6d5d07d570",
+    "landmark_owner_sha256": "09e7f453d1779ca7f25726a5317b2af9a4120d420bc1aa8e411692f53e670527"
+  },
+  "invariants": {
+    "frozen_p004_law_changed": false,
+    "incumbent_xsp_changed": false,
+    "live_selection_changed": false,
+    "live_direction_or_timing_authority": "none",
+    "new_recorder_or_service_or_timer": false,
+    "execution_or_capital_changed": false,
+    "mcl_or_gold_changed": false,
+    "future_prices_exposed": false,
+    "outcomes_exposed": false,
+    "submitted_orders": 0
+  }
+}
