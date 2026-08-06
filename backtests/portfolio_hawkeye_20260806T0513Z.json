@@ -1,0 +1,310 @@
+{
+  "schema": "live.portfolio-hawkeye.v1",
+  "observed_at_utc": "2026-08-06T05:13:12+00:00",
+  "authority": "read_only_causal_observation_and_incubator_ranking_no_signal_no_orders_no_capital",
+  "review_block": {
+    "review": 5,
+    "required": 6,
+    "review_started_at_utc": "2026-08-06T05:11:15+00:00",
+    "prior_review_utc": "2026-08-06T04:51:08+00:00",
+    "started_seconds_after_boundary": 7.0,
+    "settlement_completed_at_utc": "2026-08-06T05:13:12+00:00",
+    "preemption": "canonical_hawkeye_preempted_q_pivot_publication",
+    "missed_slots_backfilled": 0,
+    "status": "ACTIVE"
+  },
+  "portfolio": {
+    "account_id": "U12825049",
+    "base_currency": "AUD",
+    "available_funds_aud": 3626.85,
+    "excess_liquidity_aud": 3626.85,
+    "equity_with_loan_aud": 3626.85,
+    "settled_cash_usd": 1062.21,
+    "positions": [],
+    "open_orders": []
+  },
+  "xsp": {
+    "selection_id": "1083c1813e6b0ca4cf5777a5275e06be651622bc6e6207e718b549296a9bdd87",
+    "source_checkpoint_id": "732834589889bbad362b6e2540fb4ff423d20b500f8aeb57243239073f63a41b",
+    "live_checkpoint_id": "492810dea5c87bb62745a275c0384490da4cb42c956e4942f87effa36819e9fd",
+    "recorded_at_utc": "2026-08-06T05:07:03.748437+00:00",
+    "session": "GTH",
+    "plan_reason": "flat_target",
+    "entry_window_open": false,
+    "position": {
+      "UPRO": 0,
+      "SPXU": 0
+    },
+    "orders": 0,
+    "fills": 2,
+    "closed_trades": 1,
+    "run_gross_usd": -10.299999999999955,
+    "run_cost_usd": 0.703328,
+    "run_net_usd": -11.003327999999954,
+    "drawdown_usd": 11.003327999999954,
+    "safety_breaches": [],
+    "quotes": {
+      "UPRO": {
+        "bid": 154.13,
+        "ask": 154.25,
+        "market_data_type": 1
+      },
+      "SPXU": {
+        "bid": 33.75,
+        "ask": 33.79,
+        "market_data_type": 1
+      }
+    },
+    "directional_impulse": {
+      "latest_bar_utc": "2026-08-06T05:05:00+00:00",
+      "horizons_minutes": [5, 15, 30, 60, 120],
+      "slope_pct_per_bar": [
+        0.0025931928687050743,
+        0.008213587868096303,
+        -0.002592722228704029,
+        0.002702048368828184,
+        -0.0024296376924271925
+      ],
+      "slope_velocity_pct_per_bar": [
+        -0.006483806016133187,
+        0.00043219318279034535,
+        -0.0006480545075941238,
+        0.0005404937787667485,
+        -0.0016194224992720678
+      ],
+      "slope_signs": "UUDUD",
+      "velocity_signs": "DUDUD",
+      "trend_state": "down",
+      "direction": "up",
+      "coherence": 0.6,
+      "conviction": 0.11897472460734457,
+      "retrace_atr": 1.840320611055042,
+      "atr_ratio": 0.5153257253284371,
+      "atr_velocity_pct": -0.0008649076796218326,
+      "atr_acceleration_pct": -0.00043190172188399024,
+      "ready": true,
+      "turn_event": null,
+      "proposed_direction": null
+    },
+    "daily_context": {
+      "directions": {
+        "5": "up",
+        "10": "up",
+        "21": "up",
+        "42": "up",
+        "63": "up",
+        "84": "up"
+      },
+      "hard_direction": "up",
+      "hard_age": 79,
+      "transition": "aligned_up",
+      "tr_phase": "high_down",
+      "tr_velocity": -0.0014786344808673038,
+      "tr_acceleration": -0.0029572689617346076
+    },
+    "pressure_onramp": {
+      "eligible_start_utc": "2026-08-06T13:20:00+00:00",
+      "complete_crowned_targets": 0,
+      "required_complete_crowned_targets": 30,
+      "permission_authority": "none"
+    },
+    "pivot_observation": {
+      "classification": "DISORDERED_LOW_RANGE_REPAIR_WITHOUT_PHASE_FRONT",
+      "interpretation": "Fast and structural slopes are split UUDUD while velocities alternate DUDUD under a compressed 0.515x ATR. The all-UP daily context remains intact, but no ordered fast-to-slow propagation, turn, proposal, or lawful GTH cash entry exists. This is a useful matched negative-control shape for q_pivot, not a missed trade."
+    }
+  },
+  "gold": {
+    "selection_id": "62344ce21bf7c6f01095abab14b6ca8ef79c9806abb35294859fc9574a5f7574",
+    "source_checkpoint_id": "6458dc261b43834a5655b20d1e6cecb1f267b1637dc3836ba48ac78d255577c9",
+    "live_checkpoint_id": "f4d525438d9287f36df4f59bb7517a6030003f8f1cdb224d85ceb8da40d32dc4",
+    "recorded_at_utc": "2026-08-06T05:07:00.841421+00:00",
+    "plan_reason": "flat_no_target",
+    "position": 0,
+    "orders": 0,
+    "fills": 0,
+    "closed_trades": 0,
+    "run_net_usd": 0.0,
+    "drawdown_usd": 0.0,
+    "safety_breaches": [],
+    "quote": {
+      "contract": "1OZZ6",
+      "bid": 4318.5,
+      "ask": 4319.0,
+      "market_data_type": 1
+    },
+    "signal": {
+      "decision_bar_end_utc": "2026-08-06T04:00:00+00:00",
+      "decision_close": 4265.78,
+      "daily_hard_direction": "down",
+      "daily_soft_direction": "up",
+      "daily_hard_age": 151,
+      "daily_atr_ratio_14_63": 0.9453211385571413,
+      "daily_atr_velocity": 0.0023954150101911193,
+      "h4_hard_direction": "up",
+      "h4_raw_direction": "up",
+      "h4_fast_slope_dollars": 13.063991890185207,
+      "h4_fast_acceleration_dollars": -7.289711968624033,
+      "h4_spread_velocity_dollars": 1.843433813338379,
+      "h4_atr_velocity_dollars": 1.2121428571428439,
+      "raw_turn": null,
+      "proposed_direction": null,
+      "admitted_direction": null
+    },
+    "interpretation": "The completed H4 owner remains UP and live price remains $52.72 above the decision close, but H4 acceleration is sharply negative, D1 remains hard-DOWN, and no turn or proposal exists. Flat remains coherent."
+  },
+  "mcl": {
+    "selection_id": "8adead895d3bd460b460f832d725046a3ea34079525a80a1662004ade2c17c93",
+    "source_checkpoint_id": "4f67874c655c828eefce7f34b0fcf54bd26c5dd5dbb0c737b0eec4b9ffe9db6b",
+    "live_checkpoint_id": "d088442226b358e918cf9b1c3e4cb3307d9922d14aae57221af3a3b25fbc5946",
+    "recorded_at_utc": "2026-08-06T05:11:11.597719+00:00",
+    "plan_reason": "flat_no_target",
+    "position": 0,
+    "orders": 0,
+    "fills": 0,
+    "closed_trades": 0,
+    "run_net_usd": 0.0,
+    "drawdown_usd": 0.0,
+    "mfe_usd": 0.0,
+    "mae_usd": 0.0,
+    "safety_breaches": [],
+    "quote": {
+      "contract": "MCLU6",
+      "bid": 74.9,
+      "ask": 74.92,
+      "market_data_type": 1
+    },
+    "directional_impulse": {
+      "latest_bar_utc": "2026-08-06T05:10:00+00:00",
+      "horizons_minutes": [30, 60, 120, 240, 480],
+      "slope_pct_per_bar": [
+        0.04684781153794967,
+        0.006679134384183587,
+        -0.027074216505326248,
+        -0.0066524747205959816,
+        -0.0021745512269904952
+      ],
+      "slope_velocity_pct_per_bar": [
+        0.000012537886136719523,
+        -0.005570854479462299,
+        -0.0011050700614416917,
+        -0.0024908020611204285,
+        -0.00025220310622309596
+      ],
+      "slope_signs": "UUDDD",
+      "velocity_signs": "UDDDD",
+      "trend_state": "down",
+      "coherence": 0.4,
+      "conviction": 0.012590537466503796,
+      "retrace_atr": 2.2567012673387157,
+      "atr_ratio": 0.7959969176943028,
+      "atr_velocity_pct": -0.0033458077074018377,
+      "atr_acceleration_pct": -0.006660559528159998,
+      "abstain_reason": "weak_direction",
+      "turn_event": null,
+      "proposed_direction": null
+    },
+    "phase_front_observation": {
+      "preregistration": "mcl_multiscale_phase_front_stage117_preregistration.json",
+      "preregistration_sha256": "0238f3c3ce4f05bceb2b5ffb412a9ed9a35d253e1d8e567a67888756af593f3b",
+      "eligible_start_utc": "2026-08-06T04:45:00+00:00",
+      "origin_slope_signs": "DDDDD",
+      "origin_velocity_signs": "UUUUU",
+      "current_slope_signs": "UUDDD",
+      "current_velocity_signs": "UDDDD",
+      "classification": "FAST_SLOPE_CASCADE_WITHOUT_SLOW_VELOCITY_PERSISTENCE",
+      "interpretation": "The first lawful front did cross the 30m and 60m slopes UP before 30m velocity failed, but four slower velocities have already turned DOWN and ATR is contracting. It remains unresolved: only renewed ordered slow-front propagation plus recoil survival can validate a pivot; fast velocity failure completes a false repair."
+    },
+    "predictive_cohorts": {
+      "stage87_90": {
+        "complete": 8,
+        "required": 30,
+        "directions": {
+          "down": 4,
+          "up": 4
+        },
+        "ledger_sha256": "11005225819e47c6e2527ee55e37cd188e76b12d4d9cb88400624e7dce1bb00d"
+      },
+      "stage114": {
+        "complete": 1,
+        "required": 30,
+        "ledger_sha256": "8be62828b80c16489e7abdb0b49032ebef7b0c31b3689c220275ded8b54f06ed"
+      },
+      "stage116": {
+        "derived_complete": 4,
+        "required": 30,
+        "status": "ACCUMULATE"
+      },
+      "stage117": {
+        "complete": 0,
+        "required": 30,
+        "open_candidate": 1,
+        "outcomes_exposed": false,
+        "live_authority": "none"
+      }
+    }
+  },
+  "incubator": {
+    "review_position": "5/6",
+    "retained_candidates": [
+      {
+        "rank": 1,
+        "candidate": "MCL Subshock Bridge plus Multiscale Phase-Front Authority",
+        "status": "RETAIN_STAGE117_0_OF_30_ONE_OPEN_FRONT_STAGE116_4_OF_30"
+      },
+      {
+        "rank": 2,
+        "candidate": "XSP Multiscale Phase-Front Pivot plus Freshness and Pressure On-ramp",
+        "status": "EVOLVE_EXISTING_XSP_SLOT_Q_PIVOT_BASELINE_FROZEN_PRESSURE_0_OF_30"
+      }
+    ],
+    "new_candidate_added": false,
+    "candidate_retired": false,
+    "candidate_dimension_evolved": "XSP_EXISTING_PRESSURE_SLOT_EVOLVED_INTO_AUTHORIZED_Q_PIVOT_QUEST",
+    "bounded_replays_started_this_block": 0,
+    "bounded_replay_budget": 1,
+    "second_replay_started": false,
+    "new_thresholds": 0,
+    "new_services_or_timers": 0
+  },
+  "integrated_interpretation": {
+    "xsp": "The GTH stack is disordered UUDUD slopes versus DUDUD velocities under compressed ATR and all-UP daily context. No turn, proposal, cash-entry window, or ordered phase front exists; q_pivot records this as a negative control rather than inventing a trade.",
+    "gold": "D1-DOWN/H4-UP conflict persists with decelerating H4 and no proposal; flat remains correct.",
+    "mcl": "The first Stage-117 front achieved 30m then 60m slope crosses, but slow velocity propagation did not survive. The next observation distinguishes recoil/reacceleration from failed repair; no trade authority exists.",
+    "portfolio": "All three champions are flat and order-free. The XSP pivot quest evolves the existing rank-2 incubator slot and changes no live owner, selection, capital, service, timer, or order."
+  },
+  "services": {
+    "xsp_unified_timer": "tradebot-xsp-shadow.timer active/waiting",
+    "xsp_pressure_tape_timer": "active/waiting_pre_eligibility",
+    "gold_onset_timer": "active/waiting",
+    "gold_live_timer": "active/waiting",
+    "mcl_live_timer": "active/waiting_after_natural_invocation",
+    "mcl_predictive_runtime_timer": "tradebot-mcl-predictive-onset-runtime.timer active/waiting",
+    "mcl_turn_tape": "active/running_nrestarts_2_historical",
+    "obsolete_aliases": [
+      "tradebot-xsp-live.timer inactive_by_design_use_tradebot-xsp-shadow.timer",
+      "tradebot-mcl-predictive-onset-stage114.timer inactive_by_design_use_tradebot-mcl-predictive-onset-runtime.timer"
+    ],
+    "warnings": [
+      "tradebot-xsp-quotes.service is active but repeatedly reports no qualified option contracts; it is not the selected UPRO/SPXU live path and requires a separate ownership audit before mutation"
+    ],
+    "failed_systemd_units": [],
+    "services_or_timers_mutated": false
+  },
+  "boundaries": {
+    "broker_mutated": false,
+    "services_or_timers_mutated": false,
+    "strategy_or_selection_mutated": false,
+    "capital_mutated": false,
+    "future_outcomes_exposed": false,
+    "historical_outcome_exposed_design_specimen_used": false,
+    "orders_submitted": 0
+  },
+  "next_boundaries": {
+    "next_hawkeye_utc": "2026-08-06T05:33:12+00:00",
+    "next_review_block_position": "6/6",
+    "xsp_pressure_eligible_utc": "2026-08-06T13:20:00+00:00",
+    "mcl_24h_utc": "2026-08-06T11:39:55+00:00",
+    "gold_24h_utc": "2026-08-07T02:03:30+00:00"
+  },
+  "submitted_orders": 0
+}
