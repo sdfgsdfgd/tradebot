@@ -1,0 +1,85 @@
+{
+  "artifacts": {
+    "crown_signal_clock_owner": {
+      "path": "tradebot/research/xsp_live_transport.py",
+      "sha256": "32a2e7fb563818d8c855ab95fcd5e1f2b12370eff172132e1e0e134ca01c9016"
+    },
+    "crown_signal_context_owner": {
+      "path": "tradebot/research/xsp_context.py",
+      "sha256": "e21ccfa8a2259bf9826a27cc9fc192d5c83be0c9a783eb8227da8c55ec43ac47"
+    },
+    "crown_source_owner": {
+      "path": "tradebot/research/xsp_opening_edge_v3.py",
+      "sha256": "e442068e82bff2cbdfe969b9954538dc7483d56a4bdafed38d6ab172091235c8"
+    },
+    "dual_clock_crown": {
+      "path": "backtests/xsp/opening_edge_v4_dual_clock_arbitration_p009_crown.json",
+      "sha256": "e3d4b968ce5692da2aad1e6ed041c609b4df7be020a80bde5a3605a32111a449"
+    },
+    "dual_clock_owner": {
+      "path": "tradebot/research/xsp_dual_clock.py",
+      "sha256": "be2fea1a28c4f005133b302bd985d65fd623d7093b02bfaca771b340014dea3f"
+    },
+    "durable_owner_parity": {
+      "path": "backtests/xsp/opening_edge_v4_dual_clock_arbitration_p009_durable_owner_parity.json",
+      "sha256": "6a81ea01d46c753579a63a1f27277b51654c03c23fbcd226e67c25ec8dc55ee4"
+    },
+    "predecessor_generation": {
+      "path": "backtests/xsp/opening_edge_v3_pressure_atlas_accumulation_generation.json",
+      "sha256": "40884c4e3eea0f674f644a21dbcf563ba74e9e4421a3204337eefb5ffd5d3a75"
+    },
+    "preregistration": {
+      "path": "backtests/xsp/opening_edge_v3_pressure_atlas_accumulation_preregistration.json",
+      "sha256": "90884b6fc622155ec04f68d406e71b67f668c4b9d613e0aeb955193d8f693b2f"
+    },
+    "pressure_atlas_generation": {
+      "path": "backtests/xsp/opening_edge_v3_pressure_atlas_generation.json",
+      "sha256": "1559c83998a5a850f8bf140b711da7462dc671d7d3c88ddef95d2135fef3a7fb"
+    },
+    "pressure_atlas_owner": {
+      "path": "tradebot/research/xsp_pressure_atlas.py",
+      "sha256": "47bb47a8378a68e3c8785f945900e7ea5f2c11a9f14421dae5fd2903526823ce"
+    },
+    "pressure_tape_generation": {
+      "path": "backtests/xsp/opening_edge_v3_pressure_tape_generation.json",
+      "sha256": "45111626d4fc4775c52f9a00f6b70984e6971f35edcbeb111f583f4814160eab"
+    }
+  },
+  "authority": "prospective_count_and_morphology_only_no_outcomes_no_permission_no_orders_no_capital",
+  "capital_authority": "none",
+  "classifier_open": false,
+  "cohort_gate": {
+    "minimum_complete_crowned_targets": 30,
+    "minimum_each_crowned_direction": 10,
+    "minimum_repeated_morphologies_each_candidate_family": 5
+  },
+  "eligible_start_utc": "2026-08-06T21:48:25.337314+00:00",
+  "generation_id": "4c737948773013297d8fd90f50a588f90e3fbbed7107e10958f4a528779ae82c",
+  "incumbent_strategy_version": "xsp.opening-edge-v4-dual-clock-arbitration-p009.v1",
+  "inherited_treatment_ids": [
+    "e93cebcaf418e3209c1c5749fbb59d00773effbe19567c8e3a448e34df83d9d8"
+  ],
+  "order_authority": "none",
+  "outcomes_open": false,
+  "owner_path": "tradebot/research/xsp_pressure_accumulator.py",
+  "owner_sha256": "0d7af0eac7bcf4d7cd10910de4c88a6757a7c3fbef7918cd5502641992976f77",
+  "permission_open": false,
+  "predecessor_generation_id": "015d888b73ed3f3f1b81dc833c04aeb3f6ccea0ecc30b4700047b46d4dce37e5",
+  "pressure_tape_generation_sha256": "45111626d4fc4775c52f9a00f6b70984e6971f35edcbeb111f583f4814160eab",
+  "registered_at_utc": "2026-08-06T21:48:25.337314+00:00",
+  "schema": "xsp.pressure-atlas-accumulation-generation.v1",
+  "selection_id": "e0f61f74286e1d2b655e253633b0842cb47d41ad7b66fb4567eece3aa46d674b",
+  "source_strategy_version": "xsp.opening-edge-v4-dual-clock-source-p009.v1",
+  "state_law": {
+    "formation_seconds": 60,
+    "formation_side": "strictly_before_signal_bar_close",
+    "observer_failure_changes_live_verdict": false,
+    "observer_runs_after_live_transport": true,
+    "one_treatment_per_crowned_target": true,
+    "partial_or_invalid_window": "append_nothing",
+    "rescan_immutable_source_prefix": true,
+    "same_clock_spy_impulse_missing": "underwarmed",
+    "same_target_different_morphology": "fail_closed"
+  },
+  "submitted_orders": 0
+}

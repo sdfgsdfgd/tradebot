@@ -342,6 +342,23 @@ def test_pressure_accumulator_successor_rehashes_every_owner(tmp_path: Path) -> 
     assert generation["submitted_orders"] == 0
 
 
+def test_committed_p009_pressure_successor_binds_the_live_run() -> None:
+    generation, generation_sha = load_xsp_pressure_accumulator_generation()
+
+    assert generation_sha == (
+        "d8f26874824be95c6e0eaa7532e31b1a7f8468602b454d4b700287ee05de0740"
+    )
+    assert generation["generation_id"] == (
+        "4c737948773013297d8fd90f50a588f90e3fbbed7107e10958f4a528779ae82c"
+    )
+    assert generation["selection_id"] == (
+        "e0f61f74286e1d2b655e253633b0842cb47d41ad7b66fb4567eece3aa46d674b"
+    )
+    assert len(generation["inherited_treatment_ids"]) == 1
+    assert generation["order_authority"] == "none"
+    assert generation["submitted_orders"] == 0
+
+
 def test_pressure_accumulator_appends_one_target_exactly_once(tmp_path: Path) -> None:
     root = Path(__file__).resolve().parents[1]
     generation_path = _p009_generation(tmp_path, root)
