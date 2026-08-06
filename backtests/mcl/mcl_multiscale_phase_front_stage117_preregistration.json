@@ -149,8 +149,16 @@
   },
   "pre_outcome_implementation": {
     "evaluator_path": "/var/tmp/mcl_stage117_multiscale_phase_front.py",
-    "evaluator_sha256": "PENDING_PRE_OUTCOME_IMPLEMENTATION",
-    "self_test": "PENDING"
+    "evaluator_sha256": "7a7214ff77cd845971e1c35fa50e0be4454420dd61a8cadb29a3e81e1f00d78f",
+    "self_test": "PASS_MAC_AND_Q_COMPILE_LINT_SYNTHETIC_STATE_MACHINE",
+    "pre_replay_contract_corrections": [
+      "Consume, row-count, and hash the frozen source prefix rather than merely naming it; join only later canonical source decisions after exact timestamp/fingerprint deduplication.",
+      "Treat the first subsequent V18 RAW_TURN as terminal; an ordinary front can never terminate on its own onset decision.",
+      "Quarantine missing horizons and unexpected open-session five-minute source gaps as UNDERWARM_OR_GAP while preserving scheduled maintenance and weekend closures.",
+      "Project the frozen RTH/GTH receipt session and enforce the both-session count gate.",
+      "Carry Stage-114 bind, handoff, crest, continuation, and normalization transitions as path evidence without creating duplicate treatments.",
+      "Inspect forbidden outcome/action keys structurally so categorical ORDERED labels cannot trigger a false text-match failure."
+    ]
   },
   "outcomes_exposed": false,
   "submitted_orders": 0
