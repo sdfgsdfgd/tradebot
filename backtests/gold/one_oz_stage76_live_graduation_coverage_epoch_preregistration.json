@@ -1,0 +1,78 @@
+{
+  "schema": "gold.one-oz-stage76-live-graduation-coverage-epoch-preregistration.v1",
+  "authority": "prospective_evidence_clock_only_no_strategy_no_broker_no_orders_no_capital",
+  "registered_at_utc": "2026-08-06T00:37:11+00:00",
+  "eligible_start_utc": "2026-08-06T02:02:00+00:00",
+  "selection": {
+    "selection_id": "62344ce21bf7c6f01095abab14b6ca8ef79c9806abb35294859fc9574a5f7574",
+    "path": "db/calibration/selections/62344ce21bf7c6f01095abab14b6ca8ef79c9806abb35294859fc9574a5f7574.json",
+    "sha256": "5fc9048d37a42e00da621862dac02ebeea1f14f66e55ab2c17cad5bda90e81c8"
+  },
+  "predecessor_receipts": [
+    {
+      "milestone": "24h",
+      "cutoff_utc": "2026-08-04T12:43:30+00:00",
+      "path": "backtests/gold/one_oz_stage76_live_graduation_24h_quarantine_20260804.json",
+      "sha256": "374140364263a695ec36d426cc83606cef3bda7b400bd01db478337419f44d8c",
+      "receipt_id": "77e8fcbfa58af35279461a0bcff53960261de68104475a70b085d48293c07419",
+      "verdict": "QUARANTINE"
+    },
+    {
+      "milestone": "48h",
+      "cutoff_utc": "2026-08-05T12:43:30+00:00",
+      "path": "backtests/gold/one_oz_stage76_live_graduation_48h_quarantine_20260805.json",
+      "sha256": "b1f2d62da0324ea429f840844397a6652f90d6bc26c2fcbb3c20d4b7397ceec6",
+      "receipt_id": "80ff3c9c643514f34acea535f5ae8529a57efe7c74a7709c22d209ed1ccc8ab7",
+      "verdict": "QUARANTINE"
+    }
+  ],
+  "terminal_checkpoint": {
+    "ledger_rows_at_registration": 763,
+    "checkpoint_id": "af4adc6eb2210cc7e031ec3caba507139d6ea22879aecfa72268236f8d54f936",
+    "recorded_at_utc": "2026-08-06T00:37:00.932253+00:00",
+    "evaluation_as_of_utc": "2026-08-06T00:37:00.932253+00:00",
+    "evidence_sha256": "e151df40c1a5e4888d72cfdee85f78d4fe253f8e82ccd7aae0f5dac9dc6f20b7",
+    "position_from_fills": 0.0,
+    "fill_count": 0,
+    "closed_trades": 0,
+    "run_net_usd": 0.0,
+    "drawdown_usd": 0.0,
+    "safety_breaches": [],
+    "broker_positions": [],
+    "broker_open_orders": [],
+    "submitted_orders": 0
+  },
+  "capital_owner_stability": {
+    "path": "backtests/portfolio_capital_owner_stability_20260806.json",
+    "sha256": "528b0c20879692e9d095ebf51adae33136ea502a64afe449c55d292889f4449b",
+    "plan_id": "ed07a506ff82c2d16ad87c38f1e315735d90601e914a98c64c798164eb33efb1",
+    "sleeves": 3
+  },
+  "frozen_law": {
+    "owner": "tradebot/research/live_futures_profitability.py",
+    "scope": "one optional shared futures coverage epoch; Gold is the first binding and MCL remains unbound",
+    "coverage_start": "the exact first eligible natural timer slot, never the first convenient later observation",
+    "baseline": "the eligible-start checkpoint must be selected, addressed, flat, reconciled, attribution-complete, breach-free, and economically monotone from the registered terminal checkpoint",
+    "economics": "all cumulative fills, gross, costs, net, wins, trades, and drawdown remain inherited from the original selected run",
+    "coverage": "only natural slots at or after eligible_start_utc determine fresh coverage completeness",
+    "gaps": "the two predecessor gaps remain immutable and are never backfilled; any post-epoch missing or conflicting slot invalidates the successor prefix",
+    "graduation": "the existing 24h, 48h, and five-session elapsed, execution, positive-net, drawdown, attribution, runtime-parity, restart, and capital-owner gates remain unchanged",
+    "before_eligibility": "NOT_STARTED",
+    "selection_or_runtime_change": "forbidden"
+  },
+  "invariants": {
+    "strategy_selection_changed": false,
+    "signal_or_lifecycle_changed": false,
+    "execution_or_order_type_changed": false,
+    "risk_limit_changed": false,
+    "capital_plan_changed": false,
+    "broker_or_timer_mutated": false,
+    "missing_slots_backfilled": false,
+    "pre_epoch_economics_inherited": true,
+    "profitability_threshold_changed": false,
+    "mcl_coverage_epoch_activated": false,
+    "order_authority": "none",
+    "capital_authority": "none"
+  },
+  "submitted_orders": 0
+}

@@ -1,0 +1,146 @@
+{
+  "authority": "cutoff_bound_evidence_reduction_only",
+  "boundaries": {
+    "broker_queried": false,
+    "order_authority_mutated": false,
+    "profitability_clock_mutated": false,
+    "selection_mutated": false,
+    "service_or_timer_mutated": false,
+    "submitted_orders": 0
+  },
+  "gates": {
+    "attribution": {
+      "evidence": {
+        "attribution_complete": true,
+        "state_rows": 289
+      },
+      "reasons": [],
+      "status": "PASS"
+    },
+    "capital_owner_stability": {
+      "evidence": {
+        "generation_path": "/home/x/Desktop/py/tradebot/db/calibration/portfolio_generations/ed07a506ff82c2d16ad87c38f1e315735d90601e914a98c64c798164eb33efb1.json",
+        "generation_sha256": "d5484fd3afc439d397c4e865e3c9b6c85d0446705e344d4524151d4e36909e66",
+        "path": "db/calibration/portfolio_capital_owner_stability.json",
+        "plan_id": "ed07a506ff82c2d16ad87c38f1e315735d90601e914a98c64c798164eb33efb1",
+        "sha256": "528b0c20879692e9d095ebf51adae33136ea502a64afe449c55d292889f4449b",
+        "sleeves": 3,
+        "source_revision": null
+      },
+      "reasons": [],
+      "status": "PASS"
+    },
+    "cash_risk_safety": {
+      "evidence": {
+        "closed_trades": 0,
+        "drawdown_usd": 0.0,
+        "fill_count": 0,
+        "latest_risk_fingerprint": "2d1c57ecf3d89c1c5cbf86d21fdc8b8551b2ef1c43f4bd639dc45d3c8ab31f24",
+        "state_rows": 289
+      },
+      "reasons": [],
+      "status": "PASS"
+    },
+    "execution": {
+      "evidence": {
+        "fills": 0,
+        "orders": 0
+      },
+      "reasons": [
+        "execution_not_observed"
+      ],
+      "status": "HOLD"
+    },
+    "identity": {
+      "evidence": {
+        "ledger_prefix_records": 327,
+        "ledger_prefix_sha256": "e8d75d6abffd3d3e418bc30b7648588955d1e8671c1f43479dc20b3e77d0df1c",
+        "selection_file_sha256": "5fc9048d37a42e00da621862dac02ebeea1f14f66e55ab2c17cad5bda90e81c8",
+        "selection_id": "62344ce21bf7c6f01095abab14b6ca8ef79c9806abb35294859fc9574a5f7574"
+      },
+      "reasons": [],
+      "status": "PASS"
+    },
+    "profitability": {
+      "evidence": {
+        "required_milestones": [
+          "24h"
+        ],
+        "target": "24h"
+      },
+      "reasons": [
+        "incomplete_session_coverage"
+      ],
+      "status": "INVALID"
+    },
+    "restart": {
+      "evidence": {
+        "first_natural_checkpoint_id": "25a1cb9b4c14bf13c6a7b694ccadd5043ec87b9d5e911317acd232474d216492",
+        "restart_checkpoint_id": "c12b3611c3f76c5d51d5a1e044991e9f8b3dd61a7e1eddcb3b4515cb73017c16"
+      },
+      "reasons": [],
+      "status": "PASS"
+    },
+    "runtime_parity": {
+      "evidence": {
+        "path": "backtests/gold/one_oz_regime_harmony_runtime_parity_20260803.json",
+        "sha256": "191ba059a1639d3c2c895379aeb72b33401d035da0169c717ae21ffca826ba32",
+        "ten_year_ledger_sha256": "f5c212b19b9c5b6f697f01b6162a2f4382d8503afa4ebaa3844add45326a35a5",
+        "three_year_ledger_sha256": "c3add7cde287718b895de70936aa9aeab18b465bd6e68d3b8140c262650a3733"
+      },
+      "reasons": [],
+      "status": "PASS"
+    }
+  },
+  "identity": {
+    "ledger_prefix": {
+      "candidate_records": 327,
+      "clock_regressions": 2,
+      "cutoff_utc": "2026-08-04T12:43:30+00:00",
+      "excluded_for_dependency": 0,
+      "first_record_id": "92c6361eb0140449d2fe6f1e036500087877eb30bf463ad9e6016b27921d2497",
+      "included_records": 327,
+      "last_record_id": "9380106702d2807b66eace83f0b734d0c0ca50915d844f0ac35dec4b1bf3d25a",
+      "schema": "live.calibration-logical-prefix.v1",
+      "sha256": "e8d75d6abffd3d3e418bc30b7648588955d1e8671c1f43479dc20b3e77d0df1c"
+    },
+    "selection": {
+      "capital_sleeve": "gold-1oz-stage76-margin",
+      "execution_strategy_version": "gold.1oz-regime-harmony-live-execution.v1",
+      "path": "/home/x/Desktop/py/tradebot/db/calibration/selections/62344ce21bf7c6f01095abab14b6ca8ef79c9806abb35294859fc9574a5f7574.json",
+      "run_id": "62344ce21bf7c6f01095abab14b6ca8ef79c9806abb35294859fc9574a5f7574",
+      "run_started_at_utc": "2026-08-03T12:41:13.968661+00:00",
+      "selected_at_utc": "2026-08-03T12:41:13.968661+00:00",
+      "selection_file_sha256": "5fc9048d37a42e00da621862dac02ebeea1f14f66e55ab2c17cad5bda90e81c8",
+      "selection_id": "62344ce21bf7c6f01095abab14b6ca8ef79c9806abb35294859fc9574a5f7574",
+      "signal_strategy_version": "gold.1oz-regime-harmony-stage76.v1"
+    },
+    "selection_file_sha256": "5fc9048d37a42e00da621862dac02ebeea1f14f66e55ab2c17cad5bda90e81c8"
+  },
+  "reasons": [
+    "execution:execution_not_observed",
+    "profitability:incomplete_session_coverage"
+  ],
+  "receipt_id": "77e8fcbfa58af35279461a0bcff53960261de68104475a70b085d48293c07419",
+  "remaining_requirements": [
+    "execution:execution_not_observed",
+    "profitability:incomplete_session_coverage"
+  ],
+  "schema": "live.strategy-graduation.v1",
+  "subject": {
+    "account_fingerprint": "bddaf5682a861c6e5fb3ef815a84b8e64c366bf94a6cfe2d459040603badaced",
+    "capital_sleeve": "gold-1oz-stage76-margin",
+    "execution_sleeve": "1OZ",
+    "run_id": "62344ce21bf7c6f01095abab14b6ca8ef79c9806abb35294859fc9574a5f7574",
+    "selection_id": "62344ce21bf7c6f01095abab14b6ca8ef79c9806abb35294859fc9574a5f7574",
+    "signal_instrument": "XAUUSD/GC",
+    "strategy_id": "gold.1oz-regime-harmony-stage76.v1",
+    "strategy_version": "gold.1oz-regime-harmony-live-execution.v1"
+  },
+  "target": {
+    "cutoff_utc": "2026-08-04T12:43:30+00:00",
+    "milestone": "24h",
+    "required_predecessors": []
+  },
+  "verdict": "QUARANTINE"
+}

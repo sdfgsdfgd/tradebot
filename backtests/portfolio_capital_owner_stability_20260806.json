@@ -1,0 +1,58 @@
+{
+  "authority": "frozen_portfolio_package_generation",
+  "boundaries": {
+    "broker_queried": false,
+    "profitability_clock_mutated": false,
+    "selection_mutated": false,
+    "service_or_timer_mutated": false,
+    "submitted_orders": 0
+  },
+  "capital_semantic_surface": {
+    "tradebot/live/capital.py": "fc33f4c6178f8b14b52610ddd4dcc9449bca72361dd3ad8eea12c6d625bf4f77",
+    "tradebot/live/capital_packages.py": "3c217c37826b2f200cbd995a28d76864129673454477abfb85a3f39be3a41682",
+    "tradebot/live/capital_stability.py": "edeec977d4d22ee2fe5cd3133810464350efc26ad411dd5cfb7a7e5af40a3518",
+    "tradebot/research/live_futures_profitability.py": "f6cabe80ade9ca130c19f5d7e831d1d5c2e7161ae31872cb1f0ccbd4eb657acd",
+    "tradebot/research/live_graduation.py": "11d1875daa62a93e414e8ab53a7c3186ab07785ed5e835de028fee06bf31d15d",
+    "tradebot/research/live_portfolio_packages.py": "80683de275512a3fd370fd10808be40e0378482c6e360acc1c3be7f4d03bbba3",
+    "tradebot/research/mcl_live.py": "b54fd8b9a681ad796c6519e7587ad9ab3fa4ec0ddf4533ef0c0800351a498f05",
+    "tradebot/research/mcl_live_cli.py": "6682662458b034ed4ca4d703e498296bae2b6d7b30609ffb922a00fc69fbf8f7",
+    "tradebot/research/mcl_live_transport.py": "8b204647072bfe91ae2f29425c34c5c581c2305fa25022c4270360cab8a97add",
+    "tradebot/research/mcl_profitability.py": "913389cce7f2a96a906443eae7ce1ce878a98dbbe479a32529682278d7a9161e"
+  },
+  "checks": {
+    "allocated_packages_match_selections": true,
+    "capital_semantic_surface_bound": true,
+    "entry_capacity_policy_validated": true,
+    "generation_sha256_bound": true,
+    "live_capital_plan_v3_validated": true,
+    "selected_runs_content_addressed": true
+  },
+  "generation": {
+    "path": "db/calibration/portfolio_generations/ed07a506ff82c2d16ad87c38f1e315735d90601e914a98c64c798164eb33efb1.json",
+    "plan_id": "ed07a506ff82c2d16ad87c38f1e315735d90601e914a98c64c798164eb33efb1",
+    "sha256": "d5484fd3afc439d397c4e865e3c9b6c85d0446705e344d4524151d4e36909e66"
+  },
+  "observed_at_utc": "2026-08-06T00:31:16.928933+00:00",
+  "schema": "live.portfolio-capital-owner-stability-manifest.v1",
+  "selections": {
+    "gold-1oz-stage76-margin": {
+      "allocated_package_id": "gold-one-contract",
+      "selection_file_sha256": "5fc9048d37a42e00da621862dac02ebeea1f14f66e55ab2c17cad5bda90e81c8",
+      "selection_id": "62344ce21bf7c6f01095abab14b6ca8ef79c9806abb35294859fc9574a5f7574",
+      "selection_path": "db/calibration/selections/62344ce21bf7c6f01095abab14b6ca8ef79c9806abb35294859fc9574a5f7574.json"
+    },
+    "mcl-two-speed-auction-margin": {
+      "allocated_package_id": "mcl-one-contract-stage91",
+      "selection_file_sha256": "0d7057f9591b6de8379365935ba5724e50285a6cf26a59b77e6354faf91a1b9c",
+      "selection_id": "8adead895d3bd460b460f832d725046a3ea34079525a80a1662004ade2c17c93",
+      "selection_path": "db/calibration/selections/8adead895d3bd460b460f832d725046a3ea34079525a80a1662004ade2c17c93.json"
+    },
+    "xsp-upro-spxu-rth-cash": {
+      "allocated_package_id": "xsp-usd-800",
+      "selection_file_sha256": "d5f616e43adb26f06534fbaa0c513358b70078a9755f3a9ecdcd81dc9cebc35d",
+      "selection_id": "1083c1813e6b0ca4cf5777a5275e06be651622bc6e6207e718b549296a9bdd87",
+      "selection_path": "db/calibration/selections/1083c1813e6b0ca4cf5777a5275e06be651622bc6e6207e718b549296a9bdd87.json"
+    }
+  },
+  "verdict": "PASS_CAPITAL_OWNER_STABLE"
+}
