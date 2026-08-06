@@ -1,0 +1,52 @@
+{
+  "schema": "xsp.opening-edge-v4-pressure-phase-front-p004-generation.v1",
+  "registered_at_utc": "2026-08-06T10:23:40Z",
+  "authority": "content_addressed_historical_count_and_morphology_only_no_outcomes_no_signal_no_orders_no_capital",
+  "mission": "Count the exact causal pressure-phase-front emissions and all refusal, relapse, and unmatched controls before any future price or economic outcome is opened.",
+  "preregistration": {
+    "path": "backtests/xsp/opening_edge_v4_pressure_phase_front_p004_preregistration.json",
+    "sha256": "dc5ed784f3c60942917d2b1e944973694956f65e1aba8f7063665302156aea7c"
+  },
+  "evaluator": {
+    "path": "/tmp/xsp_p004_pressure_phase_front_count.py",
+    "sha256": "ccf978ab018703dacca02d2309eb5d752c6fc807ce695e8ab10f4faae582c8a6"
+  },
+  "consensus_source": {
+    "path": "/tmp/xsp_p002c_scale_consensus_census.py",
+    "sha256": "67e7daf6d2eb05724e903567bfb1c74d415d4ce140cc3f261d2cbbfd95472c3f"
+  },
+  "source_identity": {
+    "tape_sha256": "6d239c88dadbbb259a8e1e691c7311a05436859db7f1fe330b21d84daa3c67df",
+    "campaign_sha256": "dfba4165dad28d7d74a80132055cd9c317f0bd6a8917bec8a5da6e5623a97734",
+    "crown_sha256": "d47eb39cef3d2ca575d779d6b5b87e3b88e08606fd09a8801b8cb55c350208db",
+    "runtime_parity_sha256": "f9f06b2b8683b121a7958f25a9a924bc47cca76059d51a60aa30510bdbabfe95",
+    "pivot_preregistration_sha256": "075067497250eba891d4f10a2c6b17831f0851459bca089aaf112dc74c2e0056",
+    "phase_owner_sha256": "49578ec261c7fd47730bd2929033aa45f753da42318572eaf690eb0c6d3d1c08",
+    "pressure_owner_sha256": "b40974c26d1afd6b26b707494195668e777eb2caad20f0d9e6f61b6d5d07d570",
+    "landmark_owner_sha256": "09e7f453d1779ca7f25726a5317b2af9a4120d420bc1aa8e411692f53e670527"
+  },
+  "frozen_law": {
+    "lane": "RTH completed five-minute closes only",
+    "pressure": "SPY same-slot prior-only volume and normalized-TR ranks; 63 references, 21 minimum, no memory and no direction authority",
+    "direction": "XspPhaseFrontEngine candidate direction only",
+    "transport": "same-close XSP and SPY returns plus at least three of five aligned slopes and velocities in each instrument",
+    "emission": "first ONE_SIDED, ELEVATED, or SHOCK FULL_ACCEPTANCE observation in an eligible phase, once per uninterrupted candidate wave",
+    "oracle": "evaluation-only one-to-one join to the frozen three-scale-stable RTH pressure/shock landmark family",
+    "outcomes": "sealed"
+  },
+  "invariants": {
+    "incumbent_xsp_changed": false,
+    "live_selection_changed": false,
+    "live_direction_authority": "none",
+    "new_recorder": false,
+    "new_service": false,
+    "new_timer": false,
+    "execution_changed": false,
+    "capital_changed": false,
+    "mcl_changed": false,
+    "gold_changed": false,
+    "future_prices_exposed": false,
+    "outcomes_exposed": false,
+    "submitted_orders": 0
+  }
+}
