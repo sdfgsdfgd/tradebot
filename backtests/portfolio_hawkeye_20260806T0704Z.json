@@ -1,0 +1,325 @@
+{
+  "schema": "live.portfolio-hawkeye.v1",
+  "observed_at_utc": "2026-08-06T07:09:31+00:00",
+  "authority": "read_only_causal_observation_and_incubator_ranking_no_signal_no_orders_no_capital",
+  "review_block": {
+    "review": 3,
+    "required": 6,
+    "review_started_at_utc": "2026-08-06T07:04:10+00:00",
+    "prior_review_utc": "2026-08-06T06:27:05+00:00",
+    "scheduled_boundary_utc": "2026-08-06T06:47:05+00:00",
+    "started_seconds_after_boundary": 1025.0,
+    "settlement_completed_at_utc": "2026-08-06T07:09:31+00:00",
+    "preemption": "late_canonical_hawkeye_preempted_xsp_pivot_p002_generation_freeze_after_context_compaction",
+    "missed_slots_backfilled": 0,
+    "status": "OPEN"
+  },
+  "portfolio": {
+    "account_id": "U12825049",
+    "base_currency": "AUD",
+    "broker_observed_at_utc": "2026-08-06T07:07:33.662970+00:00",
+    "available_funds_aud": 3627.73,
+    "excess_liquidity_aud": 3627.73,
+    "equity_with_loan_aud": 3627.73,
+    "settled_cash_usd": 1062.21,
+    "positions": [],
+    "open_orders": []
+  },
+  "xsp": {
+    "selection_id": "1083c1813e6b0ca4cf5777a5275e06be651622bc6e6207e718b549296a9bdd87",
+    "source_checkpoint_id": "888239d60ef1abf20dfd7baecb3e3e688598b6844c3b522077a6a7dbec598068",
+    "live_checkpoint_id": "f2e024387dea7a2bbcbf6b8c51641413b36087966b2414b152b291ad31547b95",
+    "recorded_at_utc": "2026-08-06T07:07:07.391655+00:00",
+    "session": "GTH",
+    "plan_reason": "flat_target",
+    "entry_window_open": false,
+    "position": {
+      "UPRO": 0,
+      "SPXU": 0
+    },
+    "orders": 0,
+    "fills": 2,
+    "closed_trades": 1,
+    "run_gross_usd": -10.299999999999955,
+    "run_cost_usd": 0.703328,
+    "run_net_usd": -11.003327999999954,
+    "drawdown_usd": 11.003327999999954,
+    "safety_breaches": [],
+    "quotes": {
+      "UPRO": {
+        "bid": 153.99,
+        "ask": 154.08,
+        "market_data_type": 1
+      },
+      "SPXU": {
+        "bid": 33.79,
+        "ask": 33.81,
+        "market_data_type": 1
+      }
+    },
+    "directional_impulse": {
+      "latest_bar_utc": "2026-08-06T07:05:00+00:00",
+      "horizons_minutes": [
+        5,
+        15,
+        30,
+        60,
+        120
+      ],
+      "slope_pct_per_bar": [
+        0.0,
+        0.012543361101739295,
+        0.0017296474546069085,
+        -0.0032414910858998467,
+        -0.0017287504159806584
+      ],
+      "slope_velocity_pct_per_bar": [
+        -0.03763008330521789,
+        -0.0030291223200566257,
+        0.004539559093693265,
+        0.001619800073031826,
+        -0.00010800487303073503
+      ],
+      "slope_signs": "NUUDD",
+      "velocity_signs": "DDUUD",
+      "trend_state": "up",
+      "direction": null,
+      "abstain_reason": "weak_direction",
+      "direction_score": 0.1340256605850884,
+      "smoothed_direction_score": 0.14134307547732033,
+      "coherence": 0.4,
+      "atr_ratio": 0.5261122670959549,
+      "atr_velocity_pct": -0.0030277078521426908,
+      "atr_acceleration_pct": -0.007347539957318041
+    },
+    "phase_front_observation": {
+      "prior_bar_utc": "2026-08-06T06:25:00+00:00",
+      "prior_slope_signs": "UDDDD",
+      "prior_velocity_signs": "UUUUU",
+      "current_bar_utc": "2026-08-06T07:05:00+00:00",
+      "current_slope_signs": "NUUDD",
+      "current_velocity_signs": "DDUUD",
+      "classification": "PARTIAL_FAST_SLOPE_REPAIR_LOST_FAST_VELOCITY_BEFORE_SLOW_PROPAGATION",
+      "interpretation": "The renewed all-velocity-UP repair did not propagate monotonically. Fifteen- and thirty-minute slopes became positive, but the five- and fifteen-minute velocities turned down while sixty- and one-hundred-twenty-minute slopes stayed down. This remains an unresolved recoil/relapse control, not a pivot admission or labeled outcome."
+    },
+    "daily_context": {
+      "directions": {
+        "5": "up",
+        "10": "up",
+        "21": "up",
+        "42": "up",
+        "63": "up",
+        "84": "up"
+      },
+      "hard_direction": "up",
+      "hard_age": 79,
+      "transition": "aligned_up",
+      "tr_phase": "high_down"
+    },
+    "pressure_onramp": {
+      "eligible_start_utc": "2026-08-06T13:20:00+00:00",
+      "complete_crowned_targets": 0,
+      "required_complete_crowned_targets": 30,
+      "permission_authority": "none"
+    }
+  },
+  "gold": {
+    "selection_id": "62344ce21bf7c6f01095abab14b6ca8ef79c9806abb35294859fc9574a5f7574",
+    "live_checkpoint_id": "4bf999215070e10df17592888fdf7f7c6950d20b4e6f42ed51c69d45ed30345a",
+    "recorded_at_utc": "2026-08-06T07:07:00.777014+00:00",
+    "plan_reason": "flat_no_target",
+    "position": 0,
+    "orders": 0,
+    "fills": 0,
+    "closed_trades": 0,
+    "run_net_usd": 0.0,
+    "drawdown_usd": 0.0,
+    "safety_breaches": [],
+    "quote": {
+      "contract": "1OZZ6",
+      "bid": 4315.25,
+      "ask": 4315.5,
+      "market_data_type": 1
+    },
+    "signal": {
+      "decision_bar_end_utc": "2026-08-06T04:00:00+00:00",
+      "decision_close": 4265.78,
+      "daily_hard_direction": "down",
+      "daily_soft_direction": "up",
+      "h4_hard_direction": "up",
+      "h4_raw_direction": "up",
+      "h4_fast_slope_dollars": 13.063991890185207,
+      "h4_fast_acceleration_dollars": -7.289711968624033,
+      "raw_turn": null,
+      "proposed_direction": null,
+      "admitted_direction": null
+    },
+    "interpretation": "Gold remains flat under the unchanged D1-DOWN/H4-UP conflict. The H4 slope remains positive but its acceleration is negative, and no raw turn, proposal, admission, order, or fill exists."
+  },
+  "mcl": {
+    "selection_id": "8adead895d3bd460b460f832d725046a3ea34079525a80a1662004ade2c17c93",
+    "source_checkpoint_id": "07f3b3ccf0269b92ffa7a6e9e2f41d5d38429682980da200eb5cc6c0933d7378",
+    "live_checkpoint_id": "2fae33e7d960eac805341b31ec5f2c15537e53e469ee325bc0e421b4e4e869be",
+    "recorded_at_utc": "2026-08-06T07:07:33.662666+00:00",
+    "plan_reason": "flat_no_target",
+    "position": 0,
+    "orders": 0,
+    "fills": 0,
+    "closed_trades": 0,
+    "run_net_usd": 0.0,
+    "drawdown_usd": 0.0,
+    "mfe_usd": 0.0,
+    "mae_usd": 0.0,
+    "safety_breaches": [],
+    "quote": {
+      "contract": "MCLU6",
+      "bid": 75.08,
+      "ask": 75.09,
+      "market_data_type": 1
+    },
+    "directional_impulse": {
+      "latest_bar_utc": "2026-08-06T07:05:00+00:00",
+      "horizons_minutes": [
+        30,
+        60,
+        120,
+        240,
+        480
+      ],
+      "slope_signs": "DDUDD",
+      "velocity_signs": "DDDDD",
+      "direction": null,
+      "abstain_reason": "weak_direction",
+      "direction_score": -0.04430237618400474,
+      "smoothed_direction_score": 0.04520487420075569,
+      "coherence": 0.8,
+      "atr_ratio": 1.5195139256656316,
+      "atr_velocity_pct": -0.007725883129748756,
+      "atr_acceleration_pct": -0.019856943810592664
+    },
+    "latest_v18_turn": {
+      "raw_turn_at_utc": "2026-08-06T06:40:00+00:00",
+      "raw_direction": "up",
+      "raw_velocity_breadth": 5,
+      "raw_parity_ticks": 14,
+      "raw_basis_velocity_ticks": -2,
+      "maturation_at_utc": "2026-08-06T06:45:00+00:00",
+      "maturation_cl_move": -0.0799999999999983,
+      "maturation_mcl_move": -0.07000000000000739,
+      "retained": true,
+      "parity_aligned": false,
+      "admitted_direction": null,
+      "interpretation": "A broad raw UP turn formed after the shock recovery, but both CL and MCL fell on the one-bar maturation clock. The candidate was therefore rejected rather than buying a failed continuation."
+    },
+    "stage114_last_wave": {
+      "episode_id": "24b9a183851919be21c9cb875d40cbd75f050e89a687ab4e3aef9a4eee00546c",
+      "authority_bound_at_utc": "2026-08-06T05:30:38+00:00",
+      "crest_at_utc": "2026-08-06T05:30:41+00:00",
+      "continuation_at_utc": "2026-08-06T05:30:56+00:00",
+      "rotation_exit_at_utc": "2026-08-06T05:33:39+00:00",
+      "normalized_at_utc": "2026-08-06T06:28:00+00:00",
+      "authority_direction": "up",
+      "maximum_volume_multiple": 14.619047619047619,
+      "stage112_missing_gate": "completed_minute_onset_requires_15x_before_three_minute_range_volume_velocity_confirmation",
+      "outcomes_exposed": false,
+      "live_authority": "none"
+    },
+    "predictive_cohorts": {
+      "stage87_90": {
+        "complete": 9,
+        "required": 30,
+        "directions": {
+          "down": 4,
+          "up": 5
+        },
+        "admitted_turns": 1,
+        "resolved_handoffs": 3,
+        "pending_candidates": 1,
+        "verdict": "ACCUMULATE"
+      },
+      "stage114": {
+        "complete": 2,
+        "required": 30,
+        "authority_directions": {
+          "down": 1,
+          "up": 1
+        },
+        "continuations": 1,
+        "authority_handoffs": 0,
+        "open_episode": 0,
+        "verdict": "ACCUMULATE"
+      }
+    }
+  },
+  "news": {
+    "publication_id": "2d24bb04f9d80659cc774a0b82aaede23776ec0746583bad8449ddfdf3878cd2",
+    "signal_as_of_utc": "2026-08-06T05:40:58+00:00",
+    "snapshot_as_of_utc": "2026-08-06T05:52:14+00:00",
+    "run_status": "published",
+    "xsp": {
+      "direction": 1,
+      "impact": 38,
+      "confidence": 0.95,
+      "change": "weakening"
+    },
+    "gold": {
+      "direction": 1,
+      "impact": 14,
+      "confidence": 0.84,
+      "change": "strengthening"
+    },
+    "mcl": {
+      "direction": 1,
+      "impact": 12,
+      "confidence": 0.91,
+      "change": "unchanged"
+    },
+    "authority": "context_only"
+  },
+  "incubator": {
+    "review_position": "3/6",
+    "block_status": "OPEN",
+    "retained_candidates": [
+      {
+        "rank": 1,
+        "candidate": "MCL Subshock Bridge plus Multiscale Phase-Front Authority",
+        "status": "STAGE114_2_OF_30_UP_WAVE_CONFIRMED_AS_STAGE112_MISSED_PERMISSION_SPECIMEN"
+      },
+      {
+        "rank": 2,
+        "candidate": "XSP Multiscale Phase-Front Pivot plus Pressure On-ramp",
+        "status": "P002_PRECOUNT_OWNER_CORRECTED_AND_SYNTHETICALLY_GREEN"
+      }
+    ],
+    "bounded_replays_started_this_block": 0,
+    "bounded_replay_budget": 1,
+    "new_action_thresholds": 0,
+    "new_services_or_timers": 0
+  },
+  "integrated_interpretation": {
+    "xsp": "The fast repair remained nonmonotonic: two middle slopes crossed UP while fast velocity relapsed and the slow clocks stayed DOWN. This is a useful causal control for the phase-front owner, not an inferred missed trade.",
+    "gold": "Flat remains coherent under D1-DOWN/H4-UP conflict and no proposal.",
+    "mcl": "Stage 114 observed a genuine 14.619x UP authority wave that Stage 112 could not consider because its separate completed-minute onset begins at 15x. The later V18 UP raw turn failed its maturation bar. This is a high-value prospective missed-permission specimen, but one exposed episode cannot alter live authority.",
+    "portfolio": "All three champions are broker-flat and order-free; no safety or capital action is required."
+  },
+  "services": {
+    "xsp_shadow_timer": "active/waiting",
+    "xsp_pressure_tape_timer": "active/waiting",
+    "gold_onset_timer": "active/waiting",
+    "gold_live_timer": "active/waiting",
+    "mcl_live_timer": "active/waiting",
+    "mcl_predictive_runtime_timer": "active/waiting",
+    "mcl_turn_tape": "active/running",
+    "failed_units": 0
+  },
+  "boundaries": {
+    "orders_submitted": 0,
+    "crown_changed": false,
+    "strategy_changed": false,
+    "selection_changed": false,
+    "capital_changed": false,
+    "live_authority_changed": false,
+    "future_outcomes_exposed": false,
+    "next_hawkeye_review_utc": "2026-08-06T07:27:05+00:00"
+  }
+}
