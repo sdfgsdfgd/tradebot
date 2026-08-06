@@ -1,0 +1,143 @@
+{
+  "schema": "xsp.phase-front-pivot-p002q-quiet-transition-generation.v1",
+  "registered_at_utc": "2026-08-06T09:00:53Z",
+  "authority": "content_addressed_count_and_morphology_only_no_outcomes_no_action_no_orders_no_capital",
+  "mission": "Determine whether an ordered completed-clock phase transition supplies a broad quiet structural XSP landmark family without weakening the frozen excursion-scale oracle.",
+  "predecessor": {
+    "generation_path": "backtests/xsp/opening_edge_v4_phase_front_p002c_generation.json",
+    "generation_sha256": "4c09bc2b1fffbac52e5f4d72efd2714fea15e347b7efb8619fbecff36fc79528",
+    "result_path": "backtests/xsp/opening_edge_v4_phase_front_p002c_count_rejection.json",
+    "result_sha256": "28e21742de9f2d188af8e8b0d679828c057598cade01aeb7bf6cb076ccddd738",
+    "verdict": "REJECT_SCALE_CONSENSUS_COUNT_ONLY",
+    "reason": "The three-profile-stable family passed every frozen breadth gate except quiet structural DOWN, which had 17 events against the unchanged floor of 20; quiet UP had 29.",
+    "outcomes_exposed": false
+  },
+  "quiet_transition_law": {
+    "universe": "RTH candidate episodes emitted by the unchanged five-clock causal phase-front owner after all 5m, 15m, 30m, 60m, and 120m clocks are ready",
+    "clock": "completed five-minute observations only; missing historical seconds and ETF transport are never synthesized",
+    "opening_boundary": "the required 120m clock warmup naturally excludes the opening family; P-002C remains the opening, pressure, shock, and GTH landmark owner",
+    "regime": "every candidate observation from repair spark through terminal must be ORDINARY under the existing prior-only SPY same-RTH-slot volume and normalized-TR rank law",
+    "candidate_origin": "the unchanged phase owner begins only when both fast-clock velocities persist in the direction opposite the incumbent structural-slope majority",
+    "persistent_velocity_arrival": "both 5m and 15m velocity arrivals plus at least one 30m, 60m, or 120m arrival must be recorded in nondecreasing fast-to-slow order",
+    "slope_cascade": "both fast slopes and at least two structural or slow slopes must cross in the candidate direction with ordered causal arrival timestamps",
+    "recoil": "a direct ordered cascade is one class; if recoil occurs, explicit REACCELERATION must precede the terminal cascade",
+    "terminal": "SLOW_SLOPE_CASCADE under unavailable historical transport is the morphology-only terminal; RELAPSED, incomplete cascade, pressure-contaminated, underwarmed, and right-censored episodes remain named controls",
+    "economic_meaning": "unproved causal opportunity landmark only; qualification does not assert a profitable pivot, direction permission, trade, or captured excursion",
+    "future_aware_oracle_join": "none during P-002Q count; future price, excursion, serious label, return, MFE, MAE, and crown outcomes stay sealed",
+    "new_numeric_thresholds": null,
+    "selection_authority": "count_testability_only"
+  },
+  "source_identity": {
+    "preregistration_sha256": "075067497250eba891d4f10a2c6b17831f0851459bca089aaf112dc74c2e0056",
+    "campaign_sha256": "dfba4165dad28d7d74a80132055cd9c317f0bd6a8917bec8a5da6e5623a97734",
+    "base_evaluator_sha256": "46c44ed10d5f567764b2cf501aad95fa996ea7a2f17b0e5f63aa7c7822343d88",
+    "evaluator_sha256": "ee65b83c314f035bac446a136b82b7f5bd59f98454a3b5b237ee100491e6387d",
+    "landmark_owner_sha256": "09e7f453d1779ca7f25726a5317b2af9a4120d420bc1aa8e411692f53e670527",
+    "phase_front_owner_sha256": "49578ec261c7fd47730bd2929033aa45f753da42318572eaf690eb0c6d3d1c08",
+    "crown_sha256": "d47eb39cef3d2ca575d779d6b5b87e3b88e08606fd09a8801b8cb55c350208db",
+    "runtime_parity_sha256": "f9f06b2b8683b121a7958f25a9a924bc47cca76059d51a60aa30510bdbabfe95",
+    "p002c_result_sha256": "28e21742de9f2d188af8e8b0d679828c057598cade01aeb7bf6cb076ccddd738",
+    "tape_sha256": "6d239c88dadbbb259a8e1e691c7311a05436859db7f1fe330b21d84daa3c67df"
+  },
+  "artifacts": {
+    "preregistration_path": "backtests/xsp/opening_edge_v4_phase_front_pivot_landmarks_preregistration.json",
+    "campaign_path": "/tmp/xsp_24x5_campaign.py",
+    "base_evaluator_path": "/tmp/xsp_p002_phase_front_census.py",
+    "evaluator_path": "/tmp/xsp_p002q_quiet_phase_census.py",
+    "landmark_owner_path": "tradebot/research/xsp_pivot_landmarks.py",
+    "phase_front_owner_path": "tradebot/research/xsp_phase_front.py",
+    "test_path": "tests/test_xsp_phase_front.py",
+    "test_sha256": "04dbcd28ad48ba8dca640a9787ce7073fc46f1d1e4d8bc0fe26b9c3ee01764d6"
+  },
+  "incumbent_identity": {
+    "strategy_version": "xsp.opening-edge-v3-regime-harmony-24x5.v1",
+    "research_crown_path": "backtests/xsp/opening_edge_v3_regime_harmony_24x5.json",
+    "runtime_parity_path": "backtests/xsp/opening_edge_v3_current_runtime_parity_audit.json",
+    "rth_trades": 425,
+    "gth_trades": 179,
+    "combined_trades": 604,
+    "rth_ledger_sha256": "40708a28476fad504d29b1222e52b88481b1c0da8313ed4667076e2b6ed3f157",
+    "gth_ledger_sha256": "9e04807fb77df431b7af27b8be6d5f5288c8512bfe80cb78b3c1fe70cabb8a98"
+  },
+  "tape_identity": {
+    "schema": "xsp.synthetic-24x5-tape.v1",
+    "construction": "exact_xsp_rth_plus_prior_close_anchored_spy_gth_curb",
+    "bars": 184957,
+    "rth_bars": 58560,
+    "sessions": 754,
+    "first_close_utc": "2023-07-24T00:20:00",
+    "last_close_utc": "2026-07-24T21:00:00",
+    "incomplete_sessions": 0
+  },
+  "windows": {
+    "year_1_discovery": [
+      "2023-07-24",
+      "2024-07-23"
+    ],
+    "year_2_validation": [
+      "2024-07-24",
+      "2025-07-23"
+    ],
+    "year_3_locked_final": [
+      "2025-07-24",
+      "2026-07-24"
+    ]
+  },
+  "count_gate": {
+    "minimum_quiet_transitions_each_direction_full": 20,
+    "both_directions_each_period": true,
+    "minimum_quiet_relapse_controls_each_direction": 10,
+    "maximum_quiet_right_censored_share": 0.02,
+    "minimum_phase_episodes_each_direction_each_year": 25,
+    "minimum_phase_ready_groups_each_lane_each_year": 150,
+    "minimum_each_control_phase_each_direction_full": 10,
+    "minimum_acceleration_readiness": 0.9,
+    "minimum_jerk_readiness": 0.9
+  },
+  "visibility": {
+    "allowed": [
+      "counts",
+      "missingness",
+      "categorical phase paths",
+      "categorical regime paths",
+      "causal arrival timestamps",
+      "direct versus recoil-survived cascade",
+      "relapse and censor controls"
+    ],
+    "forbidden": [
+      "future prices",
+      "future excursion",
+      "serious oracle labels",
+      "returns",
+      "PnL",
+      "MFE",
+      "MAE",
+      "action selection",
+      "threshold ranking",
+      "orders",
+      "capital"
+    ]
+  },
+  "next_stage_law": {
+    "on_pass": "freeze one categorical atlas that assigns P-002C scale consensus to opening, pressure, shock, and GTH while P-002Q owns quiet mechanism-defined transitions; only then may one bounded economic replay open",
+    "on_fail": "record the structural count failure and preserve P-002C; do not weaken ORDINARY, arrival order, recoil survival, a count floor, or the censor gate",
+    "live_authority": "none"
+  },
+  "invariants": {
+    "current_xsp_crown_changed": false,
+    "current_xsp_live_selection_changed": false,
+    "new_direction_owner": false,
+    "new_recorder": false,
+    "new_service": false,
+    "new_timer": false,
+    "gth_live_authority_changed": false,
+    "shared_limit_ladder_changed": false,
+    "shared_capital_owner_changed": false,
+    "mcl_changed": false,
+    "gold_changed": false,
+    "market_orders_permitted": false,
+    "outcomes_exposed": false,
+    "result_written": false,
+    "submitted_orders": 0
+  }
+}
