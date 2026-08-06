@@ -38,7 +38,8 @@ transcripts and routine test output do not belong here.
 | Closed shortcut | Broad historical pressure `ADMIT_NOW/WAIT/REVOKE` passed count first, then failed economics: combined `589` trades, `196.28/year`, `-$31.07` versus exact-latency baseline, and only one of three yearly PnL/DD slices improved |
 | Active hypothesis | A true pivot is the ordered propagation and survival of a new-direction velocity/slope phase front—not one velocity flip, one high-volume bar, or one later-confirmed chart bottom |
 | Current authority | Concept and experiment management only. No classifier, direction, permission, timing, chase, order, or capital authority |
-| First work | Freeze the pivot landmark/landing contract, reproduce the incumbent ledger exactly, then run one count-first multiscale phase-front census before opening outcomes |
+| Landmark authority | P-001 preregistration `opening_edge_v4_phase_front_pivot_landmarks_preregistration.json` (`07506749…`) freezes the `0.25×` prior-scale causal confirmation / `0.50×` serious outgoing-wave oracle, landing schema, and diagnostic-only neighbors before landmark outcomes |
+| First work | Build the pure landmark/phase-front owners against synthetic paths, re-prove the incumbent ledger exactly, then run one count-first multiscale census with economics sealed |
 | Hawkeye | Portfolio Hawkeye remains the preemptive outer loop. Slice this quest around its lawful 20-minute reviews; do not backfill missed reviews or manufacture market evidence |
 
 <!-- PIVOT-RESUME:END -->
@@ -325,9 +326,9 @@ At most one outcome-bearing replay may be active inside a Hawkeye block.
 
 | ID | Status | Experiment | Opens next only if |
 |---|---|---|---|
-| P-000 | `[ACTIVE]` | Freeze this quest brain and exact incumbent/crown frontier | File linked and identity verified |
-| P-001 | `[NEXT]` | Serious-pivot landmark + landing preregistration | Landmark law is scale-normalized and oracle-isolated |
-| P-002 | `[PENDING]` | Count-first full-tape phase-front census | Both directions, all years, quiet/shock/open/control breadth pass |
+| P-000 | `[COMPLETE]` | Freeze this quest brain and exact incumbent/crown frontier | File linked and identity verified |
+| P-001 | `[COMPLETE]` | Serious-pivot landmark + landing preregistration | `07506749…`; primary frozen before any landmark outcome |
+| P-002 | `[ACTIVE]` | Count-first full-tape phase-front census | Both directions, all years, quiet/shock/open/control breadth pass |
 | P-003 | `[ACCUMULATE]` | Existing prospective seconds pressure atlas | `30` complete targets, `10` each direction, repeated morphologies |
 | P-004 | `[PENDING]` | Historical timing-only challenger | P-002 selects one categorical law before outcomes |
 | P-005 | `[PENDING]` | Complementary missed-pivot sleeve | Material repeatable crown miss cohort exists |
@@ -410,6 +411,7 @@ gate after outcomes.
 | Historical pressure count R2 | Exact `425/425`; `32` affected targets; both directions/years; count gates pass | Morphology is testable |
 | Historical pressure economics | Candidate removed `32`, added `20`, net trade delta `-12`, delta `-$31.07`; yearly PnL/DD improved only Y2 | Broad timing overlay rejected permanently |
 | Prospective pressure atlas | Frozen `1/3/5/10/15/30/45s`; eligible `2026-08-06T13:20Z`; `0/30` | Accumulate outcome-blind |
+| P-001 landmark preregistration | `07506749…` binds `184,957` bars / `754` complete sessions / tape `6d239c88…`; prior-21-session scale, `0.25×` causal confirmation, `0.50×` serious outgoing excursion, diagnostic-only `0.20/0.40` and `0.30/0.60` neighbors | Landmark outcome access remains closed; implement and test synthetically before count-only replay |
 | MCL failed-repair control | Simultaneous positive velocity under all-negative slopes relapsed before ordered crosses | A repair spark alone is not a pivot; method reference only |
 | MCL headline/shock study | Demonstrates urgency, explicit authority handoff, and phase-front geometry | Inspiration only; no XSP threshold/outcome transfer |
 
@@ -425,12 +427,13 @@ gate after outcomes.
 | PD-006 | Permanently reject the already-tested broad pressure `WAIT/REVOKE` policy; new work must explain its exact failed trades |
 | PD-007 | Permit overnight research, but keep GTH live authority disabled until it independently beats costs/risk and passes native transport proof |
 | PD-008 | Crown automatically when the stable successor passes the frozen frontier and exact replay; do not request routine confirmation |
+| PD-009 | The serious-pivot oracle freezes volatility scale from the prior 21 completed XSP RTH sessions; future extrema may label evaluation only and can never enter the causal phase-front owner |
 
 ## 13. Current execution sequence
 
-1. `[ACTIVE]` Verify the incumbent metric/ledger hashes and freeze the exact
+1. `[COMPLETE]` Verify the incumbent metric/ledger hashes and freeze the exact
    serious-pivot landmark plus landing schema before inspecting its outcomes.
-2. `[PENDING]` Build one pure derived phase-front atlas from existing tapes and
+2. `[ACTIVE]` Build one pure derived phase-front atlas from existing tapes and
    prove synthetic order, relapse, recoil, and handoff controls.
 3. `[PENDING]` Run count/morphology only over the complete historical tape;
    reject underrepresented families before P&L opens.
@@ -443,7 +446,7 @@ gate after outcomes.
 
 ## Conclusion: XSP Multiscale Phase-Front Pivot Mastery
 
-**Status:** `ACTIVE / AUTHORIZED / BASELINE_FROZEN / FIRST_PREREGISTRATION_NEXT`.
+**Status:** `ACTIVE / AUTHORIZED / BASELINE_AND_LANDMARK_LAW_FROZEN / COUNT_FIRST_NEXT`.
 
 The decisive insight is:
 

@@ -1,0 +1,205 @@
+{
+  "schema": "xsp.opening-edge-v4-phase-front-pivot-landmarks-preregistration.v1",
+  "registered_at_utc": "2026-08-06T05:29:25Z",
+  "authority": "offline_landmark_and_landing_schema_only_no_signal_no_outcomes_no_orders_no_capital",
+  "quest": "P-001 serious-pivot landmark and landing atlas",
+  "hypothesis": "A serious XSP pivot can be labeled independently of any candidate signal by a scale-normalized directional-change oracle, while the earliest actionable evidence is the causal arrival geometry of velocity, slope, recoil, and SPY-to-ETF transport. Separating the future-aware landmark from the causal landing prevents chart-bottom lookahead and permits exact coverage, latency, and miss measurement.",
+  "incumbent": {
+    "strategy_version": "xsp.opening-edge-v3-regime-harmony-24x5.v1",
+    "crown_path": "backtests/xsp/opening_edge_v3_regime_harmony_24x5.json",
+    "crown_sha256": "d47eb39cef3d2ca575d779d6b5b87e3b88e08606fd09a8801b8cb55c350208db",
+    "rth_trades": 425,
+    "rth_ledger_sha256": "40708a28476fad504d29b1222e52b88481b1c0da8313ed4667076e2b6ed3f157",
+    "gth_trades": 179,
+    "gth_ledger_sha256": "9e04807fb77df431b7af27b8be6d5f5288c8512bfe80cb78b3c1fe70cabb8a98",
+    "combined_trades": 604,
+    "combined_net_xsp_points": 291.1756,
+    "combined_profit_factor": 2.0919,
+    "combined_drawdown_xsp_points": 17.63,
+    "combined_pnl_over_drawdown": 16.5159
+  },
+  "source_identity": {
+    "rth_runtime_parity_path": "backtests/xsp/opening_edge_v3_current_runtime_parity_audit.json",
+    "rth_runtime_parity_sha256": "f9f06b2b8683b121a7958f25a9a924bc47cca76059d51a60aa30510bdbabfe95",
+    "rth_history_manifest_sha256": "0de9666963dee022398f6341ef124d562d470559d98837dec338c03e498030f6",
+    "spy_full24_history_manifest_sha256": "f9302ba328dff742bee245db21a148873d8d33f2c6ff943f2e75ee65e083a0cb",
+    "tape_builder_path": "/tmp/xsp_24x5_campaign.py",
+    "tape_builder_sha256": "dfba4165dad28d7d74a80132055cd9c317f0bd6a8917bec8a5da6e5623a97734",
+    "tape_schema": "xsp.synthetic-24x5-tape.v1",
+    "tape_construction": "exact_xsp_rth_plus_prior_close_anchored_spy_gth_curb",
+    "tape_sha256": "6d239c88dadbbb259a8e1e691c7311a05436859db7f1fe330b21d84daa3c67df",
+    "tape_bars": 184957,
+    "rth_bars": 58560,
+    "sessions": 754,
+    "first_close_utc": "2023-07-24T00:20:00",
+    "last_close_utc": "2026-07-24T21:00:00",
+    "incomplete_sessions": 0,
+    "production_state_owner_path": "tradebot/research/xsp_opening_edge_state.py",
+    "production_state_owner_sha256": "643b6a04478e598fe7fbdc2d5aa6deabe6935761b3fa83cf487a9fdd16a265bc",
+    "session_tape_owner_path": "tradebot/research/xsp_opening_edge_tapes.py",
+    "session_tape_owner_sha256": "ad2532194ada0701d5b528acbe06c5e01fbbb8ad8e146c9e99cf7c0db9bad027"
+  },
+  "windows": {
+    "year_1_discovery": [
+      "2023-07-24",
+      "2024-07-23"
+    ],
+    "year_2_validation": [
+      "2024-07-24",
+      "2025-07-23"
+    ],
+    "year_3_locked_final": [
+      "2025-07-24",
+      "2026-07-24"
+    ],
+    "count_and_morphology_visibility": "all three periods may expose counts, missingness, categorical shapes, and landing timestamps before economics; Year 3 prices and signal outcomes remain sealed until one law is selected from Years 1 and 2"
+  },
+  "oracle_separation": {
+    "label_owner": "future-aware offline directional-change landmark owner",
+    "signal_owner": "strictly causal phase-front state owner",
+    "forbidden_join": "landmark extreme, future excursion, terminal, realized MFE, realized MAE, crown outcome, and later news may not enter a signal feature, state transition, threshold, fill, or exit",
+    "permitted_use": "future path may label landmark class, severity, terminal, and evaluation outcome only after every causal state row is immutable",
+    "same_file_permission": false
+  },
+  "primary_landmark_law": {
+    "bar_clock": "completed five-minute closes only",
+    "lane_partition": "RTH, GTH, and CURB are segmented separately under the existing XSP session clock; no directional-change state crosses a lane boundary",
+    "session_reference": "the immediately preceding exact completed XSP RTH close",
+    "scale": "median Wilder true range of the prior 21 complete XSP RTH sessions, including gaps from the preceding exact close; the current session and all future sessions are excluded",
+    "minimum_prior_sessions": 21,
+    "scale_freeze": "one scale is frozen at the start of each XSP trading date and reused by its RTH, GTH, and CURB landmark segments",
+    "confirmation_distance_scale": 0.25,
+    "serious_outgoing_excursion_scale": 0.5,
+    "opening_bind": "from the prior exact XSP close, bind the first lane direction when a completed close displaces by at least 0.25 frozen scales; retain the most extreme high or low reached before an opposite confirmation",
+    "pivot_confirmation": "after direction is bound, the first completed close at least 0.25 frozen scales against the running high or low confirms the preceding extreme as a candidate pivot and causally binds the opposite outgoing direction",
+    "serious_label": "after the causal candidate is immutable, label it serious only when the outgoing direction reaches at least 0.50 frozen scales from the confirmed extreme before the next opposite confirmation or lane terminal",
+    "recoil_control": "a confirmed candidate whose outgoing excursion remains below 0.50 frozen scales is RECOIL_ONLY and may never be silently discarded",
+    "ties": "when high and low would establish opposing extremes inside one five-minute bar, use close-path direction only and mark INTRABAR_ORDER_UNRESOLVED; never infer an OHLC traversal order",
+    "unfinished": "exclude an unconfirmed terminal extreme from serious-pivot counts and retain it as RIGHT_CENSORED",
+    "zero_or_missing_scale": "reject the session as UNDERWARMED_OR_INVALID"
+  },
+  "diagnostic_neighbors": [
+    {
+      "id": "lower_scale_sensitivity",
+      "confirmation_distance_scale": 0.2,
+      "serious_outgoing_excursion_scale": 0.4
+    },
+    {
+      "id": "higher_scale_sensitivity",
+      "confirmation_distance_scale": 0.3,
+      "serious_outgoing_excursion_scale": 0.6
+    }
+  ],
+  "neighbor_law": "Neighbors measure only landmark coverage stability and one-to-one event correspondence. The 0.25/0.50 primary cannot be replaced, averaged, or selected from neighbor counts or later economics.",
+  "landmark_classes": {
+    "OPENING_DRIVE": "the first serious direction bound from the prior exact close in a lane",
+    "OPENING_PIVOT": "a serious opposite direction confirmed during the first 90 RTH minutes",
+    "QUIET_STRUCTURAL_PIVOT": "a serious RTH pivot under ORDINARY prior-only SPY same-slot volume/TR ranks",
+    "PRESSURE_PIVOT": "a serious RTH pivot under ONE_SIDED or ELEVATED ranks",
+    "SHOCK_HANDOFF_PIVOT": "a serious RTH pivot under joint SHOCK ranks; rank establishes regime only, never direction",
+    "GAP_CONTINUATION": "the opening reference gap is at least 0.25 scales and the first serious opening drive agrees",
+    "GAP_REVERSAL": "the opening reference gap is at least 0.25 scales and the first serious opening drive opposes it",
+    "GTH_OVERNIGHT_PIVOT": "a serious GTH pivot on the frozen prior-close-anchored SPY-to-XSP proxy",
+    "RECOIL_ONLY": "a confirmed causal turn whose outgoing wave never reaches serious amplitude",
+    "TREND_REACCELERATION": "the first serious return to the incumbent direction after a RECOIL_ONLY candidate",
+    "NO_SERIOUS_PIVOT": "a session or matched clock window containing no serious landmark"
+  },
+  "regime_tags": {
+    "source": "SPY same-RTH-slot causal percentile ranks from the existing pressure on-ramp law",
+    "reference_sessions": 63,
+    "minimum_reference_sessions": 21,
+    "ORDINARY": "neither joint rank reaches 0.80 and neither one-sided rank reaches 0.95",
+    "ONE_SIDED": "volume or normalized true-range rank reaches 0.95 without joint confirmation",
+    "ELEVATED": "both ranks reach 0.80",
+    "SHOCK": "both ranks reach 0.95",
+    "direction_authority": "none"
+  },
+  "landing_schema": {
+    "landmark": [
+      "landmark_id",
+      "trading_date",
+      "lane",
+      "class",
+      "incoming_direction",
+      "outgoing_direction",
+      "extreme_utc",
+      "causal_confirmation_utc",
+      "terminal_utc",
+      "frozen_scale_points",
+      "outgoing_excursion_scale",
+      "severity",
+      "right_censored",
+      "intrabar_order_unresolved"
+    ],
+    "causal_front": [
+      "repair_spark_utc",
+      "front_propagation_utc",
+      "cross_convergence_utc",
+      "fast_slope_cross_utc",
+      "recoil_start_utc",
+      "recoil_survived_utc",
+      "reacceleration_utc",
+      "slow_slope_cascade_utc",
+      "transport_acceptance_utc",
+      "pivot_accepted_utc",
+      "relapse_utc",
+      "handoff_utc"
+    ],
+    "incumbent_and_execution": [
+      "crown_turn_utc",
+      "crown_proposal_utc",
+      "crown_direction",
+      "crown_admission_utc",
+      "timer_observed_utc",
+      "first_limit_utc",
+      "fill_utc",
+      "exit_utc",
+      "captured_excursion_fraction",
+      "miss_type"
+    ],
+    "forbidden_during_count_first": [
+      "trade_pnl",
+      "candidate_mfe",
+      "candidate_mae",
+      "winner_score",
+      "threshold_rank",
+      "selected_action"
+    ]
+  },
+  "count_first_gate": {
+    "exact_rth_crown_identity": true,
+    "exact_gth_crown_identity": true,
+    "exact_tape_identity": true,
+    "minimum_primary_serious_landmarks_each_year": 100,
+    "minimum_primary_serious_landmarks_each_direction_each_year": 25,
+    "minimum_opening_landmarks_each_direction_full": 20,
+    "minimum_quiet_structural_landmarks_each_direction_full": 20,
+    "minimum_pressure_or_shock_landmarks_each_direction_full": 10,
+    "minimum_gth_landmarks_each_direction_full": 20,
+    "minimum_recoil_only_controls_each_direction_full": 20,
+    "maximum_right_censored_share": 0.02,
+    "minimum_primary_to_each_neighbor_event_match_rate": 0.6,
+    "both_directions_every_year": true,
+    "outcomes_open_before_pass": false
+  },
+  "next_stage_law": {
+    "on_pass": "P-002 may build one outcome-blind multiscale phase-front census and join its causal states to these immutable landmarks",
+    "on_fail": "record the structural reason and revise only the oracle concept in a new preregistration; do not lower a count gate, inspect economics, or select a diagnostic neighbor",
+    "economic_replay": "forbidden until P-002 freezes one categorical phase-front law from counts and morphology",
+    "live_authority": "none"
+  },
+  "invariants": {
+    "current_xsp_crown_changed": false,
+    "current_xsp_live_selection_changed": false,
+    "new_direction_owner": false,
+    "new_recorder": false,
+    "new_service": false,
+    "new_timer": false,
+    "shared_limit_ladder_changed": false,
+    "shared_capital_owner_changed": false,
+    "mcl_changed": false,
+    "gold_changed": false,
+    "market_orders_permitted": false,
+    "submitted_orders": 0
+  }
+}
