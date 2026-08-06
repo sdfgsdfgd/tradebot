@@ -20,6 +20,7 @@ from ..common import (
     _pnl_value,
     _portfolio_row,
     _portfolio_sort_key,
+    _remember_ticker_display,
     _unrealized_pnl_values,
 )
 
@@ -53,12 +54,22 @@ class PortfolioTable:
             if streams_warmed:
                 # Gate non-critical streams behind a successful account snapshot
                 # so startup doesn't fan out while API session init is unstable.
-                self._client.start_index_tickers()
-                self._client.start_proxy_tickers()
+                self._client.start_market_data()
             self._sync_session_tickers()
-            self._index_tickers = self._client.index_tickers()
+            ticker_memory = getattr(self, "_ticker_display_memory", None)
+            if ticker_memory is None:
+                ticker_memory = {}
+                self._ticker_display_memory = ticker_memory
+            self._index_tickers = _remember_ticker_display(
+                self._client.index_tickers(),
+                ticker_memory,
+                allow_display_fallback=True,
+            )
             self._index_error = self._client.index_error()
-            self._proxy_tickers = self._client.proxy_tickers()
+            self._proxy_tickers = _remember_ticker_display(
+                self._client.proxy_tickers(),
+                ticker_memory,
+            )
             self._proxy_error = self._client.proxy_error()
             self._pnl = self._client.pnl()
             self._net_liq = self._client.account_value("NetLiquidation")
@@ -187,7 +198,9 @@ class PortfolioTable:
             ts = "n/a"
         session = _market_session_label()
         base = f"IBKR {conn} | last update: {ts} | rows: {self._row_count}"
-        base = f"{base} | MKT: {session} | MD: [L]=Live [D]=Delayed"
+        market_data_state = getattr(self._client, "market_data_state", None)
+        md_state = str(market_data_state()) if callable(market_data_state) else "n/a"
+        base = f"{base} | MKT: {session} | MD: {md_state} [L]=Live [D]=Delayed"
         base = (
             f"{base} | PnL rows: pos(D|U)=broker daily/unrealized, "
             "total=account(U+R), today(IBKR)=broker daily"

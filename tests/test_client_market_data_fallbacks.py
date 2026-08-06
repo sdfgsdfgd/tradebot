@@ -50,6 +50,202 @@ def _new_client() -> IBKRClient:
     return IBKRClient(cfg)
 
 
+def test_connect_ib_uses_transport_only_handshake_for_auxiliary_roles() -> None:
+    client = _new_client()
+
+    class _WireClient:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, int, int, float]] = []
+
+        async def connectAsync(
+            self,
+            host: str,
+            port: int,
+            client_id: int,
+            timeout: float,
+        ) -> None:
+            self.calls.append((host, int(port), int(client_id), float(timeout)))
+
+    class _IB:
+        def __init__(self) -> None:
+            self.wrapper = SimpleNamespace(clientId=None)
+            self.client = _WireClient()
+            self.full_sync_calls: list[dict[str, object]] = []
+
+        async def connectAsync(self, host: str, port: int, **kwargs) -> None:
+            self.full_sync_calls.append({"host": host, "port": port, **kwargs})
+
+    auxiliary = _IB()
+    asyncio.run(client._connect_ib(auxiliary, client_id=302))  # type: ignore[arg-type]
+
+    assert auxiliary.client.calls == [("127.0.0.1", 4001, 302, 15.0)]
+    assert auxiliary.wrapper.clientId == 302
+    assert auxiliary.full_sync_calls == []
+
+    main = _IB()
+    client._ib = main  # type: ignore[assignment]
+    asyncio.run(client._connect_ib(main, client_id=301))  # type: ignore[arg-type]
+
+    assert main.client.calls == []
+    assert main.full_sync_calls == [
+        {
+            "host": "127.0.0.1",
+            "port": 4001,
+            "clientId": 301,
+            "timeout": 15.0,
+            "readonly": False,
+        }
+    ]
+
+
+def test_connection_state_covers_only_requested_roles() -> None:
+    client = _new_client()
+    client._ib = _FakeConnectIB(connected=True)  # type: ignore[assignment]
+    client._ib_proxy = _FakeConnectIB(connected=True)  # type: ignore[assignment]
+    client._ib_index = _FakeConnectIB(connected=True)  # type: ignore[assignment]
+
+    assert client.connection_state() == "connected"
+
+    client._proxy_required = True
+    client._index_required = True
+    assert client.connection_state() == "connected"
+
+    client._ib_index.connected = False
+    assert client.connection_state() == "degraded"
+
+    client._ib.connected = False
+    client._ib_proxy.connected = False
+    assert client.connection_state() == "disconnected"
+
+
+def test_index_disconnect_and_recovery_use_shared_reconnect_loop() -> None:
+    client = _new_client()
+    client._ib = _FakeConnectIB(connected=True)  # type: ignore[assignment]
+    client._ib_proxy = _FakeConnectIB(connected=True)  # type: ignore[assignment]
+    client._ib_index = _FakeConnectIB(connected=False)  # type: ignore[assignment]
+    client._proxy_required = True
+    client._index_required = True
+    reconnect_starts = 0
+
+    def _start_reconnect_loop() -> None:
+        nonlocal reconnect_starts
+        reconnect_starts += 1
+
+    client._start_reconnect_loop = _start_reconnect_loop  # type: ignore[method-assign]
+    client._on_disconnected_index()
+
+    assert reconnect_starts == 1
+    assert client._reconnect_requested is True
+    assert client._resubscribe_index_needed is True
+    assert client.connection_state() == "degraded"
+
+    index_resubscriptions = 0
+
+    async def _connect_index() -> None:
+        client._ib_index.connected = True
+
+    async def _ensure_index_tickers() -> None:
+        nonlocal index_resubscriptions
+        index_resubscriptions += 1
+
+    async def _reconcile_order_state(*, force: bool = False) -> None:
+        assert force is True
+
+    client.connect_index = _connect_index  # type: ignore[method-assign]
+    client._ensure_index_tickers = _ensure_index_tickers  # type: ignore[method-assign]
+    client._start_index_probe = lambda: None  # type: ignore[method-assign]
+    client.reconcile_order_state = _reconcile_order_state  # type: ignore[method-assign]
+
+    asyncio.run(client._reconnect_once())
+
+    assert index_resubscriptions == 1
+    assert client._resubscribe_index_needed is False
+    assert client._reconnect_requested is False
+    assert client.connection_state() == "connected"
+
+
+def test_market_data_state_distinguishes_warming_degraded_and_ready() -> None:
+    client = _new_client()
+    client._index_required = True
+    client._index_futures_session_open = True
+
+    assert client.market_data_state() == "warming(index:NQ,ES)"
+
+    client._index_error = "index connection lost"
+    assert client.market_data_state() == "degraded(index:NQ,ES)"
+
+    client._index_error = None
+    client._index_tickers = {
+        symbol: SimpleNamespace(bid=1.0, ask=2.0, last=None, close=None)
+        for symbol in ("NQ", "ES")
+    }
+    assert client.market_data_state() == "ready"
+
+
+def test_disconnect_cancels_owned_streams_before_closing_role_sockets() -> None:
+    client = _new_client()
+    events: list[str] = []
+
+    class _Wire:
+        def reqAccountUpdates(self, subscribe: bool, account: str) -> None:
+            events.append(f"account:{subscribe}:{account}")
+
+    class _IB:
+        def __init__(self, role: str) -> None:
+            self.role = role
+            self.connected = True
+            self.client = _Wire()
+
+        def isConnected(self) -> bool:
+            return self.connected
+
+        def cancelMktData(self, contract) -> None:
+            events.append(f"cancel:{self.role}:{contract.symbol}")
+
+        def cancelPnL(self, account: str) -> None:
+            events.append(f"pnl:{account}")
+
+        def disconnect(self) -> None:
+            events.append(f"disconnect:{self.role}")
+            self.connected = False
+
+    main = _IB("main")
+    proxy = _IB("proxy")
+    index = _IB("index")
+    client._ib = main  # type: ignore[assignment]
+    client._ib_proxy = proxy  # type: ignore[assignment]
+    client._ib_index = index  # type: ignore[assignment]
+    client._pnl_account = "DU123456"
+    client._account_updates_started = True
+    client._index_tickers = {
+        "NQ": SimpleNamespace(contract=SimpleNamespace(symbol="NQ", secType="FUT", conId=1))
+    }
+    client._proxy_tickers = {
+        "SPY": SimpleNamespace(contract=SimpleNamespace(symbol="SPY", secType="STK", conId=2))
+    }
+    client._detail_tickers = {
+        3: (
+            main,
+            SimpleNamespace(contract=SimpleNamespace(symbol="MNQ", secType="FUT", conId=3)),
+        )
+    }
+
+    asyncio.run(client.disconnect())
+
+    assert events[:5] == [
+        "cancel:index:NQ",
+        "cancel:proxy:SPY",
+        "cancel:main:MNQ",
+        "pnl:DU123456",
+        "account:False:DU123456",
+    ]
+    assert events[5:] == [
+        "disconnect:index",
+        "disconnect:proxy",
+        "disconnect:main",
+    ]
+
+
 def test_broker_boundary_rejects_market_or_nonfinite_limit_orders() -> None:
     client = _new_client()
 
@@ -1028,25 +1224,124 @@ def test_qualify_index_contracts_resolves_front_futures(monkeypatch) -> None:
     assert ("ES", "CME") in seen
 
 
-def test_on_error_main_index_permission_forces_delayed() -> None:
+def test_on_error_main_index_permission_does_not_mutate_index_role() -> None:
     client = _new_client()
     client._index_contracts = {
         "NQ": SimpleNamespace(symbol="NQ", secType="FUT", conId=93001),
     }
-    called: dict[str, object] = {"value": False, "requalify": False}
+    called = {"value": False}
 
-    def _start_index_resubscribe(*, requalify: bool = False) -> None:
+    def _start_index_resubscribe() -> None:
         called["value"] = True
-        called["requalify"] = bool(requalify)
 
     client._start_index_resubscribe = _start_index_resubscribe  # type: ignore[method-assign]
 
     contract = SimpleNamespace(symbol="NQ", secType="FUT", conId=93001)
     client._on_error_main(0, 354, "No market data subscription", contract)
 
+    assert client._index_force_delayed is False
+    assert called["value"] is False
+
+
+def test_on_error_index_permission_transitions_to_delayed_once() -> None:
+    client = _new_client()
+    contract = SimpleNamespace(symbol="NQ", secType="FUT", conId=93001)
+    client._index_contracts = {"NQ": contract}
+    calls = 0
+
+    def _start_index_resubscribe() -> None:
+        nonlocal calls
+        calls += 1
+
+    client._start_index_resubscribe = _start_index_resubscribe  # type: ignore[method-assign]
+
+    for _ in range(20):
+        client._on_error_index(1, 354, "No market data subscription", contract)
+
     assert client._index_force_delayed is True
-    assert called["value"] is True
-    assert called["requalify"] is True
+    assert calls == 1
+    assert client.index_error() == "No market data subscription"
+
+
+def test_index_entitlement_feedback_has_four_request_ceiling() -> None:
+    client = _new_client()
+    fake_ib = _FakeProxyIB()
+    client._ib_index = fake_ib
+    client._index_required = True
+    client._index_contracts = {
+        symbol: Contract(
+            secType="FUT",
+            symbol=symbol,
+            exchange="CME",
+            currency="USD",
+            conId=con_id,
+        )
+        for symbol, con_id in (("NQ", 93001), ("ES", 93002))
+    }
+
+    async def _connect() -> None:
+        return None
+
+    client.connect = _connect  # type: ignore[method-assign]
+    client.connect_index = _connect  # type: ignore[method-assign]
+    client._start_index_probe = lambda: None  # type: ignore[method-assign]
+
+    async def _exercise() -> None:
+        await client._ensure_index_tickers()
+        assert len(fake_ib.requests) == 2
+
+        client._on_error_index(
+            1,
+            354,
+            "No market data subscription",
+            client._index_contracts["NQ"],
+        )
+        assert client._index_task is not None
+        await client._index_task
+
+        for _ in range(20):
+            client._on_error_index(
+                2,
+                354,
+                "No market data subscription",
+                client._index_contracts["ES"],
+            )
+            client.start_index_tickers()
+            assert client._index_task is not None
+            await client._index_task
+
+    asyncio.run(_exercise())
+
+    assert len(fake_ib.requests) == 4
+    assert len(fake_ib.cancels) == 2
+    assert fake_ib.market_data_types == [1, 1, 3, 3]
+
+
+def test_index_resubscribe_queues_once_behind_active_load() -> None:
+    client = _new_client()
+    client._index_required = True
+    reloads = 0
+
+    async def _reload() -> None:
+        nonlocal reloads
+        reloads += 1
+
+    client._reload_index_tickers = _reload  # type: ignore[method-assign]
+
+    async def _exercise() -> None:
+        active = asyncio.create_task(asyncio.sleep(0))
+        client._index_task = active
+        for _ in range(20):
+            client._start_index_resubscribe()
+            client.start_index_tickers()
+        await active
+        await asyncio.sleep(0)
+        assert client._index_task is not None
+        await client._index_task
+
+    asyncio.run(_exercise())
+
+    assert reloads == 1
 
 
 def test_on_error_main_future_permission_arms_watchdog_without_starting_probe() -> None:
@@ -1144,10 +1439,11 @@ def test_probe_index_quotes_degrades_to_delayed_when_strip_totally_dead(monkeypa
             prevLast=None,
         ),
     }
-    calls: list[bool] = []
+    calls = 0
 
-    def _start_index_resubscribe(*, requalify: bool = False) -> None:
-        calls.append(bool(requalify))
+    def _start_index_resubscribe() -> None:
+        nonlocal calls
+        calls += 1
 
     async def _sleep(_: float) -> None:
         return None
@@ -1157,7 +1453,7 @@ def test_probe_index_quotes_degrades_to_delayed_when_strip_totally_dead(monkeypa
     asyncio.run(client._probe_index_quotes())
 
     assert client._index_force_delayed is True
-    assert calls == [False]
+    assert calls == 1
 
 
 def test_probe_index_quotes_does_not_degrade_when_close_only_present(monkeypatch) -> None:
@@ -1182,10 +1478,11 @@ def test_probe_index_quotes_does_not_degrade_when_close_only_present(monkeypatch
             prevLast=6_000.0,
         ),
     }
-    calls: list[bool] = []
+    calls = 0
 
-    def _start_index_resubscribe(*, requalify: bool = False) -> None:
-        calls.append(bool(requalify))
+    def _start_index_resubscribe() -> None:
+        nonlocal calls
+        calls += 1
 
     async def _sleep(_: float) -> None:
         return None
@@ -1195,10 +1492,10 @@ def test_probe_index_quotes_does_not_degrade_when_close_only_present(monkeypatch
     asyncio.run(client._probe_index_quotes())
 
     assert client._index_force_delayed is False
-    assert calls == []
+    assert calls == 0
 
 
-def test_probe_index_quotes_partial_strip_does_not_resubscribe_when_any_quote_present(monkeypatch) -> None:
+def test_probe_index_quotes_partial_strip_preserves_healthy_subscription(monkeypatch) -> None:
     client = _new_client()
     client._index_force_delayed = False
     client._index_futures_session_open = True
@@ -1220,10 +1517,11 @@ def test_probe_index_quotes_partial_strip_does_not_resubscribe_when_any_quote_pr
             prevLast=None,
         ),
     }
-    calls: list[bool] = []
+    calls = 0
 
-    def _start_index_resubscribe(*, requalify: bool = False) -> None:
-        calls.append(bool(requalify))
+    def _start_index_resubscribe() -> None:
+        nonlocal calls
+        calls += 1
 
     async def _sleep(_: float) -> None:
         return None
@@ -1231,9 +1529,12 @@ def test_probe_index_quotes_partial_strip_does_not_resubscribe_when_any_quote_pr
     client._start_index_resubscribe = _start_index_resubscribe  # type: ignore[method-assign]
     monkeypatch.setattr("asyncio.sleep", _sleep)
     asyncio.run(client._probe_index_quotes())
+    asyncio.run(client._probe_index_quotes())
+    asyncio.run(client._probe_index_quotes())
 
     assert client._index_force_delayed is False
-    assert calls == []
+    assert calls == 0
+    assert client.index_error() == "market data unavailable: ES"
 
 
 def test_ensure_ticker_overnight_delayed_prefers_overnight_route(monkeypatch) -> None:
@@ -1276,6 +1577,45 @@ def test_delayed_resubscribe_falls_back_to_primary_exchange(monkeypatch) -> None
     assert str(getattr(requested, "exchange", "")).upper() == "ARCA"
 
 
+def test_ensure_ticker_reconciles_market_data_type_once_even_when_route_is_unchanged(
+    monkeypatch,
+) -> None:
+    client = _new_client()
+    fake_ib = _FakeProxyIB()
+    client._ib_proxy = fake_ib
+
+    async def _connect_proxy() -> None:
+        return None
+
+    client.connect_proxy = _connect_proxy  # type: ignore[method-assign]
+    monkeypatch.setattr("tradebot.client._session_flags", lambda _now: (True, False))
+    contract = Stock(symbol="TQQQ", exchange="SMART", currency="USD")
+    contract.conId = 900002
+    live = SimpleNamespace(
+        contract=contract,
+        marketDataType=1,
+        tbRequestedMdType=1,
+        tbGenericTicks="",
+        bid=None,
+        ask=None,
+        last=None,
+        close=72.84,
+        prevLast=72.84,
+    )
+    client._detail_tickers[int(contract.conId)] = (fake_ib, live)
+    client._proxy_contract_force_delayed.add(int(contract.conId))
+
+    first = asyncio.run(client.ensure_ticker(contract, owner="test"))
+    second = asyncio.run(client.ensure_ticker(contract, owner="test"))
+
+    assert first is second
+    assert first is not live
+    assert int(first.tbRequestedMdType) == 3
+    assert fake_ib.market_data_types == [3, 3]
+    assert len(fake_ib.requests) == 1
+    assert len(fake_ib.cancels) == 1
+
+
 def test_proxy_error_10167_is_scoped_to_contract(monkeypatch) -> None:
     client = _new_client()
     called: dict[str, int] = {"global": 0, "contract": 0}
@@ -1298,7 +1638,205 @@ def test_proxy_error_10167_is_scoped_to_contract(monkeypatch) -> None:
     assert 12345 in client._proxy_contract_force_delayed
 
 
-def test_probe_proxy_contract_quote_retries_live_without_forcing_delayed(monkeypatch) -> None:
+def test_proxy_strip_requires_every_symbol_instead_of_any_healthy_symbol() -> None:
+    client = _new_client()
+    client._proxy_tickers = {
+        symbol: SimpleNamespace(
+            contract=Stock(symbol=symbol, exchange="SMART", currency="USD"),
+            bid=600.0 if symbol != "QQQ" else None,
+            ask=600.1 if symbol != "QQQ" else None,
+            last=None,
+            close=None,
+        )
+        for symbol in ("QQQ", "SPY", "DIA", "TQQQ")
+    }
+
+    assert client._proxy_has_data() is False
+    assert client._proxy_symbols_without_data() == ("QQQ",)
+
+    client._proxy_tickers["QQQ"].bid = 500.0
+    client._proxy_tickers["QQQ"].ask = 500.1
+    assert client._proxy_has_data() is True
+
+
+def test_proxy_strip_accepts_close_only_as_stable_display_data() -> None:
+    client = _new_client()
+    client._proxy_tickers = {
+        symbol: SimpleNamespace(
+            contract=Stock(symbol=symbol, exchange="NASDAQ", currency="USD"),
+            bid=None,
+            ask=None,
+            last=None,
+            close=500.0,
+            prevLast=500.0,
+        )
+        for symbol in ("QQQ", "SPY", "DIA", "TQQQ")
+    }
+
+    assert client._proxy_symbols_without_data() == ()
+    assert client._proxy_has_data() is True
+
+
+def test_proxy_ensure_respects_per_symbol_delayed_routes_without_reloading_healthy_symbols(
+    monkeypatch,
+) -> None:
+    client = _new_client()
+    fake_ib = _FakeProxyIB()
+    client._ib_proxy = fake_ib
+
+    async def _connect_proxy() -> None:
+        return None
+
+    client.connect_proxy = _connect_proxy  # type: ignore[method-assign]
+    contracts: dict[str, Contract] = {}
+    for index, symbol in enumerate(("QQQ", "SPY", "DIA", "TQQQ"), 1):
+        contract = Stock(symbol=symbol, exchange="SMART", currency="USD")
+        contract.primaryExchange = "NASDAQ" if symbol in ("QQQ", "TQQQ") else "ARCA"
+        contract.conId = index
+        contracts[symbol] = contract
+    client._proxy_contracts = contracts
+    monkeypatch.setattr("tradebot.client._session_flags", lambda _now: (True, False))
+
+    asyncio.run(client._ensure_proxy_tickers())
+    spy_ticker = client._proxy_tickers["SPY"]
+    dia_ticker = client._proxy_tickers["DIA"]
+
+    for symbol in ("QQQ", "TQQQ"):
+        client._proxy_contract_force_delayed.add(int(contracts[symbol].conId))
+        asyncio.run(client._resubscribe_proxy_contract_delayed(contracts[symbol]))
+
+    request_count = len(fake_ib.requests)
+    cancel_count = len(fake_ib.cancels)
+    qqq_ticker = client._proxy_tickers["QQQ"]
+    tqqq_ticker = client._proxy_tickers["TQQQ"]
+
+    asyncio.run(client._ensure_proxy_tickers())
+
+    assert len(fake_ib.requests) == request_count
+    assert len(fake_ib.cancels) == cancel_count
+    assert client._proxy_tickers["SPY"] is spy_ticker
+    assert client._proxy_tickers["DIA"] is dia_ticker
+    assert client._proxy_tickers["QQQ"] is qqq_ticker
+    assert client._proxy_tickers["TQQQ"] is tqqq_ticker
+    assert str(qqq_ticker.contract.exchange).upper() == "NASDAQ"
+    assert str(tqqq_ticker.contract.exchange).upper() == "NASDAQ"
+    assert int(qqq_ticker.tbRequestedMdType) == 3
+    assert int(tqqq_ticker.tbRequestedMdType) == 3
+
+
+def test_missing_proxy_recovery_downgrades_only_the_empty_contract() -> None:
+    client = _new_client()
+    contracts: dict[str, Contract] = {}
+    for index, symbol in enumerate(("QQQ", "SPY", "DIA", "TQQQ"), 1):
+        contract = Stock(symbol=symbol, exchange="SMART", currency="USD")
+        contract.conId = index
+        contracts[symbol] = contract
+    client._proxy_contracts = contracts
+    recovered: list[int] = []
+
+    async def _recover(contract) -> None:
+        recovered.append(int(getattr(contract, "conId", 0) or 0))
+
+    client._resubscribe_proxy_contract_delayed = _recover  # type: ignore[method-assign]
+
+    asyncio.run(
+        client._resubscribe_missing_proxy_quotes(
+            ("QQQ",),
+            requalify=False,
+        )
+    )
+
+    assert recovered == [1]
+    assert client._proxy_contract_force_delayed == {1}
+    assert client._proxy_force_delayed is False
+
+
+def test_proxy_probe_retries_empty_symbol_once_with_requalification(
+    monkeypatch,
+) -> None:
+    client = _new_client()
+    client._proxy_tickers = {
+        symbol: SimpleNamespace(
+            contract=Stock(symbol=symbol, exchange="SMART", currency="USD"),
+            bid=600.0 if symbol != "QQQ" else None,
+            ask=600.1 if symbol != "QQQ" else None,
+            last=None,
+            close=None,
+        )
+        for symbol in ("QQQ", "SPY", "DIA", "TQQQ")
+    }
+    calls: list[tuple[tuple[str, ...], bool]] = []
+
+    async def _sleep(_seconds: float) -> None:
+        return
+
+    async def _recover(symbols, *, requalify: bool) -> None:
+        calls.append((tuple(symbols), requalify))
+        if requalify:
+            client._proxy_tickers["QQQ"].bid = 500.0
+            client._proxy_tickers["QQQ"].ask = 500.1
+
+    monkeypatch.setattr("asyncio.sleep", _sleep)
+    client._resubscribe_missing_proxy_quotes = _recover  # type: ignore[method-assign]
+
+    asyncio.run(client._probe_proxy_quotes())
+
+    assert calls == [(("QQQ",), False), (("QQQ",), True)]
+    assert client._proxy_force_delayed is False
+    assert client._proxy_probe_complete is True
+    assert client._proxy_probe_failures == 0
+    assert client._proxy_probe_retry_at_mono == 0.0
+
+
+def test_proxy_probe_backs_off_after_bounded_empty_recovery(
+    monkeypatch,
+) -> None:
+    client = _new_client()
+    client._proxy_tickers = {
+        symbol: SimpleNamespace(
+            contract=Stock(symbol=symbol, exchange="SMART", currency="USD"),
+            bid=None,
+            ask=None,
+            last=None,
+            close=None,
+            prevLast=None,
+        )
+        for symbol in ("QQQ", "SPY", "DIA", "TQQQ")
+    }
+    calls: list[tuple[tuple[str, ...], bool]] = []
+
+    async def _sleep(_seconds: float) -> None:
+        return
+
+    async def _recover(symbols, *, requalify: bool) -> None:
+        calls.append((tuple(symbols), requalify))
+
+    monkeypatch.setattr("asyncio.sleep", _sleep)
+    monkeypatch.setattr("tradebot.client.time.monotonic", lambda: 100.0)
+    monkeypatch.setattr("tradebot.client.random.uniform", lambda _low, _high: 0.0)
+    client._resubscribe_missing_proxy_quotes = _recover  # type: ignore[method-assign]
+
+    asyncio.run(client._probe_proxy_quotes())
+
+    expected = ("QQQ", "SPY", "DIA", "TQQQ")
+    assert calls == [(expected, False), (expected, True)]
+    assert client._proxy_probe_complete is False
+    assert client._proxy_probe_failures == 1
+    assert client._proxy_probe_retry_at_mono == pytest.approx(115.0)
+
+
+def test_proxy_probe_does_not_restart_after_session_is_settled() -> None:
+    client = _new_client()
+    client._proxy_probe_complete = True
+
+    client._start_proxy_probe()
+
+    assert client._proxy_probe_task is None
+
+
+def test_probe_proxy_contract_quote_retries_live_without_forcing_delayed(
+    monkeypatch,
+) -> None:
     client = _new_client()
     contract = Contract(
         secType="OPT",

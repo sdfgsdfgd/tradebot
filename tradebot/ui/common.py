@@ -7,6 +7,7 @@ Keep it dependency-light and free of IBKR side effects.
 from __future__ import annotations
 
 import math
+from copy import copy
 from dataclasses import dataclass
 from datetime import datetime, time
 from time import monotonic
@@ -591,7 +592,7 @@ def _ticker_line(
     *,
     allow_display_fallback: bool = False,
 ) -> Text:
-    if error:
+    if error and not tickers:
         return Text(f"{prefix}Data error: {error}", style="red")
     text = Text()
     if prefix:
@@ -602,8 +603,9 @@ def _ticker_line(
         label = labels[symbol]
         ticker = tickers.get(symbol)
         if not ticker:
-            text.append_text(_ticker_missing(label))
+            text.append_text(_ticker_missing(label, offline=bool(error)))
             continue
+        held = bool(getattr(ticker, "tbDisplayHeld", False))
         tag = _market_data_tag(ticker)
         price = _ticker_actionable_price(ticker)
         if (price is None or price <= 0) and allow_display_fallback:
@@ -613,18 +615,68 @@ def _ticker_line(
         close = _ticker_close(ticker)
         if price is None or price <= 0:
             if close and close > 0:
-                text.append_text(_ticker_closed(label + tag, close))
+                block = _ticker_closed(label + tag, close)
             else:
-                text.append_text(_ticker_missing(label + tag))
+                block = _ticker_missing(label + tag, offline=bool(error))
+            if held:
+                block.stylize("dim")
+            text.append_text(block)
             continue
         if close is None or close <= 0:
-            text.append_text(_ticker_price_only(label + tag, price))
+            block = _ticker_price_only(label + tag, price)
+            if held:
+                block.stylize("dim")
+            text.append_text(block)
             continue
         change = price - close
         pct = (change / close) * 100.0
         style = "green" if change > 0 else "red" if change < 0 else ""
-        text.append_text(_ticker_block(label + tag, price, change, pct, style))
+        block = _ticker_block(label + tag, price, change, pct, style)
+        if held:
+            block.stylize("dim")
+        text.append_text(block)
     return text
+
+
+def _remember_ticker_display(
+    tickers: dict[str, Ticker],
+    memory: dict[str, Ticker],
+    *,
+    allow_display_fallback: bool = False,
+) -> dict[str, Ticker]:
+    """Return a monotonic UI view without turning cached data into broker truth.
+
+    IBKR legitimately publishes empty ticker objects while a replacement stream
+    warms.  The transport map must remain authoritative for execution, while the
+    human-facing strip retains the last renderable object until a replacement is
+    itself renderable.  Copies keep this presentation memory detached from future
+    ib_insync mutations and cancellation.
+    """
+    visible: dict[str, Ticker] = {}
+    symbols = tuple(dict.fromkeys((*tickers.keys(), *memory.keys())))
+    for symbol in symbols:
+        ticker = tickers.get(symbol)
+        price = _ticker_actionable_price(ticker) if ticker is not None else None
+        if (price is None or price <= 0) and ticker is not None and allow_display_fallback:
+            price = _ticker_price(ticker)
+        close = _ticker_close(ticker) if ticker is not None else None
+        if (price is not None and price > 0) or (close is not None and close > 0):
+            snapshot = copy(ticker)
+            contract = getattr(ticker, "contract", None)
+            if contract is not None:
+                snapshot.contract = copy(contract)
+            setattr(snapshot, "tbDisplayHeld", False)
+            memory[symbol] = snapshot
+            visible[symbol] = ticker
+            continue
+        cached = memory.get(symbol)
+        if cached is not None:
+            held = copy(cached)
+            setattr(held, "tbDisplayHeld", True)
+            visible[symbol] = held
+        elif ticker is not None:
+            visible[symbol] = ticker
+    return visible
 
 
 def _ticker_block(label: str, price: float, change: float, pct: float, style: str) -> Text:
@@ -642,9 +694,10 @@ def _ticker_block(label: str, price: float, change: float, pct: float, style: st
     return text
 
 
-def _ticker_missing(label: str) -> Text:
+def _ticker_missing(label: str, *, offline: bool = False) -> Text:
     label_text = label.ljust(_TICKER_WIDTHS["label"])
-    price_text = "n/a".rjust(_TICKER_WIDTHS["price"])
+    state = "offline" if offline else "warming"
+    price_text = state.rjust(_TICKER_WIDTHS["price"])
     blank_change = "".rjust(_TICKER_WIDTHS["change"])
     blank_pct = "".rjust(_TICKER_WIDTHS["pct"])
     text = Text(label_text, style="dim")
