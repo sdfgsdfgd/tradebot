@@ -39,8 +39,8 @@ transcripts and routine test output do not belong here.
 | Active hypothesis | A true pivot is the ordered propagation and survival of a new-direction velocity/slope phase front—not one velocity flip, one high-volume bar, or one later-confirmed chart bottom |
 | Current authority | Concept and experiment management only. No classifier, direction, permission, timing, chase, order, or capital authority |
 | Landmark authority | P-001 preregistration `opening_edge_v4_phase_front_pivot_landmarks_preregistration.json` (`07506749…`) freezes the `0.25×` prior-scale causal confirmation / `0.50×` serious outgoing-wave oracle, landing schema, and diagnostic-only neighbors before landmark outcomes |
-| First work | P-004 R2 correction generation `bfbc7b36…` content-binds evaluator `b5fab0eb…` after the outcome-sealed R1 found `1,046` balanced causal emissions, `958` unmatched controls, and `2,392` relapses. The only correction projects the three list-valued year bounds instead of treating prose `windows.visibility` as a fourth year. Run this exact count next; no signal, threshold, count, control, future price, or outcome changed |
-| Hawkeye | Portfolio Hawkeye remains the preemptive outer loop. New-block review `2/6` began at `10:47:45Z`, `40s` after its lawful boundary, and settled without backfill. It retains only MCL Phase-Front/Subshock and XSP Pressure/Shock Phase-Front and spends `0/1` outcome-replay budget. All champions remain flat/order-free. XSP is now `DDDDD/UDDDD` with no turn/proposal inside an all-UP daily stack; MCL is `UUUUU/DUUUU`, with slow reacceleration but missing fast sponsorship. Both are prospective controls rather than targets. Next lawful review: `11:07:05Z` |
+| First work | Corrected outcome-sealed P-004 R2 result `2e05e543…` passes every frozen count gate: `1,046` causal emissions (`545 down / 501 up`), both directions in all years and pressure levels, `958` unmatched controls, `2,392` relapses, and `88` stable pressure/shock matches. Persist its compact receipt, then freeze exactly one Y1/Y2-selected and Y3-locked economic replay before opening any future price |
+| Hawkeye | Portfolio Hawkeye remains the preemptive outer loop. New-block review `3/6` began at `11:10:44Z`, `219s` after its lawful boundary, and settled without backfill. All champions remain flat/order-free. XSP now supplies a clean prospective fast repair: `UDDDD` slopes / `UUUUU` velocities with expanded `2.503×` ATR, but no fresh crown turn, no GTH-UP authority, and no P-004 prospective eligibility before `13:20Z`. MCL is `UUUUU/UDUDU`, a broad UP slope stack with alternating velocity and contracting ATR rather than phase lock. The block retains only XSP P-004 and MCL Phase-Front/Subshock, with `0/1` replay budget used. Next lawful review: `11:27:05Z` |
 
 <!-- PIVOT-RESUME:END -->
 
@@ -435,6 +435,8 @@ gate after outcomes.
 | P-004 preregistration | `dc5ed784…` freezes RTH completed-five-minute timing, zero pressure-memory bars, prior-only same-slot SPY ranks (`63` references / `21` minimum), existing `0.80/0.95` pressure classes, phase-owner direction, current XSP+SPY full acceptance, one emission per candidate wave, complete controls, fixed count gates, and sealed economics | Implement exactly one count-only evaluator. Do not let oracle direction, future price, crown targets, or later persistence enter causal selection; open one bounded economic replay only if every breadth/control gate passes |
 | P-004 R1 count preflight | Generation/evaluator/result `08f2969d…/ccf978ab…/9354afcf…` preserved exact tape/crown/owner identity and kept outcomes sealed. Raw counts are broad: `1,046` emissions (`545 down / 501 up`), Y1 `167/143`, Y2 `200/175`, Y3 `178/183`, pressure levels `240/591/215`, `958` unmatched emissions, `2,392` relapses, and `88` stable pressure/shock matches. The printed rejection came only from iterating the prose `windows.visibility` member as a fourth year | Transparent pre-outcome correction only: R2 evaluator `b5fab0eb…` projects the three list-valued year ranges. Content-bind it before rerun; do not reinterpret R1 as a pass, alter any causal law/count/control, or expose economics before the corrected gates settle |
 | P-004 R2 correction generation | `bfbc7b36…` freezes preregistration `dc5ed784…`, R1 generation/result `08f2969d…/9354afcf…`, unchanged consensus source `67e7daf6…`, and corrected evaluator `b5fab0eb…` before rerun | The correction may enumerate only two-bound list windows. Outcomes remain sealed; run once, accept the frozen count verdict, and do not reopen law or thresholds |
+| P-004 R2 count settlement | Corrected result `2e05e543…` passes every preregistered count gate with `1,046` emissions (`545 down / 501 up`), Y1 `167/143`, Y2 `200/175`, Y3 `178/183`, pressure levels `240/591/215`, `958` unmatched emissions, `2,392` relapsed-pressure controls, and `88` stable pressure/shock matches | `COUNT_PASS_FREEZE_ONE_ECONOMIC_REPLAY`. This proves breadth and false-alarm completeness, not edge. Freeze one exact baseline/timing/complementary/composition law before prices; retain all unmatched emissions and choose only on Y1/Y2 before one locked Y3 challenge |
+| Fourteenth specimen / fast repair front | Hawkeye `74e7b574…`: by `11:10Z`, XSP reached `UDDDD` slopes / `UUUUU` velocities with the 5m slope crossed UP, every slower slope still DOWN, coherence `0.8`, and sharply expanded `2.503×` ATR. The crown emitted no fresh turn/proposal, selected GTH allows only DOWN, and P-004 prospective treatment is not eligible until `13:20Z` | This is the cleanest live fast-to-slow phase-front onset so far, but it remains `FAST_REPAIR_FRONT_UNCONFIRMED`. The required evidence is ordered slow-slope propagation and recoil survival; one fast cross plus universal positive velocity cannot manufacture an UP trade |
 | P-002Q quiet-transition settlement | Generation/evaluator/result `9a0a3912…/ee65b83c…/3c79befd…` count `11,886` candidate episodes, `8,923` clean quiet episodes, and `190` qualifying transitions (`107 down / 83 up`; Y1 `38/22`, Y2 `32/32`, Y3 `37/29`). Direct cascades number `188`, recoil-survived only `2`, and relapse controls `3,859 down / 2,938 up` | Reject count-only because `203` genuine RTH-close censors produce `2.275% > 2%`. All terminate at `20:15/21:15Z`, and `134` are one-bar close sparks. This is not a reducer defect; do not delete boundary events, weaken the denominator/gate, or inspect economics |
 | MCL failed-repair control | Simultaneous positive velocity under all-negative slopes relapsed before ordered crosses | A repair spark alone is not a pivot; method reference only |
 | MCL headline/shock study | Demonstrates urgency, explicit authority handoff, and phase-front geometry | Inspiration only; no XSP threshold/outcome transfer |
@@ -453,6 +455,7 @@ gate after outcomes.
 | PD-008 | Crown automatically when the stable successor passes the frozen frontier and exact replay; do not request routine confirmation |
 | PD-009 | The serious-pivot oracle freezes volatility scale from the prior 21 completed XSP RTH sessions; future extrema may label evaluation only and can never enter the causal phase-front owner |
 | PD-010 | P-004 pressure magnitude is attention only. Direction belongs to the existing causal phase-front candidate and admission requires same-close dual-instrument slope/velocity acceptance; future-aware pressure/shock landmarks are evaluation labels only |
+| PD-011 | P-004 passed count breadth without outcomes. Spend the block's sole replay only after freezing exact baseline parity, timing-only cooperation, complementary flat-only ownership, deterministic non-overlap, Y1/Y2 selection, and one locked Y3 challenge; never search economics across thresholds |
 
 ## 13. Current execution sequence
 
@@ -469,18 +472,18 @@ gate after outcomes.
    outcomes remained sealed.
 5. `[COMPLETE / REJECTED]` P-002Q retained `190` broad quiet transitions but
    failed the frozen close-censor ceiling `2.275% > 2%`; outcomes stayed sealed.
-6. `[ACTIVE / PREREGISTERED]` Implement the frozen P-004 pressure/shock
-   phase-front count law `dc5ed784…`, include every false alarm/control, and
-   pass all breadth gates before any categorical atlas or economic replay.
-7. `[PENDING]` If a stable family exists, compare timing-only versus genuinely
-   complementary ownership and add GTH only as an independent lane.
+6. `[COMPLETE / COUNT_PASS]` P-004 R2 preserves every false alarm/control and
+   passes every frozen breadth gate with outcomes sealed.
+7. `[ACTIVE / ECONOMICS_MUST_FREEZE]` Bind one exact baseline, timing-only,
+   complementary, and smallest-composition replay law; select only on Y1/Y2,
+   then open Year 3 exactly once. GTH remains an independent later lane.
 8. `[PENDING]` Apply local plateau, unseen, delay, placebo, and cost stress.
 9. `[PENDING]` Extract one centralized owner, prove exact parity twice, crown,
    commission non-transmitting, then create a fresh flat live successor.
 
 ## Conclusion: XSP Multiscale Phase-Front Pivot Mastery
 
-**Status:** `ACTIVE / AUTHORIZED / P002C_AND_P002Q_COUNT_REJECTED / PRESSURE_SHOCK_FRONTIER_ISOLATED / P004_PREREGISTERED_COUNT_NEXT / ECONOMICS_SEALED`.
+**Status:** `ACTIVE / AUTHORIZED / P002C_AND_P002Q_COUNT_REJECTED / P004_COUNT_PASS / ONE_ECONOMIC_REPLAY_MUST_FREEZE / ECONOMICS_SEALED`.
 
 The decisive insight is:
 
