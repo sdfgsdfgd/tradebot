@@ -25,6 +25,12 @@ from .runs import (
     _run_systemctl,
     read_systemd_user_unit,
 )
+from .traces import (
+    causal_news_paths,
+    compact_strategy_traces,
+    load_causal_news,
+    project_execution_trace,
+)
 
 
 LIVE_PORTFOLIO_SCHEMA = "live.portfolio-cockpit.v1"
@@ -59,6 +65,7 @@ class LivePortfolioCockpit(LiveRunCockpit):
         graduation_directory: Path,
         graduation_validator: GraduationValidator,
         control_ledger_path: Path | None = None,
+        news_path: Path | None = None,
         unit_reader: UnitReader = read_systemd_user_unit,
         command_runner: CommandRunner = _run_systemctl,
     ) -> None:
@@ -75,6 +82,17 @@ class LivePortfolioCockpit(LiveRunCockpit):
         self.control_ledger_path = (
             configured if configured.is_absolute() else self.repository_root / configured
         )
+        self.news_path = (
+            news_path or Path("~/.local/state/tradebot/news/latest.json")
+        ).expanduser()
+        self._news_cache: tuple[
+            tuple[tuple[str, int | None, int | None], ...],
+            tuple[dict[str, object], ...],
+        ] | None = None
+        self._strategy_trace_cache: tuple[
+            tuple[object, ...], list[dict[str, object]]
+        ] | None = None
+        self._news_observation_cache: dict[tuple[str, str], object] = {}
         self.candidate_bindings = {
             (
                 binding.champion_symbol.strip().upper(),
@@ -376,6 +394,8 @@ class LivePortfolioCockpit(LiveRunCockpit):
                 binding=binding,
                 run_id=str(run.get("run_id") or ""),
             )
+            previous_transaction: object = None
+            previous_state: object = None
             for record in records:
                 evidence = record.get("evidence")
                 evidence = evidence if isinstance(evidence, Mapping) else {}
@@ -391,12 +411,47 @@ class LivePortfolioCockpit(LiveRunCockpit):
                 preview = preview if isinstance(preview, Mapping) else {}
                 risk = evidence.get("risk_state")
                 risk = risk if isinstance(risk, Mapping) else {}
-                context = plan.get("execution_state_context")
-                context = context if isinstance(context, Mapping) else {}
                 action = str(leg.get("action") or broker.get("action") or "")
                 symbol = str(leg.get("symbol") or broker.get("symbol") or "")
                 quantity = leg.get("quantity", broker.get("quantity"))
                 target = str(plan.get("target_direction") or "flat")
+                transaction = _identity(
+                    {
+                        "phase": evidence.get("phase") or "STATE",
+                        "action": action,
+                        "symbol": symbol,
+                        "quantity": quantity,
+                        "order_ref": evidence.get("order_ref"),
+                        "ladder": dict(ladder),
+                        "broker": dict(broker),
+                        "preview": dict(preview),
+                    }
+                )
+                state = _identity(
+                    {
+                        "holdings": dict(plan.get("holdings") or {}),
+                        "net": risk.get("run_net_usd"),
+                        "drawdown": risk.get("drawdown_usd"),
+                        "cost": risk.get("run_cost_usd"),
+                        "fills": risk.get("fill_count"),
+                        "trades": risk.get("closed_trades"),
+                    }
+                )
+                phase = str(evidence.get("phase") or "STATE")
+                detailed = bool(
+                    action
+                    or evidence.get("order_ref")
+                    or ladder
+                    or broker
+                    or preview
+                    or phase != "STATE"
+                )
+                transaction_change = detailed and transaction != previous_transaction
+                state_change = previous_state is not None and state != previous_state
+                previous_transaction = transaction if detailed else previous_transaction
+                previous_state = state
+                if not transaction_change and not state_change:
+                    continue
                 events.append(
                     {
                         "event_id": record.get("checkpoint_id"),
@@ -405,7 +460,7 @@ class LivePortfolioCockpit(LiveRunCockpit):
                         "sleeve_id": run.get("sleeve_id"),
                         "run_id": run.get("run_id"),
                         "label": run.get("label"),
-                        "phase": evidence.get("phase") or "STATE",
+                        "phase": phase,
                         "reason": plan.get("reason"),
                         "status": plan.get("status"),
                         "target_direction": plan.get("target_direction"),
@@ -424,7 +479,6 @@ class LivePortfolioCockpit(LiveRunCockpit):
                             "status": plan.get("status"),
                             "reason": plan.get("reason"),
                         },
-                        "execution_state_context": dict(context),
                         "execution_detail": {
                             "order_ref": evidence.get("order_ref"),
                             "ladder_transition": dict(ladder),
@@ -472,20 +526,148 @@ class LivePortfolioCockpit(LiveRunCockpit):
                         "drawdown_usd": None,
                         "message": f"{receipt.get('action')} {decision.get('status')}",
                         "latest_decision": {},
-                        "execution_state_context": {},
                     }
                 )
         events.sort(key=lambda event: str(event.get("recorded_at_utc") or ""))
         return events[-max(1, min(int(limit), 10_000)) :]
 
-    def view(self, *, limit: int = 1_000) -> dict[str, object]:
+    def _trace_news(self) -> tuple[dict[str, object], ...]:
+        paths = causal_news_paths(self.news_path, as_of=datetime.now(tz=timezone.utc))
+        signature = []
+        for path in paths:
+            try:
+                stat = path.stat()
+            except OSError:
+                signature.append((str(path), None, None))
+            else:
+                signature.append((str(path), stat.st_size, stat.st_mtime_ns))
+        identity = tuple(signature)
+        if self._news_cache is not None and self._news_cache[0] == identity:
+            return self._news_cache[1]
+        snapshots = load_causal_news(paths)
+        self._news_observation_cache.clear()
+        self._news_cache = (identity, snapshots)
+        return snapshots
+
+    def _strategy_traces(
+        self,
+        snapshot: Mapping[str, object],
+        *,
+        limit: int,
+    ) -> list[dict[str, object]]:
+        traces: list[dict[str, object]] = []
+        news = self._trace_news()
+        bounded = max(1, min(int(limit), 10_000))
+        sources: list[
+            tuple[
+                Mapping[str, object],
+                LiveRunBinding,
+                tuple[dict[str, object], ...],
+                tuple[int, int],
+            ]
+        ] = []
+        for run in snapshot.get("runs", ()):
+            if not isinstance(run, Mapping) or run.get("valid") is not True:
+                continue
+            binding = self.bindings.get(str(run.get("strategy_id") or ""))
+            if binding is None:
+                continue
+            ledger_path = _repo_path(self.repository_root, binding.ledger_path)
+            records = self._read_ledger(ledger_path)
+            ledger_identity = self._ledger_cache[ledger_path][:2]
+            sources.append((run, binding, records, ledger_identity))
+        cache_key: tuple[object, ...] = (
+            bounded,
+            self._news_cache[0] if self._news_cache is not None else (),
+            tuple(
+                (
+                    run.get("sleeve_id"),
+                    run.get("run_id"),
+                    run.get("strategy_id"),
+                    run.get("label"),
+                    binding.execution_strategy_version,
+                    binding.champion_symbol,
+                    ledger_identity,
+                )
+                for run, binding, _records, ledger_identity in sources
+            ),
+        )
+        if (
+            self._strategy_trace_cache is not None
+            and self._strategy_trace_cache[0] == cache_key
+        ):
+            return self._strategy_trace_cache[1]
+        selected: list[
+            tuple[
+                str,
+                Mapping[str, object],
+                LiveRunBinding,
+                Mapping[str, object],
+                Mapping[str, Mapping[str, object]],
+            ]
+        ] = []
+        for run, binding, records, _ledger_identity in sources:
+            by_id = {
+                str(record.get("checkpoint_id") or ""): record
+                for record in records
+                if record.get("checkpoint_id")
+            }
+            execution = _matching_execution_records(
+                records,
+                binding=binding,
+                run_id=str(run.get("run_id") or ""),
+            )[-bounded:]
+            selected.extend(
+                (
+                    str(record.get("recorded_at_utc") or ""),
+                    run,
+                    binding,
+                    record,
+                    by_id,
+                )
+                for record in execution
+            )
+        grouped: dict[str, list[dict[str, object]]] = {}
+        for _when, run, binding, record, by_id in sorted(
+            selected, key=lambda item: item[0]
+        ):
+            sleeve_id = str(run.get("sleeve_id") or run.get("run_id") or "")
+            grouped.setdefault(sleeve_id, []).append(
+                project_execution_trace(
+                    record,
+                    run=run,
+                    trace_key=(
+                        binding.champion_symbol.strip().upper()
+                        or str(run.get("strategy_id") or "STRATEGY")
+                    ),
+                    records_by_id=by_id,
+                    news_snapshots=news,
+                    news_observation_cache=self._news_observation_cache,
+                )
+            )
+        for projected in grouped.values():
+            traces.extend(compact_strategy_traces(projected))
+        traces.sort(key=lambda trace: str(trace.get("last_recorded_at_utc") or ""))
+        self._strategy_trace_cache = (cache_key, traces)
+        return traces
+
+    def view(
+        self,
+        *,
+        limit: int = 1_000,
+        trace_limit: int | None = None,
+    ) -> dict[str, object]:
         """Read one internally consistent cockpit snapshot and its timeline."""
 
         snapshot = self.snapshot()
         return {
             "snapshot": snapshot,
             "timeline": self._timeline(snapshot, limit=limit),
+            "traces": self._strategy_traces(
+                snapshot,
+                limit=limit if trace_limit is None else trace_limit,
+            ),
         }
 
     def timeline(self, *, limit: int = 1_000) -> list[dict[str, object]]:
-        return list(self.view(limit=limit)["timeline"])
+        return list(self.view(limit=limit, trace_limit=1)["timeline"])

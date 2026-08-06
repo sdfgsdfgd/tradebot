@@ -401,6 +401,15 @@ class PortfolioTable:
         if open_daily is not None:
             return float(open_daily), "open"
 
+        # The Portfolio-window PnL stream can remain unset while the account is
+        # flat. The Account-window U+R values still provide broker truth, albeit
+        # with IBKR's separate daily reset schedule.
+        _unreal, _real, account_total, _currency, source = self._account_u_r_totals(items)
+        if source == "account" and account_total is not None:
+            value = float(account_total)
+            self._today_ibkr_last_value = value
+            return value, "account_window"
+
         if self._today_ibkr_last_value is not None:
             return float(self._today_ibkr_last_value), "cache"
         return None, "warmup"
@@ -460,6 +469,8 @@ class PortfolioTable:
             amount = _pnl_text(value)
             if source == "open":
                 amount.append(" ≈open", style="dim")
+            elif source == "account_window":
+                amount.append(" ≈acct", style="dim")
             elif source == "cache":
                 amount.append(" ≈hold", style="dim")
         amount = self._center_cell(amount, self._UNREAL_COL_WIDTH)

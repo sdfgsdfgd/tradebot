@@ -11,7 +11,7 @@ from textual import events
 from textual.app import ComposeResult
 from textual.containers import Horizontal
 from textual.screen import Screen
-from textual.widgets import Footer, Header, Static
+from textual.widgets import Header, Static
 
 from ...live.options import (
     LiveOptionPackageDraft,
@@ -20,6 +20,7 @@ from ...live.options import (
     quote_live_option_package,
 )
 from ...order_admission import OrderAdmissionDecision
+from ..footer import TradebotFooter
 from .frame import box_bottom, box_row, box_rule, box_top, pane_width
 
 
@@ -72,7 +73,7 @@ class OptionPackageDetailScreen(Screen):
             "Space-style package composed on Home • P what-if • Shift+B send admitted preview",
             id="detail-legend",
         )
-        yield Footer()
+        yield TradebotFooter()
 
     async def on_mount(self) -> None:
         self._left = self.query_one("#detail-left", Static)

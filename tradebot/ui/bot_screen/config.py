@@ -9,11 +9,12 @@ from rich.text import Text
 from textual import events
 from textual.app import ComposeResult
 from textual.screen import Screen
-from textual.widgets import DataTable, Footer, Header, Static
+from textual.widgets import DataTable, Header, Static
 
 from ...contract_identity import is_future_symbol
 from ..bot_models import _BotConfigField, _BotConfigResult
 from ..common import _append_digit, _parse_float
+from ..footer import TradebotFooter
 from .formatting import (
     _get_path,
     _legs_direction_hint,
@@ -81,7 +82,7 @@ class BotConfigScreen(Screen[Optional[_BotConfigResult]]):
             "Enter=Save & start  Esc=Cancel  Type=Edit  e=Edit w/ current  Space=Toggle  ←/→=Cycle enum  Hours: blank=off",
             id="bot-config-help",
         )
-        yield Footer()
+        yield TradebotFooter()
 
     async def on_mount(self) -> None:
         self._header = self.query_one("#bot-config-header", Static)

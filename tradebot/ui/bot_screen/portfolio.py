@@ -46,16 +46,6 @@ class BotPortfolioMixin:
             "Net",
             "DD",
         )
-        self._logs_table.clear(columns=True)
-        self._logs_table.add_columns(
-            "When UTC",
-            "Champion",
-            "Kind",
-            "Phase",
-            "Status",
-            "Reason",
-            "Message",
-        )
 
     @staticmethod
     def _candidate_stage(value: Mapping[str, object]) -> Text:
@@ -92,6 +82,8 @@ class BotPortfolioMixin:
         if not isinstance(graduation, Mapping):
             return "not started"
         verdict = str(graduation.get("verdict") or "UNKNOWN")
+        if verdict == "PENDING" and not graduation.get("receipt_id"):
+            return "NO RECEIPT"
         target = str(graduation.get("target") or "")
         return f"{verdict} {target}".strip()
 
@@ -143,41 +135,80 @@ class BotPortfolioMixin:
         elif self._candidate_rows:
             self._candidates_table.cursor_coordinate = (0, 0)
 
-    def _render_timeline_tables(self, events: list[dict[str, object]]) -> None:
-        self._activity_table.clear()
-        self._logs_table.clear()
+    @staticmethod
+    def _timeline_row_key(event: Mapping[str, object]) -> str:
+        event_id = str(event.get("event_id") or "").strip()
+        if not event_id:
+            event_id = "|".join(
+                str(event.get(field) or "")
+                for field in ("recorded_at_utc", "sleeve_id", "phase", "message")
+            )
+        return f"{event.get('kind') or 'EVENT'}:{event_id}"
+
+    def _add_timeline_row(self, event: Mapping[str, object]) -> None:
+        key = self._timeline_row_key(event)
+        when = str(event.get("recorded_at_utc") or "")
+        label = str(event.get("label") or event.get("sleeve_id") or "portfolio")
+        net = event.get("run_net_usd")
+        drawdown = event.get("drawdown_usd")
+        self._activity_table.add_row(
+            when,
+            label,
+            str(event.get("phase") or "-"),
+            str(event.get("target_direction") or "-"),
+            str(event.get("action") or "-"),
+            str(event.get("quantity") if event.get("quantity") is not None else "-"),
+            str(event.get("symbol") or "-"),
+            _pnl_text(float(net)) if net is not None else Text("-", style="dim"),
+            f"${float(drawdown):,.2f}" if drawdown is not None else "-",
+            key=f"activity:{key}",
+        )
+
+    def _render_timeline_tables(self, events: list[dict[str, object]]) -> bool:
+        if events == self._timeline_rows:
+            return False
+        previous = self._timeline_rows
+        old_keys = [self._timeline_row_key(event) for event in previous]
+        new_keys = [self._timeline_row_key(event) for event in events]
+        if len(set(new_keys)) != len(new_keys):
+            raise RuntimeError(
+                "q portfolio timeline contains duplicate event identities"
+            )
+
+        def _selected_key(table) -> str | None:
+            row = table.cursor_coordinate.row
+            return old_keys[row] if 0 <= row < len(old_keys) else None
+
+        selected = _selected_key(self._activity_table)
+        old_by_key = dict(zip(old_keys, previous))
+        new_by_key = dict(zip(new_keys, events))
+        old_set, new_set = set(old_keys), set(new_keys)
+        retained = [key for key in old_keys if key in new_set]
+        incremental = (
+            new_keys[: len(retained)] == retained
+            and all(key not in old_set for key in new_keys[len(retained) :])
+            and all(old_by_key[key] == new_by_key[key] for key in retained)
+        )
+        removed = (
+            [key for key in old_keys if key not in new_set] if incremental else old_keys
+        )
+        for key in removed:
+            self._activity_table.remove_row(f"activity:{key}")
+        added = (
+            [key for key in new_keys if key not in old_set] if incremental else new_keys
+        )
+        for key in added:
+            self._add_timeline_row(new_by_key[key])
+
         self._timeline_rows = events
-        for event in events:
-            when = str(event.get("recorded_at_utc") or "")
-            label = str(event.get("label") or event.get("sleeve_id") or "portfolio")
-            net = event.get("run_net_usd")
-            drawdown = event.get("drawdown_usd")
-            self._activity_table.add_row(
-                when,
-                label,
-                str(event.get("phase") or "-"),
-                str(event.get("target_direction") or "-"),
-                str(event.get("action") or "-"),
-                str(event.get("quantity") if event.get("quantity") is not None else "-"),
-                str(event.get("symbol") or "-"),
-                _pnl_text(float(net)) if net is not None else Text("-", style="dim"),
-                f"${float(drawdown):,.2f}" if drawdown is not None else "-",
-                key=f"activity:{event.get('event_id')}",
-            )
-            self._logs_table.add_row(
-                when,
-                label,
-                str(event.get("kind") or "-"),
-                str(event.get("phase") or "-"),
-                str(event.get("status") or "-"),
-                str(event.get("reason") or "-"),
-                str(event.get("message") or "-"),
-                key=f"log:{event.get('event_id')}",
-            )
-        if events:
-            last = len(events) - 1
-            self._activity_table.cursor_coordinate = (last, 0)
-            self._logs_table.cursor_coordinate = (last, 0)
+        row = (
+            new_keys.index(selected)
+            if selected in new_set
+            else len(new_keys) - 1
+        )
+        if row >= 0:
+            self._activity_table.cursor_coordinate = (row, 0)
+        return True
 
     def _selected_candidate(self) -> dict[str, object] | None:
         table = getattr(self, "_candidates_table", None)
@@ -189,8 +220,7 @@ class BotPortfolioMixin:
         return self._candidate_rows[row]
 
     def _selected_timeline_event(self) -> dict[str, object] | None:
-        table = self._activity_table if self._active_panel == "activity" else self._logs_table
-        row = table.cursor_coordinate.row
+        row = self._activity_table.cursor_coordinate.row
         if row < 0 or row >= len(self._timeline_rows):
             return None
         return self._timeline_rows[row]

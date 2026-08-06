@@ -9,13 +9,15 @@ from ib_insync import Contract, PnL, PortfolioItem, Ticker
 from rich.text import Text
 from textual import events
 from textual.app import App, ComposeResult
-from textual.widgets import DataTable, Footer, Header, Static
+from textual.binding import Binding
+from textual.widgets import DataTable, Header, Static
 
 from ..client import IBKRClient
 from ..config import load_config
 from ..live.options import LiveOptionPackageDraft
 from .bot_runtime import BotRuntime
 from .favorites import FavoritesScreen
+from .footer import TradebotFooter
 from .portfolio.market import PortfolioMarketValues
 from .portfolio.search_runtime import PortfolioSearchRuntime
 from .portfolio.search_state import PortfolioSearchState
@@ -61,19 +63,46 @@ class PositionsApp(
     }
 
     BINDINGS = [
-        ("q", "quit", "Quit"),
-        ("r", "refresh", "Refresh"),
-        ("j", "cursor_down", "Down"),
-        ("k", "cursor_up", "Up"),
-        ("l", "open_details", "Details"),
-        ("f", "open_favorites", "Favorites"),
-        ("ctrl+f", "toggle_search", "Search"),
-        ("ctrl+t", "toggle_bot", "Bot"),
+        Binding("q", "quit", "Quit"),
+        Binding("r", "refresh", "Refresh"),
+        Binding("j", "cursor_down", show=False),
+        Binding("k", "cursor_up", show=False),
+        Binding("l", "open_details", "Details"),
+        Binding("f", "open_favorites", "Favorites"),
+        Binding("ctrl+f", "toggle_search", "Search", key_display="⌃F"),
+        Binding("ctrl+t", "toggle_bot", "Bot", key_display="⌃T"),
     ]
 
     CSS = """
     Screen {
         layout: vertical;
+    }
+
+    Footer {
+        background: #0c131a;
+        color: #8aa0b6;
+        padding: 0 1;
+
+        FooterKey {
+            background: #0c131a;
+
+            .footer-key--key {
+                background: #16232e;
+                color: #f2b36f;
+                text-style: bold;
+                padding: 0 1;
+            }
+
+            .footer-key--description {
+                background: #0c131a;
+                color: #aebdca;
+                padding: 0 1 0 0;
+            }
+
+            &:hover {
+                background: #1a2a37;
+            }
+        }
     }
 
     #ticker {
@@ -156,7 +185,17 @@ class PositionsApp(
 
     #bot-status {
         height: 5;
+        min-height: 3;
+        max-height: 12;
         padding: 0 1;
+        color: #aebdca;
+        background: #0b1219;
+    }
+
+    #bot-candidates {
+        height: 7;
+        padding: 0 1;
+        border: solid #1b3650;
     }
 
     #bot-presets {
@@ -172,9 +211,58 @@ class PositionsApp(
     }
 
     #bot-live-runs {
+        height: 7;
+        padding: 0 1;
+        border: solid #1b3650;
+    }
+
+    #bot-activity {
         height: 8;
         padding: 0 1;
         border: solid #1b3650;
+    }
+
+    #bot-traces {
+        height: 1fr;
+        min-height: 12;
+        padding: 0;
+        border: solid #1b3650;
+        border-title-color: #52718b;
+        border-title-style: bold;
+        border-subtitle-align: right;
+        border-subtitle-color: #71869a;
+        border-subtitle-style: dim;
+    }
+
+    #bot-traces TabPane {
+        padding: 0;
+    }
+
+    #bot-traces ContentTabs {
+        height: 1;
+        background: #0c131a;
+    }
+
+    #bot-traces Tab {
+        height: 1;
+        padding: 0 1;
+        color: #71869a;
+        background: #0c131a;
+    }
+
+    #bot-traces Tab.-active {
+        color: #d9e5ef;
+        background: #16232e;
+        text-style: bold;
+    }
+
+    #bot-traces Underline {
+        display: none;
+    }
+
+    #bot-traces DataTable {
+        height: 1fr;
+        padding: 0 1;
     }
 
     #bot-orders {
@@ -190,7 +278,10 @@ class PositionsApp(
     }
 
     #bot-presets,
+    #bot-candidates,
     #bot-live-runs,
+    #bot-activity,
+    #bot-traces,
     #bot-instances,
     #bot-orders,
     #bot-logs,
@@ -198,14 +289,29 @@ class PositionsApp(
         background-tint: #000000 12%;
     }
 
+    #bot-candidates,
+    #bot-live-runs,
+    #bot-activity {
+        border-title-color: #52718b;
+        border-title-style: bold;
+    }
+
     #bot-presets:focus,
+    #bot-candidates:focus,
     #bot-live-runs:focus,
+    #bot-activity:focus,
     #bot-instances:focus,
     #bot-orders:focus,
     #bot-logs:focus,
     #bot-config:focus {
         border: solid #2c82c9;
         background-tint: #000000 0%;
+    }
+
+    #bot-traces:focus-within {
+        border: solid #2c82c9;
+        background-tint: #000000 0%;
+        border-title-color: #62b0ff;
     }
 
     #bot-presets > .datatable--cursor {
@@ -236,6 +342,22 @@ class PositionsApp(
     #bot-config > .datatable--cursor {
         background: #0d1117;
         text-style: none;
+    }
+
+    #bot-candidates > .datatable--cursor,
+    #bot-live-runs > .datatable--cursor,
+    #bot-activity > .datatable--cursor,
+    .bot-trace-table > .datatable--cursor {
+        background: rgba(44, 130, 201, 0.12);
+        text-style: none;
+    }
+
+    #bot-candidates > .datatable--header,
+    #bot-activity > .datatable--header,
+    .bot-trace-table > .datatable--header {
+        background: #121820;
+        color: #c6d4e1;
+        text-style: bold;
     }
 
     #bot-presets > .datatable--header-cursor,
@@ -299,6 +421,8 @@ class PositionsApp(
             int, tuple[float | None, float | None, float | None, float | None]
         ] = {}
         self._quote_updated_mono_by_con_id: dict[int, float] = {}
+        self._position_entry_by_con_id: dict[int, float] = {}
+        self._last_position_mark_by_con_id: dict[int, tuple[float, float]] = {}
         self._search_active = False
         self._search_query = ""
         self._search_mode_index = 0
@@ -343,7 +467,7 @@ class PositionsApp(
         )
         yield Static("Starting...", id="status")
         yield _SearchDrawer("", id="search")
-        yield Footer()
+        yield TradebotFooter()
 
     async def on_mount(self) -> None:
         self._table = self.query_one(DataTable)

@@ -102,10 +102,12 @@ def test_official_live_cockpit_has_no_local_signal_or_broker_order_owner() -> No
         "tradebot/live/portfolio.py",
         "tradebot/live/portfolio_endpoint.py",
         "tradebot/live/strategies.py",
+        "tradebot/live/traces.py",
         "tradebot/ui/bot.py",
         "tradebot/ui/bot_runtime.py",
         "tradebot/ui/bot_screen/live_runs.py",
         "tradebot/ui/bot_screen/portfolio.py",
+        "tradebot/ui/bot_screen/traces.py",
     ):
         path = ROOT / relative
         tree = ast.parse(path.read_text(), filename=str(path))

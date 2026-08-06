@@ -12,7 +12,7 @@ from textual import events
 from textual.app import ComposeResult
 from textual.containers import Horizontal
 from textual.screen import Screen
-from textual.widgets import Footer, Header, Static
+from textual.widgets import Header, Static
 
 from ..client import IBKRClient
 from ..engines.execution import (
@@ -38,6 +38,7 @@ from .common import (
     _safe_num,
     _unrealized_pnl_values,
 )
+from .footer import TradebotFooter
 from .position_detail.frame import pane_width
 from .position_detail.market import PositionMarketView
 from .position_detail.orders import PositionOrderView
@@ -121,7 +122,7 @@ class PositionDetailScreen(Screen):
             id="detail-body",
         )
         yield Static("", id="detail-legend")
-        yield Footer()
+        yield TradebotFooter()
 
     async def on_mount(self) -> None:
         self._detail_left = self.query_one("#detail-left", Static)

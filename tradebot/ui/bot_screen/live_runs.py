@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Mapping
+from datetime import datetime, timezone
 from pathlib import Path
 
 from rich.text import Text
@@ -15,6 +16,8 @@ from .formatting import _center_table_row
 
 class BotLiveRunsMixin:
     _LIVE_RUN_REFRESH_SEC = 5.0
+    _LIVE_TIMELINE_LIMIT = 250
+    _LIVE_TRACE_LIMIT_PER_STRATEGY = 2_000
 
     def _init_live_runs(self, repository_root: Path) -> None:
         self._live_runs_owner = LivePortfolioEndpoint.default(repository_root)
@@ -23,6 +26,7 @@ class BotLiveRunsMixin:
         self._live_runs_refreshing = False
         self._live_runs_refresh_task = None
         self._live_run_control_task: asyncio.Task | None = None
+        self._live_runs_view_id: str | None = None
 
     def _setup_live_runs_table(self) -> None:
         self._live_runs_table.clear(columns=True)
@@ -34,7 +38,7 @@ class BotLiveRunsMixin:
             ("Net", 12),
             ("DD", 10),
             ("Fills/Tr", 9),
-            ("Graduation", 14),
+            ("Graduation", 24),
             ("Safety", 11),
             ("Controls", 22),
         ):
@@ -70,13 +74,36 @@ class BotLiveRunsMixin:
         return "flat" if not active else " + ".join(active)
 
     @staticmethod
-    def _live_run_graduation_cell(run: Mapping[str, object]) -> Text:
+    def _graduation_age_hours(
+        graduation: Mapping[str, object],
+        *,
+        now: datetime | None = None,
+    ) -> float | None:
+        value = graduation.get("cutoff_utc")
+        if not value:
+            return None
+        try:
+            cutoff = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        if cutoff.tzinfo is None or cutoff.utcoffset() is None:
+            cutoff = cutoff.replace(tzinfo=timezone.utc)
+        current = now or datetime.now(tz=timezone.utc)
+        return max(0.0, (current.astimezone(timezone.utc) - cutoff).total_seconds() / 3600)
+
+    @classmethod
+    def _live_run_graduation_cell(cls, run: Mapping[str, object]) -> Text:
         graduation = run.get("graduation")
         if not isinstance(graduation, Mapping):
             return Text("UNKNOWN", style="bold #d6a56f")
         verdict = str(graduation.get("verdict") or "UNKNOWN")
         target = str(graduation.get("target") or "")
-        label = verdict + (f" {target}" if target else "")
+        if verdict == "PENDING" and not graduation.get("receipt_id"):
+            return Text("NO RECEIPT", style="bold #b8c0cb")
+        age = cls._graduation_age_hours(graduation)
+        label = f"{target} {verdict}".strip()
+        if age is not None:
+            label += f" · {age:.0f}h old"
         style = {
             "PROMOTE": "bold #73d89e",
             "HOLD": "bold #f2b36f",
@@ -85,7 +112,24 @@ class BotLiveRunsMixin:
             "QUARANTINE": "bold #ff7070",
             "STOP": "bold #ff7070",
         }.get(verdict, "bold #d6a56f")
+        if verdict == "HOLD" and age is not None and age >= 6:
+            style = "bold #ff7070"
         return Text(label, style=style)
+
+    @staticmethod
+    def _graduation_ladder(graduation: Mapping[str, object]) -> str:
+        target = str(graduation.get("target") or "")
+        verdict = str(graduation.get("verdict") or "PENDING")
+        order = ("24h", "48h", "five_session_week")
+        labels = {"24h": "24h", "48h": "48h", "five_session_week": "5 sessions"}
+        if target not in order:
+            return "24h ○ → 48h locked → 5 sessions locked"
+        index = order.index(target)
+        cells = []
+        for position, milestone in enumerate(order):
+            state = "✓" if position < index else verdict if position == index else "locked"
+            cells.append(f"{labels[milestone]} {state}")
+        return " → ".join(cells)
 
     @staticmethod
     def _live_run_controls(run: Mapping[str, object]) -> str:
@@ -172,16 +216,54 @@ class BotLiveRunsMixin:
             return
         self._live_runs_refreshing = True
         try:
-            view = await asyncio.to_thread(self._live_runs_owner.view)
-            snapshot = view["snapshot"]
-            timeline = view["timeline"]
-            self._live_runs_snapshot = snapshot
-            self._render_live_runs_table(snapshot)
-            if hasattr(self, "_render_candidates_table"):
-                self._render_candidates_table(snapshot)
-            if hasattr(self, "_render_timeline_tables"):
-                self._render_timeline_tables(timeline)
-            if self._active_panel in {"candidates", "live_runs", "activity", "logs"}:
+            view = await asyncio.to_thread(
+                self._live_runs_owner.view,
+                limit=self._LIVE_TIMELINE_LIMIT,
+                trace_limit=self._LIVE_TRACE_LIMIT_PER_STRATEGY,
+                previous_view_id=self._live_runs_view_id,
+            )
+            view_id = str(view.get("view_id") or "") or None
+            if view.get("unchanged") is True:
+                self._live_runs_view_id = view_id
+                return
+            changed = False
+            if "snapshot" in view:
+                snapshot = view["snapshot"]
+                if not isinstance(snapshot, Mapping):
+                    raise RuntimeError(
+                        "q portfolio endpoint returned an invalid snapshot"
+                    )
+                self._live_runs_snapshot = dict(snapshot)
+                self._render_live_runs_table(snapshot)
+                if hasattr(self, "_render_candidates_table"):
+                    self._render_candidates_table(snapshot)
+                changed = True
+            if "timeline" in view:
+                timeline = view["timeline"]
+                if not isinstance(timeline, list) or any(
+                    not isinstance(event, Mapping) for event in timeline
+                ):
+                    raise RuntimeError(
+                        "q portfolio endpoint returned an invalid timeline"
+                    )
+                if hasattr(self, "_render_timeline_tables"):
+                    self._render_timeline_tables([dict(event) for event in timeline])
+                changed = True
+            if "traces" in view:
+                traces = view["traces"]
+                if not isinstance(traces, list) or any(
+                    not isinstance(trace, Mapping) for trace in traces
+                ):
+                    raise RuntimeError(
+                        "q portfolio endpoint returned invalid strategy traces"
+                    )
+                if hasattr(self, "_render_strategy_traces"):
+                    self._render_strategy_traces([dict(trace) for trace in traces])
+                changed = True
+            if not changed:
+                raise RuntimeError("q portfolio endpoint returned an empty delta")
+            self._live_runs_view_id = view_id
+            if self._active_panel in {"candidates", "live_runs", "activity", "traces"}:
                 self._render_status()
         except Exception as exc:  # pragma: no cover - operator surface
             self._set_status(f"Live Runs: {exc}")
@@ -306,11 +388,24 @@ class BotLiveRunsMixin:
             Text(
                 f"Graduation={graduation.get('verdict', 'UNKNOWN')} "
                 f"{graduation.get('target') or ''}  "
+                f"cutoff={graduation.get('cutoff_utc') or 'none'}  "
                 f"Safety={'PASS' if safety.get('valid') is True and not safety.get('breaches') else 'CHECK'}",
                 style="dim",
             ),
+            Text("Gate ladder: " + self._graduation_ladder(graduation), style="#8fbfff"),
         ]
-        lines.extend(self._live_run_hawkeye_lines(run))
+        reasons = list(graduation.get("reasons") or ())
+        if reasons:
+            lines.append(Text("Graduation: " + "; ".join(str(value) for value in reasons), style="#f2b36f"))
+        trace = (
+            self._latest_trace_for_sleeve(run.get("sleeve_id"))
+            if hasattr(self, "_latest_trace_for_sleeve")
+            else None
+        )
+        if trace is not None and hasattr(self, "_trace_detail_lines"):
+            lines.extend(self._trace_detail_lines(trace))
+        else:
+            lines.extend(self._live_run_hawkeye_lines(run))
         lines.append(
             Text(
                 "Space resumes/pauses q's timer only. Stop refuses non-flat, open, pending, or busy runs. "
@@ -318,9 +413,6 @@ class BotLiveRunsMixin:
                 style="dim",
             )
         )
-        reasons = list(graduation.get("reasons") or ())
-        if reasons:
-            lines.append(Text("Graduation: " + "; ".join(str(value) for value in reasons), style="#f2b36f"))
         errors = list(run.get("errors") or ())
         if errors:
             lines.append(Text("Run errors: " + "; ".join(str(value) for value in errors), style="bold #ff7070"))

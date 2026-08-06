@@ -31,6 +31,8 @@ from ..common import (
 
 
 class PortfolioMarketValues:
+    _POSITION_MARK_STICKY_SEC = 20.0
+
     def _prime_change_data(self, items: list[PortfolioItem]) -> None:
         for item in items:
             if item.contract.secType not in _SECTION_TYPES:
@@ -324,9 +326,27 @@ class PortfolioMarketValues:
         self,
         item: PortfolioItem,
     ) -> tuple[float | None, float | None, float | None]:
+        try:
+            con_id = int(getattr(item.contract, "conId", 0) or 0)
+        except (TypeError, ValueError):
+            con_id = 0
         avg_cost = self._float_or_none(getattr(item, "averageCost", None))
         mark_price, _is_estimate = self._mark_price(item)
         mark = self._float_or_none(mark_price)
+        if con_id:
+            entries = self._position_entry_by_con_id
+            marks = self._last_position_mark_by_con_id
+            if avg_cost is None:
+                avg_cost = entries.get(con_id)
+            else:
+                entries[con_id] = float(avg_cost)
+            now_mono = time.monotonic()
+            if mark is None:
+                cached = marks.get(con_id)
+                if cached is not None and (now_mono - float(cached[1])) <= self._POSITION_MARK_STICKY_SEC:
+                    mark = float(cached[0])
+            else:
+                marks[con_id] = (float(mark), now_mono)
         if avg_cost is None:
             return None, mark, None
 

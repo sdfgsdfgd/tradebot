@@ -12,7 +12,7 @@ from ib_insync import Contract, Crypto, Future, Index, PortfolioItem, Stock, Tic
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.screen import Screen
-from textual.widgets import DataTable, Footer, Header, Static
+from textual.widgets import DataTable, Header, Static
 
 from ..client import IBKRClient
 from ..engines.execution import _ticker_price
@@ -25,6 +25,7 @@ from .common import (
     _quote_age_ribbon,
     _safe_num,
 )
+from .footer import TradebotFooter
 from .positions import PositionDetailScreen
 
 
@@ -167,7 +168,7 @@ class FavoritesScreen(Screen):
             cursor_background_priority="css",
         )
         yield Static("Loading favorites...", id="favorites-status")
-        yield Footer()
+        yield TradebotFooter()
 
     async def on_mount(self) -> None:
         self._table = self.query_one("#favorites-table", DataTable)

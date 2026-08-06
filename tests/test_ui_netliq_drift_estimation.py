@@ -481,6 +481,7 @@ def test_today_ibkr_value_uses_account_then_open_then_cache() -> None:
     assert source == "open"
 
     app._client = SimpleNamespace(pnl_single_daily=lambda _con_id: None)
+    app._account_u_r_totals = lambda _items: (None, None, None, None, "open")
     value, source = app._today_ibkr_value(items, et_day=date(2026, 2, 19))
     assert value == pytest.approx(99.0)
     assert source == "cache"
@@ -488,6 +489,19 @@ def test_today_ibkr_value_uses_account_then_open_then_cache() -> None:
     value, source = app._today_ibkr_value(items, et_day=date(2026, 2, 20))
     assert value is None
     assert source == "warmup"
+
+
+def test_today_ibkr_value_uses_account_window_when_flat_stream_is_unset() -> None:
+    _ensure_event_loop()
+    app = PositionsApp()
+    app._client = SimpleNamespace(pnl_single_daily=lambda _con_id: None)
+    app._pnl = SimpleNamespace(dailyPnL=float("nan"))
+    app._account_u_r_totals = lambda _items: (0.0, 0.0, 0.0, "AUD", "account")
+
+    value, source = app._today_ibkr_value([], et_day=date(2026, 8, 6))
+
+    assert value == pytest.approx(0.0)
+    assert source == "account_window"
 
 
 def test_refresh_positions_warms_streams_after_successful_snapshot() -> None:

@@ -13,12 +13,13 @@ from textual import events
 from textual.app import ComposeResult
 from textual.containers import Vertical
 from textual.screen import Screen
-from textual.widgets import DataTable, Footer, Header, Static
+from textual.widgets import DataTable, Header, Static
 
 from ..chart_data.series import BarSeries
 from ..client import IBKRClient
 from ..spot.codec import effective_filters_payload as _effective_filters_payload
 from .bot_engine_runtime import BotEngineRuntimeMixin
+from .footer import TradebotFooter
 from .bot_journal import BotJournal
 from .bot_models import (
     _BotConfigResult,
@@ -203,7 +204,7 @@ class BotScreen(
             ),
             id="bot-body",
         )
-        yield Footer()
+        yield TradebotFooter()
 
     async def on_mount(self) -> None:
         self._presets_table = self.query_one("#bot-presets", DataTable)
