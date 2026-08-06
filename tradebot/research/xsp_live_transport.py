@@ -55,7 +55,6 @@ _STARTING_CASH_IDENTITY_USD = 1_350.0
 _FIXED_NOTIONALS_USD = frozenset({1_050.0, 1_150.0, 1_200.0})
 _POSITION_STATE_FIELDS = ("lane", "direction", "entry_time", "trading_date", "entry_price")
 
-
 def _execution_contract() -> dict[str, object]:
     return {
         "SPYU_BUY": {"initial_mode": "CROSS", "chase_mode": "RELENTLESS"},
@@ -658,6 +657,7 @@ def xsp_transport_contract(
     selected = load_xsp_transport_selection_from_mapping(selection)
     if selected["schema"] == XSP_V2_TRANSPORT_SELECTION_SCHEMA:
         return {
+            "strategy_id": selected["strategy_version"],
             "symbols": _SYMBOLS,
             "direction_symbols": dict(_DIRECTION_SYMBOL),
             "plan_schema": XSP_V2_TRANSPORT_PLAN_SCHEMA,
@@ -671,6 +671,7 @@ def xsp_transport_contract(
     if selected["schema"] not in XSP_V3_TRANSPORT_SELECTION_SCHEMAS:
         raise ValueError("unsupported selected XSP cash transport")
     return {
+        "strategy_id": selected["strategy_version"],
         "symbols": _V3_SYMBOLS,
         "direction_symbols": dict(_V3_DIRECTION_SYMBOL),
         "plan_schema": XSP_V3_TRANSPORT_PLAN_SCHEMA,

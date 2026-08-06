@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import time
 from types import SimpleNamespace
+from zoneinfo import ZoneInfo
 
 from ib_insync import Contract, Stock
 import pytest
@@ -1441,7 +1442,12 @@ def test_on_error_index_permission_transitions_to_delayed_once() -> None:
     assert client.index_error() == "No market data subscription"
 
 
-def test_index_entitlement_feedback_has_four_request_ceiling() -> None:
+def test_index_entitlement_feedback_has_four_request_ceiling(monkeypatch) -> None:
+    monkeypatch.setattr(
+        client_module,
+        "_now_et",
+        lambda: datetime(2026, 8, 6, 14, 0, tzinfo=ZoneInfo("America/New_York")),
+    )
     client = _new_client()
     fake_ib = _FakeProxyIB()
     client._ib_index = fake_ib

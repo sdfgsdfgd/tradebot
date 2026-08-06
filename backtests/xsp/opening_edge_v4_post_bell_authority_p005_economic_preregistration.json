@@ -1,0 +1,143 @@
+{
+  "schema": "xsp.opening-edge-v4-post-bell-authority-p005-economic-preregistration.v1",
+  "recorded_at_utc": "2026-08-06T15:26:58Z",
+  "authority": "pre_outcome_bounded_economic_composition_only_no_orders_no_capital",
+  "objective": "test whether fresh 09:35_09:40_or_09:45 post-bell XSP_SPY authority repairs the incumbent opening blind zone while improving the exact 604-trade crowned lifecycle",
+  "identities": {
+    "crown_path": "backtests/xsp/opening_edge_v3_regime_harmony_24x5.json",
+    "crown_sha256": "d47eb39cef3d2ca575d779d6b5b87e3b88e08606fd09a8801b8cb55c350208db",
+    "crown_rth_ledger_sha256": "40708a28476fad504d29b1222e52b88481b1c0da8313ed4667076e2b6ed3f157",
+    "crown_gth_ledger_sha256": "9e04807fb77df431b7af27b8be6d5f5288c8512bfe80cb78b3c1fe70cabb8a98",
+    "p005_preregistration_path": "backtests/xsp/opening_edge_v4_post_bell_authority_p005_preregistration.json",
+    "p005_preregistration_sha256": "0ec33ccbb9296267bf767fb732a2bdbebe3feb45e7909008df5cf27f339b03dc",
+    "p005_count_path": "/tmp/xsp-opening-edge-v4-post-bell-authority-p005-count.json",
+    "p005_count_sha256": "92f85bd7c176a485c8dbd077c61ab42e5b61d7eee19ec4030da8f6fe3de9b6c3",
+    "p005_count_evaluator_path": "/tmp/xsp_p005_post_bell_count.py",
+    "p005_count_evaluator_sha256": "d3eb0758f3876f5fc42fdcd5ee614005caedf2998f369e295366624c13524701",
+    "frozen_composition_harness_path": "/tmp/xsp_p004_economics.py",
+    "frozen_composition_harness_sha256": "636b0f73d5c8a9a0e2c95c1be04ed7132661ecdd13b6d7fb8278ccb6542f3256",
+    "campaign_path": "/tmp/xsp_24x5_campaign.py",
+    "campaign_sha256": "dfba4165dad28d7d74a80132055cd9c317f0bd6a8917bec8a5da6e5623a97734",
+    "tape_sha256": "6d239c88dadbbb259a8e1e691c7311a05436859db7f1fe330b21d84daa3c67df"
+  },
+  "count_identity": {
+    "verdict": "COUNT_PASS_FREEZE_ONE_ECONOMIC_COMPOSITION",
+    "emissions": 339,
+    "directions": {"down": 163, "up": 176},
+    "mechanisms": {
+      "MAJOR_FIRST_BAR": 71,
+      "TWO_BAR_DRIVE": 171,
+      "RECOIL_REACCELERATION": 51,
+      "AUTHORITATIVE_HANDOFF": 46
+    },
+    "signal_clocks": {"09:35": 71, "09:40": 171, "09:45": 97},
+    "outcomes_exposed": false
+  },
+  "windows": {
+    "year_1_discovery": ["2023-07-24", "2024-07-23"],
+    "year_2_validation": ["2024-07-24", "2025-07-23"],
+    "year_3_locked_final": ["2025-07-24", "2026-07-24"],
+    "selection": ["year_1_discovery", "year_2_validation"],
+    "locked_unseen": "year_3_locked_final"
+  },
+  "unit_and_cost": {
+    "unit": "$1_per_XSP_point",
+    "primary_commission_per_side_points": 0.05,
+    "stress_commission_per_side_points": 0.10,
+    "spread_points": 0.0,
+    "slippage_points": 0.0,
+    "mark_to_market": "completed_bar_close",
+    "drawdown": "intrabar_high_low_plus_realized_costs"
+  },
+  "causal_execution": {
+    "session": "RTH_only",
+    "signal_clock": "completed_five_minute_close",
+    "entry_fill": "next_available_RTH_bar_open_after_emission",
+    "ordinary_v3_entry_exit_and_direction": "byte_identical_when_P005_does_not_own",
+    "one_position_maximum": true,
+    "simultaneous_priority": "existing_v3_owner_before_P005",
+    "p005_admission": "flat_only;_maximum_one_emission_per_day;_never_stack",
+    "same_direction_v3_takeover": "transfer_ownership_without_second_order_and_retain_the_earlier_P005_entry_price",
+    "opposite_v3_takeover": "controlled_flip_at_the_existing_v3_fill_time",
+    "p005_while_v3_owned": "observe_only_no_veto_no_exit_no_flip",
+    "p005_exit": "unchanged_v3_stop_excursion_flip_and_RTH_close_lifecycle;_P005_has_no_private_exit_threshold",
+    "market_orders": 0
+  },
+  "categorical_cells": [
+    {
+      "id": "p005_urgent_0935_flat_only",
+      "eligible_mechanisms": ["MAJOR_FIRST_BAR"]
+    },
+    {
+      "id": "p005_confirmed_0940_0945_flat_only",
+      "eligible_mechanisms": [
+        "TWO_BAR_DRIVE",
+        "RECOIL_REACCELERATION",
+        "AUTHORITATIVE_HANDOFF"
+      ]
+    },
+    {
+      "id": "p005_union_flat_only",
+      "eligible_mechanisms": [
+        "MAJOR_FIRST_BAR",
+        "TWO_BAR_DRIVE",
+        "RECOIL_REACCELERATION",
+        "AUTHORITATIVE_HANDOFF"
+      ]
+    }
+  ],
+  "selection_law": {
+    "outcomes_visible_for_selection": ["year_1_discovery", "year_2_validation"],
+    "eligible_cell_requires": [
+      "combined_net_positive_in_each_selection_year",
+      "combined_PnL_over_DD_not_below_incumbent_in_either_selection_year",
+      "combined_trade_count_above_incumbent_across_selection_years",
+      "both_combined_directions_positive_across_selection_years"
+    ],
+    "rank": [
+      "highest_minimum_yearly_PnL_over_DD_ratio_to_incumbent",
+      "highest_combined_selection_PnL_over_DD",
+      "lowest_combined_selection_drawdown",
+      "lexicographic_cell_id"
+    ],
+    "if_no_cell_eligible": "REJECT_without_opening_year_3",
+    "year_3": "evaluate_exactly_once_for_the_locked_selection"
+  },
+  "crown_gates": {
+    "full_trades_strictly_above": 604,
+    "full_trades_per_year_strictly_above": 201.8674,
+    "full_net_strictly_above": 291.1756,
+    "full_PnL_over_DD_minimum": 17.3418,
+    "yearly_PnL_over_DD_at_least_5pct_above_incumbent_in_at_least_years": 2,
+    "incumbent_yearly_PnL_over_DD": {
+      "year_1_discovery": 5.0211,
+      "year_2_validation": 4.419,
+      "year_3_locked_final": 8.666
+    },
+    "both_directions_positive": true,
+    "both_RTH_and_GTH_lanes_positive": true,
+    "primary_and_stress_net_positive_each_year": true,
+    "worst_trade_not_below_incumbent": true,
+    "market_orders": 0
+  },
+  "pre_outcome_implementation": {
+    "evaluator_path": "/tmp/xsp_p005_economics.py",
+    "evaluator_sha256": "65ce22fd769de1e1be47dec800179f0a820f9e9e67a738b1a975ea614de85dec",
+    "output_path": "/tmp/xsp-opening-edge-v4-post-bell-authority-p005-economics.json",
+    "replay_law": "select_one_semantic_cell_from_years_1_and_2_then_open_year_3_exactly_once"
+  },
+  "forbidden": [
+    "future_oracle_membership_in_trade_or_cell_selection",
+    "pressure_gap_or_slow_context_subselection",
+    "numeric_threshold_search",
+    "mechanism_subselection_beyond_the_three_frozen_semantic_cells",
+    "premarket_direction",
+    "synthetic_current_session_15m_or_30m_bar",
+    "GTH_authority_change",
+    "incumbent_v3_retune",
+    "capital_or_order_authority"
+  ],
+  "outcomes_exposed": false,
+  "selected_cell": null,
+  "submitted_orders": 0
+}

@@ -18,6 +18,10 @@ from ..engines.execution import execution_price, quote_health
 from ..engines.market import xsp_session_label_et, xsp_trading_date
 from ..spot.champions import repo_root
 from .live_calibration import LiveCalibrationLedger, calibration_fingerprint
+from .xsp_dual_clock import (
+    XSP_DUAL_CLOCK_PAIRED_SCHEMA,
+    XSP_DUAL_CLOCK_TARGET_SCHEMA,
+)
 from .xsp_opening_edge_v2 import XSP_OPENING_EDGE_V2_VERSION
 
 
@@ -143,6 +147,32 @@ def xsp_v2_position_state(
         )
     if identities[0] != identities[1] or len(set(starts)) != 1 or not starts[0]:
         raise ValueError("v2 research/broker position state drift")
+    if paired_equity.get("schema") == XSP_DUAL_CLOCK_PAIRED_SCHEMA:
+        target = paired_equity.get("dual_clock_target")
+        if target is None:
+            states[0] = None
+        elif (
+            not isinstance(target, Mapping)
+            or target.get("schema") != XSP_DUAL_CLOCK_TARGET_SCHEMA
+            or target.get("lane") not in {"rth", "gth"}
+            or target.get("direction") not in {"up", "down"}
+            or (
+                target.get("lane") == "gth"
+                and (
+                    target.get("direction") != "down"
+                    or target.get("owner") != "v3"
+                )
+            )
+            or target.get("exit_reason") != "end"
+            or target.get("owner") not in {"opening_bridge", "v3_handoff", "v3"}
+            or not target.get("entry_time")
+            or not target.get("trading_date")
+            or target.get("entry_price") is None
+            or target.get("order_authority") != "none"
+        ):
+            raise ValueError("invalid P-009 dual-clock target state")
+        else:
+            states[0] = {field: target.get(field) for field in _STATE_FIELDS}
     run_key = calibration_fingerprint(
         {
             "schema": XSP_V2_ETF_EXECUTION_OBSERVER_VERSION,

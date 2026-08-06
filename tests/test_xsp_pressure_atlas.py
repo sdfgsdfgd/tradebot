@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+import json
 import math
 from pathlib import Path
 
@@ -17,9 +18,14 @@ from tradebot.research.live_calibration import LiveCalibrationLedger
 from tradebot.research.xsp_opening_edge_v3 import (
     XSP_OPENING_EDGE_V3_TRANSPORT_VERSION,
 )
+from tradebot.research.xsp_dual_clock import (
+    XSP_DUAL_CLOCK_SOURCE_VERSION,
+    XSP_DUAL_CLOCK_VERSION,
+)
 from tradebot.research.xsp_pressure_accumulator import (
     XSP_PRESSURE_ACCUMULATOR_AUTHORITY,
     accumulate_xsp_pressure_atlas,
+    build_xsp_pressure_accumulator_successor,
     load_xsp_pressure_accumulator_generation,
     xsp_pressure_treatments,
 )
@@ -27,6 +33,22 @@ from tradebot.research.xsp_pressure_tape import XspPressureTapeRecorder
 
 
 START = datetime(2026, 8, 6, 13, 30, tzinfo=timezone.utc)
+
+
+def _p009_generation(tmp_path: Path, root: Path) -> Path:
+    generation = build_xsp_pressure_accumulator_successor(
+        repository_root=root,
+        selection={
+            "selection_id": "b" * 64,
+            "strategy_version": XSP_DUAL_CLOCK_VERSION,
+            "source_strategy_version": XSP_DUAL_CLOCK_SOURCE_VERSION,
+        },
+        inherited_treatment_ids=(),
+        registered_at_utc=START - timedelta(minutes=1),
+    )
+    path = tmp_path / "p009-pressure-generation.json"
+    path.write_text(json.dumps(generation, sort_keys=True) + "\n")
+    return path
 
 
 def _contracts() -> dict[str, dict[str, object]]:
@@ -139,6 +161,7 @@ def _source(
     signal_at: datetime,
     direction: str = "up",
     decision_trace: str = "d" * 64,
+    strategy_version: str = XSP_OPENING_EDGE_V3_TRANSPORT_VERSION,
 ) -> dict[str, object]:
     entry_at = signal_at + timedelta(minutes=5)
     entry = {
@@ -166,7 +189,7 @@ def _source(
         "kind": "checkpoint",
         "checkpoint_id": "c" * 64,
         "recorded_at_utc": entry_at.isoformat(),
-        "strategy_version": XSP_OPENING_EDGE_V3_TRANSPORT_VERSION,
+        "strategy_version": strategy_version,
         "session": "RTH",
         "status": "EVALUATED",
         "evidence": {
@@ -299,11 +322,11 @@ def test_committed_atlas_generation_rehashes_all_owners() -> None:
     assert generation["order_authority"] == "none"
 
 
-def test_pressure_accumulator_generation_rehashes_every_owner() -> None:
+def test_pressure_accumulator_successor_rehashes_every_owner(tmp_path: Path) -> None:
     root = Path(__file__).resolve().parents[1]
+    path = _p009_generation(tmp_path, root)
     generation, generation_sha = load_xsp_pressure_accumulator_generation(
-        root
-        / "backtests/xsp/opening_edge_v3_pressure_atlas_accumulation_generation.json",
+        path,
         root=root,
     )
 
@@ -321,9 +344,9 @@ def test_pressure_accumulator_generation_rehashes_every_owner() -> None:
 
 def test_pressure_accumulator_appends_one_target_exactly_once(tmp_path: Path) -> None:
     root = Path(__file__).resolve().parents[1]
+    generation_path = _p009_generation(tmp_path, root)
     generation, generation_sha = load_xsp_pressure_accumulator_generation(
-        root
-        / "backtests/xsp/opening_edge_v3_pressure_atlas_accumulation_generation.json",
+        generation_path,
         root=root,
     )
     tape = tmp_path / "tape"
@@ -332,7 +355,10 @@ def test_pressure_accumulator_appends_one_target_exactly_once(tmp_path: Path) ->
         generation_sha256=str(generation["pressure_tape_generation_sha256"]),
     )
     signal_at = START + timedelta(seconds=60)
-    source = _source(signal_at=signal_at)
+    source = _source(
+        signal_at=signal_at,
+        strategy_version=XSP_DUAL_CLOCK_SOURCE_VERSION,
+    )
     ledger = tmp_path / "atlas.jsonl"
 
     first = accumulate_xsp_pressure_atlas(
@@ -340,6 +366,7 @@ def test_pressure_accumulator_appends_one_target_exactly_once(tmp_path: Path) ->
         observed_at=signal_at + timedelta(minutes=6),
         tape_dir=tape,
         ledger_path=ledger,
+        generation_path=generation_path,
         repository_root=root,
     )
     before = ledger.read_bytes()
@@ -348,6 +375,7 @@ def test_pressure_accumulator_appends_one_target_exactly_once(tmp_path: Path) ->
         observed_at=signal_at + timedelta(minutes=7),
         tape_dir=tape,
         ledger_path=ledger,
+        generation_path=generation_path,
         repository_root=root,
     )
 
@@ -374,13 +402,20 @@ def test_pressure_accumulator_leaves_an_incomplete_window_unwritten(
     tmp_path: Path,
 ) -> None:
     root = Path(__file__).resolve().parents[1]
+    generation_path = _p009_generation(tmp_path, root)
     signal_at = START + timedelta(seconds=60)
     ledger = tmp_path / "atlas.jsonl"
     result = accumulate_xsp_pressure_atlas(
-        (_source(signal_at=signal_at),),
+        (
+            _source(
+                signal_at=signal_at,
+                strategy_version=XSP_DUAL_CLOCK_SOURCE_VERSION,
+            ),
+        ),
         observed_at=signal_at + timedelta(minutes=6),
         tape_dir=tmp_path / "missing-tape",
         ledger_path=ledger,
+        generation_path=generation_path,
         repository_root=root,
     )
 
@@ -399,15 +434,25 @@ def test_pressure_accumulator_rejects_conflicting_target_provenance(
     tmp_path: Path,
 ) -> None:
     root = Path(__file__).resolve().parents[1]
+    generation_path = _p009_generation(tmp_path, root)
     signal_at = START + timedelta(seconds=60)
     with pytest.raises(ValueError, match="target identity conflicts"):
         accumulate_xsp_pressure_atlas(
             (
-                _source(signal_at=signal_at, decision_trace="1" * 64),
-                _source(signal_at=signal_at, decision_trace="2" * 64),
+                _source(
+                    signal_at=signal_at,
+                    decision_trace="1" * 64,
+                    strategy_version=XSP_DUAL_CLOCK_SOURCE_VERSION,
+                ),
+                _source(
+                    signal_at=signal_at,
+                    decision_trace="2" * 64,
+                    strategy_version=XSP_DUAL_CLOCK_SOURCE_VERSION,
+                ),
             ),
             observed_at=signal_at + timedelta(minutes=6),
             tape_dir=tmp_path / "tape",
             ledger_path=tmp_path / "atlas.jsonl",
+            generation_path=generation_path,
             repository_root=root,
         )

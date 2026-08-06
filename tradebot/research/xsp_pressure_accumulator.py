@@ -16,6 +16,7 @@ from .xsp_opening_edge_v3 import (
     XSP_OPENING_EDGE_V3_TRANSPORT_VERSION,
     XSP_OPENING_EDGE_V3_VERSION,
 )
+from .xsp_dual_clock import XSP_DUAL_CLOCK_SOURCE_VERSION, XSP_DUAL_CLOCK_VERSION
 from .xsp_pressure_atlas import (
     XSP_PRESSURE_ATLAS_AUTHORITY,
     project_xsp_pressure_atlas,
@@ -30,6 +31,10 @@ XSP_PRESSURE_ACCUMULATOR_GENERATION_SCHEMA = (
     "xsp.pressure-atlas-accumulation-generation.v1"
 )
 XSP_PRESSURE_ACCUMULATOR_GENERATION_PATH = Path(
+    "backtests/xsp/"
+    "opening_edge_v4_dual_clock_p009_pressure_atlas_accumulation_generation.json"
+)
+XSP_PRESSURE_ACCUMULATOR_PREDECESSOR_PATH = Path(
     "backtests/xsp/opening_edge_v3_pressure_atlas_accumulation_generation.json"
 )
 XSP_PRESSURE_ACCUMULATOR_LEDGER_PATH = (
@@ -96,10 +101,14 @@ def load_xsp_pressure_accumulator_generation(
     if (
         generation.get("schema") != XSP_PRESSURE_ACCUMULATOR_GENERATION_SCHEMA
         or generation.get("authority") != XSP_PRESSURE_ATLAS_AUTHORITY
-        or generation.get("incumbent_strategy_version")
-        != XSP_OPENING_EDGE_V3_VERSION
-        or generation.get("source_strategy_version")
-        != XSP_OPENING_EDGE_V3_TRANSPORT_VERSION
+        or (
+            generation.get("incumbent_strategy_version"),
+            generation.get("source_strategy_version"),
+        )
+        not in {
+            (XSP_OPENING_EDGE_V3_VERSION, XSP_OPENING_EDGE_V3_TRANSPORT_VERSION),
+            (XSP_DUAL_CLOCK_VERSION, XSP_DUAL_CLOCK_SOURCE_VERSION),
+        }
         or not _is_sha(generation_id)
         or _identity(body) != generation_id
         or not _is_sha(generation.get("selection_id"))
@@ -138,10 +147,91 @@ def load_xsp_pressure_accumulator_generation(
     return generation, _sha256(source)
 
 
+def build_xsp_pressure_accumulator_successor(
+    *,
+    repository_root: Path,
+    selection: Mapping[str, object],
+    inherited_treatment_ids: Sequence[str],
+    registered_at_utc: datetime,
+) -> dict[str, object]:
+    """Bind the existing outcome-blind atlas to one fresh P-009 selection."""
+
+    root = repository_root.resolve()
+    predecessor_path = root / XSP_PRESSURE_ACCUMULATOR_PREDECESSOR_PATH
+    predecessor = json.loads(predecessor_path.read_text())
+    predecessor_body = dict(predecessor)
+    predecessor_id = str(predecessor_body.pop("generation_id", ""))
+    if (
+        predecessor.get("schema") != XSP_PRESSURE_ACCUMULATOR_GENERATION_SCHEMA
+        or _identity(predecessor_body) != predecessor_id
+        or selection.get("strategy_version") != XSP_DUAL_CLOCK_VERSION
+        or selection.get("source_strategy_version") != XSP_DUAL_CLOCK_SOURCE_VERSION
+        or not _is_sha(selection.get("selection_id"))
+        or not all(_is_sha(value) for value in inherited_treatment_ids)
+    ):
+        raise ValueError("XSP pressure successor inputs are invalid")
+    artifacts = json.loads(json.dumps(predecessor["artifacts"]))
+    if not isinstance(artifacts, dict):
+        raise ValueError("XSP pressure predecessor artifacts are invalid")
+    for item in artifacts.values():
+        if not isinstance(item, dict):
+            raise ValueError("XSP pressure predecessor artifact is invalid")
+        item["sha256"] = _sha256(root / str(item["path"]))
+    artifacts.update(
+        dual_clock_crown={
+            "path": (
+                "backtests/xsp/"
+                "opening_edge_v4_dual_clock_arbitration_p009_crown.json"
+            ),
+        },
+        durable_owner_parity={
+            "path": (
+                "backtests/xsp/"
+                "opening_edge_v4_dual_clock_arbitration_p009_durable_owner_parity.json"
+            ),
+        },
+        dual_clock_owner={"path": "tradebot/research/xsp_dual_clock.py"},
+        predecessor_generation={
+            "path": XSP_PRESSURE_ACCUMULATOR_PREDECESSOR_PATH.as_posix(),
+        },
+    )
+    for item in artifacts.values():
+        item["sha256"] = _sha256(root / str(item["path"]))
+    registered = _utc(registered_at_utc)
+    body = {
+        **{
+            key: json.loads(json.dumps(value))
+            for key, value in predecessor.items()
+            if key
+            not in {
+                "generation_id",
+                "registered_at_utc",
+                "eligible_start_utc",
+                "incumbent_strategy_version",
+                "source_strategy_version",
+                "selection_id",
+                "owner_sha256",
+                "artifacts",
+            }
+        },
+        "registered_at_utc": registered.isoformat(),
+        "eligible_start_utc": registered.isoformat(),
+        "incumbent_strategy_version": XSP_DUAL_CLOCK_VERSION,
+        "source_strategy_version": XSP_DUAL_CLOCK_SOURCE_VERSION,
+        "selection_id": selection["selection_id"],
+        "owner_sha256": _sha256(Path(__file__).resolve()),
+        "artifacts": artifacts,
+        "predecessor_generation_id": predecessor_id,
+        "inherited_treatment_ids": sorted(set(inherited_treatment_ids)),
+    }
+    return {**body, "generation_id": _identity(body)}
+
+
 def _target_candidates(
     records: Sequence[Mapping[str, object]],
     *,
     selection_id: str,
+    source_strategy_version: str,
     eligible_start: datetime,
 ) -> list[dict[str, object]]:
     candidates: dict[str, dict[str, object]] = {}
@@ -151,8 +241,7 @@ def _target_candidates(
         evidence = record.get("evidence")
         if (
             record.get("kind") != "checkpoint"
-            or record.get("strategy_version")
-            != XSP_OPENING_EDGE_V3_TRANSPORT_VERSION
+            or record.get("strategy_version") != source_strategy_version
             or record.get("session") != "RTH"
             or record.get("status") != "EVALUATED"
             or not isinstance(evidence, Mapping)
@@ -278,12 +367,13 @@ def _treatment(
     atlas: Mapping[str, object],
     *,
     generation_sha256: str,
+    incumbent_strategy_version: str,
 ) -> dict[str, object]:
     body = {
         "schema": XSP_PRESSURE_TREATMENT_SCHEMA,
         "authority": XSP_PRESSURE_ATLAS_AUTHORITY,
         "generation_sha256": generation_sha256,
-        "incumbent_strategy_version": XSP_OPENING_EDGE_V3_VERSION,
+        "incumbent_strategy_version": incumbent_strategy_version,
         "target": {
             key: candidate[key]
             for key in (
@@ -430,6 +520,7 @@ def accumulate_xsp_pressure_atlas(
     candidates = _target_candidates(
         source_records,
         selection_id=str(generation["selection_id"]),
+        source_strategy_version=str(generation["source_strategy_version"]),
         eligible_start=eligible_start,
     )
     ledger = LiveCalibrationLedger(ledger_path)
@@ -460,6 +551,9 @@ def accumulate_xsp_pressure_atlas(
                 candidate,
                 atlas,
                 generation_sha256=generation_sha,
+                incumbent_strategy_version=str(
+                    generation["incumbent_strategy_version"]
+                ),
             )
         except ValueError as exc:
             if str(candidate["target_key"]) in existing:
@@ -479,7 +573,7 @@ def accumulate_xsp_pressure_atlas(
             continue
         ledger.checkpoint(
             evaluation_as_of=signal_at,
-            strategy_id=XSP_OPENING_EDGE_V3_VERSION,
+            strategy_id=str(generation["incumbent_strategy_version"]),
             strategy_version=XSP_PRESSURE_ACCUMULATOR_VERSION,
             trading_date=str(atlas["source"]["trading_date"]),
             session="XSP_PRESSURE_ATLAS",

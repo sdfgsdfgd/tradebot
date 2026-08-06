@@ -477,7 +477,7 @@ def xsp_v3_transport_profitability_policy(
     assert isinstance(risk, Mapping)
     return XspProfitabilityPolicy(
         run_id=str(selected["selection_id"]),
-        strategy_id=XSP_OPENING_EDGE_V3_VERSION,
+        strategy_id=str(selected["strategy_version"]),
         strategy_version=XSP_V3_TRANSPORT_EXECUTION_VERSION,
         config_fingerprint=str(selected["selection_id"]),
         capital_sleeve=XSP_V3_TRANSPORT_CAPITAL_SLEEVE,

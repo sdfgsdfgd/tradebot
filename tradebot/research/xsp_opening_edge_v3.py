@@ -5,11 +5,12 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Mapping, Sequence
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import cast
 
+from ..backtest.data import ContractMeta
 from ..backtest.models import Bar
 from ..engines.market import xsp_session_label_et, xsp_trading_date
 from ..spot.champions import (
@@ -27,6 +28,14 @@ from .xsp_opening_edge_state import (
 )
 from ..time_utils import NaiveTsModeInput, to_et
 from .live_calibration import LiveCalibrationLedger, calibration_fingerprint
+from .xsp_dual_clock import (
+    XSP_DUAL_CLOCK_PAIRED_SCHEMA,
+    XSP_DUAL_CLOCK_SOURCE_VERSION,
+    XSP_DUAL_CLOCK_VERSION,
+    xsp_dual_clock_bridge_result,
+    xsp_dual_clock_emissions,
+    xsp_dual_clock_target,
+)
 from .xsp_opening_edge_v2 import (
     XSP_OPENING_EDGE_V2_COSTS,
     XSP_OPENING_EDGE_V2_HISTORY_DURATION,
@@ -300,12 +309,144 @@ def xsp_opening_edge_v3_equities(
     return paired
 
 
+def xsp_opening_edge_p009_equities(
+    *,
+    spec: XspOpeningEdgeV3Spec,
+    spy_bars: Sequence[Bar],
+    observed_at: datetime,
+    run_started_at: datetime,
+    xsp_rth_bars: Sequence[Bar] | None = None,
+    xsp_daily_bars: Sequence[Bar] | None = None,
+    spy_rth_one_minute_bars: Sequence[Bar] = (),
+    xsp_rth_one_minute_bars: Sequence[Bar] = (),
+    persisted_daily_bars: Sequence[XspDailyBar] = (),
+    naive_ts_mode: NaiveTsModeInput = "utc",
+) -> dict[str, object]:
+    """Overlay the frozen opening bridge without changing the v3 owner."""
+
+    paired = xsp_opening_edge_v3_equities(
+        spec=spec,
+        spy_bars=spy_bars,
+        observed_at=observed_at,
+        run_started_at=run_started_at,
+        xsp_rth_bars=xsp_rth_bars,
+        xsp_daily_bars=xsp_daily_bars,
+        persisted_daily_bars=persisted_daily_bars,
+        naive_ts_mode=naive_ts_mode,
+    )
+    normalized_rth = normalize_xsp_v2_bars(
+        tuple(xsp_rth_bars or ()),
+        observed_at=observed_at,
+        naive_ts_mode=naive_ts_mode,
+    )
+    normalized_spy = normalize_xsp_v2_bars(
+        spy_bars,
+        observed_at=observed_at,
+        naive_ts_mode=naive_ts_mode,
+    )
+    normalized_xsp_one = normalize_xsp_v2_bars(
+        xsp_rth_one_minute_bars,
+        observed_at=observed_at,
+        naive_ts_mode=naive_ts_mode,
+    )
+    normalized_spy_one = normalize_xsp_v2_bars(
+        spy_rth_one_minute_bars,
+        observed_at=observed_at,
+        naive_ts_mode=naive_ts_mode,
+    )
+    profiles = paired.get("profiles")
+    broker_profile = (
+        profiles.get("broker") if isinstance(profiles, Mapping) else None
+    )
+    v3_position = (
+        broker_profile.get("latest_position")
+        if isinstance(broker_profile, Mapping)
+        else None
+    )
+    emissions = ()
+    target = dict(v3_position) if isinstance(v3_position, Mapping) else None
+    bridge_state = None
+    if normalized_xsp_one and normalized_spy_one:
+        fresh_daily = xsp_daily_bars_from_intraday(normalized_rth)
+        daily = merge_xsp_daily_context(
+            spec.daily_context_seed,
+            persisted=persisted_daily_bars,
+            fresh=fresh_daily,
+        )
+        emissions = xsp_dual_clock_emissions(
+            xsp_rth_one_minute=normalized_xsp_one,
+            spy_rth_one_minute=normalized_spy_one,
+            spy_full_five_minute=normalized_spy,
+        )
+        start = xsp_trading_date(run_started_at)
+        end = xsp_trading_date(observed_at)
+        if start is None or end is None:
+            raise ValueError("P-009 source must be inside one XSP run")
+        cfg = xsp_opening_edge_v3_bundle(
+            spec,
+            lane="rth",
+            start=start,
+            end=end,
+            cost_profile="research",
+            rth_signal_symbol="XSP",
+        )
+        cfg = replace(
+            cfg,
+            strategy=replace(cfg.strategy, spot_exec_bar_size="1 min"),
+        )
+        result, owner = xsp_dual_clock_bridge_result(
+            cfg=cfg,
+            v3_bars=normalized_rth,
+            exec_bars=normalized_xsp_one,
+            emissions=emissions,
+            daily_context=daily,
+            meta=ContractMeta(
+                symbol="XSP", exchange="CBOE", multiplier=1.0, min_tick=0.01
+            ),
+            entry_not_before=run_started_at.astimezone(timezone.utc).replace(
+                tzinfo=None
+            ),
+            final_session_complete=xsp_session_label_et(observed_at)
+            not in {"RTH", "CURB"},
+        )
+        target = xsp_dual_clock_target(
+            bridge_result=result,
+            bridge_owner=owner,
+            v3_position=v3_position if isinstance(v3_position, Mapping) else None,
+            observed_at=observed_at,
+        )
+        bridge_state = owner.state_payload()
+
+    identity = {
+        "strategy_version": XSP_DUAL_CLOCK_VERSION,
+        "source_strategy_version": XSP_DUAL_CLOCK_SOURCE_VERSION,
+        "v3_crown_config_fingerprint": paired["crown_config_fingerprint"],
+        "minute_window": [5, 7],
+        "minimum_true_range_multiple": 0.5,
+        "minimum_volume_authority_level": 20.0,
+        "slow_front": "15_completed_five_minute_bars_75_minutes",
+    }
+    paired.update(
+        schema=XSP_DUAL_CLOCK_PAIRED_SCHEMA,
+        strategy_version=XSP_DUAL_CLOCK_SOURCE_VERSION,
+        v3_crown_config_fingerprint=paired["crown_config_fingerprint"],
+        crown_config_fingerprint=calibration_fingerprint(identity),
+        dual_clock_target=target,
+        dual_clock_emissions=[row.as_payload() for row in emissions],
+        dual_clock_state=bridge_state,
+        dual_clock_identity=identity,
+    )
+    return paired
+
+
 def _persisted_daily_context(
     records: Sequence[Mapping[str, object]],
+    *,
+    strategy_versions: Sequence[str] = (XSP_OPENING_EDGE_V3_TRANSPORT_VERSION,),
 ) -> tuple[XspDailyBar, ...]:
     by_day: dict[date, XspDailyBar] = {}
     for record in records:
-        if record.get("strategy_version") != XSP_OPENING_EDGE_V3_TRANSPORT_VERSION:
+        if record.get("strategy_version") not in set(strategy_versions):
             continue
         evidence = record.get("evidence")
         paired = (
@@ -336,6 +477,26 @@ def _persisted_daily_context(
         tuple(by_day[day] for day in sorted(by_day)),
         minimum_sessions=0,
     )
+
+
+def xsp_opening_edge_p009_run_start(
+    records: Sequence[Mapping[str, object]],
+    *,
+    observed_at: datetime,
+) -> datetime:
+    starts = {
+        str(evidence["run_started_at_utc"])
+        for row in records
+        if row.get("kind") == "checkpoint"
+        and row.get("strategy_version") == XSP_DUAL_CLOCK_SOURCE_VERSION
+        and isinstance((evidence := row.get("evidence")), Mapping)
+        and evidence.get("run_started_at_utc")
+    }
+    if len(starts) > 1:
+        raise ValueError("Opening Edge P-009 observer run start drift")
+    if starts:
+        return datetime.fromisoformat(starts.pop().replace("Z", "+00:00"))
+    return next_xsp_v3_run_start(observed_at)
 
 
 def xsp_opening_edge_v3_run_start(
@@ -611,4 +772,51 @@ async def advance_xsp_opening_edge_v3_from_ibkr(
         paired_equity_builder=cast(object, build_equities),
         execution_gate=XSP_OPENING_EDGE_V3_EXECUTION_GATE,
         run_start_validator=is_xsp_v3_run_start,
+    )
+
+
+async def advance_xsp_opening_edge_p009_from_ibkr(
+    ledger: LiveCalibrationLedger,
+    *,
+    client,
+    observed_at: datetime,
+    run_started_at: datetime,
+    duration_str: str = XSP_OPENING_EDGE_V3_HISTORY_DURATION,
+    news_snapshot: Mapping[str, object] | Sequence[Mapping[str, object]] | None = None,
+    recorded_at: datetime | None = None,
+    spec: XspOpeningEdgeV3Spec | None = None,
+) -> dict[str, object]:
+    """Advance the centralized P-009 source with no order authority."""
+
+    resolved_spec = spec or load_xsp_opening_edge_v3_spec()
+    persisted_daily = _persisted_daily_context(
+        tuple(ledger.records()),
+        strategy_versions=(
+            XSP_OPENING_EDGE_V3_TRANSPORT_VERSION,
+            XSP_DUAL_CLOCK_SOURCE_VERSION,
+        ),
+    )
+
+    def build_equities(**kwargs) -> dict[str, object]:
+        kwargs["spec"] = resolved_spec
+        kwargs["persisted_daily_bars"] = persisted_daily
+        return xsp_opening_edge_p009_equities(**kwargs)
+
+    return await advance_xsp_opening_edge_v2_from_ibkr(
+        ledger,
+        client=client,
+        observed_at=observed_at,
+        run_started_at=run_started_at,
+        duration_str=duration_str,
+        news_snapshot=news_snapshot,
+        recorded_at=recorded_at,
+        spec=cast(XspOpeningEdgeV2Spec, resolved_spec),
+        strategy_id=XSP_DUAL_CLOCK_VERSION,
+        strategy_version=XSP_DUAL_CLOCK_SOURCE_VERSION,
+        spec_loader=cast(object, load_xsp_opening_edge_v3_spec),
+        paired_equity_builder=cast(object, build_equities),
+        execution_gate=XSP_OPENING_EDGE_V3_EXECUTION_GATE,
+        run_start_validator=is_xsp_v3_run_start,
+        include_rth_one_minute_context=True,
+        rth_one_minute_duration_str="1 D",
     )

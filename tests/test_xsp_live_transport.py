@@ -32,7 +32,10 @@ from tradebot.research.xsp_live_transport_handoff import (
 )
 from tradebot.research.xsp_live_transport_allocation import (
     XSP_PORTFOLIO_PACKAGE_PREVIEW_SCHEMA,
+    XSP_P009_CROWN_SHA256,
+    XSP_P009_DURABLE_PARITY_SHA256,
     reallocate_xsp_v3_transport,
+    xsp_p009_crown_binding,
 )
 from tradebot.research.xsp_live_transport_v3 import (
     load_xsp_v3_transport_selection_from_mapping,
@@ -45,6 +48,10 @@ from tradebot.research.xsp_live_transport_risk import (
 from tradebot.research.xsp_live_transport_runtime import (
     xsp_transport_order_ref,
     xsp_transport_risk_state,
+)
+from tradebot.research.xsp_dual_clock import (
+    XSP_DUAL_CLOCK_SOURCE_VERSION,
+    XSP_DUAL_CLOCK_VERSION,
 )
 from tradebot.engines.execution import execution_policy_contract
 from tradebot.engines.market import (
@@ -1253,6 +1260,73 @@ def test_v3_package_successor_freezes_the_allocated_notional_and_clean_run(
         predecessor["selection_id"]
     )
     assert load_xsp_v3_transport_selection_from_mapping(selected) == selected
+
+    p009_at = selected_at + timedelta(minutes=1)
+    p009_preview = deepcopy(preview)
+    p009_preview["observed_at_utc"] = (
+        p009_at - timedelta(seconds=10)
+    ).isoformat()
+    p009_broker = deepcopy(broker)
+    p009_broker["observed_at_utc"] = (
+        p009_at - timedelta(seconds=5)
+    ).isoformat()
+    p009_broker["cash_observed_at_utc"] = (
+        p009_at - timedelta(seconds=8)
+    ).isoformat()
+    crown = {
+        "schema": "xsp.opening-edge-v4-dual-clock-p009-crown-binding.v1",
+        "verdict": "CROWNED",
+        "root_crown_law_pass": True,
+        "strict_year_3_challenge_pass": False,
+        "strict_year_3_miss_disclosed": True,
+        "full_combined_trades": 648,
+        "full_rth_trades": 469,
+        "full_pnl_over_drawdown": 18.234821,
+        "full_combined_ledger_sha256": (
+            "53d2682ba9afc077c790d4817898732bd22c2f38173d1e5e2b58f9ddadec0268"
+        ),
+        "full_rth_ledger_sha256": (
+            "3aa102fc2ef15c3d39fbe884d952e95dc32af77a4098a895af163a188e77d715"
+        ),
+        "crown_receipt_sha256": XSP_P009_CROWN_SHA256,
+        "durable_parity_sha256": XSP_P009_DURABLE_PARITY_SHA256,
+    }
+    p009 = reallocate_xsp_v3_transport(
+        predecessor=selected,
+        records=(),
+        broker_snapshot=p009_broker,
+        preview=p009_preview,
+        package_receipt_path=Path(
+            "backtests/xsp/opening_edge_v3_portfolio_package_curve_20260803.json"
+        ),
+        package_id="xsp-usd-800",
+        selected_at=p009_at,
+        strategy_version=XSP_DUAL_CLOCK_VERSION,
+        source_strategy_version=XSP_DUAL_CLOCK_SOURCE_VERSION,
+        crown_evidence=crown,
+    )
+    assert p009["strategy_version"] == XSP_DUAL_CLOCK_VERSION
+    assert p009["source_strategy_version"] == XSP_DUAL_CLOCK_SOURCE_VERSION
+    assert p009["evidence"]["successor_crown"] == crown
+    assert xsp_v3_transport_profitability_policy(p009).strategy_id == (
+        XSP_DUAL_CLOCK_VERSION
+    )
+
+    invalid_crown = deepcopy(p009)
+    invalid_crown["evidence"]["successor_crown"][
+        "strict_year_3_miss_disclosed"
+    ] = False
+    invalid_crown["selection_id"] = calibration_fingerprint(
+        {
+            key: value
+            for key, value in invalid_crown.items()
+            if key != "selection_id"
+        }
+    )
+    with pytest.raises(ValueError, match="package-sized"):
+        load_xsp_v3_transport_selection_from_mapping(invalid_crown)
+
+    assert xsp_p009_crown_binding(Path.cwd()) == crown
 
     # Historical share counts describe the replay, but fixed notional owns live
     # exposure. A lower ETF price must not turn a valid $800 target into a crash.

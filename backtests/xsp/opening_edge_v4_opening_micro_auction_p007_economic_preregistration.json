@@ -1,0 +1,271 @@
+{
+  "schema": "xsp.opening-edge-v4-opening-micro-auction-p007-economic-preregistration.v1",
+  "registered_at_utc": "2026-08-06T16:55:00Z",
+  "authority": "pre_selection_economics_no_locked_year_3_no_orders_no_capital",
+  "objective": "measure whether P-007 adds stable early RTH alpha to exact v3 using one-minute next-open execution and the unchanged v3 lifecycle",
+  "identities": {
+    "count_preregistration_path": "backtests/xsp/opening_edge_v4_opening_micro_auction_p007_preregistration.json",
+    "count_preregistration_sha256": "7b7bc6dc898465a54e3ea91bb4d7bee08a544b148eaaa6a50427e2d069c7ac59",
+    "count_result_path": "/tmp/xsp-p007-minute-acceptance-count.json",
+    "count_result_sha256": "fc1fd8b86d754f07c4a8237b2b01361ed7f4901667908c622afd98960437c3fb",
+    "count_evaluator_path": "/tmp/xsp_p007_minute_acceptance_count.py",
+    "count_evaluator_sha256": "3aec10ec49dc27a3396db9ee7907787f755330d69d2d9279b86b2d1da1b7a29a",
+    "economic_evaluator_path": "/tmp/xsp_p007_economics.py",
+    "economic_evaluator_sha256": "debd3e18edfe3e26ffb3327112115a026be70cbb3fa754063bb01dc7c9e5201b",
+    "base_harness_path": "/tmp/xsp_p005_economics.py",
+    "base_harness_sha256": "65ce22fd769de1e1be47dec800179f0a820f9e9e67a738b1a975ea614de85dec",
+    "campaign_path": "/tmp/xsp_24x5_campaign.py",
+    "campaign_sha256": "dfba4165dad28d7d74a80132055cd9c317f0bd6a8917bec8a5da6e5623a97734",
+    "xsp_1m_path": "/tmp/xsp-p006-1m-selection-cache/XSP/XSP_2023-07-24_2025-07-23_1min_rth.csv",
+    "xsp_1m_sha256": "a7a0cab80fe064ea825d560a746a2f3a46283c1bf4cd52552039a3e4b6c3ceb5",
+    "crown_path": "backtests/xsp/opening_edge_v3_regime_harmony_24x5.json",
+    "crown_sha256": "d47eb39cef3d2ca575d779d6b5b87e3b88e08606fd09a8801b8cb55c350208db"
+  },
+  "pre_outcome_correction": {
+    "original_evaluator_sha256": "e3374228f02106d58cef37c30201b4b2c45764debc4b845f702874f57d8e8977",
+    "defect": "the full 425-trade incumbent identity assertion was accidentally applied to the deliberately truncated Year-1/Year-2 signal slice",
+    "correction": "replay the full v3 tape only for published crown identity and retain the truncated tape for every P-007 selection cell",
+    "exposure": "the run stopped at the incumbent identity assertion before entering the cell loop or writing any P-007 economic output"
+  },
+  "pre_outcome_adapter_correction": {
+    "original_evaluator_sha256": "f8edf88721eebdebcdbd58c9415719a4b64df5a73de9b0574cf94cf411fb537c",
+    "defect": "the custom no-emission adapter projected v3 with five-minute bars serving as both signal and execution bars instead of preserving the native one-minute execution clock",
+    "correction": "project the exact v3 five-minute signal owner over the native one-minute execution tape, then inject P-007 only at its frozen one-minute signal closes",
+    "exposure": "the run stopped at no-emission adapter parity before entering the cell loop or writing any P-007 economic output"
+  },
+  "windows": {
+    "year_1": [
+      "2023-07-24",
+      "2024-07-23"
+    ],
+    "year_2": [
+      "2024-07-24",
+      "2025-07-23"
+    ],
+    "locked_year_3": [
+      "2025-07-24",
+      "2026-07-24"
+    ]
+  },
+  "execution": {
+    "signal_owner": "exact v3 five-minute state plus frozen P-007 one-minute admissions",
+    "execution_tape": "native XSP one-minute RTH",
+    "entry": "next one-minute open after the completed P-007 signal minute",
+    "exit": "unchanged v3 lifecycle, same-direction takeover, opposite-direction flip, excursion policy, and close-EOD law",
+    "incumbent_comparators": [
+      "published five-minute v3 crown",
+      "the same v3 owner executed on the native one-minute tape"
+    ],
+    "orders": "historical only; no broker order authority"
+  },
+  "morphology_basis": {
+    "emissions": 280,
+    "directions": {
+      "up": 154,
+      "down": 126
+    },
+    "mechanisms": {
+      "MINUTE_ACCEPTANCE": 171,
+      "RECOIL_REACQUISITION": 94,
+      "AUTHORITATIVE_HANDOFF": 15
+    },
+    "slow_front": {
+      "CONTINUATION": 202,
+      "PIVOT_REPAIR": 78
+    },
+    "volume_levels": {
+      "12.0": 149,
+      "20.0": 131
+    },
+    "true_range_deciles": [
+      0.62013,
+      0.770334,
+      0.88057,
+      1.019616,
+      1.111178,
+      1.25733,
+      1.394471,
+      1.570206,
+      1.844329
+    ],
+    "declared_true_range_floors": [
+      0.0,
+      0.75,
+      1.0
+    ],
+    "floor_selection_authority": "outcome-blind morphology only; zero retains all, 0.75 is near the lower breadth shoulder, and 1.0 requires the current one-minute range to equal the median of the two completed preopen five-minute ranges",
+    "volume_cell_exclusion": "12x and 20x already have balanced breadth and remain categorical evidence; no additional volume threshold search is permitted in this replay"
+  },
+  "cells": [
+    {
+      "id": "acceptance_tr0",
+      "eligible_mechanisms": [
+        "MINUTE_ACCEPTANCE"
+      ],
+      "eligible_slow_front_states": [
+        "CONTINUATION",
+        "PIVOT_REPAIR"
+      ],
+      "minimum_true_range_multiple": 0.0
+    },
+    {
+      "id": "acceptance_tr075",
+      "eligible_mechanisms": [
+        "MINUTE_ACCEPTANCE"
+      ],
+      "eligible_slow_front_states": [
+        "CONTINUATION",
+        "PIVOT_REPAIR"
+      ],
+      "minimum_true_range_multiple": 0.75
+    },
+    {
+      "id": "acceptance_tr1",
+      "eligible_mechanisms": [
+        "MINUTE_ACCEPTANCE"
+      ],
+      "eligible_slow_front_states": [
+        "CONTINUATION",
+        "PIVOT_REPAIR"
+      ],
+      "minimum_true_range_multiple": 1.0
+    },
+    {
+      "id": "acceptance_reacq_tr0",
+      "eligible_mechanisms": [
+        "MINUTE_ACCEPTANCE",
+        "RECOIL_REACQUISITION"
+      ],
+      "eligible_slow_front_states": [
+        "CONTINUATION",
+        "PIVOT_REPAIR"
+      ],
+      "minimum_true_range_multiple": 0.0
+    },
+    {
+      "id": "acceptance_reacq_tr075",
+      "eligible_mechanisms": [
+        "MINUTE_ACCEPTANCE",
+        "RECOIL_REACQUISITION"
+      ],
+      "eligible_slow_front_states": [
+        "CONTINUATION",
+        "PIVOT_REPAIR"
+      ],
+      "minimum_true_range_multiple": 0.75
+    },
+    {
+      "id": "acceptance_reacq_tr1",
+      "eligible_mechanisms": [
+        "MINUTE_ACCEPTANCE",
+        "RECOIL_REACQUISITION"
+      ],
+      "eligible_slow_front_states": [
+        "CONTINUATION",
+        "PIVOT_REPAIR"
+      ],
+      "minimum_true_range_multiple": 1.0
+    },
+    {
+      "id": "all_tr0",
+      "eligible_mechanisms": [
+        "MINUTE_ACCEPTANCE",
+        "RECOIL_REACQUISITION",
+        "AUTHORITATIVE_HANDOFF"
+      ],
+      "eligible_slow_front_states": [
+        "CONTINUATION",
+        "PIVOT_REPAIR"
+      ],
+      "minimum_true_range_multiple": 0.0
+    },
+    {
+      "id": "all_tr075",
+      "eligible_mechanisms": [
+        "MINUTE_ACCEPTANCE",
+        "RECOIL_REACQUISITION",
+        "AUTHORITATIVE_HANDOFF"
+      ],
+      "eligible_slow_front_states": [
+        "CONTINUATION",
+        "PIVOT_REPAIR"
+      ],
+      "minimum_true_range_multiple": 0.75
+    },
+    {
+      "id": "all_tr1",
+      "eligible_mechanisms": [
+        "MINUTE_ACCEPTANCE",
+        "RECOIL_REACQUISITION",
+        "AUTHORITATIVE_HANDOFF"
+      ],
+      "eligible_slow_front_states": [
+        "CONTINUATION",
+        "PIVOT_REPAIR"
+      ],
+      "minimum_true_range_multiple": 1.0
+    },
+    {
+      "id": "continuation_all_tr0",
+      "eligible_mechanisms": [
+        "MINUTE_ACCEPTANCE",
+        "RECOIL_REACQUISITION",
+        "AUTHORITATIVE_HANDOFF"
+      ],
+      "eligible_slow_front_states": [
+        "CONTINUATION"
+      ],
+      "minimum_true_range_multiple": 0.0
+    },
+    {
+      "id": "continuation_all_tr075",
+      "eligible_mechanisms": [
+        "MINUTE_ACCEPTANCE",
+        "RECOIL_REACQUISITION",
+        "AUTHORITATIVE_HANDOFF"
+      ],
+      "eligible_slow_front_states": [
+        "CONTINUATION"
+      ],
+      "minimum_true_range_multiple": 0.75
+    },
+    {
+      "id": "continuation_all_tr1",
+      "eligible_mechanisms": [
+        "MINUTE_ACCEPTANCE",
+        "RECOIL_REACQUISITION",
+        "AUTHORITATIVE_HANDOFF"
+      ],
+      "eligible_slow_front_states": [
+        "CONTINUATION"
+      ],
+      "minimum_true_range_multiple": 1.0
+    }
+  ],
+  "selection_gate": {
+    "each_selection_year_net_positive": true,
+    "each_selection_year_pnl_over_drawdown_not_below_published_crown": true,
+    "each_selection_year_pnl_over_drawdown_not_below_one_minute_incumbent": true,
+    "selection_combined_trades_above_published_incumbent": true,
+    "selection_combined_both_directions_positive": true,
+    "rank": [
+      "highest minimum yearly PnL-over-drawdown ratio to the published crown",
+      "highest selection-combined PnL-over-drawdown",
+      "lowest selection-combined drawdown",
+      "lexicographic cell id"
+    ]
+  },
+  "locked_year_3_law": {
+    "if_no_selection_cell": "reject without reading Year 3",
+    "if_selection_cell_passes": "freeze the exact selected cell and one-minute execution owner, then hydrate and evaluate locked Year 3 exactly once",
+    "current_authority": "none"
+  },
+  "invariants": [
+    "no market orders",
+    "no locked Year-3 P-007 data or outcome read",
+    "no live strategy, selection, capital, service, or broker mutation",
+    "no Gold or MCL mutation",
+    "the prospective seconds owner remains morphology-only"
+  ],
+  "submitted_orders": 0
+}

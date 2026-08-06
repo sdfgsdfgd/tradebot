@@ -1,0 +1,115 @@
+{
+  "schema": "xsp.opening-edge-v4-stabilized-opening-bridge-p008-development-rejection.v1",
+  "authority": "year_1_year_2_adaptive_development_rejection_no_locked_year_3_no_orders_no_capital",
+  "verdict": "REJECT_DEVELOPMENT_NO_ROBUST_PLATEAU",
+  "identities": {
+    "preregistration_path": "backtests/xsp/opening_edge_v4_stabilized_opening_bridge_p008_development_preregistration.json",
+    "preregistration_sha256": "12907798aead858100b2f099092eed5dff1b314d8f35bdd88fe37d5ec8870096",
+    "evaluator_path": "/tmp/xsp_p008_stabilized_bridge_development.py",
+    "evaluator_sha256": "501ca514e0734f742c0a805470a2bc78966c9d2026296b689e38343da3b7b702",
+    "result_path": "/tmp/xsp-p008-stabilized-opening-bridge-development.json",
+    "result_sha256": "bd304dc54021471f578548c8970d82c622178ea6416078d0bc5e9b2b22a8a069",
+    "landing_anatomy_evaluator_path": "/tmp/xsp_p008_landing_anatomy.py",
+    "landing_anatomy_evaluator_sha256": "0e116855335069f786e044f30255ae85391294c58eaf7fbe6c17fef56d5f6397",
+    "landing_anatomy_result_path": "/tmp/xsp-p008-landing-anatomy.json",
+    "landing_anatomy_result_sha256": "7538d36ba602f1a10386e5fa641fe3ad2069ac4144b041fe4818091d0bc3cdf7"
+  },
+  "lattice": {
+    "cells": 108,
+    "minute_windows": 18,
+    "minute_range": [2, 9],
+    "minimum_true_range_multiples": [0.5, 0.75, 1.0],
+    "minimum_volume_authority_levels": [12.0, 20.0],
+    "eligible_cells": 0,
+    "connected_components": 0,
+    "selected_cell": null
+  },
+  "gate_failures": {
+    "combined_net_above_production": 108,
+    "yearly_pnl_dd_1_05x_production": 108,
+    "yearly_pnl_dd_1_05x_one_minute": 94,
+    "combined_dd_no_higher": 75
+  },
+  "production_v3_selection_baseline": {
+    "trades": 389,
+    "trades_per_year": 195.2749,
+    "net_pnl": 138.3932,
+    "stress_net_pnl": 99.4932,
+    "profit_factor": 1.809,
+    "max_drawdown": 17.0689,
+    "pnl_over_drawdown": 8.107916,
+    "year_1": {
+      "net_pnl": 62.9648,
+      "max_drawdown": 12.5401,
+      "pnl_over_drawdown": 5.021076
+    },
+    "year_2": {
+      "net_pnl": 75.4283,
+      "max_drawdown": 17.0689,
+      "pnl_over_drawdown": 4.419049
+    }
+  },
+  "closest_family": {
+    "cell_id": "m5_7_tr0.5_v20",
+    "parameters": {
+      "minute_window_inclusive": [5, 7],
+      "minimum_true_range_multiple": 0.5,
+      "minimum_volume_authority_level": 20.0
+    },
+    "metrics": {
+      "trades": 417,
+      "trades_per_year": 209.3307,
+      "net_pnl": 119.3432,
+      "stress_net_pnl": 77.6432,
+      "profit_factor": 1.6482,
+      "max_drawdown": 14.0432,
+      "pnl_over_drawdown": 8.498291,
+      "up_pnl": 36.09,
+      "down_pnl": 83.2532
+    },
+    "year_1": {
+      "net_pnl": 42.4848,
+      "pnl_over_drawdown": 3.434475,
+      "ratio_to_production": 0.68401175,
+      "ratio_to_native_one_minute": 1.1283077
+    },
+    "year_2": {
+      "net_pnl": 76.8583,
+      "pnl_over_drawdown": 5.47299,
+      "ratio_to_production": 1.23849951,
+      "ratio_to_native_one_minute": 1.46635155
+    },
+    "failed_gates": [
+      "combined_net_above_production",
+      "yearly_pnl_dd_1_05x_production"
+    ]
+  },
+  "landing_anatomy": {
+    "closest_family_bridge_owned_trades": 28,
+    "raw_net": 22.96,
+    "raw_profit_factor": 4.576324,
+    "year_1_raw_net": 4.57,
+    "year_2_raw_net": 18.39,
+    "up_raw_net": 10.17,
+    "down_raw_net": 12.79,
+    "median_pivot_to_entry_minutes": 6.0,
+    "median_move_remaining_at_entry_share": 0.684561,
+    "median_minutes_to_session_extreme": 215.5,
+    "mfe_dominates_mae_share": 0.607143,
+    "interpretation": "The bridge-owned entries retain directional movement and positive economics in both exposed years and directions. The dominant loss is forcing all incumbent v3 trades through native-one-minute lifecycle timing, not a universal late-entry or wrong-direction failure."
+  },
+  "loader_scope_correction": {
+    "candidate_year_3_outcomes_computed": false,
+    "candidate_year_3_metrics_exposed": false,
+    "candidate_year_3_used_for_selection": false,
+    "incumbent_full_tape_materialized": true,
+    "reason": "The shared campaign loader rehashed the already-public three-year incumbent identity before every P-008 candidate was strictly sliced through 2025-07-23. The preregistration's literal no-Year-3-price-read wording was therefore overbroad; candidate Year-3 behavior remains unopened."
+  },
+  "decision": {
+    "threshold_search_closed": true,
+    "locked_year_3_status": "SEALED_NOT_OPENED",
+    "live_xsp_v3_changed": false,
+    "next_mechanism": "P-009 dual-clock arbitration: preserve exact five-minute v3 entry/exit/lifecycle events and grant the already-frozen opening bridge only flat-state early ownership with explicit same-direction handoff and opposite-direction release."
+  },
+  "submitted_orders": 0
+}

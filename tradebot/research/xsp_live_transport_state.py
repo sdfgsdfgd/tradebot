@@ -7,6 +7,7 @@ from collections.abc import Mapping, Sequence
 from datetime import datetime, timezone
 
 from .xsp_opening_edge_v2 import XSP_OPENING_EDGE_V2_TRANSPORT_VERSION
+from .xsp_dual_clock import XSP_DUAL_CLOCK_SOURCE_VERSION
 from .xsp_opening_edge_v3 import XSP_OPENING_EDGE_V3_TRANSPORT_VERSION
 
 
@@ -82,6 +83,15 @@ def xsp_v3_source_receipt_from_checkpoint(
     )
 
 
+def xsp_p009_source_receipt_from_checkpoint(
+    checkpoint: Mapping[str, object],
+) -> dict[str, object]:
+    return _source_receipt_from_checkpoint(
+        checkpoint,
+        transport_version=XSP_DUAL_CLOCK_SOURCE_VERSION,
+    )
+
+
 def latest_xsp_v2_source_receipt(
     records: Sequence[Mapping[str, object]],
 ) -> dict[str, object]:
@@ -104,6 +114,18 @@ def latest_xsp_v3_source_receipt(
         ):
             return xsp_v3_source_receipt_from_checkpoint(record)
     raise ValueError("Opening Edge v3 has no source checkpoint")
+
+
+def latest_xsp_p009_source_receipt(
+    records: Sequence[Mapping[str, object]],
+) -> dict[str, object]:
+    for record in reversed(records):
+        if (
+            record.get("kind") == "checkpoint"
+            and record.get("strategy_version") == XSP_DUAL_CLOCK_SOURCE_VERSION
+        ):
+            return xsp_p009_source_receipt_from_checkpoint(record)
+    raise ValueError("Opening Edge P-009 has no source checkpoint")
 
 
 async def xsp_v2_broker_snapshot(

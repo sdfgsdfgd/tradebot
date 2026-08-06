@@ -41,11 +41,14 @@ from .xsp_opening_edge_v2 import (
 from .xsp_opening_edge_v3 import (
     XSP_OPENING_EDGE_V3_HISTORY_DURATION,
     XSP_OPENING_EDGE_V3_VERSION,
+    advance_xsp_opening_edge_p009_from_ibkr,
     advance_xsp_opening_edge_v3_from_ibkr,
     load_xsp_opening_edge_v3_spec,
     xsp_opening_edge_v3_fundamental_pairs,
     xsp_opening_edge_v3_run_start,
+    xsp_opening_edge_p009_run_start,
 )
+from .xsp_dual_clock import XSP_DUAL_CLOCK_VERSION
 from .xsp_execution_observer import (
     advance_xsp_v2_etf_execution_observer,
 )
@@ -90,7 +93,12 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
     )
     parser.add_argument(
         "--mode",
-        choices=("directional-v1", "opening-edge-v2", "opening-edge-v3"),
+        choices=(
+            "directional-v1",
+            "opening-edge-v2",
+            "opening-edge-v3",
+            "opening-edge-p009",
+        ),
         default="directional-v1",
     )
     parser.add_argument(
@@ -136,7 +144,11 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--graduation-cutoff")
     parser.add_argument(
         "--graduation-runtime-parity",
-        default="backtests/xsp/opening_edge_v3_current_runtime_parity_audit.json",
+        default=(
+            "backtests/xsp/"
+            "opening_edge_v4_dual_clock_arbitration_p009_"
+            "current_runtime_parity_audit.json"
+        ),
     )
     parser.add_argument(
         "--graduation-capital-stability",
@@ -155,7 +167,7 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
         else None
     )
     if (
-        args.mode == "opening-edge-v3"
+        args.mode in {"opening-edge-v3", "opening-edge-p009"}
         and isinstance(capital_plan, dict)
         and capital_plan.get("schema") == "live.capital-plan.v3"
     ):
@@ -179,7 +191,7 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
     )
     if graduation_requested:
         if (
-            args.mode != "opening-edge-v3"
+            args.mode not in {"opening-edge-v3", "opening-edge-p009"}
             or not args.graduation_target
             or not args.graduation_cutoff
             or not args.graduation_output
@@ -402,7 +414,7 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
             selected_transport = load_xsp_v2_transport_selection(
                 selected_transport_path
             )
-        elif args.mode == "opening-edge-v3":
+        elif args.mode in {"opening-edge-v3", "opening-edge-p009"}:
             selected_transport = load_xsp_v3_transport_selection(
                 selected_transport_path
             )
@@ -410,12 +422,20 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
             selected_transport_path.read_bytes()
         ).hexdigest()
     if (
-        args.mode == "opening-edge-v3"
+        args.mode in {"opening-edge-v3", "opening-edge-p009"}
         and selected_transport is not None
-        and selected_transport.get("strategy_version") != XSP_OPENING_EDGE_V3_VERSION
+        and selected_transport.get("strategy_version")
+        != (
+            XSP_DUAL_CLOCK_VERSION
+            if args.mode == "opening-edge-p009"
+            else XSP_OPENING_EDGE_V3_VERSION
+        )
     ):
         raise ValueError("selected XSP transport does not match observer mode")
-    if args.mode == "opening-edge-v3" and selected_transport is not None:
+    if (
+        args.mode in {"opening-edge-v3", "opening-edge-p009"}
+        and selected_transport is not None
+    ):
         selected_policy = xsp_v3_transport_profitability_policy(
             selected_transport
         )
@@ -464,13 +484,27 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
     execution_observation = None
     transport_execution = None
     try:
-        if args.mode == "opening-edge-v3":
+        if args.mode in {"opening-edge-v3", "opening-edge-p009"}:
             v3_spec = load_xsp_opening_edge_v3_spec()
-            v3_run_start = xsp_opening_edge_v3_run_start(
-                tuple(ledger.records()),
-                observed_at=observed_at,
+            records = tuple(ledger.records())
+            p009 = args.mode == "opening-edge-p009"
+            v3_run_start = (
+                xsp_opening_edge_p009_run_start(
+                    records,
+                    observed_at=observed_at,
+                )
+                if p009
+                else xsp_opening_edge_v3_run_start(
+                    records,
+                    observed_at=observed_at,
+                )
             )
-            receipt = await advance_xsp_opening_edge_v3_from_ibkr(
+            advance = (
+                advance_xsp_opening_edge_p009_from_ibkr
+                if p009
+                else advance_xsp_opening_edge_v3_from_ibkr
+            )
+            receipt = await advance(
                 ledger,
                 client=client,
                 observed_at=observed_at,
@@ -537,7 +571,7 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
         await client.disconnect()
     completed_at = datetime.now(tz=timezone.utc)
     pressure_atlas_accumulation = None
-    if args.mode == "opening-edge-v3":
+    if args.mode in {"opening-edge-v3", "opening-edge-p009"}:
         try:
             pressure_atlas_accumulation = accumulate_xsp_pressure_atlas(
                 tuple(ledger.records()),
@@ -566,7 +600,7 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
             ),
             prospective_evidence_mode="forward_v3_checkpoint",
         )
-        if args.mode == "opening-edge-v3"
+        if args.mode in {"opening-edge-v3", "opening-edge-p009"}
         else None
     )
     print(
@@ -634,7 +668,11 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
         )
     )
     successful_noop = (
-        args.mode in {"opening-edge-v2", "opening-edge-v3"}
+        args.mode in {
+            "opening-edge-v2",
+            "opening-edge-v3",
+            "opening-edge-p009",
+        }
         and receipt.get("evaluation_status") == "CLOSED"
         and receipt.get("broker_request_skipped")
         in {"run_not_started", "closed_calendar"}
@@ -645,7 +683,7 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
         else None
     )
     successful_terminal_noop = (
-        args.mode == "opening-edge-v3"
+        args.mode in {"opening-edge-v3", "opening-edge-p009"}
         and receipt.get("evaluation_status") == "STALE_DATA"
         and isinstance(terminal_plan, dict)
         and terminal_plan.get("source_session") in {"RTH", "CURB"}

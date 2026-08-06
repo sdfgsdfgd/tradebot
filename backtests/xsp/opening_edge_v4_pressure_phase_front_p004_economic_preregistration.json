@@ -1,0 +1,127 @@
+{
+  "schema": "xsp.opening-edge-v4-pressure-phase-front-p004-economic-preregistration.v1",
+  "recorded_at_utc": "2026-08-06T13:57:00+00:00",
+  "authority": "pre_outcome_bounded_economic_replay_only_no_selection_no_orders_no_capital",
+  "objective": "test whether the exact count-passing P-004 causal emissions improve the crowned XSP lifecycle as a flat-only RTH timing and complementary owner without changing ordinary v3 trades",
+  "identities": {
+    "crown_path": "backtests/xsp/opening_edge_v3_regime_harmony_24x5.json",
+    "crown_sha256": "d47eb39cef3d2ca575d779d6b5b87e3b88e08606fd09a8801b8cb55c350208db",
+    "crown_runner_path": "/tmp/xsp_e269_fading_range_bear_wakeup.py",
+    "crown_runner_sha256": "000f39e959d95f370a9fb92eac1e884ef8e6b0377e97f55257bf2c67dabde87f",
+    "crown_result_sha256": "0860769b5d6877c4b0c8c7b1361a28b7037f5c42ad5ba24b11674038e14e142b",
+    "crown_rth_ledger_sha256": "40708a28476fad504d29b1222e52b88481b1c0da8313ed4667076e2b6ed3f157",
+    "crown_gth_ledger_sha256": "9e04807fb77df431b7af27b8be6d5f5288c8512bfe80cb78b3c1fe70cabb8a98",
+    "p004_preregistration_sha256": "dc5ed784f3c60942917d2b1e944973694956f65e1aba8f7063665302156aea7c",
+    "p004_evaluator_sha256": "b5fab0eb05a7d305e278d13b26898844bc9e5cc837c4cce35f7c8c99a41dfe38",
+    "p004_consensus_source_sha256": "67e7daf6d2eb05724e903567bfb1c74d415d4ce140cc3f261d2cbbfd95472c3f",
+    "p004_campaign_sha256": "dfba4165dad28d7d74a80132055cd9c317f0bd6a8917bec8a5da6e5623a97734",
+    "p004_recovered_result_sha256": "405c5e838ba3d52a1dbeea8fff8ec4fec131f59b9454b61a71edeb56d9310986",
+    "p004_emissions_sha256": "8ee2436fc705d6261898ba76a1f85cbda62c79514d2b177bda40527f4e863788",
+    "p004_relapses_sha256": "8a2c19b1d13e7109128e69f686dedb2a242cbb3fa6c975388aca00d6157d0698",
+    "tape_sha256": "6d239c88dadbbb259a8e1e691c7311a05436859db7f1fe330b21d84daa3c67df"
+  },
+  "windows": {
+    "year_1_discovery": ["2023-07-24", "2024-07-23"],
+    "year_2_validation": ["2024-07-24", "2025-07-23"],
+    "year_3_locked_final": ["2025-07-24", "2026-07-24"],
+    "selection": ["year_1_discovery", "year_2_validation"],
+    "locked_unseen": "year_3_locked_final"
+  },
+  "unit_and_cost": {
+    "unit": "$1_per_XSP_point",
+    "primary_commission_per_side_points": 0.05,
+    "stress_commission_per_side_points": 0.10,
+    "spread_points": 0.0,
+    "slippage_points": 0.0,
+    "mark_to_market": "completed_bar_close",
+    "drawdown": "intrabar_high_low_plus_realized_costs"
+  },
+  "causal_execution": {
+    "session": "RTH_only",
+    "signal_clock": "completed_five_minute_close",
+    "entry_fill": "next_available_RTH_bar_open_after_emission",
+    "ordinary_v3_entry_exit_and_direction": "byte_identical_when_P004_does_not_own",
+    "one_position_maximum": true,
+    "maximum_total_entries_per_trading_day": 5,
+    "simultaneous_priority": "existing_v3_owner_before_P004",
+    "p004_admission": "flat_only;_one_emission_per_wave;_never_stack",
+    "same_direction_v3_takeover": "transfer_ownership_without_second_order_and_retain_the_earlier_P004_entry_price",
+    "opposite_v3_takeover": "controlled_flip_at_the_existing_v3_fill_time",
+    "p004_while_v3_owned": "observe_only_no_veto_no_exit_no_flip",
+    "p004_exit_order": [
+      "same_wave_RELAPSED_terminal_next_RTH_open",
+      "opposite_P004_emission_controlled_flip_next_RTH_open",
+      "existing_v3_takeover_or_exit",
+      "last_completed_RTH_bar_close"
+    ],
+    "market_orders": 0
+  },
+  "categorical_cells": [
+    {
+      "id": "p004_early_flat_only",
+      "eligible_phases": ["FRONT_PROPAGATING", "FAST_SLOPE_CROSS", "REACCELERATION"]
+    },
+    {
+      "id": "p004_confirmed_flat_only",
+      "eligible_phases": ["SLOW_SLOPE_CASCADE", "PIVOT_ACCEPTED"]
+    },
+    {
+      "id": "p004_all_flat_only",
+      "eligible_phases": ["FRONT_PROPAGATING", "FAST_SLOPE_CROSS", "REACCELERATION", "SLOW_SLOPE_CASCADE", "PIVOT_ACCEPTED"]
+    }
+  ],
+  "selection_law": {
+    "outcomes_visible_for_selection": ["year_1_discovery", "year_2_validation"],
+    "eligible_cell_requires": [
+      "combined_net_positive_in_each_selection_year",
+      "combined_PnL_over_DD_not_below_incumbent_in_either_selection_year",
+      "combined_trade_count_above_incumbent_across_selection_years",
+      "both_combined_directions_positive_across_selection_years"
+    ],
+    "rank": [
+      "highest_minimum_yearly_PnL_over_DD_ratio_to_incumbent",
+      "highest_combined_selection_PnL_over_DD",
+      "lowest_combined_selection_drawdown",
+      "lexicographic_cell_id"
+    ],
+    "if_no_cell_eligible": "REJECT_without_opening_year_3",
+    "year_3": "evaluate_exactly_once_for_the_locked_selection"
+  },
+  "crown_gates": {
+    "full_trades_strictly_above": 604,
+    "full_trades_per_year_strictly_above": 201.8674,
+    "full_net_strictly_above": 291.1756,
+    "full_PnL_over_DD_minimum": 17.3418,
+    "yearly_PnL_over_DD_at_least_5pct_above_incumbent_in_at_least_years": 2,
+    "incumbent_yearly_PnL_over_DD": {
+      "year_1_discovery": 5.0211,
+      "year_2_validation": 4.419,
+      "year_3_locked_final": 8.666
+    },
+    "both_directions_positive": true,
+    "both_RTH_and_GTH_lanes_positive": true,
+    "primary_and_stress_net_positive_each_year": true,
+    "worst_trade_not_below_incumbent": true,
+    "market_orders": 0
+  },
+  "pre_outcome_implementation": {
+    "evaluator_path": "/tmp/xsp_p004_economics.py",
+    "evaluator_sha256": "636b0f73d5c8a9a0e2c95c1be04ed7132661ecdd13b6d7fb8278ccb6542f3256",
+    "output_path": "/tmp/xsp-opening-edge-v4-pressure-phase-front-p004-economics.json",
+    "replay_law": "select_one_semantic_cell_from_years_1_and_2_then_open_year_3_exactly_once"
+  },
+  "forbidden": [
+    "oracle_membership_in_causal_selection",
+    "matched_landmark_id_or_timing_class_in_trade_logic",
+    "future_price_or_future_extreme_in_trade_logic",
+    "threshold_search",
+    "pressure_level_selection",
+    "phase_subselection_beyond_the_three_frozen_semantic_cells",
+    "GTH_authority_change",
+    "incumbent_v3_retune",
+    "capital_or_order_authority"
+  ],
+  "outcomes_exposed": false,
+  "selected_cell": null,
+  "submitted_orders": 0
+}

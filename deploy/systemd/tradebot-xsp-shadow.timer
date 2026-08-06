@@ -1,5 +1,5 @@
 [Unit]
-Description=Advance the XSP Opening Edge v3 observer after each completed GTH/RTH bar
+Description=Advance XSP after each completed GTH bar and every RTH minute
 
 [Timer]
 OnCalendar=Sun *-*-* 20:22/5:00 America/New_York
@@ -7,8 +7,9 @@ OnCalendar=Sun *-*-* 21..23:02/5:00 America/New_York
 OnCalendar=Mon..Thu *-*-* 20:22/5:00 America/New_York
 OnCalendar=Mon..Thu *-*-* 21..23:02/5:00 America/New_York
 OnCalendar=Mon..Fri *-*-* 00..08:02/5:00 America/New_York
-OnCalendar=Mon..Fri *-*-* 09:02,07,12,17,22,27,37,42,47,52,57:00 America/New_York
-OnCalendar=Mon..Fri *-*-* 10..15:02/5:00 America/New_York
+OnCalendar=Mon..Fri *-*-* 09:02,07,12,17,22,27:00 America/New_York
+OnCalendar=Mon..Fri *-*-* 09:31..59:03 America/New_York
+OnCalendar=Mon..Fri *-*-* 10..15:*:03 America/New_York
 OnCalendar=Mon..Fri *-*-* 16:02,07,12,17:00 America/New_York
 AccuracySec=15s
 RandomizedDelaySec=0

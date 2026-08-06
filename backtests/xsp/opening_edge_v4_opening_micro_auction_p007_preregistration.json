@@ -1,0 +1,107 @@
+{
+  "schema": "xsp.opening-edge-v4-opening-micro-auction-p007-preregistration.v1",
+  "registered_at_utc": "2026-08-06T16:49:00Z",
+  "authority": "pre_outcome_count_and_morphology_only_no_orders_no_capital",
+  "objective": "test a historically representable opening-wave owner without pretending one-minute OHLC can reconstruct seconds-level velocity crest geometry",
+  "correction_from_p006": {
+    "p006_preregistration_sha256": "98096faf45f7474ff713f188b0663d2bba36aaf22ae23497656e3f1193525fe7",
+    "p006_count_result_sha256": "2481eb56b65685701f645243762b597a0d19bbf5325a13fa45a3863bc6863b87",
+    "p006_verdict": "REJECT_COUNT_ONLY",
+    "p006_counts": {
+      "emissions": 30,
+      "year_1": 15,
+      "year_2": 15,
+      "up": 9,
+      "down": 21,
+      "persistent_drive": 2,
+      "crest_reacceleration": 0,
+      "authoritative_handoff": 28
+    },
+    "diagnosis": "the completed one-minute skeleton aliases within-minute crest, recoil, and reacceleration into one bar; P-007 keeps the same physical authority but names only sequences observable at one-minute resolution",
+    "outcomes_exposed": false
+  },
+  "incumbent": {
+    "strategy_version": "xsp.opening-edge-v3-regime-harmony-24x5.v1",
+    "crown_sha256": "d47eb39cef3d2ca575d779d6b5b87e3b88e08606fd09a8801b8cb55c350208db",
+    "owner_sha256": "643b6a04478e598fe7fbdc2d5aa6deabe6935761b3fa83cf487a9fdd16a265bc",
+    "trades": 604,
+    "trades_per_year": 201.8674,
+    "pnl_over_drawdown": 16.516
+  },
+  "windows": {
+    "year_1": [
+      "2023-07-24",
+      "2024-07-23"
+    ],
+    "year_2": [
+      "2024-07-24",
+      "2025-07-23"
+    ],
+    "locked_year_3": [
+      "2025-07-24",
+      "2026-07-24"
+    ]
+  },
+  "selection_data": {
+    "audit_sha256": "ae6f3e5a71ce90df7c7ff3640a1fdcf8ec55179977129ee8d9adfc80489ad6d8",
+    "xsp_rth_1m_sha256": "a7a0cab80fe064ea825d560a746a2f3a46283c1bf4cd52552039a3e4b6c3ceb5",
+    "spy_rth_1m_sha256": "2784f028d5d30a0e162d22be9c63a9f32f23121f7e8f1c1b382b0c870388e5c5",
+    "spy_full24_5m_year_1_sha256": "49ccd3b0969167cc1bc8af098fd19b02b5c9ac59fba23038161d84ce0939fb9d",
+    "spy_full24_5m_year_2_source_sha256": "2d6b0f7a2d0b693fe24a4843a87cd3f9434d8b1f799902418839ae9dca9e6b49",
+    "joined_rth_minutes": 194880,
+    "sessions": 502,
+    "missing": 0
+  },
+  "frozen_evaluator": {
+    "path_on_q": "/var/tmp/xsp_p007_minute_acceptance_count.py",
+    "sha256": "3aec10ec49dc27a3396db9ee7907787f755330d69d2d9279b86b2d1da1b7a29a"
+  },
+  "frozen_law": {
+    "window_et": "09:30 inclusive through 09:46 exclusive",
+    "maximum_emissions_per_session": 1,
+    "physical_volume_levels": [
+      5.0,
+      10.0,
+      12.0,
+      20.0
+    ],
+    "volume_role": "attention and seriousness only; never direction",
+    "authority_bind": "at least 10x physical SPY volume, joint XSP/SPY session-path and one-minute-body direction, and a strictly completed SPY fifteen-minute CONTINUATION or PIVOT_REPAIR front",
+    "mechanisms": {
+      "MINUTE_ACCEPTANCE": "after bind, one additional joint same-direction minute at 12x or higher while the accepted slow front survives and no path-preserving opposite-body recoil has occurred",
+      "RECOIL_REACQUISITION": "after bind, an opposite one-minute body occurs while the joint session path remains owned; a subsequent joint same-direction minute at 12x or higher reacquires authority under the accepted slow front",
+      "AUTHORITATIVE_HANDOFF": "two consecutive joint opposite path-and-body minutes at 12x or higher, equal-or-higher authority level, and an accepted opposite slow front"
+    },
+    "entry_clock": "next open after the completed signal minute",
+    "historical_seconds_claim": "none; P-007 is the exact one-minute economic owner, while seconds L1 remains a separate prospective timing and execution-permission companion",
+    "outcomes": null
+  },
+  "count_gate": {
+    "minimum_total_emissions": 120,
+    "minimum_each_selection_year": 50,
+    "minimum_each_direction": 35,
+    "minimum_minute_acceptance": 50,
+    "minimum_recoil_reacquisition": 15,
+    "minimum_authoritative_handoff": 5,
+    "minimum_each_slow_front_class": 10,
+    "minimum_each_tradeable_volume_level": 15,
+    "minimum_distinct_entry_minutes": 5,
+    "require_zero_missing_opening_windows": true
+  },
+  "next_step_law": {
+    "if_count_fails": "reject without economic replay",
+    "if_count_passes": "freeze a compact Year-1/Year-2 composition using only mechanism, declared volume level, slow-front class, and outcome-blind true-range morphology",
+    "economic_selection": "must be nonnegative in both years, improve or preserve yearly PnL-over-drawdown, increase total trade count, and keep both directions positive before locked Year-3 opens once",
+    "crown": "more than 200 trades per year and at least five-percent PnL-over-drawdown improvement in most available one-year periods",
+    "live": "requires exact owner/runtime parity and limit-only execution; seconds authority cannot be inferred from this one-minute replay"
+  },
+  "invariants": [
+    "XSP v3 remains crowned and live",
+    "no market orders",
+    "no P-007 outcomes before the count gate",
+    "no locked Year-3 P-007 count or outcome read",
+    "no Gold or MCL mutation",
+    "no order, capital, selection, crown, or live authority"
+  ],
+  "submitted_orders": 0
+}

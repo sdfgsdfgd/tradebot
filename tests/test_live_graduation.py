@@ -568,6 +568,21 @@ def test_xsp_proof_adapters_rehash_current_owners(tmp_path: Path) -> None:
     assert capital["status"] == "PASS"
 
 
+def test_xsp_p009_runtime_proof_rehashes_every_live_owner() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    runtime = xsp_runtime_parity_graduation_gate(
+        repo_root
+        / "backtests/xsp/"
+        "opening_edge_v4_dual_clock_arbitration_p009_"
+        "current_runtime_parity_audit.json",
+        repo_root=repo_root,
+        strategy_id="xsp.opening-edge-v4-dual-clock-arbitration-p009.v1",
+    )
+
+    assert runtime["status"] == "PASS"
+    assert runtime["reasons"] == []
+
+
 def _state_evidence() -> dict[str, object]:
     risk = {
         "valid": True,

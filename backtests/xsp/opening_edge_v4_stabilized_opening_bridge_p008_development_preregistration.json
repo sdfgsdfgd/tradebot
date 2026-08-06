@@ -1,0 +1,113 @@
+{
+  "schema": "xsp.opening-edge-v4-stabilized-opening-bridge-p008-development-preregistration.v1",
+  "registered_at_utc": "2026-08-06T17:45:00Z",
+  "authority": "adaptive_year_1_year_2_development_after_p007_rejection_no_locked_year_3_no_orders_no_capital",
+  "hypothesis": "P-007 failed as broad opening ownership, but its causal MINUTE_ACCEPTANCE emissions form a neighboring post-first-bar stabilization basin: after the first five-minute auction is visible and before the incumbent usually owns direction, a narrow opening bridge may accelerate v3-compatible entries without owning the noisy first three minutes or late unresolved waves.",
+  "disclosed_post_outcome_origin": {
+    "source_cell": "acceptance_tr075",
+    "source_owned_trades": 138,
+    "source_owned_net": 10.23,
+    "source_no_v3_takeover_net": -8.59,
+    "source_v3_confirmed_net": 18.82,
+    "observed_neighbor_basin": {
+      "minute_4_to_7_net": 26.1,
+      "minute_4_to_8_net": 24.55,
+      "minute_5_to_7_net": 25.93,
+      "minute_5_to_8_net": 24.38,
+      "minute_6_to_7_net": 15.51
+    },
+    "warning": "These values motivated the bounded development lattice and cannot validate it; locked Year 3 remains the only unseen economic challenge."
+  },
+  "unchanged": [
+    "exact production XSP v3 direction, GTH lane, lifecycle, costs, risk, capital, limit-only execution, and live selection",
+    "P-007 MINUTE_ACCEPTANCE event identity and native one-minute next-open execution",
+    "both directions and both frozen slow-front states",
+    "Gold and MCL",
+    "locked Year-3 outcomes"
+  ],
+  "development_lattice": {
+    "minute_index_semantics": "one-indexed completed RTH minute; 5 is the 09:35 ET close and entry remains exact next native one-minute open",
+    "minute_windows_inclusive": [
+      [2, 6],
+      [2, 7],
+      [3, 6],
+      [3, 7],
+      [3, 8],
+      [4, 6],
+      [4, 7],
+      [4, 8],
+      [4, 9],
+      [5, 6],
+      [5, 7],
+      [5, 8],
+      [5, 9],
+      [6, 7],
+      [6, 8],
+      [6, 9],
+      [7, 8],
+      [7, 9]
+    ],
+    "minimum_true_range_multiples": [0.5, 0.75, 1.0],
+    "minimum_volume_authority_levels": [12.0, 20.0],
+    "eligible_mechanisms": ["MINUTE_ACCEPTANCE"],
+    "eligible_slow_front_states": ["CONTINUATION", "PIVOT_REPAIR"],
+    "cells": 108
+  },
+  "selection_years": {
+    "year_1": ["2023-07-24", "2024-07-23"],
+    "year_2": ["2024-07-24", "2025-07-23"]
+  },
+  "frozen_gates_each_selection_year": {
+    "net_positive": true,
+    "both_directions_positive": true,
+    "pnl_over_drawdown_at_least_1_05_times_production_v3": true,
+    "pnl_over_drawdown_at_least_1_05_times_native_one_minute_v3": true
+  },
+  "frozen_combined_gates": {
+    "net_above_production_v3": true,
+    "trades_above_production_v3": true,
+    "trades_per_year_above_200": true,
+    "maximum_drawdown_no_higher_than_production_v3": true,
+    "stress_net_positive": true,
+    "both_directions_positive": true
+  },
+  "plateau_law": {
+    "parameter_distance": "one edge changes one minute-window endpoint by one minute, one true-range floor step, or the 12x/20x authority level",
+    "eligible_neighbor_minimum": 3,
+    "selected_cell": "interior medoid of the largest connected eligible component; never maximum-PnL pixel",
+    "required_parameter_breadth": "component spans at least three minute windows, two true-range floors, and both volume-authority levels",
+    "rejection": "reject the entire P-008 lane if no component satisfies every gate and breadth law"
+  },
+  "locked_year_3_law": {
+    "status": "SEALED",
+    "window": ["2025-07-24", "2026-07-23"],
+    "open_once_only_after": "one P-008 medoid and its complete owner/evaluator identities are frozen from Year 1 and Year 2",
+    "minimum_pnl_over_drawdown_ratio_to_production_v3": 1.05,
+    "minimum_trades_per_year": 200.0,
+    "both_directions_positive": true
+  },
+  "identities": {
+    "p007_count_result_path": "/tmp/xsp-p007-minute-acceptance-count.json",
+    "p007_count_result_sha256": "fc1fd8b86d754f07c4a8237b2b01361ed7f4901667908c622afd98960437c3fb",
+    "p007_count_evaluator_path": "/tmp/xsp_p007_minute_acceptance_count.py",
+    "p007_count_evaluator_sha256": "3aec10ec49dc27a3396db9ee7907787f755330d69d2d9279b86b2d1da1b7a29a",
+    "p007_economic_result_path": "/tmp/xsp-p007-selection-economics.json",
+    "p007_economic_result_sha256": "5763ab0304fd42824f395cd98595f7560710f8b3f82718b7aaf2871647a6dcab",
+    "p007_evaluator_path": "/tmp/xsp_p007_economics.py",
+    "p007_evaluator_sha256": "debd3e18edfe3e26ffb3327112115a026be70cbb3fa754063bb01dc7c9e5201b",
+    "p007_anatomy_result_path": "/tmp/xsp-p007-lifecycle-anatomy.json",
+    "p007_anatomy_result_sha256": "2bfdaba1c5582a86659d0518e713fbfb41c88333be433c6e147c33d02e391b76",
+    "p007_anatomy_evaluator_path": "/tmp/xsp_p007_lifecycle_anatomy.py",
+    "p007_anatomy_evaluator_sha256": "ba290a759de76c2b95abe962ee390f82a4599371d1cbf00cdf6c9aaa2c0927f3",
+    "crown_path": "backtests/xsp/opening_edge_v3_regime_harmony_24x5.json",
+    "crown_sha256": "d47eb39cef3d2ca575d779d6b5b87e3b88e08606fd09a8801b8cb55c350208db"
+  },
+  "invariants": [
+    "no locked Year-3 price, trade, or outcome read during lattice selection",
+    "no post-result expansion or contraction of the 108-cell lattice",
+    "no market orders",
+    "no live strategy, selection, service, timer, capital, or broker mutation",
+    "no Gold or MCL mutation",
+    "submitted orders remain zero"
+  ]
+}

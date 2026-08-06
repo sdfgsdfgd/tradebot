@@ -14,6 +14,7 @@ from ..news.contract import (
 )
 from ..time_utils import UTC, to_et
 from .live_calibration import calibration_fingerprint
+from .xsp_dual_clock import XSP_DUAL_CLOCK_PAIRED_SCHEMA
 
 
 XSP_OPTION_CONTEXT_MAX_LAG = timedelta(minutes=7)
@@ -579,6 +580,32 @@ def xsp_execution_signal_context(
         "directional_impulse",
         "market_state",
     )
+    if paired_equity.get("schema") == XSP_DUAL_CLOCK_PAIRED_SCHEMA:
+        target = paired_equity.get("dual_clock_target")
+        bridge_context = (
+            target.get("execution_signal_context")
+            if isinstance(target, Mapping)
+            else None
+        )
+        if bridge_context is not None:
+            if (
+                not isinstance(bridge_context, Mapping)
+                or bridge_context.get("schema")
+                != "xsp.execution-signal-context.v1"
+                or not isinstance(target, Mapping)
+                or target.get("owner") not in {"opening_bridge", "v3_handoff"}
+                or bridge_context.get("lane") != target.get("lane")
+                or bridge_context.get("direction") != target.get("direction")
+                or bridge_context.get("entry_time_utc")
+                != target.get("entry_time")
+                or not bridge_context.get("decision_trace_fingerprint")
+                or not isinstance(
+                    bridge_context.get("directional_impulse"), Mapping
+                )
+                or not isinstance(bridge_context.get("market_state"), Mapping)
+            ):
+                raise ValueError("invalid P-009 execution attribution")
+            return dict(bridge_context)
     profiles = paired_equity.get("profiles")
     if not isinstance(profiles, Mapping):
         raise ValueError("XSP execution attribution requires paired profiles")

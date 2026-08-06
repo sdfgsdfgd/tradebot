@@ -1970,7 +1970,7 @@ def test_shadow_systemd_cadence_is_bounded_and_runtime_gated() -> None:
     assert (
         "ExecStart=/usr/bin/flock --exclusive --wait 180 "
         "%t/tradebot-live-account.lock /usr/bin/env python3 "
-        "-m tradebot.research.xsp_shadow --mode opening-edge-v3"
+        "-m tradebot.research.xsp_shadow --mode opening-edge-p009"
     ) in service
     assert "TimeoutStartSec=8min" in service
     assert "Environment=IBKR_READONLY=1" in service
@@ -1982,12 +1982,11 @@ def test_shadow_systemd_cadence_is_bounded_and_runtime_gated() -> None:
     assert "Mon..Thu *-*-* 21..23:02/5:00 America/New_York" in timer
     assert "20..23:22/5:00" not in timer
     assert "Mon..Fri *-*-* 00..08:02/5:00 America/New_York" in timer
-    assert (
-        "Mon..Fri *-*-* 09:02,07,12,17,22,27,37,42,47,52,57:00 America/New_York"
-    ) in timer
-    assert "Mon..Fri *-*-* 10..15:02/5:00 America/New_York" in timer
+    assert "Mon..Fri *-*-* 09:02,07,12,17,22,27:00 America/New_York" in timer
+    assert "Mon..Fri *-*-* 09:31..59:03 America/New_York" in timer
+    assert "Mon..Fri *-*-* 10..15:*:03 America/New_York" in timer
     assert "Mon..Fri *-*-* 16:02,07,12,17:00 America/New_York" in timer
-    assert timer.count("OnCalendar=") == 8
+    assert timer.count("OnCalendar=") == 9
     assert "Persistent=false" in timer
     assert "RandomizedDelaySec=0" in timer
     first_start = selector.index('start "${service}"')

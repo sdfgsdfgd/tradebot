@@ -1,0 +1,137 @@
+{
+  "schema": "xsp.opening-edge-v4-opening-micro-auction-p006-preregistration.v1",
+  "registered_at_utc": "2026-08-06T16:45:15Z",
+  "authority": "pre_outcome_count_and_morphology_only_no_orders_no_capital",
+  "objective": "distinguish an opening drive from an opening velocity crest by combining physical volume seriousness, joint XSP/SPY one-minute transport, and a strictly completed SPY fifteen-minute slope front before any P-006 economic outcome is visible",
+  "pre_outcome_boundary": {
+    "already_exposed": [
+      "P-004 later-intraday economics and rejection",
+      "P-005 completed-five-minute economics and rejection",
+      "P-005 Year-1/Year-2 first-bar loss anatomy",
+      "one 2024-09-06 one-day minute-path diagnostic",
+      "one prospective 2026-08-06 seconds morphology with no outcome or order authority"
+    ],
+    "not_exposed": [
+      "P-006 selection-window one-minute emission count",
+      "P-006 selection-window entry or exit outcomes",
+      "P-006 Year-1 or Year-2 PnL, drawdown, profit factor, or winner",
+      "P-006 locked Year-3 emissions or outcomes"
+    ],
+    "locked_year_3": "2025-07-24 through 2026-07-24 remains unread by the P-006 evaluator unless a separately frozen Year-1/Year-2 economic selection passes its unlock gate"
+  },
+  "incumbent": {
+    "strategy_version": "xsp.opening-edge-v3-regime-harmony-24x5.v1",
+    "crown_path": "backtests/xsp/opening_edge_v3_regime_harmony_24x5.json",
+    "crown_sha256": "d47eb39cef3d2ca575d779d6b5b87e3b88e08606fd09a8801b8cb55c350208db",
+    "owner_path": "tradebot/research/xsp_opening_edge_state.py",
+    "owner_sha256": "643b6a04478e598fe7fbdc2d5aa6deabe6935761b3fa83cf487a9fdd16a265bc",
+    "full_three_year": {
+      "trades": 604,
+      "trades_per_year": 201.8674,
+      "net_pnl_points": 291.1756,
+      "max_drawdown_points": 17.63,
+      "pnl_over_drawdown": 16.516
+    }
+  },
+  "windows": {
+    "year_1": [
+      "2023-07-24",
+      "2024-07-23"
+    ],
+    "year_2": [
+      "2024-07-24",
+      "2025-07-23"
+    ],
+    "locked_year_3": [
+      "2025-07-24",
+      "2026-07-24"
+    ]
+  },
+  "selection_data": {
+    "audit_path_on_q": "/var/tmp/xsp-p006-selection-data-audit.json",
+    "audit_sha256": "ae6f3e5a71ce90df7c7ff3640a1fdcf8ec55179977129ee8d9adfc80489ad6d8",
+    "audit_evaluator_path_on_q": "/var/tmp/xsp_p006_selection_data_audit.py",
+    "audit_evaluator_sha256": "1fb4ba737c289665d55ce0df300045f4c763d5afec86aec56e15536a5187dbd9",
+    "sync_report_path_on_q": "/var/tmp/xsp-p006-1m-selection-sync-report.json",
+    "sync_report_sha256": "8e41861dbea3bb1ef137a90ad1e8c86f1ee326c0b65310f0ca0b6396805e16d2",
+    "xsp_rth_1m_sha256": "a7a0cab80fe064ea825d560a746a2f3a46283c1bf4cd52552039a3e4b6c3ceb5",
+    "spy_rth_1m_sha256": "2784f028d5d30a0e162d22be9c63a9f32f23121f7e8f1c1b382b0c870388e5c5",
+    "spy_full24_5m_year_1_sha256": "49ccd3b0969167cc1bc8af098fd19b02b5c9ac59fba23038161d84ce0939fb9d",
+    "spy_full24_5m_year_2_source_sha256": "2d6b0f7a2d0b693fe24a4843a87cd3f9434d8b1f799902418839ae9dca9e6b49",
+    "joined_rth_minutes": 194880,
+    "sessions": 502,
+    "timestamp_mismatches": 0,
+    "duplicates": 0,
+    "scheduled_half_days": 5
+  },
+  "prospective_seconds_anchor": {
+    "authority": "morphology_only_no_outcomes_no_orders_no_capital",
+    "first_session_evaluator_sha256": "29c1970703d3a99b07f65b00eda955c98d36a00f40de0cf98297d72c6b58bc91",
+    "first_session_result_sha256": "21a1ce25794e476e677b4d1719ae88b15192f4cb81eba6040da40ff605d0f782",
+    "wave_evaluator_sha256": "41eb913b0f0116c9534468b085165fe783344cc2764b0bc20d662d33d8483d63",
+    "wave_result_sha256": "95e681e22746c097ce7793ae1bebe29ae9d91898df29a3770bd5ba7e7f6e20bd",
+    "observed_transition_order": [
+      "ATTENTION_OPENED",
+      "AUTHORITY_BOUND",
+      "CREST_CONFIRMED",
+      "RECOIL",
+      "CREST_REACCELERATION"
+    ]
+  },
+  "frozen_minute_skeleton": {
+    "evaluator_path_on_q": "/var/tmp/xsp_p006_minute_wave_count.py",
+    "evaluator_sha256": "22807cae53f17daf54f33be85ed2da1ae1c49ccbbba5fbe6ef459611e7625d8a",
+    "opening_window_et": "09:30 inclusive through 09:46 exclusive",
+    "maximum_emissions_per_session": 1,
+    "physical_volume_levels": [
+      5.0,
+      10.0,
+      12.0,
+      20.0
+    ],
+    "physical_volume_role": "attention and seriousness only; never direction",
+    "volume_baseline": "SPY opening one-minute volume divided by the per-minute equivalent median of the two strictly completed preopen five-minute bars",
+    "direction": "XSP and SPY must agree on both path from the session open and the current one-minute body",
+    "slow_front": "SPY fifteen-minute slope, velocity, and acceleration computed only from strictly completed full24 five-minute bars",
+    "slow_front_classes": {
+      "CONTINUATION": "direction-adjusted slope and velocity are positive",
+      "PIVOT_REPAIR": "direction-adjusted slope is nonpositive while velocity and acceleration are positive",
+      "CONFLICT": "no authority"
+    },
+    "authority_bind": "at least 10x physical volume plus joint XSP/SPY direction plus CONTINUATION or PIVOT_REPAIR",
+    "tradeable_mechanisms": {
+      "PERSISTENT_DRIVE": "12x or higher, three consecutive same-direction one-minute observations, no confirmed velocity crest, and CONTINUATION",
+      "CREST_REACCELERATION": "12x or higher, velocity crest, opposite recoil while session path survives, renewed same-direction acceleration, and CONTINUATION or PIVOT_REPAIR",
+      "AUTHORITATIVE_HANDOFF": "12x or higher, two consecutive opposite observations, equal-or-higher volume authority, opposite session path, and opposite slow-front acceptance"
+    },
+    "entry_clock": "the open immediately following the completed signal minute",
+    "outcomes": null
+  },
+  "count_gate": {
+    "minimum_total_emissions": 100,
+    "minimum_each_selection_year": 40,
+    "minimum_each_direction": 30,
+    "minimum_persistent_drive": 25,
+    "minimum_crest_reacceleration": 10,
+    "minimum_authoritative_handoff": 5,
+    "minimum_each_slow_front_class": 10,
+    "minimum_each_tradeable_volume_level": 15,
+    "minimum_distinct_entry_minutes": 5,
+    "require_zero_missing_opening_windows": true
+  },
+  "next_step_law": {
+    "if_count_fails": "reject P-006 without exposing selection or Year-3 economics",
+    "if_count_passes": "freeze one compact economic composition over Year-1 and Year-2 only; cells may use only the declared mechanism, volume-level, slow-front, and outcome-blind true-range morphology",
+    "year_3": "open exactly once only for the frozen Year-1/Year-2 winner",
+    "live": "no live authority unless historical crown gates and prospective seconds identity/parity gates both pass"
+  },
+  "invariants": [
+    "incumbent XSP v3 remains the sole live direction and lifecycle owner",
+    "no market orders",
+    "no P-006 order, capital, selection, or crown authority",
+    "no Gold or MCL mutation",
+    "no locked Year-3 P-006 count or economic read",
+    "the historical one-minute skeleton cannot by itself authorize the prospective seconds route"
+  ],
+  "submitted_orders": 0
+}

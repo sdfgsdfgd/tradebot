@@ -1,0 +1,68 @@
+{
+  "authority": "data_identity_and_completeness_only_no_outcomes_no_orders_no_capital",
+  "files": {
+    "spy_full24_5m_year_1": {
+      "bytes": 3957276,
+      "path": "/var/tmp/xsp-p006-1m-selection-cache/SPY_REFERENCE/SPY/SPY_2023-07-24_2024-07-23_5mins_full24.csv",
+      "sha256": "49ccd3b0969167cc1bc8af098fd19b02b5c9ac59fba23038161d84ce0939fb9d"
+    },
+    "spy_full24_5m_year_2_source": {
+      "bytes": 7673639,
+      "path": "/var/tmp/xsp-p006-1m-selection-cache/SPY_REFERENCE/SPY/SPY_2024-07-24_2026-06-29_5mins_full24.csv",
+      "sha256": "2d6b0f7a2d0b693fe24a4843a87cd3f9434d8b1f799902418839ae9dca9e6b49"
+    },
+    "spy_rth_1m": {
+      "bytes": 11095474,
+      "path": "/var/tmp/xsp-p006-1m-selection-cache/SPY/SPY_2023-07-24_2025-07-23_1min_rth.csv",
+      "sha256": "2784f028d5d30a0e162d22be9c63a9f32f23121f7e8f1c1b382b0c870388e5c5"
+    },
+    "xsp_rth_1m": {
+      "bytes": 10251964,
+      "path": "/var/tmp/xsp-p006-1m-selection-cache/XSP/XSP_2023-07-24_2025-07-23_1min_rth.csv",
+      "sha256": "a7a0cab80fe064ea825d560a746a2f3a46283c1bf4cd52552039a3e4b6c3ceb5"
+    }
+  },
+  "gates": {
+    "exact_standard_or_scheduled_half_day_rows": true,
+    "exact_timestamp_join": true,
+    "no_duplicates": true,
+    "spy_volume_available": true,
+    "xsp_volume_structurally_absent": true
+  },
+  "joined": {
+    "common_timestamps": 194880,
+    "missing_spy_at_xsp_timestamp": 0,
+    "missing_xsp_at_spy_timestamp": 0
+  },
+  "one_minute": {
+    "SPY": {
+      "duplicate_timestamps": 0,
+      "first_utc": "2023-07-24T13:30:00",
+      "last_utc": "2025-07-23T19:59:00",
+      "positive_volume_rows": 194880,
+      "rows": 194880,
+      "rows_per_session": {
+        "210": 5,
+        "390": 497
+      },
+      "sessions": 502,
+      "zero_volume_rows": 0
+    },
+    "XSP": {
+      "duplicate_timestamps": 0,
+      "first_utc": "2023-07-24T13:30:00",
+      "last_utc": "2025-07-23T19:59:00",
+      "positive_volume_rows": 0,
+      "rows": 194880,
+      "rows_per_session": {
+        "210": 5,
+        "390": 497
+      },
+      "sessions": 502,
+      "zero_volume_rows": 194880
+    }
+  },
+  "outcomes_exposed": false,
+  "schema": "xsp.p006-selection-data-audit.v1",
+  "submitted_orders": 0
+}

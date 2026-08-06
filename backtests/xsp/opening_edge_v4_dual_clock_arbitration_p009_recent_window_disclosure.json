@@ -1,0 +1,121 @@
+{
+  "schema": "xsp.opening-edge-v4-dual-clock-arbitration-p009-recent-window-disclosure.v1",
+  "authority": "post_crown_read_only_fixed_ledger_disclosure_no_selection_no_orders_no_capital",
+  "as_of_last_locked_session": "2026-07-23",
+  "source_result_sha256": "c91fb06db5e43dd9b66dc691e31832c9b89b922949cfacbbc7e798b6fc952bf7",
+  "outcome_selection_performed": false,
+  "thresholds_changed": false,
+  "parity": {
+    "rth_trades": true,
+    "rth_ledger": true,
+    "rth_equity": true,
+    "no_overlaps": true
+  },
+  "windows": {
+    "trailing_5_sessions": {
+      "incumbent": {
+        "trades": 4,
+        "net_pnl": 4.01,
+        "stress_net_pnl": 3.61,
+        "max_drawdown": 2.16,
+        "pnl_over_drawdown": 1.856481
+      },
+      "p009": {
+        "trades": 4,
+        "net_pnl": 4.01,
+        "stress_net_pnl": 3.61,
+        "max_drawdown": 2.16,
+        "pnl_over_drawdown": 1.856481
+      }
+    },
+    "trailing_10_sessions": {
+      "incumbent": {
+        "trades": 7,
+        "net_pnl": 6.16,
+        "stress_net_pnl": 5.46,
+        "max_drawdown": 3.26,
+        "pnl_over_drawdown": 1.889571
+      },
+      "p009": {
+        "trades": 8,
+        "net_pnl": 4.12,
+        "stress_net_pnl": 3.32,
+        "max_drawdown": 3.92,
+        "pnl_over_drawdown": 1.05102
+      }
+    },
+    "trailing_21_sessions": {
+      "incumbent": {
+        "trades": 15,
+        "net_pnl": 6.7757,
+        "stress_net_pnl": 5.2757,
+        "max_drawdown": 6.11,
+        "pnl_over_drawdown": 1.108953
+      },
+      "p009": {
+        "trades": 17,
+        "net_pnl": 5.9957,
+        "stress_net_pnl": 4.2957,
+        "max_drawdown": 6.11,
+        "pnl_over_drawdown": 0.981293
+      }
+    },
+    "trailing_42_sessions": {
+      "incumbent": {
+        "trades": 36,
+        "net_pnl": 16.9969,
+        "stress_net_pnl": 13.3969,
+        "max_drawdown": 7.8627,
+        "pnl_over_drawdown": 2.161713
+      },
+      "p009": {
+        "trades": 40,
+        "net_pnl": 7.2369,
+        "stress_net_pnl": 3.2369,
+        "max_drawdown": 11.1627,
+        "pnl_over_drawdown": 0.648311
+      }
+    },
+    "trailing_63_sessions": {
+      "incumbent": {
+        "trades": 54,
+        "net_pnl": 23.3941,
+        "stress_net_pnl": 17.9941,
+        "max_drawdown": 7.8627,
+        "pnl_over_drawdown": 2.975327
+      },
+      "p009": {
+        "trades": 58,
+        "net_pnl": 13.4741,
+        "stress_net_pnl": 7.6741,
+        "max_drawdown": 11.2631,
+        "pnl_over_drawdown": 1.196305
+      }
+    },
+    "trailing_84_sessions": {
+      "incumbent": {
+        "trades": 72,
+        "net_pnl": 36.7419,
+        "stress_net_pnl": 29.5419,
+        "max_drawdown": 9.7686,
+        "pnl_over_drawdown": 3.761225
+      },
+      "p009": {
+        "trades": 79,
+        "net_pnl": 28.3819,
+        "stress_net_pnl": 20.4819,
+        "max_drawdown": 11.5384,
+        "pnl_over_drawdown": 2.459778
+      }
+    }
+  },
+  "interpretation": {
+    "positive_net_in_every_recent_window": true,
+    "identical_to_incumbent_in_trailing_5_sessions": true,
+    "recent_efficiency_below_incumbent_from_10_through_84_sessions": true,
+    "historical_crown_invalidated": false,
+    "deployment_posture": "bounded_live_successor_with_24h_48h_five_session_after_cost_graduation",
+    "post_exposure_retune_allowed": false
+  },
+  "submitted_orders": 0
+}

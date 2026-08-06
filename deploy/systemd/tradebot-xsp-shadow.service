@@ -1,9 +1,9 @@
 [Unit]
-Description=Advance the non-submitting XSP Opening Edge v3 observer
+Description=Advance the selected XSP dual-clock observer and cash transport
 Wants=network-online.target
 Requires=tradebot-ib-gateway-tunnel.service
 After=network-online.target tradebot-ib-gateway-tunnel.service
-ConditionPathExists=%h/Desktop/py/tradebot/tradebot/research/xsp_opening_edge_v3.py
+ConditionPathExists=%h/Desktop/py/tradebot/tradebot/research/xsp_dual_clock.py
 
 [Service]
 Type=oneshot
@@ -14,7 +14,7 @@ Environment=IBKR_HOST=127.0.0.1
 Environment=IBKR_PORT=4001
 Environment=IBKR_READONLY=1
 ExecCondition=/usr/bin/test -x %h/.local/share/tradebot/venv/bin/python
-ExecStart=/usr/bin/flock --exclusive --wait 180 %t/tradebot-live-account.lock /usr/bin/env python3 -m tradebot.research.xsp_shadow --mode opening-edge-v3
+ExecStart=/usr/bin/flock --exclusive --wait 180 %t/tradebot-live-account.lock /usr/bin/env python3 -m tradebot.research.xsp_shadow --mode opening-edge-p009
 TimeoutStartSec=8min
 KillSignal=SIGTERM
 Nice=5

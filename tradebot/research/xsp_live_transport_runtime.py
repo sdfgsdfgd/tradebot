@@ -51,6 +51,7 @@ from .xsp_live_transport_risk import (
 )
 from .xsp_opening_edge_v2 import XSP_OPENING_EDGE_V2_VERSION
 from .xsp_opening_edge_v3 import XSP_OPENING_EDGE_V3_VERSION
+from .xsp_dual_clock import XSP_DUAL_CLOCK_VERSION
 
 def xsp_transport_order_ref(plan: Mapping[str, object]) -> str:
     """Return the broker-visible identity for one content-addressed transition."""
@@ -94,6 +95,7 @@ def _prior_execution(
 def _checkpoint(
     ledger: LiveCalibrationLedger,
     *,
+    strategy_id: str,
     selection_id: str,
     plan: Mapping[str, object],
     phase: str,
@@ -109,19 +111,24 @@ def _checkpoint(
 ) -> dict[str, object]:
     runtime = {
         XSP_V2_TRANSPORT_PLAN_SCHEMA: (
-            XSP_OPENING_EDGE_V2_VERSION,
             XSP_V2_TRANSPORT_EXECUTION_VERSION,
             XSP_V2_TRANSPORT_EXECUTION_SCHEMA,
         ),
         XSP_V3_TRANSPORT_PLAN_SCHEMA: (
-            XSP_OPENING_EDGE_V3_VERSION,
             XSP_V3_TRANSPORT_EXECUTION_VERSION,
             XSP_V3_TRANSPORT_EXECUTION_SCHEMA,
         ),
     }.get(plan.get("schema"))
     if runtime is None:
         raise ValueError("unsupported selected transport plan")
-    strategy_id, execution_version, execution_schema = runtime
+    execution_version, execution_schema = runtime
+    allowed_strategy_ids = (
+        {XSP_OPENING_EDGE_V2_VERSION}
+        if plan.get("schema") == XSP_V2_TRANSPORT_PLAN_SCHEMA
+        else {XSP_OPENING_EDGE_V3_VERSION, XSP_DUAL_CLOCK_VERSION}
+    )
+    if strategy_id not in allowed_strategy_ids:
+        raise ValueError("selected transport strategy identity is invalid")
     trading_day = xsp_trading_date(observed_at)
     return ledger.checkpoint(
         evaluation_as_of=observed_at,
@@ -173,6 +180,15 @@ async def execute_xsp_transport_plan(
     transport = xsp_transport_contract(selected)
     symbols = tuple(transport["symbols"])
     execution_version = str(transport["execution_version"])
+    strategy_id = str(
+        transport.get("strategy_id")
+        or selected.get("strategy_version")
+        or (
+            XSP_OPENING_EDGE_V2_VERSION
+            if plan.get("schema") == XSP_V2_TRANSPORT_PLAN_SCHEMA
+            else XSP_OPENING_EDGE_V3_VERSION
+        )
+    )
     if observed_at.tzinfo is None:
         raise ValueError("transport execution timestamp must be aware")
     if (
@@ -356,6 +372,7 @@ async def execute_xsp_transport_plan(
         if prior is None:
             _checkpoint(
                 ledger,
+                strategy_id=strategy_id,
                 selection_id=str(selected["selection_id"]),
                 plan=plan,
                 phase="PREPARED",
@@ -376,6 +393,7 @@ async def execute_xsp_transport_plan(
         submitted_orders = 1
         _checkpoint(
             ledger,
+            strategy_id=strategy_id,
             selection_id=str(selected["selection_id"]),
             plan=plan,
             phase="SUBMITTED",
@@ -420,6 +438,7 @@ async def execute_xsp_transport_plan(
         transition_at = datetime.now(timezone.utc)
         _checkpoint(
             ledger,
+            strategy_id=strategy_id,
             selection_id=str(selected["selection_id"]),
             plan=plan,
             phase="SUBMITTED",
@@ -478,6 +497,7 @@ async def execute_xsp_transport_plan(
     if not terminal_broker_snapshot_complete(broker_order):
         pending = _checkpoint(
             ledger,
+            strategy_id=strategy_id,
             selection_id=str(selected["selection_id"]),
             plan=plan,
             phase="SUBMITTED",
@@ -496,6 +516,7 @@ async def execute_xsp_transport_plan(
         }
     terminal = _checkpoint(
         ledger,
+        strategy_id=strategy_id,
         selection_id=str(selected["selection_id"]),
         plan=plan,
         phase="TERMINAL",
@@ -545,6 +566,11 @@ async def advance_xsp_live_transport(
     transport = xsp_transport_contract(selected)
     symbols = tuple(transport["symbols"])
     execution_version = str(transport["execution_version"])
+    strategy_id = str(
+        transport.get("strategy_id")
+        or selected.get("strategy_version")
+        or XSP_OPENING_EDGE_V3_VERSION
+    )
     order_ref_prefix = f"{transport['order_ref_prefix']}-"
     if (
         observed_at.tzinfo is None
@@ -839,6 +865,7 @@ async def advance_xsp_live_transport(
     }
     state_checkpoint = _checkpoint(
         ledger,
+        strategy_id=strategy_id,
         selection_id=str(selected["selection_id"]),
         plan=plan,
         phase="STATE",

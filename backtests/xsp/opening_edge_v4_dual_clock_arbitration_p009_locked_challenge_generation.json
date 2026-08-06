@@ -1,0 +1,53 @@
+{
+  "schema": "xsp.opening-edge-v4-dual-clock-arbitration-p009-locked-challenge-generation.v1",
+  "registered_at_utc": "2026-08-06T19:59:27Z",
+  "authority": "frozen_pre_outcome_locked_challenge_generation_no_orders_no_capital",
+  "preregistration": {
+    "path": "backtests/xsp/opening_edge_v4_dual_clock_arbitration_p009_locked_challenge_preregistration.json",
+    "sha256": "454f06b64dcc70292ebbc1390fa42cbee8e2387cd0ace44e0c833dff2a798b12"
+  },
+  "data": {
+    "sync_report_path": "/tmp/xsp-p009-1m-locked-y3-sync-report.json",
+    "sync_report_sha256": "69594e2ced2d3abbda8731150d0b4f9176042dd8f29814f74e88ca309944d8f3",
+    "audit_path": "/tmp/xsp-p009-locked-y3-data-audit.json",
+    "audit_sha256": "4f6f59b0f92dde101628d6afe602bbac685f165d84eeabd5bc0ae641152e4ddc",
+    "audit_evaluator_path": "/tmp/xsp_p009_locked_data_audit.py",
+    "audit_evaluator_sha256": "bc0982f538ff7acaaa8d6e8d6201e5716bddc557fa7a391e2414b353a9813bff",
+    "xsp_path": "/tmp/xsp-p009-1m-locked-y3-cache/XSP/XSP_2025-07-24_2026-07-23_1min_rth.csv",
+    "xsp_sha256": "c4f849a2d5656859083c8f1fd73e3ccb30f5fdba5a082308f292590b3985f808",
+    "spy_path": "/tmp/xsp-p009-1m-locked-y3-cache/SPY/SPY_2025-07-24_2026-07-23_1min_rth.csv",
+    "spy_sha256": "3781cee7c486248cd5c156a9057df5ccacd75cb3a4c715d7fe335b9746f48d54",
+    "aligned_sessions": 251,
+    "rows_each_symbol": 97530,
+    "verdict": "PASS_LOCKED_DATA_IDENTITY"
+  },
+  "evaluators": {
+    "morphology_path": "/tmp/xsp_p009_locked_emissions.py",
+    "morphology_sha256": "0ef703e378c63a995f383483a7952991976262e41dd1d9f677a84ed15f2c39ea",
+    "economic_path": "/tmp/xsp_p009_locked_challenge.py",
+    "economic_sha256": "65d8eff5c8de75b2953a876714bf9ca23db182a4ffbb7078f111a4fd8cb5e413",
+    "morphology_result_path": "/tmp/xsp-p009-locked-y3-emissions.json",
+    "morphology_result_sha256": "cadb8d4ef86d97eb90ccbffebb6e29335b63161275da87fd4c265e7f8c3af11e",
+    "morphology_verdict": "PASS_FROZEN_YEAR3_EMISSIONS",
+    "economic_runs_authorized": 1,
+    "threshold_or_mechanism_changes_authorized": 0
+  },
+  "selection": {
+    "preregistration_sha256": "159037cd173d3bf6a4905eeb4a5dc916ea17cfbf62a1406a64a9b47ccd7fde3c",
+    "evaluator_sha256": "a7aa98e00714b26f81c351c3f80036440b53666efe6ae937c7d2dc3d057d6e8e",
+    "result_sha256": "8da7798518f9776aae9c0ee62d4c553dd26ce4e195ec4b3ea3d4bd8f506dd170",
+    "verdict": "PASS_FREEZE_BEFORE_ONE_LOCKED_YEAR_3_CHALLENGE"
+  },
+  "invariants": [
+    "morphology must reproduce the original 280 selection emissions byte-equivalently before projecting Year 3",
+    "economic evaluator imports the frozen P-009 arbitration owner by hash",
+    "locked output must not preexist",
+    "one valid economic run only",
+    "failure is preserved without retuning",
+    "no market orders",
+    "no broker, capital, selection, service, timer, Gold, or MCL mutation",
+    "submitted orders remain zero"
+  ],
+  "candidate_outcomes_read": false,
+  "submitted_orders": 0
+}

@@ -1,0 +1,112 @@
+{
+  "schema": "xsp.opening-edge-v4-opening-micro-auction-p007-economic-rejection.v1",
+  "generated_at_utc": "2026-08-06T17:23:52Z",
+  "authority": "bounded_year_1_year_2_economic_rejection_no_year_3_no_orders_no_capital",
+  "identities": {
+    "preregistration_path": "backtests/xsp/opening_edge_v4_opening_micro_auction_p007_economic_preregistration.json",
+    "preregistration_sha256": "5578a8009b97f3f280a3f7da0a2fee0a80d633c1caf34923461afc3ddf79226b",
+    "evaluator_path": "/tmp/xsp_p007_economics.py",
+    "evaluator_sha256": "debd3e18edfe3e26ffb3327112115a026be70cbb3fa754063bb01dc7c9e5201b",
+    "result_path": "/tmp/xsp-p007-selection-economics.json",
+    "result_sha256": "5763ab0304fd42824f395cd98595f7560710f8b3f82718b7aaf2871647a6dcab",
+    "count_result_sha256": "fc1fd8b86d754f07c4a8237b2b01361ed7f4901667908c622afd98960437c3fb",
+    "incumbent_rth_ledger_sha256": "40708a28476fad504d29b1222e52b88481b1c0da8313ed4667076e2b6ed3f157",
+    "incumbent_gth_ledger_sha256": "9e04807fb77df431b7af27b8be6d5f5288c8512bfe80cb78b3c1fe70cabb8a98",
+    "disabled_one_minute_ledger_sha256": "7975a5e6d7504464953e0d07641319e19a1c56816226aaa433fddb549fbb551f"
+  },
+  "integrity": {
+    "production_rth_crown_parity": true,
+    "production_gth_crown_parity": true,
+    "p007_disabled_one_minute_adapter_parity": true,
+    "cells_evaluated": 12,
+    "eligible_cells": 0,
+    "locked_year_3_exposed": false,
+    "submitted_orders": 0
+  },
+  "incumbent_five_minute": {
+    "year_1": {
+      "net_pnl": 62.9648,
+      "trades": 202,
+      "max_drawdown": 12.5401,
+      "pnl_over_drawdown": 5.021076,
+      "profit_factor": 1.8859
+    },
+    "year_2": {
+      "net_pnl": 75.4283,
+      "trades": 187,
+      "max_drawdown": 17.0689,
+      "pnl_over_drawdown": 4.419049,
+      "profit_factor": 1.7544
+    },
+    "combined": {
+      "net_pnl": 138.3932,
+      "stress_net_pnl": 99.4932,
+      "trades": 389,
+      "trades_per_year": 195.2749,
+      "max_drawdown": 17.0689,
+      "pnl_over_drawdown": 8.107916,
+      "profit_factor": 1.809
+    }
+  },
+  "best_p007_cell": {
+    "id": "acceptance_tr075",
+    "law": "MINUTE_ACCEPTANCE only; both frozen slow-front states; true-range multiple at least 0.75",
+    "eligible_emissions": 138,
+    "year_1": {
+      "net_pnl": 43.2948,
+      "trades": 267,
+      "max_drawdown": 12.0995,
+      "pnl_over_drawdown": 3.578231,
+      "profit_factor": 1.4272,
+      "pnl_over_drawdown_ratio_to_crown": 0.7126422703022222
+    },
+    "year_2": {
+      "net_pnl": 50.5883,
+      "trades": 246,
+      "max_drawdown": 23.9789,
+      "pnl_over_drawdown": 2.109701,
+      "profit_factor": 1.3268,
+      "pnl_over_drawdown_ratio_to_crown": 0.47741063744710677
+    },
+    "combined": {
+      "net_pnl": 93.8832,
+      "stress_net_pnl": 42.5832,
+      "trades": 513,
+      "trades_per_year": 257.5219,
+      "max_drawdown": 23.9789,
+      "pnl_over_drawdown": 3.915242,
+      "profit_factor": 1.3665,
+      "direction_pnl": {
+        "down": 49.1332,
+        "up": 44.75
+      }
+    },
+    "delta_to_incumbent_pct": {
+      "net_pnl": -32.16198483740531,
+      "stress_net_pnl": -57.19988903764277,
+      "trades": 31.87660668380463,
+      "max_drawdown": 40.48298367205854,
+      "pnl_over_drawdown": -51.71087120290836,
+      "profit_factor": -24.46102819237147
+    },
+    "eligible": false
+  },
+  "cell_frontier": [
+    {"id": "acceptance_tr0", "net_pnl": 74.2932, "max_drawdown": 27.8799, "pnl_over_drawdown": 2.664758, "trades": 537},
+    {"id": "acceptance_tr075", "net_pnl": 93.8832, "max_drawdown": 23.9789, "pnl_over_drawdown": 3.915242, "trades": 513},
+    {"id": "acceptance_tr1", "net_pnl": 81.5632, "max_drawdown": 23.5899, "pnl_over_drawdown": 3.457548, "trades": 489},
+    {"id": "acceptance_reacq_tr0", "net_pnl": 45.0532, "max_drawdown": 37.1283, "pnl_over_drawdown": 1.213446, "trades": 611},
+    {"id": "acceptance_reacq_tr075", "net_pnl": 66.6932, "max_drawdown": 33.6683, "pnl_over_drawdown": 1.98089, "trades": 577},
+    {"id": "acceptance_reacq_tr1", "net_pnl": 59.4932, "max_drawdown": 33.1383, "pnl_over_drawdown": 1.7953, "trades": 533},
+    {"id": "all_tr0", "net_pnl": 42.4832, "max_drawdown": 37.1283, "pnl_over_drawdown": 1.144227, "trades": 624},
+    {"id": "all_tr075", "net_pnl": 65.1532, "max_drawdown": 33.6683, "pnl_over_drawdown": 1.93515, "trades": 587},
+    {"id": "all_tr1", "net_pnl": 57.7232, "max_drawdown": 33.1383, "pnl_over_drawdown": 1.741888, "trades": 541},
+    {"id": "continuation_all_tr0", "net_pnl": 69.9332, "max_drawdown": 26.3406, "pnl_over_drawdown": 2.654959, "trades": 562},
+    {"id": "continuation_all_tr075", "net_pnl": 74.1332, "max_drawdown": 23.6206, "pnl_over_drawdown": 3.138498, "trades": 534},
+    {"id": "continuation_all_tr1", "net_pnl": 72.2432, "max_drawdown": 21.2072, "pnl_over_drawdown": 3.406541, "trades": 503}
+  ],
+  "conclusion": "P-007 raises cadence but converts a high-quality incumbent edge into lower-quality churn in both selection years; reject standalone opening ownership and keep Year 3 sealed",
+  "verdict": "REJECT_SELECTION_NO_YEAR_3",
+  "outcomes_exposed": true,
+  "submitted_orders": 0
+}

@@ -25,6 +25,7 @@ from tradebot.research.xsp_opening_edge_v3 import (
     XSP_OPENING_EDGE_V3_VERSION,
     _daily_context,
     _persisted_daily_context,
+    advance_xsp_opening_edge_p009_from_ibkr,
     advance_xsp_opening_edge_v3_from_ibkr,
     is_xsp_v3_run_start,
     load_xsp_opening_edge_v3_spec,
@@ -40,6 +41,38 @@ from tradebot.research.xsp_opening_edge_state import (
     xsp_daily_bars_from_intraday,
 )
 from tradebot.time_utils import ET_ZONE
+
+
+def test_p009_keeps_slow_history_but_bounds_native_minute_payload(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    captured = {}
+
+    async def _advance(_ledger, **kwargs):
+        captured.update(kwargs)
+        return {"order_authority": "none"}
+
+    monkeypatch.setattr(
+        "tradebot.research.xsp_opening_edge_v3."
+        "advance_xsp_opening_edge_v2_from_ibkr",
+        _advance,
+    )
+    observed = datetime(2026, 8, 6, 14, 0, tzinfo=timezone.utc)
+    asyncio.run(
+        advance_xsp_opening_edge_p009_from_ibkr(
+            LiveCalibrationLedger(tmp_path / "p009-minute-window.jsonl"),
+            client=object(),
+            observed_at=observed,
+            run_started_at=observed - timedelta(hours=14),
+            recorded_at=observed,
+            spec=object(),
+        )
+    )
+
+    assert captured["duration_str"] == "2 W"
+    assert captured["rth_one_minute_duration_str"] == "1 D"
+    assert captured["include_rth_one_minute_context"] is True
 
 
 def test_opening_edge_v3_is_content_addressed_and_v2_remains_reproducible() -> None:
@@ -532,6 +565,79 @@ def test_shadow_cli_v3_accepts_safe_closed_noop_without_v2_execution_authority(
         "capital_authority": "none",
         "submitted_orders": 0,
     }
+
+
+def test_shadow_cli_p009_uses_the_dual_clock_source_without_a_second_service(
+    tmp_path,
+    monkeypatch,
+    capsys,
+) -> None:
+    from tradebot.research.xsp_shadow_cli import _main_async
+
+    captured = {}
+    run_start = datetime(2026, 8, 8, 0, 20, tzinfo=timezone.utc)
+
+    class _Client:
+        def __init__(self, _config):
+            pass
+
+        async def disconnect(self):
+            captured["disconnected"] = True
+
+    async def _advance(_ledger, **kwargs):
+        captured.update(kwargs)
+        return {
+            "evaluation_status": "CLOSED",
+            "broker_request_skipped": "run_not_started",
+            "order_authority": "none",
+        }
+
+    monkeypatch.setattr("tradebot.client.IBKRClient", _Client)
+    monkeypatch.setattr(
+        "tradebot.research.xsp_shadow_cli.load_xsp_opening_edge_v3_spec",
+        lambda: "p009-spec",
+    )
+    monkeypatch.setattr(
+        "tradebot.research.xsp_shadow_cli.xsp_opening_edge_p009_run_start",
+        lambda *_args, **_kwargs: run_start,
+    )
+    monkeypatch.setattr(
+        "tradebot.research.xsp_shadow_cli.advance_xsp_opening_edge_p009_from_ibkr",
+        _advance,
+    )
+    monkeypatch.setattr(
+        "tradebot.research.xsp_shadow_cli.accumulate_xsp_pressure_atlas",
+        lambda *_args, **_kwargs: {"submitted_orders": 0},
+    )
+
+    assert (
+        asyncio.run(
+            _main_async(
+                (
+                    "--mode",
+                    "opening-edge-p009",
+                    "--ledger",
+                    str(tmp_path / "p009-cli.jsonl"),
+                    "--news-signal",
+                    str(tmp_path / "missing-news.json"),
+                    "--selected-transport",
+                    str(tmp_path / "no-selection.json"),
+                    "--capital-plan",
+                    str(tmp_path / "no-capital.json"),
+                )
+            )
+        )
+        == 0
+    )
+    output = json.loads(capsys.readouterr().out)
+
+    assert captured["run_started_at"] == run_start
+    assert captured["spec"] == "p009-spec"
+    assert captured["disconnected"] is True
+    assert output["mode"] == "opening-edge-p009"
+    assert output["v3_run_started_at_utc"] == run_start.isoformat()
+    assert output["selected_transport_id"] is None
+    assert output["order_authority"] == "none"
 
 
 def test_shadow_cli_v3_closed_source_never_enters_selected_cash_transport(

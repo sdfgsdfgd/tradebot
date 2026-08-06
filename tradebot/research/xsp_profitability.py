@@ -21,6 +21,11 @@ from .xsp_capital_stability import (
     XSP_CAPITAL_OWNER_STABILITY_SCHEMA as XSP_CAPITAL_OWNER_STABILITY_SCHEMA,
     xsp_capital_owner_stability_graduation_gate,
 )
+from .xsp_runtime_parity_contract import (
+    XSP_P009_RUNTIME_PARITY_SCHEMA,
+    XSP_RUNTIME_PARITY_SCHEMA,
+    xsp_runtime_parity_owner_paths,
+)
 
 
 LIVE_PROFITABILITY_SCHEMA = "xsp.live-profitability.v1"
@@ -59,21 +64,6 @@ _SELECTED_EQUITY_CONTRACTS = {
         "fields": _SELECTED_CASH_EQUITY_FIELDS,
     },
 }
-
-XSP_RUNTIME_PARITY_SCHEMA = "xsp.opening-edge-v3-current-runtime-parity-audit.v1"
-_XSP_RUNTIME_OWNER_PATHS = {
-    "frozen_crown_artifact_sha256": (
-        "backtests/xsp/opening_edge_v3_regime_harmony_24x5.json"
-    ),
-    "production_state_owner_sha256": (
-        "tradebot/research/xsp_opening_edge_state.py"
-    ),
-    "production_spec_owner_sha256": "tradebot/research/xsp_opening_edge_v3.py",
-    "production_v2_lane_owner_sha256": (
-        "tradebot/research/xsp_opening_edge_v2.py"
-    ),
-}
-
 
 @dataclass(frozen=True)
 class XspProfitabilityPolicy:
@@ -254,6 +244,7 @@ def xsp_runtime_parity_graduation_gate(
     path: Path,
     *,
     repo_root: Path,
+    strategy_id: str = "",
 ) -> dict[str, object]:
     """Validate the one historical runtime/crown parity proof class."""
 
@@ -271,9 +262,17 @@ def xsp_runtime_parity_graduation_gate(
     actual = proof.get("actual")
     inputs = proof.get("inputs")
     safety = proof.get("safety")
+    schema = proof.get("schema")
+    p009 = schema == XSP_P009_RUNTIME_PARITY_SCHEMA
+    authority = (
+        "offline_exact_dual_clock_historical_and_runtime_parity_only"
+        if p009
+        else "offline_historical_rth_parity_only"
+    )
+    owner_paths = xsp_runtime_parity_owner_paths(schema)
     if (
-        proof.get("schema") != XSP_RUNTIME_PARITY_SCHEMA
-        or proof.get("authority") != "offline_historical_rth_parity_only"
+        schema not in {XSP_RUNTIME_PARITY_SCHEMA, XSP_P009_RUNTIME_PARITY_SCHEMA}
+        or proof.get("authority") != authority
         or proof.get("passes") is not True
         or not isinstance(checks, Mapping)
         or not checks
@@ -281,11 +280,20 @@ def xsp_runtime_parity_graduation_gate(
     ):
         reasons.append("runtime_parity_verdict_invalid")
     comparison_fields = (
-        "trades",
-        "net_points",
-        "profit_factor",
-        "max_drawdown_points",
-        "ordered_ledger_sha256",
+        (
+            "full_combined_trades",
+            "full_rth_trades",
+            "full_combined_ledger_sha256",
+            "full_rth_ledger_sha256",
+        )
+        if p009
+        else (
+            "trades",
+            "net_points",
+            "profit_factor",
+            "max_drawdown_points",
+            "ordered_ledger_sha256",
+        )
     )
     if (
         not isinstance(expected, Mapping)
@@ -296,7 +304,7 @@ def xsp_runtime_parity_graduation_gate(
     if not isinstance(inputs, Mapping):
         reasons.append("runtime_parity_inputs_missing")
     else:
-        for field, relative in _XSP_RUNTIME_OWNER_PATHS.items():
+        for field, relative in owner_paths.items():
             owner = repo_root / relative
             try:
                 current = _file_sha256(owner)
@@ -305,6 +313,16 @@ def xsp_runtime_parity_graduation_gate(
                 continue
             if inputs.get(field) != current:
                 reasons.append(f"runtime_owner_drift:{relative}")
+    if p009 and (
+        proof.get("strategy_id")
+        != "xsp.opening-edge-v4-dual-clock-arbitration-p009.v1"
+        or (
+            strategy_id
+            and strategy_id
+            != "xsp.opening-edge-v4-dual-clock-arbitration-p009.v1"
+        )
+    ):
+        reasons.append("runtime_parity_strategy_mismatch")
     if (
         not isinstance(safety, Mapping)
         or safety.get("broker_queried") is not False
@@ -322,7 +340,11 @@ def xsp_runtime_parity_graduation_gate(
             "sha256": fingerprint,
             "observed_at_utc": proof.get("observed_at_utc"),
             "ordered_ledger_sha256": (
-                actual.get("ordered_ledger_sha256")
+                actual.get(
+                    "full_combined_ledger_sha256"
+                    if p009
+                    else "ordered_ledger_sha256"
+                )
                 if isinstance(actual, Mapping)
                 else None
             ),
@@ -945,6 +967,7 @@ def xsp_live_graduation_inputs(
         "runtime_parity_proof": xsp_runtime_parity_graduation_gate(
             runtime_parity_path,
             repo_root=repo_root,
+            strategy_id=policy.strategy_id,
         ),
         "capital_owner_stability_proof": (
             xsp_capital_owner_stability_graduation_gate(

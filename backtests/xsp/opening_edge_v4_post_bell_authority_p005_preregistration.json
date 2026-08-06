@@ -1,0 +1,141 @@
+{
+  "schema": "xsp.opening-edge-v4-post-bell-authority-p005-preregistration.v1",
+  "registered_at_utc": "2026-08-06T15:13:28Z",
+  "authority": "pre_outcome_count_and_morphology_only_no_orders_no_capital",
+  "objective": "replace the incumbent first-35-minute RTH blind zone with direction earned from fresh post-bell XSP and SPY auction evidence while retaining prior completed structure as context only",
+  "problem_identity": {
+    "sessions": 754,
+    "incumbent_horizons_bars": [1, 3, 6],
+    "incumbent_observed_horizons_by_close_et": {
+      "09:35": 0,
+      "09:40": 1,
+      "09:45": 1,
+      "09:50": 2,
+      "09:55": 2,
+      "10:05": 3
+    },
+    "incumbent_raw_turns_before_1000_et": 0,
+    "incumbent_proposals_before_1000_et": 0,
+    "incumbent_admissions_before_1000_et": 0,
+    "p004_emissions_before_1030_et": 0
+  },
+  "identities": {
+    "crown_path": "backtests/xsp/opening_edge_v3_regime_harmony_24x5.json",
+    "crown_sha256": "d47eb39cef3d2ca575d779d6b5b87e3b88e08606fd09a8801b8cb55c350208db",
+    "crown_rth_ledger_sha256": "40708a28476fad504d29b1222e52b88481b1c0da8313ed4667076e2b6ed3f157",
+    "crown_gth_ledger_sha256": "9e04807fb77df431b7af27b8be6d5f5288c8512bfe80cb78b3c1fe70cabb8a98",
+    "campaign_path": "/tmp/xsp_24x5_campaign.py",
+    "campaign_sha256": "dfba4165dad28d7d74a80132055cd9c317f0bd6a8917bec8a5da6e5623a97734",
+    "tape_sha256": "6d239c88dadbbb259a8e1e691c7311a05436859db7f1fe330b21d84daa3c67df",
+    "incumbent_owner_path": "tradebot/research/xsp_opening_edge_state.py",
+    "incumbent_owner_sha256": "643b6a04478e598fe7fbdc2d5aa6deabe6935761b3fa83cf487a9fdd16a265bc",
+    "pressure_rank_source_path": "/tmp/xsp_p004_pressure_phase_front_count.py",
+    "pressure_rank_source_sha256": "b5fab0eb05a7d305e278d13b26898844bc9e5cc837c4cce35f7c8c99a41dfe38",
+    "scale_consensus_evaluator_sha256": "67e7daf6d2eb05724e903567bfb1c74d415d4ce140cc3f261d2cbbfd95472c3f",
+    "scale_consensus_result_sha256": "28e21742de9f2d188af8e8b0d679828c057598cade01aeb7bf6cb076ccddd738",
+    "premarket_rejection_path": "backtests/xsp/opening_edge_v3_premarket_context_rejection_receipt.json",
+    "premarket_rejection_sha256": "70e88638add9031f1d4570fdb3195e9bb662032c40cf75f6bb8b4c6594b686ad"
+  },
+  "windows": {
+    "year_1_discovery": ["2023-07-24", "2024-07-23"],
+    "year_2_validation": ["2024-07-24", "2025-07-23"],
+    "year_3_locked_final": ["2025-07-24", "2026-07-24"]
+  },
+  "causal_inputs": {
+    "direction_owner": "fresh_same-close_XSP_and_SPY_RTH_bars_only",
+    "slow_context": "prior_completed_XSP_session_final_30m_60m_120m_slopes_classified_as_SUPPORT_MIXED_OR_OPPOSE;_never_direction",
+    "pressure_context": "strictly_prior_same-slot_SPY_volume_and_true-range_ranks_with_the_existing_63-session_memory_and_21-session_minimum",
+    "gap_context": "current_XSP_open_relative_to_prior_completed_XSP_RTH_close;_never_direction_by_itself",
+    "historical_clock": "completed_five_minute_close",
+    "prospective_seconds": "existing_SPY_UPRO_SPXU_pressure_atlas_may_veto_stale_or_opposite_transport_but_cannot_manufacture_direction"
+  },
+  "categorical_projection": {
+    "pressure_levels": "SHOCK_remains_SHOCK;_existing_ELEVATED_or_ONE_SIDED_becomes_PRESSURE;_ORDINARY_remains_ORDINARY;_UNDERWARMED_remains_explicit",
+    "outer_third": "UP_close_position_at_least_two_thirds_of_completed_bar_range;_DOWN_at_most_one_third;_zero_range_never_qualifies",
+    "slow_context": "prior_session_final_close_minus_close_6_12_and_24_bars_earlier;_all_candidate_direction_SUPPORT;_all_opposite_OPPOSE;_otherwise_MIXED",
+    "gap_context": "current_XSP_open_minus_prior_completed_RTH_close_classified_relative_to_fresh_candidate_direction"
+  },
+  "mechanisms": [
+    {
+      "id": "MAJOR_FIRST_BAR",
+      "signal_close_et": "09:35",
+      "law": "XSP_and_SPY_first_RTH_bodies_share_direction;_both_close_in_the_directional_outer_third;_SPY_same-slot_pressure_is_PRESSURE_or_SHOCK"
+    },
+    {
+      "id": "TWO_BAR_DRIVE",
+      "signal_close_et": "09:40",
+      "law": "first_and_second_XSP_and_SPY_bars_share_one_direction_and_the_second_XSP_close_extends_beyond_the_first_bar_extreme"
+    },
+    {
+      "id": "RECOIL_REACCELERATION",
+      "signal_close_et": "09:45",
+      "law": "aligned_first_bar;_joint_opposite_second_bar_does_not_cross_the_XSP_session_open;_joint_original-direction_third_bar_reclaims_beyond_the_first_close"
+    },
+    {
+      "id": "AUTHORITATIVE_HANDOFF",
+      "signal_close_et": "09:45",
+      "law": "aligned_first_bar;_second_and_third_XSP_and_SPY_bars align_opposite;_third_XSP_close_crosses_the_session_open_and_the_first_bar_opposite_extreme"
+    }
+  ],
+  "arbitration": {
+    "maximum_emissions_per_day": 1,
+    "priority": [
+      "MAJOR_FIRST_BAR",
+      "TWO_BAR_DRIVE",
+      "RECOIL_REACCELERATION",
+      "AUTHORITATIVE_HANDOFF"
+    ],
+    "same_close_direction_conflict": "abstain",
+    "entry_timing_if_economics_later_open": "next_RTH_bar_open",
+    "incumbent_priority": "existing_v3_target_wins_on_the_same_close",
+    "position_limit": 1
+  },
+  "count_gates": {
+    "minimum_total_emissions": 120,
+    "minimum_each_direction": 40,
+    "minimum_each_direction_each_year": 10,
+    "minimum_major_first_bar_total": 15,
+    "minimum_nonurgent_confirmed_total": 60,
+    "minimum_rotation_total": 15,
+    "minimum_each_slow_context_class": 10,
+    "require_signal_clocks": [
+      "09:35",
+      "09:40",
+      "09:45"
+    ],
+    "require_pressure_levels": [
+      "ORDINARY",
+      "PRESSURE",
+      "SHOCK"
+    ],
+    "maximum_missing_spy_or_xsp_bars": 0,
+    "retain_every_unmatched_emission_control": true
+  },
+  "future_oracle_boundary": {
+    "scale_consensus_opening_landmarks": "diagnostic_correspondence_only",
+    "join_law": "same_trading_day_and_direction_to_nearest_scale_consensus_OPENING_DRIVE_or_OPENING_PIVOT_confirmation;_no_time_threshold;_never_used_by_the_causal_owner_or_any_gate",
+    "future_extreme": "forbidden_from_causal_owner",
+    "landmark_membership": "forbidden_from_causal_owner_or_cell_selection",
+    "outcomes": "sealed"
+  },
+  "if_count_passes": "freeze_three_semantic_economic_cells_urgent_only_confirmed_only_and_union;_select_on_years_1_and_2_then_open_year_3_once",
+  "forbidden": [
+    "premarket_direction_or_warm_state",
+    "overnight_contiguity",
+    "synthetic_current_session_15m_or_30m_bar",
+    "future_price_or_landmark_membership_in_selection",
+    "numeric_threshold_search",
+    "date_router",
+    "news_direction",
+    "second_live_direction_owner",
+    "market_orders",
+    "capital_or_order_authority"
+  ],
+  "pre_outcome_implementation": {
+    "evaluator_path": "/tmp/xsp_p005_post_bell_count.py",
+    "evaluator_sha256": "d3eb0758f3876f5fc42fdcd5ee614005caedf2998f369e295366624c13524701"
+  },
+  "outcomes_exposed": false,
+  "selected_action": null,
+  "submitted_orders": 0
+}

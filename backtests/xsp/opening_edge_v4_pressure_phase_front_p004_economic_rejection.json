@@ -1,0 +1,138 @@
+{
+  "schema": "xsp.opening-edge-v4-pressure-phase-front-p004-economic-rejection.v1",
+  "authority": "bounded_historical_economics_only_no_orders_no_capital",
+  "result": {
+    "path_on_mac": "/tmp/xsp-opening-edge-v4-pressure-phase-front-p004-economics.json",
+    "sha256": "043cd257c222ebce6baa2947f9a94f35c9a8c82cb3f55a778d76fdc09a373f29",
+    "verdict": "REJECT_NO_SELECTION_CELL_WITHOUT_OPENING_YEAR_3",
+    "selected_cell": null,
+    "year_3_opened": false
+  },
+  "frozen_generation": {
+    "path": "backtests/xsp/opening_edge_v4_pressure_phase_front_p004_economic_generation.json",
+    "sha256": "96d916f6719e3f2bee024e8454923883152c17b075f3e24b68113d3f8f135e05",
+    "economic_preregistration_sha256": "5d106958e3787c11d78f9b83e9f0b6df18fc1fea21686d83ec5387e567bae9bf",
+    "economic_evaluator_sha256": "636b0f73d5c8a9a0e2c95c1be04ed7132661ecdd13b6d7fb8278ccb6542f3256",
+    "count_result_sha256": "405c5e838ba3d52a1dbeea8fff8ec4fec131f59b9454b61a71edeb56d9310986"
+  },
+  "pre_outcome_implementation_corrections": [
+    {
+      "defect": "the first invocation projected the known GTH ledger through the RTH crown digest shape",
+      "correction": "use the existing exact GTH runtime ledger projection including entry and exit prices and reason",
+      "candidate_cells_executed": 0,
+      "outcomes_exposed": false
+    },
+    {
+      "defect": "the second invocation parsed the selection-year metadata list as a pair of ISO dates while computing incumbent metrics",
+      "correction": "restrict period reduction to two-element ISO-date windows",
+      "candidate_cells_executed": 0,
+      "outcomes_exposed": false
+    }
+  ],
+  "incumbent": {
+    "year_1": {
+      "trades": 202,
+      "net_pnl": 62.9648,
+      "profit_factor": 1.8859,
+      "max_drawdown": 12.5401,
+      "pnl_over_drawdown": 5.021076
+    },
+    "year_2": {
+      "trades": 187,
+      "net_pnl": 75.4283,
+      "profit_factor": 1.7544,
+      "max_drawdown": 17.0689,
+      "pnl_over_drawdown": 4.419049
+    }
+  },
+  "cells": [
+    {
+      "id": "p004_early_flat_only",
+      "eligible": false,
+      "minimum_yearly_pnl_dd_ratio_to_incumbent": 0.6827409105140014,
+      "year_1": {
+        "trades": 287,
+        "net_pnl": 50.0848,
+        "profit_factor": 1.5133,
+        "max_drawdown": 14.6101,
+        "pnl_over_drawdown": 3.428094
+      },
+      "year_2": {
+        "trades": 318,
+        "net_pnl": 71.3583,
+        "profit_factor": 1.4493,
+        "max_drawdown": 18.81,
+        "pnl_over_drawdown": 3.793636
+      },
+      "selection_years": {
+        "trades": 605,
+        "net_pnl": 121.4432,
+        "stress_net_pnl": 60.9432,
+        "profit_factor": 1.4737,
+        "max_drawdown": 18.81,
+        "pnl_over_drawdown": 6.45631
+      }
+    },
+    {
+      "id": "p004_confirmed_flat_only",
+      "eligible": false,
+      "minimum_yearly_pnl_dd_ratio_to_incumbent": 0.7089912600406766,
+      "year_1": {
+        "trades": 323,
+        "net_pnl": 54.6448,
+        "profit_factor": 1.5321,
+        "max_drawdown": 15.3501,
+        "pnl_over_drawdown": 3.559899
+      },
+      "year_2": {
+        "trades": 350,
+        "net_pnl": 90.0183,
+        "profit_factor": 1.5228,
+        "max_drawdown": 21.0636,
+        "pnl_over_drawdown": 4.273643
+      },
+      "selection_years": {
+        "trades": 673,
+        "net_pnl": 144.6632,
+        "stress_net_pnl": 77.3632,
+        "profit_factor": 1.5263,
+        "max_drawdown": 21.0636,
+        "pnl_over_drawdown": 6.867924
+      }
+    },
+    {
+      "id": "p004_all_flat_only",
+      "eligible": false,
+      "minimum_yearly_pnl_dd_ratio_to_incumbent": 0.5317971685750226,
+      "year_1": {
+        "trades": 401,
+        "net_pnl": 42.6948,
+        "profit_factor": 1.3384,
+        "max_drawdown": 15.9894,
+        "pnl_over_drawdown": 2.670194
+      },
+      "year_2": {
+        "trades": 451,
+        "net_pnl": 88.9583,
+        "profit_factor": 1.4261,
+        "max_drawdown": 22.3936,
+        "pnl_over_drawdown": 3.972488
+      },
+      "selection_years": {
+        "trades": 852,
+        "net_pnl": 131.6532,
+        "stress_net_pnl": 46.4532,
+        "profit_factor": 1.393,
+        "max_drawdown": 22.3936,
+        "pnl_over_drawdown": 5.879055
+      }
+    }
+  ],
+  "decision": {
+    "commission": false,
+    "reason": "all three frozen cells increased activity but reduced risk-adjusted reliability in both selection years or failed at least one yearly incumbent PnL-over-drawdown floor; opening the locked third year was forbidden",
+    "incumbent_live_strategy_unchanged": true
+  },
+  "outcomes_exposed": true,
+  "submitted_orders": 0
+}

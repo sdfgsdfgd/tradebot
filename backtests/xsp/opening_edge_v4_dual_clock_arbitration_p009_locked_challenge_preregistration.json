@@ -1,0 +1,99 @@
+{
+  "schema": "xsp.opening-edge-v4-dual-clock-arbitration-p009-locked-challenge-preregistration.v1",
+  "registered_at_utc": "2026-08-06T19:42:13Z",
+  "authority": "pre_data_locked_year_3_single_challenge_no_orders_no_capital",
+  "objective": "Open the one untouched P-009 Year-3 window exactly once, without changing admission, arbitration, lifecycle, costs, execution clocks, or incumbent GTH behavior, then settle the final three-year research-crown law.",
+  "selection_identity": {
+    "preregistration_path": "backtests/xsp/opening_edge_v4_dual_clock_arbitration_p009_preregistration.json",
+    "preregistration_sha256": "159037cd173d3bf6a4905eeb4a5dc916ea17cfbf62a1406a64a9b47ccd7fde3c",
+    "evaluator_path": "/tmp/xsp_p009_dual_clock_economics.py",
+    "evaluator_sha256": "a7aa98e00714b26f81c351c3f80036440b53666efe6ae937c7d2dc3d057d6e8e",
+    "result_path": "/tmp/xsp-p009-dual-clock-selection-economics.json",
+    "result_sha256": "8da7798518f9776aae9c0ee62d4c553dd26ce4e195ec4b3ea3d4bd8f506dd170",
+    "selection_verdict": "PASS_FREEZE_BEFORE_ONE_LOCKED_YEAR_3_CHALLENGE",
+    "selection_gates_passed": true,
+    "selected_source_cell": "m5_7_tr0.5_v20",
+    "candidate_count": 1,
+    "threshold_cells": 0
+  },
+  "immutable_candidate_law": {
+    "bridge_admission": "MINUTE_ACCEPTANCE in completed RTH opening minutes 5 through 7 inclusive, native true-range multiple at least 0.5, causal volume-authority level at least 20x, and slow front CONTINUATION or PIVOT_REPAIR; enter at the exact next native one-minute open only while exact production v3 is flat",
+    "incumbent_clock": "production v3 signal, next-open fill, hold, fizzle, flip, surrender, exit, MFE, MAE, and state advance remain on exact native completed-five-minute events",
+    "same_direction_handoff": "retain the early bridge entry and basis, suppress duplicate v3 entry and cost, then inherit the exact v3 exit event and reason",
+    "opposite_direction_handoff": "close the bridge at the exact v3 next-open boundary and preserve the opposite v3 trade byte-equivalently",
+    "no_handoff": "retain the frozen bridge-native exit",
+    "gth": "exact production-v3 GTH lane unchanged",
+    "position_limit": 1,
+    "execution": "exact historical next-open and cost law; runtime extraction remains LMT-only through the shared patient-to-relentless ladder; market orders forbidden"
+  },
+  "locked_data_contract": {
+    "window_inclusive": [
+      "2025-07-24",
+      "2026-07-23"
+    ],
+    "isolation_root_on_q": "/var/tmp/xsp-p009-1m-locked-y3-cache",
+    "requests": [
+      "XSP|2025-07-24|2026-07-23|1 min|rth|p009_locked_y3",
+      "SPY|2025-07-24|2026-07-23|1 min|rth|p009_locked_y3"
+    ],
+    "required_pre_outcome_audit": [
+      "request identity and inclusive bounds",
+      "file SHA-256 and byte count",
+      "first and last timestamp",
+      "row count and session count",
+      "duplicate, out-of-order, missing-field, nonfinite, and OHLC-integrity counts",
+      "XSP/SPY aligned-session coverage",
+      "no selection-cache mutation"
+    ],
+    "prohibited": [
+      "reading candidate Year-3 trades or outcomes before data identity is frozen",
+      "merging challenge rows into the Year-1/Year-2 selection cache before settlement",
+      "using 2026-07-24 to select, rescue, or reject the sealed challenge",
+      "backfilling a missing session from later outcome knowledge"
+    ]
+  },
+  "locked_year_3_gates": {
+    "net_positive": true,
+    "both_directions_positive": true,
+    "trades_per_year_above_200": true,
+    "pnl_over_drawdown_at_least_1_05_times_production_v3": true,
+    "no_overlapping_rth_positions": true,
+    "baseline_reconstruction_exact": true,
+    "gth_trade_and_equity_identity_unchanged": true
+  },
+  "final_three_year_crown_gates": {
+    "candidate_trades_above_604": true,
+    "candidate_trades_per_year_above_200": true,
+    "candidate_net_positive_each_year": true,
+    "candidate_pnl_over_drawdown_at_least_1_05_times_v3_in_at_least_two_of_three_years": true,
+    "candidate_full_stressed_net_positive": true,
+    "candidate_both_directions_positive": true,
+    "candidate_rth_and_gth_lanes_positive": true,
+    "disabled_candidate_exact_v3_trade_and_equity_parity": true,
+    "runtime_backtest_prefix_restart_parity_required_before_live": true,
+    "limit_only_capital_risk_and_reconciliation_gates_required_before_live": true
+  },
+  "off_by_one_reporting_law": {
+    "sealed_selection_authority_ends": "2026-07-23",
+    "existing_v3_crown_report_ends": "2026-07-24",
+    "law": "The sealed 2026-07-23 challenge decides the Year-3 gate. If 2026-07-24 data are later available, report it only as a non-selecting full-campaign extension and never use it to rescue a failed sealed gate."
+  },
+  "challenge_protocol": {
+    "runs": 1,
+    "threshold_or_mechanism_changes_after_open": 0,
+    "result_on_failure": "preserve exact failure; no P-009 threshold rescue",
+    "result_on_pass": "freeze crown receipt, extract one centralized durable dual-clock owner, prove exact parity and every live safety gate, then create a fresh immutable flat-boundary successor",
+    "outcomes_authority": "research crown only; no order, capital, selection, or live mutation"
+  },
+  "invariants": [
+    "P-009 Year-1 and Year-2 selection result remains immutable",
+    "one candidate and one locked challenge only",
+    "no post-open parameter selection",
+    "no market orders",
+    "no broker preview or submission",
+    "no live XSP strategy, selection, service, timer, capital, or position mutation",
+    "no Gold or MCL mutation",
+    "submitted orders remain zero"
+  ],
+  "submitted_orders": 0
+}

@@ -36,11 +36,11 @@ transcripts and routine test output do not belong here.
 | Existing owner | Central v3 direction/lifecycle owner, prior `94` complete sessions, daily `5/10/21/42/63/84`, intraday `5/15/30/60/120m`, state-conditioned maturation/financing/surrender |
 | Existing seconds atlas | One content-addressed SPY/UPRO/SPXU tape and pure `1/3/5/10/15/30/45s` pressure atlas are frozen; first eligible treatment is `2026-08-06T13:20:00Z`; cohort `0/30` |
 | Closed shortcut | Broad historical pressure `ADMIT_NOW/WAIT/REVOKE` passed count first, then failed economics: combined `589` trades, `196.28/year`, `-$31.07` versus exact-latency baseline, and only one of three yearly PnL/DD slices improved |
-| Active hypothesis | A true pivot is the ordered propagation and survival of a new-direction velocity/slope phase front—not one velocity flip, one high-volume bar, or one later-confirmed chart bottom |
-| Current authority | Concept and experiment management only. No classifier, direction, permission, timing, chase, order, or capital authority |
+| Active hypothesis | Opening volume magnitude is attention; entry quality requires causal SPY/XSP transport and multiscale acceptance, but the admission must earn an opening-native lifecycle rather than inherit v3 blindly |
+| Current authority | P-004, P-005, P-006, and P-007 are rejected research branches. No classifier, direction, permission, timing, chase, order, or capital authority changed |
 | Landmark authority | P-001 preregistration `opening_edge_v4_phase_front_pivot_landmarks_preregistration.json` (`07506749…`) freezes the `0.25×` prior-scale causal confirmation / `0.50×` serious outgoing-wave oracle, landing schema, and diagnostic-only neighbors before landmark outcomes |
-| First work | Corrected outcome-sealed P-004 R2 result `2e05e543…` passes every frozen count gate: `1,046` causal emissions (`545 down / 501 up`), both directions in all years and pressure levels, `958` unmatched controls, `2,392` relapses, and `88` stable pressure/shock matches. Persist its compact receipt, then freeze exactly one Y1/Y2-selected and Y3-locked economic replay before opening any future price |
-| Hawkeye | Portfolio Hawkeye remains the preemptive outer loop. New-block review `5/6` began at `11:48:56Z`, `111s` after its lawful boundary, and settled without backfill. All champions remain flat/order-free. XSP's clean `11:10→11:30Z` UP propagation failed completely by `11:50Z`: `UUUDU/UUUUU→DDDDD/DDDDD`, coherence `1.0`, expanding `1.310×` ATR, and fresh 30/60/120m DOWN turns, but still no crowned proposal. This is a high-value failed-front/opposite-reassertion control, not a missed short. The block retains only XSP P-004 and MCL Phase-Front/Subshock, with `0/1` replay budget used. Next lawful review: `12:07:05Z` |
+| First work | P-007 exact one-minute composition is economically rejected: best cell `acceptance_tr075` raises cadence `195.27→257.52/year` but cuts combined net `138.3932→93.8832`, raises DD `17.0689→23.9789`, and cuts PnL/DD `8.1079→3.9152`; all `12/12` cells fail and locked Y3 remains sealed. Preserve P-006 seconds morphology as prospective evidence, not alpha, and isolate lifecycle-compatible timing before another outcome replay |
+| Hawkeye | Explicitly paused at the user's request while the opening sequence was settled; do not backfill missed reviews. Resume from fresh broker/service truth only after this research handoff |
 
 <!-- PIVOT-RESUME:END -->
 
@@ -332,11 +332,11 @@ At most one outcome-bearing replay may be active inside a Hawkeye block.
 | P-002C | `[REJECTED_COUNT_ONLY]` | Three-profile scale-consensus serious-landmark census | Quiet structural DOWN `17 < 20`; every other frozen breadth gate passed; no economics opened |
 | P-002Q | `[REJECTED_COUNT_ONLY]` | Quiet structural phase-transition landmark census | `190` qualify across both directions/all years, but genuine RTH-close censor share is `2.275% > 2%`; economics remain sealed |
 | P-003 | `[ACCUMULATE]` | Existing prospective seconds pressure atlas | `30` complete targets, `10` each direction, repeated morphologies |
-| P-004 | `[PREREGISTERED_COUNT_NEXT]` | Causal pressure/shock phase-front timing challenger | `dc5ed784…`; false-alarm-complete causal emission passes breadth before outcomes; future-aware landmarks remain evaluation-only |
-| P-005 | `[PENDING]` | Complementary missed-pivot sleeve | Material repeatable crown miss cohort exists |
-| P-006 | `[PENDING]` | GTH/overnight signal and transport challenge | Honest native execution tape and independent GTH economics exist |
-| P-007 | `[PENDING]` | One deterministic crown/phase-front arbiter | P-004 or P-005 passes unseen and annual gates |
-| P-008 | `[PENDING]` | Adjacent-basin, placebo, delay, and regime robustness | Nominee beats crown without isolated threshold dependence |
+| P-004 | `[REJECTED_ECONOMIC]` | Causal completed-5m pressure/phase-front challenger | Broad emissions became churn and weakened yearly efficiency |
+| P-005 | `[REJECTED_ECONOMIC]` | Completed-5m post-bell authority | Urgent 09:35 improved Y1 but worsened Y2; union/confirmed variants were decisively bad |
+| P-006 | `[REJECTED_COUNT_ONLY / PROSPECTIVE_MORPHOLOGY_RETAINED]` | Seconds opening micro-auction wave | Historical 1m proxy emitted only `30` episodes and erased crest/recoil order; no economics opened |
+| P-007 | `[REJECTED_ECONOMIC]` | Exact 1m acceptance/reacquisition/handoff composition | `280` count-testable emissions, but `0/12` selection cells passed; best cell halved PnL/DD and Y3 stayed sealed |
+| P-008 | `[NEXT_MECHANISM_ONLY]` | Lifecycle-compatible opening timing/permission | Must explain why P-007 entries lose under the incumbent lifecycle before any new replay |
 | P-009 | `[PENDING]` | Durable owner + exact replay parity | Frozen nominee ledger and arbitration are exact |
 | P-010 | `[PENDING]` | Non-transmitting commissioning and live succession | Runtime, LMT, capital, restart, safety, and graduation all pass |
 
@@ -436,6 +436,9 @@ gate after outcomes.
 | P-004 R1 count preflight | Generation/evaluator/result `08f2969d…/ccf978ab…/9354afcf…` preserved exact tape/crown/owner identity and kept outcomes sealed. Raw counts are broad: `1,046` emissions (`545 down / 501 up`), Y1 `167/143`, Y2 `200/175`, Y3 `178/183`, pressure levels `240/591/215`, `958` unmatched emissions, `2,392` relapses, and `88` stable pressure/shock matches. The printed rejection came only from iterating the prose `windows.visibility` member as a fourth year | Transparent pre-outcome correction only: R2 evaluator `b5fab0eb…` projects the three list-valued year ranges. Content-bind it before rerun; do not reinterpret R1 as a pass, alter any causal law/count/control, or expose economics before the corrected gates settle |
 | P-004 R2 correction generation | `bfbc7b36…` freezes preregistration `dc5ed784…`, R1 generation/result `08f2969d…/9354afcf…`, unchanged consensus source `67e7daf6…`, and corrected evaluator `b5fab0eb…` before rerun | The correction may enumerate only two-bound list windows. Outcomes remain sealed; run once, accept the frozen count verdict, and do not reopen law or thresholds |
 | P-004 R2 count settlement | Corrected result `2e05e543…` passes every preregistered count gate with `1,046` emissions (`545 down / 501 up`), Y1 `167/143`, Y2 `200/175`, Y3 `178/183`, pressure levels `240/591/215`, `958` unmatched emissions, `2,392` relapsed-pressure controls, and `88` stable pressure/shock matches | `COUNT_PASS_FREEZE_ONE_ECONOMIC_REPLAY`. This proves breadth and false-alarm completeness, not edge. Freeze one exact baseline/timing/complementary/composition law before prices; retain all unmatched emissions and choose only on Y1/Y2 before one locked Y3 challenge |
+| P-004/P-005 economic boundary | P-004's broad completed-5m emissions increased churn and weakened yearly efficiency. P-005's urgent 09:35 lane improved Y1 PnL/DD `5.021→5.687` but worsened Y2 `4.419→3.647` and raised DD `17.07→19.96`; confirmed/union variants were worse | Completed 5m is too blunt for opening ignition order. Reject both economic branches; do not solve warmup by merely admitting the first large bar |
+| P-006 count boundary | Frozen count produced only `30` one-minute historical episodes over `502` sessions (`21 down / 9 up`; `28` handoffs, `2` persistent drives, `0` crest-reaccelerations) despite a clean prospective seconds wave `attention→UP bind→crest→recoil→20× reacceleration` | Historical completed-minute OHLC aliases away the very within-minute event order the seconds law needs. Reject count-only and retain the prospective seconds state as morphology-only; no P-006 economics or live authority opened |
+| P-007 economic settlement | Exact native-1m adapter parity passed, then all `12/12` frozen cells failed Y1/Y2 selection. Best `acceptance_tr075`: `513` trades / `257.52y`, `+93.8832`, PF `1.3665`, DD `23.9789`, PnL/DD `3.9152`; incumbent: `389` / `195.27y`, `+138.3932`, PF `1.809`, DD `17.0689`, PnL/DD `8.1079` | P-007 creates breadth, not alpha: `+31.88%` trades but `-32.16%` net, `+40.48%` DD, and `-51.71%` PnL/DD. Reject standalone opening ownership, keep locked Y3 sealed, and leave live v3 unchanged |
 | Fourteenth specimen / fast repair front | Hawkeye `74e7b574…`: by `11:10Z`, XSP reached `UDDDD` slopes / `UUUUU` velocities with the 5m slope crossed UP, every slower slope still DOWN, coherence `0.8`, and sharply expanded `2.503×` ATR. The crown emitted no fresh turn/proposal, selected GTH allows only DOWN, and P-004 prospective treatment is not eligible until `13:20Z` | This is the cleanest live fast-to-slow phase-front onset so far, but it remains `FAST_REPAIR_FRONT_UNCONFIRMED`. The required evidence is ordered slow-slope propagation and recoil survival; one fast cross plus universal positive velocity cannot manufacture an UP trade |
 | Fifteenth specimen / ordered propagation | Hawkeye `294300fc…`: by `11:30Z`, the fast repair progressed from `UDDDD/UUUUU` to `UUUDU/UUUUU`; 15m, 30m, and 120m slopes joined while the 60m slope alone resisted, ATR stayed expanded at `1.897×`, and every velocity remained UP | This is real fast-to-slow arrival geometry, but it still lacks fresh crown ownership, recoil survival, and lawful GTH-UP transport. Preserve the next twenty minutes as the decisive prospective persistence control |
 | Sixteenth specimen / complete propagation failure | Hawkeye `ccb125f0…`: by `11:50Z`, the propagated `UUUDU/UUUUU` repair had become `DDDDD/DDDDD`, with coherence `1.0`, conviction `0.2861`, expanding `1.310×` ATR, and fresh 30/60/120m DOWN turns. The daily stack remained all-UP and the crown still emitted no proposal | The front's arrival order was genuine but insufficient: it failed before ownership and then established coherent opposite pressure. P-004 must retain this exact relapse in its denominator and distinguish opposite reassertion from an actionable handoff; neither the preceding UP front nor the later DOWN front may be back-labeled as a missed trade |
@@ -459,6 +462,7 @@ gate after outcomes.
 | PD-009 | The serious-pivot oracle freezes volatility scale from the prior 21 completed XSP RTH sessions; future extrema may label evaluation only and can never enter the causal phase-front owner |
 | PD-010 | P-004 pressure magnitude is attention only. Direction belongs to the existing causal phase-front candidate and admission requires same-close dual-instrument slope/velocity acceptance; future-aware pressure/shock landmarks are evaluation labels only |
 | PD-011 | P-004 passed count breadth without outcomes. Spend the block's sole replay only after freezing exact baseline parity, timing-only cooperation, complementary flat-only ownership, deterministic non-overlap, Y1/Y2 selection, and one locked Y3 challenge; never search economics across thresholds |
+| PD-012 | P-007 proves that causal opening direction and high cadence are insufficient when grafted onto the incumbent lifecycle. The next mechanism may be timing/permission only and must diagnose exit/takeover incompatibility before another outcome-bearing replay |
 
 ## 13. Current execution sequence
 
@@ -477,16 +481,19 @@ gate after outcomes.
    failed the frozen close-censor ceiling `2.275% > 2%`; outcomes stayed sealed.
 6. `[COMPLETE / COUNT_PASS]` P-004 R2 preserves every false alarm/control and
    passes every frozen breadth gate with outcomes sealed.
-7. `[ACTIVE / ECONOMICS_MUST_FREEZE]` Bind one exact baseline, timing-only,
-   complementary, and smallest-composition replay law; select only on Y1/Y2,
-   then open Year 3 exactly once. GTH remains an independent later lane.
-8. `[PENDING]` Apply local plateau, unseen, delay, placebo, and cost stress.
-9. `[PENDING]` Extract one centralized owner, prove exact parity twice, crown,
-   commission non-transmitting, then create a fresh flat live successor.
+7. `[COMPLETE / REJECTED]` P-004 and P-005 fail completed-5m economics; P-006
+   fails historical count testability; P-007 passes exact native-1m parity and
+   breadth but all twelve Y1/Y2 economic cells fail. Locked Year 3 stayed sealed.
+8. `[ACTIVE / MECHANISM_DIAGNOSIS_ONLY]` Attribute P-007 loss to entry quality,
+   v3 takeover timing, and lifecycle mismatch without threshold search or a new
+   outcome replay. Preserve the prospective seconds wave as timing evidence.
+9. `[PENDING]` Only a causally distinct, preregistered mechanism that explains
+   the rejected cohort may earn count-first testing, locked Year 3, robustness,
+   durable extraction, coronation, and non-transmitting commissioning.
 
 ## Conclusion: XSP Multiscale Phase-Front Pivot Mastery
 
-**Status:** `ACTIVE / AUTHORIZED / P002C_AND_P002Q_COUNT_REJECTED / P004_COUNT_PASS / ONE_ECONOMIC_REPLAY_MUST_FREEZE / ECONOMICS_SEALED`.
+**Status:** `ACTIVE / AUTHORIZED / P004_P005_P007_ECONOMIC_REJECTED / P006_COUNT_REJECTED / LOCKED_YEAR3_SEALED / LIVE_V3_UNCHANGED`.
 
 The decisive insight is:
 

@@ -1,0 +1,35 @@
+{
+  "schema": "xsp.opening-edge-v4-pressure-phase-front-p004-economic-generation.v1",
+  "registered_at_utc": "2026-08-06T14:47:53Z",
+  "authority": "frozen_pre_outcome_economic_generation_no_orders_no_capital",
+  "outcomes_exposed": false,
+  "artifacts": {
+    "economic_preregistration": {
+      "path": "backtests/xsp/opening_edge_v4_pressure_phase_front_p004_economic_preregistration.json",
+      "sha256": "5d106958e3787c11d78f9b83e9f0b6df18fc1fea21686d83ec5387e567bae9bf"
+    },
+    "economic_evaluator": {
+      "path": "/tmp/xsp_p004_economics.py",
+      "sha256": "636b0f73d5c8a9a0e2c95c1be04ed7132661ecdd13b6d7fb8278ccb6542f3256"
+    },
+    "count_result": {
+      "path": "/tmp/xsp-opening-edge-v4-pressure-phase-front-p004-count-r2-recovered.json",
+      "sha256": "405c5e838ba3d52a1dbeea8fff8ec4fec131f59b9454b61a71edeb56d9310986",
+      "verdict": "COUNT_PASS_FREEZE_ONE_ECONOMIC_REPLAY"
+    }
+  },
+  "predecessor": {
+    "generation_path": "backtests/xsp/opening_edge_v4_pressure_phase_front_p004_r2_generation.json",
+    "generation_sha256": "bfbc7b36c12b6fe52776b060a91edbca6ff9c7bea0e4b19cdd529f35ae568242",
+    "outcomes_exposed": false
+  },
+  "replay_budget": {
+    "selection_years": [
+      "year_1_discovery",
+      "year_2_validation"
+    ],
+    "locked_final_year": "year_3_locked_final",
+    "maximum_locked_final_openings": 1
+  },
+  "submitted_orders": 0
+}

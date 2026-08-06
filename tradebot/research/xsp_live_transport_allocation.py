@@ -38,6 +38,10 @@ from .xsp_live_transport_v3 import (
     _sha256_identity,
     load_xsp_v3_transport_selection_from_mapping,
 )
+from .xsp_dual_clock import (
+    XSP_DUAL_CLOCK_SOURCE_VERSION,
+    XSP_DUAL_CLOCK_VERSION,
+)
 from .xsp_opening_edge_v3 import (
     XSP_OPENING_EDGE_V3_TRANSPORT_VERSION,
     XSP_OPENING_EDGE_V3_VERSION,
@@ -56,9 +60,128 @@ XSP_PORTFOLIO_PACKAGE_SUCCESSOR_SCHEMA = (
 XSP_PORTFOLIO_PACKAGE_RECEIPT_PATH = Path(
     "backtests/xsp/opening_edge_v3_portfolio_package_curve_20260803.json"
 )
+XSP_P009_CROWN_PATH = Path(
+    "backtests/xsp/opening_edge_v4_dual_clock_arbitration_p009_crown.json"
+)
+XSP_P009_DURABLE_PARITY_PATH = Path(
+    "backtests/xsp/"
+    "opening_edge_v4_dual_clock_arbitration_p009_durable_owner_parity.json"
+)
+XSP_P009_CROWN_SHA256 = (
+    "e3d4b968ce5692da2aad1e6ed041c609b4df7be020a80bde5a3605a32111a449"
+)
+XSP_P009_DURABLE_PARITY_SHA256 = (
+    "6a81ea01d46c753579a63a1f27277b51654c03c23fbcd226e67c25ec8dc55ee4"
+)
 XSP_PORTFOLIO_SIGNAL_LEDGER_SHA256 = (
     "40708a28476fad504d29b1222e52b88481b1c0da8313ed4667076e2b6ed3f157"
 )
+
+
+def _valid_p009_crown_binding(value: object) -> bool:
+    return bool(
+        isinstance(value, Mapping)
+        and value
+        == {
+            "schema": "xsp.opening-edge-v4-dual-clock-p009-crown-binding.v1",
+            "verdict": "CROWNED",
+            "root_crown_law_pass": True,
+            "strict_year_3_challenge_pass": False,
+            "strict_year_3_miss_disclosed": True,
+            "full_combined_trades": 648,
+            "full_rth_trades": 469,
+            "full_pnl_over_drawdown": 18.234821,
+            "full_combined_ledger_sha256": (
+                "53d2682ba9afc077c790d4817898732bd22c2f38173d1e5e2b58f9ddadec0268"
+            ),
+            "full_rth_ledger_sha256": (
+                "3aa102fc2ef15c3d39fbe884d952e95dc32af77a4098a895af163a188e77d715"
+            ),
+            "crown_receipt_sha256": XSP_P009_CROWN_SHA256,
+            "durable_parity_sha256": XSP_P009_DURABLE_PARITY_SHA256,
+        }
+    )
+
+
+def xsp_p009_crown_binding(repository_root: Path) -> dict[str, object]:
+    """Rehash the immutable P-009 crown and exact durable replay receipt."""
+
+    crown_path = repository_root / XSP_P009_CROWN_PATH
+    parity_path = repository_root / XSP_P009_DURABLE_PARITY_PATH
+    crown = json.loads(crown_path.read_text())
+    parity = json.loads(parity_path.read_text())
+    root_law = crown.get("root_crown_law") if isinstance(crown, Mapping) else None
+    strict = (
+        crown.get("strict_locked_year_3_curiosity_gate")
+        if isinstance(crown, Mapping)
+        else None
+    )
+    candidate = crown.get("candidate") if isinstance(crown, Mapping) else None
+    proof = crown.get("proofs") if isinstance(crown, Mapping) else None
+    durable = proof.get("durable_owner_parity") if isinstance(proof, Mapping) else None
+    binding = {
+        "schema": "xsp.opening-edge-v4-dual-clock-p009-crown-binding.v1",
+        "verdict": crown.get("verdict") if isinstance(crown, Mapping) else None,
+        "root_crown_law_pass": (
+            root_law.get("root_crown_law_pass")
+            if isinstance(root_law, Mapping)
+            else None
+        ),
+        "strict_year_3_challenge_pass": (
+            strict.get("strict_year_3_challenge_pass")
+            if isinstance(strict, Mapping)
+            else None
+        ),
+        "strict_year_3_miss_disclosed": (
+            strict.get("strict_year_3_miss_disclosed")
+            if isinstance(strict, Mapping)
+            else None
+        ),
+        "full_combined_trades": (
+            candidate.get("trades") if isinstance(candidate, Mapping) else None
+        ),
+        "full_rth_trades": (
+            candidate.get("full_rth_trades")
+            if isinstance(candidate, Mapping)
+            else None
+        ),
+        "full_pnl_over_drawdown": (
+            candidate.get("pnl_over_drawdown")
+            if isinstance(candidate, Mapping)
+            else None
+        ),
+        "full_combined_ledger_sha256": (
+            candidate.get("full_combined_ledger_sha256")
+            if isinstance(candidate, Mapping)
+            else None
+        ),
+        "full_rth_ledger_sha256": (
+            candidate.get("full_rth_ledger_sha256")
+            if isinstance(candidate, Mapping)
+            else None
+        ),
+        "crown_receipt_sha256": _sha256(crown_path),
+        "durable_parity_sha256": _sha256(parity_path),
+    }
+    if (
+        crown.get("schema")
+        != "xsp.opening-edge-v4-dual-clock-arbitration-p009-crown.v1"
+        or crown.get("submitted_orders") != 0
+        or crown.get("live_replacement_created") is not False
+        or not isinstance(durable, Mapping)
+        or durable.get("path") != XSP_P009_DURABLE_PARITY_PATH.as_posix()
+        or durable.get("sha256") != XSP_P009_DURABLE_PARITY_SHA256
+        or durable.get("exact_parity") is not True
+        or parity.get("schema")
+        != "xsp.opening-edge-v4-dual-clock-p009-durable-owner-parity.v1"
+        or parity.get("exact_parity") is not True
+        or parity.get("submitted_orders") != 0
+        or parity.get("full_combined_trade_count") != 648
+        or parity.get("full_rth_trade_count") != 469
+        or not _valid_p009_crown_binding(binding)
+    ):
+        raise ValueError("P-009 immutable crown evidence is invalid")
+    return binding
 
 
 def _package_cell(
@@ -376,12 +499,26 @@ def reallocate_xsp_v3_transport(
     package_receipt_path: Path,
     package_id: str,
     selected_at: datetime,
+    strategy_version: str = XSP_OPENING_EDGE_V3_VERSION,
+    source_strategy_version: str = XSP_OPENING_EDGE_V3_TRANSPORT_VERSION,
+    crown_evidence: Mapping[str, object] | None = None,
 ) -> dict[str, object]:
     """Freeze a clean selected run at one historically qualified cash package."""
 
     prior = load_xsp_v3_transport_selection_from_mapping(predecessor)
-    if prior["schema"] != XSP_V3_ROTATION_SELECTION_SCHEMA:
+    if prior["schema"] not in {
+        XSP_V3_ROTATION_SELECTION_SCHEMA,
+        XSP_V3_PACKAGE_SELECTION_SCHEMA,
+    }:
         raise ValueError("XSP package successor requires immediate-proceeds ownership")
+    identity = (strategy_version, source_strategy_version)
+    if identity not in {
+        (XSP_OPENING_EDGE_V3_VERSION, XSP_OPENING_EDGE_V3_TRANSPORT_VERSION),
+        (XSP_DUAL_CLOCK_VERSION, XSP_DUAL_CLOCK_SOURCE_VERSION),
+    } or (identity[0] == XSP_DUAL_CLOCK_VERSION) != isinstance(
+        crown_evidence, Mapping
+    ):
+        raise ValueError("XSP package successor identity is invalid")
     now = _utc(selected_at)
     receipt = json.loads(package_receipt_path.read_text())
     if not isinstance(receipt, Mapping):
@@ -449,6 +586,10 @@ def reallocate_xsp_v3_transport(
         "package_id": package_id,
         "signal_ledger_sha256": XSP_PORTFOLIO_SIGNAL_LEDGER_SHA256,
     }
+    if crown_evidence is not None:
+        evidence["successor_crown"] = dict(crown_evidence)
+    else:
+        evidence.pop("successor_crown", None)
     notional = int(cell["notional_usd"])
     body = {
         **{
@@ -470,6 +611,8 @@ def reallocate_xsp_v3_transport(
             }
         },
         "schema": XSP_V3_PACKAGE_SELECTION_SCHEMA,
+        "strategy_version": strategy_version,
+        "source_strategy_version": source_strategy_version,
         "selected_at_utc": now.isoformat(),
         "run_started_at_utc": now.isoformat(),
         "nominee": nominee,
@@ -517,8 +660,24 @@ def load_xsp_v3_package_selection_from_mapping(
         commissions = nominee["commission_limits_usd"]
         package_id = f"xsp-usd-{notional}"
         minimum_cash_cents = xsp_package_cash_debit_usd_cents(notional)
+        identity = (
+            selection["strategy_version"],
+            selection["source_strategy_version"],
+        )
+        p009 = identity == (XSP_DUAL_CLOCK_VERSION, XSP_DUAL_CLOCK_SOURCE_VERSION)
+        crown = evidence.get("successor_crown")
+        crown_valid = _valid_p009_crown_binding(crown)
         semantic = bool(
-            selection["run_started_at_utc"] == selection["selected_at_utc"]
+            identity
+            in {
+                (
+                    XSP_OPENING_EDGE_V3_VERSION,
+                    XSP_OPENING_EDGE_V3_TRANSPORT_VERSION,
+                ),
+                (XSP_DUAL_CLOCK_VERSION, XSP_DUAL_CLOCK_SOURCE_VERSION),
+            }
+            and (crown_valid if p009 else crown is None)
+            and selection["run_started_at_utc"] == selection["selected_at_utc"]
             and selection["baseline_state"] is None
             and set(ranges) == set(_V3_SYMBOLS)
             and all(
@@ -589,9 +748,6 @@ def load_xsp_v3_package_selection_from_mapping(
         semantic = False
     if (
         selection.get("schema") != XSP_V3_PACKAGE_SELECTION_SCHEMA
-        or selection.get("strategy_version") != XSP_OPENING_EDGE_V3_VERSION
-        or selection.get("source_strategy_version")
-        != XSP_OPENING_EDGE_V3_TRANSPORT_VERSION
         or selection.get("authority") != "selected_live_cash_transport"
         or selection.get("order_authority") != XSP_V2_TRANSPORT_ORDER_AUTHORITY
         or selection.get("profitability_clock_started") is not True

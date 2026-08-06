@@ -1,0 +1,96 @@
+{
+  "schema": "tradebot.live-service-efficiency-audit.v1",
+  "authority": "read_only_q_runtime_process_and_systemd_audit",
+  "observed_at_utc": "2026-08-06T21:23:10Z",
+  "host": "q",
+  "host_health": {
+    "uptime_days": 7.38,
+    "load_average_1m_5m_15m": [0.21, 0.24, 0.27],
+    "memory_total_gib": 61.0,
+    "memory_available_gib": 54.0,
+    "swap_used_gib": 0.0,
+    "root_disk_used_percent": 5,
+    "failed_user_units": 0
+  },
+  "persistent_tradebot_processes": [
+    {
+      "unit": "tradebot-mcl-turn-tape.service",
+      "role": "canonical prospective CL/MCL matched seconds evidence",
+      "active": true,
+      "memory_current_bytes": 204021760,
+      "cpu_usage_nsec_since_start": 361827377000,
+      "state_size": "774M",
+      "restart_count": 4,
+      "decision": "RETAIN"
+    },
+    {
+      "unit": "tradebot-xsp-pressure-tape.service",
+      "role": "canonical prospective SPY/UPRO/SPXU seconds evidence",
+      "active": true,
+      "memory_current_bytes": 48803840,
+      "cpu_usage_nsec_since_start": 21862810000,
+      "state_size": "125M",
+      "restart_count": 1,
+      "decision": "RETAIN"
+    },
+    {
+      "unit": "tradebot-ib-gateway-tunnel.service",
+      "role": "shared localhost-only q-to-Mac IB Gateway transport",
+      "active": true,
+      "memory_current_bytes": 2592768,
+      "restart_count": 0,
+      "decision": "RETAIN"
+    }
+  ],
+  "canonical_oneshot_timers": [
+    "tradebot-gold-live.timer",
+    "tradebot-gold-onset.timer",
+    "tradebot-mcl-live.timer",
+    "tradebot-mcl-predictive-onset-runtime.timer",
+    "tradebot-news.timer",
+    "tradebot-xsp-pressure-tape.timer",
+    "tradebot-xsp-quotes.timer",
+    "tradebot-xsp-shadow.timer"
+  ],
+  "inactive_predecessor_units": [
+    {
+      "timer": "tradebot-mcl-predictive-onset.timer",
+      "enabled": false,
+      "running": false,
+      "reason_retained": "disabled provenance and rollback surface; zero runtime cost"
+    },
+    {
+      "timer": "tradebot-mcl-predictive-onset-stage114.timer",
+      "enabled": false,
+      "running": false,
+      "reason_retained": "disabled provenance and rollback surface; zero runtime cost"
+    }
+  ],
+  "experiment_process_audit": {
+    "running_tmp_or_var_tmp_backtest_processes": 0,
+    "unexpected_tradebot_services": 0,
+    "orphaned_enabled_experiment_timers": 0,
+    "material_cleanup_required": false
+  },
+  "largest_non_tradebot_cpu_owners": [
+    "Chrome renderer",
+    "Loki",
+    "Promtail"
+  ],
+  "conclusion": {
+    "tradebot_is_not_the_observed_host_load_bottleneck": true,
+    "deleting_disabled_unit_files_would_not_reduce_cpu_or_memory": true,
+    "retain_unique_seconds_feeds": true,
+    "retain_one_service_per_live_champion": true,
+    "new_p009_service_count": 0,
+    "p009_native_one_minute_history_transport": "current_RTH_day_only",
+    "p009_slow_and_v3_history_transport": "existing_two_week_five_minute_context"
+  },
+  "mutations": {
+    "services_stopped": 0,
+    "services_removed": 0,
+    "timers_disabled": 0,
+    "files_deleted": 0,
+    "submitted_orders": 0
+  }
+}

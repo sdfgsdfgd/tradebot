@@ -18,7 +18,7 @@ from ..research.xsp_live_transport import XSP_V3_TRANSPORT_EXECUTION_VERSION
 from ..research.xsp_live_transport_v3 import (
     load_xsp_v3_transport_selection_from_mapping,
 )
-from ..research.xsp_opening_edge_v3 import XSP_OPENING_EDGE_V3_VERSION
+from ..research.xsp_dual_clock import XSP_DUAL_CLOCK_VERSION
 from ..research.live_graduation import validate_live_graduation_receipt
 from ..research.mcl_live_transport import (
     MCL_LIVE_EXECUTION_VERSION,
@@ -31,8 +31,8 @@ from .runs import LiveRunBinding
 
 LIVE_STRATEGY_BINDINGS = (
     LiveRunBinding(
-        strategy_id=XSP_OPENING_EDGE_V3_VERSION,
-        label="XSP v3 Regime Harmony · UPRO/SPXU RTH",
+        strategy_id=XSP_DUAL_CLOCK_VERSION,
+        label="XSP P-009 Dual Clock · UPRO/SPXU RTH",
         execution_strategy_version=XSP_V3_TRANSPORT_EXECUTION_VERSION,
         ledger_path="db/calibration/xsp_live_calibration.jsonl",
         timer_unit="tradebot-xsp-shadow.timer",

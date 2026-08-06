@@ -1,0 +1,142 @@
+{
+  "schema": "xsp.opening-edge-v4-dual-clock-arbitration-p009-preregistration.v1",
+  "registered_at_utc": "2026-08-06T18:55:45Z",
+  "authority": "adaptive_year_1_year_2_mechanism_repair_no_locked_year_3_no_orders_no_capital",
+  "hypothesis": "The frozen opening bridge is early and directionally profitable, but P-008 corrupts the incumbent by advancing five-minute v3 hold, fizzle, and flip state on one-minute execution bars. Preserve exact production v3 events and let only bridge-owned pre-v3 intervals use the native opening clock.",
+  "disclosed_post_outcome_origin": {
+    "source_cell": "m5_7_tr0.5_v20",
+    "source_cell_status": "closest_rejected_p008_family_not_a_selected_crown",
+    "bridge_owned_trades": 28,
+    "bridge_raw_net": 22.96,
+    "bridge_raw_profit_factor": 4.576324,
+    "median_pivot_to_entry_minutes": 6.0,
+    "median_move_remaining_at_entry_share": 0.684561,
+    "exact_v3_overlap_at_bridge_entry": 0,
+    "handoff_counts": {
+      "none": 21,
+      "opposite_direction": 4,
+      "same_direction": 3
+    },
+    "diagnostic_only_expected_delta_before_equity_replay": 19.82,
+    "warning": "These exposed Year-1/Year-2 values justify one exact mechanism replay only. They cannot validate P-009; locked Year 3 remains the sole unseen economic challenge."
+  },
+  "frozen_bridge_admission": {
+    "mechanism": "MINUTE_ACCEPTANCE",
+    "minute_window_inclusive": [
+      5,
+      7
+    ],
+    "minimum_true_range_multiple": 0.5,
+    "minimum_volume_authority_level": 20.0,
+    "eligible_slow_front_states": [
+      "CONTINUATION",
+      "PIVOT_REPAIR"
+    ],
+    "entry": "exact next native one-minute open after the causal completed-minute emission",
+    "selection_status": "adaptive_mechanism_source_not_independent_validation"
+  },
+  "dual_clock_law": {
+    "incumbent": "production v3 signal, next-open fill, hold, fizzle, flip, surrender, exit, MFE, MAE, and state advance remain on exact native completed-five-minute events",
+    "bridge": "the frozen opening emission enters only while exact v3 is flat and retains its already-observed native opening lifecycle until an authentic v3 admission or native bridge exit",
+    "same_direction_handoff": "retain the existing position and bridge entry basis; suppress the duplicate v3 entry; inherit the exact corresponding v3 exit event and reason without a second trade or cost",
+    "opposite_direction_handoff": "close the bridge at the exact v3 next-open fill boundary, then retain the exact opposite v3 trade unchanged",
+    "no_handoff": "retain the frozen bridge-native exit event unchanged",
+    "bridge_while_v3_owned": "ignore",
+    "duplicate_same_direction_bridge": "ignore",
+    "position_limit": 1,
+    "gth": "exact crowned GTH research lane unchanged",
+    "execution": "existing spread, slippage, next-open semantics, and doubled 0.10-point per-trade stress; no market orders"
+  },
+  "selection_years": {
+    "year_1": [
+      "2023-07-24",
+      "2024-07-23"
+    ],
+    "year_2": [
+      "2024-07-24",
+      "2025-07-23"
+    ]
+  },
+  "frozen_gates_each_selection_year": {
+    "net_positive": true,
+    "both_directions_positive": true,
+    "pnl_over_drawdown_at_least_1_05_times_production_v3": true
+  },
+  "frozen_combined_gates": {
+    "net_above_production_v3": true,
+    "stress_net_above_production_v3": true,
+    "trades_above_production_v3": true,
+    "trades_per_year_above_200": true,
+    "maximum_drawdown_no_higher_than_production_v3": true,
+    "profit_factor_no_lower_than_production_v3": true,
+    "both_directions_positive": true,
+    "both_lanes_positive": true,
+    "exact_disabled_v3_trade_and_equity_parity": true,
+    "no_overlapping_rth_positions": true
+  },
+  "landing_anatomy_law": {
+    "for_every_bridge_trade": [
+      "causal pivot and entry latency",
+      "price displacement consumed before entry",
+      "directional session move remaining at entry",
+      "MFE, MAE, first adverse excursion, and realized PnL",
+      "true directional session extreme and minutes from entry",
+      "first authentic v3 authority, direction, and handoff latency",
+      "native bridge exit versus final dual-clock exit"
+    ],
+    "for_every_unsuccessful_neighbor_gate": [
+      "first causal pass or nearest miss time",
+      "lead or lag versus frozen pivot onset and final peak or bottom",
+      "which of minute window, true-range floor, volume authority, slow-front state, direction, or lifecycle caused rejection"
+    ],
+    "authority": "diagnostic_only_never_post_result_threshold_selection"
+  },
+  "locked_year_3_law": {
+    "status": "SEALED",
+    "window": [
+      "2025-07-24",
+      "2026-07-23"
+    ],
+    "open_once_only_after": "the single P-009 dual-clock candidate satisfies every Year-1/Year-2 and combined frozen gate and its evaluator and result identities are frozen",
+    "minimum_pnl_over_drawdown_ratio_to_production_v3": 1.05,
+    "minimum_trades_per_year": 200.0,
+    "net_positive": true,
+    "both_directions_positive": true,
+    "final_crown_law": "more than 200 trades per year and at least 5 percent higher PnL/DD than v3 in at least two of three one-year periods, with no negative year, positive stressed full result, and all runtime safety gates"
+  },
+  "identities": {
+    "p008_preregistration_path": "backtests/xsp/opening_edge_v4_stabilized_opening_bridge_p008_development_preregistration.json",
+    "p008_preregistration_sha256": "12907798aead858100b2f099092eed5dff1b314d8f35bdd88fe37d5ec8870096",
+    "p008_rejection_path": "backtests/xsp/opening_edge_v4_stabilized_opening_bridge_p008_development_rejection.json",
+    "p008_rejection_sha256": "52b3daaeaa6db65c3eda990dfec0db267cd1cf88d428f0fe60488db7b6a96184",
+    "p008_result_path": "/tmp/xsp-p008-stabilized-opening-bridge-development.json",
+    "p008_result_sha256": "bd304dc54021471f578548c8970d82c622178ea6416078d0bc5e9b2b22a8a069",
+    "p008_evaluator_path": "/tmp/xsp_p008_stabilized_bridge_development.py",
+    "p008_evaluator_sha256": "501ca514e0734f742c0a805470a2bc78966c9d2026296b689e38343da3b7b702",
+    "p008_landing_path": "/tmp/xsp-p008-landing-anatomy.json",
+    "p008_landing_sha256": "7538d36ba602f1a10386e5fa641fe3ad2069ac4144b041fe4818091d0bc3cdf7",
+    "p009_clock_anatomy_path": "/tmp/xsp-p009-clock-anatomy.json",
+    "p009_clock_anatomy_sha256": "9cafc8ef3af03d9b8186a0648b311a736f10cbfb22f6b9be10d3daed1e407eba",
+    "p007_count_result_path": "/tmp/xsp-p007-minute-acceptance-count.json",
+    "p007_count_result_sha256": "fc1fd8b86d754f07c4a8237b2b01361ed7f4901667908c622afd98960437c3fb",
+    "p007_evaluator_path": "/tmp/xsp_p007_economics.py",
+    "p007_evaluator_sha256": "debd3e18edfe3e26ffb3327112115a026be70cbb3fa754063bb01dc7c9e5201b",
+    "campaign_path": "/tmp/xsp_24x5_campaign.py",
+    "campaign_sha256": "dfba4165dad28d7d74a80132055cd9c317f0bd6a8917bec8a5da6e5623a97734",
+    "xsp_one_minute_path": "/tmp/xsp-p006-1m-selection-cache/XSP/XSP_2023-07-24_2025-07-23_1min_rth.csv",
+    "xsp_one_minute_sha256": "a7a0cab80fe064ea825d560a746a2f3a46283c1bf4cd52552039a3e4b6c3ceb5",
+    "crown_path": "backtests/xsp/opening_edge_v3_regime_harmony_24x5.json",
+    "crown_sha256": "d47eb39cef3d2ca575d779d6b5b87e3b88e08606fd09a8801b8cb55c350208db",
+    "expected_rth_ledger_sha256": "40708a28476fad504d29b1222e52b88481b1c0da8313ed4667076e2b6ed3f157",
+    "expected_gth_ledger_sha256": "9e04807fb77df431b7af27b8be6d5f5288c8512bfe80cb78b3c1fe70cabb8a98"
+  },
+  "invariants": [
+    "one candidate mechanism and zero threshold cells",
+    "no locked Year-3 candidate price, trade, or outcome read during selection",
+    "no post-result arbitration change",
+    "no market orders",
+    "no live strategy, selection, service, timer, capital, or broker mutation",
+    "no Gold or MCL mutation",
+    "submitted orders remain zero"
+  ]
+}

@@ -28,10 +28,24 @@ from .xsp_opening_edge_tapes import (
     split_xsp_v2_sessions,
     xsp_opening_edge_v2_gth_signal_bars,
 )
+from .xsp_opening_edge_minute_context import (
+    XspRthOneMinuteContext,
+    load_xsp_rth_one_minute_context,
+)
+from .xsp_opening_edge_run_start import (
+    XSP_OPENING_EDGE_V2_TRANSPORT_VERSION,
+    next_xsp_v2_run_start,
+    xsp_opening_edge_v2_run_start,
+)
+
+__all__ = (
+    "XSP_OPENING_EDGE_V2_TRANSPORT_VERSION",
+    "next_xsp_v2_run_start",
+    "xsp_opening_edge_v2_run_start",
+)
 
 
 XSP_OPENING_EDGE_V2_VERSION = "xsp.opening-edge-v2-balanced-24x5.v1"
-XSP_OPENING_EDGE_V2_TRANSPORT_VERSION = "xsp.opening-edge-v2-spy-transport.v1"
 XSP_OPENING_EDGE_V2_UNIT = "$1_per_XSP_point"
 XSP_OPENING_EDGE_V2_CAPITAL = 1_000.0
 XSP_OPENING_EDGE_V2_HISTORY_DURATION = "2 W"
@@ -543,45 +557,6 @@ def xsp_opening_edge_v2_equities(
     }
 
 
-def next_xsp_v2_run_start(observed_at: datetime) -> datetime:
-    """Choose the next untouched GTH boundary; never backfill a live run."""
-
-    observed_et = to_et(observed_at)
-    for offset in range(1, 9):
-        trading_day = observed_et.date() + timedelta(days=offset)
-        candidate = datetime.combine(
-            trading_day - timedelta(days=1),
-            time(20, 15),
-            tzinfo=ET_ZONE,
-        )
-        if candidate > observed_et and xsp_trading_date(candidate) == trading_day:
-            return candidate.astimezone(timezone.utc)
-    raise ValueError("unable to resolve next XSP GTH run start")
-
-
-def xsp_opening_edge_v2_run_start(
-    records: Sequence[Mapping[str, object]],
-    *,
-    observed_at: datetime,
-    strategy_version: str = XSP_OPENING_EDGE_V2_TRANSPORT_VERSION,
-) -> datetime:
-    """Recover one frozen v2 start, or choose the next untouched GTH boundary."""
-
-    starts = {
-        str(evidence["run_started_at_utc"])
-        for row in records
-        if row.get("kind") == "checkpoint"
-        and row.get("strategy_version") == strategy_version
-        and isinstance((evidence := row.get("evidence")), Mapping)
-        and evidence.get("run_started_at_utc")
-    }
-    if len(starts) > 1:
-        raise ValueError("Opening Edge v2 observer run start drift")
-    if starts:
-        return datetime.fromisoformat(starts.pop().replace("Z", "+00:00"))
-    return next_xsp_v2_run_start(observed_at)
-
-
 async def advance_xsp_opening_edge_v2_from_ibkr(
     ledger: LiveCalibrationLedger,
     *,
@@ -601,6 +576,8 @@ async def advance_xsp_opening_edge_v2_from_ibkr(
     daily_context_duration_str: str | None = None,
     execution_gate: Mapping[str, object] = XSP_OPENING_EDGE_V2_EXECUTION_GATE,
     run_start_validator: Callable[[datetime], bool] | None = None,
+    include_rth_one_minute_context: bool = False,
+    rth_one_minute_duration_str: str | None = None,
 ) -> dict[str, object]:
     """Advance one pre-frozen, non-submitting v2 observer from IBKR history."""
 
@@ -770,6 +747,7 @@ async def advance_xsp_opening_edge_v2_from_ibkr(
     xsp_bars: Sequence[Bar] = ()
     raw_xsp_daily: Sequence[Bar] = ()
     xsp_daily_bars: Sequence[Bar] = ()
+    minute_context = XspRthOneMinuteContext()
     xsp_error = None
     try:
         qualified_xsp = await client.qualify_proxy_contracts(
@@ -808,6 +786,14 @@ async def advance_xsp_opening_edge_v2_from_ibkr(
                 use_rth=True,
                 naive_ts_mode="et",
             )
+            if include_rth_one_minute_context and session in {"RTH", "CURB"}:
+                minute_context = await load_xsp_rth_one_minute_context(
+                    client,
+                    spy_contract=spy_contract,
+                    xsp_contract=xsp_contract,
+                    duration_str=str(rth_one_minute_duration_str or duration_str),
+                    observed_et_naive=observed_et_naive,
+                )
             if daily_context_duration_str:
                 raw_xsp_daily = await client.historical_bars_ohlcv(
                     xsp_contract,
@@ -855,6 +841,12 @@ async def advance_xsp_opening_edge_v2_from_ibkr(
             )
         )
     )
+    one_minute_context_ready = minute_context.ready(
+        required=include_rth_one_minute_context and session in {"RTH", "CURB"},
+        observed_at=observed_utc,
+        freshness_seconds=XSP_OPENING_EDGE_V2_FRESHNESS_SECONDS,
+    )
+    builder_kwargs = minute_context.builder_kwargs(enabled=include_rth_one_minute_context)
     paired_equity = (
         paired_equity_builder(
             spec=resolved_spec,
@@ -864,8 +856,9 @@ async def advance_xsp_opening_edge_v2_from_ibkr(
             observed_at=observed_utc,
             run_started_at=run_started_utc,
             naive_ts_mode="et",
+            **builder_kwargs,
         )
-        if spy_gth and spy_rth and gth_anchor_ready
+        if spy_gth and spy_rth and gth_anchor_ready and one_minute_context_ready
         else None
     )
     evaluation_status = (
@@ -940,6 +933,9 @@ async def advance_xsp_opening_edge_v2_from_ibkr(
             ),
             "latest_spy_age_sec": latest_spy_age,
             "spy_history_fresh": spy_fresh,
+            **minute_context.evidence(enabled=include_rth_one_minute_context),
+            **({"one_minute_context_ready": one_minute_context_ready}
+               if include_rth_one_minute_context else {}),
             "xsp_contract_con_id": (
                 int(getattr(xsp_contract, "conId", 0) or 0)
                 if xsp_contract is not None

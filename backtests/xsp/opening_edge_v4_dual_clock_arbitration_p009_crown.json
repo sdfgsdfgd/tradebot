@@ -1,0 +1,131 @@
+{
+  "schema": "xsp.opening-edge-v4-dual-clock-arbitration-p009-crown.v1",
+  "authority": "frozen_three_year_research_crown_and_live_successor_admission",
+  "crowned_at_utc": "2026-08-06T20:52:34+00:00",
+  "strategy_version": "xsp.opening-edge-v4-dual-clock-arbitration-p009.v1",
+  "source_strategy_version": "xsp.opening-edge-v4-dual-clock-source-p009.v1",
+  "verdict": "CROWNED",
+  "root_crown_law": {
+    "more_trades_than_incumbent": true,
+    "trades_per_year_above_200": true,
+    "pnl_over_drawdown_at_least_1_05x_in_most_available_years": true,
+    "positive_each_year": true,
+    "both_directions_positive": true,
+    "both_rth_and_gth_lanes_positive": true,
+    "full_stressed_net_positive": true,
+    "root_crown_law_pass": true
+  },
+  "strict_locked_year_3_curiosity_gate": {
+    "verdict": "REJECT_LOCKED_CHALLENGE_NO_RETUNE",
+    "required_ratio": 1.05,
+    "observed_ratio": 1.0418725313,
+    "pnl_over_drawdown_improvement_pct": 4.18725313,
+    "miss_percentage_points": 0.81274687,
+    "strict_year_3_challenge_pass": false,
+    "strict_year_3_miss_disclosed": true,
+    "thresholds_changed_after_locked_result": false
+  },
+  "incumbent": {
+    "strategy_version": "xsp.opening-edge-v3-regime-harmony-24x5.v1",
+    "trades": 603,
+    "trades_per_year": 201.8008,
+    "net_pnl": 287.2156,
+    "stress_net_pnl": 226.9156,
+    "profit_factor": 2.077,
+    "max_drawdown": 17.63,
+    "pnl_over_drawdown": 16.291299
+  },
+  "candidate": {
+    "trades": 648,
+    "trades_per_year": 216.8606,
+    "net_pnl": 305.6156,
+    "stress_net_pnl": 240.8156,
+    "profit_factor": 2.042,
+    "max_drawdown": 16.76,
+    "pnl_over_drawdown": 18.234821,
+    "full_combined_ledger_sha256": "53d2682ba9afc077c790d4817898732bd22c2f38173d1e5e2b58f9ddadec0268",
+    "full_rth_trades": 469,
+    "full_rth_ledger_sha256": "3aa102fc2ef15c3d39fbe884d952e95dc32af77a4098a895af163a188e77d715",
+    "direction_pnl": {
+      "down": 191.9056,
+      "up": 113.71
+    },
+    "lane_pnl": {
+      "gth": 10.2056,
+      "rth": 295.41
+    }
+  },
+  "improvement": {
+    "trades": 45,
+    "trades_per_year": 15.0598,
+    "net_pnl": 18.4,
+    "stress_net_pnl": 13.9,
+    "max_drawdown": -0.87,
+    "pnl_over_drawdown_pct": 11.932885
+  },
+  "years": {
+    "year_1": {
+      "candidate_net_pnl": 68.0848,
+      "candidate_stress_net_pnl": 46.1848,
+      "candidate_trades": 219,
+      "candidate_max_drawdown": 10.4801,
+      "candidate_pnl_over_drawdown": 6.496579,
+      "pnl_over_drawdown_ratio_to_incumbent": 1.2938619133
+    },
+    "year_2": {
+      "candidate_net_pnl": 90.1283,
+      "candidate_stress_net_pnl": 70.6283,
+      "candidate_trades": 195,
+      "candidate_max_drawdown": 14.0432,
+      "candidate_pnl_over_drawdown": 6.417932,
+      "pnl_over_drawdown_ratio_to_incumbent": 1.4523332961
+    },
+    "year_3": {
+      "candidate_net_pnl": 147.4024,
+      "candidate_stress_net_pnl": 124.0024,
+      "candidate_trades": 234,
+      "candidate_max_drawdown": 16.76,
+      "candidate_pnl_over_drawdown": 8.794893,
+      "pnl_over_drawdown_ratio_to_incumbent": 1.0418725313
+    }
+  },
+  "architecture": {
+    "opening_bridge_clock": "native_completed_one_minute",
+    "incumbent_clock": "unchanged_completed_five_minute",
+    "opening_window_minutes": [
+      5,
+      7
+    ],
+    "minimum_true_range_multiple": 0.5,
+    "minimum_volume_authority_level": 20.0,
+    "slow_front": "15_completed_five_minute_bars_75_minutes",
+    "gth_owner": "unchanged_v3",
+    "live_cash_scope": "RTH_UPRO_SPXU_only",
+    "execution": "shared_LIMIT_AUTO_ladder_only",
+    "capital": "shared_first_admitter_just_in_time.v1",
+    "new_service_or_timer": false
+  },
+  "proofs": {
+    "selection_preregistration": {
+      "path": "backtests/xsp/opening_edge_v4_dual_clock_arbitration_p009_preregistration.json",
+      "sha256": "159037cd173d3bf6a4905eeb4a5dc916ea17cfbf62a1406a64a9b47ccd7fde3c"
+    },
+    "locked_challenge_preregistration": {
+      "path": "backtests/xsp/opening_edge_v4_dual_clock_arbitration_p009_locked_challenge_preregistration.json",
+      "sha256": "454f06b64dcc70292ebbc1390fa42cbee8e2387cd0ace44e0c833dff2a798b12"
+    },
+    "locked_challenge_generation": {
+      "path": "backtests/xsp/opening_edge_v4_dual_clock_arbitration_p009_locked_challenge_generation.json",
+      "sha256": "6f84bed5cff4e7cc611a858829d2b07cfc3de3939de4aeb3ed4c85c5564dcd8d"
+    },
+    "selection_result_sha256": "8da7798518f9776aae9c0ee62d4c553dd26ce4e195ec4b3ea3d4bd8f506dd170",
+    "locked_challenge_result_sha256": "ebcb73ed759cebbaa2e826ae32c1f34134a841bdd1a49de7a7cd33ad38aece68",
+    "durable_owner_parity": {
+      "path": "backtests/xsp/opening_edge_v4_dual_clock_arbitration_p009_durable_owner_parity.json",
+      "sha256": "6a81ea01d46c753579a63a1f27277b51654c03c23fbcd226e67c25ec8dc55ee4",
+      "exact_parity": true
+    }
+  },
+  "live_replacement_created": false,
+  "submitted_orders": 0
+}
