@@ -1,0 +1,1626 @@
+{
+  "authority": "prospective_derived_morphology_only_no_outcomes_no_orders_no_capital",
+  "bars": {
+    "common_rows": 5727,
+    "cutoff_utc": "2026-08-06T01:27:00+00:00",
+    "first_common_close_utc": "2026-07-30T22:01:00+00:00",
+    "last_common_close_utc": "2026-08-06T01:27:00+00:00",
+    "sha256": "ccd583cadc19255db953bb7733ec6e38e47a4a25a3175917ea28d8b5c30f9eb2"
+  },
+  "cohort": {
+    "complete_subshock_episodes": 3,
+    "directionless_controls": 0,
+    "gates": {
+      "at_least_complete_subshock_episodes": false,
+      "at_least_directionless_controls": false,
+      "at_least_each_provisional_direction": false,
+      "at_least_repeated_bridge_shapes": false,
+      "both_market_sessions": false
+    },
+    "provisional_directions": {
+      "up": 3
+    },
+    "sessions": {
+      "GTH": 3
+    },
+    "shapes": {
+      "IGNITION_RECOIL": 2,
+      "MIXED_TORSION": 1
+    },
+    "verdict": "ACCUMULATE"
+  },
+  "complete_attention_episodes_in_prefix": 3,
+  "complete_subshock_episodes_in_prefix": 3,
+  "eligible_episode_start_utc": "2026-08-05T23:50:00+00:00",
+  "episodes": [
+    {
+      "authority": "prospective_derived_morphology_only_no_outcomes_no_orders_no_capital",
+      "bar_prefix": {
+        "common_rows": 5643,
+        "first_common_close_utc": "2026-07-30T22:01:00+00:00",
+        "last_common_close_utc": "2026-08-06T00:03:00+00:00",
+        "sha256": "1beeef2d7b29271a6ce7905e56241ab8f98e4841df0d20909befdb7d229df2a6"
+      },
+      "basis_divergence_reconvergence": {
+        "first_strict_reconvergence": {
+          "basis_divergence_dollars": -0.007214285714283619,
+          "observed_at_utc": "2026-08-06T00:03:04+00:00",
+          "record_id": "bfffca1ced4ce05df80d572330012aa76a0adc511c3faa6cb0f109e3224ba8a8"
+        },
+        "maximum_absolute_divergence": {
+          "basis_divergence_dollars": -0.012333333333344854,
+          "observed_at_utc": "2026-08-06T00:03:02+00:00",
+          "record_id": "e592e3195087b2cb8cfe3539b3faabb5244a27e23e56425ffd48cb72c4dcfeeb"
+        },
+        "observations": 67,
+        "path_sha256": "813d266236328e1ed214fd656756cdc3954c76453e86c8b2f7dafb87fb500e1b"
+      },
+      "causal_price_speed_crest": {
+        "confirmation_latency_seconds": 11.0,
+        "confirmation_observations": 3,
+        "confirmation_record_id": "70be4da3522d9c81f9aef1b563ad861e0cff60144b6b21dfec7580aef8861c1f",
+        "confirmed_at_utc": "2026-08-06T00:00:17+00:00",
+        "peak_at_utc": "2026-08-06T00:00:06+00:00",
+        "peak_record_id": "65af02155747ec4f22c9277af2609432292a4427a9d56653ac9dbd3002e86acf",
+        "peak_speed_ticks_per_second": 1.3333333333331865
+      },
+      "contract_key": "202608",
+      "cross_scale": {
+        "attention": {
+          "basis": {
+            "mcl_minus_cl_30m_pct": -0.09315040575291755,
+            "velocity_pct": -0.10648906460352103
+          },
+          "books": {
+            "CL": {
+              "rolling_240m_slope_acceleration_pct_per_bar": null,
+              "rolling_240m_slope_pct_per_bar": null,
+              "rolling_240m_slope_velocity_pct_per_bar": null,
+              "rolling_240m_tr_acceleration": null,
+              "rolling_240m_tr_velocity": null,
+              "slope_aligned": null
+            },
+            "MCL": {
+              "rolling_240m_slope_acceleration_pct_per_bar": null,
+              "rolling_240m_slope_pct_per_bar": null,
+              "rolling_240m_slope_velocity_pct_per_bar": null,
+              "rolling_240m_tr_acceleration": null,
+              "rolling_240m_tr_velocity": null,
+              "slope_aligned": null
+            }
+          },
+          "clock": "contiguous_completed_minute_rolling_240m_and_prior_five_sessions",
+          "weekly_prior": null
+        },
+        "provisional_alignment": {
+          "basis": {
+            "mcl_minus_cl_30m_pct": -0.039930701496226906,
+            "velocity_pct": 0.05321970425669065
+          },
+          "books": {
+            "CL": {
+              "rolling_240m_slope_acceleration_pct_per_bar": null,
+              "rolling_240m_slope_pct_per_bar": null,
+              "rolling_240m_slope_velocity_pct_per_bar": null,
+              "rolling_240m_tr_acceleration": null,
+              "rolling_240m_tr_velocity": null,
+              "slope_aligned": null
+            },
+            "MCL": {
+              "rolling_240m_slope_acceleration_pct_per_bar": null,
+              "rolling_240m_slope_pct_per_bar": null,
+              "rolling_240m_slope_velocity_pct_per_bar": null,
+              "rolling_240m_tr_acceleration": null,
+              "rolling_240m_tr_velocity": null,
+              "slope_aligned": null
+            }
+          },
+          "clock": "contiguous_completed_minute_rolling_240m_and_prior_five_sessions",
+          "weekly_prior": null
+        },
+        "terminal": {
+          "basis": {
+            "mcl_minus_cl_30m_pct": 0.0,
+            "velocity_pct": 0.013329777303650037
+          },
+          "books": {
+            "CL": {
+              "rolling_240m_slope_acceleration_pct_per_bar": null,
+              "rolling_240m_slope_pct_per_bar": null,
+              "rolling_240m_slope_velocity_pct_per_bar": null,
+              "rolling_240m_tr_acceleration": null,
+              "rolling_240m_tr_velocity": null,
+              "slope_aligned": null
+            },
+            "MCL": {
+              "rolling_240m_slope_acceleration_pct_per_bar": null,
+              "rolling_240m_slope_pct_per_bar": null,
+              "rolling_240m_slope_velocity_pct_per_bar": null,
+              "rolling_240m_tr_acceleration": null,
+              "rolling_240m_tr_velocity": null,
+              "slope_aligned": null
+            }
+          },
+          "clock": "contiguous_completed_minute_rolling_240m_and_prior_five_sessions",
+          "weekly_prior": null
+        }
+      },
+      "duration_seconds": 324.0,
+      "episode_id": "fe60a187ff61c5d1063a1f0fbf9fc608116c8ab6ca7fbb2df41f1d1d1982a513",
+      "episode_sha256": "024d359f7e694d217863a00680539681f9debd1f0831d44d732d403709a9a0d7",
+      "first_book_alignment_order": "CL_LEADS",
+      "first_directional_mid_move_order": {
+        "books": {
+          "CL": {
+            "displacement": 0.061333333333323026,
+            "observed_at_utc": "2026-08-06T00:00:06+00:00",
+            "record_id": "65af02155747ec4f22c9277af2609432292a4427a9d56653ac9dbd3002e86acf"
+          },
+          "MCL": {
+            "displacement": 0.06533333333332791,
+            "observed_at_utc": "2026-08-06T00:00:06+00:00",
+            "record_id": "65af02155747ec4f22c9277af2609432292a4427a9d56653ac9dbd3002e86acf"
+          }
+        },
+        "order": "SAME_INTERVAL",
+        "timestamp_semantics": "IB_TCP_packet_receipt_utc_not_exchange_time"
+      },
+      "full_alignment_events": [
+        {
+          "direction": 1,
+          "observed_at_utc": "2026-08-05T23:59:12+00:00",
+          "record_id": "e02a53d5e3d4a3c4c9a114a7660125efb599792c8fd162e5d49eb3555f8c87b6",
+          "volume_multiple": 0.7
+        },
+        {
+          "direction": 1,
+          "observed_at_utc": "2026-08-06T00:00:06+00:00",
+          "record_id": "65af02155747ec4f22c9277af2609432292a4427a9d56653ac9dbd3002e86acf",
+          "volume_multiple": 4.833333333333333
+        },
+        {
+          "direction": 1,
+          "observed_at_utc": "2026-08-06T00:00:10+00:00",
+          "record_id": "752292f2a9d698024b9cda1741c3820a208d022af81da1d9a09b0e51b1bbbfe4",
+          "volume_multiple": 4.916666666666667
+        },
+        {
+          "direction": 1,
+          "observed_at_utc": "2026-08-06T00:00:14+00:00",
+          "record_id": "9a1fd49f98fa8ad5aabd23ce87c70b5eb5cf6e28f8283ea8692855b0007bfc46",
+          "volume_multiple": 4.916666666666667
+        },
+        {
+          "direction": 1,
+          "observed_at_utc": "2026-08-06T00:00:17+00:00",
+          "record_id": "70be4da3522d9c81f9aef1b563ad861e0cff60144b6b21dfec7580aef8861c1f",
+          "volume_multiple": 5.041666666666667
+        },
+        {
+          "direction": 1,
+          "observed_at_utc": "2026-08-06T00:00:24+00:00",
+          "record_id": "fababa63cf59cee99bad4ccf68c35b83554f772fed5ada9059b23c36bacc2831",
+          "volume_multiple": 5.25
+        },
+        {
+          "direction": 1,
+          "observed_at_utc": "2026-08-06T00:00:36+00:00",
+          "record_id": "a99ba06c296460ccdcf5a9d24d3fdab16e497e835be7f64950fccb1c6cf74e2b",
+          "volume_multiple": 5.416666666666667
+        },
+        {
+          "direction": -1,
+          "observed_at_utc": "2026-08-06T00:01:53+00:00",
+          "record_id": "4794ecebb6d6b0e111d25ef59e21f83faa69cd8ec50f84e89ab4ea4c3ecf4996",
+          "volume_multiple": 3.6470588235294117
+        },
+        {
+          "direction": -1,
+          "observed_at_utc": "2026-08-06T00:02:01+00:00",
+          "record_id": "54dc1c925b4d1bf2226ea8d17893c3aaff84faed85b9ea3394f740352cd5809f",
+          "volume_multiple": 0.19047619047619047
+        },
+        {
+          "direction": -1,
+          "observed_at_utc": "2026-08-06T00:02:12+00:00",
+          "record_id": "2ac73a52e24fa99533b237c2d31148d1a4ec2a6874d860854102cda8caed9809",
+          "volume_multiple": 0.2857142857142857
+        },
+        {
+          "direction": -1,
+          "observed_at_utc": "2026-08-06T00:02:13+00:00",
+          "record_id": "65f3982b112b94c70ed15cb33e41ce89e8e8f50123d80a1524963b2a0df530b8",
+          "volume_multiple": 0.2857142857142857
+        }
+      ],
+      "identity": {
+        "contract_key": "202608",
+        "first_record_id": "a5c32b738400dabc86aa9687f90b1a827147ea7c8d57c636137006de80e3956a",
+        "preregistration_sha256": "2d081df5058a44ff736e0d26705a09b78f97c8b1b703a4ffd4d255f7d2920154",
+        "started_at_utc": "2026-08-05T23:58:34+00:00"
+      },
+      "interval_topology": {
+        "baseline_interval_excluded_from_first_alignment": true,
+        "books": {
+          "CL": {
+            "direction": 1,
+            "interval_index": 2,
+            "interval_seconds": [
+              -15,
+              -5
+            ],
+            "observed_at_utc": "2026-08-05T23:59:04+00:00",
+            "record_id": "e7351cdd81afe9ade1ec22e697de0b679fe6507d6c0ed6be042c70ec74098fb4"
+          },
+          "MCL": {
+            "direction": 1,
+            "interval_index": 4,
+            "interval_seconds": [
+              0,
+              5
+            ],
+            "observed_at_utc": "2026-08-05T23:59:12+00:00",
+            "record_id": "e02a53d5e3d4a3c4c9a114a7660125efb599792c8fd162e5d49eb3555f8c87b6"
+          }
+        },
+        "interval_profiles": [
+          {
+            "books": {},
+            "interval_index": 0,
+            "interval_seconds": [
+              -60,
+              -30
+            ]
+          },
+          {
+            "books": {},
+            "interval_index": 1,
+            "interval_seconds": [
+              -30,
+              -15
+            ]
+          },
+          {
+            "books": {
+              "CL": {
+                "direction": 1,
+                "observed_at_utc": "2026-08-05T23:59:04+00:00",
+                "record_id": "e7351cdd81afe9ade1ec22e697de0b679fe6507d6c0ed6be042c70ec74098fb4"
+              }
+            },
+            "interval_index": 2,
+            "interval_seconds": [
+              -15,
+              -5
+            ]
+          },
+          {
+            "books": {},
+            "interval_index": 3,
+            "interval_seconds": [
+              -5,
+              0
+            ]
+          },
+          {
+            "books": {
+              "CL": {
+                "direction": 1,
+                "observed_at_utc": "2026-08-05T23:59:12+00:00",
+                "record_id": "e02a53d5e3d4a3c4c9a114a7660125efb599792c8fd162e5d49eb3555f8c87b6"
+              },
+              "MCL": {
+                "direction": 1,
+                "observed_at_utc": "2026-08-05T23:59:12+00:00",
+                "record_id": "e02a53d5e3d4a3c4c9a114a7660125efb599792c8fd162e5d49eb3555f8c87b6"
+              }
+            },
+            "interval_index": 4,
+            "interval_seconds": [
+              0,
+              5
+            ]
+          },
+          {
+            "books": {},
+            "interval_index": 5,
+            "interval_seconds": [
+              5,
+              15
+            ]
+          },
+          {
+            "books": {},
+            "interval_index": 6,
+            "interval_seconds": [
+              15,
+              30
+            ]
+          },
+          {
+            "books": {
+              "CL": {
+                "direction": 1,
+                "observed_at_utc": "2026-08-06T00:00:06+00:00",
+                "record_id": "65af02155747ec4f22c9277af2609432292a4427a9d56653ac9dbd3002e86acf"
+              },
+              "MCL": {
+                "direction": 1,
+                "observed_at_utc": "2026-08-06T00:00:06+00:00",
+                "record_id": "65af02155747ec4f22c9277af2609432292a4427a9d56653ac9dbd3002e86acf"
+              }
+            },
+            "interval_index": 7,
+            "interval_seconds": [
+              30,
+              60
+            ]
+          }
+        ],
+        "order": "CL_LEADS"
+      },
+      "maximum_volume_multiple": 6.125,
+      "news": {
+        "attention": {
+          "age_seconds": 10514.0,
+          "authority": "non_scoring_context_only",
+          "change": "strengthening",
+          "confidence": 0.91,
+          "direction": 1,
+          "drivers": [
+            "gulf-hormuz-shipping-disruption",
+            "red-sea-saudi-tanker-disruption",
+            "us-inventory-refining-tightness",
+            "us-iran-mutual-strike-pause",
+            "opec-plus-output-quota-offset"
+          ],
+          "horizon_hours": 4,
+          "impact": 20,
+          "pressure_delta": 0.04000000000000001,
+          "pressure_velocity_per_hour": 0.009567470599960137,
+          "prior_publication_id": "05353fb89363caed4f0ae7d00d31f60f81cd8712b2d9ee84f66928e97ff8095f",
+          "publication_id": "f56fdcfa02a851528d5d81ddc713fd371af8d02e5314c9942b7a05261461f29b",
+          "reason": "fresh",
+          "run_status": "published",
+          "signal_as_of_utc": "2026-08-05T21:03:20Z",
+          "signed_pressure": 0.2,
+          "snapshot_as_of_utc": "2026-08-05T21:14:10Z",
+          "symbol": "MCL",
+          "treatment_age_hours": 2.74,
+          "usable": true
+        },
+        "authority": "non_scoring_context_only",
+        "terminal": {
+          "age_seconds": 10838.0,
+          "authority": "non_scoring_context_only",
+          "change": "strengthening",
+          "confidence": 0.91,
+          "direction": 1,
+          "drivers": [
+            "gulf-hormuz-shipping-disruption",
+            "red-sea-saudi-tanker-disruption",
+            "us-inventory-refining-tightness",
+            "us-iran-mutual-strike-pause",
+            "opec-plus-output-quota-offset"
+          ],
+          "horizon_hours": 4,
+          "impact": 20,
+          "pressure_delta": 0.04000000000000001,
+          "pressure_velocity_per_hour": 0.009567470599960137,
+          "prior_publication_id": "05353fb89363caed4f0ae7d00d31f60f81cd8712b2d9ee84f66928e97ff8095f",
+          "publication_id": "f56fdcfa02a851528d5d81ddc713fd371af8d02e5314c9942b7a05261461f29b",
+          "reason": "fresh",
+          "run_status": "published",
+          "signal_as_of_utc": "2026-08-05T21:03:20Z",
+          "signed_pressure": 0.2,
+          "snapshot_as_of_utc": "2026-08-05T21:14:10Z",
+          "symbol": "MCL",
+          "treatment_age_hours": 2.83,
+          "usable": true
+        }
+      },
+      "opposite_full_alignment_recoil": {
+        "direction": -1,
+        "observed_at_utc": "2026-08-06T00:01:53+00:00",
+        "record_id": "4794ecebb6d6b0e111d25ef59e21f83faa69cd8ec50f84e89ab4ea4c3ecf4996",
+        "volume_multiple": 3.6470588235294117
+      },
+      "outcomes_exposed": false,
+      "provisional_alignment": {
+        "direction": 1,
+        "observed_at_utc": "2026-08-05T23:59:12+00:00",
+        "record_id": "e02a53d5e3d4a3c4c9a114a7660125efb599792c8fd162e5d49eb3555f8c87b6",
+        "volume_multiple": 0.7
+      },
+      "provisional_direction": 1,
+      "receipt_session": "GTH",
+      "renewed_original_full_alignment": null,
+      "schema": "mcl.subshock-ignition-recoil-reacceleration-stage116-episode.v1",
+      "shape": "IGNITION_RECOIL",
+      "single_book_alignment_events": {
+        "CL": [
+          {
+            "direction": 1,
+            "observed_at_utc": "2026-08-05T23:59:04+00:00",
+            "record_id": "e7351cdd81afe9ade1ec22e697de0b679fe6507d6c0ed6be042c70ec74098fb4"
+          },
+          {
+            "direction": -1,
+            "observed_at_utc": "2026-08-06T00:01:53+00:00",
+            "record_id": "4794ecebb6d6b0e111d25ef59e21f83faa69cd8ec50f84e89ab4ea4c3ecf4996"
+          },
+          {
+            "direction": 1,
+            "observed_at_utc": "2026-08-06T00:02:45+00:00",
+            "record_id": "b65075e18a9c5996bbfdfc23b0c7176a62df95c85a2e04ad0b74d319d7a3794d"
+          },
+          {
+            "direction": -1,
+            "observed_at_utc": "2026-08-06T00:03:11+00:00",
+            "record_id": "0d6f785ac9203fe383205f8a9315672ec47d5e94d828a05b5aead89d2341f114"
+          }
+        ],
+        "MCL": [
+          {
+            "direction": 1,
+            "observed_at_utc": "2026-08-05T23:59:12+00:00",
+            "record_id": "e02a53d5e3d4a3c4c9a114a7660125efb599792c8fd162e5d49eb3555f8c87b6"
+          },
+          {
+            "direction": -1,
+            "observed_at_utc": "2026-08-06T00:01:53+00:00",
+            "record_id": "4794ecebb6d6b0e111d25ef59e21f83faa69cd8ec50f84e89ab4ea4c3ecf4996"
+          }
+        ]
+      },
+      "source": {
+        "first_record_id": "a5c32b738400dabc86aa9687f90b1a827147ea7c8d57c636137006de80e3956a",
+        "last_record_id": "e8444b1faf28dbb1841093a6ce4631a600544c2fc1a19d3874a0274da2a60092",
+        "record_ids_sha256": "1f6607b5302bb8bff7724defefabd0e7c2e7c8c244d05eb3080df029d990aa1a",
+        "records": 72,
+        "timestamp_semantics": "IB_TCP_packet_receipt_utc_not_exchange_time"
+      },
+      "started_at_utc": "2026-08-05T23:58:34+00:00",
+      "submitted_orders": 0,
+      "terminal_at_utc": "2026-08-06T00:03:58+00:00",
+      "terminal_reasons": [
+        "seconds_wave_owner_normalized"
+      ],
+      "volume_clock_audit": {
+        "broker_volume_total": 432.0,
+        "common_completed_minutes": 5,
+        "exact_minutes": 4,
+        "maximum_absolute_minute_difference": 76.0,
+        "median_positive_volume_ratio": 1.0,
+        "mismatched_minutes": 1,
+        "semantics": "IB_TCP_packet_receipt_seconds_vs_finalized_broker_minutes",
+        "tape_volume_total": 356.0
+      }
+    },
+    {
+      "authority": "prospective_derived_morphology_only_no_outcomes_no_orders_no_capital",
+      "bar_prefix": {
+        "common_rows": 5705,
+        "first_common_close_utc": "2026-07-30T22:01:00+00:00",
+        "last_common_close_utc": "2026-08-06T01:05:00+00:00",
+        "sha256": "ee64335f5e54d713f7028b28a30f9a8ad9fcc6436f26cc4bab782be15fb1e309"
+      },
+      "basis_divergence_reconvergence": {
+        "first_strict_reconvergence": {
+          "basis_divergence_dollars": 0.015045454545472126,
+          "observed_at_utc": "2026-08-06T01:03:18+00:00",
+          "record_id": "bd050035464495ba18613637d6e098d117e0c31cc7fb5193f5f25e77a8c7dcf8"
+        },
+        "maximum_absolute_divergence": {
+          "basis_divergence_dollars": 0.01907142857145061,
+          "observed_at_utc": "2026-08-06T01:03:17+00:00",
+          "record_id": "51875d0e5817c4664966c86c4c5e5d57cebfcc42606a938de213778706539d8a"
+        },
+        "observations": 244,
+        "path_sha256": "4df0be5af78723ff5dc00b449458a683709a6eb32543a62e57877a04526ad754"
+      },
+      "causal_price_speed_crest": {
+        "confirmation_latency_seconds": 3.0,
+        "confirmation_observations": 3,
+        "confirmation_record_id": "eb9c421e20a23fec3799f2050fc0784aab20e65ef8f00bd47aca586ddc254966",
+        "confirmed_at_utc": "2026-08-06T01:00:38+00:00",
+        "peak_at_utc": "2026-08-06T01:00:35+00:00",
+        "peak_record_id": "66a103a809456317796bae64149ff6a94a2741c20c6d89051ebfb9a58795894a",
+        "peak_speed_ticks_per_second": 3.0125000000005286
+      },
+      "contract_key": "202608",
+      "cross_scale": {
+        "attention": {
+          "basis": {
+            "mcl_minus_cl_30m_pct": -0.05330134186438684,
+            "velocity_pct": -0.013221181543743299
+          },
+          "books": {
+            "CL": {
+              "rolling_240m_slope_acceleration_pct_per_bar": null,
+              "rolling_240m_slope_pct_per_bar": null,
+              "rolling_240m_slope_velocity_pct_per_bar": null,
+              "rolling_240m_tr_acceleration": null,
+              "rolling_240m_tr_velocity": null,
+              "slope_aligned": null
+            },
+            "MCL": {
+              "rolling_240m_slope_acceleration_pct_per_bar": null,
+              "rolling_240m_slope_pct_per_bar": null,
+              "rolling_240m_slope_velocity_pct_per_bar": null,
+              "rolling_240m_tr_acceleration": null,
+              "rolling_240m_tr_velocity": null,
+              "slope_aligned": null
+            }
+          },
+          "clock": "contiguous_completed_minute_rolling_240m_and_prior_five_sessions",
+          "weekly_prior": null
+        },
+        "provisional_alignment": {
+          "basis": {
+            "mcl_minus_cl_30m_pct": -0.05330134186438684,
+            "velocity_pct": -0.013221181543743299
+          },
+          "books": {
+            "CL": {
+              "rolling_240m_slope_acceleration_pct_per_bar": null,
+              "rolling_240m_slope_pct_per_bar": null,
+              "rolling_240m_slope_velocity_pct_per_bar": null,
+              "rolling_240m_tr_acceleration": null,
+              "rolling_240m_tr_velocity": null,
+              "slope_aligned": null
+            },
+            "MCL": {
+              "rolling_240m_slope_acceleration_pct_per_bar": null,
+              "rolling_240m_slope_pct_per_bar": null,
+              "rolling_240m_slope_velocity_pct_per_bar": null,
+              "rolling_240m_tr_acceleration": null,
+              "rolling_240m_tr_velocity": null,
+              "slope_aligned": null
+            }
+          },
+          "clock": "contiguous_completed_minute_rolling_240m_and_prior_five_sessions",
+          "weekly_prior": null
+        },
+        "terminal": {
+          "basis": {
+            "mcl_minus_cl_30m_pct": -0.04007474923375387,
+            "velocity_pct": -0.013356474581804889
+          },
+          "books": {
+            "CL": {
+              "rolling_240m_slope_acceleration_pct_per_bar": null,
+              "rolling_240m_slope_pct_per_bar": null,
+              "rolling_240m_slope_velocity_pct_per_bar": null,
+              "rolling_240m_tr_acceleration": null,
+              "rolling_240m_tr_velocity": null,
+              "slope_aligned": null
+            },
+            "MCL": {
+              "rolling_240m_slope_acceleration_pct_per_bar": null,
+              "rolling_240m_slope_pct_per_bar": null,
+              "rolling_240m_slope_velocity_pct_per_bar": null,
+              "rolling_240m_tr_acceleration": null,
+              "rolling_240m_tr_velocity": null,
+              "slope_aligned": null
+            }
+          },
+          "clock": "contiguous_completed_minute_rolling_240m_and_prior_five_sessions",
+          "weekly_prior": null
+        }
+      },
+      "duration_seconds": 276.0,
+      "episode_id": "c792a6bb79b8031d8af9bd9bcdc7100905f1109a52c77db80e354f30f439379c",
+      "episode_sha256": "31f745ec575b9375b7eef4535b80c9f98647bc5b2fe734923ae6088ffdaf82d0",
+      "first_book_alignment_order": "SAME_INTERVAL",
+      "first_directional_mid_move_order": {
+        "books": {
+          "CL": {
+            "displacement": 0.008409090909083261,
+            "observed_at_utc": "2026-08-06T01:00:56+00:00",
+            "record_id": "3af34c0c0a3ce08235fbc58e9e2aa745ceadf5302f3225bd8fcf22fc68590973"
+          },
+          "MCL": {
+            "displacement": 0.0022499999999752163,
+            "observed_at_utc": "2026-08-06T01:01:12+00:00",
+            "record_id": "94bfb7a4b8ae1fda19c96d05e623e3fa86cd8ccca29b363782e69309eb3bb934"
+          }
+        },
+        "order": "CL_LEADS",
+        "timestamp_semantics": "IB_TCP_packet_receipt_utc_not_exchange_time"
+      },
+      "full_alignment_events": [
+        {
+          "direction": 1,
+          "observed_at_utc": "2026-08-06T01:00:35+00:00",
+          "record_id": "66a103a809456317796bae64149ff6a94a2741c20c6d89051ebfb9a58795894a",
+          "volume_multiple": 5.111111111111111
+        },
+        {
+          "direction": 1,
+          "observed_at_utc": "2026-08-06T01:00:36+00:00",
+          "record_id": "6538028d313b934cf2716bbb500892b0eba8c17c040d25f0cc42e58b58f9086f",
+          "volume_multiple": 5.432098765432099
+        },
+        {
+          "direction": 1,
+          "observed_at_utc": "2026-08-06T01:00:37+00:00",
+          "record_id": "7596f6f256991689834b236f3f5a5db9f0273b579e9237c6033b0080c2cf182a",
+          "volume_multiple": 5.555555555555555
+        },
+        {
+          "direction": 1,
+          "observed_at_utc": "2026-08-06T01:00:38+00:00",
+          "record_id": "eb9c421e20a23fec3799f2050fc0784aab20e65ef8f00bd47aca586ddc254966",
+          "volume_multiple": 5.580246913580247
+        },
+        {
+          "direction": 1,
+          "observed_at_utc": "2026-08-06T01:00:39+00:00",
+          "record_id": "cb791d613e5b59ce19938a38e76e21c83784515055acf606712257259e415f9b",
+          "volume_multiple": 5.62962962962963
+        },
+        {
+          "direction": 1,
+          "observed_at_utc": "2026-08-06T01:00:57+00:00",
+          "record_id": "93cae3e962b13634b0d0ea0924e5127ea003df031d5ae3eb8a38d20979a049fc",
+          "volume_multiple": 6.987654320987654
+        },
+        {
+          "direction": 1,
+          "observed_at_utc": "2026-08-06T01:00:58+00:00",
+          "record_id": "083d0d2e36642b299f3bd3325181155e3c07235cbe8d5b2f1f1184303cbc90a0",
+          "volume_multiple": 7.012345679012346
+        },
+        {
+          "direction": 1,
+          "observed_at_utc": "2026-08-06T01:00:59+00:00",
+          "record_id": "9ddba6fc67ea8680808591ed87f0ff233c580651a2aa228fee1614a943fec5de",
+          "volume_multiple": 7.061728395061729
+        },
+        {
+          "direction": 1,
+          "observed_at_utc": "2026-08-06T01:02:24+00:00",
+          "record_id": "b4de3534f64e5fa5f91b7ce0d6b6b9398992e5d733f389e3888966e642381275",
+          "volume_multiple": 1.3858267716535433
+        },
+        {
+          "direction": 1,
+          "observed_at_utc": "2026-08-06T01:02:32+00:00",
+          "record_id": "00df261f5c484adc53d91ec4099dcf08788d911f21ddb4ab0f4228c0b9ac350e",
+          "volume_multiple": 1.7322834645669292
+        },
+        {
+          "direction": 1,
+          "observed_at_utc": "2026-08-06T01:02:39+00:00",
+          "record_id": "7c843c1370abfcbf50427b304762d20df7cd02a441acd3ae13b77031e7fcea57",
+          "volume_multiple": 2.3149606299212597
+        },
+        {
+          "direction": 1,
+          "observed_at_utc": "2026-08-06T01:02:40+00:00",
+          "record_id": "2fd23bc1536c0eda5307f1fe9130b34811486cbfa02ba77676666edf068427ab",
+          "volume_multiple": 2.62992125984252
+        },
+        {
+          "direction": 1,
+          "observed_at_utc": "2026-08-06T01:02:41+00:00",
+          "record_id": "30c40a047da86b705cfba5873cb7145ee66c8c9aad762f8440195a9f06b881fd",
+          "volume_multiple": 2.6929133858267718
+        },
+        {
+          "direction": 1,
+          "observed_at_utc": "2026-08-06T01:02:43+00:00",
+          "record_id": "c49465eaafcc7b20d0ac83a44d30eee7a95d5d9dbc90c6ba11f04fe75503ca9c",
+          "volume_multiple": 2.7244094488188977
+        },
+        {
+          "direction": 1,
+          "observed_at_utc": "2026-08-06T01:02:50+00:00",
+          "record_id": "c4c81a2299ae6f4d33006fb7f43064bd4487b563fc4b14e831a3150348452757",
+          "volume_multiple": 3.322834645669291
+        },
+        {
+          "direction": -1,
+          "observed_at_utc": "2026-08-06T01:03:21+00:00",
+          "record_id": "e21d3b3046864a024c6d430617713267cd017afe61f56f950a2ed4738f2482fb",
+          "volume_multiple": 0.4881889763779528
+        },
+        {
+          "direction": -1,
+          "observed_at_utc": "2026-08-06T01:03:23+00:00",
+          "record_id": "96b39d0f9198110233c2410b9e7bf4727a343a5cb30cdafc69df0fa50c482c3e",
+          "volume_multiple": 0.5669291338582677
+        },
+        {
+          "direction": -1,
+          "observed_at_utc": "2026-08-06T01:03:24+00:00",
+          "record_id": "7b259db6dcb293bfab7ec7ecdb19500b63836236400625785fc7972d9211d9ba",
+          "volume_multiple": 1.0236220472440944
+        },
+        {
+          "direction": -1,
+          "observed_at_utc": "2026-08-06T01:03:25+00:00",
+          "record_id": "861f73ab75072ee3a1ddf913fd44d7da503f562ea95cd66c1356d0606f15a4bd",
+          "volume_multiple": 1.1811023622047243
+        },
+        {
+          "direction": -1,
+          "observed_at_utc": "2026-08-06T01:03:26+00:00",
+          "record_id": "6057a4526aabfe481e2242ce067b4be72fe2ed1c0df04d22d5658e4652ee17e1",
+          "volume_multiple": 1.2440944881889764
+        },
+        {
+          "direction": -1,
+          "observed_at_utc": "2026-08-06T01:03:28+00:00",
+          "record_id": "6dd4cf3eaf8761ea628291f4dafb955085d362b80bf8f21f56c7e0eb6cee6994",
+          "volume_multiple": 1.3070866141732282
+        },
+        {
+          "direction": -1,
+          "observed_at_utc": "2026-08-06T01:03:29+00:00",
+          "record_id": "184cb2516835b5a6c6f98c7ad859e80ac5c634a06495ce297f88713a8f20c86b",
+          "volume_multiple": 1.3700787401574803
+        },
+        {
+          "direction": -1,
+          "observed_at_utc": "2026-08-06T01:03:30+00:00",
+          "record_id": "25e5d464e857d6204ea7344d5987af977cd10ded1d05452e33a2e215c472eab0",
+          "volume_multiple": 1.3700787401574803
+        },
+        {
+          "direction": -1,
+          "observed_at_utc": "2026-08-06T01:03:38+00:00",
+          "record_id": "a901b8a7fe3b0872df1bc7ed5776d34bc742213bfd74a005aaf260f2e85c5beb",
+          "volume_multiple": 1.4488188976377954
+        },
+        {
+          "direction": -1,
+          "observed_at_utc": "2026-08-06T01:03:44+00:00",
+          "record_id": "0b9bda2fb4b76ccb1e47513148d6ebe421aab48fe5d9343cca22c477726b9a8a",
+          "volume_multiple": 1.4803149606299213
+        },
+        {
+          "direction": -1,
+          "observed_at_utc": "2026-08-06T01:03:45+00:00",
+          "record_id": "935c558ba54cab3bda0b9975663f92145030947d75cf86639659717ab503a64b",
+          "volume_multiple": 1.4960629921259843
+        },
+        {
+          "direction": -1,
+          "observed_at_utc": "2026-08-06T01:03:46+00:00",
+          "record_id": "96c2af7774a36b105c5fa842fd81f2e6b25574959f66629daa9bdb00e9a913a4",
+          "volume_multiple": 1.5433070866141732
+        },
+        {
+          "direction": -1,
+          "observed_at_utc": "2026-08-06T01:03:47+00:00",
+          "record_id": "e29ff6238a54592394a4feefeac3833920d29da572721d95706f71eb3b432d02",
+          "volume_multiple": 1.5433070866141732
+        },
+        {
+          "direction": -1,
+          "observed_at_utc": "2026-08-06T01:03:48+00:00",
+          "record_id": "ba7425d57f01453be8475b65c0265d2df6fe79987dbd47d8ec2914d77e6e911d",
+          "volume_multiple": 1.5748031496062993
+        },
+        {
+          "direction": -1,
+          "observed_at_utc": "2026-08-06T01:03:49+00:00",
+          "record_id": "1cea0f72fcfcefec6fd851861539939f0c5090c119705b06ece6a1a0c8c0fd74",
+          "volume_multiple": 1.5748031496062993
+        },
+        {
+          "direction": -1,
+          "observed_at_utc": "2026-08-06T01:04:24+00:00",
+          "record_id": "e6a25389d3c11a641c1a525636f61fef15644cf776f13f939f1037f2ec1fdf36",
+          "volume_multiple": 0.5847953216374269
+        },
+        {
+          "direction": -1,
+          "observed_at_utc": "2026-08-06T01:04:36+00:00",
+          "record_id": "033249dd793c94fcbd161581576fa27b0df44b3cd6af80beb6f26154b879faa1",
+          "volume_multiple": 0.7368421052631579
+        },
+        {
+          "direction": -1,
+          "observed_at_utc": "2026-08-06T01:04:37+00:00",
+          "record_id": "52490dc01e321c83d7583e73a359a044d418f97bf15a1dbd3ce43b8b93df166c",
+          "volume_multiple": 0.7368421052631579
+        },
+        {
+          "direction": -1,
+          "observed_at_utc": "2026-08-06T01:04:38+00:00",
+          "record_id": "1c575b35e597af3e1eee9cee04a1e88d99a7beba9ffef103b6aa9572eaa907b8",
+          "volume_multiple": 0.8654970760233918
+        },
+        {
+          "direction": -1,
+          "observed_at_utc": "2026-08-06T01:04:39+00:00",
+          "record_id": "80c38bd1d4152fa01a852621a3e3d1236ee0965d487ea9a659ba02f7410de487",
+          "volume_multiple": 0.9005847953216374
+        },
+        {
+          "direction": -1,
+          "observed_at_utc": "2026-08-06T01:04:40+00:00",
+          "record_id": "6c63ffddc93a65d8e97a5fde7549928aefda6f3df026d761cba7708800db2d86",
+          "volume_multiple": 0.9122807017543859
+        },
+        {
+          "direction": -1,
+          "observed_at_utc": "2026-08-06T01:04:41+00:00",
+          "record_id": "aec4d34da102d03571f960c46bd67e39b63170b290268f57de015b7c05247261",
+          "volume_multiple": 0.9122807017543859
+        },
+        {
+          "direction": -1,
+          "observed_at_utc": "2026-08-06T01:04:42+00:00",
+          "record_id": "f1dbeb31c7fdd95fd58f98c832912c65f19803e68531124975db88c00266fdb3",
+          "volume_multiple": 0.9122807017543859
+        }
+      ],
+      "identity": {
+        "contract_key": "202608",
+        "first_record_id": "66a103a809456317796bae64149ff6a94a2741c20c6d89051ebfb9a58795894a",
+        "preregistration_sha256": "2d081df5058a44ff736e0d26705a09b78f97c8b1b703a4ffd4d255f7d2920154",
+        "started_at_utc": "2026-08-06T01:00:35+00:00"
+      },
+      "interval_topology": {
+        "baseline_interval_excluded_from_first_alignment": true,
+        "books": {
+          "CL": {
+            "direction": 1,
+            "interval_index": 4,
+            "interval_seconds": [
+              0,
+              5
+            ],
+            "observed_at_utc": "2026-08-06T01:00:35+00:00",
+            "record_id": "66a103a809456317796bae64149ff6a94a2741c20c6d89051ebfb9a58795894a"
+          },
+          "MCL": {
+            "direction": 1,
+            "interval_index": 4,
+            "interval_seconds": [
+              0,
+              5
+            ],
+            "observed_at_utc": "2026-08-06T01:00:35+00:00",
+            "record_id": "66a103a809456317796bae64149ff6a94a2741c20c6d89051ebfb9a58795894a"
+          }
+        },
+        "interval_profiles": [
+          {
+            "books": {},
+            "interval_index": 0,
+            "interval_seconds": [
+              -60,
+              -30
+            ]
+          },
+          {
+            "books": {},
+            "interval_index": 1,
+            "interval_seconds": [
+              -30,
+              -15
+            ]
+          },
+          {
+            "books": {},
+            "interval_index": 2,
+            "interval_seconds": [
+              -15,
+              -5
+            ]
+          },
+          {
+            "books": {},
+            "interval_index": 3,
+            "interval_seconds": [
+              -5,
+              0
+            ]
+          },
+          {
+            "books": {
+              "CL": {
+                "direction": 1,
+                "observed_at_utc": "2026-08-06T01:00:35+00:00",
+                "record_id": "66a103a809456317796bae64149ff6a94a2741c20c6d89051ebfb9a58795894a"
+              },
+              "MCL": {
+                "direction": 1,
+                "observed_at_utc": "2026-08-06T01:00:35+00:00",
+                "record_id": "66a103a809456317796bae64149ff6a94a2741c20c6d89051ebfb9a58795894a"
+              }
+            },
+            "interval_index": 4,
+            "interval_seconds": [
+              0,
+              5
+            ]
+          },
+          {
+            "books": {
+              "CL": {
+                "direction": 1,
+                "observed_at_utc": "2026-08-06T01:00:48+00:00",
+                "record_id": "5b24b3ec9a8324bedef5ec21fdb8b98e23a7c9a93e24b279751edbcc794da603"
+              }
+            },
+            "interval_index": 5,
+            "interval_seconds": [
+              5,
+              15
+            ]
+          },
+          {
+            "books": {
+              "CL": {
+                "direction": 1,
+                "observed_at_utc": "2026-08-06T01:00:57+00:00",
+                "record_id": "93cae3e962b13634b0d0ea0924e5127ea003df031d5ae3eb8a38d20979a049fc"
+              },
+              "MCL": {
+                "direction": 1,
+                "observed_at_utc": "2026-08-06T01:00:56+00:00",
+                "record_id": "3af34c0c0a3ce08235fbc58e9e2aa745ceadf5302f3225bd8fcf22fc68590973"
+              }
+            },
+            "interval_index": 6,
+            "interval_seconds": [
+              15,
+              30
+            ]
+          },
+          {
+            "books": {},
+            "interval_index": 7,
+            "interval_seconds": [
+              30,
+              60
+            ]
+          }
+        ],
+        "order": "SAME_INTERVAL"
+      },
+      "maximum_volume_multiple": 7.061728395061729,
+      "news": {
+        "attention": {
+          "age_seconds": 14235.0,
+          "authority": "non_scoring_context_only",
+          "change": "strengthening",
+          "confidence": 0.91,
+          "direction": 1,
+          "drivers": [
+            "gulf-hormuz-shipping-disruption",
+            "red-sea-saudi-tanker-disruption",
+            "us-inventory-refining-tightness",
+            "us-iran-mutual-strike-pause",
+            "opec-plus-output-quota-offset"
+          ],
+          "horizon_hours": 4,
+          "impact": 20,
+          "pressure_delta": 0.04000000000000001,
+          "pressure_velocity_per_hour": 0.009567470599960137,
+          "prior_publication_id": "05353fb89363caed4f0ae7d00d31f60f81cd8712b2d9ee84f66928e97ff8095f",
+          "publication_id": "f56fdcfa02a851528d5d81ddc713fd371af8d02e5314c9942b7a05261461f29b",
+          "reason": "fresh",
+          "run_status": "published",
+          "signal_as_of_utc": "2026-08-05T21:03:20Z",
+          "signed_pressure": 0.2,
+          "snapshot_as_of_utc": "2026-08-05T21:14:10Z",
+          "symbol": "MCL",
+          "treatment_age_hours": 3.7736111111111112,
+          "usable": true
+        },
+        "authority": "non_scoring_context_only",
+        "terminal": {
+          "age_seconds": 14511.0,
+          "authority": "non_scoring_context_only",
+          "change": "strengthening",
+          "confidence": 0.91,
+          "direction": 1,
+          "drivers": [
+            "gulf-hormuz-shipping-disruption",
+            "red-sea-saudi-tanker-disruption",
+            "us-inventory-refining-tightness",
+            "us-iran-mutual-strike-pause",
+            "opec-plus-output-quota-offset"
+          ],
+          "horizon_hours": 4,
+          "impact": 20,
+          "pressure_delta": 0.04000000000000001,
+          "pressure_velocity_per_hour": 0.009567470599960137,
+          "prior_publication_id": "05353fb89363caed4f0ae7d00d31f60f81cd8712b2d9ee84f66928e97ff8095f",
+          "publication_id": "f56fdcfa02a851528d5d81ddc713fd371af8d02e5314c9942b7a05261461f29b",
+          "reason": "stale",
+          "run_status": "published",
+          "signal_as_of_utc": "2026-08-05T21:03:20Z",
+          "signed_pressure": 0.2,
+          "snapshot_as_of_utc": "2026-08-05T21:14:10Z",
+          "symbol": "MCL",
+          "treatment_age_hours": 3.850277777777778,
+          "usable": false
+        }
+      },
+      "opposite_full_alignment_recoil": {
+        "direction": -1,
+        "observed_at_utc": "2026-08-06T01:03:21+00:00",
+        "record_id": "e21d3b3046864a024c6d430617713267cd017afe61f56f950a2ed4738f2482fb",
+        "volume_multiple": 0.4881889763779528
+      },
+      "outcomes_exposed": false,
+      "provisional_alignment": {
+        "direction": 1,
+        "observed_at_utc": "2026-08-06T01:00:35+00:00",
+        "record_id": "66a103a809456317796bae64149ff6a94a2741c20c6d89051ebfb9a58795894a",
+        "volume_multiple": 5.111111111111111
+      },
+      "provisional_direction": 1,
+      "receipt_session": "GTH",
+      "renewed_original_full_alignment": null,
+      "schema": "mcl.subshock-ignition-recoil-reacceleration-stage116-episode.v1",
+      "shape": "IGNITION_RECOIL",
+      "single_book_alignment_events": {
+        "CL": [
+          {
+            "direction": 1,
+            "observed_at_utc": "2026-08-06T01:00:35+00:00",
+            "record_id": "66a103a809456317796bae64149ff6a94a2741c20c6d89051ebfb9a58795894a"
+          },
+          {
+            "direction": -1,
+            "observed_at_utc": "2026-08-06T01:01:57+00:00",
+            "record_id": "b45a93465454f3e41a26b3735f3d470c3317ff040a3e8cd1268ec402ab5eb461"
+          },
+          {
+            "direction": 1,
+            "observed_at_utc": "2026-08-06T01:02:21+00:00",
+            "record_id": "f9e006e70d6e989666905a41e9b8ffbf0781c9216d1cf441f7d8b116330dcef1"
+          },
+          {
+            "direction": -1,
+            "observed_at_utc": "2026-08-06T01:03:21+00:00",
+            "record_id": "e21d3b3046864a024c6d430617713267cd017afe61f56f950a2ed4738f2482fb"
+          }
+        ],
+        "MCL": [
+          {
+            "direction": 1,
+            "observed_at_utc": "2026-08-06T01:00:35+00:00",
+            "record_id": "66a103a809456317796bae64149ff6a94a2741c20c6d89051ebfb9a58795894a"
+          },
+          {
+            "direction": -1,
+            "observed_at_utc": "2026-08-06T01:02:12+00:00",
+            "record_id": "b0b67f074af9fe9bea6a59ccdd06f6d38c8f3f56c643b27af8852e010a670a8d"
+          },
+          {
+            "direction": 1,
+            "observed_at_utc": "2026-08-06T01:02:24+00:00",
+            "record_id": "b4de3534f64e5fa5f91b7ce0d6b6b9398992e5d733f389e3888966e642381275"
+          },
+          {
+            "direction": -1,
+            "observed_at_utc": "2026-08-06T01:03:21+00:00",
+            "record_id": "e21d3b3046864a024c6d430617713267cd017afe61f56f950a2ed4738f2482fb"
+          }
+        ]
+      },
+      "source": {
+        "first_record_id": "66a103a809456317796bae64149ff6a94a2741c20c6d89051ebfb9a58795894a",
+        "last_record_id": "c9a0d219a45b49378d52525ac100b64f72e805c40490fdc21db32fe5d7f776eb",
+        "record_ids_sha256": "8ea440e95f22388917e4201e93d68ae98733227fc35cdf17cad58ea2a8a48ebd",
+        "records": 244,
+        "timestamp_semantics": "IB_TCP_packet_receipt_utc_not_exchange_time"
+      },
+      "started_at_utc": "2026-08-06T01:00:35+00:00",
+      "submitted_orders": 0,
+      "terminal_at_utc": "2026-08-06T01:05:11+00:00",
+      "terminal_reasons": [
+        "seconds_wave_owner_normalized"
+      ],
+      "volume_clock_audit": {
+        "broker_volume_total": 930.0,
+        "common_completed_minutes": 5,
+        "exact_minutes": 4,
+        "maximum_absolute_minute_difference": 184.0,
+        "median_positive_volume_ratio": 1.0,
+        "mismatched_minutes": 1,
+        "semantics": "IB_TCP_packet_receipt_seconds_vs_finalized_broker_minutes",
+        "tape_volume_total": 746.0
+      }
+    },
+    {
+      "authority": "prospective_derived_morphology_only_no_outcomes_no_orders_no_capital",
+      "bar_prefix": {
+        "common_rows": 5715,
+        "first_common_close_utc": "2026-07-30T22:01:00+00:00",
+        "last_common_close_utc": "2026-08-06T01:15:00+00:00",
+        "sha256": "6bf440e92b38e693b3bfc27a3b4b5a4cad814f9413b9ebe1be7514aab9676d59"
+      },
+      "basis_divergence_reconvergence": {
+        "first_strict_reconvergence": {
+          "basis_divergence_dollars": -0.005738095238115193,
+          "observed_at_utc": "2026-08-06T01:14:54+00:00",
+          "record_id": "e62e7a8248bfa72a9d1c6f84d7c3a6b0b8b5d7d7e79677e687d5396fa090afd9"
+        },
+        "maximum_absolute_divergence": {
+          "basis_divergence_dollars": -0.01323809523809416,
+          "observed_at_utc": "2026-08-06T01:14:53+00:00",
+          "record_id": "af93239a3016bf597392a2b3a3f5ba1486a77f5fa2cdfaf9d2d09d4fbedbe438"
+        },
+        "observations": 95,
+        "path_sha256": "f6daa7f3907955a40f19db86e00ff952e910607414b4009abc59e0ff9ca2672e"
+      },
+      "causal_price_speed_crest": {
+        "confirmation_latency_seconds": 3.0,
+        "confirmation_observations": 3,
+        "confirmation_record_id": "32e00376dc6ffb5f2dfb49ab516ab7483918e5901cae2c82cf5a104bf1150b09",
+        "confirmed_at_utc": "2026-08-06T01:13:18+00:00",
+        "peak_at_utc": "2026-08-06T01:13:15+00:00",
+        "peak_record_id": "c0999983dba6f6f390c4d81bc965b09968c39a0996f99f1fe89256d2a4740843",
+        "peak_speed_ticks_per_second": 0.562500000000199
+      },
+      "contract_key": "202608",
+      "cross_scale": {
+        "attention": {
+          "basis": {
+            "mcl_minus_cl_30m_pct": -0.05362185890749327,
+            "velocity_pct": -0.053746303354174074
+          },
+          "books": {
+            "CL": {
+              "rolling_240m_slope_acceleration_pct_per_bar": null,
+              "rolling_240m_slope_pct_per_bar": null,
+              "rolling_240m_slope_velocity_pct_per_bar": null,
+              "rolling_240m_tr_acceleration": null,
+              "rolling_240m_tr_velocity": null,
+              "slope_aligned": null
+            },
+            "MCL": {
+              "rolling_240m_slope_acceleration_pct_per_bar": null,
+              "rolling_240m_slope_pct_per_bar": null,
+              "rolling_240m_slope_velocity_pct_per_bar": null,
+              "rolling_240m_tr_acceleration": null,
+              "rolling_240m_tr_velocity": null,
+              "slope_aligned": null
+            }
+          },
+          "clock": "contiguous_completed_minute_rolling_240m_and_prior_five_sessions",
+          "weekly_prior": null
+        },
+        "provisional_alignment": {
+          "basis": {
+            "mcl_minus_cl_30m_pct": -0.013422280088359884,
+            "velocity_pct": 0.040199578819133386
+          },
+          "books": {
+            "CL": {
+              "rolling_240m_slope_acceleration_pct_per_bar": null,
+              "rolling_240m_slope_pct_per_bar": null,
+              "rolling_240m_slope_velocity_pct_per_bar": null,
+              "rolling_240m_tr_acceleration": null,
+              "rolling_240m_tr_velocity": null,
+              "slope_aligned": null
+            },
+            "MCL": {
+              "rolling_240m_slope_acceleration_pct_per_bar": null,
+              "rolling_240m_slope_pct_per_bar": null,
+              "rolling_240m_slope_velocity_pct_per_bar": null,
+              "rolling_240m_tr_acceleration": null,
+              "rolling_240m_tr_velocity": null,
+              "slope_aligned": null
+            }
+          },
+          "clock": "contiguous_completed_minute_rolling_240m_and_prior_five_sessions",
+          "weekly_prior": null
+        },
+        "terminal": {
+          "basis": {
+            "mcl_minus_cl_30m_pct": -0.05346477613077383,
+            "velocity_pct": -0.013310194049465096
+          },
+          "books": {
+            "CL": {
+              "rolling_240m_slope_acceleration_pct_per_bar": null,
+              "rolling_240m_slope_pct_per_bar": null,
+              "rolling_240m_slope_velocity_pct_per_bar": null,
+              "rolling_240m_tr_acceleration": null,
+              "rolling_240m_tr_velocity": null,
+              "slope_aligned": null
+            },
+            "MCL": {
+              "rolling_240m_slope_acceleration_pct_per_bar": null,
+              "rolling_240m_slope_pct_per_bar": null,
+              "rolling_240m_slope_velocity_pct_per_bar": null,
+              "rolling_240m_tr_acceleration": null,
+              "rolling_240m_tr_velocity": null,
+              "slope_aligned": null
+            }
+          },
+          "clock": "contiguous_completed_minute_rolling_240m_and_prior_five_sessions",
+          "weekly_prior": null
+        }
+      },
+      "duration_seconds": 127.0,
+      "episode_id": "51d24341df447680cc64018f0d62346deb7ff67e8f12952f91269f33ed144724",
+      "episode_sha256": "10136c4d2ef34bf3a0fbb313edb656be11586b1c09aefad458b3a186d12ba4f1",
+      "first_book_alignment_order": "CL_LEADS",
+      "first_directional_mid_move_order": {
+        "books": {
+          "CL": {
+            "displacement": 0.003571428571419233,
+            "observed_at_utc": "2026-08-06T01:14:02+00:00",
+            "record_id": "d8bb829fc34d762b252bf12dd0eadd6fbb433a218de3eb8f7ca8616d2d3bced8"
+          },
+          "MCL": {
+            "displacement": 0.004666666666679475,
+            "observed_at_utc": "2026-08-06T01:14:02+00:00",
+            "record_id": "d8bb829fc34d762b252bf12dd0eadd6fbb433a218de3eb8f7ca8616d2d3bced8"
+          }
+        },
+        "order": "SAME_INTERVAL",
+        "timestamp_semantics": "IB_TCP_packet_receipt_utc_not_exchange_time"
+      },
+      "full_alignment_events": [
+        {
+          "direction": 1,
+          "observed_at_utc": "2026-08-06T01:13:15+00:00",
+          "record_id": "c0999983dba6f6f390c4d81bc965b09968c39a0996f99f1fe89256d2a4740843",
+          "volume_multiple": 0.9186046511627907
+        },
+        {
+          "direction": 1,
+          "observed_at_utc": "2026-08-06T01:13:28+00:00",
+          "record_id": "8b640c23fd6c26f92f44e1368d6ed07c6e569a63db374b4154b8c5fbeb0d4976",
+          "volume_multiple": 1.244186046511628
+        },
+        {
+          "direction": 1,
+          "observed_at_utc": "2026-08-06T01:13:29+00:00",
+          "record_id": "7b844f0e6c492dff311418248eedaca7c17c77c7423378f6a0c0385c762585c9",
+          "volume_multiple": 1.2906976744186047
+        },
+        {
+          "direction": 1,
+          "observed_at_utc": "2026-08-06T01:13:36+00:00",
+          "record_id": "a467d0a082379c16b2c18f3754d543cacc6c3fd1214d0352f2946adde2524442",
+          "volume_multiple": 1.3255813953488371
+        },
+        {
+          "direction": 1,
+          "observed_at_utc": "2026-08-06T01:13:37+00:00",
+          "record_id": "bad007b3e513f0fbb24208cd2c4130c6774c0ba9c38b11455652c7cf515efc4c",
+          "volume_multiple": 1.3372093023255813
+        },
+        {
+          "direction": 1,
+          "observed_at_utc": "2026-08-06T01:13:38+00:00",
+          "record_id": "b9b0eb9f878e1a9e71d6bc1c44cb4ca4e5b985cd87c1867f125f12030ba339df",
+          "volume_multiple": 1.3372093023255813
+        },
+        {
+          "direction": 1,
+          "observed_at_utc": "2026-08-06T01:13:58+00:00",
+          "record_id": "390888706f97981392330b26eb1148785d384e4ea4aa982ce867a45634c9ce09",
+          "volume_multiple": 2.1744186046511627
+        },
+        {
+          "direction": 1,
+          "observed_at_utc": "2026-08-06T01:13:59+00:00",
+          "record_id": "46f60e7ed3e9eb052cf6ae76d62f1956eefe985ad284a34c729e6d1549ebaea8",
+          "volume_multiple": 2.186046511627907
+        }
+      ],
+      "identity": {
+        "contract_key": "202608",
+        "first_record_id": "0abbeb684b0cdc28aa706daac0c1c27cf6f9197724c3d94c1146897fed07fa51",
+        "preregistration_sha256": "2d081df5058a44ff736e0d26705a09b78f97c8b1b703a4ffd4d255f7d2920154",
+        "started_at_utc": "2026-08-06T01:12:53+00:00"
+      },
+      "interval_topology": {
+        "baseline_interval_excluded_from_first_alignment": true,
+        "books": {
+          "CL": {
+            "direction": 1,
+            "interval_index": 2,
+            "interval_seconds": [
+              -15,
+              -5
+            ],
+            "observed_at_utc": "2026-08-06T01:13:06+00:00",
+            "record_id": "7da8bdfd36f875af121ebf44c1ff74e54f64b1a4e9ce08b3094b58505b26785d"
+          },
+          "MCL": {
+            "direction": 1,
+            "interval_index": 4,
+            "interval_seconds": [
+              0,
+              5
+            ],
+            "observed_at_utc": "2026-08-06T01:13:15+00:00",
+            "record_id": "c0999983dba6f6f390c4d81bc965b09968c39a0996f99f1fe89256d2a4740843"
+          }
+        },
+        "interval_profiles": [
+          {
+            "books": {},
+            "interval_index": 0,
+            "interval_seconds": [
+              -60,
+              -30
+            ]
+          },
+          {
+            "books": {},
+            "interval_index": 1,
+            "interval_seconds": [
+              -30,
+              -15
+            ]
+          },
+          {
+            "books": {
+              "CL": {
+                "direction": 1,
+                "observed_at_utc": "2026-08-06T01:13:06+00:00",
+                "record_id": "7da8bdfd36f875af121ebf44c1ff74e54f64b1a4e9ce08b3094b58505b26785d"
+              }
+            },
+            "interval_index": 2,
+            "interval_seconds": [
+              -15,
+              -5
+            ]
+          },
+          {
+            "books": {
+              "CL": {
+                "direction": 1,
+                "observed_at_utc": "2026-08-06T01:13:10+00:00",
+                "record_id": "4c7da085385fe3e8378533ccf604c3d66689ede7781355fb94475d052ba475c2"
+              }
+            },
+            "interval_index": 3,
+            "interval_seconds": [
+              -5,
+              0
+            ]
+          },
+          {
+            "books": {
+              "CL": {
+                "direction": 1,
+                "observed_at_utc": "2026-08-06T01:13:15+00:00",
+                "record_id": "c0999983dba6f6f390c4d81bc965b09968c39a0996f99f1fe89256d2a4740843"
+              },
+              "MCL": {
+                "direction": 1,
+                "observed_at_utc": "2026-08-06T01:13:15+00:00",
+                "record_id": "c0999983dba6f6f390c4d81bc965b09968c39a0996f99f1fe89256d2a4740843"
+              }
+            },
+            "interval_index": 4,
+            "interval_seconds": [
+              0,
+              5
+            ]
+          },
+          {
+            "books": {
+              "CL": {
+                "direction": 1,
+                "observed_at_utc": "2026-08-06T01:13:28+00:00",
+                "record_id": "8b640c23fd6c26f92f44e1368d6ed07c6e569a63db374b4154b8c5fbeb0d4976"
+              },
+              "MCL": {
+                "direction": 1,
+                "observed_at_utc": "2026-08-06T01:13:25+00:00",
+                "record_id": "f887635439709da7cedb83c7e866f3eecd9ac06a936583400ba6913574658e78"
+              }
+            },
+            "interval_index": 5,
+            "interval_seconds": [
+              5,
+              15
+            ]
+          },
+          {
+            "books": {
+              "CL": {
+                "direction": 1,
+                "observed_at_utc": "2026-08-06T01:13:36+00:00",
+                "record_id": "a467d0a082379c16b2c18f3754d543cacc6c3fd1214d0352f2946adde2524442"
+              },
+              "MCL": {
+                "direction": 1,
+                "observed_at_utc": "2026-08-06T01:13:36+00:00",
+                "record_id": "a467d0a082379c16b2c18f3754d543cacc6c3fd1214d0352f2946adde2524442"
+              }
+            },
+            "interval_index": 6,
+            "interval_seconds": [
+              15,
+              30
+            ]
+          },
+          {
+            "books": {
+              "CL": {
+                "direction": 1,
+                "observed_at_utc": "2026-08-06T01:13:46+00:00",
+                "record_id": "fb72d504843b18ce93e85be4cebecd93df2ff2853739db218bb5fa7de9647d09"
+              },
+              "MCL": {
+                "direction": 1,
+                "observed_at_utc": "2026-08-06T01:13:57+00:00",
+                "record_id": "5e6892cb0fcf80964cd2d7927ac345bc35745a6e4a0c24eeb54822f54250e959"
+              }
+            },
+            "interval_index": 7,
+            "interval_seconds": [
+              30,
+              60
+            ]
+          }
+        ],
+        "order": "CL_LEADS"
+      },
+      "maximum_volume_multiple": 5.174418604651163,
+      "news": {
+        "attention": {
+          "age_seconds": 14973.0,
+          "authority": "non_scoring_context_only",
+          "change": "strengthening",
+          "confidence": 0.91,
+          "direction": 1,
+          "drivers": [
+            "gulf-hormuz-shipping-disruption",
+            "red-sea-saudi-tanker-disruption",
+            "us-inventory-refining-tightness",
+            "us-iran-mutual-strike-pause",
+            "opec-plus-output-quota-offset"
+          ],
+          "horizon_hours": 4,
+          "impact": 20,
+          "pressure_delta": 0.04000000000000001,
+          "pressure_velocity_per_hour": 0.009567470599960137,
+          "prior_publication_id": "05353fb89363caed4f0ae7d00d31f60f81cd8712b2d9ee84f66928e97ff8095f",
+          "publication_id": "f56fdcfa02a851528d5d81ddc713fd371af8d02e5314c9942b7a05261461f29b",
+          "reason": "stale",
+          "run_status": "published",
+          "signal_as_of_utc": "2026-08-05T21:03:20Z",
+          "signed_pressure": 0.2,
+          "snapshot_as_of_utc": "2026-08-05T21:14:10Z",
+          "symbol": "MCL",
+          "treatment_age_hours": 3.9786111111111113,
+          "usable": false
+        },
+        "authority": "non_scoring_context_only",
+        "terminal": {
+          "age_seconds": 15100.0,
+          "authority": "non_scoring_context_only",
+          "change": "strengthening",
+          "confidence": 0.91,
+          "direction": 1,
+          "drivers": [
+            "gulf-hormuz-shipping-disruption",
+            "red-sea-saudi-tanker-disruption",
+            "us-inventory-refining-tightness",
+            "us-iran-mutual-strike-pause",
+            "opec-plus-output-quota-offset"
+          ],
+          "horizon_hours": 4,
+          "impact": 20,
+          "pressure_delta": 0.04000000000000001,
+          "pressure_velocity_per_hour": 0.009567470599960137,
+          "prior_publication_id": "05353fb89363caed4f0ae7d00d31f60f81cd8712b2d9ee84f66928e97ff8095f",
+          "publication_id": "f56fdcfa02a851528d5d81ddc713fd371af8d02e5314c9942b7a05261461f29b",
+          "reason": "stale",
+          "run_status": "published",
+          "signal_as_of_utc": "2026-08-05T21:03:20Z",
+          "signed_pressure": 0.2,
+          "snapshot_as_of_utc": "2026-08-05T21:14:10Z",
+          "symbol": "MCL",
+          "treatment_age_hours": 4.013888888888889,
+          "usable": false
+        }
+      },
+      "opposite_full_alignment_recoil": null,
+      "outcomes_exposed": false,
+      "provisional_alignment": {
+        "direction": 1,
+        "observed_at_utc": "2026-08-06T01:13:15+00:00",
+        "record_id": "c0999983dba6f6f390c4d81bc965b09968c39a0996f99f1fe89256d2a4740843",
+        "volume_multiple": 0.9186046511627907
+      },
+      "provisional_direction": 1,
+      "receipt_session": "GTH",
+      "renewed_original_full_alignment": null,
+      "schema": "mcl.subshock-ignition-recoil-reacceleration-stage116-episode.v1",
+      "shape": "MIXED_TORSION",
+      "single_book_alignment_events": {
+        "CL": [
+          {
+            "direction": 1,
+            "observed_at_utc": "2026-08-06T01:13:06+00:00",
+            "record_id": "7da8bdfd36f875af121ebf44c1ff74e54f64b1a4e9ce08b3094b58505b26785d"
+          }
+        ],
+        "MCL": [
+          {
+            "direction": 1,
+            "observed_at_utc": "2026-08-06T01:13:15+00:00",
+            "record_id": "c0999983dba6f6f390c4d81bc965b09968c39a0996f99f1fe89256d2a4740843"
+          },
+          {
+            "direction": -1,
+            "observed_at_utc": "2026-08-06T01:13:39+00:00",
+            "record_id": "ac64f2bf397d99a3780d893991b79f1e2fc79e2aa0aa64de753b0e583f6d86ad"
+          },
+          {
+            "direction": 1,
+            "observed_at_utc": "2026-08-06T01:13:57+00:00",
+            "record_id": "5e6892cb0fcf80964cd2d7927ac345bc35745a6e4a0c24eeb54822f54250e959"
+          },
+          {
+            "direction": -1,
+            "observed_at_utc": "2026-08-06T01:14:46+00:00",
+            "record_id": "5cc989a4fb834246e5d517a6546ba146a0504f846acc8455045c4a715bb59db8"
+          }
+        ]
+      },
+      "source": {
+        "first_record_id": "0abbeb684b0cdc28aa706daac0c1c27cf6f9197724c3d94c1146897fed07fa51",
+        "last_record_id": "5c627d851420a4bb38afdb9f46e948b75e05f7e2f6539dd1db9e2c4e2c905992",
+        "record_ids_sha256": "dc941de9691d9ff9c2c070b8900970d0bc0400f3d55135aba88426c997c11321",
+        "records": 116,
+        "timestamp_semantics": "IB_TCP_packet_receipt_utc_not_exchange_time"
+      },
+      "started_at_utc": "2026-08-06T01:12:53+00:00",
+      "submitted_orders": 0,
+      "terminal_at_utc": "2026-08-06T01:15:00+00:00",
+      "terminal_reasons": [
+        "seconds_wave_owner_normalized"
+      ],
+      "volume_clock_audit": {
+        "broker_volume_total": 828.0,
+        "common_completed_minutes": 3,
+        "exact_minutes": 1,
+        "maximum_absolute_minute_difference": 423.0,
+        "median_positive_volume_ratio": 0.9432989690721649,
+        "mismatched_minutes": 2,
+        "semantics": "IB_TCP_packet_receipt_seconds_vs_finalized_broker_minutes",
+        "tape_volume_total": 394.0
+      }
+    }
+  ],
+  "evaluator_sha256": "e17032307a01799345fc6c26770718da2044ce874983d74458ee2b3889d8da6e",
+  "generated_at_utc": "2026-08-06T01:27:15.670207+00:00",
+  "open_episode": null,
+  "outcomes_exposed": false,
+  "preregistration_sha256": "2d081df5058a44ff736e0d26705a09b78f97c8b1b703a4ffd4d255f7d2920154",
+  "schema": "mcl.subshock-ignition-recoil-reacceleration-stage116-derivation.v1",
+  "selection_id": "8adead895d3bd460b460f832d725046a3ea34079525a80a1662004ade2c17c93",
+  "stage114_generation_id": "e01e06c86ca2c94564c201409595055498cdb223505d538442ccd23bd70fda98",
+  "submitted_orders": 0,
+  "tape": {
+    "files": [
+      {
+        "path": "2026-08-05.jsonl",
+        "sha256": "01767e7d4235b874c1b22cad9e08650b7c6d7884078725dfedeb6b77d3bcc90b"
+      },
+      {
+        "path": "2026-08-06.jsonl",
+        "sha256": "a6932ff9bd1f9699812fbd80a45b8e569f28e5bbdb2480090ed9985de7716f49"
+      }
+    ],
+    "first_bucket_utc": "2026-08-05T23:37:56+00:00",
+    "last_bucket_utc": "2026-08-06T01:27:14+00:00",
+    "record_ids_sha256": "2e3fcf61e5e81e68da3866772ab3b2f532f044c0a36b469a482b545fdf5a6c40",
+    "records": 3960
+  }
+}
