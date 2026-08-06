@@ -62,8 +62,16 @@
     "last_completed_decision_utc": "2026-08-06T04:40:00+00:00",
     "turn_tape_path_on_q": "/var/tmp/mcl-stage117-turn-prefix-20260806T0445Z.jsonl",
     "turn_tape_rows": 75349,
-    "turn_tape_sha256": "81313e70cf609b3b32788785423022437510b07758617b5f85c39f07294ca9",
-    "last_turn_record_id": "6b4b860f0a32ec8e4defdf793a65792927f46610fdc0ef6aed35fea26c163abd"
+    "turn_tape_sha256": "81313e70cf609b3b3b32788785423022437510b07758617b5f85c39f07294ca9",
+    "last_turn_record_id": "6b4b860f0a32ec8e4defdf793a65792927f46610fdc0ef6aed35fea26c163abd",
+    "pre_replay_digest_correction": {
+      "status": "corrected_before_any_post_eligibility_morphology_was_read",
+      "defect": "The original 64-character sha256sum output was manually transcribed into this preregistration with one internal b3 byte pair omitted, producing an impossible 62-character digest.",
+      "original_creation_output_sha256": "81313e70cf609b3b3b32788785423022437510b07758617b5f85c39f07294ca9",
+      "incorrect_transcription": "81313e70cf609b3b32788785423022437510b07758617b5f85c39f07294ca9",
+      "independent_identity": "75349 rows and terminal record 6b4b860f0a32ec8e4defdf793a65792927f46610fdc0ef6aed35fea26c163abd remained exact",
+      "failed_run_boundary": "The evaluator aborted on this digest before loading the source ledger, Stage-114 ledger, Stage-116 result, or any post-eligibility morphology."
+    }
   },
   "frozen_clocks": {
     "seconds": [5, 15, 60],
