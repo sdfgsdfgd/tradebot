@@ -72,10 +72,21 @@ _RTH_START = dtime(9, 30)
 _RTH_END = dtime(16, 0)
 _AFTER_END = dtime(20, 0)
 _OVERNIGHT_END = dtime(3, 50)
-_PROXY_CONTRACT_QUOTE_PROBE_INITIAL_SEC = 1.5
+_PROXY_LIT_LIVE_ROUTES = ("SMART", "ARCA", "DRCTEDGE", "MEMX", "PEARL")
+_PROXY_LIVE_ROUTE_LADDERS: dict[str, tuple[str, ...]] = {
+    # Lit exchanges are closed overnight; probing them only delays the honest
+    # delayed-primary fallback when IBKR OVERNIGHT itself is unavailable.
+    "OVERNIGHT": ("OVERNIGHT",),
+    "PRE": _PROXY_LIT_LIVE_ROUTES,
+    "RTH": _PROXY_LIT_LIVE_ROUTES,
+    "POST": _PROXY_LIT_LIVE_ROUTES,
+}
+_PROXY_ROUTE_SETTLE_SEC = 3.0
+_PROXY_CONTRACT_QUOTE_PROBE_INITIAL_SEC = _PROXY_ROUTE_SETTLE_SEC
 _PROXY_CONTRACT_QUOTE_PROBE_RETRY_SEC = 12.0
 _PROXY_STRIP_RETRY_BASE_SEC = 15.0
 _PROXY_STRIP_RETRY_MAX_SEC = 300.0
+_PROXY_LIVE_RETRY_SEC = 300.0
 _INDEX_QUOTE_PROBE_INITIAL_SEC = 2.0
 _INDEX_DELAYED_QUOTE_SETTLE_SEC = 12.0
 _MAIN_CONTRACT_QUOTE_PROBE_INITIAL_SEC = 0.35
@@ -89,6 +100,7 @@ _MAIN_CONTRACT_HISTORICAL_ATTEMPT_TIMEOUT_SEC = 4.5
 _HISTORICAL_REQUEST_TIMEOUT_SEC = 12.0
 _MAX_HISTORICAL_REQUEST_DIAG_ENTRIES = 256
 _ENTITLEMENT_ERROR_CODES = (10167, 354, 10089, 10090, 10091, 10168)
+_PARTIAL_ENTITLEMENT_ERROR_CODES = (10090, 10091)
 _CONTRACT_QUALIFICATION_TIMEOUT_SEC = 15.0
 _PRICE_INCREMENT_DETAILS_TIMEOUT_SEC = 1.5
 _PRICE_INCREMENT_WAIT_TIMEOUT_SEC = 3.0
@@ -213,6 +225,11 @@ def _session_bucket(now: datetime) -> str:
     if rth_end <= current < _AFTER_END:
         return "POST"
     return "OVERNIGHT"
+
+
+def _proxy_live_route_ladder(now: datetime) -> tuple[str, ...]:
+    """Return the ordered live venue ladder for the active equity session."""
+    return _PROXY_LIVE_ROUTE_LADDERS[_session_bucket(now)]
 
 
 def _futures_session_is_open(now: datetime) -> bool:
@@ -744,6 +761,8 @@ class IBKRClient:
         self._proxy_probe_failures = 0
         self._proxy_probe_retry_at_mono = 0.0
         self._proxy_contract_force_delayed: set[int] = set()
+        self._proxy_contract_live_routes: dict[tuple[int, str], str] = {}
+        self._proxy_contract_live_retry_at_mono: dict[int, float] = {}
         self._proxy_contract_probe_tasks: dict[int, asyncio.Task] = {}
         self._proxy_contract_live_tasks: dict[int, asyncio.Task] = {}
         self._proxy_contract_delayed_tasks: dict[int, asyncio.Task] = {}
@@ -1079,6 +1098,8 @@ class IBKRClient:
         self._proxy_probe_failures = 0
         self._proxy_probe_retry_at_mono = 0.0
         self._proxy_contract_force_delayed = set()
+        self._proxy_contract_live_routes = {}
+        self._proxy_contract_live_retry_at_mono = {}
         self._proxy_session_bucket = None
         self._proxy_session_include_overnight = None
         self._proxy_contract_probe_tasks = {}
@@ -1146,6 +1167,8 @@ class IBKRClient:
 
     def start_proxy_tickers(self) -> None:
         self._proxy_required = True
+        if self._release_due_proxy_live_retries():
+            self._reset_proxy_probe_state()
         if self._proxy_task and not self._proxy_task.done():
             return
         try:
@@ -5480,6 +5503,8 @@ class IBKRClient:
             self._reset_proxy_probe_state()
             self._proxy_force_delayed = False
             self._proxy_contract_force_delayed = set()
+            self._proxy_contract_live_routes = {}
+            self._proxy_contract_live_retry_at_mono = {}
             self._proxy_session_bucket = None
             self._proxy_session_include_overnight = None
             for task in self._proxy_contract_probe_tasks.values():
@@ -6050,19 +6075,30 @@ class IBKRClient:
 
     def _on_error_proxy(self, reqId, errorCode, errorString, contract) -> None:
         self._remember_order_error(reqId, errorCode, errorString)
-        if errorCode == 10167:
+        if errorCode in _ENTITLEMENT_ERROR_CODES and contract is not None:
             con_id = int(getattr(contract, "conId", 0) or 0) if contract else 0
             if con_id:
-                self._proxy_contract_force_delayed.add(con_id)
-                self._start_proxy_contract_delayed_resubscribe(contract)
-            elif not self._proxy_force_delayed:
-                self._proxy_force_delayed = True
-                self._start_proxy_resubscribe()
-        if errorCode in (354, 10089, 10090, 10091, 10168) and contract:
-            con_id = int(getattr(contract, "conId", 0) or 0)
-            if con_id:
-                self._proxy_contract_force_delayed.add(con_id)
-                self._start_proxy_contract_delayed_resubscribe(contract)
+                sec_type = str(
+                    getattr(contract, "secType", "") or ""
+                ).strip().upper()
+                symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
+                if (
+                    sec_type == "STK"
+                    and int(errorCode) in _PARTIAL_ENTITLEMENT_ERROR_CODES
+                ):
+                    # IBKR can emit 10090/10091 while still delivering the
+                    # venue's bid/ask. Let the quote probe judge the stream
+                    # after its settle window instead of discarding live data.
+                    if symbol in _PROXY_SYMBOLS:
+                        self._proxy_probe_complete = False
+                        self._start_proxy_probe()
+                    elif con_id in self._detail_tickers:
+                        self._start_proxy_contract_quote_probe(contract)
+                else:
+                    self._start_proxy_contract_market_data_recovery(contract)
+        elif errorCode == 10167 and not self._proxy_force_delayed:
+            self._proxy_force_delayed = True
+            self._start_proxy_resubscribe()
         self._handle_conn_error(errorCode)
 
     def _remember_order_error(self, req_id, error_code, error_text) -> None:
@@ -6147,6 +6183,9 @@ class IBKRClient:
         self._proxy_tickers = {}
         self._proxy_session_bucket = None
         self._proxy_session_include_overnight = None
+        self._proxy_contract_force_delayed = set()
+        self._proxy_contract_live_routes = {}
+        self._proxy_contract_live_retry_at_mono = {}
         self._reset_proxy_probe_state()
         for task in self._proxy_contract_probe_tasks.values():
             if task and not task.done():
@@ -6190,6 +6229,9 @@ class IBKRClient:
         contract: Contract,
     ) -> asyncio.Task | None:
         con_id = int(getattr(contract, "conId", 0) or 0)
+        live_task = self._proxy_contract_live_tasks.pop(con_id, None)
+        if live_task and not live_task.done():
+            live_task.cancel()
         probe_task = self._proxy_contract_probe_tasks.pop(con_id, None)
         if probe_task and not probe_task.done():
             probe_task.cancel()
@@ -6212,20 +6254,23 @@ class IBKRClient:
             task.add_done_callback(_cleanup)
         return task
 
-    def _start_proxy_contract_live_resubscribe(self, contract: Contract) -> None:
+    def _start_proxy_contract_live_resubscribe(
+        self,
+        contract: Contract,
+    ) -> asyncio.Task | None:
         con_id = int(getattr(contract, "conId", 0) or 0)
         if not con_id or con_id in self._proxy_contract_force_delayed:
-            return
+            return None
         delayed_task = self._proxy_contract_delayed_tasks.pop(con_id, None)
         if delayed_task and not delayed_task.done():
             delayed_task.cancel()
         existing = self._proxy_contract_live_tasks.get(con_id)
         if existing is not None and not existing.done():
-            return
+            return existing
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
-            return
+            return None
         task = loop.create_task(self._resubscribe_proxy_contract_live(contract))
         self._proxy_contract_live_tasks[con_id] = task
 
@@ -6235,6 +6280,54 @@ class IBKRClient:
                 self._proxy_contract_live_tasks.pop(key, None)
 
         task.add_done_callback(_cleanup)
+        return task
+
+    def _start_proxy_contract_market_data_recovery(
+        self,
+        contract: Contract,
+    ) -> asyncio.Task | None:
+        """Advance one contract through live venues before delayed data."""
+        con_id = int(getattr(contract, "conId", 0) or 0)
+        if not con_id:
+            return None
+        if con_id in self._proxy_contract_force_delayed:
+            return self._start_proxy_contract_delayed_resubscribe(contract)
+
+        sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
+        if sec_type != "STK":
+            # Directed equity venues are invalid for options and futures.
+            self._proxy_contract_force_delayed.add(con_id)
+            return self._start_proxy_contract_delayed_resubscribe(contract)
+
+        now = _now_et()
+        session = _session_bucket(now)
+        key = (con_id, session)
+        ladder = _proxy_live_route_ladder(now)
+        failed_route = str(getattr(contract, "exchange", "") or "").strip().upper()
+        selected_route = self._proxy_contract_live_routes.get(key)
+        # A late error from a stream already replaced must not advance the new
+        # stream or resurrect a route that is no longer authoritative.
+        if selected_route and failed_route and failed_route != selected_route:
+            return None
+
+        current_route = selected_route or failed_route
+        try:
+            next_index = ladder.index(current_route) + 1
+        except ValueError:
+            next_index = 0
+        if next_index < len(ladder):
+            self._proxy_contract_live_routes[key] = ladder[next_index]
+            live_task = self._proxy_contract_live_tasks.pop(con_id, None)
+            if live_task and not live_task.done():
+                live_task.cancel()
+            return self._start_proxy_contract_live_resubscribe(contract)
+
+        self._proxy_contract_live_routes.pop(key, None)
+        self._proxy_contract_force_delayed.add(con_id)
+        self._proxy_contract_live_retry_at_mono[con_id] = (
+            time.monotonic() + float(_PROXY_LIVE_RETRY_SEC)
+        )
+        return self._start_proxy_contract_delayed_resubscribe(contract)
 
     @staticmethod
     def _stock_market_data_contract(
@@ -6267,9 +6360,8 @@ class IBKRClient:
         include_overnight: bool,
         requested_md_type: int | None = None,
     ) -> tuple[Contract, int]:
-        """Resolve one proxy subscription without global live/delayed drift."""
+        """Resolve one proxy stream by contract, session, route, then data type."""
         con_id = int(getattr(contract, "conId", 0) or 0)
-        explicit_delayed = bool(requested_md_type in (3, 4))
         if requested_md_type is None:
             contract_delayed = bool(
                 self._proxy_force_delayed
@@ -6281,25 +6373,27 @@ class IBKRClient:
             contract_delayed = bool(md_type in (3, 4))
         req_contract = contract
         if str(getattr(contract, "secType", "") or "").strip().upper() == "STK":
-            req_contract = self._stock_market_data_contract(
-                contract,
-                include_overnight=include_overnight,
-                delayed=contract_delayed,
-            )
-            # A symbol-specific permission failure has already proved that the
-            # live/overnight route is unavailable.  Delayed recovery belongs on
-            # the primary listing rather than repeatedly retrying OVERNIGHT.
-            if (
-                (explicit_delayed or con_id in self._proxy_contract_force_delayed)
-                and str(getattr(req_contract, "exchange", "") or "").strip().upper()
-                == "OVERNIGHT"
-            ):
+            if contract_delayed:
+                # Delayed data belongs on the primary listing. Directed live
+                # venues and OVERNIGHT are intentionally never reused here.
                 primary_exchange = str(
                     getattr(contract, "primaryExchange", "") or ""
                 ).strip().upper()
-                if primary_exchange:
+                req_contract = copy.copy(contract)
+                req_contract.exchange = primary_exchange or "SMART"
+            else:
+                req_contract = self._stock_market_data_contract(
+                    contract,
+                    include_overnight=include_overnight,
+                    delayed=False,
+                )
+                session = _session_bucket(_now_et())
+                selected_route = self._proxy_contract_live_routes.get(
+                    (con_id, session)
+                )
+                if selected_route:
                     req_contract = copy.copy(contract)
-                    req_contract.exchange = primary_exchange
+                    req_contract.exchange = selected_route
         return req_contract, md_type
 
     def _normalize_derivative_market_data_contract(
@@ -6947,7 +7041,11 @@ class IBKRClient:
                 if self._ticker_has_data(ticker):
                     return
 
-                self._start_proxy_contract_live_resubscribe(contract)
+                req_contract = getattr(ticker, "contract", None) or contract
+                if sec_type == "STK":
+                    self._start_proxy_contract_market_data_recovery(req_contract)
+                else:
+                    self._start_proxy_contract_live_resubscribe(req_contract)
                 attempts += 1
 
                 if sec_type != "STK":
@@ -7066,13 +7164,19 @@ class IBKRClient:
             return
         if current_bucket == self._proxy_session_bucket:
             return
-        previous_include_overnight = self._proxy_session_include_overnight
         self._proxy_session_bucket = current_bucket
         self._proxy_session_include_overnight = current_include_overnight
-        overnight_route_changed = (
-            previous_include_overnight is not None
-            and bool(previous_include_overnight) != current_include_overnight
-        )
+        self._reset_proxy_probe_state()
+        self._proxy_contract_live_retry_at_mono = {}
+        for tasks in (
+            self._proxy_contract_probe_tasks,
+            self._proxy_contract_live_tasks,
+            self._proxy_contract_delayed_tasks,
+        ):
+            for task in tasks.values():
+                if task and not task.done():
+                    task.cancel()
+            tasks.clear()
         if self._proxy_contract_force_delayed:
             self._proxy_contract_force_delayed = set()
         for _con_id, (ib, ticker) in list(self._detail_tickers.items()):
@@ -7086,7 +7190,10 @@ class IBKRClient:
                 continue
             self._start_proxy_contract_live_resubscribe(contract)
             self._start_proxy_contract_quote_probe(contract)
-        if overnight_route_changed and self._proxy_tickers:
+        # Each bucket owns an independent route decision. Reconcile once at
+        # every boundary so PRE/RTH/POST can retry SMART and OVERNIGHT can move
+        # onto (or off) its dedicated venue without inheriting stale state.
+        if self._proxy_tickers:
             self._start_proxy_resubscribe()
 
     def _handle_conn_error(self, error_code: int) -> None:
@@ -7107,6 +7214,18 @@ class IBKRClient:
         self._proxy_probe_complete = False
         self._proxy_probe_failures = 0
         self._proxy_probe_retry_at_mono = 0.0
+
+    def _release_due_proxy_live_retries(self) -> bool:
+        now_mono = time.monotonic()
+        due = tuple(
+            con_id
+            for con_id, retry_at in self._proxy_contract_live_retry_at_mono.items()
+            if now_mono >= float(retry_at)
+        )
+        for con_id in due:
+            self._proxy_contract_live_retry_at_mono.pop(con_id, None)
+            self._proxy_contract_force_delayed.discard(con_id)
+        return bool(due)
 
     def _start_proxy_resubscribe(self) -> None:
         if self._proxy_task and not self._proxy_task.done():
@@ -7132,42 +7251,36 @@ class IBKRClient:
         self._proxy_probe_task = loop.create_task(self._probe_proxy_quotes())
 
     async def _probe_proxy_quotes(self) -> None:
-        await asyncio.sleep(2)
+        await asyncio.sleep(float(_PROXY_ROUTE_SETTLE_SEC))
         if not self._proxy_tickers:
             return
-        missing = self._proxy_symbols_without_data()
-        if not missing:
-            self._proxy_probe_complete = True
-            self._proxy_probe_failures = 0
-            self._proxy_probe_retry_at_mono = 0.0
+        for stage in range(len(_proxy_live_route_ladder(_now_et()))):
+            missing = self._proxy_symbols_needing_recovery()
+            if not missing:
+                break
+            await self._resubscribe_missing_proxy_quotes(
+                missing,
+                requalify=bool(stage == 1),
+            )
+            await asyncio.sleep(float(_PROXY_ROUTE_SETTLE_SEC))
+        missing = self._proxy_symbols_needing_recovery()
+        if missing:
+            self._proxy_probe_failures += 1
+            base = min(
+                float(_PROXY_STRIP_RETRY_MAX_SEC),
+                float(_PROXY_STRIP_RETRY_BASE_SEC)
+                * (2.0 ** max(0, int(self._proxy_probe_failures) - 1)),
+            )
+            jitter = base * 0.15
+            self._proxy_probe_retry_at_mono = time.monotonic() + max(
+                1.0,
+                base + random.uniform(-jitter, jitter),
+            )
             return
-        await self._resubscribe_missing_proxy_quotes(missing, requalify=False)
-        await asyncio.sleep(2)
-        missing = self._proxy_symbols_without_data()
-        if not missing:
-            self._proxy_probe_complete = True
-            self._proxy_probe_failures = 0
-            self._proxy_probe_retry_at_mono = 0.0
-            return
-        await self._resubscribe_missing_proxy_quotes(missing, requalify=True)
-        await asyncio.sleep(2)
-        missing = self._proxy_symbols_without_data()
-        if not missing:
-            self._proxy_probe_complete = True
-            self._proxy_probe_failures = 0
-            self._proxy_probe_retry_at_mono = 0.0
-            return
-        self._proxy_probe_failures += 1
-        base = min(
-            float(_PROXY_STRIP_RETRY_MAX_SEC),
-            float(_PROXY_STRIP_RETRY_BASE_SEC)
-            * (2.0 ** max(0, int(self._proxy_probe_failures) - 1)),
-        )
-        jitter = base * 0.15
-        self._proxy_probe_retry_at_mono = time.monotonic() + max(
-            1.0,
-            base + random.uniform(-jitter, jitter),
-        )
+        await self._prime_proxy_close_baselines()
+        self._proxy_probe_complete = True
+        self._proxy_probe_failures = 0
+        self._proxy_probe_retry_at_mono = 0.0
 
     def _proxy_symbols_without_data(self) -> tuple[str, ...]:
         return tuple(
@@ -7175,6 +7288,71 @@ class IBKRClient:
             for symbol in _PROXY_SYMBOLS
             if not self._ticker_has_quote_or_close(self._proxy_tickers.get(symbol))
         )
+
+    def _proxy_symbols_needing_recovery(self) -> tuple[str, ...]:
+        missing: list[str] = []
+        for symbol in _PROXY_SYMBOLS:
+            ticker = self._proxy_tickers.get(symbol)
+            contract = getattr(ticker, "contract", None) if ticker is not None else None
+            if contract is None:
+                contract = self._proxy_contracts.get(symbol)
+            con_id = int(getattr(contract, "conId", 0) or 0) if contract else 0
+            requested_md_raw = getattr(ticker, "tbRequestedMdType", None)
+            try:
+                requested_md_type = (
+                    int(requested_md_raw) if requested_md_raw is not None else None
+                )
+            except (TypeError, ValueError):
+                requested_md_type = None
+            delayed = bool(
+                self._proxy_force_delayed
+                or (con_id and con_id in self._proxy_contract_force_delayed)
+                or requested_md_type in (3, 4)
+            )
+            ready = (
+                self._ticker_has_quote_or_close(ticker)
+                if delayed
+                else self._ticker_has_data(ticker)
+            )
+            if not ready:
+                missing.append(symbol)
+        return tuple(missing)
+
+    async def _prime_proxy_close_baselines(self) -> None:
+        """Complete directed live quotes with broker historical closes."""
+        updated = False
+        for symbol, ticker in tuple(self._proxy_tickers.items()):
+            if not self._ticker_has_data(ticker) or self._ticker_has_close_data(ticker):
+                continue
+            contract = self._proxy_contracts.get(symbol) or getattr(
+                ticker,
+                "contract",
+                None,
+            )
+            if contract is None:
+                continue
+            request_contract = copy.copy(contract)
+            request_contract.exchange = "SMART"
+            try:
+                prev_close, _close_1ago, _close_3ago = await self.session_close_anchors(
+                    request_contract
+                )
+            except Exception:
+                continue
+            if prev_close is None or float(prev_close) <= 0:
+                continue
+            current = self._proxy_tickers.get(symbol)
+            if current is None or self._ticker_has_close_data(current):
+                continue
+            current_id = int(getattr(getattr(current, "contract", None), "conId", 0) or 0)
+            request_id = int(getattr(request_contract, "conId", 0) or 0)
+            if request_id and current_id != request_id:
+                continue
+            setattr(current, "close", float(prev_close))
+            setattr(current, "tbCloseSource", "historical-daily")
+            updated = True
+        if updated:
+            self._on_stream_update()
 
     async def _resubscribe_missing_proxy_quotes(
         self,
@@ -7196,19 +7374,25 @@ class IBKRClient:
                 con_id = int(getattr(contract, "conId", 0) or 0)
                 if previous_id and previous_id != con_id:
                     self._proxy_contract_force_delayed.discard(previous_id)
+                    self._proxy_contract_live_retry_at_mono.pop(previous_id, None)
+                    for key in tuple(self._proxy_contract_live_routes):
+                        if int(key[0]) == previous_id:
+                            self._proxy_contract_live_routes.pop(key, None)
                 self._proxy_contracts[symbol] = contract
         tasks: list[asyncio.Task] = []
         for symbol in missing:
             ticker = self._proxy_tickers.get(symbol)
-            contract = self._proxy_contracts.get(symbol) or getattr(
-                ticker, "contract", None
-            )
+            ticker_contract = getattr(ticker, "contract", None)
+            qualified_contract = self._proxy_contracts.get(symbol)
+            contract = ticker_contract or qualified_contract
+            if requalify and qualified_contract is not None:
+                ticker_id = int(getattr(ticker_contract, "conId", 0) or 0)
+                qualified_id = int(getattr(qualified_contract, "conId", 0) or 0)
+                if qualified_id and qualified_id != ticker_id:
+                    contract = qualified_contract
             if contract is None:
                 continue
-            con_id = int(getattr(contract, "conId", 0) or 0)
-            if con_id:
-                self._proxy_contract_force_delayed.add(con_id)
-            task = self._start_proxy_contract_delayed_resubscribe(contract)
+            task = self._start_proxy_contract_market_data_recovery(contract)
             if task is not None and task not in tasks:
                 tasks.append(task)
         if tasks:
@@ -7278,6 +7462,9 @@ class IBKRClient:
     def _on_stream_update(self, *_, **__) -> None:
         self._maybe_resubscribe_index_on_session_transition()
         self._maybe_reset_proxy_contract_delay_on_session_change()
+        retry_released = self._release_due_proxy_live_retries()
+        if retry_released and self._proxy_tickers:
+            self._start_proxy_resubscribe()
         event_tickers = self._event_tickers(*_, **__)
         for ticker in event_tickers:
             self._sync_generic_ticks_for_ticker(ticker)
@@ -7286,10 +7473,6 @@ class IBKRClient:
             self._index_error = None
         if self._proxy_error and self._proxy_has_data():
             self._proxy_error = None
-        if self._proxy_required and self._proxy_has_data():
-            self._proxy_probe_complete = True
-            self._proxy_probe_failures = 0
-            self._proxy_probe_retry_at_mono = 0.0
         if self._update_callback:
             self._update_callback()
         if not self._stream_listeners:

@@ -1537,7 +1537,7 @@ def test_probe_index_quotes_partial_strip_preserves_healthy_subscription(monkeyp
     assert client.index_error() == "market data unavailable: ES"
 
 
-def test_ensure_ticker_overnight_delayed_prefers_overnight_route(monkeypatch) -> None:
+def test_ensure_ticker_overnight_delayed_uses_primary_listing(monkeypatch) -> None:
     client = _new_client()
     fake_ib = _FakeProxyIB()
     client._ib_proxy = fake_ib
@@ -1554,7 +1554,7 @@ def test_ensure_ticker_overnight_delayed_prefers_overnight_route(monkeypatch) ->
     asyncio.run(client.ensure_ticker(contract, owner="test"))
 
     requested = fake_ib.requests[-1]
-    assert str(getattr(requested, "exchange", "")).upper() == "OVERNIGHT"
+    assert str(getattr(requested, "exchange", "")).upper() == "ARCA"
 
 
 def test_delayed_resubscribe_falls_back_to_primary_exchange(monkeypatch) -> None:
@@ -1627,7 +1627,7 @@ def test_proxy_error_10167_is_scoped_to_contract(monkeypatch) -> None:
         called["contract"] += 1
 
     client._start_proxy_resubscribe = _global  # type: ignore[method-assign]
-    client._start_proxy_contract_delayed_resubscribe = _contract  # type: ignore[method-assign]
+    client._start_proxy_contract_market_data_recovery = _contract  # type: ignore[method-assign]
 
     contract = Stock(symbol="TQQQ", exchange="SMART", currency="USD")
     contract.conId = 12345
@@ -1635,7 +1635,216 @@ def test_proxy_error_10167_is_scoped_to_contract(monkeypatch) -> None:
 
     assert called["contract"] == 1
     assert called["global"] == 0
-    assert 12345 in client._proxy_contract_force_delayed
+    assert client._proxy_contract_force_delayed == set()
+
+
+def test_proxy_partial_entitlement_warning_waits_for_quote_probe() -> None:
+    client = _new_client()
+    client._proxy_probe_complete = True
+    probes: list[int] = []
+    recoveries: list[int] = []
+    client._start_proxy_probe = lambda: probes.append(1)  # type: ignore[method-assign]
+    client._start_proxy_contract_market_data_recovery = (  # type: ignore[method-assign]
+        lambda contract: recoveries.append(int(getattr(contract, "conId", 0) or 0))
+    )
+    contract = Stock(symbol="TQQQ", exchange="ARCA", currency="USD")
+    contract.conId = 12345
+
+    client._on_error_proxy(0, 10091, "Partial market-data subscription", contract)
+
+    assert client._proxy_probe_complete is False
+    assert probes == [1]
+    assert recoveries == []
+    assert client._proxy_contract_force_delayed == set()
+
+
+def test_proxy_live_route_ladders_are_session_appropriate() -> None:
+    assert client_module._proxy_live_route_ladder(
+        datetime(2026, 8, 6, 2, 0, tzinfo=timezone.utc)
+    ) == ("OVERNIGHT",)
+    expected_lit = ("SMART", "ARCA", "DRCTEDGE", "MEMX", "PEARL")
+    assert client_module._proxy_live_route_ladder(
+        datetime(2026, 8, 6, 8, 0, tzinfo=timezone.utc)
+    ) == expected_lit
+    assert client_module._proxy_live_route_ladder(
+        datetime(2026, 8, 6, 12, 0, tzinfo=timezone.utc)
+    ) == expected_lit
+    assert client_module._proxy_live_route_ladder(
+        datetime(2026, 8, 6, 18, 0, tzinfo=timezone.utc)
+    ) == expected_lit
+
+
+def test_proxy_stock_recovery_walks_live_routes_before_delayed(monkeypatch) -> None:
+    client = _new_client()
+    con_id = 12345
+    live_starts: list[int] = []
+    delayed_starts: list[int] = []
+
+    def _live(contract) -> None:
+        live_starts.append(int(getattr(contract, "conId", 0) or 0))
+
+    def _delayed(contract) -> None:
+        delayed_starts.append(int(getattr(contract, "conId", 0) or 0))
+
+    client._start_proxy_contract_live_resubscribe = _live  # type: ignore[method-assign]
+    client._start_proxy_contract_delayed_resubscribe = _delayed  # type: ignore[method-assign]
+    monkeypatch.setattr("tradebot.client._session_bucket", lambda _now: "PRE")
+    monkeypatch.setattr("tradebot.client.time.monotonic", lambda: 100.0)
+
+    for failed, expected in (
+        ("SMART", "ARCA"),
+        ("ARCA", "DRCTEDGE"),
+        ("DRCTEDGE", "MEMX"),
+        ("MEMX", "PEARL"),
+    ):
+        contract = Stock(symbol="TQQQ", exchange=failed, currency="USD")
+        contract.conId = con_id
+        client._start_proxy_contract_market_data_recovery(contract)
+        assert client._proxy_contract_live_routes[(con_id, "PRE")] == expected
+
+    pearl = Stock(symbol="TQQQ", exchange="PEARL", currency="USD")
+    pearl.conId = con_id
+    client._start_proxy_contract_market_data_recovery(pearl)
+
+    assert live_starts == [con_id, con_id, con_id, con_id]
+    assert delayed_starts == [con_id]
+    assert con_id in client._proxy_contract_force_delayed
+    assert (con_id, "PRE") not in client._proxy_contract_live_routes
+    assert client._proxy_contract_live_retry_at_mono == {con_id: 400.0}
+
+
+def test_proxy_delayed_contracts_retry_live_after_cooldown(monkeypatch) -> None:
+    client = _new_client()
+    client._proxy_contract_force_delayed = {1, 2}
+    client._proxy_contract_live_retry_at_mono = {1: 99.0, 2: 101.0}
+    monkeypatch.setattr("tradebot.client.time.monotonic", lambda: 100.0)
+
+    assert client._release_due_proxy_live_retries() is True
+    assert client._proxy_contract_force_delayed == {2}
+    assert client._proxy_contract_live_retry_at_mono == {2: 101.0}
+    assert client._release_due_proxy_live_retries() is False
+
+
+def test_proxy_stock_recovery_ignores_stale_route_errors(monkeypatch) -> None:
+    client = _new_client()
+    con_id = 12345
+    client._proxy_contract_live_routes[(con_id, "PRE")] = "ARCA"
+    starts: list[int] = []
+    client._start_proxy_contract_live_resubscribe = (  # type: ignore[method-assign]
+        lambda contract: starts.append(int(getattr(contract, "conId", 0) or 0))
+    )
+    monkeypatch.setattr("tradebot.client._session_bucket", lambda _now: "PRE")
+
+    stale = Stock(symbol="TQQQ", exchange="SMART", currency="USD")
+    stale.conId = con_id
+    client._start_proxy_contract_market_data_recovery(stale)
+
+    assert client._proxy_contract_live_routes[(con_id, "PRE")] == "ARCA"
+    assert starts == []
+    assert client._proxy_contract_force_delayed == set()
+
+
+def test_proxy_non_stock_entitlement_error_does_not_use_equity_routes() -> None:
+    client = _new_client()
+    contract = Contract(
+        secType="OPT",
+        symbol="TQQQ",
+        exchange="SMART",
+        currency="USD",
+    )
+    contract.conId = 54321
+    delayed: list[int] = []
+    client._start_proxy_contract_delayed_resubscribe = (  # type: ignore[method-assign]
+        lambda req: delayed.append(int(getattr(req, "conId", 0) or 0))
+    )
+
+    client._start_proxy_contract_market_data_recovery(contract)
+
+    assert delayed == [54321]
+    assert client._proxy_contract_force_delayed == {54321}
+    assert client._proxy_contract_live_routes == {}
+
+
+def test_proxy_market_data_spec_caches_live_route_by_session(monkeypatch) -> None:
+    client = _new_client()
+    contract = Stock(symbol="TQQQ", exchange="SMART", currency="USD")
+    contract.primaryExchange = "NASDAQ"
+    contract.conId = 12345
+    client._proxy_contract_live_routes[(12345, "PRE")] = "DRCTEDGE"
+    monkeypatch.setattr("tradebot.client._session_bucket", lambda _now: "PRE")
+
+    live_contract, live_md_type = client._proxy_market_data_spec(
+        contract,
+        include_overnight=False,
+    )
+    delayed_contract, delayed_md_type = client._proxy_market_data_spec(
+        contract,
+        include_overnight=True,
+        requested_md_type=3,
+    )
+
+    assert str(live_contract.exchange).upper() == "DRCTEDGE"
+    assert live_md_type == 1
+    assert str(delayed_contract.exchange).upper() == "NASDAQ"
+    assert delayed_md_type == 3
+
+    monkeypatch.setattr("tradebot.client._session_bucket", lambda _now: "RTH")
+    next_session_contract, next_session_md_type = client._proxy_market_data_spec(
+        contract,
+        include_overnight=False,
+    )
+    assert str(next_session_contract.exchange).upper() == "SMART"
+    assert next_session_md_type == 1
+
+
+def test_proxy_market_data_spec_prefers_overnight_only_overnight(monkeypatch) -> None:
+    client = _new_client()
+    contract = Stock(symbol="QQQ", exchange="SMART", currency="USD")
+    contract.primaryExchange = "NASDAQ"
+    contract.conId = 320227571
+    monkeypatch.setattr("tradebot.client._session_bucket", lambda _now: "OVERNIGHT")
+
+    live_contract, md_type = client._proxy_market_data_spec(
+        contract,
+        include_overnight=True,
+    )
+
+    assert str(live_contract.exchange).upper() == "OVERNIGHT"
+    assert md_type == 1
+
+
+def test_proxy_ensure_retains_healthy_directed_route_without_churn(monkeypatch) -> None:
+    client = _new_client()
+    fake_ib = _FakeProxyIB()
+    client._ib_proxy = fake_ib
+
+    async def _connect_proxy() -> None:
+        return None
+
+    client.connect_proxy = _connect_proxy  # type: ignore[method-assign]
+    contracts: dict[str, Contract] = {}
+    for index, symbol in enumerate(("QQQ", "SPY", "DIA", "TQQQ"), 1):
+        contract = Stock(symbol=symbol, exchange="SMART", currency="USD")
+        contract.primaryExchange = "NASDAQ" if symbol in ("QQQ", "TQQQ") else "ARCA"
+        contract.conId = index
+        contracts[symbol] = contract
+    client._proxy_contracts = contracts
+    client._proxy_contract_live_routes[(1, "PRE")] = "ARCA"
+    client._proxy_contract_live_routes[(4, "PRE")] = "DRCTEDGE"
+    monkeypatch.setattr("tradebot.client._session_bucket", lambda _now: "PRE")
+    monkeypatch.setattr("tradebot.client._session_flags", lambda _now: (True, False))
+
+    asyncio.run(client._ensure_proxy_tickers())
+    retained = dict(client._proxy_tickers)
+    request_count = len(fake_ib.requests)
+    cancel_count = len(fake_ib.cancels)
+    asyncio.run(client._ensure_proxy_tickers())
+
+    assert len(fake_ib.requests) == request_count == 4
+    assert len(fake_ib.cancels) == cancel_count == 0
+    assert all(client._proxy_tickers[symbol] is ticker for symbol, ticker in retained.items())
+    assert str(client._proxy_tickers["QQQ"].contract.exchange).upper() == "ARCA"
+    assert str(client._proxy_tickers["TQQQ"].contract.exchange).upper() == "DRCTEDGE"
 
 
 def test_proxy_strip_requires_every_symbol_instead_of_any_healthy_symbol() -> None:
@@ -1675,6 +1884,42 @@ def test_proxy_strip_accepts_close_only_as_stable_display_data() -> None:
 
     assert client._proxy_symbols_without_data() == ()
     assert client._proxy_has_data() is True
+
+
+def test_proxy_directed_live_quote_is_primed_with_historical_close() -> None:
+    client = _new_client()
+    contract = Stock(symbol="QQQ", exchange="SMART", currency="USD")
+    contract.primaryExchange = "NASDAQ"
+    contract.conId = 320227571
+    ticker_contract = Stock(symbol="QQQ", exchange="ARCA", currency="USD")
+    ticker_contract.primaryExchange = "NASDAQ"
+    ticker_contract.conId = int(contract.conId)
+    ticker = SimpleNamespace(
+        contract=ticker_contract,
+        bid=714.20,
+        ask=714.28,
+        last=None,
+        close=None,
+        prevLast=None,
+    )
+    client._proxy_contracts = {"QQQ": contract}
+    client._proxy_tickers = {"QQQ": ticker}
+    requested: list[str] = []
+    updates: list[int] = []
+
+    async def _anchors(req_contract):
+        requested.append(str(getattr(req_contract, "exchange", "") or ""))
+        return 717.30, 723.85, 687.99
+
+    client.session_close_anchors = _anchors  # type: ignore[method-assign]
+    client._on_stream_update = lambda *_args, **_kwargs: updates.append(1)  # type: ignore[method-assign]
+
+    asyncio.run(client._prime_proxy_close_baselines())
+
+    assert requested == ["SMART"]
+    assert ticker.close == pytest.approx(717.30)
+    assert ticker.tbCloseSource == "historical-daily"
+    assert updates == [1]
 
 
 def test_proxy_ensure_respects_per_symbol_delayed_routes_without_reloading_healthy_symbols(
@@ -1724,7 +1969,7 @@ def test_proxy_ensure_respects_per_symbol_delayed_routes_without_reloading_healt
     assert int(tqqq_ticker.tbRequestedMdType) == 3
 
 
-def test_missing_proxy_recovery_downgrades_only_the_empty_contract() -> None:
+def test_missing_proxy_recovery_routes_only_the_empty_contract() -> None:
     client = _new_client()
     contracts: dict[str, Contract] = {}
     for index, symbol in enumerate(("QQQ", "SPY", "DIA", "TQQQ"), 1):
@@ -1734,10 +1979,10 @@ def test_missing_proxy_recovery_downgrades_only_the_empty_contract() -> None:
     client._proxy_contracts = contracts
     recovered: list[int] = []
 
-    async def _recover(contract) -> None:
+    def _recover(contract) -> None:
         recovered.append(int(getattr(contract, "conId", 0) or 0))
 
-    client._resubscribe_proxy_contract_delayed = _recover  # type: ignore[method-assign]
+    client._start_proxy_contract_market_data_recovery = _recover  # type: ignore[method-assign]
 
     asyncio.run(
         client._resubscribe_missing_proxy_quotes(
@@ -1747,7 +1992,7 @@ def test_missing_proxy_recovery_downgrades_only_the_empty_contract() -> None:
     )
 
     assert recovered == [1]
-    assert client._proxy_contract_force_delayed == {1}
+    assert client._proxy_contract_force_delayed == set()
     assert client._proxy_force_delayed is False
 
 
@@ -1766,6 +2011,7 @@ def test_proxy_probe_retries_empty_symbol_once_with_requalification(
         for symbol in ("QQQ", "SPY", "DIA", "TQQQ")
     }
     calls: list[tuple[tuple[str, ...], bool]] = []
+    primes: list[int] = []
 
     async def _sleep(_seconds: float) -> None:
         return
@@ -1776,8 +2022,12 @@ def test_proxy_probe_retries_empty_symbol_once_with_requalification(
             client._proxy_tickers["QQQ"].bid = 500.0
             client._proxy_tickers["QQQ"].ask = 500.1
 
+    async def _prime() -> None:
+        primes.append(1)
+
     monkeypatch.setattr("asyncio.sleep", _sleep)
     client._resubscribe_missing_proxy_quotes = _recover  # type: ignore[method-assign]
+    client._prime_proxy_close_baselines = _prime  # type: ignore[method-assign]
 
     asyncio.run(client._probe_proxy_quotes())
 
@@ -1786,6 +2036,7 @@ def test_proxy_probe_retries_empty_symbol_once_with_requalification(
     assert client._proxy_probe_complete is True
     assert client._proxy_probe_failures == 0
     assert client._proxy_probe_retry_at_mono == 0.0
+    assert primes == [1]
 
 
 def test_proxy_probe_backs_off_after_bounded_empty_recovery(
@@ -1814,12 +2065,22 @@ def test_proxy_probe_backs_off_after_bounded_empty_recovery(
     monkeypatch.setattr("asyncio.sleep", _sleep)
     monkeypatch.setattr("tradebot.client.time.monotonic", lambda: 100.0)
     monkeypatch.setattr("tradebot.client.random.uniform", lambda _low, _high: 0.0)
+    monkeypatch.setattr(
+        "tradebot.client._proxy_live_route_ladder",
+        lambda _now: ("SMART", "ARCA", "DRCTEDGE", "MEMX", "PEARL"),
+    )
     client._resubscribe_missing_proxy_quotes = _recover  # type: ignore[method-assign]
 
     asyncio.run(client._probe_proxy_quotes())
 
     expected = ("QQQ", "SPY", "DIA", "TQQQ")
-    assert calls == [(expected, False), (expected, True)]
+    assert calls == [
+        (expected, False),
+        (expected, True),
+        (expected, False),
+        (expected, False),
+        (expected, False),
+    ]
     assert client._proxy_probe_complete is False
     assert client._proxy_probe_failures == 1
     assert client._proxy_probe_retry_at_mono == pytest.approx(115.0)
@@ -2681,6 +2942,30 @@ def test_proxy_top_row_resubscribes_when_overnight_route_flips(monkeypatch) -> N
 
     assert client._proxy_session_bucket == "OVERNIGHT"
     assert client._proxy_session_include_overnight is True
+    assert calls == [1]
+
+
+def test_proxy_top_row_reconciles_live_routes_at_each_session_boundary(monkeypatch) -> None:
+    client = _new_client()
+    client._proxy_session_bucket = "PRE"
+    client._proxy_session_include_overnight = False
+    client._proxy_probe_complete = True
+    client._proxy_contract_live_retry_at_mono = {72539702: 999.0}
+    client._proxy_tickers = {
+        "TQQQ": SimpleNamespace(
+            contract=Stock(symbol="TQQQ", exchange="DRCTEDGE", currency="USD")
+        )
+    }
+    calls: list[int] = []
+    client._start_proxy_resubscribe = lambda: calls.append(1)  # type: ignore[method-assign]
+    monkeypatch.setattr("tradebot.client._session_bucket", lambda _now: "RTH")
+    monkeypatch.setattr("tradebot.client._session_flags", lambda _now: (False, False))
+
+    client._maybe_reset_proxy_contract_delay_on_session_change()
+
+    assert client._proxy_session_bucket == "RTH"
+    assert client._proxy_probe_complete is False
+    assert client._proxy_contract_live_retry_at_mono == {}
     assert calls == [1]
 
 
