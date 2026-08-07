@@ -1,0 +1,186 @@
+{
+  "schema": "mcl.multiscale-phase-front-stage118-first-derivation-receipt.v1",
+  "authority": "prospective_count_and_morphology_only_no_outcomes_no_orders_no_capital",
+  "generated_at_utc": "2026-08-07T06:24:16.249972+00:00",
+  "decision": "ACCUMULATE_FAILED_FAST_OWNERSHIP_NEGATIVE_CONTROL",
+  "provenance": {
+    "preregistration_path": "backtests/mcl/mcl_multiscale_phase_front_stage118_preregistration.json",
+    "preregistration_sha256": "7270c1e7b538213045000fac87bdfc4d89946e0b323f7d1b4413e4b756f6d564",
+    "evaluator_path_on_q": "/var/tmp/mcl_stage118_multiscale_phase_front.py",
+    "evaluator_sha256": "53cc0f208c757504d57d884ea706b940db83e2d137b60e705313c5b370abb8ed",
+    "stage116_input_path_on_q": "/var/tmp/mcl-stage116-stage118-current-r8.json",
+    "stage116_input_sha256": "05ecac3fdfc129cffe5d0941f01f4ad2209bdc4516b9c3b7926887fdd611d180",
+    "full_result_path_on_q": "/var/tmp/mcl-stage118-first-post-eligibility-terminal.json",
+    "full_result_sha256": "aa8d92457d41289198d30a837c11430087c05229c29bac5ceca4497ccd7b9527",
+    "full_result_lines": 3279,
+    "eligible_event_start_utc": "2026-08-06T22:45:00+00:00",
+    "source_prefix_path_on_q": "/var/tmp/mcl-stage118-source-prefix-20260806T2240Z.jsonl",
+    "source_prefix_rows": 2995,
+    "source_prefix_sha256": "d1bb50e559505c5906e5ba24e165fb84711f008b6366ac49e121105549dd1ac5",
+    "unique_finalized_decisions": 788,
+    "first_decision_utc": "2026-08-04T09:30:00+00:00",
+    "last_decision_utc": "2026-08-07T06:20:00+00:00"
+  },
+  "cohort": {
+    "complete_fronts": 1,
+    "directions": {
+      "down": 1
+    },
+    "sessions": {
+      "GTH": 1
+    },
+    "origins": {
+      "ORDINARY_VELOCITY_FRONT": 1
+    },
+    "classifications": {
+      "FAILED_FAST_OWNERSHIP": 1
+    },
+    "v18_acceptance": {
+      "V18_ACCEPTED": 1
+    },
+    "ordered_or_full_cascades": 1,
+    "verdict": "ACCUMULATE",
+    "all_preregistered_count_gates_pass": false
+  },
+  "first_complete_front": {
+    "event_id": "7446d63706bb1d3dafc9a103a71ecf77331afa8ee85b5cbdd071aa72b8184978",
+    "contract_key": "202608",
+    "receipt_session": "GTH",
+    "origin": "ORDINARY_VELOCITY_FRONT",
+    "direction": "DOWN",
+    "started_at_utc": "2026-08-07T00:35:00+00:00",
+    "terminal_at_utc": "2026-08-07T06:20:00+00:00",
+    "terminal_reason": "V18_RAW_TURN",
+    "v18_acceptance": "V18_ACCEPTED",
+    "classification": "FAILED_FAST_OWNERSHIP",
+    "fast_velocity_owned_at_utc": "2026-08-07T00:35:00+00:00",
+    "fast_ownership_failed_at_utc": "2026-08-07T00:40:00+00:00",
+    "fast_ownership_failure_reason": "30m_velocity_lost_before_30m_slope_cross",
+    "fast_slope_cross_at_utc": "2026-08-07T00:50:00+00:00",
+    "first_slope_alignment_utc": {
+      "30m": "2026-08-07T00:50:00+00:00",
+      "60m": "2026-08-07T00:55:00+00:00",
+      "120m": "2026-08-07T00:55:00+00:00",
+      "240m": "2026-08-07T00:50:00+00:00",
+      "480m": "2026-08-07T03:30:00+00:00"
+    },
+    "recoil_started_at_utc": "2026-08-07T01:05:00+00:00",
+    "recoil_reacquired_at_utc": "2026-08-07T06:15:00+00:00",
+    "full_phase_lock_at_utc": "2026-08-07T06:15:00+00:00",
+    "underwarm_or_gap": false,
+    "interpretation": "The eventual DOWN direction was correct and the exact V18 terminal accepted it, but fast DOWN sponsorship failed five minutes after origin and ten minutes before the first 30m slope cross. Full multiscale lock required five hours forty minutes. This is a lawful negative control for early-pivot authority, not evidence that the 00:35Z origin was tradeable."
+  },
+  "key_completed_states": [
+    {
+      "observed_at_utc": "2026-08-07T00:35:00+00:00",
+      "role": "fast_velocity_origin",
+      "slope_signs_30_60_120_240_480": [1, 1, 1, 1, 1],
+      "velocity_signs_30_60_120_240_480": [-1, -1, -1, 1, -1],
+      "atr_ratio": 0.6762675201155678,
+      "coherence": 1.0
+    },
+    {
+      "observed_at_utc": "2026-08-07T00:40:00+00:00",
+      "role": "fast_ownership_failure",
+      "slope_signs_30_60_120_240_480": [1, 1, 1, 1, 1],
+      "velocity_signs_30_60_120_240_480": [1, 1, 1, 1, 1],
+      "atr_ratio": 0.7424323171958342,
+      "coherence": 1.0
+    },
+    {
+      "observed_at_utc": "2026-08-07T00:50:00+00:00",
+      "role": "first_30m_slope_cross_after_sponsorship_failed",
+      "slope_signs_30_60_120_240_480": [-1, 1, 1, -1, 1],
+      "velocity_signs_30_60_120_240_480": [-1, -1, -1, -1, 1],
+      "atr_ratio": 0.9095025348209058,
+      "coherence": 0.6
+    },
+    {
+      "observed_at_utc": "2026-08-07T00:55:00+00:00",
+      "role": "four_of_five_slope_alignment",
+      "slope_signs_30_60_120_240_480": [-1, -1, -1, -1, 1],
+      "velocity_signs_30_60_120_240_480": [-1, -1, -1, -1, -1],
+      "atr_ratio": 0.9843128372381867,
+      "coherence": 0.8
+    },
+    {
+      "observed_at_utc": "2026-08-07T03:30:00+00:00",
+      "role": "first_480m_slope_alignment_inside_mixed_stack",
+      "slope_signs_30_60_120_240_480": [1, -1, 1, 0, -1],
+      "velocity_signs_30_60_120_240_480": [-1, -1, 1, -1, -1],
+      "atr_ratio": 0.7839616416817756,
+      "coherence": 0.4
+    },
+    {
+      "observed_at_utc": "2026-08-07T06:15:00+00:00",
+      "role": "full_phase_lock_and_recoil_reacquisition",
+      "slope_signs_30_60_120_240_480": [-1, -1, -1, -1, -1],
+      "velocity_signs_30_60_120_240_480": [-1, -1, -1, -1, -1],
+      "atr_ratio": 1.1007352579422276,
+      "coherence": 1.0
+    },
+    {
+      "observed_at_utc": "2026-08-07T06:20:00+00:00",
+      "role": "accepted_v18_raw_down_turn_terminal",
+      "slope_signs_30_60_120_240_480": [-1, -1, -1, -1, -1],
+      "velocity_signs_30_60_120_240_480": [1, 1, -1, -1, 1],
+      "atr_ratio": 1.1122967022864176,
+      "coherence": 1.0,
+      "raw_direction": "DOWN"
+    }
+  ],
+  "subshock_overlays": [
+    {
+      "observed_at_utc": "2026-08-07T02:00:53+00:00",
+      "direction": "UP",
+      "maximum_volume_multiple": 5.485714285714286,
+      "shape": "MIXED_TORSION"
+    },
+    {
+      "observed_at_utc": "2026-08-07T02:16:21+00:00",
+      "direction": "UP",
+      "maximum_volume_multiple": 7.4576271186440675,
+      "shape": "MIXED_TORSION"
+    },
+    {
+      "observed_at_utc": "2026-08-07T04:01:46+00:00",
+      "direction": "DOWN",
+      "maximum_volume_multiple": 6.923076923076923,
+      "shape": "IGNITION_RECOIL_REACCELERATION"
+    },
+    {
+      "observed_at_utc": "2026-08-07T04:12:29+00:00",
+      "direction": "UP",
+      "maximum_volume_multiple": 6.5,
+      "shape": "IGNITION_RECOIL_REACCELERATION"
+    },
+    {
+      "observed_at_utc": "2026-08-07T04:30:59+00:00",
+      "direction": "DOWN",
+      "maximum_volume_multiple": 5.015267175572519,
+      "shape": "IGNITION_RECOIL_REACCELERATION"
+    }
+  ],
+  "causal_findings": [
+    "A velocity-front origin may eventually point toward the correct V18 direction while still failing early ownership.",
+    "A first slope cross after fast velocity sponsorship has already failed must not retroactively validate the origin.",
+    "Alternating sub-10x seconds waves do not repair a failed original phase front without renewed full-stack ownership.",
+    "Stage 118 must accumulate repeated ordered/full cascades, failed-fast controls, both directions, both sessions, and both V18 accept/reject terminals before any predictive conclusion."
+  ],
+  "replay_budget": {
+    "used": 1,
+    "available": 1,
+    "rerun_or_retune_authority": false
+  },
+  "invariants": {
+    "outcome_fields_present": false,
+    "outcomes_exposed": false,
+    "submitted_orders": 0,
+    "live_strategy_changed": false,
+    "selection_changed": false,
+    "capital_changed": false,
+    "service_or_timer_added": false,
+    "threshold_changed": false,
+    "stage117_backfilled": false
+  }
+}

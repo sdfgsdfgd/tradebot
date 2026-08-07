@@ -26,7 +26,7 @@ The first does not grant the second.
 | 2 | Two-speed CL discovery → MCL transport | **MCL Two-Speed Auction Relay — V18** | `mcl.two-speed-auction-relay-v18-research-crown.v1` | Preserved predecessor; its hidden magnitude inversion produced the first live loss and it is no longer selectable alone |
 | — | Seconds-tight predictive timing | **Stages 87/88/89/90** | predictive generation `2256c870…` | Active challenger; autonomous `ACCUMULATE 9/30`; outcomes/order authority sealed |
 | — | Authority-bound shock/subshock morphology | **Stages 114/115/116** | runtime generation `ce101ce9…`; Stage-116 preregistration `2d081df5…` | Active challenger; four immutable major-wave rows plus `21` complete subshock episodes, outcome-blind and non-trading |
-| — | Multiscale phase-front morphology | **Stage 118** | preregistration `7270c1e7…`; evaluator `53cc0f20…` | Fresh prospective successor; Stage 117 schema-rejected, no backfill/count/live authority |
+| — | Multiscale phase-front morphology | **Stage 118** | preregistration `7270c1e7…`; evaluator `53cc0f20…` | `ACCUMULATE 1/30`; first fresh GTH DOWN terminal is `FAILED_FAST_OWNERSHIP`, outcome-blind and non-trading |
 | — | Operational/live | **Stage 112 bounded canary** | selection `8adead89…`; plan `5dc25036…` | **CANARY_LIVE / graduation HOLD**; flat, zero inherited fills/P&L/DD, armed only for a fresh causal Stage-112 admission |
 
 Machine pointer: `backtests/mcl/current-hf.json`, bound to immutable crown
@@ -45,13 +45,13 @@ artifact `backtests/mcl/mcl_v18_shock_stage112_executable_crown.json` at SHA-256
 | Stability | Year 1/year 2 `+$2,071.68 / +$1,871.31`, PnL/DD `3.496 / 3.100`; both directions and both V18/shock owners positive |
 | Cadence | `194.42` annualized under the user-authorized `≥194/year` exception; one contract, no quota, no forced trade |
 | Prospective tape | q generation `b3805c9f…` continuously records matched live NYMEX L1 CL/MCL seconds; independent accumulator `df806968…` joins exact V18 turns, completed multiscale context, and causal news without outcome/order/capital authority |
-| Predictive challenger | Stages 87–90 hold `9/30` complete turns with outcomes sealed. Stage 114 retains four immutable authority-bound rows; Stage 115 remains a derived geometry view; Stage 116 retains `21` complete subshock episodes across both directions and sessions. Its newest controls are alternating GTH `6.5×` UP and `5.015×` DOWN `IGNITION_RECOIL_REACCELERATION` waves; both normalized, no episode remains open, and neither created a fresh V18 raw turn. Stage 117's only replay has no count authority because of neutral/missing and close-stamped-maintenance schema defects; Stage 118 is freshly preregistered with unchanged hypothesis/thresholds and no backfill |
+| Predictive challenger | Stages 87–90 hold `9/30` complete turns with outcomes sealed. Stage 114 retains four immutable authority-bound rows; Stage 115 remains a derived geometry view; Stage 116 retains `21` complete subshock episodes across both directions and sessions. Stage 117's only replay has no count authority because of neutral/missing and close-stamped-maintenance schema defects. Stage 118 receipt `bb7c3b37…` now preserves one lawful GTH DOWN front: fast ownership failed at `00:40Z`, full lock arrived only at `06:15Z`, and V18 accepted the `06:20Z` terminal. It is a negative early-onset control, not a promotion |
 | Live-canary exception | **Inherited:** Stage 112 may commission as the bounded MCL canary before the seconds cohort matures; the seconds layer still has no direction/order authority and no broker/safety gate is waived |
 | Live source/shadow | **PASS:** read-only finalized U6 replay through `18:43Z`, `4,003` exact common minutes, flat selection boundary, no synthetic position, zero orders; receipt `d3d5f2e4…` |
 | Native commissioning | **PASS:** fresh LMT preview, gap-free successor selection `8adead89…`, current portfolio plan `5dc25036…`, predictive generation `2256c870…`, shock-wave generation `ce101ce9…`, observe-only restart, maintenance reopen, and natural recurrence are bound by the final commissioning chain |
 | Alternative transport frontier | **Closed for this V18 generation:** MCO is executable but destroyed the edge; IBUSOIL 75 units was the closest near-miss but failed frozen stress PnL/DD and branch gates and lacks current CFD permission/data; OOO/UCO/SCO/USO fail bidirectional hours/economics |
 | Graduation evidence | Gap-free successor cutoff `f2d2f789…` is lawful `HOLD`, not quarantine: matured-minute coverage plus runtime, identity, restart, capital, risk, and attribution pass; authentic execution and elapsed sessions remain pending. The next elapsed boundary is 48h at `2026-08-07T11:39:55Z` |
-| Next irreversible evidence | Preserve the gap-free Stage-112 prefix through authentic `24h → 48h → five-session` reductions. Let Stages 87–90 and 114–116 accumulate unchanged; derive Stage 118 only after a fresh post-`22:45Z` terminal and fresh block replay budget. Do not force a trade, backfill Stage 117, lower `12×`, or open predictive outcomes |
+| Next irreversible evidence | Preserve the gap-free Stage-112 prefix through authentic `24h → 48h → five-session` reductions. Let Stages 87–90, 114–116, and Stage 118 accumulate unchanged from `1/30`. The one bounded Stage-118 replay is spent; do not rerun it, force a trade, backfill Stage 117, lower `12×`, or open predictive outcomes |
 | Live boundary | **Flat / armed:** old selection `591db010…` remains permanently breached after `-$318.52`; gap-free Stage-112 selection `8adead89…` is current, MCL position/orders/fills are zero, and the live/predictive timers plus seconds tape are active |
 
 ## Live transport frontier
@@ -363,8 +363,14 @@ changes only neutral-sign semantics, close-stamped maintenance, and explicit
 generation routing; hypothesis, origins, terminal law, thresholds, and count
 gates are identical. Evaluator `53cc0f20…` and pre-eligibility source/turn
 prefixes `d1bb50e5…/4de60a86…` were frozen before `22:45Z`. No backfill is
-permitted, and no first derivation is lawful before a fresh post-eligibility
-terminal plus a fresh bounded replay budget.
+permitted. Receipt `mcl_multiscale_phase_front_stage118_first_derivation.json`
+(`bb7c3b37…`) spends the first fresh bounded replay exactly once and advances
+the cohort to `1/30`. Its ordinary DOWN front began at `00:35Z`, lost fast
+ownership at `00:40Z`, crossed the 30m slope at `00:50Z`, reached full phase
+lock only at `06:15Z`, and terminated on V18's accepted raw DOWN turn at
+`06:20Z`. Because sponsorship failed before the first slope cross, this is
+`FAILED_FAST_OWNERSHIP`: correct eventual direction, unproved early authority.
+Five alternating subshock overlays do not change that classification.
 
 ## Closed search boundary
 
@@ -407,8 +413,9 @@ Do not reopen these historical rescue families without genuinely new data:
    authentic `24h → 48h → five-session` evidence without backfill.
 8. **Concurrent Priority Zero:** autonomous Stages 87–90 and 114–116 continue
    accumulating outcome-blind onset/shock morphology. Stage 117 is terminally
-   schema-rejected; Stage 118 starts only from fresh future terminals and a
-   fresh block budget. The predictive chain may observe Stage-112/V18 turns but
-   never consume shock direction or alter the live owner.
+   schema-rejected; Stage 118 is `1/30` after its sole bounded replay produced a
+   failed-fast-ownership control and now accumulates only fresh future
+   terminals. The predictive chain may observe Stage-112/V18 turns but never
+   consume shock direction or alter the live owner.
 
 No milestone, deadline, crown, or empty tape may force a trade.
