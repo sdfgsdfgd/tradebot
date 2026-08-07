@@ -29,16 +29,10 @@ XSP_V2_TRANSPORT_ORDER_AUTHORITY = "rth_cash_pair_limit_only"
 XSP_V2_TRANSPORT_EXECUTION_VERSION = "xsp.opening-edge-v2-spyu-spxu-live-execution.v1"
 XSP_V2_TRANSPORT_EXECUTION_SCHEMA = "xsp.opening-edge-v2-spyu-spxu-execution-checkpoint.v1"
 XSP_V3_TRANSPORT_EXECUTION_VERSION = "xsp.opening-edge-v3-upro-spxu-live-execution.v1"
-XSP_V3_TRANSPORT_EXECUTION_SCHEMA = (
-    "xsp.opening-edge-v3-upro-spxu-execution-checkpoint.v1"
-)
+XSP_V3_TRANSPORT_EXECUTION_SCHEMA = "xsp.opening-edge-v3-upro-spxu-execution-checkpoint.v1"
 XSP_V3_TRANSPORT_CAPITAL_SLEEVE = "xsp-upro-spxu-rth-cash"
 XSP_V3_IMMEDIATE_PROCEEDS_SETTLEMENT = "ibkr_australia_trading_immediate_stock_sale_proceeds"
-XSP_V3_TRANSPORT_SELECTION_SCHEMAS = frozenset({
-    XSP_V3_TRANSPORT_SELECTION_SCHEMA,
-    XSP_V3_ROTATION_SELECTION_SCHEMA,
-    XSP_V3_PACKAGE_SELECTION_SCHEMA,
-})
+XSP_V3_TRANSPORT_SELECTION_SCHEMAS = frozenset((XSP_V3_TRANSPORT_SELECTION_SCHEMA, XSP_V3_ROTATION_SELECTION_SCHEMA, XSP_V3_PACKAGE_SELECTION_SCHEMA))
 _RANKING_SCHEMA = "xsp.opening-edge-v2-spyu-selection-ranking-result.v1"
 _DWELL_SCHEMA = "xsp.network-b-symbol-dwell-validation-result.v1"
 _PREVIEW_SCHEMA = "xsp.opening-edge-v2-ranked-nominee-preview.v1"
@@ -725,12 +719,15 @@ def _post_selection_target(
         or source_session not in {"GTH", "RTH", "CURB"}
         or source_session != observed_session
         or source_receipt.get("order_authority") != "none"
-        or not isinstance(source_receipt.get("paired_equity"), Mapping)
     ):
         raise ValueError("live transport requires a fresh post-selection source")
     if (source_receipt.get("evaluation_status"), source_receipt.get("freshness_ok")) != ("EVALUATED", True):
         return None, None, False
-    _, raw_target = xsp_v2_position_state(source_receipt["paired_equity"])
+    if not isinstance(
+        paired_equity := source_receipt.get("paired_equity"), Mapping
+    ):
+        raise ValueError("live transport EVALUATED source requires paired equity")
+    _, raw_target = xsp_v2_position_state(paired_equity)
     if source_session != "RTH":
         return None, None, True
     if raw_target is None:
@@ -792,10 +789,12 @@ def project_xsp_transport_plan(
         selected, source_receipt, observed_at=observed_utc,
     )
     source_session = str(source_receipt["session"])
-    signal_context = xsp_execution_signal_context(source_receipt["paired_equity"])
-    execution_state_context = None
-    if plan_schema == XSP_V3_TRANSPORT_PLAN_SCHEMA:
-        execution_state_context = xsp_execution_state_context(source_receipt)
+    paired_equity = source_receipt.get("paired_equity")
+    signal_context = execution_state_context = None
+    if isinstance(paired_equity, Mapping):
+        signal_context = xsp_execution_signal_context(paired_equity)
+        if plan_schema == XSP_V3_TRANSPORT_PLAN_SCHEMA:
+            execution_state_context = xsp_execution_state_context(source_receipt)
     observed_et = observed_utc.astimezone(ET_ZONE)
     rth_close = equity_rth_close_time_et(observed_et.date())
     rth_liquidation_at = datetime.combine(

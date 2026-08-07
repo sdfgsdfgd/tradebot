@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 
 from ..backtest.models import Bar
 from ..chart_data.history import normalize_bars_to_close
+from ..time_utils import to_utc_naive
 from ..utils.bar_utils import trim_incomplete_last_bar
 
 
@@ -27,15 +28,24 @@ class XspRthOneMinuteContext:
     ) -> bool:
         if not required:
             return True
+        latest_spy_utc = (
+            to_utc_naive(self.spy[-1].ts, naive_ts_mode="et").replace(
+                tzinfo=timezone.utc
+            )
+            if self.spy
+            else None
+        )
+        age_seconds = (
+            (observed_at - latest_spy_utc).total_seconds()
+            if latest_spy_utc is not None
+            else None
+        )
         return bool(
             self.spy
             and self.xsp
             and self.spy[-1].ts == self.xsp[-1].ts
-            and (
-                observed_at
-                - self.spy[-1].ts.replace(tzinfo=timezone.utc)
-            ).total_seconds()
-            <= freshness_seconds
+            and age_seconds is not None
+            and 0.0 <= age_seconds <= freshness_seconds
         )
 
     def builder_kwargs(self, *, enabled: bool) -> dict[str, object]:

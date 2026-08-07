@@ -2575,6 +2575,49 @@ def test_stale_post_close_source_is_journaled_fail_closed(
     assert plan["submitted_orders"] == 0
 
 
+def test_fresh_no_data_source_is_journaled_fail_closed(tmp_path: Path) -> None:
+    observed_at = datetime(2026, 8, 7, 13, 45, tzinfo=timezone.utc)
+    source = _source(
+        None,
+        recorded_at=observed_at - timedelta(seconds=30),
+    )
+    source["evaluation_status"] = "NO_DATA"
+    source["freshness_ok"] = False
+    source["paired_equity"] = None
+
+    plan = project_xsp_transport_plan(
+        selection=_v3_selection(tmp_path),
+        source_receipt=source,
+        observed_at=observed_at,
+        positions={"UPRO": 0, "SPXU": 0},
+        open_orders=[],
+        settled_cash_usd=1_200.0,
+        quotes={},
+    )
+
+    assert plan["status"] == "UNCHANGED"
+    assert plan["reason"] == "source_not_executable"
+    assert plan["source_evaluation_status"] == "NO_DATA"
+    assert plan["source_freshness_ok"] is False
+    assert plan["signal_context"] is None
+    assert plan["execution_state_context"] is None
+    assert plan["leg"] is None
+    assert plan["submitted_orders"] == 0
+
+    source["evaluation_status"] = "EVALUATED"
+    source["freshness_ok"] = True
+    with pytest.raises(ValueError, match="EVALUATED source requires paired equity"):
+        project_xsp_transport_plan(
+            selection=_v3_selection(tmp_path),
+            source_receipt=source,
+            observed_at=observed_at,
+            positions={"UPRO": 0, "SPXU": 0},
+            open_orders=[],
+            settled_cash_usd=1_200.0,
+            quotes={},
+        )
+
+
 def test_stale_post_close_source_can_only_liquidate_incumbent(
     tmp_path: Path,
 ) -> None:

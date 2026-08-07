@@ -19,6 +19,9 @@ from tradebot.research.xsp_benchmarks import (
 from tradebot.research.xsp_opening_edge_v2 import (
     load_xsp_opening_edge_v2_spec,
 )
+from tradebot.research.xsp_opening_edge_minute_context import (
+    XspRthOneMinuteContext,
+)
 from tradebot.research.xsp_opening_edge_v3 import (
     XSP_OPENING_EDGE_V3_EXECUTION_GATE,
     XSP_OPENING_EDGE_V3_TRANSPORT_VERSION,
@@ -41,6 +44,27 @@ from tradebot.research.xsp_opening_edge_state import (
     xsp_daily_bars_from_intraday,
 )
 from tradebot.time_utils import ET_ZONE
+
+
+def test_p009_minute_context_freshness_interprets_bars_as_et() -> None:
+    bar = Bar(datetime(2026, 8, 7, 9, 45), 1.0, 1.0, 1.0, 1.0, 1.0)
+    context = XspRthOneMinuteContext(spy=(bar,), xsp=(bar,))
+
+    assert context.ready(
+        required=True,
+        observed_at=datetime(2026, 8, 7, 13, 47, tzinfo=timezone.utc),
+        freshness_seconds=600.0,
+    )
+    assert not context.ready(
+        required=True,
+        observed_at=datetime(2026, 8, 7, 13, 44, tzinfo=timezone.utc),
+        freshness_seconds=600.0,
+    )
+    assert not context.ready(
+        required=True,
+        observed_at=datetime(2026, 8, 7, 14, 0, tzinfo=timezone.utc),
+        freshness_seconds=600.0,
+    )
 
 
 def test_p009_keeps_slow_history_but_bounds_native_minute_payload(
