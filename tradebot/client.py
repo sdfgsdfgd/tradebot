@@ -84,6 +84,7 @@ _PROXY_LIVE_ROUTE_LADDERS: dict[str, tuple[str, ...]] = {
 }
 _PROXY_ROUTE_SETTLE_SEC = 3.0
 _PROXY_ROUTE_RACE_SEC = 4.5
+_PROXY_PREFERRED_ROUTE_SETTLE_SEC = 0.75
 _PROXY_CONTRACT_QUOTE_PROBE_INITIAL_SEC = _PROXY_ROUTE_SETTLE_SEC
 _PROXY_CONTRACT_QUOTE_PROBE_RETRY_SEC = 12.0
 _PROXY_STRIP_RETRY_BASE_SEC = 15.0
@@ -6588,8 +6589,12 @@ class IBKRClient:
         keep: Ticker | None = None
         try:
             await self.connect_proxy()
+            deadline = time.monotonic() + float(_PROXY_ROUTE_RACE_SEC)
             async with self._proxy_lock:
-                for route in routes:
+                # Most US stocks answer on the first proven/canonical direct
+                # venue. Give that one a short exclusive lead so a healthy
+                # quote does not create three immediately-cancelled streams.
+                for route in routes[:1]:
                     req_contract = copy.copy(contract)
                     req_contract.exchange = route
                     try:
@@ -6601,9 +6606,42 @@ class IBKRClient:
                     setattr(ticker, "tbQuoteSource", "probing-live-routes")
                     requested.append(ticker)
 
-            deadline = time.monotonic() + float(_PROXY_ROUTE_RACE_SEC)
             winner: Ticker | None = None
-            while time.monotonic() < deadline:
+            preferred_deadline = min(
+                deadline,
+                time.monotonic() + float(_PROXY_PREFERRED_ROUTE_SETTLE_SEC),
+            )
+            while time.monotonic() < preferred_deadline:
+                current = _current_ticker()
+                current_id = int(
+                    getattr(getattr(current, "contract", None), "conId", 0) or 0
+                )
+                if current_id == con_id and self._ticker_has_data(current):
+                    keep = current
+                    return
+                winner = next(
+                    (ticker for ticker in requested if self._ticker_has_data(ticker)),
+                    None,
+                )
+                if winner is not None:
+                    break
+                await asyncio.sleep(0.05)
+
+            if winner is None and len(routes) > 1:
+                async with self._proxy_lock:
+                    for route in routes[1:]:
+                        req_contract = copy.copy(contract)
+                        req_contract.exchange = route
+                        try:
+                            self._ib_proxy.reqMarketDataType(1)
+                            ticker = self._ib_proxy.reqMktData(req_contract)
+                        except Exception:
+                            continue
+                        setattr(ticker, "tbRequestedMdType", 1)
+                        setattr(ticker, "tbQuoteSource", "probing-live-routes")
+                        requested.append(ticker)
+
+            while winner is None and time.monotonic() < deadline:
                 current = _current_ticker()
                 current_id = int(
                     getattr(getattr(current, "contract", None), "conId", 0) or 0

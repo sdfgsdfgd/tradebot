@@ -498,44 +498,62 @@ def _should_show_quote_error_code(ticker: Ticker, *, has_nbbo: bool, has_last: b
 
 
 def _quote_status_line(ticker: Ticker) -> Text:
+    """Expose quote provenance without pretending value-change age is a heartbeat."""
     health = _quote_health(
         bid=getattr(ticker, "bid", None),
         ask=getattr(ticker, "ask", None),
         last=getattr(ticker, "last", None),
+        close=_ticker_close(ticker),
+        market_data_type=getattr(ticker, "marketDataType", None),
     )
-    if bool(health.get("has_nbbo")):
-        bid_ask = "ok"
-    elif bool(health.get("has_one_sided")):
-        bid_ask = "1-sided"
-    else:
-        bid_ask = "n/a"
-    has_nbbo = bool(health.get("has_nbbo"))
-    has_last = bool(health.get("has_last"))
-    last_label = "ok" if has_last else "n/a"
-    parts = [f"MD Quotes: bid/ask {bid_ask}", f"last {last_label}"]
+    contract = getattr(ticker, "contract", None)
+    sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
+    route = str(getattr(contract, "exchange", "") or "").strip().upper()
+    primary = str(getattr(contract, "primaryExchange", "") or "").strip().upper()
     source = str(getattr(ticker, "tbQuoteSource", "") or "").strip()
-    source_label = _quote_source_label(
-        ticker,
-        source=source,
-        has_nbbo=has_nbbo,
-        has_last=has_last,
-    )
-    if source_label:
-        parts.append(f"src {source_label}")
-    as_of_raw = str(getattr(ticker, "tbQuoteAsOf", "") or "").strip()
-    if as_of_raw:
-        try:
-            as_of_dt = datetime.fromisoformat(as_of_raw.replace("Z", "+00:00"))
-            parts.append(f"asof {as_of_dt.strftime('%H:%M:%S')}")
-        except ValueError:
-            parts.append(f"asof {as_of_raw[:19]}")
-    updated_mono = getattr(ticker, "tbQuoteUpdatedMono", None)
+    md_type = health.get("market_data_type")
+    has_data = bool(health.get("has_actionable") or health.get("has_close_only"))
+    requested_raw = getattr(ticker, "tbRequestedMdType", None)
     try:
-        age_sec = max(0.0, monotonic() - float(updated_mono)) if updated_mono is not None else None
+        requested = int(requested_raw) if requested_raw is not None else None
     except (TypeError, ValueError):
-        age_sec = None
-    if age_sec is not None:
-        parts.append(f"age {age_sec:.0f}s")
+        requested = None
+    presented_type = requested if not has_data and requested in (1, 2, 3, 4) else md_type
+
+    if source.lower().startswith("historical"):
+        scope, scope_style = "HISTORICAL", "bold black on yellow"
+    elif sec_type == "STK" and presented_type in (3, 4):
+        scope, scope_style = f"PRIMARY {primary or route or '?'}", "bold black on yellow"
+    elif route == "SMART":
+        scope, scope_style = "SMART AGG", "bold black on green"
+    elif sec_type == "STK" and route == "OVERNIGHT":
+        scope, scope_style = "OVERNIGHT BBO", "bold black on #75a7d8"
+    elif sec_type == "STK":
+        scope, scope_style = "BBO DIRECT", "bold black on #d9a441"
+    else:
+        scope, scope_style = f"PRIMARY {route or primary or '?'}", "bold black on #75a7d8"
+
+    md_label = _MARKET_DATA_PRESENTATION.get(presented_type, ("", "n/a"))[1].upper()
+    if not has_data:
+        md_label = f"AWAITING {md_label}"
+
+    line = Text("QUOTE  ", style="dim")
+    line.append(scope, style=scope_style)
+    if scope == "BBO DIRECT":
+        line.append(f" · {route or '?'}", style="bold yellow")
+    line.append(f" · {md_label}", style="bright_cyan")
+    if scope == "BBO DIRECT":
+        line.append(" · VENUE ONLY", style="yellow")
+    elif presented_type in (2, 3, 4) or scope == "HISTORICAL":
+        line.append(" · CONTEXT ONLY", style="bold yellow")
+    error_code = _should_show_quote_error_code(
+        ticker,
+        has_nbbo=bool(health.get("has_nbbo")),
+        has_last=bool(health.get("has_last")),
+    )
+    if error_code is not None:
+        line.append(f" · CODE {error_code}", style="yellow")
+
     top_updated_mono = getattr(ticker, "tbTopQuoteUpdatedMono", None)
     try:
         top_age_sec = (
@@ -546,21 +564,40 @@ def _quote_status_line(ticker: Ticker) -> Text:
     except (TypeError, ValueError):
         top_age_sec = None
     if top_age_sec is not None:
-        parts.append(f"topchg {top_age_sec:.0f}s")
-    top_moves = getattr(ticker, "tbTopQuoteMoveCount", None)
-    if top_moves is not None:
+        if top_age_sec < 60.0:
+            age = f"{top_age_sec:.0f}s"
+        elif top_age_sec < 3600.0:
+            age = f"{top_age_sec / 60.0:.0f}m"
+        elif top_age_sec < 86400.0:
+            age = f"{top_age_sec / 3600.0:.1f}h"
+        else:
+            age = f"{top_age_sec / 86400.0:.1f}d"
+        line.append(f" · UNCHANGED {age}", style="dim")
+
+    as_of_raw = str(getattr(ticker, "tbQuoteAsOf", "") or "").strip()
+    if as_of_raw:
         try:
-            parts.append(f"moves {max(0, int(top_moves))}")
-        except (TypeError, ValueError):
-            pass
-    error_code = _should_show_quote_error_code(
+            as_of_dt = datetime.fromisoformat(as_of_raw.replace("Z", "+00:00"))
+            as_of = as_of_dt.strftime("%H:%M:%S")
+        except ValueError:
+            as_of = as_of_raw[:19]
+        line.append(f" · ASOF {as_of}", style="dim")
+
+    bid_ask = "✓" if health.get("has_nbbo") else "1-SIDED" if health.get("has_one_sided") else "—"
+    line.append(f" · BID/ASK {bid_ask}", style="green" if bid_ask == "✓" else "yellow")
+    line.append(f" · LAST {'✓' if health.get('has_last') else '—'}", style="bright_white")
+    source_label = _quote_source_label(
         ticker,
-        has_nbbo=has_nbbo,
-        has_last=has_last,
+        source=source,
+        has_nbbo=bool(health.get("has_nbbo")),
+        has_last=bool(health.get("has_last")),
     )
-    if error_code is not None:
-        parts.append(f"code {error_code}")
-    return Text(" · ".join(parts), style="dim")
+    if source_label and source_label != "stream" and not source_label.startswith("awaiting"):
+        line.append(f" · SRC {source_label}", style="dim")
+    if has_data and requested in (1, 2, 3, 4) and requested != md_type:
+        requested_label = _MARKET_DATA_PRESENTATION[requested][1].upper()
+        line.append(f" · REQ {requested_label}", style="dim")
+    return line
 
 
 def _market_session_bucket(ts_et: datetime | time) -> str:

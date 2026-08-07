@@ -10,6 +10,7 @@ from ib_insync import PortfolioItem, Ticker, Trade
 from rich.text import Text
 from textual import events
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.containers import Horizontal
 from textual.screen import Screen
 from textual.widgets import Header, Static
@@ -46,20 +47,20 @@ from .time_compat import now_et as _now_et
 
 class PositionDetailScreen(Screen):
     BINDINGS = [
-        ("escape", "app.pop_screen", "Back"),
-        ("b", "app.pop_screen", "Back"),
-        ("q", "app.pop_screen", "Back"),
-        ("r", "refresh_ticker", "Refresh MD"),
-        ("a", "cycle_aurora_preset", "Aurora"),
-        ("up", "exec_up", "Exec Up"),
-        ("down", "exec_down", "Exec Down"),
-        ("j", "exec_down", "Exec Down"),
-        ("k", "exec_up", "Exec Up"),
-        ("left", "exec_jump_left", "Exec Jump Left"),
-        ("right", "exec_jump_right", "Exec Jump Right"),
-        ("h", "exec_left", "Exec Left"),
-        ("l", "exec_right", "Exec Right"),
-        ("c", "cancel_order", "Cancel Order"),
+        Binding("escape", "app.pop_screen", "Back", key_display="esc"),
+        Binding("b", "app.pop_screen", show=False),
+        Binding("q", "app.pop_screen", show=False),
+        Binding("r", "refresh_ticker", "Refresh MD"),
+        Binding("a", "cycle_aurora_preset", "Aurora"),
+        Binding("up", "exec_up", "Mode", key_display="↑/↓"),
+        Binding("down", "exec_down", show=False),
+        Binding("j", "exec_down", show=False),
+        Binding("k", "exec_up", show=False),
+        Binding("left", "exec_jump_left", "Jump", key_display="←/→"),
+        Binding("right", "exec_jump_right", show=False),
+        Binding("h", "exec_left", "Price", key_display="h/l"),
+        Binding("l", "exec_right", show=False),
+        Binding("c", "cancel_order", "Cancel"),
     ]
     _ORDER_PANEL_NOTICE_TTL_SEC = 5 * 60.0
     _CHASE_PENDING_ACK_SEC = 0.9
@@ -497,7 +498,16 @@ class PositionDetailScreen(Screen):
             underlying_label=self._underlying_label,
         )
         if hasattr(self, "_detail_legend"):
-            self._detail_legend.update(self._market.chart.render_legend())
+            moves = self._market.live_chart_move_count()
+            self._detail_legend.update(
+                self._market.chart.render_legend()
+                if moves >= 2
+                else Text(
+                    f"Live Tape · warming · {moves} top move{'s' if moves != 1 else ''}"
+                    " · charts wake on the next move",
+                    style="dim",
+                )
+            )
         try:
             con_id = int(self._item.contract.conId or 0)
             latest = self._client.portfolio_item(con_id) if con_id else None

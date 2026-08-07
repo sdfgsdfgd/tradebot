@@ -195,10 +195,91 @@ def test_stock_detail_identifies_contract_and_does_not_call_empty_feed_live() ->
     assert "NYSE primary" in plain
     assert "SMART route" in plain
     assert "conId 272800" in plain
-    assert "NYSE (awaiting Delayed)" in plain
-    assert "NYSE (Live) req Delayed" not in plain
-    assert "src awaiting-delayed" in plain
-    assert "code 10089" in plain
+    assert "QUOTE  PRIMARY NYSE" in plain
+    assert "AWAITING DELAYED" in plain
+    assert "CONTEXT ONLY" in plain
+    assert "LIVE" not in next(line.plain for line in lines if "QUOTE" in line.plain)
+    assert "CODE 10089" in plain
+
+
+def test_detail_hides_empty_live_charts_until_a_second_top_move() -> None:
+    _ensure_event_loop()
+    contract = Contract(
+        secType="STK",
+        symbol="ORCL",
+        exchange="SMART",
+        primaryExchange="NYSE",
+        currency="USD",
+    )
+    contract.conId = 272800
+
+    class _Client:
+        @staticmethod
+        def pnl_single_unrealized(_con_id: int) -> float | None:
+            return None
+
+        @staticmethod
+        def pnl_single_daily(_con_id: int) -> float | None:
+            return None
+
+    screen = PositionDetailScreen(_Client(), _fut_item(contract, market_price=144.9), refresh_sec=0.25)
+    ticker = SimpleNamespace(
+        contract=contract,
+        bid=144.5,
+        ask=145.3,
+        last=None,
+        close=142.8,
+        marketDataType=1,
+        tbRequestedMdType=1,
+        tbTopQuoteMoveCount=1,
+    )
+    screen._ticker = ticker
+    screen._market.bind(screen._item, ticker)
+
+    kwargs = dict(
+        panel_width=100,
+        bid=144.5,
+        ask=145.3,
+        last=None,
+        price=144.9,
+        mid=144.9,
+        close=142.8,
+        mark=144.9,
+        spread=0.8,
+    )
+    warming = "\n".join(line.plain for line in screen._market.render_hud(**kwargs))
+    assert "Aurora" not in warming
+    assert "1m Trend" not in warming
+    assert "Vol Histogram" not in warming
+
+    ticker.tbTopQuoteMoveCount = 2
+    ready = "\n".join(line.plain for line in screen._market.render_hud(**kwargs))
+    assert "Aurora" in ready
+    assert "1m Trend" in ready
+    assert "Vol Histogram" in ready
+
+
+def test_detail_footer_groups_navigation_and_hides_aliases() -> None:
+    visible = [
+        (binding.key, binding.description, binding.key_display)
+        for binding in PositionDetailScreen.BINDINGS
+        if binding.show
+    ]
+
+    assert visible == [
+        ("escape", "Back", "esc"),
+        ("r", "Refresh MD", None),
+        ("a", "Aurora", None),
+        ("up", "Mode", "↑/↓"),
+        ("left", "Jump", "←/→"),
+        ("h", "Price", "h/l"),
+        ("c", "Cancel", None),
+    ]
+    assert all(
+        not binding.show
+        for binding in PositionDetailScreen.BINDINGS
+        if binding.key in {"b", "q", "down", "j", "k", "right", "l"}
+    )
 
 
 def test_stock_detail_session_portrait_is_immediately_informative() -> None:
@@ -1409,6 +1490,26 @@ def test_market_data_probe_row_shows_transition_and_expires() -> None:
     screen._market._md_probe_started_mono = monotonic() - (
         screen._market._MD_PROBE_BANNER_TTL_SEC + 0.5
     )
+    assert screen._market._market_data_probe_row() is None
+
+
+def test_market_data_probe_row_hides_a_healthy_noop_transition() -> None:
+    _ensure_event_loop()
+    contract = Contract(secType="STK", symbol="ORCL", exchange="ARCA", currency="USD")
+    contract.conId = 272800
+    screen = PositionDetailScreen(SimpleNamespace(), _fut_item(contract), refresh_sec=0.25)
+    screen._ticker = SimpleNamespace(
+        contract=contract,
+        bid=144.5,
+        ask=145.3,
+        last=None,
+        close=142.8,
+        marketDataType=1,
+    )
+    screen._market.bind(screen._item, screen._ticker)
+    screen._market._md_probe_requested_type = 1
+    screen._market._md_probe_started_mono = monotonic()
+
     assert screen._market._market_data_probe_row() is None
 
 

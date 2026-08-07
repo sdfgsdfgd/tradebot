@@ -1997,6 +1997,66 @@ def test_top_strip_races_live_routes_and_keeps_only_first_actionable(monkeypatch
     assert cancelled_routes == {"SMART", "ARCA", "DRCTEDGE", "MEMX"}
 
 
+def test_top_strip_gives_first_direct_route_an_exclusive_lead(monkeypatch) -> None:
+    client = _new_client()
+    client._ib = _FakeConnectIB(connected=True)
+    monkeypatch.setattr("tradebot.client._now_et", lambda: datetime(2026, 8, 6, 5, 0))
+    client._proxy_phase_epoch = "2026-08-06:PRE"
+
+    class _RaceIB:
+        def __init__(self) -> None:
+            self.requests: list[object] = []
+            self.cancels: list[object] = []
+
+        @staticmethod
+        def isConnected() -> bool:
+            return True
+
+        @staticmethod
+        def reqMarketDataType(_md_type: int) -> None:
+            return None
+
+        def reqMktData(self, contract):
+            self.requests.append(contract)
+            return SimpleNamespace(
+                contract=contract,
+                bid=72.04,
+                ask=72.07,
+                last=None,
+                close=None,
+                marketDataType=1,
+            )
+
+        def cancelMktData(self, contract) -> None:
+            self.cancels.append(contract)
+
+    fake_ib = _RaceIB()
+    client._ib_proxy = fake_ib  # type: ignore[assignment]
+    contract = Stock("TQQQ", "SMART", "USD", primaryExchange="NASDAQ")
+    contract.conId = 72539702
+    client._proxy_tickers = {
+        "TQQQ": SimpleNamespace(
+            contract=contract,
+            bid=None,
+            ask=None,
+            last=None,
+            close=None,
+            tbRequestedMdType=1,
+        )
+    }
+
+    async def _run() -> None:
+        task = client._start_proxy_contract_market_data_recovery(contract)
+        assert task is not None
+        await task
+
+    asyncio.run(_run())
+
+    assert [request.exchange for request in fake_ib.requests] == ["ARCA"]
+    assert client._proxy_tickers["TQQQ"].contract.exchange == "ARCA"
+    assert [request.exchange for request in fake_ib.cancels] == ["SMART"]
+
+
 def test_searched_stock_races_live_routes_then_updates_detail_ticker(monkeypatch) -> None:
     client = _new_client()
     client._ib = _FakeConnectIB(connected=True)

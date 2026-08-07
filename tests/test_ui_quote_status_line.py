@@ -27,12 +27,10 @@ def test_quote_status_line_includes_fallback_source_and_non_entitlement_code() -
 
     text = _quote_status_line(ticker).plain
 
-    assert "src delayed-snapshot" in text
-    assert "asof 13:45:00" in text
-    assert "code 201" in text
-    assert "age " in text
-    assert "topchg " in text
-    assert "moves 7" in text
+    assert "SRC delayed-snapshot" in text
+    assert "ASOF 13:45:00" in text
+    assert "CODE 201" in text
+    assert "UNCHANGED 2s" in text
 
 
 def test_quote_status_line_collapses_close_only_source_and_hides_10090_with_close() -> None:
@@ -49,8 +47,8 @@ def test_quote_status_line_collapses_close_only_source_and_hides_10090_with_clos
 
     text = _quote_status_line(ticker).plain
 
-    assert "src close-only" in text
-    assert "code 10090" not in text
+    assert "SRC close-only" in text
+    assert "CODE 10090" not in text
 
 
 def test_quote_status_line_keeps_10090_when_no_quote_or_close() -> None:
@@ -66,8 +64,8 @@ def test_quote_status_line_keeps_10090_when_no_quote_or_close() -> None:
 
     text = _quote_status_line(ticker).plain
 
-    assert "src unavailable" in text
-    assert "code 10090" in text
+    assert "SRC unavailable" in text
+    assert "CODE 10090" in text
 
 
 def test_quote_status_line_without_fallback_metadata_remains_simple() -> None:
@@ -75,9 +73,70 @@ def test_quote_status_line_without_fallback_metadata_remains_simple() -> None:
 
     text = _quote_status_line(ticker).plain
 
-    assert text.startswith("MD Quotes: bid/ask n/a")
-    assert "src " not in text
-    assert "topchg " not in text
+    assert text.startswith("QUOTE  PRIMARY ? · AWAITING N/A")
+    assert "SRC " not in text
+    assert "UNCHANGED " not in text
+
+
+def test_quote_integrity_badge_distinguishes_direct_smart_and_delayed_quotes() -> None:
+    direct = SimpleNamespace(
+        contract=SimpleNamespace(
+            secType="STK",
+            exchange="ARCA",
+            primaryExchange="NYSE",
+        ),
+        bid=144.55,
+        ask=145.30,
+        last=None,
+        close=142.80,
+        marketDataType=1,
+        tbRequestedMdType=1,
+        tbQuoteSource="stream",
+        tbTopQuoteUpdatedMono=monotonic() - 1126.0,
+    )
+    smart = SimpleNamespace(
+        contract=SimpleNamespace(
+            secType="STK",
+            exchange="SMART",
+            primaryExchange="NYSE",
+        ),
+        bid=144.54,
+        ask=145.25,
+        last=144.90,
+        close=142.80,
+        marketDataType=1,
+        tbRequestedMdType=1,
+        tbQuoteSource="stream",
+        tbTopQuoteUpdatedMono=monotonic() - 1.0,
+    )
+    delayed = SimpleNamespace(
+        contract=SimpleNamespace(
+            secType="STK",
+            exchange="NYSE",
+            primaryExchange="NYSE",
+        ),
+        bid=144.10,
+        ask=144.40,
+        last=144.25,
+        close=142.80,
+        marketDataType=3,
+        tbRequestedMdType=3,
+        tbQuoteSource="delayed-snapshot",
+        tbQuoteAsOf="2026-08-07T15:55:00",
+        tbTopQuoteUpdatedMono=monotonic() - 1080.0,
+    )
+
+    direct_text = _quote_status_line(direct).plain
+    smart_text = _quote_status_line(smart).plain
+    delayed_text = _quote_status_line(delayed).plain
+
+    assert "BBO DIRECT · ARCA · LIVE · VENUE ONLY" in direct_text
+    assert "UNCHANGED 19m" in direct_text
+    assert "BID/ASK ✓ · LAST —" in direct_text
+    assert "SMART AGG · LIVE" in smart_text
+    assert "BBO DIRECT" not in smart_text
+    assert "PRIMARY NYSE · DELAYED · CONTEXT ONLY" in delayed_text
+    assert "ASOF 15:55:00" in delayed_text
 
 
 def test_market_data_presentation_distinguishes_all_ibkr_types() -> None:

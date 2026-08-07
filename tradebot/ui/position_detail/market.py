@@ -27,7 +27,6 @@ from ..common import (
     _fmt_qty,
     _fmt_quote,
     _infer_multiplier,
-    _market_data_label,
     _mark_price,
     _option_display_price,
     _safe_float,
@@ -105,6 +104,14 @@ class PositionMarketView:
             clean = [bar for bar in clean if bar.ts.date() == latest_day]
         self._session_portrait_bars = tuple(clean[-240:])
         self._session_portrait_state = "ready" if clean else "unavailable"
+
+    def live_chart_move_count(self) -> int:
+        raw = getattr(self._ticker, "tbTopQuoteMoveCount", 0) if self._ticker else 0
+        try:
+            reported = max(0, int(raw or 0))
+        except (TypeError, ValueError):
+            reported = 0
+        return max(reported, len(self.chart.mid_samples))
 
     @staticmethod
     def _compact_volume(value: float) -> str:
@@ -244,6 +251,18 @@ class PositionMarketView:
             return None
         req_type = self._md_probe_requested_type
         actual_type = self._md_type_value(self._ticker)
+        if req_type == actual_type and self._ticker is not None:
+            has_data = any(
+                value is not None
+                for value in (
+                    _quote_num_actionable(getattr(self._ticker, "bid", None)),
+                    _quote_num_actionable(getattr(self._ticker, "ask", None)),
+                    _quote_num_actionable(getattr(self._ticker, "last", None)),
+                    _ticker_close(self._ticker),
+                )
+            )
+            if has_data:
+                return None
         remaining_sec = max(0.0, float(self._MD_PROBE_BANNER_TTL_SEC) - elapsed_sec)
         row = Text("MD Probe ", style="yellow")
         row.append("req ")
@@ -540,42 +559,10 @@ class PositionMarketView:
         realized_num = self._float_or_none(getattr(self._item, "realizedPNL", None))
         realized = _fmt_money(realized_num) if realized_num is not None else "n/a"
 
-        market_data_ready = bool(
-            bid is not None or ask is not None or last is not None or close is not None
-        )
-        md_row = Text("MD: ")
-        if self._ticker:
-            md_exchange = getattr(self._ticker.contract, "exchange", "") or "n/a"
-            req_type_raw = getattr(self._ticker, "tbRequestedMdType", None)
-            try:
-                req_type = int(req_type_raw) if req_type_raw is not None else None
-            except (TypeError, ValueError):
-                req_type = None
-            actual_type = self._md_type_value(self._ticker)
-            if not market_data_ready:
-                pending_type = req_type if req_type in (1, 2, 3, 4) else actual_type
-                md_row.append(
-                    f"{md_exchange} (awaiting {self._md_type_name(pending_type)})",
-                    style="bright_cyan",
-                )
-            else:
-                md_row.append(
-                    f"{md_exchange} ({_market_data_label(self._ticker)})",
-                    style="bright_cyan",
-                )
-            if (
-                market_data_ready
-                and req_type in (1, 2, 3, 4)
-                and req_type != actual_type
-            ):
-                md_row.append(" req ", style="dim")
-                md_row.append(self._md_type_name(req_type), style="dim")
-        else:
-            md_row.append("n/a", style="dim")
-        quote_status = (
+        quote_integrity = (
             _quote_status_line(self._ticker)
             if self._ticker
-            else Text("MD Quotes: n/a", style="dim")
+            else Text("QUOTE  AWAITING MARKET DATA", style="dim")
         )
         has_live_quote_now = bool(
             (bid is not None and ask is not None and bid <= ask)
@@ -628,37 +615,44 @@ class PositionMarketView:
         headline.append(_fmt_quote(spread), style="cyan")
         position_row = self._position_beacon_row(position_qty, market_value_raw)
 
-        trend_window_start, trend_window_end = self.chart.window_bounds()
-        aurora_label_row = Text("Aurora", style="#8aa0b6")
-        aurora_row = self.chart.mark_now(
-            self.chart.aurora_strip(
+        chart_rows: list[Text] = []
+        if self.live_chart_move_count() >= 2:
+            trend_window_start, trend_window_end = self.chart.window_bounds()
+            aurora_row = self.chart.mark_now(
+                self.chart.aurora_strip(
+                    spark_width,
+                    window_start=trend_window_start,
+                    window_end=trend_window_end,
+                )
+            )
+            trend_row_values, trend_now_row = self.chart.trend_rows(
                 spark_width,
                 window_start=trend_window_start,
                 window_end=trend_window_end,
             )
-        )
-        trend_label_row = Text("1m Trend", style="cyan")
-        trend_row_values, trend_now_row = self.chart.trend_rows(
-            spark_width,
-            window_start=trend_window_start,
-            window_end=trend_window_end,
-        )
-        comet_color = self.chart.aurora_now_style()
-        trend_rows = [Text(row, style="#63d9ff") for row in trend_row_values]
-        trend_price = mid or price or mark
-        trend_rows[trend_now_row] = self.chart.tag_price(
-            trend_rows[trend_now_row], trend_price, color=comet_color
-        )
-        vol_label_row = Text("Vol Histogram", style="magenta")
-        vol_row = self.chart.mark_now(
-            self.chart.volume_histogram(
-                spark_width,
-                window_start=trend_window_start,
-                window_end=trend_window_end,
+            comet_color = self.chart.aurora_now_style()
+            trend_rows = [Text(row, style="#63d9ff") for row in trend_row_values]
+            trend_rows[trend_now_row] = self.chart.tag_price(
+                trend_rows[trend_now_row], mid or price or mark, color=comet_color
             )
-        )
-        momentum_label_row = Text("Momentum", style="yellow")
-        momentum_row = self.chart.mark_now(Text(self.chart.momentum(spark_width), style="yellow"))
+            vol_row = self.chart.mark_now(
+                self.chart.volume_histogram(
+                    spark_width,
+                    window_start=trend_window_start,
+                    window_end=trend_window_end,
+                )
+            )
+            momentum_row = self.chart.mark_now(Text(self.chart.momentum(spark_width), style="yellow"))
+            chart_rows = [
+                Text("Aurora", style="#8aa0b6"),
+                aurora_row,
+                Text("1m Trend", style="cyan"),
+                *trend_rows,
+                Text("Vol Histogram", style="magenta"),
+                vol_row,
+                Text("Momentum", style="yellow"),
+                momentum_row,
+            ]
         portrait_rows = self._session_portrait_rows(inner)
 
         detail_row = Text(f"Avg {avg_cost}   MktVal {market_value}")
@@ -733,8 +727,7 @@ class PositionMarketView:
 
         lines: list[Text] = [
             box_top(self.contract_header_title(contract), inner, style="#2d8fd5"),
-            box_row(md_row, inner, style="#2d8fd5"),
-            box_row(quote_status, inner, style="#2d8fd5"),
+            box_row(quote_integrity, inner, style="#2d8fd5"),
             box_row(headline, inner, style="#2d8fd5"),
             box_row(position_row, inner, style="#2d8fd5"),
             box_row(detail_row, inner, style="#2d8fd5"),
@@ -742,14 +735,7 @@ class PositionMarketView:
             box_row(quote_row, inner, style="#2d8fd5"),
             box_row(price_row, inner, style="#2d8fd5"),
             *[box_row(row, inner, style="#2d8fd5") for row in portrait_rows],
-            box_row(aurora_label_row, inner, style="#2d8fd5"),
-            box_row(aurora_row, inner, style="#2d8fd5"),
-            box_row(trend_label_row, inner, style="#2d8fd5"),
-            *[box_row(trend_row, inner, style="#2d8fd5") for trend_row in trend_rows],
-            box_row(vol_label_row, inner, style="#2d8fd5"),
-            box_row(vol_row, inner, style="#2d8fd5"),
-            box_row(momentum_label_row, inner, style="#2d8fd5"),
-            box_row(momentum_row, inner, style="#2d8fd5"),
+            *[box_row(row, inner, style="#2d8fd5") for row in chart_rows],
         ]
         identity_row = self._contract_identity_row(contract)
         if identity_row is not None:

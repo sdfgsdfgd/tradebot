@@ -512,7 +512,7 @@ class PositionChart(RealtimeChartData):
         legend.append("SELL", style="#ffaf00")
         legend.append("/", style="dim")
         legend.append("SELL+", style="red")
-        legend.append("  |  +tape 15%  |  height=vol burst  |  a preset", style="dim")
+        legend.append("  |  +tape 15%  |  height=vol burst", style="dim")
         return legend
 
     def momentum(self, width: int) -> str:
