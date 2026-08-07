@@ -1,0 +1,151 @@
+{
+  "schema": "mcl.subshock-stage116-nineteenth-episode-stage118-wait.v1",
+  "recorded_at_utc": "2026-08-07T04:22:34.234214+00:00",
+  "authority": "prospective_derived_morphology_only_no_outcomes_no_orders_no_capital",
+  "purpose": "Preserve the nineteenth complete Stage-116 subshock and the contemporaneous all-UP multiscale state without running Stage 118 before a genuine post-eligibility V18 raw-turn terminal.",
+  "stage116": {
+    "preregistration_path": "backtests/mcl/mcl_subshock_ignition_recoil_reacceleration_stage116_preregistration.json",
+    "preregistration_sha256": "2d081df5058a44ff736e0d26705a09b78f97c8b1b703a4ffd4d255f7d2920154",
+    "evaluator_path_on_q": "/var/tmp/mcl_stage116_subshock_morphology.py",
+    "evaluator_sha256": "e17032307a01799345fc6c26770718da2044ce874983d74458ee2b3889d8da6e",
+    "result_path_on_q": "/var/tmp/mcl-stage116-stage118-current-r5.json",
+    "result_sha256": "a17d40a12200217fd356d1582627bbcb8593a0700b2e483aafa999da7af062f5",
+    "generated_at_utc": "2026-08-07T04:18:04.001724+00:00",
+    "selection_id": "8adead895d3bd460b460f832d725046a3ea34079525a80a1662004ade2c17c93",
+    "prior_complete_subshock_episodes": 18,
+    "current_complete_subshock_episodes": 19,
+    "bars": {
+      "common_rows": 5898,
+      "cutoff_utc": "2026-08-07T04:18:00+00:00",
+      "first_common_close_utc": "2026-08-02T22:01:00+00:00",
+      "last_common_close_utc": "2026-08-07T04:18:00+00:00",
+      "sha256": "79b43019ac9b7d2bba10dd0634ed5c677c2ff6b94f521e0509e29a73cd35dc8b"
+    },
+    "tape": {
+      "first_bucket_utc": "2026-08-05T23:37:56+00:00",
+      "last_bucket_utc": "2026-08-07T04:18:04+00:00",
+      "records": 73456,
+      "record_ids_sha256": "ffb72a1910cefb912224343ec3371dae0cb59588c2c938ac7ccfdf2dec34526f"
+    },
+    "cohort": {
+      "complete_subshock_episodes": 19,
+      "directionless_controls": 1,
+      "provisional_directions": {
+        "down": 8,
+        "up": 10
+      },
+      "sessions": {
+        "GTH": 15,
+        "RTH": 4
+      },
+      "shapes": {
+        "DIRECTIONLESS_ATTENTION": 1,
+        "IGNITION_RECOIL": 4,
+        "IGNITION_RECOIL_REACCELERATION": 10,
+        "MIXED_TORSION": 4
+      },
+      "verdict": "ACCUMULATE"
+    },
+    "new_complete_episode": {
+      "episode_id": "7a8a1f6b9b985a5708dafce0a95241bafe2db603b377558ab306e5ad74df576b",
+      "episode_sha256": "4ee4c8fadef342985b9196f4d864db710486bfed83536b608932a9d7bf6e3a89",
+      "started_at_utc": "2026-08-07T04:01:46+00:00",
+      "terminal_at_utc": "2026-08-07T04:06:41+00:00",
+      "duration_seconds": 295.0,
+      "receipt_session": "GTH",
+      "provisional_direction": "down",
+      "maximum_volume_multiple": 6.923076923076923,
+      "shape": "IGNITION_RECOIL_REACCELERATION",
+      "first_book_alignment_order": "SAME_INTERVAL",
+      "first_directional_mid_move_order": "CL_LEADS",
+      "first_directional_mid_move_lag_seconds": 4,
+      "provisional_alignment_at_utc": "2026-08-07T04:01:46+00:00",
+      "provisional_alignment_volume_multiple": 6.6923076923076925,
+      "speed_peak_at_utc": "2026-08-07T04:01:47+00:00",
+      "speed_peak_ticks_per_second": 0.5286195286193637,
+      "crest_confirmed_at_utc": "2026-08-07T04:02:05+00:00",
+      "crest_confirmation_latency_seconds": 18.0,
+      "opposite_full_alignment_recoil_at_utc": "2026-08-07T04:03:00+00:00",
+      "opposite_full_alignment_recoil_direction": "up",
+      "renewed_original_full_alignment_at_utc": "2026-08-07T04:05:39+00:00",
+      "renewed_original_full_alignment_direction": "down",
+      "terminal_reason": "seconds_wave_owner_normalized",
+      "volume_clock_audit": {
+        "semantics": "IB_TCP_packet_receipt_seconds_vs_finalized_broker_minutes",
+        "common_completed_minutes": 5,
+        "exact_minutes": 3,
+        "mismatched_minutes": 2,
+        "median_positive_volume_ratio": 1.0,
+        "maximum_absolute_minute_difference": 59.0,
+        "tape_volume_total": 131.0,
+        "broker_volume_total": 191.0
+      },
+      "causal_news_context": {
+        "authority": "non_scoring_context_only",
+        "symbol": "MCL",
+        "direction": "up",
+        "impact": 21,
+        "confidence": 0.98,
+        "change": "unchanged",
+        "signed_pressure": 0.21,
+        "pressure_delta": 0.0,
+        "pressure_velocity_per_hour": 0.0,
+        "signal_as_of_utc": "2026-08-07T03:18:42+00:00"
+      }
+    },
+    "open_prefix": {
+      "started_at_utc": "2026-08-07T04:12:29+00:00",
+      "maximum_volume_multiple": 6.5,
+      "source_records_at_cutoff": 193,
+      "classification": null,
+      "reason": "Episode was still open at the immutable result cutoff and is not classified early."
+    }
+  },
+  "stage118": {
+    "preregistration_path": "backtests/mcl/mcl_multiscale_phase_front_stage118_preregistration.json",
+    "preregistration_sha256": "7270c1e7b538213045000fac87bdfc4d89946e0b323f7d1b4413e4b756f6d564",
+    "eligible_event_start_utc": "2026-08-06T22:45:00+00:00",
+    "latest_finalized_source_decision_utc": "2026-08-07T04:20:00+00:00",
+    "latest_source_checkpoint_id": "7e13d7c2f957e06cb62800a07e93b6ecd3aec2bbec8a1d7e962d6a73926a94c7",
+    "latest_slope_signs_30_60_120_240_480m": "UUUUU",
+    "latest_velocity_signs_30_60_120_240_480m": "UUUUU",
+    "latest_coherence": 1.0,
+    "latest_conviction": 0.17881543449486315,
+    "latest_atr_ratio": 0.9367683328987589,
+    "latest_atr_velocity_pct": 0.022176351726393845,
+    "latest_atr_acceleration_pct": 0.00942403769514133,
+    "latest_abstain_reason": "weak_direction",
+    "latest_target": null,
+    "last_v18_raw_turn_terminal_utc": "2026-08-06T06:40:00+00:00",
+    "post_eligibility_v18_raw_turn_terminal_count": 0,
+    "first_derivation_run": false,
+    "fresh_replay_budget": "0/1_unspent",
+    "verdict": "WAIT_FOR_GENUINE_TERMINAL"
+  },
+  "stage112_live": {
+    "checkpoint_id": "1e2f36be6f2c97424ad073a1f66ce9ffe6d6bb4d94c79b6213ad5f915a3769d9",
+    "recorded_at_utc": "2026-08-07T04:22:34.234214+00:00",
+    "reason": "flat_no_target",
+    "position": 0,
+    "orders": 0,
+    "fills": 0,
+    "run_net_usd": 0.0,
+    "run_drawdown_usd": 0.0,
+    "safety_breaches": [],
+    "submitted_orders": 0
+  },
+  "predictive_observation": "The nineteenth episode's DOWN ignition, UP recoil, and DOWN reacquisition did not establish durable DOWN ownership: after natural normalization, the completed multiscale state progressed to UUUUU slopes and UUUUU velocities without a fresh V18 raw turn. Stage-116 shape is therefore an internal seconds morphology, not terminal direction. Stage 118 must retain its slower terminal and recoil-survival law before any count, timing, or trade claim.",
+  "invariants": {
+    "stage112_live_changed": false,
+    "xsp_p009_changed": false,
+    "gold_changed": false,
+    "threshold_changed": false,
+    "outcomes_exposed": false,
+    "direction_authority_opened": false,
+    "timing_authority_opened": false,
+    "order_authority_opened": false,
+    "capital_authority_opened": false,
+    "market_orders_permitted": false
+  },
+  "submitted_orders": 0
+}
