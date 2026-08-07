@@ -1,0 +1,67 @@
+{
+  "schema": "live.service-dormant-archive.v1",
+  "observed_at_utc": "2026-08-07T11:12:00Z",
+  "authority": "operator_authorized_recoverable_runtime_cleanup_no_strategy_no_orders_no_capital",
+  "host": "q",
+  "archive_directory": "/home/x/.config/systemd/user/retired/2026-08-07-dormant-owners",
+  "archived_units": [
+    {
+      "unit": "tradebot-xsp-quotes.service",
+      "prior_state": "inactive_static",
+      "sha256": "2af1e9a28a919f23d518419827a9e3bb79369c865289b9079616e8933bbfe3cb"
+    },
+    {
+      "unit": "tradebot-xsp-quotes.timer",
+      "prior_state": "inactive_disabled",
+      "sha256": "a57969bcf5d10e8275a5e0a9500184e534a31249173a8e196f1bddd975545df1"
+    },
+    {
+      "unit": "tradebot-mcl-predictive-onset.service",
+      "prior_state": "inactive_static",
+      "sha256": "00d004a459fa494f5ee6c1d2e12c24f12555f8da00a0792d199e52b4222229b7"
+    },
+    {
+      "unit": "tradebot-mcl-predictive-onset.timer",
+      "prior_state": "inactive_disabled",
+      "sha256": "18813ea33c8ccd66a31777b7fc5fdf1fe58843ad39ad8f5441f9a903383cdbe1"
+    },
+    {
+      "unit": "tradebot-mcl-predictive-onset-stage114.service",
+      "prior_state": "inactive_static",
+      "sha256": "0cdeab83c23fbf26d166b934e2499086f39b56d47901d376fa7c336dca0bbcc4"
+    },
+    {
+      "unit": "tradebot-mcl-predictive-onset-stage114.timer",
+      "prior_state": "inactive_disabled",
+      "sha256": "55e925d2efd18fecad8b3f4351aa4e48ae5320602447dfa51b2d4c303c778ef5"
+    }
+  ],
+  "current_runtime_owners": [
+    "tradebot-ib-gateway-tunnel.service",
+    "tradebot-xsp-shadow.timer",
+    "tradebot-xsp-pressure-tape.timer",
+    "tradebot-gold-live.timer",
+    "tradebot-gold-onset.timer",
+    "tradebot-mcl-live.timer",
+    "tradebot-mcl-turn-tape.service",
+    "tradebot-mcl-predictive-onset-runtime.timer",
+    "tradebot-news.timer"
+  ],
+  "verification": {
+    "all_archived_units_absent_from_active_user_unit_directory": true,
+    "systemd_daemon_reloaded": true,
+    "all_current_runtime_owners_healthy": true,
+    "failed_user_units": 0,
+    "files_deleted": 0,
+    "champion_or_observer_restarts": 0,
+    "strategies_changed": 0,
+    "selections_changed": 0,
+    "capital_changed": 0,
+    "submitted_orders": 0
+  },
+  "repository_policy": {
+    "templates_retained_for_history_and_recovery": true,
+    "default_installation_documented_as_current_runtime_only": true,
+    "documentation": "deploy/systemd/README.md"
+  }
+}

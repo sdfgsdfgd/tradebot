@@ -37,10 +37,29 @@ stdout remains the final command receipt. The service atomically curates
 `~/.codex/trade-research.md` and `~/.codex/trade-events.jsonl`; do not point
 multiple concurrent service instances at those files.
 
+## Current runtime ownership
+
+q runs one isolated systemd failure domain per cadence and authority class:
+
+- `tradebot-xsp-shadow` owns selected P-009 source/reconciliation/execution;
+- `tradebot-xsp-pressure-tape` owns read-only RTH seconds evidence;
+- `tradebot-gold-live` and `tradebot-gold-onset` own Gold live and H4 source;
+- `tradebot-mcl-live`, `tradebot-mcl-turn-tape`, and
+  `tradebot-mcl-predictive-onset-runtime` own MCL live, seconds evidence, and
+  the current generation-pointer predictive observers;
+- `tradebot-news` owns four-hour publication and triggers the read-only MCL
+  narrative companion;
+- `tradebot-ib-gateway-tunnel` is the shared localhost broker transport.
+
+The old `tradebot-xsp-quotes`, `tradebot-mcl-predictive-onset`, and
+`tradebot-mcl-predictive-onset-stage114` pairs are retired. Do not install or
+enable them as part of the current runtime. Their repository templates remain
+historical/recovery evidence only.
+
 ## XSP forward evidence
 
-Install these units only from one clean, pushed revision containing the quote
-recorder, shadow evaluator, and their tests. Keep the dedicated runtime
+Install these units only from one clean, pushed revision containing the
+pressure recorder, shadow evaluator, and their tests. Keep the dedicated runtime
 separate from the dashboard environment:
 
 The current q execution checkout tracks only the isolated news branch and has
@@ -77,13 +96,15 @@ test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
 install -m 0644 deploy/systemd/tradebot-news.{service,timer} ~/.config/systemd/user/
 install -m 0644 deploy/systemd/tradebot-mcl-narrative-prospective.service ~/.config/systemd/user/
 install -m 0644 deploy/systemd/tradebot-ib-gateway-tunnel.service ~/.config/systemd/user/
-install -m 0644 deploy/systemd/tradebot-xsp-{quotes,shadow}.{service,timer} ~/.config/systemd/user/
+install -m 0644 deploy/systemd/tradebot-xsp-shadow.{service,timer} ~/.config/systemd/user/
+install -m 0644 deploy/systemd/tradebot-xsp-pressure-tape.{service,timer} ~/.config/systemd/user/
 systemctl --user daemon-reload
 systemd-analyze --user verify \
   ~/.config/systemd/user/tradebot-news.{service,timer} \
   ~/.config/systemd/user/tradebot-mcl-narrative-prospective.service \
   ~/.config/systemd/user/tradebot-ib-gateway-tunnel.service \
-  ~/.config/systemd/user/tradebot-xsp-{quotes,shadow}.{service,timer}
+  ~/.config/systemd/user/tradebot-xsp-shadow.{service,timer} \
+  ~/.config/systemd/user/tradebot-xsp-pressure-tape.{service,timer}
 cmp -s deploy/systemd/tradebot-news.service ~/.config/systemd/user/tradebot-news.service
 cmp -s deploy/systemd/tradebot-mcl-narrative-prospective.service ~/.config/systemd/user/tradebot-mcl-narrative-prospective.service
 ```
@@ -105,7 +126,7 @@ live-boundary proof:
 ```bash
 systemctl --user disable --now tradebot-xsp-shadow.timer
 systemctl --user enable --now \
-  tradebot-news.timer tradebot-xsp-quotes.timer
+  tradebot-news.timer tradebot-xsp-pressure-tape.timer
 ```
 
 After installation and before the next `20:15 ET` GTH boundary, manually run
@@ -121,13 +142,13 @@ journalctl --user -u tradebot-xsp-shadow.service -n 100 --no-pager
 systemctl --user enable --now tradebot-xsp-shadow.timer
 ```
 
-The quote timer starts one bounded recorder per exchange session; the shadow
-timer runs one v2 evaluation after each completed GTH/RTH bar and once at
+The pressure-tape timer starts one bounded recorder per cash session; the shadow
+timer runs the selected P-009 evaluation after each completed GTH/RTH bar and once at
 `16:17 ET` to close-align the final RTH bar. A selected cash sleeve begins its
 already-validated SELL ladder at `15:57 ET` (`12:57` on early-close days),
 forbids every later BUY, and lets later RTH/Curb/GTH recurrences only reconcile
 or reduce a position that did not flatten.
-The quote timer is persistent so a q reboot resumes the current capture window;
+The pressure-tape timer is persistent so a q reboot resumes the current capture window;
 the recorder's closed-window guard prevents an expired catch-up from reaching
 the broker. The high-frequency shadow timer remains non-persistent.
 The installed service remains broker-read-only while no validated
@@ -159,25 +180,24 @@ selected authority. The command is deliberately not a recurring selector.
 
 ## MCL predictive-onset accumulation
 
-Install the predictive observer only after the crowned V18 live worker and the
-continuous turn tape are proven independently. The observer is a separate,
-read-only failure domain: empty cycles append nothing and do not contact IBKR;
-only a new exact V18 raw turn with a complete `-60s..+5m` tape window opens one
-finalized-history read and one immutable morphology treatment. It cannot alter
-direction, timing, orders, capital, or the live/recorder services.
+Install only the generation-pointer runtime after the crowned Stage-112 worker
+and continuous turn tape are proven independently. It is a separate read-only
+failure domain: empty cycles append nothing, current generation files select
+the predictive and shock-wave owners, and no observer can alter direction,
+timing, orders, capital, or live/recorder services.
 
 ```bash
-install -m 0644 deploy/systemd/tradebot-mcl-predictive-onset.{service,timer} \
+install -m 0644 deploy/systemd/tradebot-mcl-predictive-onset-runtime.{service,timer} \
   ~/.config/systemd/user/
 systemctl --user daemon-reload
 systemd-analyze --user verify \
-  ~/.config/systemd/user/tradebot-mcl-predictive-onset.{service,timer}
-systemctl --user start tradebot-mcl-predictive-onset.service
-journalctl --user -u tradebot-mcl-predictive-onset.service -n 100 --no-pager
-systemctl --user enable --now tradebot-mcl-predictive-onset.timer
+  ~/.config/systemd/user/tradebot-mcl-predictive-onset-runtime.{service,timer}
+systemctl --user start tradebot-mcl-predictive-onset-runtime.service
+journalctl --user -u tradebot-mcl-predictive-onset-runtime.service -n 100 --no-pager
+systemctl --user enable --now tradebot-mcl-predictive-onset-runtime.timer
 ```
 
-The first invocation imports the two frozen Stage-90 treatments once. Repeating
-it with no unseen complete turn must leave the ledger byte-identical. The
-five-minute timer runs after the live checkpoint and recorder flush, is not
-persistent, and never fabricates a missed treatment across a closure.
+Repeating an invocation with no unseen complete treatment must leave every
+ledger byte-identical. The five-minute timer runs after the live checkpoint and
+recorder flush, is not persistent, and never fabricates missed treatments
+across a closure or silently substitutes an older generation.
