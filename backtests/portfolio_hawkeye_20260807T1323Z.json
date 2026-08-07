@@ -1,0 +1,404 @@
+{
+  "schema": "live.portfolio-hawkeye.v1",
+  "observed_at_utc": "2026-08-07T13:24:44Z",
+  "authority": "read_only_causal_observation_and_incubator_reconciliation_no_signal_no_orders_no_capital",
+  "review_block": {
+    "review": 4,
+    "required": 6,
+    "review_started_at_utc": "2026-08-07T13:23:10Z",
+    "prior_review_utc": "2026-08-07T13:07:10Z",
+    "prior_receipt": "backtests/portfolio_hawkeye_20260807T1303Z.json",
+    "scheduled_boundary_utc": "2026-08-07T13:23:10Z",
+    "started_seconds_after_boundary": 0,
+    "settlement_completed_at_utc": "2026-08-07T13:24:44Z",
+    "missed_slots_backfilled": 0,
+    "status": "ACTIVE_REVIEW_4_OF_6"
+  },
+  "portfolio": {
+    "account_id": "U12825049",
+    "base_currency": "AUD",
+    "broker_capture": "read_only_at_review_start",
+    "broker_snapshot_path_on_q": "/var/tmp/hawkeye-broker-1323.json",
+    "broker_snapshot_sha256": "dd472a91e07c4c3a2ea328b63b723db80f94b84f32b25bec1e483b3b9184cd3b",
+    "available_funds_aud": 3625.61,
+    "excess_liquidity_aud": 3625.61,
+    "equity_with_loan_aud": 3625.61,
+    "net_liquidation_aud": 3625.61,
+    "cash_balance_aud": 2119.39,
+    "cash_balance_usd": 1064.14,
+    "positions": [],
+    "open_orders": [],
+    "active_run_realized_net_usd": 0,
+    "active_open_mark_net_usd": 0,
+    "account_value_change_since_prior_review_aud": 0.34,
+    "account_value_change_classification": "cash_and_position_ledgers_unchanged_so_not_champion_trading_pnl",
+    "known_live_campaign": {
+      "source": "backtests/portfolio_live_campaign_pnl_provenance_20260807.json",
+      "closed_trades": 4,
+      "gold_net_usd": 0,
+      "mcl_net_usd": -318.52,
+      "xsp_net_usd": -22.156380999999634,
+      "portfolio_net_usd": -340.6763809999996,
+      "new_fills_since_prior_review": 0
+    }
+  },
+  "xsp": {
+    "strategy_version": "xsp.opening-edge-v4-dual-clock-arbitration-p009.v1",
+    "selection_id": "e0f61f74286e1d2b655e253633b0842cb47d41ad7b66fb4567eece3aa46d674b",
+    "source_checkpoint_id": "cb40b7d16fc5156a53ce743ca90eec3fdbe2edc625552c06efab005ea9b3aad2",
+    "source_recorded_at_utc": "2026-08-07T13:22:08.450196Z",
+    "live_checkpoint_id": "6bec819a9588192bdbf837011e470b7ccd9cd8e2c0da1eb69959177af4f054fc",
+    "live_recorded_at_utc": "2026-08-07T13:22:03.255819Z",
+    "session": "GTH",
+    "plan_reason": "flat_target",
+    "entry_window_open": false,
+    "allowed_directions": [
+      "down"
+    ],
+    "target_direction": null,
+    "positions": {
+      "UPRO": 0,
+      "SPXU": 0
+    },
+    "orders": 0,
+    "fills": 0,
+    "run_net_usd": 0,
+    "run_drawdown_usd": 0,
+    "run_mfe_usd": 0,
+    "run_mae_usd": 0,
+    "safety_breaches": [],
+    "quotes": {
+      "UPRO": {
+        "bid": 154.01,
+        "ask": 154.04,
+        "market_data_type": 1
+      },
+      "SPXU": {
+        "bid": 33.81,
+        "ask": 33.82,
+        "market_data_type": 1
+      }
+    },
+    "directional_impulse": {
+      "latest_bar_utc": "2026-08-07T13:20:00Z",
+      "horizons_minutes": [
+        5,
+        15,
+        30,
+        60,
+        120
+      ],
+      "slope_signs": "DDDUU",
+      "velocity_signs": "UUDDD",
+      "slope_values": [
+        -0.007778065854280314,
+        -0.027203129655295477,
+        -0.03191773849883228,
+        0.006162668500331314,
+        0.00470492037327926
+      ],
+      "velocity_values": [
+        0.04275381457952143,
+        0.0275852448556028,
+        -0.00926255046077018,
+        -0.0031381681423692243,
+        -0.0012993117990189873
+      ],
+      "trend_state": "up",
+      "sensor_direction": null,
+      "proposed_direction": null,
+      "turn_event": null,
+      "turn_abstain_reason": "holding",
+      "turn_sequence_order": null,
+      "coherence": 0.6,
+      "conviction": 0.09651319858240426,
+      "atr_ratio": 0.9657489908899192,
+      "atr_velocity_pct": -0.015960923585333076,
+      "atr_acceleration_pct": -0.02765146048394186,
+      "runtime_controls": [
+        "directional_impulse:abstain",
+        "directional_impulse_cascade:block:no_proposal"
+      ]
+    },
+    "daily_context": {
+      "directions": "UUUUUU",
+      "hard_direction": "up",
+      "hard_age": 80,
+      "transition": "aligned_up"
+    },
+    "news": {
+      "signal_as_of_utc": "2026-08-07T11:39:21Z",
+      "direction": -1,
+      "impact": 13,
+      "confidence": 0.95,
+      "signed_pressure": -0.1235,
+      "pressure_delta": 0.0095,
+      "pressure_velocity_per_hour": 0.002271,
+      "change": "weakening",
+      "fresh": true,
+      "authority": "observation_only"
+    },
+    "phase_front_observation": {
+      "prior_slope_signs": "DUUUU",
+      "prior_velocity_signs": "DUDUD",
+      "intermediate_sequence": [
+        "13:05_DDUUU_DDDDD",
+        "13:10_DDDUU_UDDDD",
+        "13:15_DDDUU_DDDDD_sensor_DOWN_without_turn",
+        "13:20_DDDUU_UUDDD"
+      ],
+      "classification": "DOWN_FRONT_REACHED_SENSOR_BUT_FAILED_FRESH_TURN_AND_FAST_VELOCITIES_REPAIRED",
+      "interpretation": "The_post_UP_turn_recoil_propagated_through_5m/15m/30m_slopes_and_reached_a_DOWN_sensor_at_13:15,_but_never_printed_a_fresh_crowned_DOWN_turn._By_13:20_the_5m/15m_velocities_had_repaired_UP,_ATR_was_back_below_1x,_and_conviction_was_only_0.097._Price_followed_down,_but_the_authority_front_stalled_before_handoff._P009_correctly_remains_flat;_this_is_a_failed_handoff_control_for_the_outcome_blind_Pressure_Atlas."
+    },
+    "pressure_atlas": {
+      "complete_treatments": 1,
+      "required_complete_treatments": 30,
+      "ledger_sha256": "30099fdf1edfbfb6a5a5db9dbc93f2f0fc1badef8384d89e879a296bc208343a",
+      "authority": "outcome_blind_no_live_permission"
+    },
+    "book_mid_change_from_prior_review": {
+      "UPRO": -0.6,
+      "SPXU": 0.13
+    }
+  },
+  "gold": {
+    "strategy_version": "gold.1oz-regime-harmony-stage76.v1",
+    "selection_id": "62344ce21bf7c6f01095abab14b6ca8ef79c9806abb35294859fc9574a5f7574",
+    "source_checkpoint_id": "a464545b8623b7d17118609922dc3a6680e2990a6b981fdc7d2dd0118e7e7a80",
+    "source_recorded_at_utc": "2026-08-07T12:07:17.591647Z",
+    "live_checkpoint_id": "7bd159d655cc9b8ce46b7f2dc3eb27d0e1c54d02df44571310de82ac467d94e3",
+    "live_recorded_at_utc": "2026-08-07T13:22:00.781102Z",
+    "session": "GOLD_GTH",
+    "plan_reason": "flat_no_target",
+    "target_direction": null,
+    "position": 0,
+    "orders": 0,
+    "fills": 0,
+    "run_net_usd": 0,
+    "run_drawdown_usd": 0,
+    "run_mfe_usd": 0,
+    "run_mae_usd": 0,
+    "safety_breaches": [],
+    "quote": {
+      "local_symbol": "1OZZ6",
+      "bid": 4412.75,
+      "ask": 4413.25,
+      "last": 4412.75,
+      "market_data_type": 1
+    },
+    "book_mid_change_from_prior_review_usd": 3.875,
+    "signal_context": {
+      "decision_bar_end_utc": "2026-08-07T12:00:00Z",
+      "daily_hard_direction": "down",
+      "daily_hard_age": 152,
+      "daily_soft_direction": "up",
+      "h4_hard_direction": "up",
+      "h4_raw_direction": "up",
+      "h4_fast_slope_dollars": 14.272647770431831,
+      "h4_fast_acceleration_dollars": 4.813529208448017,
+      "h4_spread_velocity_dollars": 4.140267485727236,
+      "h4_atr_velocity_dollars": -0.28928571428572525,
+      "raw_turn": null,
+      "proposed_direction": null
+    },
+    "news": {
+      "signal_as_of_utc": "2026-08-07T11:39:21Z",
+      "direction": 1,
+      "impact": 3,
+      "confidence": 0.93,
+      "signed_pressure": 0.0279,
+      "pressure_delta": 0.0991,
+      "pressure_velocity_per_hour": 0.023686,
+      "change": "reversal",
+      "authority": "attribution_only"
+    },
+    "phase_front_observation": {
+      "classification": "LIVE_SPIKE_RETRACE_STABILIZED_BUT_NO_NEW_COMPLETED_H4_AUTHORITY",
+      "interpretation": "The_1OZ_mid_repaired_3.875_dollars_from_review_3_to_4413.00,_remaining_15.25_below_the_review_2_spike_and_91.73_above_the_completed_12:00Z_H4_close._The_owner_state_is_still_H4_UP/D1_DOWN_with_no_raw_turn_or_proposal._This_is_live_spike/retrace_stabilization,_not_a_backfilled_entry."
+    },
+    "quote_capture": {
+      "authority": "supplemental_read_only_after_review_start",
+      "observed_at_utc": "2026-08-07T13:24:20.603762Z",
+      "path_on_q": "/var/tmp/hawkeye-gold-1323.json",
+      "sha256": "4f61b1f99058ae1c495904d1ddef58b41138712c6080f70661e9250512e7724c"
+    },
+    "book_mid_above_completed_h4_close_usd": 91.73,
+    "book_mid_below_review_2_spike_usd": 15.25
+  },
+  "mcl": {
+    "strategy_version": "mcl.two-speed-shock-arbiter.v112",
+    "selection_id": "8adead895d3bd460b460f832d725046a3ea34079525a80a1662004ade2c17c93",
+    "source_checkpoint_id": "edbd7f893f1f42d49870309006712217b9e8be46fa86d08792df6ed0d8619e21",
+    "source_recorded_at_utc": "2026-08-07T13:24:11.251747Z",
+    "live_checkpoint_id": "93d139f8c4fa7d6e3e77df1ba3ff2ace8692283e8879139a1200b53d99f3e1f7",
+    "live_recorded_at_utc": "2026-08-07T13:24:11.251747Z",
+    "session": "MCL_GTH",
+    "plan_reason": "flat_no_target",
+    "target_direction": null,
+    "position": 0,
+    "orders": 0,
+    "fills": 0,
+    "run_net_usd": 0,
+    "run_drawdown_usd": 0,
+    "run_mfe_usd": 0,
+    "run_mae_usd": 0,
+    "safety_breaches": [],
+    "quote": {
+      "local_symbol": "MCLU6",
+      "bid": 77.01,
+      "ask": 77.02,
+      "last": 77.02,
+      "market_data_type": 1
+    },
+    "directional_impulse": {
+      "latest_bar_utc": "2026-08-07T13:20:00Z",
+      "latest_common_close_utc": "2026-08-07T13:24:00Z",
+      "horizons_minutes": [
+        30,
+        60,
+        120,
+        240,
+        480
+      ],
+      "slope_signs": "DDDDD",
+      "velocity_signs": "DDUDU",
+      "slope_values": [
+        -0.002170421495856223,
+        -0.036739280774551276,
+        -0.010285392577194519,
+        -0.023341918866709676,
+        -0.02061257925869177
+      ],
+      "velocity_values": [
+        -0.006513526816159798,
+        -0.007533673297914951,
+        0.0005413364514317287,
+        -0.0010588432653351847,
+        0.000002631841069845181
+      ],
+      "horizon_turns": [
+        "down",
+        null,
+        null,
+        null,
+        null
+      ],
+      "trend_state": "down",
+      "direction": null,
+      "abstain_reason": "weak_direction",
+      "turn_event": null,
+      "coherence": 1,
+      "conviction": 0.04312089598457734,
+      "atr_ratio": 1.4073617111183754,
+      "atr_velocity_pct": -0.007496979478648358,
+      "atr_acceleration_pct": -0.013015749993967318
+    },
+    "news": {
+      "signal_as_of_utc": "2026-08-07T11:39:21Z",
+      "direction": 1,
+      "impact": 23,
+      "confidence": 0.98,
+      "signed_pressure": 0.2254,
+      "change": "unchanged",
+      "authority": "observation_only"
+    },
+    "phase_front_observation": {
+      "prior_slope_signs": "D0DDD",
+      "prior_velocity_signs": "DDUUU",
+      "intermediate_sequence": [
+        "13:05_DUUDD_UUUUU",
+        "13:10_U0UDD_UDDDU",
+        "13:15_UDDDD_DDDUD",
+        "13:20_DDDDD_DDUDU"
+      ],
+      "classification": "ALL_UP_VELOCITY_REPAIR_FAILED_BEFORE_SLOPE_CASCADE_AND_DOWNSIDE_REASSERTED",
+      "interpretation": "The_slow_clock_repair_became_all_UP_velocity_at_13:05_and_briefly_crossed_60m/120m_slopes_UP,_but_it_failed_before_any_ordered_slow_slope_cascade._By_13:15_most_velocities_were_DOWN_and_by_13:20_all_five_slopes_were_DOWN_with_a_fresh_30m_subturn._The_post_state_live_book_then_rebounded_26.5_ticks_to_77.01/77.02,_which_is_attention_for_the_next_completed_clock,_not_a_long_or_short_owner_at_this_review."
+    },
+    "stage116": {
+      "complete_episodes": 21,
+      "required_complete_episodes": 30,
+      "verdict": "ACCUMULATE"
+    },
+    "stage118": {
+      "complete_fronts": 1,
+      "required_complete_fronts": 30,
+      "verdict": "ACCUMULATE",
+      "bounded_replay_already_spent": true,
+      "authority": "derived_outcome_blind_no_separate_runtime_no_live_permission"
+    },
+    "observer_ledgers": {
+      "predictive_onset_rows": 10,
+      "predictive_onset_sha256": "81ad2bb8930781c6064e0f811eb6f400ded8479d57e6e82212efb0f5ab520edf",
+      "shock_wave_rows": 5,
+      "shock_wave_sha256": "056e852514d3b5568700cf47684e09f7c61affadcb6e4efc48abbcb9a48e51af"
+    },
+    "book_mid_change_from_prior_review_usd": 0.265
+  },
+  "news": {
+    "publication_id": "ed0d21b6798a60b98695d863100c6cbc9ec8925bc025de8f6d7eba525664d920",
+    "signal_as_of_utc": "2026-08-07T11:39:21Z",
+    "snapshot_as_of_utc": "2026-08-07T11:50:22Z",
+    "status": "PUBLISHED",
+    "materially_updated_events": 6,
+    "due_event_ids": [
+      "megacap-ai-capex-repricing"
+    ]
+  },
+  "incubator": {
+    "retained_candidates": [
+      {
+        "rank": 1,
+        "candidate": "XSP_Pressure_Atlas",
+        "state": "ACCUMULATE_1_OF_30",
+        "review_observation": "DOWN_front_reached_sensor_but_failed_fresh_turn_and_fast_velocities_repaired",
+        "replay_eligibility": "NOT_YET_ELIGIBLE_ONLY_ONE_AUTHENTIC_TREATMENT"
+      },
+      {
+        "rank": 2,
+        "candidate": "MCL_Stage118_Phase_Front_Subshock",
+        "state": "ACCUMULATE_1_OF_30",
+        "review_observation": "all_UP_velocity_repair_failed_before_slope_cascade_then_downside_reasserted",
+        "replay_eligibility": "INELIGIBLE_PRIOR_BOUNDED_REPLAY_ALREADY_SPENT"
+      }
+    ],
+    "selected_replay": null,
+    "replay_budget": {
+      "used": 0,
+      "available": 1,
+      "disposition": "LOCKED_UNTIL_REVIEW_6"
+    },
+    "new_ideas": [],
+    "decisions": [
+      "retain_XSP_Pressure_Atlas_failed_handoff_as_outcome_blind_control",
+      "retain_MCL_Stage118_failed_all_velocity_repair_as_outcome_blind_control",
+      "reviews_1_through_5_observe_only"
+    ],
+    "rule": "review_4_updates_causal_anatomy_without_replay_selection"
+  },
+  "control_plane": {
+    "target": "tradebot-live.target",
+    "state": "active_static",
+    "mcl_turn_tape_pid": 3463809,
+    "ib_gateway_tunnel_pid": 2612357,
+    "failed_user_units": 0
+  },
+  "next_capital_boundaries": {
+    "xsp_p009_24h": "2026-08-07T21:49:55Z",
+    "gold_epoch_2_24h": "2026-08-08T02:28:30Z",
+    "mcl_epoch_24h": "2026-08-10T22:00:55Z"
+  },
+  "next_hawkeye_boundary_utc": "2026-08-07T13:43:10Z",
+  "invariants": {
+    "all_three_current_runs_flat": true,
+    "broker_open_orders_zero": true,
+    "broker_positions_zero": true,
+    "submitted_orders": 0,
+    "strategy_changes": 0,
+    "selection_changes": 0,
+    "capital_changes": 0,
+    "champion_worker_service_changes": 0,
+    "threshold_changes": 0,
+    "economic_replays": 0,
+    "crowns": 0
+  }
+}
