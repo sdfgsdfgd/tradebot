@@ -1,0 +1,227 @@
+{
+  "schema": "live.portfolio-hawkeye.v1",
+  "observed_at_utc": "2026-08-07T17:54:31Z",
+  "authority": "read_only_causal_observation_and_incubator_reconciliation_no_signal_no_orders_no_capital",
+  "review_block": {
+    "review": 5,
+    "required": 6,
+    "scheduled_boundary_utc": "2026-08-07T15:43:10Z",
+    "review_started_at_utc": "2026-08-07T17:52:04Z",
+    "started_seconds_after_boundary": 7734,
+    "settlement_completed_at_utc": "2026-08-07T17:54:31Z",
+    "missed_slots_backfilled": 0,
+    "status": "OBSERVATION_ONLY_5_OF_6",
+    "continuity": "fresh_review_after_user_authorized_mcl_stage119_126_exception;_no_intermediate_slot_was_backfilled;_cadence_resynchronized_from_this_review"
+  },
+  "portfolio": {
+    "broker_capture_utc": "2026-08-07T17:52:24.263379Z",
+    "available_funds_aud": 3144.03,
+    "excess_liquidity_aud": 3209.82,
+    "net_liquidation_aud": 3628.58,
+    "cash_balance_aud": 2119.39,
+    "cash_balance_usd": 204.9968,
+    "daily_pnl_usd": 2.809638,
+    "realized_pnl_usd": 0.0,
+    "unrealized_pnl_usd": 2.809601,
+    "champion_positions": [
+      {
+        "symbol": "SPXU",
+        "quantity": 23,
+        "average_cost": 33.7004316,
+        "market_price": 33.6938591,
+        "broker_unrealized_pnl_usd": -0.15
+      }
+    ],
+    "unrelated_user_positions": [
+      {
+        "symbol": "SPCX",
+        "local_symbol": "SPCX  260814P00110000",
+        "quantity": 1,
+        "average_cost": 84.0333,
+        "broker_unrealized_pnl_usd": 2.71,
+        "excluded_from_champion_attribution": true
+      }
+    ],
+    "open_orders": [],
+    "campaign_closed_trades": 4,
+    "campaign_realized_net_usd": -340.676381
+  },
+  "xsp": {
+    "strategy_version": "xsp.opening-edge-v4-dual-clock-arbitration-p009.v1",
+    "checkpoint_id": "a5d2b2594c73ec10c9197d180ec77b54c15ec21b46d2cab896952bdc2ee54a9a",
+    "recorded_at_utc": "2026-08-07T17:52:03.872416Z",
+    "plan_reason": "target_already_owned",
+    "target_direction": "down",
+    "target_symbol": "SPXU",
+    "quantity": 23,
+    "fills": 1,
+    "closed_trades": 0,
+    "run_realized_net_usd": 0.0,
+    "open_mark_net_usd": 0.450074,
+    "peak_run_net_usd": 2.980074,
+    "drawdown_usd": 2.53,
+    "safety_breaches": [],
+    "submitted_orders_at_review": 0,
+    "state": {
+      "slope_signs_5_15_30_60_120": "UUDDD",
+      "velocity_signs_5_15_30_60_120": "UUDUD",
+      "coherence": 0.4,
+      "conviction": 0.038071,
+      "direction_score": 0.101696,
+      "smoothed_direction_score": 0.179084,
+      "atr_ratio": 0.743564,
+      "atr_velocity_pct": -0.007325,
+      "atr_acceleration_pct": 0.001712,
+      "turn_event": null,
+      "interpretation": "fast_up_repair_against_the_held_down_sleeve_without_an_authentic_opposite_owner_handoff;_hold_remains_canonical"
+    },
+    "pressure_atlas": {
+      "rows": 2,
+      "state": "ACCUMULATE_2_OF_30",
+      "sha256": "10c6ab4dcfb8e44d6a424b7575cfb094951fa23924b63aaddeb152f0ea58e084",
+      "order_authority": "none"
+    }
+  },
+  "mcl": {
+    "strategy_version": "mcl.two-speed-shock-arbiter.v112",
+    "checkpoint_id": "61585a07c4a2ac23cb2590b37868a24bb4adc638cae63d27e458962e7af19abb",
+    "source_checkpoint_id": "fc85bf4d88091c721cb956784f1fafa10589feb04e9b329cf99b1990eaa72f8c",
+    "source_common_close_utc": "2026-08-07T17:53:00Z",
+    "plan_reason": "flat_no_target",
+    "position": 0,
+    "orders": 0,
+    "fills": 0,
+    "run_net_usd": 0.0,
+    "drawdown_usd": 0.0,
+    "safety_breaches": [],
+    "quote": {
+      "bid": 78.04,
+      "ask": 78.05,
+      "market_data_type": 1
+    },
+    "latest_state": {
+      "decision_as_of_utc": "2026-08-07T17:50:00Z",
+      "slope_signs_30_60_120_240_480": "UDDUU",
+      "velocity_signs_30_60_120_240_480": "UUUDU",
+      "coherence": 0.6,
+      "conviction": 0.010514,
+      "direction_score": 0.018299,
+      "smoothed_direction_score": -0.019248,
+      "atr_ratio": 0.830301,
+      "atr_velocity_pct": 0.006442,
+      "atr_acceleration_pct": 0.006394,
+      "raw_direction": null,
+      "proposed_direction": null,
+      "admitted_direction": null,
+      "interpretation": "fast_up_repair_after_the_16_20_down_shock_but_no_ordered_slow_cascade_or_fresh_stage112_owner"
+    },
+    "new_shock_wave": {
+      "episode_id": "55404b4f33300c48e8ce382d8aec9501915027e58612f52bf3df01778a09cfd4",
+      "started_at_utc": "2026-08-07T16:20:16Z",
+      "authority_bound_at_utc": "2026-08-07T16:20:21Z",
+      "crest_at_utc": "2026-08-07T16:20:34Z",
+      "continuation_at_utc": "2026-08-07T16:22:37Z",
+      "normalized_at_utc": "2026-08-07T16:55:00Z",
+      "direction": "down",
+      "maximum_volume_multiple": 12.55814,
+      "maximum_level": "TRADEABLE_SHOCK_12_TO_20X",
+      "reached_tradeable_12x": true,
+      "reached_regime_20x": false,
+      "outcome_authority": "none",
+      "interpretation": "authentic_down_bind_crest_and_continuation_then_natural_normalization;_not_a_stage126_reversal_epoch_and_not_a_live_trade"
+    },
+    "prospective_ledgers": {
+      "shock_wave_rows": 6,
+      "shock_wave_sha256": "15ad59db1c8a73ff0ee4e0071cf04852c065260f876c179fc52bac7d136e1cbc",
+      "stage118_formal_candidate_state": "ACCUMULATE_1_OF_30_UNCHANGED_PENDING_FORMAL_DERIVATION",
+      "stage87_90_rows": 11,
+      "stage87_90_sha256": "052cc3ab9a32f7f69c1f4a9ea2184bbf4a1fccf59d4b199da163232a8f5850fe"
+    }
+  },
+  "gold": {
+    "strategy_version": "gold.1oz-regime-harmony-stage76.v1",
+    "checkpoint_id": "99e2765a87d47d37a5da6656b8a414400d717ce0f693f78cc369f16c8eccae57",
+    "plan_reason": "flat_no_target",
+    "target_direction": null,
+    "position": 0,
+    "orders": 0,
+    "fills": 0,
+    "run_net_usd": 0.0,
+    "drawdown_usd": 0.0,
+    "safety_breaches": [],
+    "quote": {
+      "bid": 4398.75,
+      "ask": 4399.0,
+      "market_data_type": 1
+    },
+    "latest_completed_h4": {
+      "decision_bar_end_utc": "2026-08-07T16:00:00Z",
+      "raw_direction": "up",
+      "raw_turn": null,
+      "proposed_direction": null,
+      "h4_hard_direction": "up",
+      "d1_hard_direction": "down",
+      "signed_fast_slope_dollars": 15.496504,
+      "signed_spread_velocity_dollars": 4.487067,
+      "signed_fast_acceleration_dollars": 1.223856,
+      "h4_atr_velocity_dollars": -0.777857,
+      "interpretation": "h4_up_d1_down_continuation_without_a_fresh_turn_or_proposal"
+    }
+  },
+  "news": {
+    "publication_id": "7fbbaa8449a8aca168c9333733e573ecc8fb6f592bde8e025bd557e588278401",
+    "signal_as_of_utc": "2026-08-07T15:50:23Z",
+    "snapshot_as_of_utc": "2026-08-07T16:00:18Z",
+    "run_status": "published",
+    "directions": {
+      "XSP": "down_impact_8_confidence_0.96_weakening",
+      "MCL": "up_impact_16_confidence_0.98_weakening",
+      "GC": "up_impact_20_confidence_0.97_strengthening"
+    },
+    "authority": "context_only"
+  },
+  "incubator": {
+    "retained_candidates": [
+      {
+        "rank": 1,
+        "candidate": "XSP_Pressure_Atlas",
+        "state": "ACCUMULATE_2_OF_30"
+      },
+      {
+        "rank": 2,
+        "candidate": "MCL_Stage118_Phase_Front_Subshock",
+        "state": "ACCUMULATE_1_OF_30"
+      }
+    ],
+    "selected_replay": null,
+    "replay_budget": {
+      "used": 0,
+      "available": 1,
+      "disposition": "LOCKED_UNTIL_REVIEW_6_OF_6"
+    },
+    "mcl_exception_research": "stages119_126_closed;_shock_born_raw_confirmation_retained_prospectively;_three_percent_most_years_amendment_applies_only_to_a_future_preregistered_successor"
+  },
+  "control_plane": {
+    "tradebot-live.target": "active",
+    "failed_units": 0,
+    "mcl_turn_tape": {
+      "active_state": "active",
+      "sub_state": "running",
+      "restart_count": 8,
+      "latest_valid_evidence_at_utc": "2026-08-07T17:53:44.140668Z",
+      "market_data_types": {
+        "CL": 1,
+        "MCL": 1
+      },
+      "interpretation": "currently_recovered_and_appending_but_not_continuity_clean_after_gateway_resets"
+    }
+  },
+  "invariants": {
+    "no_backfill": true,
+    "no_signal_or_threshold_change": true,
+    "no_replay_started": true,
+    "no_research_order_or_capital_authority": true,
+    "unrelated_user_option_excluded_from_champion_attribution": true
+  },
+  "next_hawkeye_boundary_utc": "2026-08-07T18:12:04Z"
+}

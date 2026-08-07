@@ -1,0 +1,45 @@
+{
+  "schema": "mcl.raw-extreme-survival-stage130-mechanism-anatomy.v1",
+  "authority": "outcome_exposed_mechanism_diagnostic_only_no_selection_no_replay_no_orders_no_capital",
+  "evaluator": {
+    "path_on_q": "/var/tmp/mcl_stage130_route_mechanism_anatomy.py",
+    "sha256": "5a4bd53aae82a8441e4e9ddab2d51035d5669b725b7a12c8cf6c6c2d8f02a1ef"
+  },
+  "result": {
+    "path_on_q": "/var/tmp/mcl-stage130-route-mechanism-anatomy.json",
+    "sha256": "8fc0a785c0e225ed6bc244fda98157d6b8bbb1b857c7f49f18551a62c2143383"
+  },
+  "observations": {
+    "paired_maturation": "all_38_closed_Stage129_route_trades_were_failed_auction_maturations_that_wanted_to_fade_the_raw_direction",
+    "under_60_minutes": {
+      "trades": 3,
+      "primary_net": -2.56,
+      "primary_net_excluding_best": -11.04
+    },
+    "60_to_180_minutes": {
+      "trades": 10,
+      "primary_net": 389.80,
+      "profit_factor": 2.7957,
+      "primary_net_excluding_best": 64.32,
+      "year_1_primary_net": 138.40,
+      "year_2_primary_net": 251.40,
+      "up_primary_net": 24.36,
+      "down_primary_net": 365.44
+    },
+    "180_minutes_or_more": {
+      "trades": 25,
+      "primary_net": 663.00,
+      "primary_net_excluding_best": -1094.48
+    },
+    "known_incident_front_age_minutes": 170,
+    "frozen_Stage112_native_cycle_minutes": 120
+  },
+  "interpretation": "The first architecture-grounded successor is front maturity relative to Stage112's existing 120-minute state/cooldown cycle: less than half a cycle is unproved, more than one-and-a-half cycles is stale, and the one-cycle neighborhood is the only diagnostic cohort positive across years, directions, and ex-best. These outcomes are exposed and cannot crown or select it.",
+  "queued_candidate": {
+    "name": "MCL_NATIVE_CYCLE_RAW_CONFIRMATION",
+    "count_first_law": "Stage129_joint_raw_extreme_survival_and_front_age_between_0.5x_and_1.5x_the_frozen_Stage112_120m_cycle",
+    "next_authority": "Hawkeye_6_of_6_may_select_one_bounded_replay_only_after_count_breadth",
+    "live_authority": "none"
+  },
+  "submitted_orders": 0
+}

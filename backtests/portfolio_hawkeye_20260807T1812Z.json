@@ -1,0 +1,204 @@
+{
+  "schema": "live.portfolio-hawkeye.v1",
+  "observed_at_utc": "2026-08-07T18:14:30Z",
+  "authority": "read_only_causal_observation_and_incubator_reconciliation_no_signal_no_orders_no_capital",
+  "review_block": {
+    "review": 6,
+    "required": 6,
+    "scheduled_boundary_utc": "2026-08-07T18:12:04Z",
+    "review_started_at_utc": "2026-08-07T18:12:10.185927Z",
+    "started_seconds_after_boundary": 6,
+    "settlement_completed_at_utc": "2026-08-07T18:14:30Z",
+    "missed_slots_backfilled": 0,
+    "status": "RECONCILED_6_OF_6",
+    "continuity": "fresh_lawful_review;_no_backfill;_authorized_MCL_exception_reconciled_into_one_bounded_candidate"
+  },
+  "portfolio": {
+    "broker_capture_utc": "2026-08-07T18:13:08.809885Z",
+    "available_funds_aud": 3144.77,
+    "excess_liquidity_aud": 3210.62,
+    "net_liquidation_aud": 3624.52,
+    "cash_balance_aud": 2119.39,
+    "cash_balance_usd": 204.9968,
+    "daily_pnl_usd": 0.47649,
+    "realized_pnl_usd": 0.0,
+    "unrealized_pnl_usd": 0.47646,
+    "champion_positions": [
+      {
+        "symbol": "SPXU",
+        "quantity": 23,
+        "average_cost": 33.7004316,
+        "market_price": 33.72387315,
+        "broker_unrealized_pnl_usd": 0.54
+      }
+    ],
+    "unrelated_user_positions": [
+      {
+        "symbol": "SPCX",
+        "local_symbol": "SPCX  260814P00110000",
+        "quantity": 1,
+        "broker_unrealized_pnl_usd": -0.94,
+        "excluded_from_champion_attribution": true
+      }
+    ],
+    "open_orders": [],
+    "campaign_closed_trades": 4,
+    "campaign_realized_net_usd": -340.676381
+  },
+  "xsp": {
+    "strategy_version": "xsp.opening-edge-v4-dual-clock-arbitration-p009.v1",
+    "checkpoint_id": "fa2652be",
+    "recorded_at_utc": "2026-08-07T18:12:03.893193Z",
+    "plan_reason": "target_already_owned",
+    "target_direction": "down",
+    "target_symbol": "SPXU",
+    "quantity": 23,
+    "fills": 1,
+    "closed_trades": 0,
+    "run_realized_net_usd": 0.0,
+    "open_mark_net_usd": 1.140074,
+    "peak_run_net_usd": 2.980074,
+    "drawdown_usd": 1.84,
+    "safety_breaches": [],
+    "submitted_orders_at_review": 0,
+    "quote": {
+      "spxu_bid": 33.75,
+      "spxu_ask": 33.76,
+      "upro_bid": 154.30,
+      "upro_ask": 154.32
+    },
+    "state": {
+      "slope_signs_5_15_30_60_120": "DDDDD",
+      "velocity_signs_5_15_30_60_120": "DDDDD",
+      "coherence": 1.0,
+      "conviction": 0.148554,
+      "direction_score": -0.169776,
+      "atr_ratio": 0.488758,
+      "atr_velocity_pct": -0.00559,
+      "atr_acceleration_pct": 0.002154,
+      "turn_event": null,
+      "interpretation": "renewed_full_down_coherence_supports_the_held_sleeve_but_range_is_compressed;_no_new_action"
+    }
+  },
+  "mcl": {
+    "strategy_version": "mcl.two-speed-shock-arbiter.v112",
+    "checkpoint_id": "21d2d808",
+    "source_checkpoint_id": "f65b5e6d",
+    "source_common_close_utc": "2026-08-07T18:12:00Z",
+    "plan_reason": "flat_no_target",
+    "position": 0,
+    "orders": 0,
+    "fills": 0,
+    "run_net_usd": 0.0,
+    "drawdown_usd": 0.0,
+    "safety_breaches": [],
+    "quote": {
+      "bid": 78.22,
+      "ask": 78.24,
+      "market_data_type": 1
+    },
+    "latest_state": {
+      "decision_as_of_utc": "2026-08-07T18:10:00Z",
+      "slope_signs_30_60_120_240_480": "UUDUU",
+      "velocity_signs_30_60_120_240_480": "UUUDU",
+      "coherence": 0.8,
+      "conviction": 0.052466,
+      "direction_score": 0.069407,
+      "smoothed_direction_score": 0.00777,
+      "atr_ratio": 0.779565,
+      "atr_velocity_pct": 0.006374,
+      "atr_acceleration_pct": 0.02557,
+      "raw_direction": null,
+      "proposed_direction": null,
+      "admitted_direction": null,
+      "new_turn": "60m_up",
+      "interpretation": "partial_up_repair_after_the_down_shock_without_a_fresh_stage112_owner"
+    },
+    "prospective_ledgers": {
+      "shock_wave_rows": 6,
+      "shock_wave_sha256": "15ad59db1c8a73ff0ee4e0071cf04852c065260f876c179fc52bac7d136e1cbc",
+      "stage118_formal_candidate_state": "ACCUMULATE_1_OF_30_FOLDED_INTO_MCL_LINEAGE",
+      "stage87_90_rows": 11,
+      "stage87_90_sha256": "052cc3ab9a32f7f69c1f4a9ea2184bbf4a1fccf59d4b199da163232a8f5850fe"
+    }
+  },
+  "gold": {
+    "strategy_version": "gold.1oz-regime-harmony-stage76.v1",
+    "checkpoint_id": "3b1be48",
+    "recorded_at_utc": "2026-08-07T18:12:00Z",
+    "plan_reason": "flat_no_target",
+    "position": 0,
+    "orders": 0,
+    "fills": 0,
+    "run_net_usd": 0.0,
+    "drawdown_usd": 0.0,
+    "safety_breaches": [],
+    "quote": {
+      "bid": 4400.25,
+      "ask": 4400.75,
+      "market_data_type": 1
+    },
+    "latest_completed_h4": {
+      "decision_bar_end_utc": "2026-08-07T16:00:00Z",
+      "raw_direction": "up",
+      "raw_turn": null,
+      "proposed_direction": null,
+      "h4_hard_direction": "up",
+      "d1_hard_direction": "down",
+      "interpretation": "h4_up_d1_down_continuation_without_a_fresh_turn_or_proposal"
+    }
+  },
+  "news": {
+    "publication_id": "7fbbaa8449a8aca168c9333733e573ecc8fb6f592bde8e025bd557e588278401",
+    "signal_as_of_utc": "2026-08-07T15:50:23Z",
+    "snapshot_as_of_utc": "2026-08-07T16:00:18Z",
+    "run_status": "published",
+    "directions": {
+      "XSP": "down_impact_8_confidence_0.96_weakening",
+      "MCL": "up_impact_16_confidence_0.98_weakening",
+      "GC": "up_impact_20_confidence_0.97_strengthening"
+    },
+    "authority": "context_only"
+  },
+  "incubator": {
+    "retained_candidates": [
+      {
+        "rank": 1,
+        "candidate": "MCL_Stage129_Raw_Extreme_Survival_Probation",
+        "state": "SELECTED_COUNT_FIRST_3_4_5_MINUTE_CONNECTED_FAMILY"
+      },
+      {
+        "rank": 2,
+        "candidate": "XSP_Pressure_Atlas",
+        "state": "ACCUMULATE_2_OF_30"
+      }
+    ],
+    "selected_replay": "MCL_Stage129_Raw_Extreme_Survival_Probation",
+    "replay_budget": {
+      "used": 0,
+      "available": 1,
+      "disposition": "COUNT_FIRST_THEN_ONE_EXACT_DELAYED_ECONOMIC_REPLAY_ONLY_IF_BREADTH_PASSES"
+    },
+    "selection_reason": "raw_directional_closes_are_unstable_but_joint_CL_MCL_raw_extreme_survival_for_three_and_five_minutes_forms_an_adjacent_hysteretic_separator;_four_minutes_is_the_interior_candidate"
+  },
+  "control_plane": {
+    "tradebot-live.target": "active",
+    "failed_units": 0,
+    "mcl_turn_tape": {
+      "active_state": "active",
+      "sub_state": "running",
+      "restart_count": 8,
+      "latest_valid_evidence": "current_at_review",
+      "interpretation": "currently_appending_valid_evidence_but_not_continuity_clean_after_gateway_resets"
+    }
+  },
+  "invariants": {
+    "no_backfill": true,
+    "no_live_signal_or_threshold_change": true,
+    "no_economic_replay_started": true,
+    "no_research_order_or_capital_authority": true,
+    "three_percent_gate_is_MCL_quest_specific": true,
+    "unrelated_user_option_excluded_from_champion_attribution": true
+  },
+  "next_hawkeye_boundary_utc": "2026-08-07T18:32:04Z"
+}

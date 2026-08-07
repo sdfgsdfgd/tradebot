@@ -1,0 +1,67 @@
+{
+  "schema": "mcl.raw-extreme-survival-probation-stage129-count-preregistration.v1",
+  "registered_at_utc": "2026-08-07T18:15:00+00:00",
+  "authority": "adaptive_mechanism_count_only_no_outcomes_no_orders_no_capital",
+  "hypothesis": "A qualified Stage-125 raw confirmation should open a short probation rather than an immediate entry. Directional closes may oscillate, but a genuine pivot should prevent both CL and MCL from breaching the raw-turn opposite extreme for several consecutive completed minutes.",
+  "provenance": {
+    "adaptive_outcome_exposed_diagnostic": "Stage-128 separated raw directional-close behavior from cross-book extreme survival after the rejected Stage-125 replay. Three- and five-minute extreme-survival cohorts were adjacent positive separators; one minute was unstable. No delayed-entry economics have been exposed.",
+    "known_incident_excluded_from_selection_tape": true,
+    "no_threshold_rescue": "The central four-minute duration is the unsampled interior medoid between the exposed three- and five-minute diagnostic neighbors. All three treatments must pass count breadth before one delayed-entry replay may open."
+  },
+  "single_declared_family": {
+    "source": "all_Stage125_qualified_raw_confirmations",
+    "probation_minutes": [
+      3,
+      4,
+      5
+    ],
+    "central_candidate_minutes": 4,
+    "up_survival": "for_every_completed_probation_minute_CL_low_and_MCL_low_are_not_below_their_raw_confirmation_minute_lows",
+    "down_survival": "for_every_completed_probation_minute_CL_high_and_MCL_high_are_not_above_their_raw_confirmation_minute_highs",
+    "directional_close_requirement": "none",
+    "directional_body_requirement": "none",
+    "continuous_same_contract_minutes_required": true,
+    "scheduled_entry": "next_MCL_open_after_the_final_completed_probation_minute",
+    "failed_probation": "release_without_suppressing_or_rewriting_the_existing_Stage112_maturation",
+    "successful_probation": "may_suppress_only_the_exact_paired_Stage112_maturation_during_a_later_economic_replay",
+    "threshold_sweep": false
+  },
+  "frozen_inputs": {
+    "stage125_count": {
+      "path_on_q": "/var/tmp/mcl-stage125-phase-front-raw-confirmation-count.json",
+      "sha256": "872a98f3d2bc3afe4a7b6e810248571ecc5a144f12b8a97b95f05d0d5f3fc3bc"
+    },
+    "stage125_count_evaluator": {
+      "path_on_q": "/var/tmp/mcl_stage125_phase_front_raw_confirmation_count.py",
+      "sha256": "68496bb030ea647f2b499cfb3b82419d25bfae559374e87afd471c3f9f7074ed"
+    },
+    "stage128_diagnostic": {
+      "path_on_q": "/var/tmp/mcl-stage128-post-raw-acceptance-anatomy.json",
+      "sha256": "f735c3f7b2e0cdb2db9f909c5db6067471b4cbba46af39521831836496162092"
+    },
+    "stage128_evaluator": {
+      "path_on_q": "/var/tmp/mcl_stage128_post_raw_acceptance_anatomy.py",
+      "sha256": "096432e5085f59e26dc933c502a8fc92efa126cac0851a6a69ac82725f36fb03"
+    },
+    "dated_hydration_manifest": {
+      "path": "db/MCL/dated/hydration_manifest.json",
+      "sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55"
+    }
+  },
+  "count_gate_each_treatment": {
+    "minimum_events": 20,
+    "maximum_events": 60,
+    "minimum_each_direction": 5,
+    "minimum_each_year": 8,
+    "minimum_each_year_direction": 2,
+    "both_GTH_and_RTH": true
+  },
+  "family_gate": {
+    "all_three_neighboring_durations_pass": true,
+    "nested_counts_3m_gte_4m_gte_5m": true,
+    "four_minutes_is_the_only_selection_candidate": true,
+    "economics_remain_sealed_until_count_pass": true
+  },
+  "outcomes_exposed_by_this_stage": false,
+  "submitted_orders": 0
+}

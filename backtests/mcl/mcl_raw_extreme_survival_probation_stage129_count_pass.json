@@ -1,0 +1,69 @@
+{
+  "schema": "mcl.raw-extreme-survival-probation-stage129-count-pass.v1",
+  "authority": "adaptive_count_pass_no_outcomes_no_orders_no_capital",
+  "preregistration": {
+    "path": "backtests/mcl/mcl_raw_extreme_survival_probation_stage129_count_preregistration.json",
+    "sha256": "acc735c649fcc1690b81297988c7d0f1e013e2ab96e454eab50d021924494866"
+  },
+  "evaluator": {
+    "path_on_q": "/var/tmp/mcl_stage129_raw_extreme_survival_count.py",
+    "sha256": "1329422c5d9856747966a88bc4adc8503f3798075134a703741bebe9836f2288"
+  },
+  "result": {
+    "path_on_q": "/var/tmp/mcl-stage129-raw-extreme-survival-count.json",
+    "sha256": "f5b64fd99bc6ae6026c68b8ea265f598978f410b461d00cbad6aa778b48eaba3",
+    "treatments": {
+      "3m": {
+        "events": 46,
+        "directions": {
+          "down": 22,
+          "up": 24
+        },
+        "years": {
+          "year_1": 23,
+          "year_2": 23
+        },
+        "sessions": {
+          "GTH": 41,
+          "RTH": 5
+        }
+      },
+      "4m": {
+        "events": 43,
+        "directions": {
+          "down": 20,
+          "up": 23
+        },
+        "years": {
+          "year_1": 21,
+          "year_2": 22
+        },
+        "sessions": {
+          "GTH": 38,
+          "RTH": 5
+        }
+      },
+      "5m": {
+        "events": 41,
+        "directions": {
+          "down": 20,
+          "up": 21
+        },
+        "years": {
+          "year_1": 20,
+          "year_2": 21
+        },
+        "sessions": {
+          "GTH": 38,
+          "RTH": 3
+        }
+      }
+    },
+    "nested_counts": "46_gte_43_gte_41",
+    "central_candidate_minutes": 4,
+    "pass": true
+  },
+  "interpretation": "Cross-book raw-extreme survival forms a connected and balanced three-to-five-minute plateau. Four minutes was frozen before delayed economics as the unsampled interior medoid; directional closes are deliberately not required.",
+  "outcomes_exposed_by_this_stage": false,
+  "submitted_orders": 0
+}

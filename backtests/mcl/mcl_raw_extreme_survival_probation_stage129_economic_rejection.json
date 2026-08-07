@@ -1,0 +1,66 @@
+{
+  "schema": "mcl.raw-extreme-survival-probation-stage129-economic-rejection.v1",
+  "authority": "adaptive_full_history_rejection_no_orders_no_capital_no_live_authority",
+  "preregistration": {
+    "path": "backtests/mcl/mcl_raw_extreme_survival_probation_stage129_economic_preregistration.json",
+    "sha256": "1da339e003fe6fba720f7ea9e73c9d7b6ecce9f4163dd5bbb4fd79c3891fea5e"
+  },
+  "evaluator": {
+    "path_on_q": "/var/tmp/mcl_stage129_raw_extreme_survival_economics.py",
+    "sha256": "dbf716e478e0d3bde8cbbb8a182ff13373a64a4c7c7daa660ab3bee9befc2faa"
+  },
+  "result": {
+    "path_on_q": "/var/tmp/mcl-stage129-raw-extreme-survival-economics.json",
+    "sha256": "ba55082f9a7701ba000d5693c5e00ba99ad37cbdbe6532471366f3bdc0ef3616",
+    "ledger_sha256": "45d0fac73f1e1d1c4864a4134c8719576afd7acd098e8c49bd0b129523d651cb"
+  },
+  "identity": {
+    "disabled_Stage112": "388_of_388_exact_e4d18b52",
+    "failed_probations": "388_of_388_exact_e4d18b52",
+    "count_to_lifecycle": "43_of_43_exact",
+    "entry_delay_minutes": 5,
+    "submitted_orders": 0
+  },
+  "stage112": {
+    "trades": 388,
+    "primary_net": 3942.99,
+    "primary_intrabar_drawdown": 603.63,
+    "primary_PnL_DD": 6.532
+  },
+  "candidate": {
+    "trades": 398,
+    "annualized_trades": 199.13630136986302,
+    "primary_net": 5486.29,
+    "stressed_net": 4690.29,
+    "primary_intrabar_drawdown": 673.36,
+    "primary_PnL_DD": 8.147633,
+    "full_PnL_DD_improvement_pct": 24.731627,
+    "yearly_PnL_DD_improvement_pct": {
+      "year_1": -17.595243,
+      "year_2": 77.339448
+    },
+    "worst_primary_trade": -333.52
+  },
+  "new_route": {
+    "closed_trades": 38,
+    "primary_net": 1050.24,
+    "stressed_net": 974.24,
+    "down_primary_net": 1302.16,
+    "up_primary_net": -251.92,
+    "year_1_primary_net": -221.36,
+    "year_2_primary_net": 1271.60,
+    "best_primary_trade": 1757.48,
+    "primary_net_excluding_best_trade": -707.24
+  },
+  "failed_gates": [
+    "annualized_trades_at_least_200",
+    "both_available_years_PnL_DD_improvement_at_least_3pct",
+    "full_intrabar_drawdown_not_above_Stage112",
+    "route_each_year_and_direction_primary_positive",
+    "route_primary_net_excluding_best_trade_positive"
+  ],
+  "verdict": "REJECT",
+  "interpretation": "Four-minute joint extreme survival is a strong acceptance state but not sufficient directional or lifecycle authority. Its aggregate improvement is dominated by one Year-2 DOWN outlier, while UP and Year-1 route economics are negative. Preserve the count morphology; do not crown, commission, lower the cadence gate, or rescue the duration.",
+  "next_mechanism_question": "Determine whether losing accepted pivots are distinguished causally by entry location, raw-turn age, absent shock ancestry, post-entry velocity crest, or lifecycle invalidation timing. No additional economic replay is authorized inside this Hawkeye block.",
+  "submitted_orders": 0
+}

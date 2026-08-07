@@ -164,9 +164,44 @@ Count therefore rejected before economics. Retain this exact law in the
 existing prospective Stage-114/118 observer; do not dilute it or commission it
 until authentic seconds episodes create a balanced cohort.
 
+Stage 129 tested the cleanest post-raw separator from the rejected Stage-125
+anatomy. Directional closes were deliberately ignored; both CL and MCL only had
+to preserve the raw-turn opposite extreme for `3/4/5` completed minutes. Count
+formed a genuine nested plateau: `46 -> 43 -> 41` events, every duration across
+both years, directions, and GTH/RTH. The previously untested `4m` interior
+medoid was frozen before delayed economics and scheduled every entry exactly
+five minutes after raw confirmation. Disabled and failed-probation Stage-112
+parity were both exact `388/388` (`e4d18b52...`).
+
+The economic headline was impressive but structurally false: `398` trades,
+`+$5,486.29` primary / `+$4,690.29` stressed, DD `$673.36`, PnL/DD `8.148`
+(`+24.73%` versus Stage 112), and worst trade `-$333.52`. The route itself made
+`+$1,050.24`, but Year 1 lost `-$221.36`, UP lost `-$251.92`, and one
+`+$1,757.48` Year-2 DOWN trade supplied more than the entire edge; excluding it
+left `-$707.24`. Yearly PnL/DD changed `-17.60% / +77.34%`, DD rose, and cadence
+was only `199.14/year`. The explicit 3%-most-years exception therefore correctly
+rejects Stage 129. Extreme survival proves non-failure, not directional or
+long-lifecycle authority. Preserve it as morphology; do not rescue its duration
+or weaken the stability gates.
+
 ## Current decision
 
 No historical successor beats Stage 112 reliably, even at the user-approved
 3% most-years hurdle. Stage 112 remains the live crown. The research branch is
-closed against recursive threshold rescue; the one retained high-value
-candidate is `SHOCK_BORN_RAW_CONFIRMATION`, outcome-blind and prospective.
+closed against duration or threshold rescue. Retain `SHOCK_BORN_RAW_CONFIRMATION`
+prospectively and diagnose Stage 129 only at the mechanism level: entry location,
+raw-turn age, shock ancestry, post-entry velocity crest, and thesis-compatible
+exit timing. No further economic replay may open inside the completed Hawkeye
+block.
+
+The first Stage-130 anatomy points to one architecture-native successor rather
+than another price threshold. Every Stage-129 trade was a `failed_auction`
+maturation whose frozen V18 route wanted to fade the raw direction. Fronts less
+than `60m` old were unproved; fronts at least `180m` old were stale and lost
+`-$1,094.48` after removing the April outlier. Fronts aged `60-180m`—exactly
+`0.5x-1.5x` Stage 112's frozen `24 x 5m = 120m` state/cooldown cycle—made
+`+$389.80`, PF `2.80`, `+$64.32` ex-best, Year 1/2 `+$138.40/+$251.40`,
+and UP/DOWN `+$24.36/+$365.44`. The known Aug-6 pivot's repaired front was
+about `170m` old. This is outcome-exposed mechanism evidence only. Queue one
+count-first `NATIVE_CYCLE_RAW_CONFIRMATION` candidate; do not replay it before
+the next Hawkeye `6/6` selection gate.

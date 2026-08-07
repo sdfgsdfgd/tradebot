@@ -1,0 +1,75 @@
+{
+  "schema": "mcl.raw-extreme-survival-probation-stage129-economic-preregistration.v1",
+  "registered_at_utc": "2026-08-07T18:17:00+00:00",
+  "authority": "single_adaptive_full_history_replay_no_orders_no_capital_no_live_authority",
+  "hypothesis": "Four completed minutes of joint CL/MCL raw-extreme survival distinguish a structurally accepted pivot from a transient velocity realignment. Waiting through this probation should remove Stage-125's dangerous immediate entries while retaining enough of genuine continuations to improve Stage 112 reliably.",
+  "single_frozen_treatment": {
+    "probation_minutes": 4,
+    "selection_reason": "outcome_unread_interior_medoid_of_the_count_passing_3m_and_5m_neighbors",
+    "entry": "next_MCL_open_after_four_completed_continuous_same_contract_probation_minutes",
+    "directional_close_or_body_gate": "none",
+    "failure": "release_and_preserve_exact_Stage112_maturation",
+    "success": "schedule_one_v18_owned_raw_extreme_survival_route_and_suppress_only_its_exact_paired_maturation",
+    "lifecycle_after_entry": "unchanged_Stage112_raw_turn_shock_takeover_loss_cap_weekly_flat_roll_gap_and_dataset_end",
+    "execution": "existing_next_open_cost_model_and_live_accelerated_LIMIT_only_ladder_if_later_crowned",
+    "sensitivity_economics": "sealed;_3m_and_5m_are_count_neighbors_only",
+    "threshold_sweep": false
+  },
+  "frozen_inputs": {
+    "count_pass": {
+      "path": "backtests/mcl/mcl_raw_extreme_survival_probation_stage129_count_pass.json",
+      "sha256": "17aa000848a84d8e966237e300f0e210887c0fa9f86df6ad66592e3c61ac96e5"
+    },
+    "count_result": {
+      "path_on_q": "/var/tmp/mcl-stage129-raw-extreme-survival-count.json",
+      "sha256": "f5b64fd99bc6ae6026c68b8ea265f598978f410b461d00cbad6aa778b48eaba3"
+    },
+    "count_evaluator": {
+      "path_on_q": "/var/tmp/mcl_stage129_raw_extreme_survival_count.py",
+      "sha256": "1329422c5d9856747966a88bc4adc8503f3798075134a703741bebe9836f2288"
+    },
+    "stage125_count": {
+      "path_on_q": "/var/tmp/mcl-stage125-phase-front-raw-confirmation-count.json",
+      "sha256": "872a98f3d2bc3afe4a7b6e810248571ecc5a144f12b8a97b95f05d0d5f3fc3bc"
+    },
+    "stage112_reference": {
+      "path_on_q": "/var/tmp/mcl-stage112-full-live-risk-parity.json",
+      "sha256": "bb0f40f42f22f5888ade3719ace3b9f95813f8fb3575ecfa06682353d90ac2df"
+    },
+    "shared_replay_owner": {
+      "path_on_q": "/var/tmp/mcl_stage119_reversal_bridge_economics.py",
+      "sha256": "36b695b466b16387bb16b76badfe2968c06e39e3dedb499b6cd1c08ee89da014"
+    },
+    "dated_hydration_manifest": {
+      "path": "db/MCL/dated/hydration_manifest.json",
+      "sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55"
+    }
+  },
+  "crown_gate": {
+    "exact_disabled_Stage112_parity": true,
+    "exact_failed_probation_Stage112_parity": true,
+    "full_primary_and_stressed_net_above_Stage112": true,
+    "full_PnL_DD_improvement_minimum_pct": 3.0,
+    "most_available_one_year_periods_PnL_DD_improvement_minimum_pct": 3.0,
+    "most_periods_definition_for_two_available_years": "both_two_years_must_pass",
+    "each_year_primary_and_stressed_positive": true,
+    "full_intrabar_drawdown_not_above_Stage112": true,
+    "worst_trade_not_below_Stage112": true,
+    "trade_count_above_Stage112": true,
+    "annualized_trades_minimum": 200.0,
+    "both_full_directions_and_origins_primary_positive": true,
+    "raw_extreme_survival_route_primary_and_stressed_positive": true,
+    "raw_extreme_survival_route_each_year_and_direction_primary_positive": true,
+    "raw_extreme_survival_route_primary_net_excluding_best_trade_positive": true,
+    "all_route_entries_exactly_five_minutes_after_raw_confirmation": true,
+    "known_incident_later_must_enter_no_later_than": "2026-08-06T06:45:00+00:00",
+    "known_false_start_later_must_remain_unadmitted": "2026-08-06T01:25:00+00:00"
+  },
+  "scope": {
+    "three_percent_exception": "MCL_successor_quest_only",
+    "XSP_and_Gold_crown_laws_changed": false,
+    "news_authority_changed": false,
+    "orders_or_capital_authority": false
+  },
+  "submitted_orders": 0
+}

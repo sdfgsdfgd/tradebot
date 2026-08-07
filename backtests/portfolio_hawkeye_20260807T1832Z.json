@@ -1,0 +1,191 @@
+{
+  "schema": "live.portfolio-hawkeye.v1",
+  "observed_at_utc": "2026-08-07T18:34:00Z",
+  "authority": "read_only_causal_observation_and_incubator_management_no_signal_no_orders_no_capital",
+  "review_block": {
+    "review": 1,
+    "required": 6,
+    "scheduled_boundary_utc": "2026-08-07T18:32:04Z",
+    "review_started_at_utc": "2026-08-07T18:32:12Z",
+    "started_seconds_after_boundary": 8,
+    "settlement_completed_at_utc": "2026-08-07T18:34:00Z",
+    "missed_slots_backfilled": 0,
+    "status": "OBSERVATION_ONLY_1_OF_6",
+    "prior_block_replay": "MCL_Stage129_spent_1_of_1_and_rejected"
+  },
+  "portfolio": {
+    "broker_capture_utc": "2026-08-07T18:33:00Z",
+    "available_funds_aud": 3146.93,
+    "excess_liquidity_aud": 3212.97,
+    "net_liquidation_aud": 3626.19,
+    "cash_balance_aud": 2119.39,
+    "cash_balance_usd": 204.9968,
+    "champion_positions": [
+      {
+        "symbol": "SPXU",
+        "quantity": 23,
+        "average_cost": 33.7004316,
+        "bid": 33.80,
+        "ask": 33.81
+      }
+    ],
+    "unrelated_user_positions": [
+      {
+        "symbol": "SPCX",
+        "local_symbol": "SPCX  260814P00110000",
+        "quantity": 1,
+        "excluded_from_champion_attribution": true
+      }
+    ],
+    "open_orders": []
+  },
+  "xsp": {
+    "strategy_version": "xsp.opening-edge-v4-dual-clock-arbitration-p009.v1",
+    "checkpoint_id": "bb9de951b6be0e5a16855d8a3d29657c2938408d389944dabd0892575776f01f",
+    "recorded_at_utc": "2026-08-07T18:32:03.907330Z",
+    "plan_reason": "target_already_owned",
+    "target_direction": "down",
+    "target_symbol": "SPXU",
+    "quantity": 23,
+    "fills": 1,
+    "closed_trades": 0,
+    "run_realized_net_usd": 0.0,
+    "open_mark_net_usd": 2.290074,
+    "peak_run_net_usd": 2.980074,
+    "drawdown_usd": 0.69,
+    "safety_breaches": [],
+    "submitted_orders_at_review": 0,
+    "state": {
+      "slope_signs_5_15_30_60_120": "DDDDD",
+      "velocity_signs_5_15_30_60_120": "DUDDU",
+      "coherence": 1.0,
+      "conviction": 0.161531,
+      "direction_score": -0.174435,
+      "atr_ratio": 0.704094,
+      "atr_velocity_pct": -0.013351,
+      "atr_acceleration_pct": -0.012066,
+      "turn_event": null,
+      "interpretation": "broad_down_structure_persists_with_mixed_velocity_and_compressing_range;_held_DOWN_owner_remains_valid_without_new_action"
+    }
+  },
+  "mcl": {
+    "strategy_version": "mcl.two-speed-shock-arbiter.v112",
+    "checkpoint_id": "cb317fddd26fdb1071376dc0d7dc0bea0cb2e670fdcbf38c16a9984b3555ecf0",
+    "source_checkpoint_id": "30b5077289e6d8cabd293a060941d206c27e403f58f5c58d510763fda4f5dc49",
+    "source_common_close_utc": "2026-08-07T18:32:00Z",
+    "plan_reason": "flat_no_target",
+    "position": 0,
+    "orders": 0,
+    "fills": 0,
+    "run_net_usd": 0.0,
+    "drawdown_usd": 0.0,
+    "safety_breaches": [],
+    "quote": {
+      "bid": 78.27,
+      "ask": 78.29,
+      "market_data_type": 1
+    },
+    "latest_state": {
+      "decision_as_of_utc": "2026-08-07T18:30:00Z",
+      "slope_signs_30_60_120_240_480": "UUDUU",
+      "velocity_signs_30_60_120_240_480": "DDDDD",
+      "coherence": 0.8,
+      "conviction": 0.016372,
+      "direction_score": 0.02053,
+      "smoothed_direction_score": 0.025391,
+      "atr_ratio": 0.987339,
+      "atr_velocity_pct": 0.030888,
+      "atr_acceleration_pct": 0.016087,
+      "raw_direction": null,
+      "proposed_direction": null,
+      "admitted_direction": null,
+      "interpretation": "the_partial_up_repair_has_reached_a_universal_velocity_crest;_120m_slope_remains_down_and_no_new_owner_exists"
+    }
+  },
+  "gold": {
+    "strategy_version": "gold.1oz-regime-harmony-stage76.v1",
+    "checkpoint_id": "754e9142bb2b7efb5f6b6bb5de05613017b4c46351993c092d27ae9b1c727431",
+    "recorded_at_utc": "2026-08-07T18:32:01.174729Z",
+    "plan_reason": "flat_no_target",
+    "position": 0,
+    "orders": 0,
+    "fills": 0,
+    "run_net_usd": 0.0,
+    "drawdown_usd": 0.0,
+    "safety_breaches": [],
+    "quote": {
+      "bid": 4394.50,
+      "ask": 4395.00,
+      "market_data_type": 1
+    },
+    "latest_completed_h4": {
+      "decision_bar_end_utc": "2026-08-07T16:00:00Z",
+      "raw_direction": "up",
+      "raw_turn": null,
+      "proposed_direction": null,
+      "h4_hard_direction": "up",
+      "d1_hard_direction": "down",
+      "interpretation": "unchanged_cross_clock_conflict_without_a_fresh_turn"
+    }
+  },
+  "news": {
+    "publication_id": "7fbbaa8449a8aca168c9333733e573ecc8fb6f592bde8e025bd557e588278401",
+    "signal_as_of_utc": "2026-08-07T15:50:23Z",
+    "snapshot_as_of_utc": "2026-08-07T16:00:18Z",
+    "directions": {
+      "XSP": "down_impact_8_confidence_0.96_weakening",
+      "MCL": "up_impact_16_confidence_0.98_weakening",
+      "GC": "up_impact_20_confidence_0.97_strengthening"
+    },
+    "authority": "context_only"
+  },
+  "incubator": {
+    "retained_candidates": [
+      {
+        "rank": 1,
+        "candidate": "MCL_Native_Cycle_Raw_Confirmation",
+        "state": "OUTCOME_EXPOSED_MECHANISM_DIAGNOSIS_QUEUED_COUNT_FIRST",
+        "law": "Stage129_extreme_survival_plus_front_age_within_0.5x_to_1.5x_the_frozen_120m_Stage112_state_cycle"
+      },
+      {
+        "rank": 2,
+        "candidate": "XSP_Pressure_Atlas",
+        "state": "ACCUMULATE_2_OF_30"
+      }
+    ],
+    "selected_replay": null,
+    "replay_budget": {
+      "used": 0,
+      "available": 1,
+      "disposition": "LOCKED_THROUGH_REVIEW_5_OF_6"
+    },
+    "diagnostic_only_evidence": "the_60_to_180m_native_cycle_band_has_10_route_trades_plus_389.80_primary_plus_64.32_ex_best_both_years_and_directions_positive;_this_is_not_selection_or_crown_evidence"
+  },
+  "prospective_ledgers": {
+    "mcl_shock_waves": {
+      "rows": 6,
+      "sha256": "15ad59db1c8a73ff0ee4e0071cf04852c065260f876c179fc52bac7d136e1cbc"
+    },
+    "mcl_predictive_onset": {
+      "rows": 11,
+      "sha256": "052cc3ab9a32f7f69c1f4a9ea2184bbf4a1fccf59d4b199da163232a8f5850fe"
+    },
+    "xsp_pressure_atlas": {
+      "rows": 2,
+      "sha256": "10c6ab4dcfb8e44d6a424b7575cfb094951fa23924b63aaddeb152f0ea58e084"
+    }
+  },
+  "control_plane": {
+    "tradebot-live.target": "active",
+    "failed_units": 0,
+    "mcl_turn_tape": "active_running_current_after_eight_gateway_related_restarts"
+  },
+  "invariants": {
+    "no_backfill": true,
+    "reviews_1_to_5_are_observation_only": true,
+    "no_new_replay_started": true,
+    "no_live_signal_threshold_crown_capital_service_or_order_change": true,
+    "three_percent_gate_remains_MCL_quest_specific": true
+  },
+  "next_hawkeye_boundary_utc": "2026-08-07T18:52:04Z"
+}
