@@ -1,0 +1,154 @@
+{
+  "schema": "tradebot.live-service-control-plane-deployment.v1",
+  "authority": "operator_authorized_static_systemd_control_plane_and_backup_manifest_no_strategy_no_signal_no_capital_no_orders",
+  "deployed_at_utc": "2026-08-07T12:18:23Z",
+  "quest": "Unified_tradebot-live.target_control_plane",
+  "result": "PASS_DEPLOYED_ACTIVE_STATIC_WITH_ISOLATED_WORKERS",
+  "repository": {
+    "path": "/Users/x/Desktop/py/tradebot",
+    "implementation_commit": "f15c0d019d02cdc983ba3771cad8a7b4ee9c89a9",
+    "implementation_subject": "Add unified live runtime target",
+    "implementation_committed_at": "2026-08-07T22:17:22+10:00",
+    "final_evidence_commit_parent": "2ddeec2f1d81d62a9ff7d61b9c5e8ebdaf5134f8",
+    "mac_origin_q_synchronized": true
+  },
+  "target": {
+    "repository_path": "deploy/systemd/tradebot-live.target",
+    "installed_path_on_q": "/home/x/.config/systemd/user/tradebot-live.target",
+    "sha256": "af35a605b3241ce2764f42111d2cc44947c565be75636daa52f94f195be37e99",
+    "description": "Control the isolated Tradebot live schedules and continuous owners",
+    "load_state": "loaded",
+    "active_state": "active",
+    "sub_state": "active",
+    "unit_file_state": "static",
+    "has_install_section": false,
+    "wants": [
+      "tradebot-xsp-shadow.timer",
+      "tradebot-xsp-pressure-tape.timer",
+      "tradebot-gold-live.timer",
+      "tradebot-gold-onset.timer",
+      "tradebot-mcl-live.timer",
+      "tradebot-mcl-turn-tape.service",
+      "tradebot-mcl-predictive-onset-runtime.timer",
+      "tradebot-news.timer",
+      "tradebot-ib-gateway-tunnel.service"
+    ],
+    "propagates_stop_to": [
+      "tradebot-xsp-shadow.timer",
+      "tradebot-xsp-pressure-tape.timer",
+      "tradebot-gold-live.timer",
+      "tradebot-gold-onset.timer",
+      "tradebot-mcl-live.timer",
+      "tradebot-mcl-turn-tape.service",
+      "tradebot-mcl-predictive-onset-runtime.timer",
+      "tradebot-news.timer"
+    ],
+    "excluded_from_propagated_stop": [
+      "tradebot-ib-gateway-tunnel.service"
+    ],
+    "excluded_stop_reason": "the_existing_StopWhenUnneeded_tunnel_must_remain_available_to_any_in_flight_oneshot_or_recorder_and_exit_only_after_its_real_dependents_finish",
+    "not_direct_members": {
+      "tradebot-mcl-narrative-prospective.service": "transitively_triggered_by_tradebot-news.service_OnSuccess",
+      "account_transmitting_oneshots": "triggered_by_their_existing_timers_and_serialized_by_the_existing_shared_account_lock"
+    }
+  },
+  "architectural_invariants": {
+    "workers_merged": false,
+    "switch_case_daemon_added": false,
+    "strategy_registry_added": false,
+    "canonical_strategy_registry": "tradebot/live/strategies.py",
+    "per_contract_clocks_changed": false,
+    "per_worker_logs_changed": false,
+    "independent_failure_domains_changed": false,
+    "shared_account_lock_changed": false,
+    "shared_account_lock": "%t/tradebot-live-account.lock",
+    "target_can_enable_disabled_sleeve_at_boot": false,
+    "reason_target_is_static": "individual_champion_timers_and_cockpit_actions_remain_the_only_enable_disable_authority"
+  },
+  "downstream_consumer_audit": {
+    "runtime_registry": "tradebot/live/strategies.py",
+    "live_run_projection": "tradebot/live/runs.py",
+    "portfolio_projection": "tradebot/live/portfolio.py",
+    "cockpit_live_run_projection": "tradebot/ui/bot_screen/live_runs.py",
+    "cockpit_command_surface": "tradebot/ui/bot.py",
+    "xsp_selection_transition": "deploy/systemd/tradebot-xsp-select-live",
+    "runtime_parity_contract": "individual_worker_unit_hashes_remain_authoritative",
+    "consumer_changes_required": false,
+    "audit_result": "PASS_EXISTING_INDIVIDUAL_UNIT_CONTROLS_AND_READERS_REMAIN_CORRECT"
+  },
+  "deployment_proof": {
+    "systemd_analyze_user_verify": "PASS",
+    "target_start_only": true,
+    "target_stop_or_restart_exercised": false,
+    "worker_restarts_caused": 0,
+    "timer_deadlines_changed": false,
+    "mcl_turn_tape_pid_before": 3463809,
+    "mcl_turn_tape_pid_after": 3463809,
+    "ib_gateway_tunnel_pid_before": 2612357,
+    "ib_gateway_tunnel_pid_after": 2612357,
+    "failed_user_units": 0,
+    "target_status_surface_verified": true
+  },
+  "backup": {
+    "owner_host": "q",
+    "schedule_owner": "q_user_crontab",
+    "schedule": "Sunday 04:15 local",
+    "script": "/home/x/Desktop/SCRIPTS/restic_snapshots.sh",
+    "repository": "/home/x/Desktop/py/device-backups",
+    "manifest": "lists/list_what_to_backup.linux.txt",
+    "commit": "fc282d27eb197d46ce433d1bc0e4d2cd1bf127a0",
+    "commit_subject": "Back up complete Tradebot live runtime",
+    "commit_manifest_sha256": "3704021c1999ecc2d6e9fc8389861b6820db5eba5e80132f2abd59f543ad745e",
+    "explicit_tradebot_paths": 23,
+    "explicit_tradebot_paths_resolved": 23,
+    "whole_systemd_user_directory_already_covered": true,
+    "full_tradebot_state_directory_explicitly_covered": true,
+    "actual_restic_snapshot_executed_by_this_quest": false,
+    "unrelated_preexisting_worktree_changes_preserved": [
+      "lists/list_what_to_backup.linux.txt_observability_hunks",
+      "scripts/restic_snapshots.sh",
+      "scripts/unroll_ubuntu.sh"
+    ]
+  },
+  "tests": {
+    "focused": {
+      "passed": 183,
+      "warning_count": 1,
+      "coverage": [
+        "exact_target_membership",
+        "static_target_semantics",
+        "stop_propagation_boundary",
+        "cockpit_and_ui_live_runs",
+        "news_transitive_companion",
+        "mcl_gold_xsp_runtime_owners",
+        "architecture_and_capability_contracts"
+      ]
+    },
+    "complete_repository": {
+      "passed": 1347,
+      "deselected": 4,
+      "subtests_passed": 6,
+      "warning_count": 1,
+      "elapsed_seconds": 69.79,
+      "result": "PASS"
+    },
+    "git_diff_check": "PASS"
+  },
+  "safety": {
+    "strategy_changes": 0,
+    "selection_changes": 0,
+    "signal_threshold_changes": 0,
+    "capital_changes": 0,
+    "execution_algorithm_changes": 0,
+    "broker_orders_submitted": 0,
+    "broker_positions_at_final_hawkeye": 0,
+    "broker_open_orders_at_final_hawkeye": 0
+  },
+  "rollback": {
+    "operation": "systemctl --user stop tradebot-live.target",
+    "effect": "disarm_the_eight_propagated_schedules_or_recorder_while_preserving_in_flight_tunnel_dependents",
+    "remove_control_surface": "remove_only_the_installed_target_then_daemon_reload;_individual_worker_units_remain_intact",
+    "data_loss": false
+  },
+  "submitted_orders": 0
+}
