@@ -377,6 +377,17 @@ lock only at `06:15Z`, and terminated on V18's accepted raw DOWN turn at
 `FAILED_FAST_OWNERSHIP`: correct eventual direction, unproved early authority.
 Five alternating subshock overlays do not change that classification.
 
+Weekday Hawkeye `portfolio_hawkeye_20260807T1243Z.json` adds a prospective
+nonterminal failure control without incrementing the cohort. At `12:25Z` the
+ordinary repair reached `UUUDD/UUUUU`; at `12:30Z` its 30m velocity relapsed
+first (`UUUDD/DUUUU`) while the slower repair still looked constructive. The
+next completed state carried a `-45`-tick MCL displacement, all-five DOWN
+velocity, and conviction collapse to `0.0042`; by `12:40Z`, the 30m and 120m
+slopes had crossed DOWN. The leading fast-velocity failure was therefore
+visible one completed five-minute state before the large displacement and two
+states before the slope failure. No raw turn, Stage-112 owner, Stage-118
+terminal, outcome, order, or replay exists; Stage 118 remains exact `1/30`.
+
 ## Closed search boundary
 
 Do not reopen these historical rescue families without genuinely new data:
