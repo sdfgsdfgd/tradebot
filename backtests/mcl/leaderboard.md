@@ -48,17 +48,17 @@ artifact `backtests/mcl/mcl_v18_shock_stage112_executable_crown.json` at SHA-256
 | Predictive challenger | Stages 87–90 hold `9/30` complete turns with outcomes sealed. Stage 114 retains four immutable authority-bound rows; Stage 115 remains a derived geometry view; Stage 116 retains `21` complete subshock episodes across both directions and sessions. Stage 117's only replay has no count authority because of neutral/missing and close-stamped-maintenance schema defects. Stage 118 receipt `bb7c3b37…` now preserves one lawful GTH DOWN front: fast ownership failed at `00:40Z`, full lock arrived only at `06:15Z`, and V18 accepted the `06:20Z` terminal. It is a negative early-onset control, not a promotion |
 | Live-canary exception | **Inherited:** Stage 112 may commission as the bounded MCL canary before the seconds cohort matures; the seconds layer still has no direction/order authority and no broker/safety gate is waived |
 | Live source/shadow | **PASS:** read-only finalized U6 replay through `18:43Z`, `4,003` exact common minutes, flat selection boundary, no synthetic position, zero orders; receipt `d3d5f2e4…` |
-| Native commissioning | **PASS:** fresh LMT preview, gap-free successor selection `8adead89…`, current portfolio plan `5dc25036…`, predictive generation `2256c870…`, shock-wave generation `ce101ce9…`, observe-only restart, maintenance reopen, and natural recurrence are bound by the final commissioning chain |
+| Native commissioning | **PASS:** fresh LMT preview, immutable successor selection `8adead89…`, current portfolio plan `5dc25036…`, predictive generation `2256c870…`, shock-wave generation `ce101ce9…`, observe-only restart, maintenance reopen, and natural recurrence are bound by the final commissioning chain |
 | Alternative transport frontier | **Closed for this V18 generation:** MCO is executable but destroyed the edge; IBUSOIL 75 units was the closest near-miss but failed frozen stress PnL/DD and branch gates and lacks current CFD permission/data; OOO/UCO/SCO/USO fail bidirectional hours/economics |
-| Graduation evidence | Gap-free successor cutoff `f2d2f789…` is lawful `HOLD`, not quarantine: matured-minute coverage plus runtime, identity, restart, capital, risk, and attribution pass; authentic execution and elapsed sessions remain pending. The next elapsed boundary is 48h at `2026-08-07T11:39:55Z` |
-| Next irreversible evidence | Preserve the gap-free Stage-112 prefix through authentic `24h → 48h → five-session` reductions. Let Stages 87–90, 114–116, and Stage 118 accumulate unchanged from `1/30`. The one bounded Stage-118 replay is spent; do not rerun it, force a trade, backfill Stage 117, lower `12×`, or open predictive outcomes |
-| Live boundary | **Flat / armed:** old selection `591db010…` remains permanently breached after `-$318.52`; gap-free Stage-112 selection `8adead89…` is current, MCL position/orders/fills are zero, and the live/predictive timers plus seconds tape are active |
+| Graduation evidence | Selection-time cutoff `f2d2f789…` was lawful `HOLD`, but the mature 24h receipt `59edbecd…` is permanently `QUARANTINE`: the August 5 Gateway outage removed nineteen exact open-market minutes (`15:01Z–15:19Z`). Friday epoch `99260d00…` was then rejected before eligibility because its 48h boundary landed on a closed Sunday. Weekend-safe epoch `87d77dd2…` starts at Sunday `2026-08-09T22:00Z`; preeligible receipt `e9dad8a4…` is `HOLD` with every non-economic gate except execution PASS |
+| Next irreversible evidence | Preserve weekend-safe epoch `87d77dd2…` through authentic `24h → 48h → five-session` reductions at `2026-08-10T22:00:55Z / 2026-08-11T22:00:55Z / 2026-08-16T22:00:55Z`. Let Stages 87–90, 114–116, and Stage 118 accumulate unchanged from `1/30`. Do not rerun Stage 118, force a trade, backfill either outage, lower `12×`, or open predictive outcomes |
+| Live boundary | **Flat / armed:** old selection `591db010…` remains permanently breached after `-$318.52`; Stage-112 selection `8adead89…` is current, MCL position/orders/fills are zero, and the live/predictive timers plus seconds tape are active |
 
 ## Live transport frontier
 
 | Rank | Transport | Exact result | Decision |
 |---:|---|---|---|
-| 1 | Native `MCLU6`, Stage 112 | Exact `388/388` executable lifecycle parity, live type-1 source, one-contract risk envelope, LMT-only ordinary/shock chase at `1×/2×`, gap-free selection `8adead89…`, maintenance reopen, restart and natural recurrence | **Crowned; CANARY_LIVE; preliminary graduation HOLD** |
+| 1 | Native `MCLU6`, Stage 112 | Exact `388/388` executable lifecycle parity, live type-1 source, one-contract risk envelope, LMT-only ordinary/shock chase at `1×/2×`, immutable selection `8adead89…`, maintenance reopen, restart and natural recurrence | **Crowned; CANARY_LIVE; original 24h quarantined; weekend-safe epoch pending** |
 | 2 | Native `MCLU6`, V18 | First live round trip bought the crash at `$80.16`, flattened at `$76.99`, and realized `-$318.52`; selection is flat but permanently breached | **Retired from selection** |
 | 3 | `IBUSOIL` CFD | `75` units: primary `+$1,468.98`, PnL/DD `3.511`; stress `+$675.69`, PnL/DD `.911`, failed-auction `-$79.75`. Live quote/preview absent because CFD permission/data is disabled | **Frozen generation rejected; future challenger only on genuinely new executable evidence** |
 | 4 | `MCO` long calls/puts | Live premium/margin fits, but ATM replay was `-$1,918.94`; the only liquid symmetric ITM corridor was `-$1,428.12`; both stress cases and both directions lost | **Rejected** |
@@ -73,9 +73,11 @@ Receipts: `mcl_v18_native_margin_hold.json`,
 graduation are bound by `mcl_v18_shock_stage112_live_commissioning_receipt.json`
 (`33e1fdce…`)
 and `mcl_v18_shock_stage112_preliminary_24h_graduation.json` (`e68194d8…`).
-The later extended-prefix quarantine is preserved by
-`mcl_v18_shock_stage112_graduation_prefix_gap_quarantine.json`; it changes no
-selection, strategy, or live authority. The
+The actual 24h quarantine and its immutable successor clock are preserved by
+`mcl_stage112_live_graduation_24h_quarantine_20260806.json`,
+`mcl_stage112_live_graduation_coverage_epoch_weekend_boundary_rejection.json`,
+and `mcl_stage112_live_graduation_coverage_epoch_weekend_safe_20260807.json`;
+they change no selection, strategy, economics, risk, or live authority. The
 retired V18 run remains frozen in `mcl_v18_live_commissioning_receipt.json`
 (`8ec07209…`) and `mcl_predictive_onset_accumulator_commissioning_receipt.json`
 (`12f993f0…`).
@@ -242,9 +244,12 @@ Friday flat. Observe-only checkpoint `5769e31d…`, first natural checkpoint
 `85433ec6…`, and post-deployment checkpoint `de40e0fe…` are all
 `flat_no_target`, zero MCL position/order/fill/P&L/DD/breach/submission.
 
-The cutoff-bound 24h receipt `e68194d8…` is correctly `HOLD`, not quarantine:
-runtime parity, capital stability, identity, restart, risk, and attribution pass;
-only authentic execution and elapsed/eligible-session evidence remain. Same-
+The selection-time receipt `e68194d8…` was correctly `HOLD`; the mature 24h
+receipt `59edbecd…` is correctly `QUARANTINE` on nineteen missing Gateway-outage
+minutes and remains immutable. Weekend-safe epoch `87d77dd2…` chains that
+failure and waits for the Sunday `22:00Z` open; no clock, economics, or risk is
+reset. Runtime parity, capital stability, identity, restart, risk, and
+attribution otherwise pass. Same-
 minute receipt noise now collapses only when MCL fill, position, accounting,
 drawdown, safety, order, held-direction, and submission state agree. Commissioning
 receipt: `mcl_v18_shock_stage112_live_commissioning_receipt.json`
@@ -407,10 +412,11 @@ Do not reopen these historical rescue families without genuinely new data:
 6. **Done:** observe-only restart, reconciliation, flat source, zero market
    orders/submissions, and natural recurrence passed; the timer is armed and the
    new profitability clock starts from exact zero.
-7. **Active:** the old gapped Stage-112 prefixes remain immutable quarantine
-   evidence. The maintenance-safe successor is live and its preliminary
-   reduction is `HOLD`, with every non-economic gate passing; preserve fresh
-   authentic `24h → 48h → five-session` evidence without backfill.
+7. **Active:** the original Stage-112 24h prefix remains immutable quarantine
+   evidence. The maintenance-safe strategy stays live; weekend-safe coverage
+   epoch `87d77dd2…` begins only at the natural Sunday open and its preeligible
+   reduction is `HOLD`. Preserve authentic `24h → 48h → five-session` evidence
+   without backfill, clock reset, or forced execution.
 8. **Concurrent Priority Zero:** autonomous Stages 87–90 and 114–116 continue
    accumulating outcome-blind onset/shock morphology. Stage 117 is terminally
    schema-rejected; Stage 118 is `1/30` after its sole bounded replay produced a
