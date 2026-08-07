@@ -1,9 +1,13 @@
 # XSP / Gold / MCL Mastery — Live Research Kata
 
-- **Current authority (2026-08-06T22:41Z):** `[ACTIVE]` Opening Edge v4 P-009
+- **Current authority (2026-08-07T00:24Z):** `[ACTIVE]` Opening Edge v4 P-009
   Dual-Clock Arbitration is the sole crowned/live XSP owner under fresh flat
   selection `e0f61f74…` and portfolio plan `5dc25036…`. Gold Stage 76/77 and
-  MCL Stage 112 remain unchanged, flat, LMT-only canaries. MCL Stage 117 spent
+  MCL Stage 112 remain unchanged, flat, LMT-only canaries. P-009's first
+  natural GTH recurrence passed exact source/transport, broker, pressure,
+  profitability-clock, and installed-unit identity with zero target, position,
+  order, fill, P&L, DD, breach, or submission; its first lawful 24h evidence is
+  `2026-08-07T21:49:55Z`. MCL Stage 117 spent
   one outcome-sealed morphology replay but is terminally schema-rejected;
   Stage 118 preserves the same hypothesis/thresholds under corrected neutral-
   sign and close-stamped-maintenance semantics, a fresh `22:45Z` eligibility,
@@ -2633,6 +2637,7 @@ and
 | E-586 | P-009 live succession is complete through the existing central XSP worker. Fresh flat selection `e0f61f74…` / file `c60e4f8b…` succeeds terminal v3 `1083c181…` without inheriting its two trades / `-$9.077374`; plan `5dc25036…` atomically preserves Gold `62344ce2…` and MCL `8adead89…`, generation `847c74d6…`, stability proof `280f06b4…`, and the first-admitter law. P-009 pressure generation `4c737948…` inherits one outcome-blind treatment only. Live type-1 non-transmitting what-if previews qualified `5 UPRO @ 152.36` and `23 SPXU @ 34.21`; both are LMT, zero-warning, commission-bounded, and left open trades `0→0`. Installed service/timer hashes match the repository; first post-selection invocation returned `CLOSED/NOT_STARTED`, no transport execution, and `0` orders. Read-only broker truth remained flat/orderless at `US$1,064.136` settled and `A$3,633.48` available/excess. Commissioning receipt `opening_edge_v4_dual_clock_arbitration_p009_live_commissioning.json` / `3230d496…`. Cash authority is RTH-only; positive GTH research is not overnight order permission |
 | E-587 | q efficiency audit found one real but non-trading lifecycle defect: `tradebot-xsp-pressure-tape.service` reached its intentional `6h50m` bound at `16:10 ET`, but `Restart=on-failure` resurrected the roughly `32MiB` read-only recorder ten seconds later. The unit now uses `Restart=no` plus `RestartForceExitStatus=1`: bounded timeout stays terminal until the next `09:20 ET` timer activation, while genuine recorder/IBKR failures retain the existing ten-second exit-1 restart. Recorder `60a9e4b…` and generation `45111626…` remain byte-identical; installed/repository unit `7d8da657…` matches, the after-hours process stayed inactive, its timer stayed armed, MCL seconds tape and IB tunnel remain the only necessary persistent Tradebot processes, disabled predecessor timers remain zero-cost, and no tmp backtest process or unexpected service exists. Receipt `live_service_efficiency_cleanup_20260807.json`; broker remained flat/orderless and cleanup submitted `0` orders |
 | E-588 | MCL Multiscale Phase-Front Stage 117 is transparently schema-rejected after its one outcome-sealed morphology replay. Result `fce62e29…` saw `693` finalized decisions, `3` major-shock anchors, `8` subshock anchors, `22` Stage-114 transitions, and reported two complete GTH fronts (`1 up/1 down`), but exact numeric `0.0` slopes were projected as missing and close-stamped maintenance falsely expected an `18:00 ET` bar instead of the first `18:05` close. Rejection `7f4452b8…` permanently exposes both front IDs and all eleven anchors, grants no count/economic/live authority, and forbids same-prefix reuse. Stage 118 preregistration `7270c1e7…` retains every hypothesis, origin, terminal, threshold, and count gate; only neutral-sign semantics, close-stamped maintenance, and explicit generation routing change. Evaluator `53cc0f20…` passed Mac/q compile, lint, and synthetic proof; source/turn prefixes `d1bb50e5…/4de60a86…` were frozen before fresh `22:45Z` eligibility. No backfill, outcome, direction, timing, service, timer, order, capital, or Stage-112/P-009/Gold mutation occurred; the spent Stage-117 replay cannot be reused and first Stage-118 derivation requires a fresh post-eligibility terminal plus a fresh block budget |
+| E-589 | P-009's first natural post-selection GTH recurrence is exact and terminally preserved by `opening_edge_v4_dual_clock_arbitration_p009_first_natural_gth_recurrence.json` (`1fc7d8e7…`). Timer `00:22Z` produced P-009 source `e5dc3c75…` and joined transport `99943819…`: source/transport `EVALUATED/UNCHANGED`, `flat_target`, no target/leg, UPRO/SPXU `0/0`, zero orders/fills/gross/cost/net/DD/breaches, and fresh type-1 execution books. Read-only post-cycle broker truth remained account-flat/orderless at `US$1,064.136` settled and `A$3,633.67` available/excess. The independent signal-session anchor began `00:15Z`, while profitability correctly retained immutable selection start `2026-08-06T21:48:25.337314Z`, intact coverage, zero complete sessions, and `no_complete_session_due`; first lawful 24h evidence is `2026-08-07T21:49:55.337314Z`, with no fake pass or quarantine. Pressure generation stayed `FROZEN_ACCUMULATE 1/30`, outcomes/permission/orders sealed; installed service/timer hashes match, service exited `0`, timer waits, market-order scan is empty, and submitted orders remain `0` |
 
 ### Decision anchors
 
@@ -2834,9 +2839,13 @@ and left open trades `0→0`. The installed central worker/timer match repositor
 hashes. Its first post-selection invocation correctly returned `CLOSED`, no
 transport execution, `NOT_STARTED` profitability, and zero orders. Read-only
 broker verification was flat/orderless at `US$1,064.136` settled cash and
-`A$3,633.48` available/excess. The fresh P-009 `24h/48h/five-session` clock
-starts only at the first lawful RTH evidence slot; nothing is backfilled and
-positive after-cost economics remain mandatory. Research GTH remains positive,
+`A$3,633.48` available/excess. Its first natural `00:22Z` GTH cycle then joined
+exact P-009 source/transport checkpoints, stayed `flat_target`, preserved
+RTH-only cash authority, reconciled an empty broker, and submitted zero orders.
+Profitability kept the immutable selection start, intact coverage, and
+`no_complete_session_due`; first lawful 24h evidence is
+`2026-08-07T21:49:55Z`. Nothing is backfilled and positive after-cost economics
+remain mandatory. Research GTH remains positive,
 but cash execution is RTH-only until a separate native overnight proof exists.
 Bot Trade is now only the q-owned durable portfolio cockpit. Immutable machine
 crowns, cash/preview/selection proof, capital sleeves, product workers,

@@ -1,0 +1,147 @@
+{
+  "schema": "xsp.opening-edge-v4-dual-clock-p009-first-natural-gth-recurrence.v1",
+  "authority": "natural_timer_observation_and_read_only_broker_reconciliation_no_forced_trade",
+  "recorded_at_utc": "2026-08-07T00:23:57+00:00",
+  "pre_receipt_repository_revision": "a520b27a0d921818fd1981e36c2cd4ca2f794301",
+  "strategy_version": "xsp.opening-edge-v4-dual-clock-arbitration-p009.v1",
+  "source_strategy_version": "xsp.opening-edge-v4-dual-clock-source-p009.v1",
+  "selection": {
+    "selection_id": "e0f61f74286e1d2b655e253633b0842cb47d41ad7b66fb4567eece3aa46d674b",
+    "selection_file_sha256": "c60e4f8bfa190fe99c59572d9173b53ed8dab8447d42e9b1d05f21184843ae75",
+    "selected_at_utc": "2026-08-06T21:48:25.337314+00:00",
+    "run_started_at_utc": "2026-08-06T21:48:25.337314+00:00",
+    "gth_execution_allowed": false,
+    "order_type": "LMT_only_shared_AUTO_chase"
+  },
+  "capital": {
+    "plan_id": "5dc2503640627b39b57b33ba9c0810c2ad9e1f778b937f241abd4ff571f2c8ea",
+    "plan_file_sha256": "06dec8eec40e5707bcb178d2930d747e518c4c9f71a82f7e9c8de77ef23eed6e",
+    "stability_sha256": "280f06b4e2cb0aa6cb0749a309b2f2c92328c0fe9d66ef36b32e73b45be905da",
+    "gold_selection_unchanged": true,
+    "mcl_selection_unchanged": true
+  },
+  "natural_invocation": {
+    "timer_fired_at_utc": "2026-08-07T00:22:00+00:00",
+    "source_checkpoint_id": "e5dc3c75a5024a1c0d0a5c0adc2a0b6a53b8b1636ebc77cd843e24d294f3be2a",
+    "source_recorded_at_utc": "2026-08-07T00:22:07.766794+00:00",
+    "execution_checkpoint_id": "999438192b2ec8dc9f0cee45bbf4b22a088d854bdf67f22ac75a047040a44cd9",
+    "execution_recorded_at_utc": "2026-08-07T00:22:03.142115+00:00",
+    "observer_output_sha256": "fa429dedbb7d983bcf63562d94e790994fca514e7a590e0cc947b8ed14c54bef",
+    "session": "GTH",
+    "signal_session_run_started_at_utc": "2026-08-07T00:15:00+00:00",
+    "signal_bar_utc": "2026-08-07T00:20:00+00:00",
+    "source_status": "EVALUATED",
+    "transport_status": "UNCHANGED",
+    "plan_reason": "flat_target",
+    "target_direction": null,
+    "target_symbol": null,
+    "leg": null,
+    "entry_window_open": false,
+    "submitted_orders": 0
+  },
+  "source_anatomy": {
+    "spy_history_fresh": true,
+    "rth_provenance_fresh": true,
+    "one_minute_context_ready": true,
+    "dual_clock_emissions": 0,
+    "gth_impulse_state": "underwarmed",
+    "gth_observed_horizons": 0,
+    "gth_proposed_direction": null,
+    "rth_impulse_state": "weak_direction_outside_window",
+    "daily_context_transition": "aligned_up",
+    "daily_context_directions": "up/up/up/up/up/up",
+    "news_authority": "observation_only",
+    "news_direction": "down",
+    "news_impact": 12,
+    "news_confidence": 0.94
+  },
+  "transport_and_risk": {
+    "positions_from_fills": {
+      "UPRO": 0.0,
+      "SPXU": 0.0
+    },
+    "broker_positions_at_execution": {
+      "UPRO": 0.0,
+      "SPXU": 0.0
+    },
+    "broker_open_orders_at_execution": [],
+    "fill_count": 0,
+    "closed_trades": 0,
+    "run_gross_usd": 0.0,
+    "run_cost_usd": 0.0,
+    "run_net_usd": 0.0,
+    "drawdown_usd": 0.0,
+    "safety_breaches": [],
+    "quotes_live_type_1": true,
+    "market_order_evidence_found": false
+  },
+  "profitability": {
+    "as_of_utc": "2026-08-07T00:22:26.228500+00:00",
+    "status": "INVALID_EVIDENCE",
+    "interpretation": "expected_pre_milestone_no_complete_session_not_quarantine_not_pass",
+    "reasons": [
+      "no_complete_session_due"
+    ],
+    "coverage_started_at_utc": "2026-08-06T21:48:25.337314+00:00",
+    "coverage_broken": false,
+    "elapsed_seconds": 9240.891186,
+    "complete_sessions": 0,
+    "closed_trades": 0,
+    "net_usd": 0.0,
+    "maximum_drawdown_usd": 0.0,
+    "milestones": {
+      "24h_evidence_as_of_utc": "2026-08-07T21:49:55.337314+00:00",
+      "48h_evidence_as_of_utc": "2026-08-08T21:49:55.337314+00:00",
+      "five_session_evidence_as_of_utc": "2026-08-13T21:49:55.337314+00:00"
+    },
+    "fabricated_pass": false
+  },
+  "pressure_atlas": {
+    "status": "FROZEN_ACCUMULATE",
+    "generation_sha256": "d8f26874824be95c6e0eaa7532e31b1a7f8468602b454d4b700287ee05de0740",
+    "ledger_rows": 1,
+    "ledger_sha256": "30099fdf1edfbfb6a5a5db9dbc93f2f0fc1badef8384d89e879a296bc208343a",
+    "source_candidates": 0,
+    "outcomes": null,
+    "permission": "none",
+    "order_authority": "none",
+    "submitted_orders": 0
+  },
+  "post_invocation_broker": {
+    "verification_authority": "read_only_auxiliary_client",
+    "observed_at_utc": "2026-08-07T00:23:57+00:00",
+    "account_positions": [],
+    "open_orders": [],
+    "settled_cash_usd": 1064.136,
+    "available_funds_aud": 3633.67,
+    "excess_liquidity_aud": 3633.67
+  },
+  "service": {
+    "service_result": "success",
+    "service_exit_status": 0,
+    "service_restarts": 0,
+    "timer_active": true,
+    "service_unit_sha256": "4be2bebba812c761ff8f0e6fc28a398f36eb5a35ccaaa2f1206b278c1d0f7aa7",
+    "timer_unit_sha256": "695b691526d1e33d9e33fb7c043479278be308e97134b606e1d3bd01e8ecb7da",
+    "installed_units_match_repository": true
+  },
+  "gates": {
+    "natural_timer_boundary_observed": true,
+    "p009_source_identity_exact": true,
+    "p009_selection_identity_exact": true,
+    "source_and_transport_checkpoint_join_exact": true,
+    "predecessor_economics_not_inherited": true,
+    "gth_cash_authority_remained_disabled": true,
+    "flat_target_respected": true,
+    "broker_flat_and_orderless": true,
+    "risk_and_attribution_complete": true,
+    "profitability_clock_uses_selection_run": true,
+    "no_complete_session_not_fake_pass": true,
+    "pressure_atlas_remained_observation_only": true,
+    "lmt_only_boundary_intact": true,
+    "market_order_path_absent": true,
+    "installed_units_match_repository": true
+  },
+  "verdict": "PASS_FIRST_NATURAL_GTH_RECURRENCE_GRADUATION_ACCUMULATE",
+  "submitted_orders": 0
+}

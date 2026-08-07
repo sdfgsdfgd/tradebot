@@ -448,6 +448,7 @@ gate after outcomes.
 | P-009 crown | `648`, `216.8606/year`, `+305.6156` / stress `+240.8156`, PF `2.042`, DD `16.76`, PnL/DD `18.2348`; Y1/Y2/Y3 PnL-DD gains `+29.39%/+45.23%/+4.19%`; both directions and lanes positive | Root `2/3` annual law passes; strict extra all-three 5% curiosity gate remains an immutable Y3 miss |
 | P-009 recent disclosure | Every `5/10/21/42/63/84`-session window is net positive; equal to v3 at 5 sessions but less efficient at 10–84 | Crown remains valid, but commission only as bounded canary; no post-exposure threshold rescue |
 | P-009 commissioning | Crown `e3d4b968…`, durable parity `6a81ea01…`, selection `e0f61f74…`, plan `5dc25036…`; installed central worker/timer match repository, what-if previews pass, broker flat/orderless, submitted `0` | `CANARY_LIVE`; RTH cash only, GTH execution still disabled, authentic graduation starts from the fresh run |
+| P-009 first natural GTH recurrence | Receipt `1fc7d8e7…`: timer `00:22Z` produced exact P-009 source `e5dc3c75…` plus transport `99943819…`: `flat_target`, no leg/position/order/fill/P&L/DD/breach, live type-1 books, broker flat/orderless, and pressure atlas still observation-only `1/30`; service exited `0` with installed-unit parity | `PASS_FIRST_NATURAL_GTH_RECURRENCE / GRADUATION_ACCUMULATE`. The profitability owner correctly reports `no_complete_session_due` with intact coverage—neither a fake pass nor quarantine. First lawful 24h evidence is `2026-08-07T21:49:55Z` |
 
 ## 12. Decision journal
 
@@ -469,6 +470,7 @@ gate after outcomes.
 | PD-014 | Crown P-009 under the standing majority-year law: Y1/Y2 beat v3 PnL/DD by more than 5%, Y3 improves by 4.19%, full PnL/DD improves 11.93%, cadence/net/stress improve, DD falls, and both directions/lanes stay positive. Preserve the stricter Y3 miss without retuning |
 | PD-015 | P-009 live cash execution remains RTH-only through the single shared LMT/AUTO worker. Positive unchanged GTH research cannot create overnight order authority. Recent 10–84-session underperformance requires bounded live graduation, not de-coronation or retrospective edits |
 | PD-016 | Keep the content-addressed pressure recorder immutable and bound its session lifetime centrally in systemd: intentional `6h50m` timeout stays stopped until the next `09:20 ET` timer activation; only genuine exit status `1` restarts. This removes after-hours waste without changing evidence, signals, or live authority |
+| PD-017 | Separate P-009's live-selection profitability clock from each signal-session warmup anchor. Natural GTH may start a fresh observation segment while the immutable selection clock continues uninterrupted; neither clock may inherit predecessor economics, manufacture a complete session, or open GTH cash authority |
 
 ## 13. Current execution sequence
 
@@ -500,13 +502,15 @@ gate after outcomes.
     succeeded shared-capital plan, outcome-blind pressure generation, LMT-only
     preview, restart proof, installed-unit parity, and zero-order broker proof
     bind P-009 to the existing central worker.
-11. `[ACTIVE / GRADUATION]` Accumulate authentic P-009 evidence and reduce its
-    `24h`, `48h`, and five-session after-cost milestones. Do not retune from the
+11. `[ACTIVE / FIRST NATURAL RECURRENCE PASSED]` Natural GTH source/transport,
+    broker reconciliation, pressure accumulation, installed-unit identity, and
+    no-complete-session profitability semantics are exact. Continue authentic
+    `24h`, `48h`, and five-session after-cost reductions. Do not retune from the
     disclosed recent weakness or synthesize an overnight cash path.
 
 ## Conclusion: XSP P-009 Dual-Clock Arbitration
 
-**Status:** `CROWNED / CANARY_LIVE / LMT_ONLY / RTH_CASH_ONLY / GRADUATION_PENDING`.
+**Status:** `CROWNED / CANARY_LIVE / FIRST_NATURAL_GTH_RECURRENCE_PASS / LMT_ONLY / RTH_CASH_ONLY / GRADUATION_ACCUMULATE`.
 
 The decisive insight is:
 

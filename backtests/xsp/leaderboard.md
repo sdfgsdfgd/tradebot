@@ -47,6 +47,7 @@ authority releases before reversal.
 | Crown artifact | `backtests/xsp/opening_edge_v4_dual_clock_arbitration_p009_crown.json` |
 | Durable parity | `backtests/xsp/opening_edge_v4_dual_clock_arbitration_p009_durable_owner_parity.json` |
 | Live commissioning | `backtests/xsp/opening_edge_v4_dual_clock_arbitration_p009_live_commissioning.json` |
+| First natural GTH recurrence | `backtests/xsp/opening_edge_v4_dual_clock_arbitration_p009_first_natural_gth_recurrence.json`; exact source/transport join, flat/orderless, no fake graduation |
 
 | Slice | Trades | Net | Stress | DD | PnL/DD | Gain vs v3 |
 |---|---:|---:|---:|---:|---:|---:|
