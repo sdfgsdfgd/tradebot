@@ -24,6 +24,7 @@ from tradebot.research.live_graduation import (
 
 
 RUN_ID = "a" * 64
+OLD_RUN_ID = "9" * 64
 STRATEGY_ID = "test.strategy.v1"
 EXECUTION_VERSION = "test.strategy.execution.v1"
 CUTOFF = datetime(2026, 8, 1, 20, 18, tzinfo=timezone.utc)
@@ -239,11 +240,77 @@ def test_cockpit_projects_one_official_selected_run_without_broker_authority(
     assert run["allocation"] == {"weight_bps": 10_000, "limit_cents": 80_000}
     assert run["positions"] == {"TEST": 0, "INVERSE": 0}
     assert run["economics"]["run_net_usd"] == 12.5
+    assert run["campaign_economics"]["known_net_usd"] == 12.5
+    assert run["campaign_economics"]["known_realized_net_usd"] == 10.0
+    assert snapshot["campaign_economics"]["known_net_usd"] == 12.5
     assert run["graduation"]["verdict"] == "PROMOTE"
     assert run["controls"]["START"]["status"] == "NOOP"
     assert run["controls"]["STOP"]["status"] == "ALLOW"
     assert run["controls"]["REPLACE"]["status"] == "HOLD"
     assert run["controls"]["REBALANCE"]["status"] == "HOLD"
+
+
+def test_campaign_pnl_reduces_retired_and_active_execution_runs_once(
+    tmp_path: Path,
+) -> None:
+    cockpit, _states, _calls = _fixture(tmp_path)
+    retired = {
+        "kind": "checkpoint",
+        "checkpoint_id": "8" * 64,
+        "recorded_at_utc": "2026-07-31T20:18:00+00:00",
+        "strategy_id": "test.strategy.predecessor.v1",
+        "strategy_version": EXECUTION_VERSION,
+        "evidence": {
+            "selection_id": OLD_RUN_ID,
+            "risk_state": {
+                "valid": True,
+                "attribution_complete": False,
+                "run_realized_net_usd": -5.0,
+                "open_mark_net_usd": -99.0,
+                "fill_count": 2,
+                "closed_trades": 1,
+                "fill_ledger_fingerprint": "7" * 64,
+            },
+        },
+    }
+    source_only = {
+        **retired,
+        "checkpoint_id": "6" * 64,
+        "strategy_version": "test.strategy.source.v1",
+        "evidence": {
+            **retired["evidence"],
+            "risk_state": {
+                **retired["evidence"]["risk_state"],
+                "run_realized_net_usd": -999.0,
+            },
+        },
+    }
+    ledger = tmp_path / "ledger.jsonl"
+    ledger.write_text(
+        ledger.read_text() + json.dumps(retired) + "\n" + json.dumps(source_only) + "\n",
+        encoding="utf-8",
+    )
+
+    snapshot = cockpit.snapshot()
+    campaign = snapshot["runs"][0]["campaign_economics"]
+
+    assert campaign["known_realized_net_usd"] == 5.0
+    assert campaign["active_open_mark_net_usd"] == 2.5
+    assert campaign["known_net_usd"] == 7.5
+    assert campaign["archived_realized_net_usd"] == -5.0
+    assert campaign["closed_trades"] == 2
+    assert campaign["selection_runs"] == 2
+    assert campaign["accounted_selection_runs"] == 2
+    assert campaign["attribution_complete"] is False
+    assert campaign["incomplete_run_ids"] == [OLD_RUN_ID]
+    assert snapshot["campaign_economics"] == {
+        "scope": "all_selected_execution_runs_across_allocated_products",
+        "known_realized_net_usd": 5.0,
+        "active_open_mark_net_usd": 2.5,
+        "known_net_usd": 7.5,
+        "closed_trades": 2,
+        "attribution_complete": False,
+    }
 
 
 def test_sleeve_projection_excludes_unrelated_account_positions_and_orders() -> None:

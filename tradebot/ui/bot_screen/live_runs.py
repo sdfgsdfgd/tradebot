@@ -35,7 +35,7 @@ class BotLiveRunsMixin:
             ("Owner", 13),
             ("Capital", 16),
             ("Position", 18),
-            ("Net", 12),
+            ("Run / campaign", 18),
             ("DD", 10),
             ("Fills/Tr", 9),
             ("Graduation", 24),
@@ -172,9 +172,11 @@ class BotLiveRunsMixin:
                 continue
             allocation = run.get("allocation")
             economics = run.get("economics")
+            campaign = run.get("campaign_economics")
             safety = run.get("safety")
             allocation = allocation if isinstance(allocation, Mapping) else {}
             economics = economics if isinstance(economics, Mapping) else {}
+            campaign = campaign if isinstance(campaign, Mapping) else {}
             safety = safety if isinstance(safety, Mapping) else {}
             fill_count = economics.get("fill_count")
             closed_trades = economics.get("closed_trades")
@@ -185,14 +187,25 @@ class BotLiveRunsMixin:
                 style="bold #73d89e" if safe else "bold #ff7070",
             )
             net = economics.get("run_net_usd")
+            campaign_net = campaign.get("known_net_usd")
             drawdown = economics.get("drawdown_usd")
+            net_cell = Text()
+            net_cell.append_text(
+                _pnl_text(float(net)) if net is not None else Text("-", style="dim")
+            )
+            net_cell.append(" / ", style="dim")
+            net_cell.append_text(
+                _pnl_text(float(campaign_net))
+                if campaign_net is not None
+                else Text("-", style="dim")
+            )
             self._live_runs_table.add_row(
                 *_center_table_row(
                     str(run.get("label") or run.get("strategy_id") or "unknown"),
                     self._live_run_state_cell(run),
                     self._live_run_capital(allocation),
                     self._live_run_position(run),
-                    _pnl_text(float(net)) if net is not None else Text("-", style="dim"),
+                    net_cell,
                     f"${float(drawdown):,.2f}" if drawdown is not None else "-",
                     f"{fill_count if fill_count is not None else '-'}/{closed_trades if closed_trades is not None else '-'}",
                     self._live_run_graduation_cell(run),
@@ -356,10 +369,12 @@ class BotLiveRunsMixin:
     def _live_run_detail_lines(self, run: Mapping[str, object]) -> list[Text]:
         allocation = run.get("allocation")
         economics = run.get("economics")
+        campaign = run.get("campaign_economics")
         safety = run.get("safety")
         graduation = run.get("graduation")
         allocation = allocation if isinstance(allocation, Mapping) else {}
         economics = economics if isinstance(economics, Mapping) else {}
+        campaign = campaign if isinstance(campaign, Mapping) else {}
         safety = safety if isinstance(safety, Mapping) else {}
         graduation = graduation if isinstance(graduation, Mapping) else {}
         run_id = str(run.get("run_id") or "")
@@ -377,13 +392,27 @@ class BotLiveRunsMixin:
                 style="dim",
             ),
             Text(
-                f"Net=${float(economics.get('run_net_usd') or 0):,.2f}  "
+                f"Active run  Net=${float(economics.get('run_net_usd') or 0):,.2f}  "
                 f"Realized=${float(economics.get('run_realized_net_usd') or 0):,.2f}  "
                 f"Mark=${float(economics.get('open_mark_net_usd') or 0):,.2f}  "
                 f"Costs=${float(economics.get('run_cost_usd') or 0):,.2f}  "
                 f"DD=${float(economics.get('drawdown_usd') or 0):,.2f}  "
                 f"Fills/Trades={economics.get('fill_count', '-')}/{economics.get('closed_trades', '-')}",
                 style="dim",
+            ),
+            Text(
+                "Known live campaign  "
+                f"Net=${float(campaign.get('known_net_usd') or 0):,.2f}  "
+                f"Realized=${float(campaign.get('known_realized_net_usd') or 0):,.2f}  "
+                f"Active mark=${float(campaign.get('active_open_mark_net_usd') or 0):,.2f}  "
+                f"Trades={campaign.get('closed_trades', '-')}  "
+                f"Selections={campaign.get('accounted_selection_runs', '-')}/{campaign.get('selection_runs', '-')}  "
+                f"Attribution={'COMPLETE' if campaign.get('attribution_complete') is True else 'PARTIAL'}",
+                style=(
+                    "dim"
+                    if campaign.get("attribution_complete") is True
+                    else "bold #f2b36f"
+                ),
             ),
             Text(
                 f"Graduation={graduation.get('verdict', 'UNKNOWN')} "

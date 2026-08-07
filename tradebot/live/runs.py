@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import subprocess
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
@@ -184,6 +185,114 @@ def _latest_mapping(
         if isinstance(value, Mapping):
             return dict(value)
     return None
+
+
+def _finite_number(value: object, *, field: str) -> float | None:
+    if value is None:
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"live campaign {field} is not numeric") from exc
+    if not math.isfinite(number):
+        raise ValueError(f"live campaign {field} is not finite")
+    return number
+
+
+def _campaign_economics(
+    records: Sequence[Mapping[str, object]],
+    *,
+    binding: LiveRunBinding,
+    current_run_id: str,
+) -> dict[str, object]:
+    """Reduce every selected execution run without inheriting archived open marks."""
+
+    observed: dict[str, str | None] = {}
+    latest: dict[str, tuple[Mapping[str, object], Mapping[str, object]]] = {}
+    for record in records:
+        evidence = record.get("evidence")
+        if (
+            record.get("kind") != "checkpoint"
+            or record.get("strategy_version")
+            != binding.execution_strategy_version
+            or not isinstance(evidence, Mapping)
+        ):
+            continue
+        run_id = str(evidence.get("selection_id") or "")
+        if not run_id:
+            continue
+        observed.setdefault(run_id, record.get("recorded_at_utc"))
+        risk = evidence.get("risk_state")
+        if isinstance(risk, Mapping):
+            latest[run_id] = (record, risk)
+
+    rows = []
+    for run_id, (record, risk) in sorted(
+        latest.items(),
+        key=lambda item: (str(observed.get(item[0]) or ""), item[0]),
+    ):
+        realized = _finite_number(
+            risk.get("run_realized_net_usd"),
+            field="run_realized_net_usd",
+        )
+        closed_trades = int(risk.get("closed_trades") or 0)
+        rows.append(
+            {
+                "run_id": run_id,
+                "strategy_id": record.get("strategy_id"),
+                "current": run_id == current_run_id,
+                "first_recorded_at_utc": observed.get(run_id),
+                "last_recorded_at_utc": record.get("recorded_at_utc"),
+                "latest_checkpoint_id": record.get("checkpoint_id"),
+                "realized_net_usd": realized,
+                "closed_trades": closed_trades,
+                "fill_count": int(risk.get("fill_count") or 0),
+                "fill_ledger_fingerprint": risk.get("fill_ledger_fingerprint"),
+                "attribution_complete": risk.get("attribution_complete") is True,
+            }
+        )
+
+    missing = sorted(set(observed) - set(latest))
+    material = [
+        row
+        for row in rows
+        if int(row["closed_trades"]) > 0
+        or abs(float(row["realized_net_usd"] or 0)) >= 1e-9
+    ]
+    current = next((row for row in rows if row["current"]), None)
+    current_risk = latest.get(current_run_id, ({}, {}))[1]
+    active_mark = _finite_number(
+        current_risk.get("open_mark_net_usd"),
+        field="open_mark_net_usd",
+    )
+    known_realized = sum(float(row["realized_net_usd"] or 0) for row in rows)
+    incomplete = sorted(
+        {
+            *missing,
+            *(
+                str(row["run_id"])
+                for row in material
+                if row["attribution_complete"] is not True
+            ),
+        }
+    )
+    return {
+        "scope": "all_selected_execution_runs_in_product_ledger_prefix",
+        "known_realized_net_usd": known_realized,
+        "active_open_mark_net_usd": active_mark,
+        "known_net_usd": known_realized + float(active_mark or 0),
+        "active_run_realized_net_usd": (
+            current.get("realized_net_usd") if current is not None else None
+        ),
+        "archived_realized_net_usd": known_realized
+        - float(current.get("realized_net_usd") or 0 if current is not None else 0),
+        "closed_trades": sum(int(row["closed_trades"]) for row in rows),
+        "selection_runs": len(observed),
+        "accounted_selection_runs": len(rows),
+        "attribution_complete": not incomplete,
+        "incomplete_run_ids": incomplete,
+        "runs": rows,
+    }
 
 
 def _pending_order_refs(records: Sequence[Mapping[str, object]]) -> tuple[str, ...]:
@@ -493,8 +602,9 @@ class LiveRunCockpit:
             ):
                 raise ValueError("allocated selection and durable run identity disagree")
             ledger_path = _repo_path(self.repository_root, binding.ledger_path)
+            ledger_records = self._read_ledger(ledger_path)
             records = _matching_execution_records(
-                self._read_ledger(ledger_path),
+                ledger_records,
                 binding=binding,
                 run_id=run_id,
             )
@@ -634,6 +744,11 @@ class LiveRunCockpit:
                     "fill_count": risk.get("fill_count"),
                     "closed_trades": risk.get("closed_trades"),
                 },
+                "campaign_economics": _campaign_economics(
+                    ledger_records,
+                    binding=binding,
+                    current_run_id=run_id,
+                ),
                 "safety": {
                     "valid": risk.get("valid"),
                     "attribution_complete": risk.get("attribution_complete"),
@@ -675,6 +790,31 @@ class LiveRunCockpit:
             for sleeve in plan["sleeves"]
             if isinstance(sleeve, Mapping)
         ]
+        campaigns = [
+            campaign
+            for run in runs
+            for campaign in (run.get("campaign_economics"),)
+            if isinstance(campaign, Mapping)
+        ]
+        portfolio_campaign = {
+            "scope": "all_selected_execution_runs_across_allocated_products",
+            "known_realized_net_usd": sum(
+                float(value.get("known_realized_net_usd") or 0)
+                for value in campaigns
+            ),
+            "active_open_mark_net_usd": sum(
+                float(value.get("active_open_mark_net_usd") or 0)
+                for value in campaigns
+            ),
+            "known_net_usd": sum(
+                float(value.get("known_net_usd") or 0) for value in campaigns
+            ),
+            "closed_trades": sum(
+                int(value.get("closed_trades") or 0) for value in campaigns
+            ),
+            "attribution_complete": len(campaigns) == len(runs)
+            and all(value.get("attribution_complete") is True for value in campaigns),
+        }
         body = {
             "schema": LIVE_RUN_COCKPIT_SCHEMA,
             "status": (
@@ -683,6 +823,7 @@ class LiveRunCockpit:
             "capital_plan_id": plan["plan_id"],
             "account": dict(plan["account"]),
             "capital": dict(capital),
+            "campaign_economics": portfolio_campaign,
             "runs": runs,
             "errors": [],
         }

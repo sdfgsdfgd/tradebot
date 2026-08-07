@@ -86,10 +86,21 @@ def _run() -> dict[str, object]:
         "settled_cash_usd": 1_318.05,
         "economics": {
             "run_net_usd": 0.0,
+            "run_realized_net_usd": 0.0,
+            "open_mark_net_usd": 0.0,
             "run_cost_usd": 0.0,
             "drawdown_usd": 0.0,
             "fill_count": 0,
             "closed_trades": 0,
+        },
+        "campaign_economics": {
+            "known_net_usd": -22.156381,
+            "known_realized_net_usd": -22.156381,
+            "active_open_mark_net_usd": 0.0,
+            "closed_trades": 3,
+            "selection_runs": 7,
+            "accounted_selection_runs": 7,
+            "attribution_complete": False,
         },
         "safety": {"valid": True, "attribution_complete": True, "breaches": []},
         "graduation": {
@@ -201,6 +212,7 @@ def test_live_run_table_projects_durable_truth_not_local_bot_instances() -> None
     assert len(table.rows) == 1
     assert table.rows[0][1]["key"] == "live:xsp-upro-spxu-rth-cash"
     assert harness._live_run_rows[0]["run_id"] == "a" * 64
+    assert table.rows[0][0][4].plain == "0.00 / -22.16"
 
 
 def test_live_run_capital_projects_executable_package_not_legacy_weight() -> None:
@@ -250,6 +262,12 @@ def test_replace_and_rebalance_are_explicit_artifact_gates() -> None:
     assert "b:gate" in BotLiveRunsMixin._live_run_controls(run)
     details = _Harness()._live_run_detail_lines(run)
     assert any("immutable successor artifacts" in line.plain for line in details)
+    assert any(
+        "Known live campaign" in line.plain
+        and "Realized=$-22.16" in line.plain
+        and "Attribution=PARTIAL" in line.plain
+        for line in details
+    )
 
 
 def test_live_run_details_reuse_persisted_hawkeye_anatomy() -> None:
