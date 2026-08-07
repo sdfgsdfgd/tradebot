@@ -1,0 +1,207 @@
+{
+  "schema": "tradebot.live-service-inventory-and-cleanup.v1",
+  "authority": "q_runtime_ownership_audit_and_reversible_non_champion_cleanup_no_orders_no_capital",
+  "observed_at_utc": "2026-08-07T10:53:12Z",
+  "host": "q",
+  "repository_revision": "41fe0d75d0b50c9eb6af55721a49fda599094b6b",
+  "host_health": {
+    "load_average_1m_5m_15m": [0.96, 0.87, 0.87],
+    "memory_total_gib": 61,
+    "memory_available_gib": 53,
+    "swap_used_mib": 11,
+    "failed_user_units": 0,
+    "unrelated_failed_system_unit": "openipmi.service"
+  },
+  "inventory": [
+    {
+      "owner": "shared_broker_transport",
+      "service": "tradebot-ib-gateway-tunnel.service",
+      "service_state": "active_running_static_on_demand",
+      "timer": null,
+      "runtime_role": "localhost_only_q_to_Mac_IB_Gateway_tunnel_for_all_three_champions",
+      "decision": "KEEP_CANONICAL"
+    },
+    {
+      "owner": "XSP_P009_live",
+      "service": "tradebot-xsp-shadow.service",
+      "service_state": "inactive_between_oneshot_invocations",
+      "timer": "tradebot-xsp-shadow.timer",
+      "timer_state": "enabled_active_waiting",
+      "runtime_role": "sole_P009_source_and_UPRO_SPXU_cash_transport",
+      "drop_in": "tradebot-xsp-shadow.service.d/selected-live.conf_sets_IBKR_READONLY_0",
+      "decision": "KEEP_CANONICAL"
+    },
+    {
+      "owner": "XSP_Pressure_Atlas",
+      "service": "tradebot-xsp-pressure-tape.service",
+      "service_state": "inactive_outside_RTH_acquisition_window",
+      "timer": "tradebot-xsp-pressure-tape.timer",
+      "timer_state": "enabled_active_waiting",
+      "runtime_role": "unique_session_bounded_SPY_UPRO_SPXU_seconds_evidence",
+      "decision": "KEEP_CANONICAL_BOUNDED"
+    },
+    {
+      "owner": "Gold_Stage76_source",
+      "service": "tradebot-gold-onset.service",
+      "service_state": "inactive_between_oneshot_invocations",
+      "timer": "tradebot-gold-onset.timer",
+      "timer_state": "enabled_active_waiting",
+      "runtime_role": "newly_completed_four_hour_Gold_source_state",
+      "decision": "KEEP_CANONICAL"
+    },
+    {
+      "owner": "Gold_Stage76_live",
+      "service": "tradebot-gold-live.service",
+      "service_state": "inactive_between_oneshot_invocations",
+      "timer": "tradebot-gold-live.timer",
+      "timer_state": "enabled_active_waiting",
+      "runtime_role": "selected_1OZ_reconciliation_and_limit_only_execution",
+      "decision": "KEEP_CANONICAL"
+    },
+    {
+      "owner": "MCL_Stage112_live",
+      "service": "tradebot-mcl-live.service",
+      "service_state": "inactive_between_oneshot_invocations",
+      "timer": "tradebot-mcl-live.timer",
+      "timer_state": "enabled_active_waiting",
+      "runtime_role": "selected_MCL_reconciliation_and_limit_only_execution",
+      "decision": "KEEP_CANONICAL"
+    },
+    {
+      "owner": "MCL_seconds_evidence",
+      "service": "tradebot-mcl-turn-tape.service",
+      "service_state": "enabled_active_running",
+      "timer": null,
+      "runtime_role": "unique_matched_CL_MCL_seconds_evidence_for_Stage116_and_Stage118",
+      "memory_current_mib": 34,
+      "cpu_percent_snapshot": 0.8,
+      "restart_count": 8,
+      "restart_diagnosis": "all_recent_restarts_trace_to_the_earlier_IB_Gateway_connection_reset;_current_instance_is_stable",
+      "decision": "KEEP_CANONICAL_MONITOR_RESTARTS"
+    },
+    {
+      "owner": "MCL_current_predictive_generation",
+      "service": "tradebot-mcl-predictive-onset-runtime.service",
+      "service_state": "inactive_between_oneshot_invocations",
+      "timer": "tradebot-mcl-predictive-onset-runtime.timer",
+      "timer_state": "enabled_active_waiting",
+      "runtime_role": "sole_generation_pointer_accumulator_for_current_predictive_and_shock_wave_evidence",
+      "decision": "KEEP_CANONICAL"
+    },
+    {
+      "owner": "causal_news",
+      "service": "tradebot-news.service",
+      "service_state": "inactive_between_four_hour_oneshot_invocations",
+      "timer": "tradebot-news.timer",
+      "timer_state": "enabled_active_waiting",
+      "runtime_role": "sole_XSP_MCL_Gold_news_publication",
+      "decision": "KEEP_CANONICAL"
+    },
+    {
+      "owner": "MCL_news_companion",
+      "service": "tradebot-mcl-narrative-prospective.service",
+      "service_state": "inactive_between_news_OnSuccess_invocations",
+      "timer": null,
+      "trigger": "tradebot-news.service_OnSuccess",
+      "runtime_role": "prospective_narrative_price_assimilation_evidence",
+      "decision": "KEEP_CANONICAL"
+    },
+    {
+      "owner": "future_XSP_options_evidence",
+      "service": "tradebot-xsp-quotes.service",
+      "service_state": "inactive_stopped",
+      "timer": "tradebot-xsp-quotes.timer",
+      "timer_state": "disabled_inactive",
+      "runtime_role": "option_quote_tape_not_consumed_by_current_P009_spot_champion",
+      "observed_defect": "531_repeated_no_qualified_option_contract_retries",
+      "decision": "CLEANED_RUNTIME_RETAIN_TEMPLATE_PENDING_ARCHIVE_DECISION"
+    },
+    {
+      "owner": "MCL_legacy_predictive_predecessor",
+      "service": "tradebot-mcl-predictive-onset.service",
+      "service_state": "inactive_static",
+      "timer": "tradebot-mcl-predictive-onset.timer",
+      "timer_state": "disabled_inactive",
+      "runtime_role": "superseded_by_generation_pointer_runtime",
+      "runtime_cost": "zero",
+      "decision": "DORMANT_PENDING_ARCHIVE_DECISION"
+    },
+    {
+      "owner": "MCL_Stage114_predictive_predecessor",
+      "service": "tradebot-mcl-predictive-onset-stage114.service",
+      "service_state": "inactive_static",
+      "timer": "tradebot-mcl-predictive-onset-stage114.timer",
+      "timer_state": "disabled_inactive",
+      "runtime_role": "superseded_by_generation_pointer_runtime",
+      "runtime_cost": "zero",
+      "decision": "DORMANT_PENDING_ARCHIVE_DECISION"
+    }
+  ],
+  "non_systemd_runtime": [
+    {
+      "process": "python_-m_tradebot.live.portfolio_endpoint_serve",
+      "pid_at_observation": 2908060,
+      "parent": "SSH_session_from_the_Mac_cockpit",
+      "cpu_percent_snapshot": 10.6,
+      "resident_memory_mib": 738.4,
+      "runtime_role": "durable_portfolio_UI_and_campaign_PnL_endpoint",
+      "decision": "KEEP_WHILE_UI_CONNECTED_BUT_PROFILE_AS_PRIMARY_TRADEBOT_RESOURCE_OWNER"
+    }
+  ],
+  "reversible_cleanup_completed": [
+    {
+      "target": "tradebot-xsp-quotes.timer",
+      "action": "disabled_and_stopped",
+      "recoverability": "unit_template_remains_in_repository_and_installed_service_file_remains"
+    },
+    {
+      "target": "tradebot-xsp-quotes.service",
+      "action": "stopped",
+      "recoverability": "can_be_started_manually_after_option_contract_qualification_is_repaired"
+    },
+    {
+      "target": "orphaned_journalctl_follow_process_3110984",
+      "action": "terminated",
+      "recoverability": "read_only_monitor_only_no_state"
+    },
+    {
+      "target": "tradebot-xsp-v2-entry-latency.service.d",
+      "action": "moved_out_of_systemd_load_path",
+      "archive": "/home/x/.config/systemd/user/retired/2026-08-07-service-cleanup/tradebot-xsp-v2-entry-latency.service.d",
+      "reason": "base_unit_missing_and_drop_in_pointed_to_a_missing_July_var_tmp_pipeline"
+    }
+  ],
+  "retired_archive": {
+    "prior_XSP_experiment_unit_files": 32,
+    "newly_archived_orphan_drop_in_files": 1,
+    "loaded_by_systemd": false,
+    "runtime_cost": "zero",
+    "decision": "RETAIN_AS_RECOVERABLE_PROVENANCE"
+  },
+  "repository_and_installation": {
+    "all_installed_tradebot_unit_files_match_repository_templates": true,
+    "intentional_selected_live_drop_in": "tradebot-xsp-shadow.service.d/selected-live.conf",
+    "global_system_tradebot_units": 0,
+    "running_tmp_or_var_tmp_backtests": 0,
+    "unexpected_enabled_experiment_timers": 0
+  },
+  "recommended_decision": {
+    "quest": "Archive_dormant_installed_units_without_deleting_templates",
+    "score": "5/5",
+    "action": "move_the_two_disabled_MCL_predecessor_service_timer_pairs_and_the_disabled_XSP_options_service_timer_pair_from_the_active_systemd_directory_into_retired;_keep_their_repository_templates_and_git_history;_remove_XSP_quotes_from_the_default_enable_instructions",
+    "benefit": "one_current_runtime_name_per_owner,_cleaner_operator_inventory,_no_loss_of_provenance_or_future_reinstallability",
+    "risk": "rollback_or_future_options_capture_requires_one_explicit_reinstall_step",
+    "status": "AWAITING_USER_DECISION_NO_FURTHER_MUTATION"
+  },
+  "invariants": {
+    "champion_services_changed": 0,
+    "news_services_changed": 0,
+    "current_predictive_services_changed": 0,
+    "positions": 0,
+    "open_orders": 0,
+    "submitted_orders": 0,
+    "strategy_changes": 0,
+    "selection_changes": 0,
+    "capital_changes": 0
+  }
+}
