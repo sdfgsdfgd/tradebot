@@ -1,0 +1,83 @@
+{
+  "authority": "prospective_coverage_clock_only_cumulative_economics_unchanged",
+  "eligible_start_utc": "2026-08-07T02:27:00+00:00",
+  "epoch_id": "a82b78221aa1b709367a805c1bb75b82b573d2242384660d6ad2e9590bf9f7aa",
+  "invariants": {
+    "broker_or_timer_mutated": false,
+    "capital_plan_changed": false,
+    "missing_slots_backfilled": false,
+    "pre_epoch_economics_inherited": true,
+    "profitability_threshold_changed": false,
+    "runtime_risk_reset": false,
+    "strategy_selection_changed": false
+  },
+  "predecessor_receipts": [
+    {
+      "cutoff_utc": "2026-08-04T12:43:30+00:00",
+      "milestone": "24h",
+      "path": "backtests/gold/one_oz_stage76_live_graduation_24h_quarantine_20260804.json",
+      "receipt_id": "77e8fcbfa58af35279461a0bcff53960261de68104475a70b085d48293c07419",
+      "sha256": "374140364263a695ec36d426cc83606cef3bda7b400bd01db478337419f44d8c",
+      "verdict": "QUARANTINE"
+    },
+    {
+      "cutoff_utc": "2026-08-05T12:43:30+00:00",
+      "milestone": "48h",
+      "path": "backtests/gold/one_oz_stage76_live_graduation_48h_quarantine_20260805.json",
+      "receipt_id": "80ff3c9c643514f34acea535f5ae8529a57efe7c74a7709c22d209ed1ccc8ab7",
+      "sha256": "b1f2d62da0324ea429f840844397a6652f90d6bc26c2fcbb3c20d4b7397ceec6",
+      "verdict": "QUARANTINE"
+    },
+    {
+      "cutoff_utc": "2026-08-07T02:03:30+00:00",
+      "milestone": "24h",
+      "path": "backtests/gold/one_oz_stage76_live_graduation_coverage_epoch_24h_quarantine_20260807.json",
+      "receipt_id": "0cdb71d598a1978a181af9dfec8c236df4bc310f0f4ceb5f5848af3c2ac2ce66",
+      "sha256": "890e6468bfbe941f64bf9a6ee7e2db8bc0e79217eaea16d9e35d092a82a9554c",
+      "verdict": "QUARANTINE"
+    }
+  ],
+  "preregistration": {
+    "path": "backtests/gold/one_oz_stage76_live_graduation_coverage_epoch2_preregistration.json",
+    "sha256": "174ade6a7114aae7e02278a166b2b8cd82b41c4302297fa73beb2401257a461e"
+  },
+  "registered_at_utc": "2026-08-07T02:06:48+00:00",
+  "schema": "live.futures-profitability-coverage-epoch.v1",
+  "selection": {
+    "path": "db/calibration/selections/62344ce21bf7c6f01095abab14b6ca8ef79c9806abb35294859fc9574a5f7574.json",
+    "selection_id": "62344ce21bf7c6f01095abab14b6ca8ef79c9806abb35294859fc9574a5f7574",
+    "sha256": "5fc9048d37a42e00da621862dac02ebeea1f14f66e55ab2c17cad5bda90e81c8"
+  },
+  "submitted_orders": 0,
+  "terminal_checkpoint": {
+    "broker_open_orders": [],
+    "broker_position": 0.0,
+    "checkpoint_id": "620c29ac59f3eb132a220e51aa785beb579376012f8ec071e8339ee48b2a408d",
+    "evaluation_as_of_utc": "2026-08-07T02:02:00.754111+00:00",
+    "evidence_sha256": "edd2bc633c5ea4fb7859296db862688e1af08dea7266483dd77ab4771f34a251",
+    "recorded_at_utc": "2026-08-07T02:02:00.754111+00:00",
+    "risk_state": {
+      "attribution_complete": true,
+      "closed_trades": 0.0,
+      "drawdown_usd": 0.0,
+      "fill_count": 0.0,
+      "gross_wins_usd": 0.0,
+      "open_mark_cost_usd": 0.0,
+      "open_mark_gross_usd": 0.0,
+      "open_mark_net_usd": 0.0,
+      "peak_run_net_usd": 0.0,
+      "position_from_fills": 0.0,
+      "run_cost_usd": 0.0,
+      "run_gross_usd": 0.0,
+      "run_net_usd": 0.0,
+      "run_realized_cost_usd": 0.0,
+      "run_realized_gross_usd": 0.0,
+      "run_realized_net_usd": 0.0,
+      "safety_breaches": [],
+      "top_five_gross_wins_usd": 0.0,
+      "valid": true
+    },
+    "submitted_orders": 0
+  }
+}
+
