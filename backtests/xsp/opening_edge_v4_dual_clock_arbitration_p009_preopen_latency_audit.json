@@ -1,0 +1,120 @@
+{
+  "schema": "xsp.opening-edge-v4-dual-clock-arbitration-p009-preopen-latency-audit.v1",
+  "authority": "read_only_preopen_latency_disclosure_no_orders_no_capital_no_strategy_change",
+  "generated_at_utc": "2026-08-07T09:17:03Z",
+  "selection": {
+    "selection_id": "e0f61f74286e1d2b655e253633b0842cb47d41ad7b66fb4567eece3aa46d674b",
+    "selection_sha256": "c60e4f8bfa190fe99c59572d9173b53ed8dab8447d42e9b1d05f21184843ae75",
+    "selected_at_utc": "2026-08-06T21:48:25.337314+00:00",
+    "strategy_version": "xsp.opening-edge-v4-dual-clock-arbitration-p009.v1"
+  },
+  "repository": {
+    "head_before_receipt": "983bc7bf3e0677c4ee0e0db7a12a40a67abe6e16",
+    "dual_clock_owner_sha256": "be2fea1a28c4f005133b302bd985d65fd623d7093b02bfaca771b340014dea3f",
+    "source_owner_sha256": "e442068e82bff2cbdfe969b9954538dc7483d56a4bdafed38d6ab172091235c8",
+    "minute_context_owner_sha256": "dbe5055ba8d8a7960c51ca7e7a7cf80dd4bb74039e5798c6a6babd467c31e88c",
+    "service_sha256": "4be2bebba812c761ff8f0e6fc28a398f36eb5a35ccaaa2f1206b278c1d0f7aa7",
+    "timer_sha256": "695b691526d1e33d9e33fb7c043479278be308e97134b606e1d3bd01e8ecb7da"
+  },
+  "installed_q_parity": {
+    "service_sha256": "4be2bebba812c761ff8f0e6fc28a398f36eb5a35ccaaa2f1206b278c1d0f7aa7",
+    "timer_sha256": "695b691526d1e33d9e33fb7c043479278be308e97134b606e1d3bd01e8ecb7da",
+    "matches_repository": true
+  },
+  "natural_full_worker_baseline": {
+    "source": "q_journald_tradebot-xsp-shadow.service_since_2026-08-07T00:00:00Z",
+    "session": "GTH",
+    "samples": 104,
+    "wall_seconds": {
+      "minimum": 29.068816,
+      "mean": 31.673187,
+      "maximum": 35.36005
+    },
+    "includes": [
+      "systemd_start_to_finish",
+      "portfolio_account_lock_wait",
+      "broker_history",
+      "full_source_replay",
+      "transport_reconciliation",
+      "profitability_and_observer_reducers"
+    ]
+  },
+  "isolated_native_minute_transport_probe": {
+    "probe_path_on_q": "/var/tmp/xsp_minute_latency_probe.py",
+    "probe_sha256": "1565625ff852333459c8ef1eb75456eb6fd9307a7d2f596be1c734e6703a6a8e",
+    "broker_mode": "readonly",
+    "qualification_seconds": 0.722443,
+    "minute_context_seconds": 1.383187,
+    "total_seconds": 2.10563,
+    "spy_raw_bars": 390,
+    "spy_complete_bars": 390,
+    "xsp_raw_bars": 390,
+    "xsp_complete_bars": 390,
+    "latest_common_close_utc": "2026-08-06T16:00:00",
+    "submitted_orders": 0
+  },
+  "production_sized_rth_source_probe": {
+    "probe_path_on_q": "/var/tmp/xsp_p009_rth_latency_probe.py",
+    "probe_sha256": "f07d417edeaceb2557b9daf1658dd444e7ef5abd7c612094aaab465d11c74756",
+    "broker_mode": "readonly",
+    "ledger_mode": "temporary_copy_with_current_p009_source_rows_removed",
+    "prior_ledger_records": 2779,
+    "observed_at_utc": "2026-08-06T14:00:00+00:00",
+    "evaluation_status": "EVALUATED",
+    "wall_seconds": 18.685456,
+    "cpu_seconds": 15.058919,
+    "spy_one_minute_raw_bars": 390,
+    "spy_one_minute_complete_bars": 389,
+    "xsp_one_minute_raw_bars": 390,
+    "xsp_one_minute_complete_bars": 389,
+    "dual_clock_emissions": 0,
+    "target": null,
+    "submitted_orders": 0
+  },
+  "shared_lock_clock": {
+    "xsp_rth_invocation_second": 3,
+    "mcl_invocation_second": 10,
+    "gold_invocation": "five_minute_clock_at_second_00",
+    "pressure_tape_uses_live_account_lock": false,
+    "observed_ordering": "gold_usually_releases_before_xsp;_xsp_acquires_before_mcl;_mcl_waits_when_xsp_is_running",
+    "xsp_overlap_observed": false,
+    "account_race_observed": false
+  },
+  "timing_interpretation": {
+    "research_execution_clock": "next_native_minute_open",
+    "live_timer_clock": "next_native_minute_plus_3_seconds",
+    "projected_normal_source_transport_completion_seconds_into_target_minute": [
+      32.0,
+      40.0
+    ],
+    "same_target_minute_capacity": true,
+    "exact_next_open_fill_parity_proven": false,
+    "required_first_rth_measurements": [
+      "signal_close_to_source_checkpoint",
+      "source_checkpoint_to_transport_plan",
+      "transport_plan_to_first_limit_submission",
+      "limit_submission_to_fill_or_expiry",
+      "signal_price_to_fill_slippage",
+      "shared_lock_wait"
+    ]
+  },
+  "gates": {
+    "installed_owner_and_timer_identity": true,
+    "native_minute_clocks_align": true,
+    "production_sized_rth_source_completes_inside_one_minute": true,
+    "natural_full_worker_has_no_minute_overlap": true,
+    "market_orders_absent": true,
+    "exact_live_next_open_parity": false
+  },
+  "decision": "PASS_PREOPEN_SAME_MINUTE_CAPACITY_HOLD_EXACT_FILL_LATENCY_FOR_FIRST_AUTHENTIC_RTH",
+  "invariants": {
+    "strategy_changed": false,
+    "selection_changed": false,
+    "capital_changed": false,
+    "service_changed": false,
+    "timer_changed": false,
+    "order_authority_changed": false,
+    "orders_submitted": 0
+  },
+  "submitted_orders": 0
+}
