@@ -1,0 +1,158 @@
+{
+  "schema": "mcl.subshock-stage116-twenty-first-episode-stage118-wait.v1",
+  "recorded_at_utc": "2026-08-07T04:45:10.933289+00:00",
+  "authority": "prospective_derived_morphology_only_no_outcomes_no_orders_no_capital",
+  "purpose": "Close the previously open twentieth Stage-116 wave, preserve the independently completed twenty-first wave, and keep Stage 118 sealed until a genuine post-eligibility V18 raw-turn terminal exists.",
+  "stage116": {
+    "preregistration_path": "backtests/mcl/mcl_subshock_ignition_recoil_reacceleration_stage116_preregistration.json",
+    "preregistration_sha256": "2d081df5058a44ff736e0d26705a09b78f97c8b1b703a4ffd4d255f7d2920154",
+    "evaluator_path_on_q": "/var/tmp/mcl_stage116_subshock_morphology.py",
+    "evaluator_sha256": "e17032307a01799345fc6c26770718da2044ce874983d74458ee2b3889d8da6e",
+    "result_path_on_q": "/var/tmp/mcl-stage116-stage118-current-r6.json",
+    "result_sha256": "ba0cc6f341ff217e2f0be950852d8335298235618e30b203a775bbe34b52d4c9",
+    "generated_at_utc": "2026-08-07T04:44:50.133860+00:00",
+    "selection_id": "8adead895d3bd460b460f832d725046a3ea34079525a80a1662004ade2c17c93",
+    "prior_complete_subshock_episodes": 19,
+    "current_complete_subshock_episodes": 21,
+    "bars": {
+      "common_rows": 5924,
+      "cutoff_utc": "2026-08-07T04:44:00+00:00",
+      "first_common_close_utc": "2026-08-02T22:01:00+00:00",
+      "last_common_close_utc": "2026-08-07T04:44:00+00:00",
+      "sha256": "8713e6e53a9f8be0ac3f523c44b70b4389706aad3172387cd42a1f084b65e6eb"
+    },
+    "tape": {
+      "first_bucket_utc": "2026-08-05T23:37:56+00:00",
+      "last_bucket_utc": "2026-08-07T04:44:50+00:00",
+      "records": 74739,
+      "record_ids_sha256": "d6313b8869ef95548645d10f2827731f7931a39b44d6c043e1eaaa446a7d5ae1"
+    },
+    "cohort": {
+      "complete_subshock_episodes": 21,
+      "directionless_controls": 1,
+      "provisional_directions": {
+        "down": 9,
+        "up": 11
+      },
+      "sessions": {
+        "GTH": 17,
+        "RTH": 4
+      },
+      "shapes": {
+        "DIRECTIONLESS_ATTENTION": 1,
+        "IGNITION_RECOIL": 4,
+        "IGNITION_RECOIL_REACCELERATION": 12,
+        "MIXED_TORSION": 4
+      },
+      "verdict": "ACCUMULATE"
+    },
+    "new_complete_episodes": [
+      {
+        "ordinal": 20,
+        "episode_id": "29edbf1cde443d24d5217e65b842582657a0b1dd5c6cd3b1481c15cd72f3c735",
+        "episode_sha256": "c2c21a27aeba3166f316dc920fc095aa6e7096803bdd391eacd19a813b3d72b1",
+        "started_at_utc": "2026-08-07T04:12:29+00:00",
+        "terminal_at_utc": "2026-08-07T04:21:42+00:00",
+        "duration_seconds": 553.0,
+        "receipt_session": "GTH",
+        "provisional_direction": "up",
+        "maximum_volume_multiple": 6.5,
+        "shape": "IGNITION_RECOIL_REACCELERATION",
+        "first_book_alignment_order": "SAME_INTERVAL",
+        "speed_peak_at_utc": "2026-08-07T04:12:29+00:00",
+        "speed_peak_ticks_per_second": 1.809523809524194,
+        "crest_confirmed_at_utc": "2026-08-07T04:12:51+00:00",
+        "crest_confirmation_latency_seconds": 22.0,
+        "opposite_full_alignment_recoil_at_utc": "2026-08-07T04:13:57+00:00",
+        "renewed_original_full_alignment_at_utc": "2026-08-07T04:16:47+00:00",
+        "terminal_reason": "seconds_wave_owner_normalized",
+        "volume_clock_audit": {
+          "common_completed_minutes": 9,
+          "exact_minutes": 3,
+          "mismatched_minutes": 6,
+          "median_positive_volume_ratio": 1.0,
+          "maximum_absolute_minute_difference": 121.0,
+          "tape_volume_total": 1158.0,
+          "broker_volume_total": 1289.0
+        }
+      },
+      {
+        "ordinal": 21,
+        "episode_id": "65aba29ec968089e02931779dbca33df9cf65603e3c320fe77428348b822d3fc",
+        "episode_sha256": "5819c448fcd1ea9d737aa12af483ce24f0c85abd6d962704c1c92e69e5875346",
+        "started_at_utc": "2026-08-07T04:30:59+00:00",
+        "terminal_at_utc": "2026-08-07T04:36:00+00:00",
+        "duration_seconds": 301.0,
+        "receipt_session": "GTH",
+        "provisional_direction": "down",
+        "maximum_volume_multiple": 5.015267175572519,
+        "shape": "IGNITION_RECOIL_REACCELERATION",
+        "first_book_alignment_order": "SAME_INTERVAL",
+        "speed_peak_at_utc": "2026-08-07T04:31:07+00:00",
+        "speed_peak_ticks_per_second": 1.0833333333334139,
+        "crest_confirmed_at_utc": "2026-08-07T04:31:10+00:00",
+        "crest_confirmation_latency_seconds": 3.0,
+        "opposite_full_alignment_recoil_at_utc": "2026-08-07T04:32:46+00:00",
+        "renewed_original_full_alignment_at_utc": "2026-08-07T04:33:03+00:00",
+        "terminal_reason": "seconds_wave_owner_normalized",
+        "volume_clock_audit": {
+          "common_completed_minutes": 6,
+          "exact_minutes": 1,
+          "mismatched_minutes": 5,
+          "median_positive_volume_ratio": 0.9975369458128078,
+          "maximum_absolute_minute_difference": 612.0,
+          "tape_volume_total": 562.0,
+          "broker_volume_total": 1174.0
+        }
+      }
+    ],
+    "open_episode": null,
+    "outcomes_exposed": false,
+    "submitted_orders": 0
+  },
+  "stage118": {
+    "preregistration_path": "backtests/mcl/mcl_multiscale_phase_front_stage118_preregistration.json",
+    "preregistration_sha256": "7270c1e7b538213045000fac87bdfc4d89946e0b323f7d1b4413e4b756f6d564",
+    "eligible_event_start_utc": "2026-08-06T22:45:00+00:00",
+    "latest_finalized_source_decision_utc": "2026-08-07T04:45:00+00:00",
+    "latest_slope_signs_30_60_120_240_480m": "UUUUU",
+    "latest_velocity_signs_30_60_120_240_480m": "DUUUU",
+    "latest_coherence": 1.0,
+    "latest_conviction": 0.06381898899352319,
+    "latest_atr_ratio": 1.3297010675105616,
+    "latest_atr_velocity_pct": 0.005243167002920712,
+    "latest_atr_acceleration_pct": 0.0020924900606332786,
+    "latest_abstain_reason": "weak_direction",
+    "latest_target": null,
+    "last_v18_raw_turn_terminal_utc": "2026-08-06T06:40:00+00:00",
+    "post_eligibility_v18_raw_turn_terminal_count": 0,
+    "first_derivation_run": false,
+    "fresh_replay_budget": "0/1_unspent",
+    "verdict": "WAIT_FOR_GENUINE_TERMINAL"
+  },
+  "stage112_live": {
+    "recorded_at_utc": "2026-08-07T04:45:10.933289+00:00",
+    "reason": "flat_no_target",
+    "position": 0,
+    "orders": 0,
+    "fills": 0,
+    "run_net_usd": 0.0,
+    "run_drawdown_usd": 0.0,
+    "safety_breaches": [],
+    "submitted_orders": 0
+  },
+  "predictive_observation": "Two consecutive completed GTH waves alternated provisional UP then DOWN and both normalized after recoil and reacquisition while the slower stack remained broadly UP. This strengthens the distinction between seconds-wave morphology and durable terminal direction; Stage 118 still requires the fresh V18 boundary and cannot infer a trade from subshock labels.",
+  "invariants": {
+    "stage112_live_changed": false,
+    "xsp_p009_changed": false,
+    "gold_changed": false,
+    "threshold_changed": false,
+    "outcomes_exposed": false,
+    "direction_authority_opened": false,
+    "timing_authority_opened": false,
+    "order_authority_opened": false,
+    "capital_authority_opened": false,
+    "market_orders_permitted": false
+  },
+  "submitted_orders": 0
+}

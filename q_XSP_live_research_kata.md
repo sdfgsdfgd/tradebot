@@ -1,6 +1,6 @@
 # XSP / Gold / MCL Mastery — Live Research Kata
 
-- **Current authority (2026-08-07T04:22Z):** `[ACTIVE]` Opening Edge v4 P-009
+- **Current authority (2026-08-07T04:45Z):** `[ACTIVE]` Opening Edge v4 P-009
   Dual-Clock Arbitration is the sole crowned/live XSP owner under fresh flat
   selection `e0f61f74…` and portfolio plan `5dc25036…`. Gold Stage 76/77 and
   MCL Stage 112 remain unchanged, flat, LMT-only canaries. P-009's first
@@ -12,10 +12,9 @@
   Stage 118 preserves the same hypothesis/thresholds under corrected neutral-
   sign and close-stamped-maintenance semantics, a fresh `22:45Z` eligibility,
   and no backfill, live authority, outcome access, or order path. Stage 116 now
-  holds `19/30`: its newest `6.923×` GTH DOWN ignition recoiled UP, reacquired
-  DOWN, normalized, and was followed by `UUUUU/UUUUU` completed slopes and
-  velocities without a fresh V18 raw turn. Stage 118 therefore remains sealed;
-  a separate `6.5×` Stage-116 episode was still open at the immutable cutoff.
+  holds `21/30`: after the prior `6.923×` DOWN control, alternating `6.5×` UP
+  and `5.015×` DOWN waves each recoiled, reacquired, and normalized. No episode
+  remains open and no fresh V18 raw turn exists, so Stage 118 remains sealed.
 - **Preserved commissioning lineage:** Opening Edge v3 was the frozen historical crown and
   package-sized Tiered UPRO/SPXU RTH selection `1083c181…` was its live run.
   Current quote + immutable package notional + centralized conservative Tiered
@@ -137,7 +136,7 @@ output belongs in commit/final verification, not in this management brain.
 | Runtime parity | Durable P-009 owner reproduces all `648/648` combined trades, RTH `469/469`, combined ledger `53d2682b…`, RTH ledger `3aa102fc…`, and disabled/ordinary-v3 parity exactly; durable receipt `6a81ea01…`. The unchanged GTH sleeve remains `179 / +10.2056` and has no cash-order authority |
 | Runtime source anchor | XSP crown `e3d4b968…`, durable parity `6a81ea01…`, current-runtime audit, selection `e0f61f74…`, plan `5dc25036…`, pressure generation `4c737948…`, and capital proof `280f06b4…` are current. MCL V18 remains byte-exact at `03d0c958…`; Stage-112 owners `d9f170dd…/e4b217c6…` still replay all `707,136` minutes exactly and selection `8adead89…` is unchanged |
 | Goal snapshot | authoritative attachment SHA `27a02647…` is read in full; `q_XSP_goal_objective.md` (`d8a22e58…`) is its tracked backup. Both explicitly require autonomous ideal-safe decisions, all-three Hawkeye/profitability continuity, continued multi-week sharpening, no routine decision blocking, and every progress/handoff to expose the last review, block position, retained candidates, replay budget, and next lawful boundary. The attachment owns the Goal while this kata remains the detailed resume authority |
-| Observer cadence | Stage-112 live and the sole runtime predictive timer remain active. Predictive generation `2256c870…`, terminal Stage-113, replay-corrected Stage-114, derived Stage-115, and on-demand Stage-116 retain their independent outcome-blind contracts. Stage-116 now has `19` complete episodes; newest receipt `mcl_subshock_stage116_nineteenth_episode_stage118_wait.json` preserves a `6.923×` GTH DOWN ignition/recoil/reacceleration followed by `UUUUU/UUUUU` multiscale repair, proving the seconds label is not terminal direction. One `6.5×` episode remained open at cutoff. Stage-117 is terminally schema-rejected after one outcome-sealed replay; Stage-118 is hash/prefix-bound for fresh post-`22:45Z` terminals only and adds no recorder, timer, service, ledger, or live owner. XSP keeps one pressure-tape service and one projection inside the existing central worker; P-009 generation `4c737948…` inherited exactly one outcome-blind treatment (`1/30`) without a second recorder, timer, classifier, permission, outcome, or order owner |
+| Observer cadence | Stage-112 live and the sole runtime predictive timer remain active. Predictive generation `2256c870…`, terminal Stage-113, replay-corrected Stage-114, derived Stage-115, and on-demand Stage-116 retain their independent outcome-blind contracts. Stage-116 now has `21` complete episodes; receipt `mcl_subshock_stage116_twenty_first_episode_stage118_wait.json` closes the former `6.5×` GTH UP prefix and preserves a subsequent `5.015×` GTH DOWN wave. Both are ignition/recoil/reacceleration morphologies, both normalized, no episode remains open, and neither created terminal direction. Stage-117 is terminally schema-rejected after one outcome-sealed replay; Stage-118 is hash/prefix-bound for fresh post-`22:45Z` terminals only and adds no recorder, timer, service, ledger, or live owner. XSP keeps one pressure-tape service and one projection inside the existing central worker; P-009 generation `4c737948…` inherited exactly one outcome-blind treatment (`1/30`) without a second recorder, timer, classifier, permission, outcome, or order owner |
 | RTH signal freshness | **cleared:** after the user activated `CBOE Streaming Market Indexes`, zero-order receipt `acce7ed3…` returned live type-1 XSP, current five-minute history, and real-time `TRADES` bars without a Gateway restart; the natural `10:07 ET` centralized v2 checkpoint then evaluated with both XSP and SPY through `10:05` and `120s` age |
 | Order/capital authority | Plan `5dc25036…` atomically supersedes `ed07a506…` and binds P-009 `e0f61f74…` / `xsp-usd-800`, unchanged Gold `62344ce2…`, and unchanged Stage-112 MCL `8adead89…`. Portfolio generation `847c74d6…` and stability proof `280f06b4…` rehash the current files exactly. First-admitter minimum-unit law, fresh full-account stress, unconditional risk reduction, and centralized broker-wide market-order rejection are unchanged; every champion remains LMT-only |
 | Profitability clock | P-009 is a fresh run with zero inherited fills/P&L/DD. Its first natural GTH recurrence at `00:22Z` preserves selection start `2026-08-06T21:48:25Z`, intact coverage, zero complete sessions, and no overnight cash authority; earliest `24h` reduction is `2026-08-07T21:49:55Z`. MCL's next elapsed boundary is `48h` at `2026-08-07T11:39:55Z`. Gold epoch 2 begins only at natural `02:27Z` and first reaches `24h` at `2026-08-08T02:28:30Z`. No predecessor economics, slot, fill, or positive session transfers into any run |
@@ -300,13 +299,15 @@ output belongs in commit/final verification, not in this management brain.
     unseen major wave bound DOWN at `10.256×`, peaked at `10.501×`, crested,
     never reached `12×`, emitted no continuation, and terminated on the exact
     V18 raw turn. Stage 115 derives level-crossing/transport/crest geometry
-    without a second runtime owner or ledger. Stage 116 now preserves `19`
+    without a second runtime owner or ledger. Stage 116 now preserves `21`
     complete outcome-blind subshock episodes across both directions and both
     sessions. Its first two post-Stage-118-eligibility episodes were GTH UP
     waves at `5.486×/7.458×`; both normalized as `MIXED_TORSION`. The next was
     a `6.923×` GTH DOWN `IGNITION_RECOIL_REACCELERATION`, but the slower stack
-    subsequently became `UUUUU/UUUUU` without a fresh raw turn; seconds shape
-    remains provisional rather than terminal direction. Stage 117 spent the one
+    subsequently became `UUUUU/UUUUU` without a fresh raw turn; the next
+    `6.5×` UP and `5.015×` DOWN waves also normalized after recoil and
+    reacquisition. Seconds shape remains provisional rather than terminal
+    direction. Stage 117 spent the one
     bounded morphology replay, but exact neutral `0.0` slopes were misclassified
     as missing and the first `18:05 ET`
     close was shifted across maintenance; its two reported fronts and eleven
@@ -2909,10 +2910,11 @@ is now `ACCUMULATE 1/30`: the five-second 5×→10× escalation warranted DOWN
 protection, but MCL's lingering UP alignment made the pre-bind handoff
 `CONFLICT`; both volume-flow crests were known before authority and no 12× or
 post-bind reacceleration followed. This is a protection control, not an early
-continuation candidate. Stage 116 separately preserves `19` complete
+continuation candidate. Stage 116 separately preserves `21` complete
 outcome-blind subshock episodes across both directions and both RTH/GTH. Its
-newest DOWN seconds reacceleration resolved into an all-UP slower stack, so the
-shape remains provisional morphology rather than terminal direction. Stage
+latest alternating UP and DOWN seconds reaccelerations both normalized while
+the slower stack remained broadly UP, so each shape remains provisional
+morphology rather than terminal direction. Stage
 117's only replay is terminally rejected at the evaluator-schema boundary:
 neutral `0.0` was confused with missingness and close-stamped maintenance
 invented an `18:00 ET` close. Its two reported fronts and eleven anchors remain
