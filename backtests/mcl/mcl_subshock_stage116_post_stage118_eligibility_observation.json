@@ -1,0 +1,125 @@
+{
+  "schema": "mcl.subshock-stage116-post-stage118-eligibility-observation.v1",
+  "recorded_at_utc": "2026-08-07T03:02:24+00:00",
+  "authority": "prospective_derived_morphology_only_no_outcomes_no_orders_no_capital",
+  "purpose": "Preserve the first complete Stage-116 subshock episodes after Stage-118 eligibility while keeping Stage-118 sealed until a genuine post-eligibility V18 raw-turn terminal and fresh replay budget exist.",
+  "xsp_pressure_atlas_boundary": {
+    "selection_id": "e0f61f74286e1d2b655e253633b0842cb47d41ad7b66fb4567eece3aa46d674b",
+    "generation_id": "4c737948773013297d8fd90f50a588f90e3fbbed7107e10958f4a528779ae82c",
+    "generation_sha256": "d8f26874824be95c6e0eaa7532e31b1a7f8468602b454d4b700287ee05de0740",
+    "ledger_path_on_q": "/home/x/.local/state/tradebot/research/xsp_pressure_atlas.jsonl",
+    "ledger_rows": 1,
+    "ledger_sha256": "30099fdf1edfbfb6a5a5db9dbc93f2f0fc1badef8384d89e879a296bc208343a",
+    "latest_natural_status_at_utc": "2026-08-07T02:52:23.054905+00:00",
+    "source_candidates": 0,
+    "appended": 0,
+    "cohort_complete_targets": 1,
+    "cohort_gate": 30,
+    "verdict": "FROZEN_ACCUMULATE",
+    "gth_targets_eligible": false,
+    "reason": "The frozen accumulator accepts only fresh RTH crowned targets; GTH observation cannot inflate the RTH pressure cohort."
+  },
+  "stage116": {
+    "preregistration_sha256": "2d081df5058a44ff736e0d26705a09b78f97c8b1b703a4ffd4d255f7d2920154",
+    "evaluator_path_on_q": "/var/tmp/mcl_stage116_subshock_morphology.py",
+    "evaluator_sha256": "e17032307a01799345fc6c26770718da2044ce874983d74458ee2b3889d8da6e",
+    "selection_id": "8adead895d3bd460b460f832d725046a3ea34079525a80a1662004ade2c17c93",
+    "stage114_generation_id": "e01e06c86ca2c94564c201409595055498cdb223505d538442ccd23bd70fda98",
+    "prior_complete_subshock_episodes": 16,
+    "current_complete_subshock_episodes": 18,
+    "runs": [
+      {
+        "generated_at_utc": "2026-08-07T02:59:26.319463+00:00",
+        "path_on_q": "/var/tmp/mcl-stage116-stage118-current.json",
+        "sha256": "6d7c4b3f132a945e43e546570dd91bc94baf146d4f78cfead1cdacf13124b2b7"
+      },
+      {
+        "generated_at_utc": "2026-08-07T03:00:48.964355+00:00",
+        "path_on_q": "/var/tmp/mcl-stage116-stage118-current-r2.json",
+        "sha256": "985241e67268aa19cea9b5d8a968265ef317a5ca11b967d7ca04cb686d7f11cd"
+      }
+    ],
+    "episode_identity_parity_across_runs": true,
+    "cohort": {
+      "complete_subshock_episodes": 18,
+      "directionless_controls": 1,
+      "provisional_directions": {
+        "down": 7,
+        "up": 10
+      },
+      "sessions": {
+        "GTH": 14,
+        "RTH": 4
+      },
+      "shapes": {
+        "DIRECTIONLESS_ATTENTION": 1,
+        "IGNITION_RECOIL": 4,
+        "IGNITION_RECOIL_REACCELERATION": 9,
+        "MIXED_TORSION": 4
+      },
+      "verdict": "ACCUMULATE"
+    },
+    "new_post_stage118_eligibility_episodes": [
+      {
+        "episode_id": "3df487edf77733f45e063eabcea2232627a19c6c42312b839b7785c2b480c433",
+        "episode_sha256": "7d41155785cf463c95ba83581a88c802712f5c59570a08cfa46ada31410304d5",
+        "started_at_utc": "2026-08-07T02:00:53+00:00",
+        "terminal_at_utc": "2026-08-07T02:02:02+00:00",
+        "receipt_session": "GTH",
+        "provisional_direction": "up",
+        "maximum_volume_multiple": 5.485714285714286,
+        "shape": "MIXED_TORSION",
+        "first_book_alignment_order": "SAME_INTERVAL",
+        "first_directional_mid_move_order": "UNRESOLVED",
+        "speed_peak_at_utc": "2026-08-07T02:00:55+00:00",
+        "speed_crest_confirmed_at_utc": "2026-08-07T02:01:24+00:00",
+        "terminal_reason": "seconds_wave_owner_normalized",
+        "source_record_ids_sha256": "2a2a3167bcfdacfc7a8c20cafb5ca2b60ed819767131a09ac51a6c027b6718dc",
+        "bar_prefix_sha256": "11073c5e6bf434cb71957cd1539fc3c0f0989aeabcc55f78de035a6645b71d5e"
+      },
+      {
+        "episode_id": "238e4336f2906180439dcc1c2d4555d50b26be57d98e0a108a20d409f32eb631",
+        "episode_sha256": "a08fa9345efe3c6beb5278ee0e9ab17cd8fc5e08485e8d789a531291fd82cc4b",
+        "started_at_utc": "2026-08-07T02:15:09+00:00",
+        "terminal_at_utc": "2026-08-07T02:22:41+00:00",
+        "receipt_session": "GTH",
+        "provisional_direction": "up",
+        "maximum_volume_multiple": 7.4576271186440675,
+        "shape": "MIXED_TORSION",
+        "first_book_alignment_order": "CONFLICT",
+        "first_directional_mid_move_order": "MCL_LEADS",
+        "speed_peak_at_utc": "2026-08-07T02:17:25+00:00",
+        "speed_crest_confirmed_at_utc": "2026-08-07T02:17:29+00:00",
+        "terminal_reason": "seconds_wave_owner_normalized",
+        "source_record_ids_sha256": "7fee9e9b37d4fbb01987728bca713e2971f28c0a9e128514e147a053a2a834b0",
+        "bar_prefix_sha256": "7e33d9341bf8146c46d296f8329ec83850e2491f9fa4d0ed2440ca8364cd4db4"
+      }
+    ]
+  },
+  "stage118": {
+    "preregistration_path": "backtests/mcl/mcl_multiscale_phase_front_stage118_preregistration.json",
+    "preregistration_sha256": "7270c1e7b538213045000fac87bdfc4d89946e0b323f7d1b4413e4b756f6d564",
+    "eligible_event_start_utc": "2026-08-06T22:45:00+00:00",
+    "post_eligibility_v18_raw_turn_terminals_through_utc": "2026-08-07T03:01:10.983559+00:00",
+    "post_eligibility_v18_raw_turn_terminal_count": 0,
+    "latest_finalized_source_decision_utc": "2026-08-07T03:00:00+00:00",
+    "latest_source_checkpoint_id": "0507f9432c6371abc01ab9bae7b600d56f7beb0f23066cff2be23580adc0d4fd",
+    "first_derivation_run": false,
+    "fresh_replay_budget": "0/1_unspent",
+    "verdict": "WAIT_FOR_GENUINE_TERMINAL"
+  },
+  "predictive_observation": "Two sub-10x UP attention waves acquired seconds alignment but normalized as mixed torsion before a V18 raw-turn boundary. They strengthen the need to distinguish provisional fast authority from a complete multiscale phase front; they do not authorize a long or prove continuation.",
+  "invariants": {
+    "stage112_live_changed": false,
+    "xsp_p009_changed": false,
+    "gold_changed": false,
+    "threshold_changed": false,
+    "outcomes_exposed": false,
+    "direction_authority_opened": false,
+    "timing_authority_opened": false,
+    "order_authority_opened": false,
+    "capital_authority_opened": false,
+    "market_orders_permitted": false
+  },
+  "submitted_orders": 0
+}
