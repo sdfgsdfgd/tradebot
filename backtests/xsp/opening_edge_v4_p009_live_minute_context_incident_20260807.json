@@ -1,0 +1,80 @@
+{
+  "schema": "xsp.opening-edge-v4-p009-live-minute-context-incident.v1",
+  "authority": "operational_runtime_repair_no_signal_change_no_economic_change_no_orders_no_capital",
+  "strategy_version": "xsp.opening-edge-v4-dual-clock-arbitration-p009.v1",
+  "selection_id": "e0f61f74286e1d2b655e253633b0842cb47d41ad7b66fb4567eece3aa46d674b",
+  "incident": {
+    "first_failed_invocation_utc": "2026-08-07T13:31:03Z",
+    "last_failed_invocation_utc": "2026-08-07T13:47:21Z",
+    "failed_invocations": 17,
+    "exception": "ValueError: live transport requires a fresh post-selection source",
+    "timer_paused_while_flat": true,
+    "timer_restored_utc": "2026-08-07T13:58:00Z",
+    "first_successful_natural_completion_utc": "2026-08-07T13:58:51Z",
+    "tradeable_live_coverage_gap": [
+      "2026-08-07T13:30:00Z",
+      "2026-08-07T13:58:00Z"
+    ],
+    "coverage_backfilled": false,
+    "interpretation": "source rows during the opening were non-executable and cannot prove live causal timing; the repaired full-session source replay emits no P009 opening bridge event, but the missing live coverage remains disclosed"
+  },
+  "root_causes": [
+    {
+      "owner": "tradebot/research/xsp_opening_edge_minute_context.py",
+      "cause": "ET-naive native minute timestamps were relabeled as UTC, manufacturing a four-hour age and suppressing the paired source"
+    },
+    {
+      "owner": "tradebot/research/xsp_live_transport.py",
+      "cause": "a fresh authenticated NO_DATA source was rejected before the existing fail-closed source_not_executable HOLD projection"
+    }
+  ],
+  "repair": {
+    "minute_clock_law": "convert ET-naive timestamps to UTC and require zero_to_freshness_seconds age",
+    "transport_law": "validate identity, session, and freshness first; fresh non-EVALUATED sources HOLD; malformed EVALUATED sources still fail hard",
+    "ordinary_v3_and_p009_signal_economics_changed": false,
+    "selection_changed": false,
+    "capital_changed": false,
+    "execution_ladder_changed": false,
+    "commits": [
+      "23a330a44ec694c9d91d330d4b83eae83396c6b1",
+      "e18c955d0a8472c51cc842a0b3ffe2165db405e9"
+    ],
+    "source_hashes": {
+      "tradebot/research/xsp_opening_edge_minute_context.py": "671b055c8379c2a29a45e74e995c94b456f41420b72f85fdffdbf77dd895f4cf",
+      "tradebot/research/xsp_live_transport.py": "d9c066c2447ef41a5f09b17fd66f3ebfd16056edeeea53566f2c196530555b20"
+    }
+  },
+  "proof": {
+    "focused_tests": 132,
+    "full_tests_passed": 1349,
+    "full_tests_deselected": 4,
+    "full_subtests_passed": 6,
+    "runtime_parity_receipt": "backtests/xsp/opening_edge_v4_dual_clock_arbitration_p009_current_runtime_parity_audit.json",
+    "runtime_parity_receipt_sha256": "5ab803567ebe805c013f11af5e314b0a21e87155ac35adc46528deeaa0e7f512",
+    "exact_historical_trades": 648,
+    "exact_historical_ledger_sha256": "53d2682baf50a09fd5f03720ac16248828e72cc1a2632d31268018639d22c154",
+    "pressure_generation": "backtests/xsp/opening_edge_v4_dual_clock_p009_pressure_atlas_accumulation_generation.json",
+    "pressure_generation_sha256": "022ecc03ce88e3f0f1c8166de922fea610b74ac3c20f906d38aaec741b0c2360",
+    "first_repaired_source_checkpoint_id": "fbb974bb4a1193a75730fc3ebd7958992ca7c6054416d83f5596cd85267575e5",
+    "first_repaired_execution_checkpoint_id": "44beac0b5d2f7535f5e0fd3fee81bd33c752abe66db889c63b3d728ee6c7b2d8",
+    "post_repair_natural_invocations_observed": 6,
+    "post_repair_failures": 0
+  },
+  "broker_safety": {
+    "boundary_snapshot_sha256": "5c4a23b01760aef4ba58c1b2f9c137689f86846bfb4ff895e25d6d9745c9fb2d",
+    "positions": [],
+    "open_orders": [],
+    "active_run_fills": 0,
+    "active_run_net_usd": 0.0,
+    "active_run_drawdown_usd": 0.0,
+    "safety_breaches": [],
+    "submitted_orders": 0
+  },
+  "services": {
+    "tradebot-live.target": "active",
+    "tradebot-xsp-shadow.timer": "active_waiting",
+    "tradebot-xsp-shadow.service": "successful_oneshot_between_invocations",
+    "failed_units": 0
+  },
+  "verdict": "REPAIRED_AND_PROVEN_FAIL_CLOSED_WITH_COVERAGE_GAP_PRESERVED"
+}
