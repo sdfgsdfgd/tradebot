@@ -1,0 +1,367 @@
+{
+  "schema": "live.portfolio-hawkeye.v1",
+  "observed_at_utc": "2026-08-07T12:24:33Z",
+  "authority": "read_only_causal_observation_and_incubator_reconciliation_no_signal_no_orders_no_capital",
+  "review_block": {
+    "review": 1,
+    "required": 6,
+    "review_started_at_utc": "2026-08-07T12:23:15Z",
+    "prior_review_utc": "2026-08-07T12:05:43Z",
+    "prior_receipt": "backtests/portfolio_hawkeye_20260807T1203Z.json",
+    "scheduled_boundary_utc": "2026-08-07T12:23:10Z",
+    "started_seconds_after_boundary": 5,
+    "settlement_completed_at_utc": "2026-08-07T12:24:33Z",
+    "missed_slots_backfilled": 0,
+    "status": "ACTIVE_REVIEW_1_OF_6"
+  },
+  "portfolio": {
+    "account_id": "U12825049",
+    "base_currency": "AUD",
+    "broker_capture": "read_only_after_review_start",
+    "broker_snapshot_path_on_q": "/var/tmp/hawkeye-broker-1223.json",
+    "broker_snapshot_sha256": "5598f62baa9e30dd1d25e91321752170f2030c13129804031a546f9a46794947",
+    "available_funds_aud": 3630.87,
+    "excess_liquidity_aud": 3630.87,
+    "equity_with_loan_aud": 3630.87,
+    "net_liquidation_aud": 3630.87,
+    "cash_balance_aud": 2119.39,
+    "cash_balance_usd": 1064.14,
+    "positions": [],
+    "open_orders": [],
+    "active_run_realized_net_usd": 0.0,
+    "active_open_mark_net_usd": 0.0,
+    "known_live_campaign": {
+      "source": "backtests/portfolio_live_campaign_pnl_provenance_20260807.json",
+      "closed_trades": 4,
+      "gold_net_usd": 0.0,
+      "mcl_net_usd": -318.52,
+      "xsp_net_usd": -22.156380999999634,
+      "portfolio_net_usd": -340.6763809999996,
+      "new_fills_since_prior_review": 0
+    }
+  },
+  "xsp": {
+    "strategy_version": "xsp.opening-edge-v4-dual-clock-arbitration-p009.v1",
+    "selection_id": "e0f61f74286e1d2b655e253633b0842cb47d41ad7b66fb4567eece3aa46d674b",
+    "source_checkpoint_id": "6730a43ef65a00264e12c8ed584d361567187d9736b64094ed2e3d9a3e6824cf",
+    "source_recorded_at_utc": "2026-08-07T12:22:05.563734Z",
+    "live_checkpoint_id": "c87a4e56e6bcf384c5aebb84f3e5f1829e40e3e2135b8e6b65a8c12fb5c05b4e",
+    "live_recorded_at_utc": "2026-08-07T12:22:00.546807Z",
+    "session": "GTH",
+    "plan_reason": "flat_target",
+    "entry_window_open": false,
+    "target_direction": null,
+    "positions": {
+      "UPRO": 0,
+      "SPXU": 0
+    },
+    "orders": 0,
+    "fills": 0,
+    "run_net_usd": 0.0,
+    "run_drawdown_usd": 0.0,
+    "run_mfe_usd": 0.0,
+    "run_mae_usd": 0.0,
+    "safety_breaches": [],
+    "quotes": {
+      "UPRO": {
+        "bid": 153.50,
+        "ask": 153.52,
+        "market_data_type": 1
+      },
+      "SPXU": {
+        "bid": 33.93,
+        "ask": 33.94,
+        "market_data_type": 1
+      }
+    },
+    "directional_impulse": {
+      "latest_bar_utc": "2026-08-07T12:20:00Z",
+      "horizons_minutes": [
+        5,
+        15,
+        30,
+        60,
+        120
+      ],
+      "slope_signs": "UUUUU",
+      "velocity_signs": "UDUUU",
+      "slope_values": [
+        0.02984919666728647,
+        0.005190423668333111,
+        0.0004324791869403377,
+        0.003244772671227395,
+        0.005575475701752319
+      ],
+      "velocity_values": [
+        0.023359819777257762,
+        -0.011256375265222829,
+        0.007783385510451435,
+        0.0005401635846076962,
+        0.001949322368506127
+      ],
+      "horizon_turns": [
+        null,
+        null,
+        "up",
+        null,
+        null
+      ],
+      "trend_state": "down",
+      "sensor_direction": null,
+      "proposed_direction": null,
+      "turn_event": null,
+      "turn_abstain_reason": "holding",
+      "coherence": 1.0,
+      "conviction": 0.1762704144568703,
+      "atr_ratio": 2.892378126654193,
+      "atr_velocity_pct": -0.022926256743044424,
+      "atr_acceleration_pct": -0.008207498125956517
+    },
+    "daily_context": {
+      "directions": "UUUUUU",
+      "hard_direction": "up",
+      "hard_age": 80,
+      "transition": "aligned_up"
+    },
+    "news": {
+      "signal_as_of_utc": "2026-08-07T11:39:21Z",
+      "direction": -1,
+      "impact": 13,
+      "confidence": 0.95,
+      "signed_pressure": -0.1235,
+      "pressure_delta": 0.0095,
+      "pressure_velocity_per_hour": 0.002271,
+      "change": "weakening",
+      "fresh": true,
+      "authority": "observation_only"
+    },
+    "phase_front_observation": {
+      "prior_slope_signs": "DDDUU",
+      "prior_velocity_signs": "DDDDD",
+      "classification": "FULL_FAST_TO_SLOW_UP_SLOPE_CASCADE_WITH_15M_TORSION",
+      "interpretation": "In_twenty_completed_minutes_all_five_slopes_crossed_UP_and_four_of_five_velocities_are_UP,_but_15m_velocity_has_already_turned_DOWN,_ATR_is_extreme_but_normalizing,_the_GTH_lane_allows_only_DOWN,_and_the_crown_has_no_turn_or_target._This_is_a_powerful_upside_phase_front_with_early_torsion,_not_a_lawful_trade."
+    },
+    "pressure_atlas": {
+      "complete_treatments": 1,
+      "required_complete_treatments": 30,
+      "ledger_sha256": "30099fdf1edfbfb6a5a5db9dbc93f2f0fc1badef8384d89e879a296bc208343a",
+      "authority": "outcome_blind_no_live_permission"
+    }
+  },
+  "gold": {
+    "strategy_version": "gold.1oz-regime-harmony-stage76.v1",
+    "selection_id": "62344ce21bf7c6f01095abab14b6ca8ef79c9806abb35294859fc9574a5f7574",
+    "source_checkpoint_id": "a464545b8623b7d17118609922dc3a6680e2990a6b981fdc7d2dd0118e7e7a80",
+    "source_recorded_at_utc": "2026-08-07T12:07:17.591647Z",
+    "live_checkpoint_id": "0aaadb48db78f19716fabcb0c975fb3ea74c5e53db509d156df9beaab7a8011d",
+    "live_recorded_at_utc": "2026-08-07T12:22:31.900721Z",
+    "session": "GOLD_GTH",
+    "plan_reason": "flat_no_target",
+    "target_direction": null,
+    "position": 0,
+    "orders": 0,
+    "fills": 0,
+    "run_net_usd": 0.0,
+    "run_drawdown_usd": 0.0,
+    "run_mfe_usd": 0.0,
+    "run_mae_usd": 0.0,
+    "safety_breaches": [],
+    "quote": {
+      "local_symbol": "1OZZ6",
+      "bid": 4371.50,
+      "ask": 4372.00,
+      "market_data_type": 1
+    },
+    "signal_context": {
+      "decision_bar_end_utc": "2026-08-07T12:00:00Z",
+      "daily_hard_direction": "down",
+      "daily_hard_age": 152,
+      "daily_soft_direction": "up",
+      "h4_hard_direction": "up",
+      "h4_raw_direction": "up",
+      "h4_fast_slope_dollars": 14.272647770431831,
+      "h4_fast_acceleration_dollars": 4.813529208448017,
+      "h4_spread_velocity_dollars": 4.140267485727236,
+      "h4_atr_velocity_dollars": -0.28928571428572525,
+      "raw_turn": null,
+      "proposed_direction": null
+    },
+    "news": {
+      "signal_as_of_utc": "2026-08-07T11:39:21Z",
+      "direction": 1,
+      "impact": 3,
+      "confidence": 0.93,
+      "signed_pressure": 0.0279,
+      "pressure_delta": 0.0991,
+      "pressure_velocity_per_hour": 0.023686,
+      "change": "reversal",
+      "authority": "attribution_only"
+    },
+    "phase_front_observation": {
+      "classification": "H4_UP_CONTINUATION_STRENGTHENED_INSIDE_D1_DOWN_CONFLICT",
+      "interpretation": "The_completed_12:00Z_H4_bar_strengthened_slope,_acceleration,_and_spread_velocity,_while_D1_remains_hard_DOWN_and_no_raw_turn_or_proposal_exists._Mild_bullish_news_is_corroborating_context_only."
+    }
+  },
+  "mcl": {
+    "strategy_version": "mcl.two-speed-shock-arbiter.v112",
+    "selection_id": "8adead895d3bd460b460f832d725046a3ea34079525a80a1662004ade2c17c93",
+    "source_checkpoint_id": "cf2f2d6c6db1b06b73b7d7ef949262b9ce7cba6bab92c4ae87d932e91a0a7d52",
+    "source_recorded_at_utc": "2026-08-07T12:23:10.924063Z",
+    "live_checkpoint_id": "c31b9c86e7f38e25088150a176877a45b0dcce46da0a7e80d2de3e264a07ef9f",
+    "live_recorded_at_utc": "2026-08-07T12:23:10.924063Z",
+    "session": "MCL_GTH",
+    "plan_reason": "flat_no_target",
+    "target_direction": null,
+    "position": 0,
+    "orders": 0,
+    "fills": 0,
+    "run_net_usd": 0.0,
+    "run_drawdown_usd": 0.0,
+    "run_mfe_usd": 0.0,
+    "run_mae_usd": 0.0,
+    "safety_breaches": [],
+    "quote": {
+      "local_symbol": "MCLU6",
+      "bid": 77.20,
+      "ask": 77.21,
+      "market_data_type": 1
+    },
+    "directional_impulse": {
+      "latest_bar_utc": "2026-08-07T12:20:00Z",
+      "latest_common_close_utc": "2026-08-07T12:23:00Z",
+      "horizons_minutes": [
+        30,
+        60,
+        120,
+        240,
+        480
+      ],
+      "slope_signs": "UUDDD",
+      "velocity_signs": "UUDDD",
+      "slope_values": [
+        0.10219612959339042,
+        0.01624009354293891,
+        -0.001620220349967764,
+        -0.018739826951083328,
+        -0.019744095322902014
+      ],
+      "velocity_values": [
+        0.03267927175536478,
+        0.008661383222900259,
+        -0.001620220349967764,
+        -0.002107497995808512,
+        -0.0029816432156224808
+      ],
+      "horizon_turns": [
+        null,
+        null,
+        "down",
+        null,
+        null
+      ],
+      "trend_state": "down",
+      "direction": null,
+      "abstain_reason": "weak_direction",
+      "turn_event": null,
+      "coherence": 0.4,
+      "conviction": 0.02729288053245358,
+      "atr_ratio": 0.8876004697513329,
+      "atr_velocity_pct": 0.008617160976479132,
+      "atr_acceleration_pct": 0.007558097763086524
+    },
+    "news": {
+      "signal_as_of_utc": "2026-08-07T11:39:21Z",
+      "direction": 1,
+      "impact": 23,
+      "confidence": 0.98,
+      "signed_pressure": 0.2254,
+      "change": "unchanged",
+      "authority": "observation_only"
+    },
+    "phase_front_observation": {
+      "prior_slope_signs": "DDDDD",
+      "prior_velocity_signs": "UUUUD",
+      "classification": "PARTIAL_30M_60M_UP_REPAIR_WITH_SLOW_CLOCK_DOWN_RELAPSE",
+      "interpretation": "The_30m_and_60m_slopes_crossed_UP,_but_120m/240m/480m_slopes_and_velocities_are_DOWN,_coherence_is_0.4,_conviction_is_0.027,_and_no_Stage112_turn_or_owner_exists._This_is_a_partial_repair_front,_not_a_long."
+    },
+    "stage116": {
+      "complete_episodes": 21,
+      "required_complete_episodes": 30,
+      "verdict": "ACCUMULATE"
+    },
+    "stage118": {
+      "complete_fronts": 1,
+      "required_complete_fronts": 30,
+      "verdict": "ACCUMULATE",
+      "bounded_replay_already_spent": true,
+      "authority": "derived_outcome_blind_no_separate_runtime_no_live_permission"
+    },
+    "observer_ledgers": {
+      "predictive_onset_rows": 10,
+      "predictive_onset_sha256": "81ad2bb8930781c6064e0f811eb6f400ded8479d57e6e82212efb0f5ab520edf",
+      "shock_wave_rows": 5,
+      "shock_wave_sha256": "056e852514d3b5568700cf47684e09f7c61affadcb6e4efc48abbcb9a48e51af"
+    }
+  },
+  "news": {
+    "publication_id": "ed0d21b6798a60b98695d863100c6cbc9ec8925bc025de8f6d7eba525664d920",
+    "signal_as_of_utc": "2026-08-07T11:39:21Z",
+    "snapshot_as_of_utc": "2026-08-07T11:50:22Z",
+    "status": "PUBLISHED"
+  },
+  "incubator": {
+    "retained_candidates": [
+      {
+        "rank": 1,
+        "candidate": "XSP_Pressure_Atlas",
+        "state": "ACCUMULATE_1_OF_30",
+        "replay_eligibility": "NOT_YET_ELIGIBLE_ONLY_ONE_AUTHENTIC_TREATMENT"
+      },
+      {
+        "rank": 2,
+        "candidate": "MCL_Stage118_Phase_Front_Subshock",
+        "state": "ACCUMULATE_1_OF_30",
+        "replay_eligibility": "INELIGIBLE_PRIOR_BOUNDED_REPLAY_ALREADY_SPENT"
+      }
+    ],
+    "selected_replay": null,
+    "replay_budget": {
+      "used": 0,
+      "available": 1,
+      "disposition": "LOCKED_UNTIL_REVIEW_6"
+    },
+    "new_ideas": [],
+    "decisions": [
+      "retain_XSP_Pressure_Atlas_for_prospective_accumulation_only",
+      "retain_MCL_Stage118_without_rerun_or_outcome_access",
+      "reviews_1_through_5_observe_only"
+    ],
+    "rule": "review_1_observes_and_updates_anatomy_without_replay_selection"
+  },
+  "control_plane": {
+    "target": "tradebot-live.target",
+    "state": "active_static",
+    "individual_worker_restart_count_from_target_deployment": 0,
+    "strategy_or_execution_semantics_changed": false
+  },
+  "next_capital_boundaries": {
+    "xsp_p009_24h": "2026-08-07T21:49:55Z",
+    "gold_epoch_2_24h": "2026-08-08T02:28:30Z",
+    "mcl_epoch_24h": "2026-08-10T22:00:55Z"
+  },
+  "next_hawkeye_boundary_utc": "2026-08-07T12:43:10Z",
+  "invariants": {
+    "all_three_current_runs_flat": true,
+    "broker_open_orders_zero": true,
+    "broker_positions_zero": true,
+    "submitted_orders": 0,
+    "strategy_changes": 0,
+    "selection_changes": 0,
+    "capital_changes": 0,
+    "champion_worker_service_changes": 0,
+    "control_plane_target_changes": 1,
+    "threshold_changes": 0,
+    "economic_replays": 0,
+    "crowns": 0
+  }
+}
