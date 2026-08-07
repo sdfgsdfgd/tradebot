@@ -38,6 +38,15 @@ from tradebot.research.mcl_profitability import (
     mcl_runtime_parity_graduation_gate,
     normalize_mcl_risk,
 )
+from tradebot.research.live_futures_profitability import (
+    FUTURES_PROFITABILITY_COVERAGE_EPOCH_SCHEMA,
+)
+from tradebot.research.live_graduation import evidence_sha256
+from tradebot.research.mcl_profitability_epoch import (
+    build_mcl_profitability_coverage_epoch,
+    load_mcl_profitability_coverage_epoch,
+    mcl_profitability_receipt_with_coverage_epoch,
+)
 from tradebot.research.mcl_shock_arbiter import MCL_TWO_SPEED_SHOCK_VERSION
 
 
@@ -780,6 +789,138 @@ def test_mcl_positive_24h_requires_complete_minutes_and_authentic_fill() -> None
     assert receipt["economics"]["fills"] == 2
 
 
+def test_mcl_coverage_epoch_inherits_economics_and_quarantines_new_gaps() -> None:
+    selected = _selection()
+    start = datetime(2026, 8, 4, 9, 1, tzinfo=timezone.utc)
+    end = start + timedelta(hours=24)
+    terminal_risk = _profitability_risk(net=-11.0, fills=2, trades=1)
+    epoch = {
+        "schema": FUTURES_PROFITABILITY_COVERAGE_EPOCH_SCHEMA,
+        "epoch_id": "c" * 64,
+        "eligible_start_utc": start.isoformat(),
+        "selection": {"selection_id": selected["selection_id"]},
+        "terminal_checkpoint": {"risk_state": terminal_risk},
+    }
+    rows = [_profitability_state(selected, start, net=-11.0, fills=2, trades=1)]
+    rows.extend(
+        _profitability_state(selected, slot, net=5.0, fills=4, trades=2)
+        for slot in mcl_live_evaluation_slots(start, end)
+    )
+
+    receipt = mcl_profitability_receipt_with_coverage_epoch(
+        rows,
+        selection=selected,
+        as_of=end + timedelta(seconds=55),
+        coverage_epoch=epoch,
+    )
+    missing = mcl_profitability_receipt_with_coverage_epoch(
+        rows[:-2] + rows[-1:],
+        selection=selected,
+        as_of=end + timedelta(seconds=55),
+        coverage_epoch=epoch,
+    )
+
+    assert receipt["milestones"]["24h"]["passed"] is True
+    assert receipt["clock"]["coverage_started_at_utc"] == start.isoformat()
+    assert receipt["clock"]["coverage_epoch_id"] == "c" * 64
+    assert receipt["economics"]["net_usd"] == 5.0
+    assert receipt["economics"]["maximum_drawdown_usd"] == 11.0
+    assert receipt["sessions"][0]["net_usd"] == 16.0
+    assert missing["status"] == "INVALID_EVIDENCE"
+    assert "incomplete_session_coverage" in missing["reasons"]
+
+
+def test_mcl_coverage_epoch_rehashes_selection_receipts_and_terminal_state(
+    tmp_path: Path,
+) -> None:
+    selected = _selection()
+    selection_path = tmp_path / f"db/calibration/selections/{selected['selection_id']}.json"
+    selection_path.parent.mkdir(parents=True)
+    selection_path.write_text(json.dumps(selected), encoding="utf-8")
+    registered = datetime(2026, 8, 4, 9, 0, 30, tzinfo=timezone.utc)
+    eligible = datetime(2026, 8, 4, 9, 1, tzinfo=timezone.utc)
+
+    predecessor = json.loads(
+        (ROOT / "backtests/mcl/mcl_v18_shock_stage112_preliminary_24h_graduation.json").read_text()
+    )
+    predecessor["subject"]["selection_id"] = selected["selection_id"]
+    predecessor["subject"]["run_id"] = selected["selection_id"]
+    predecessor["target"]["cutoff_utc"] = (registered - timedelta(minutes=1)).isoformat()
+    predecessor.pop("receipt_id")
+    predecessor["receipt_id"] = evidence_sha256(predecessor)
+    predecessor_path = tmp_path / "backtests/mcl/predecessor.json"
+    predecessor_path.parent.mkdir(parents=True)
+    predecessor_path.write_text(json.dumps(predecessor), encoding="utf-8")
+
+    preregistration_path = tmp_path / "backtests/mcl/preregistration.json"
+    preregistration_path.write_text(
+        json.dumps(
+            {
+                "registered_at_utc": registered.isoformat(),
+                "eligible_start_utc": eligible.isoformat(),
+                "selection": {
+                    "selection_id": selected["selection_id"],
+                    "path": selection_path.relative_to(tmp_path).as_posix(),
+                    "sha256": hashlib.sha256(selection_path.read_bytes()).hexdigest(),
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    terminal = _profitability_state(selected, registered - timedelta(seconds=20))
+    fields = (
+        "evaluation_as_of_utc",
+        "strategy_id",
+        "strategy_version",
+        "trading_date",
+        "session",
+        "status",
+        "evidence",
+        "recorded_at_utc",
+    )
+    terminal.update(
+        {
+            "trading_date": registered.date().isoformat(),
+            "session": "MCL_GTH",
+        }
+    )
+    terminal["checkpoint_id"] = evidence_sha256(
+        {field: terminal[field] for field in fields}
+    )
+
+    epoch = build_mcl_profitability_coverage_epoch(
+        selection=selected,
+        selection_path=selection_path,
+        records=(terminal,),
+        predecessor_receipt_paths=(predecessor_path,),
+        preregistration_path=preregistration_path,
+        registered_at_utc=registered,
+        eligible_start_utc=eligible,
+        repo_root=tmp_path,
+    )
+    epoch_path = tmp_path / "backtests/mcl/epoch.json"
+    epoch_path.write_text(json.dumps(epoch), encoding="utf-8")
+
+    assert load_mcl_profitability_coverage_epoch(
+        epoch_path,
+        selection=selected,
+        selection_path=selection_path,
+        records=(terminal,),
+        repo_root=tmp_path,
+    ) == epoch
+    tampered = deepcopy(epoch)
+    tampered["terminal_checkpoint"]["submitted_orders"] = 1
+    epoch_path.write_text(json.dumps(tampered), encoding="utf-8")
+    with pytest.raises(ValueError, match="futures profitability coverage epoch"):
+        load_mcl_profitability_coverage_epoch(
+            epoch_path,
+            selection=selected,
+            selection_path=selection_path,
+            records=(terminal,),
+            repo_root=tmp_path,
+        )
+
+
 def test_mcl_same_minute_receipt_noise_collapses_by_economic_state() -> None:
     selected = _selection()
     baseline = datetime(2026, 8, 4, 8, 32, tzinfo=timezone.utc)
@@ -937,3 +1078,120 @@ def test_mcl_cli_graduation_never_loads_broker_config(
     )
     assert code == 0
     assert json.loads(output.read_text()) == {"verdict": "HOLD"}
+
+
+def test_mcl_epoch_cli_is_broker_free_and_binds_epoch_identity(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from tradebot.research import mcl_profitability_epoch
+
+    selected = _selection()
+    selection_path = tmp_path / "selection.json"
+    selection_path.write_text(json.dumps(selected), encoding="utf-8")
+    output = tmp_path / "graduation.json"
+    epoch = {
+        "epoch_id": "e" * 64,
+        "eligible_start_utc": "2026-08-04T09:01:00+00:00",
+    }
+    captured: dict[str, object] = {}
+    monkeypatch.setattr(
+        mcl_profitability_epoch, "load_live_capital_plan", lambda _path: {}
+    )
+    monkeypatch.setattr(
+        mcl_profitability_epoch,
+        "load_allocated_live_selection",
+        lambda *_args, **_kwargs: (selected, selection_path, "0" * 64),
+    )
+    monkeypatch.setattr(
+        mcl_profitability_epoch,
+        "LiveCalibrationLedger",
+        lambda _path: type("Ledger", (), {"records": lambda self: ()})(),
+    )
+    monkeypatch.setattr(
+        mcl_profitability_epoch,
+        "load_mcl_profitability_coverage_epoch",
+        lambda *_args, **_kwargs: epoch,
+    )
+    monkeypatch.setattr(
+        mcl_profitability_epoch,
+        "live_calibration_logical_prefix",
+        lambda *_args, **_kwargs: ({}, ()),
+    )
+    monkeypatch.setattr(
+        mcl_profitability_epoch,
+        "mcl_profitability_receipt_with_coverage_epoch",
+        lambda *_args, **kwargs: captured.setdefault("profitability", kwargs)
+        and {},
+    )
+    monkeypatch.setattr(
+        mcl_profitability_epoch,
+        "mcl_graduation_inputs_with_coverage_epoch",
+        lambda **kwargs: captured.setdefault("inputs", kwargs) and {},
+    )
+    monkeypatch.setattr(
+        mcl_profitability_epoch,
+        "reduce_live_graduation",
+        lambda **_kwargs: {"verdict": "HOLD"},
+    )
+    monkeypatch.setattr(
+        mcl_profitability_epoch,
+        "publish_live_graduation_receipt",
+        lambda path, receipt: path.write_text(json.dumps(receipt)),
+    )
+
+    code = mcl_profitability_epoch.main(
+        [
+            "--capital-plan",
+            str(tmp_path / "capital.json"),
+            "--graduation-target",
+            "24h",
+            "--graduation-cutoff",
+            "2026-08-04T10:00:00+00:00",
+            "--graduation-coverage-epoch",
+            str(tmp_path / "epoch.json"),
+            "--graduation-output",
+            str(output),
+        ]
+    )
+
+    assert code == 0
+    assert json.loads(output.read_text()) == {"verdict": "HOLD"}
+    assert captured["profitability"]["coverage_epoch"] == epoch
+    assert captured["inputs"]["coverage_epoch"] == epoch
+
+
+def test_mcl_epoch_adapter_adds_only_graduation_identity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tradebot.research import mcl_profitability_epoch
+
+    base = {
+        "selection": {"selection_id": "s"},
+        "ledger_prefix": {"schema": "prefix"},
+        "subject": {"strategy_id": "mcl"},
+    }
+    monkeypatch.setattr(
+        mcl_profitability_epoch,
+        "mcl_live_graduation_inputs",
+        lambda **_kwargs: deepcopy(base),
+    )
+    epoch = {
+        "epoch_id": "e" * 64,
+        "eligible_start_utc": "2026-08-07T08:00:00+00:00",
+    }
+
+    inputs = mcl_profitability_epoch.mcl_graduation_inputs_with_coverage_epoch(
+        coverage_epoch=epoch
+    )
+
+    assert inputs["subject"] == base["subject"]
+    assert inputs["selection"] == {
+        **base["selection"],
+        "coverage_epoch_id": epoch["epoch_id"],
+        "coverage_started_at_utc": epoch["eligible_start_utc"],
+    }
+    assert inputs["ledger_prefix"] == {
+        **base["ledger_prefix"],
+        "coverage_epoch_id": epoch["epoch_id"],
+        "coverage_started_at_utc": epoch["eligible_start_utc"],
+    }
