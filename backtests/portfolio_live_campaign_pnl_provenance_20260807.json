@@ -1,0 +1,160 @@
+{
+  "schema": "portfolio.live-campaign-pnl-provenance.v1",
+  "authority": "read_only_selected_execution_ledger_reduction_no_orders_no_capital_no_graduation_mutation",
+  "generated_at_utc": "2026-08-07T05:21:34Z",
+  "source_revision": "8348976eb65675234b64754470e63147292bef8b",
+  "live_snapshot": {
+    "snapshot_id": "31e6f0b69e17b5c535e732fee21814263fe13314c722a5954d91d387433f33be",
+    "status": "READY",
+    "positions": {
+      "1OZ": 0,
+      "MCL": 0,
+      "SPXU": 0,
+      "UPRO": 0
+    },
+    "open_orders": 0,
+    "active_run_realized_net_usd": 0.0,
+    "active_open_mark_net_usd": 0.0
+  },
+  "ledger_prefixes": {
+    "gold": {
+      "path_on_q": "db/calibration/gold_live_calibration.jsonl",
+      "rows": 1113,
+      "sha256": "e5ea275ad66abafdec04a7b7486e7493d54fa25242be82adc95a8f9b27420098"
+    },
+    "mcl": {
+      "path_on_q": "db/calibration/mcl_live_calibration.jsonl",
+      "rows": 7269,
+      "sha256": "fc76c0cf0c57c7ead01105656d7590a3a7bdaf5e78858a8bf3d5dc9a6c32eb33"
+    },
+    "xsp": {
+      "path_on_q": "db/calibration/xsp_live_calibration.jsonl",
+      "rows": 2792,
+      "sha256": "f6a83bd7dba32d04f88d10d53e55aca7fa0b77f950b75cf920de8881d7838853"
+    }
+  },
+  "scope_law": {
+    "ibkr_daily_or_realized_tile": "broker_defined_reset_period_not_rolling_24h_and_not_strategy_lifetime",
+    "active_run": "current_immutable_selection_only",
+    "known_live_campaign": "every_genuine_selected_execution_checkpoint_grouped_once_by_product_and_selection_id",
+    "archived_open_marks": "excluded",
+    "active_open_mark": "included_from_current_selection_only",
+    "source_only_checkpoints": "excluded",
+    "graduation": "unchanged_and_current_selection_only",
+    "account_currency": "IBKR_tile_may_translate_USD_execution_result_to_AUD"
+  },
+  "broker_reset_period_reconciliation": {
+    "observed_realized_pnl_aud_before_reset": 2.74099,
+    "observed_realized_pnl_aud_after_reset": 0.0,
+    "matching_execution": {
+      "product": "XSP",
+      "trading_date": "2026-08-06",
+      "symbol": "SPXU",
+      "quantity": 23,
+      "gross_usd": 2.6565000000002783,
+      "commission_usd": 0.7305459999999999,
+      "net_usd": 1.925954000000278
+    },
+    "verdict": "IBKR_TILE_TRUE_WITHIN_RESET_PERIOD_BUT_NOT_FULL_CAMPAIGN"
+  },
+  "products": {
+    "gold": {
+      "current_selection_id": "62344ce21bf7c6f01095abab14b6ca8ef79c9806abb35294859fc9574a5f7574",
+      "selection_runs": 2,
+      "closed_trades": 0,
+      "known_realized_net_usd": 0.0,
+      "active_open_mark_net_usd": 0.0,
+      "known_net_usd": 0.0,
+      "attribution_complete": true
+    },
+    "mcl": {
+      "current_selection_id": "8adead895d3bd460b460f832d725046a3ea34079525a80a1662004ade2c17c93",
+      "selection_runs": 4,
+      "closed_trades": 1,
+      "known_realized_net_usd": -318.52,
+      "active_open_mark_net_usd": 0.0,
+      "known_net_usd": -318.52,
+      "attribution_complete": true
+    },
+    "xsp": {
+      "current_selection_id": "e0f61f74286e1d2b655e253633b0842cb47d41ad7b66fb4567eece3aa46d674b",
+      "selection_runs": 7,
+      "closed_trades": 3,
+      "known_realized_net_usd": -22.156380999999634,
+      "active_open_mark_net_usd": 0.0,
+      "known_net_usd": -22.156380999999634,
+      "attribution_complete": false,
+      "incomplete_run_ids": [
+        "ab0bb43a47251fdaffac96e9f222b281e499d2ec41711a5d60e5292c063274e5"
+      ],
+      "attribution_note": "broker_fill_economics_are_exact_but_signal_attribution_is_partial_because_the_selection_changed_while_the_2026_07_30_position_was_open"
+    }
+  },
+  "material_realized_runs": [
+    {
+      "product": "xsp",
+      "selection_id": "ab0bb43a47251fdaffac96e9f222b281e499d2ec41711a5d60e5292c063274e5",
+      "trading_date": "2026-07-30",
+      "closed_trades": 1,
+      "gross_usd": -12.419999999999959,
+      "cost_usd": 0.659007,
+      "net_usd": -13.07900699999996,
+      "attribution_complete": false
+    },
+    {
+      "product": "mcl",
+      "selection_id": "591db0104449f4388b9063bd613ffd8c9b076dcb281c46fb45545080e28898b2",
+      "trading_date": "2026-08-04",
+      "closed_trades": 1,
+      "gross_usd": -317.0,
+      "cost_usd": 1.52,
+      "net_usd": -318.52,
+      "attribution_complete": true
+    },
+    {
+      "product": "xsp",
+      "selection_id": "1083c1813e6b0ca4cf5777a5275e06be651622bc6e6207e718b549296a9bdd87",
+      "trading_date": "2026-08-05",
+      "closed_trades": 1,
+      "gross_usd": -10.299999999999955,
+      "cost_usd": 0.703328,
+      "net_usd": -11.003327999999954,
+      "attribution_complete": true
+    },
+    {
+      "product": "xsp",
+      "selection_id": "1083c1813e6b0ca4cf5777a5275e06be651622bc6e6207e718b549296a9bdd87",
+      "trading_date": "2026-08-06",
+      "closed_trades": 1,
+      "gross_usd": 2.6565000000002783,
+      "cost_usd": 0.7305459999999999,
+      "net_usd": 1.925954000000278,
+      "attribution_complete": true
+    }
+  ],
+  "portfolio_campaign": {
+    "closed_trades": 4,
+    "known_realized_net_usd": -340.6763809999996,
+    "active_open_mark_net_usd": 0.0,
+    "known_net_usd": -340.6763809999996,
+    "attribution_complete": false
+  },
+  "operator_surface": {
+    "table_column": "Run / campaign",
+    "detail_sections": [
+      "Active run",
+      "Known live campaign"
+    ],
+    "partial_attribution_is_visible": true,
+    "current_run_risk_is_not_inherited": true
+  },
+  "proof": {
+    "focused_tests": "34 passed",
+    "full_suite": "1337 passed, 4 deselected, 6 subtests",
+    "q_revision_matches_source_revision": true,
+    "live_snapshot_ready": true,
+    "all_current_positions_flat": true,
+    "all_current_open_orders_zero": true
+  },
+  "submitted_orders": 0
+}
