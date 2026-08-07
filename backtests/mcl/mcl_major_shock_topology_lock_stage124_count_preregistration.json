@@ -1,0 +1,36 @@
+{
+  "schema": "mcl.major-shock-topology-lock-stage124-count-preregistration.v1",
+  "registered_at_utc": "2026-08-07T17:19:00+00:00",
+  "authority": "adaptive_post_known_incident_count_only_no_outcomes_no_orders_no_capital",
+  "hypothesis": "After a major reversal epoch, exact CL/MCL phase-topology parity can distinguish a shared structural pivot from noisy horizon ordering: the books must agree on every slope and velocity sign, own the fast slope and velocity, have two or three crossed slopes, at least four aligned velocities, and retain the epoch extreme within three completed five-minute bars.",
+  "single_declared_law": {
+    "epoch_proxy": "historical 5x-plus flush followed by 12x-plus opposite reversal with each minute range at least 2x",
+    "confirmation_window_completed_5m_bars": 3,
+    "cl_mcl_slope_sign_vectors_exactly_equal": true,
+    "cl_mcl_velocity_sign_vectors_exactly_equal": true,
+    "fast_slope_and_velocity_aligned_in_both_books": true,
+    "joint_slope_breadth_allowed": [2, 3],
+    "minimum_joint_velocity_breadth": 4,
+    "epoch_extreme_must_remain_intact": true,
+    "exactly_four_slope_stall_excluded": true,
+    "threshold_sweep": false
+  },
+  "frozen_inputs": {
+    "stage123_rejection": {"path": "backtests/mcl/mcl_major_shock_reversal_epoch_stage123_rejection.json", "sha256": "afb1bbe055103da6be960e9aacd9d5f16c5377a88ac24874734636669a5baf88"},
+    "stage119_count": {"path_on_q": "/var/tmp/mcl-stage119-reversal-bridge-count.json", "sha256": "4c98221f93c613277cc7805995811dba06ae1ee1ec09ff4ad53f506d5127c814"},
+    "stage121_count": {"path_on_q": "/var/tmp/mcl-stage121-cross-book-phase-front-count.json", "sha256": "51d9dbeee43c633edf5b0467ffb23137de492169a42710fb3c1c4b7c6af1e953"},
+    "stage121_evaluator": {"path_on_q": "/var/tmp/mcl_stage121_cross_book_phase_front_count.py", "sha256": "32f109a26f5d6cae2d3aed1396060677831a441d07ac1edacfe83a0da9958d18"},
+    "dated_hydration_manifest": {"path": "db/MCL/dated/hydration_manifest.json", "sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55"}
+  },
+  "count_gate": {
+    "minimum_events": 10,
+    "maximum_events": 80,
+    "minimum_each_direction": 3,
+    "minimum_each_year": 4,
+    "minimum_each_year_direction": 1,
+    "both_GTH_and_RTH": true
+  },
+  "known_incident_is_adaptive_seed_not_count_evidence": true,
+  "outcomes_exposed": false,
+  "submitted_orders": 0
+}

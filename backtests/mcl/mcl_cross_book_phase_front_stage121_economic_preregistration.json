@@ -1,0 +1,94 @@
+{
+  "schema": "mcl.cross-book-phase-front-stage121-economic-preregistration.v1",
+  "registered_at_utc": "2026-08-07T16:55:30Z",
+  "authority": "frozen_year1_selection_then_one_locked_year2_challenge_no_orders_no_capital",
+  "objective": "test whether one independently confirmed CL/MCL continuation bridge adds reliable Stage112 alpha without taking ownership from an existing Stage112 position",
+  "frozen_inputs": {
+    "count_preregistration": {
+      "path": "backtests/mcl/mcl_cross_book_phase_front_stage121_count_preregistration.json",
+      "sha256": "dd5d334b28cbf88ed2afa2ea7eab2d1a1bdbb24bbd02474056b899b24cb50d26"
+    },
+    "count_evaluator": {
+      "path_on_q": "/var/tmp/mcl_stage121_cross_book_phase_front_count.py",
+      "sha256": "32f109a26f5d6cae2d3aed1396060677831a441d07ac1edacfe83a0da9958d18"
+    },
+    "count_result": {
+      "path_on_q": "/var/tmp/mcl-stage121-cross-book-phase-front-count.json",
+      "sha256": "51d9dbeee43c633edf5b0467ffb23137de492169a42710fb3c1c4b7c6af1e953"
+    },
+    "stage112_reference": {
+      "path_on_q": "/var/tmp/mcl-stage112-full-live-risk-parity.json",
+      "sha256": "bb0f40f42f22f5888ade3719ace3b9f95813f8fb3575ecfa06682353d90ac2df"
+    },
+    "dated_hydration_manifest": {
+      "path_on_q": "db/MCL/dated/hydration_manifest.json",
+      "sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55"
+    }
+  },
+  "selected_count_cell": {
+    "key": "v5_s2_p2_e0",
+    "selection_law": "strict intersection medoid of all three connected passing cells; maximum joint velocity breadth, two joint slope crosses, two completed-bar persistence, and no ETA mandate because every ETA-required neighbor lost the major-shock origin",
+    "policy": {
+      "joint_velocity_breadth": 5,
+      "joint_slope_breadth": 2,
+      "persistence_bars": 2,
+      "eta_contraction_required": false
+    },
+    "count": 181,
+    "year_1": 86,
+    "year_2": 95,
+    "up": 81,
+    "down": 100,
+    "gth": 137,
+    "rth": 44,
+    "major_shock": 1,
+    "ordinary_velocity_front": 180
+  },
+  "arbitration": {
+    "flat": "a fresh bridge signal may schedule one next-minute-open entry",
+    "same_direction_stage112_position": "already owned; no new trade and no clock reset",
+    "opposite_stage112_position": "bridge is vetoed; no ordinary or minute-proxy bridge may interrupt the crown",
+    "active_stage112_shock": "bridge is vetoed in either direction",
+    "same_direction_stage112_maturation_after_bridge_entry": "transfer ownership to Stage112 without a new fill",
+    "stage112_raw_turn": "retains unconditional next-open flatten authority",
+    "bridge_terminal": "joint fast-ownership failure, joint recoil failure, source gap, contract reset, or unresolved lifecycle terminal schedules a next-open flatten",
+    "risk": "unchanged Stage112 300 USD raw-loss cap and Friday 16:53 ET flat-entry lock",
+    "execution": "historical next-minute MCL open with unchanged 3.52 USD primary and 5.52 USD stressed round-trip costs"
+  },
+  "selection_gate_year_1": {
+    "primary_and_stressed_net_positive": true,
+    "primary_net_not_below_stage112": true,
+    "primary_pnl_dd_improvement_pct_minimum": 3.0,
+    "intrabar_drawdown_not_above_stage112": true,
+    "trade_count_above_stage112": true,
+    "bridge_origin_primary_positive": true,
+    "both_full_book_directions_primary_positive": true,
+    "worst_trade_not_below_stage112": true
+  },
+  "locked_year_2_and_full_gate": {
+    "both_years_primary_and_stressed_net_positive": true,
+    "both_years_primary_net_not_below_stage112": true,
+    "both_years_primary_pnl_dd_improvement_pct_minimum": 3.0,
+    "both_years_drawdown_not_above_stage112": true,
+    "full_primary_net_above_stage112": true,
+    "full_primary_pnl_dd_improvement_pct_minimum": 3.0,
+    "full_drawdown_not_above_stage112": true,
+    "annualized_trades_minimum": 200.0,
+    "both_directions_and_all_origins_primary_positive": true,
+    "worst_trade_not_below_stage112": true
+  },
+  "incident_gate": {
+    "role": "separate prospective mechanism proof, never historical selection",
+    "required": "fresh authentic Stage114 major authority resets the stale ordinary epoch and schedules the 2026-08-06 UP bridge no later than the 05:45 close / 05:46 next open",
+    "negative_control": "the 2026-08-06 01:25 impulse remains unadmitted because it had no major-shock epoch"
+  },
+  "invariants": {
+    "only_one_economic_policy": true,
+    "year_2_sealed_until_year_1_passes": true,
+    "no_threshold_rescue": true,
+    "no_stage112_live_change": true,
+    "no_xsp_or_gold_change": true,
+    "no_market_orders": true,
+    "submitted_orders": 0
+  }
+}

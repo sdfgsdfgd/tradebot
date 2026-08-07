@@ -1,0 +1,85 @@
+{
+  "schema": "mcl.cross-book-phase-front-stage121-count-preregistration.v1",
+  "registered_at_utc": "2026-08-07T16:41:00Z",
+  "authority": "historical_cross_book_count_and_morphology_only_no_outcomes_no_orders_no_capital",
+  "objective": "distinguish authentic MCL phase-front pivots from frequent CL-only oscillations before any new economic replay",
+  "predecessor_rejection": {
+    "path": "backtests/mcl/mcl_unified_phase_front_bridge_stage120_count_rejection.json",
+    "sha256": "4ddfbf0437d0bf49abcbfeaecd11d416e1f2488ca71c71bd95093c2df4452832"
+  },
+  "frozen_inputs": {
+    "stage119_count": {
+      "path_on_q": "/var/tmp/mcl-stage119-reversal-bridge-count.json",
+      "sha256": "4c98221f93c613277cc7805995811dba06ae1ee1ec09ff4ad53f506d5127c814"
+    },
+    "stage120_evaluator": {
+      "path_on_q": "/var/tmp/mcl_stage120_unified_phase_front_count.py",
+      "sha256": "0c0d64fcf220e21cacaad440913902a7ee025f3003cd0ad7d854a9b668544e7c"
+    },
+    "stage120_result": {
+      "path_on_q": "/var/tmp/mcl-stage120-unified-phase-front-count.json",
+      "sha256": "1acb10772c402defc7f9aa33befeaca8001885067fbb13670b0854cf883fd63c"
+    },
+    "dated_hydration_manifest": {
+      "path_on_q": "db/MCL/dated/hydration_manifest.json",
+      "sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55"
+    }
+  },
+  "dual_book_identity": {
+    "cl": "unchanged Stage112 directional-impulse parameters on completed matched CL 5m bars",
+    "mcl": "the same directional-impulse parameters independently applied to completed matched MCL 5m bars",
+    "minimum_law": "entry breadth is the minimum CL/MCL breadth; one book can never stand in for the other",
+    "warmup": "partial horizon arrays and cross-contract comparisons are unavailable, never neutral or inferred"
+  },
+  "origin_law": {
+    "major_shock": "unchanged Stage119 fixed dual-book flush-reversal morphology; every fresh major origin resets stale untraded state",
+    "ordinary": "both books have the same fully aligned incumbent five-slope stack and both 30m velocities jointly flip opposite it; at least one book was not aligned on the prior completed 5m state",
+    "direction": "joint price-path and velocity state only; volume supplies regime seriousness but no directional vote"
+  },
+  "ownership_law": {
+    "pre_cross": "both books must retain new-direction 30m velocity until both 30m slopes cross",
+    "failure": "loss by either book before both crosses terminates the untraded epoch immediately",
+    "arrival_order": "first velocity and slope arrivals within each book must be nondecreasing from 30m toward 480m; equal-time ties are lawful",
+    "extreme_retention": "major origins must preserve both CL and MCL reversal extremes through admission",
+    "recoil": "post-cross loss of either fast slope before velocity reacquisition releases authority",
+    "position_arbitration": "flat may open; same-direction Stage112 only attaches; opposite Stage112 cannot be interrupted without authentic seconds Stage114 authority"
+  },
+  "zero_cross_eta": {
+    "definition": "for an opposite slope with new-direction velocity, eta is abs(slope divided by velocity); an already crossed slope is zero; unresolved or wrong-direction velocity is unavailable",
+    "joint_scalar": "median of finite CL and MCL eta values across the five horizons",
+    "contraction": "the joint scalar must decline from the immediately preceding completed state into the candidate state",
+    "role": "declared categorical neighbor, not an outcome-fitted coefficient"
+  },
+  "declared_count_cells": {
+    "joint_velocity_breadth": [4, 5],
+    "joint_slope_breadth": [1, 2],
+    "persistence_bars": [1, 2],
+    "eta_contraction_required": [false, true],
+    "total": 16
+  },
+  "count_gate": {
+    "minimum_tradeable_candidates": 30,
+    "minimum_each_direction": 8,
+    "minimum_each_year": 10,
+    "minimum_each_year_direction": 3,
+    "both_gth_and_rth": true,
+    "both_major_and_ordinary_origins": true,
+    "minimum_failed_fast_controls": 10,
+    "maximum_candidate_count_for_specificity": 300,
+    "cadence_capacity": "at least one connected strict family must retain enough non-overlapping events to permit more than 200 Stage112-composed trades per year"
+  },
+  "known_incident": {
+    "required": "the authentic 2026-08-06 Stage114 UP wave resets the stale 03:50 front and reaches joint tradeable propagation by 05:45 at the latest",
+    "negative_control": "the 01:25 impulse cannot borrow authority from the later wave",
+    "historical_role": "excluded from count selection and outcomes"
+  },
+  "invariants": {
+    "no_outcome_access": true,
+    "no_live_authority": true,
+    "no_stage112_change": true,
+    "no_xsp_or_gold_change": true,
+    "no_news_direction": true,
+    "no_market_orders": true,
+    "submitted_orders": 0
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "schema": "mcl.major-shock-reversal-epoch-stage123-preregistration.v1",
+  "registered_at_utc": "2026-08-07T17:15:11+00:00",
+  "authority": "known_incident_causal_morphology_only_no_economic_replay_no_orders_no_capital",
+  "hypothesis": "A fresh authentic Stage-114 12x-plus authority bind or handoff is a new directional epoch. It resets stale ordinary-front history, retains its shock extreme through a fast rotation, and may become a trade candidate only after independent CL and MCL propagation confirms the same direction.",
+  "categorical_law": {
+    "ordinary_front": "permission_and_maturation_evidence_only_never_independent_capital_authority",
+    "major_epoch": "fresh Stage-114 AUTHORITY_BOUND or AUTHORITY_HANDOFF at tradeable 12x-plus level",
+    "reset": "major_epoch_discards_every_prior_ordinary_front_failure_recoil_and_arrival_clock",
+    "direction": "only_the_stage114_full_CL_MCL_authority_direction",
+    "extreme": "neither_CL_nor_MCL_may_reclaim_the_epoch_low_for_UP_or_high_for_DOWN_before_confirmation",
+    "seconds_rotation": "preserve_epoch_memory_but_remove_immediate_seconds_entry_authority",
+    "confirmation": "first_completed_5m_state_with_independent_CL_and_MCL_fast_velocity_ownership_at_least_two_joint_slope_crosses_ordered_arrivals_and_nonreceding_remaining_cross_estimates",
+    "penultimate_stall": "exactly_four_of_five_joint_slope_crosses_is_not_confirmation_and_must_resolve_or_release",
+    "entry": "schedule_once_for_next_open_through_existing_accelerated_LIMIT_ladder_only",
+    "priority": "Stage112_owner_raw_turn_loss_cap_weekly_flat_roll_gap_and_opposite_higher_shock_remain_absolute"
+  },
+  "frozen_inputs": {
+    "known_phase_front_anatomy": {"path_on_q": "/var/tmp/mcl-stage119-known-up-leg-phase-front-anatomy.json", "sha256": "4d1373c3ace38c02f262ed217bd7997bcced55af3164a40335a4939de56f3b1e"},
+    "known_owner_anatomy": {"path_on_q": "/var/tmp/mcl-stage119-up-leg-owner-anatomy.json", "sha256": "b2eb849e9dbebd944a672fd9cc96d35a1e24db6f3560b4601db9d861a217f02e"},
+    "incident_bars": {"path_on_q": "/var/tmp/mcl-stage112-timing-bars-20260807.json", "sha256": "c14e742a55f4e1ba24b1c72b82e04431eb736c9ff82a84016d65385953707153"},
+    "independent_four_day_books": {"path_on_q": "/var/tmp/mcl-stage123-four-day-bars.json", "sha256": "d8d671febfddf701b00c3221c477df203fd5098a9da79a18b9eb46de5fe50637", "snapshot_id": "48c6eaed5cb4e34a179a43352853e1d90ca10c80caaec67d25ae63e50ee29d28", "range_utc": ["2026-08-03T22:01:00+00:00", "2026-08-07T17:16:00+00:00"], "submitted_orders": 0},
+    "stage121_cross_book_evaluator": {"path_on_q": "/var/tmp/mcl_stage121_cross_book_phase_front_count.py", "sha256": "32f109a26f5d6cae2d3aed1396060677831a441d07ac1edacfe83a0da9958d18"},
+    "stage114_crest_owner": {"path": "tradebot/research/mcl_shock_crest.py", "sha256": "0363b3416b4ca5771e0d7a6947f9a01a76eb99c9cae0e6c1904d0b88205c6019"},
+    "stage114_wave_owner": {"path": "tradebot/research/mcl_shock_waves.py", "sha256": "ef3e14ec390756c26724c9372df48b4e70be43194c81471519385af6f78e87fa"}
+  },
+  "required_controls": {
+    "incident_epoch": "2026-08-06T05:30:38+00:00 UP",
+    "incident_signal_deadline": "2026-08-06T05:45:00+00:00",
+    "incident_signal_deadline_semantics": "completed_five_minute_close",
+    "incident_next_open_deadline": "2026-08-06T05:46:00+00:00",
+    "false_start": "2026-08-06T01:25:00+00:00 must remain absent because no Stage-114 major epoch exists",
+    "no_threshold_sweep": true
+  },
+  "economic_gate_amendment": "Any later successor must improve PnL/DD by at least 3 percent in most available one-year periods, while retaining the existing cadence, positivity, tail, parity, execution, and safety gates.",
+  "outcomes_already_known": true,
+  "submitted_orders": 0
+}

@@ -1,0 +1,52 @@
+{
+  "schema": "mcl.reversal-bridge-stage119-user-3pct-amendment.v1",
+  "registered_at_utc": "2026-08-07T16:32:39Z",
+  "authority": "explicit_user_post_selection_gate_amendment_locked_year_2_single_open_no_orders_no_capital",
+  "transparency": "The original 5 percent preregistration and rejection remain immutable. This later amendment was explicitly authorized after the Year-1 result was known and must never be described as the original preregistered gate.",
+  "original_rejection": {
+    "path": "backtests/mcl/mcl_reversal_bridge_stage119_economic_rejection.json",
+    "sha256": "85519928072452830bcdc3f35347f8db3a226353d2f66bf5bedb335ad138c8a9"
+  },
+  "frozen_selection_result": {
+    "path_on_q": "/var/tmp/mcl-stage119-reversal-bridge-economics.json",
+    "sha256": "008fc2862896e4e4f043553f95e312523b0d1065b920a313f1cccfd677131044"
+  },
+  "user_law": "At least 3 percent PnL-to-drawdown improvement in most available one-year periods is sufficient when the successor also saves a structurally obvious missed movement; every other economic, cadence, tail, incident, parity, risk, and runtime gate remains unchanged.",
+  "precision_law": "Drawdown and worst-trade comparisons use 1e-9 USD tolerance; floating representation alone cannot fail or pass a gate.",
+  "selected_cell": {
+    "key": "v5_s2_b2_raw",
+    "policy": {
+      "velocity_breadth": 5,
+      "slope_breadth": 2,
+      "confirm_bars": 2,
+      "exit_mode": "opposite_raw"
+    },
+    "selection_year_primary_pnl_dd_improvement_pct": 3.180134603267671,
+    "selection_year_bridge_primary_net": 88.92000000000012,
+    "selection_year_primary_net_increment": 63.92,
+    "selection_year_pass_under_amendment": true
+  },
+  "locked_challenge": {
+    "open_exactly_once": true,
+    "year_2_primary_and_stressed_net_positive": true,
+    "year_2_primary_net_not_below_stage112": true,
+    "year_2_primary_pnl_dd_at_least_3pct_above_stage112": true,
+    "year_2_drawdown_not_above_stage112": true,
+    "full_primary_and_stressed_net_positive": true,
+    "full_primary_net_above_stage112": true,
+    "full_primary_pnl_dd_at_least_3pct_above_stage112": true,
+    "full_drawdown_not_above_stage112": true,
+    "trade_count_above_stage112": true,
+    "annualized_trades_at_least_200": true,
+    "both_directions_and_all_origins_primary_positive": true,
+    "worst_trade_not_below_stage112": true,
+    "known_incident_and_false_start": "remain mandatory and separate from the historical tape"
+  },
+  "invariants": {
+    "no_threshold_or_cell_reselection": true,
+    "locked_year_2_previously_unopened": true,
+    "no_live_authority": true,
+    "no_xsp_or_gold_change": true,
+    "submitted_orders": 0
+  }
+}

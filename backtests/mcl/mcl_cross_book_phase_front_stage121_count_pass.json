@@ -1,0 +1,52 @@
+{
+  "schema": "mcl.cross-book-phase-front-stage121-count-pass.v1",
+  "authority": "count_and_morphology_only_no_outcomes_no_orders_no_capital",
+  "preregistration": {
+    "path": "backtests/mcl/mcl_cross_book_phase_front_stage121_count_preregistration.json",
+    "sha256": "dd5d334b28cbf88ed2afa2ea7eab2d1a1bdbb24bbd02474056b899b24cb50d26"
+  },
+  "evaluator": {
+    "path_on_q": "/var/tmp/mcl_stage121_cross_book_phase_front_count.py",
+    "sha256": "32f109a26f5d6cae2d3aed1396060677831a441d07ac1edacfe83a0da9958d18"
+  },
+  "result": {
+    "path_on_q": "/var/tmp/mcl-stage121-cross-book-phase-front-count.json",
+    "sha256": "51d9dbeee43c633edf5b0467ffb23137de492169a42710fb3c1c4b7c6af1e953"
+  },
+  "identity": {
+    "decision_rows": 127889,
+    "major_anchors": 51,
+    "complete_fronts": 7296,
+    "failed_fast_controls": 5099,
+    "outcomes_exposed": false,
+    "submitted_orders": 0
+  },
+  "passing_cells": [
+    {
+      "key": "v4_s2_p2_e0",
+      "events": 281,
+      "up": 140,
+      "down": 141,
+      "year_1": 127,
+      "year_2": 154
+    },
+    {
+      "key": "v5_s1_p2_e0",
+      "events": 238,
+      "up": 110,
+      "down": 128,
+      "year_1": 114,
+      "year_2": 124
+    },
+    {
+      "key": "v5_s2_p2_e0",
+      "events": 181,
+      "up": 81,
+      "down": 100,
+      "year_1": 86,
+      "year_2": 95
+    }
+  ],
+  "interpretation": "independent matched-MCL structure reduced Stage120's 694-1960 noisy candidates to one connected two-bar family of 181-281, but each passing cell retained only one historical minute-proxy major shock; ordinary cross-book breadth passed while major-shock generality did not",
+  "verdict": "COUNT_PASS_ORDINARY_FRONT_MAJOR_SHOCK_EVIDENCE_SPARSE"
+}

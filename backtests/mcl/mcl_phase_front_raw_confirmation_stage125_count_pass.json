@@ -1,0 +1,10 @@
+{
+  "schema": "mcl.phase-front-raw-confirmation-stage125-count-pass.v1",
+  "authority": "adaptive_count_pass_no_outcomes_no_orders_no_capital",
+  "preregistration": {"path": "backtests/mcl/mcl_phase_front_raw_confirmation_stage125_count_preregistration.json", "sha256": "b4b04798282307f11589bae07f26428c05f5f7ce3548e1353d1b0187bd1c60bb"},
+  "evaluator": {"path_on_q": "/var/tmp/mcl_stage125_phase_front_raw_confirmation_count.py", "sha256": "68496bb030ea647f2b499cfb3b82419d25bfae559374e87afd471c3f9f7074ed"},
+  "result": {"path_on_q": "/var/tmp/mcl-stage125-phase-front-raw-confirmation-count.json", "sha256": "872a98f3d2bc3afe4a7b6e810248571ecc5a144f12b8a97b95f05d0d5f3fc3bc", "events": 101, "directions": {"down": 56, "up": 45}, "years": {"year_1": 51, "year_2": 50}, "sessions": {"GTH": 90, "RTH": 11}, "origins": {"ORDINARY_VELOCITY_FRONT": 101}, "pass": true},
+  "interpretation": "The no-opposing-slope plus all-velocity raw-confirmation morphology is balanced and specific enough for one adaptive full-history economic replay. Count success is not alpha evidence.",
+  "outcomes_exposed": false,
+  "submitted_orders": 0
+}

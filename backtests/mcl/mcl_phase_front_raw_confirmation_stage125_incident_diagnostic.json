@@ -1,0 +1,32 @@
+{
+  "schema": "mcl.phase-front-raw-confirmation-stage125-incident-diagnostic-receipt.v1",
+  "authority": "diagnostic_replay_of_rejected_law_no_orders_no_capital",
+  "independent_source_snapshot": {
+    "path_on_q": "/var/tmp/mcl-stage123-four-day-bars.json",
+    "sha256": "d8d671febfddf701b00c3221c477df203fd5098a9da79a18b9eb46de5fe50637",
+    "rows_each_contract": 5296
+  },
+  "evaluator": {
+    "path_on_q": "/var/tmp/mcl_stage125_incident_diagnostic.py",
+    "sha256": "db6f7c247b5ad07ff69bda039ebd50daeb40f5c9f2a262d1f18d8820d422e670"
+  },
+  "result": {
+    "path_on_q": "/var/tmp/mcl-stage125-incident-diagnostic.json",
+    "sha256": "ba67500c111326b140b94f555c0b47b715fefa21b3564a4cd7732817ba33b95e"
+  },
+  "incident": {
+    "raw_confirmation_utc": "2026-08-06T06:40:00+00:00",
+    "entry_utc": "2026-08-06T06:41:00+00:00",
+    "entry_mcl": 75.55,
+    "exit_utc": "2026-08-07T06:21:00+00:00",
+    "exit_mcl": 77.87,
+    "primary_pnl_usd": 228.48000000000073,
+    "stressed_pnl_usd": 226.48000000000073,
+    "mfe_usd": 321.9999999999999,
+    "mae_usd": -64.00000000000006,
+    "exit_reason": "raw_turn_invalidation"
+  },
+  "interpretation": "The raw-confirmation mechanism would have monetized most of the missed 74-to-78 move, but its broad historical form is rejected. This row is incident evidence, not live authority.",
+  "live_stage112_changed": false,
+  "submitted_orders": 0
+}

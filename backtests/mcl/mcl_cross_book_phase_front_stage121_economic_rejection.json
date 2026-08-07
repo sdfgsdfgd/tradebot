@@ -1,0 +1,72 @@
+{
+  "schema": "mcl.cross-book-phase-front-stage121-economic-rejection.v1",
+  "authority": "immutable_rejection_no_live_authority_no_orders_no_capital",
+  "preregistration": {
+    "path": "backtests/mcl/mcl_cross_book_phase_front_stage121_economic_preregistration.json",
+    "sha256": "9238f061f60a0f9d3da4998e2c4fb87ca2554989c9fc30e06952a7c8123efc57"
+  },
+  "evaluator": {
+    "path_on_q": "/var/tmp/mcl_stage121_cross_book_phase_front_economics.py",
+    "sha256": "a48851ef3c9beddc87877a9057d48ae713cba158b3adb5d5da49bf7a700de3a5"
+  },
+  "result": {
+    "path_on_q": "/var/tmp/mcl-stage121-cross-book-phase-front-economics.json",
+    "sha256": "08f34297973e92081144fa8e6c0505a4bd42904c9b4b98013917c73a0be464b4"
+  },
+  "selected_cell": "v5_s2_p2_e0",
+  "stage112_disabled_parity": {
+    "trades": "388/388",
+    "ledger_sha256": "e4d18b52dd6f791371722077c111bd717e4feb63654b4a9fc068b58c06b83aa7",
+    "exact": true
+  },
+  "year_1": {
+    "pnl_dd_improvement_pct": 43.042384808202236,
+    "net": 2577.569999999988,
+    "drawdown": 515.5000000000007,
+    "bridge_origin_net": 576.0799999999962,
+    "trades": 259,
+    "selection_pass": true
+  },
+  "locked_year_2": {
+    "pnl_dd_improvement_pct": -18.96610655717422,
+    "net": 1939.9400000000023,
+    "drawdown": 772.2299999999971,
+    "bridge_origin_net": 23.879999999993906,
+    "bridge_origin_stress_net": -138.12000000000594,
+    "trades": 278,
+    "challenge_pass": false
+  },
+  "full": {
+    "stage112_net": 3942.9899999999993,
+    "candidate_net": 4517.50999999999,
+    "stage112_drawdown": 603.6299999999974,
+    "candidate_drawdown": 772.2299999999968,
+    "stage112_pnl_dd": 6.532130609810673,
+    "candidate_pnl_dd": 5.8499540292400045,
+    "pnl_dd_improvement_pct": -10.443400803194292,
+    "annualized_trades": 268.68390410958904,
+    "worst_trade": -333.5200000000011,
+    "both_directions_and_all_origins_positive": true
+  },
+  "diagnostic_only_anatomy": {
+    "joint_slope_breadth_4_net": {
+      "year_1": -190.84,
+      "year_2": -514.44
+    },
+    "joint_eta_contracting_net": {
+      "year_1": 286.4,
+      "year_2": 258.4
+    },
+    "source_gap_terminal_net": {
+      "year_1": -291.24,
+      "year_2": -885.32
+    },
+    "v18_raw_turn_terminal_net": {
+      "year_1": 1012.48,
+      "year_2": 1061.8
+    },
+    "interpretation": "the rejected bridge monetizes actively propagating fronts but lets penultimate 4-of-5 stalls and non-reacquired post-cross velocity decay remain owned too long; these are mechanism diagnostics, not authority to posthoc filter Stage121"
+  },
+  "verdict": "LOCKED_CHALLENGE_REJECT_NO_CROWN_LIVE_STAGE112_UNCHANGED",
+  "submitted_orders": 0
+}

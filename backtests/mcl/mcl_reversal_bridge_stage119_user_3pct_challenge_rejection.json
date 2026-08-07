@@ -1,0 +1,30 @@
+{
+  "schema": "mcl.reversal-bridge-stage119-user-3pct-challenge-rejection.v1",
+  "generated_at_utc": "2026-08-07T16:34:00Z",
+  "authority": "explicit_user_post_selection_gate_amendment_locked_year_2_opened_once_no_orders_no_capital",
+  "amendment": {
+    "path": "backtests/mcl/mcl_reversal_bridge_stage119_user_3pct_amendment.json",
+    "sha256": "67e5b9e541dec95b5d3d1c68a4cb24520e246369120660211969648b8c998372"
+  },
+  "result": {
+    "path_on_q": "/var/tmp/mcl-stage119-user-3pct-challenge.json",
+    "sha256": "a660cda3f9e97f953eb1b48a75aa3445e153e988821b47c72019bdceda27fa4b",
+    "evaluator_path_on_q": "/var/tmp/mcl_stage119_user_3pct_challenge.py",
+    "evaluator_sha256": "d42f2115842054cf82bc9cab606e355fa69ae22aeb59752eba166e6307cb8318"
+  },
+  "selected_key": "v5_s2_b2_raw",
+  "yearly_pnl_dd_improvement_pct": {
+    "year_1": 0.10667670682724673,
+    "year_2": -21.26478242514591
+  },
+  "full_pnl_dd_improvement_pct": -10.036038640726941,
+  "annualized_trades": 199.63664383561644,
+  "bridge_origin": {
+    "trades": 11,
+    "primary_net": -370.71999999999935,
+    "year_2_primary_net": -459.6399999999995
+  },
+  "decision": "LOCKED_CHALLENGE_REJECT",
+  "finding": "The user-authorized 3 percent hurdle did not rescue Stage119. Its selection-year gain did not survive exact full-period attribution and reversed sharply in locked Year2. Preserve only its proven structural lessons; never reopen or retune this cell.",
+  "submitted_orders": 0
+}

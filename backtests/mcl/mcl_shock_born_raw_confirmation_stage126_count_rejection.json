@@ -1,0 +1,32 @@
+{
+  "schema": "mcl.shock-born-raw-confirmation-stage126-count-rejection.v1",
+  "authority": "outcome_sealed_count_rejection_no_orders_no_capital",
+  "preregistration": {
+    "path": "backtests/mcl/mcl_shock_born_raw_confirmation_stage126_count_preregistration.json",
+    "sha256": "9a1ae4408d1a46e782686c8f63d0d4e8cb640702f662eb582f2c22d67fed0eb2"
+  },
+  "evaluator": {
+    "path_on_q": "/var/tmp/mcl_stage126_shock_born_raw_confirmation_count.py",
+    "sha256": "4be9d768f8d036e7a6828315f0c6774fb26747c8a525c03a43197c01e8fcd3b4"
+  },
+  "result": {
+    "path_on_q": "/var/tmp/mcl-stage126-shock-born-raw-confirmation-count.json",
+    "sha256": "a54453fb99460d57e2bcd89c731c20d1b9d2e80928859dc090f8b3cb4337205c"
+  },
+  "counts": {
+    "major_epochs": 51,
+    "same_direction_confirmations": 1,
+    "directions": {"up": 1},
+    "years": {"year_2": 1},
+    "sessions": {"GTH": 1},
+    "extreme_breaches": 26,
+    "superseded_by_major_shock": 14,
+    "contract_resets": 6,
+    "opposite_confirmation_revocations": 4
+  },
+  "verdict": "COUNT_REJECT_KEEP_PROSPECTIVE_ONLY",
+  "interpretation": "Unbroken exceptional-volume ancestry is the clean causal discriminator, but two-year completed-minute history contains only one qualifying analog. No economic replay, crown, or live authority is permitted from this sample.",
+  "outcomes_exposed": false,
+  "live_stage112_changed": false,
+  "submitted_orders": 0
+}

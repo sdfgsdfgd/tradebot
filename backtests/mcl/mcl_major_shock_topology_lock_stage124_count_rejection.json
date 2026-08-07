@@ -1,0 +1,11 @@
+{
+  "schema": "mcl.major-shock-topology-lock-stage124-count-rejection.v1",
+  "authority": "adaptive_count_rejection_no_outcomes_no_orders_no_capital",
+  "preregistration": {"path": "backtests/mcl/mcl_major_shock_topology_lock_stage124_count_preregistration.json", "sha256": "3f772b696b1e56f22a0dad7bb07f54d6c6e080ea3d21f76b70db044f59778f56"},
+  "evaluator": {"path_on_q": "/var/tmp/mcl_stage124_major_shock_topology_count.py", "sha256": "8d7ab31118ceb418d04b5857448ee4b4036fb18879209034f6d4dc901a3c64df"},
+  "result": {"path_on_q": "/var/tmp/mcl-stage124-major-shock-topology-count.json", "sha256": "8217dbe84db053cf0644c635e9ca57c46f7fc4dc09303106af98f210218fe3e7", "major_epochs": 51, "events": 3, "directions": {"down": 2, "up": 1}, "years": {"year_1": 1, "year_2": 2}, "sessions": {"GTH": 2, "RTH": 1}, "pass": false},
+  "decision": "Reject historical economic replay. Retain exact cross-book topology lock as prospective major-shock morphology only.",
+  "outcomes_exposed": false,
+  "live_stage112_changed": false,
+  "submitted_orders": 0
+}

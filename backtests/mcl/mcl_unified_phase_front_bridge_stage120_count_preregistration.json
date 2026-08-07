@@ -1,0 +1,92 @@
+{
+  "schema": "mcl.unified-phase-front-bridge-stage120-count-preregistration.v1",
+  "registered_at_utc": "2026-08-07T16:29:29Z",
+  "authority": "historical_count_and_morphology_only_no_outcomes_no_orders_no_capital",
+  "objective": "count one causally unified bridge that admits fresh major-shock reversals and ordinary weak-turn repairs only after fast ownership survives into a slope cross, while preserving existing Stage112 positions",
+  "predecessors": {
+    "stage118_preregistration": {
+      "path": "backtests/mcl/mcl_multiscale_phase_front_stage118_preregistration.json",
+      "sha256": "7270c1e7b538213045000fac87bdfc4d89946e0b323f7d1b4413e4b756f6d564"
+    },
+    "stage118_evaluator": {
+      "path_on_q": "/var/tmp/mcl_stage118_multiscale_phase_front.py",
+      "sha256": "53cc0f208c757504d57d884ea706b940db83e2d137b60e705313c5b370abb8ed"
+    },
+    "stage119_rejection": {
+      "path": "backtests/mcl/mcl_reversal_bridge_stage119_economic_rejection.json",
+      "sha256": "85519928072452830bcdc3f35347f8db3a226353d2f66bf5bedb335ad138c8a9"
+    },
+    "stage119_count": {
+      "path_on_q": "/var/tmp/mcl-stage119-reversal-bridge-count.json",
+      "sha256": "4c98221f93c613277cc7805995811dba06ae1ee1ec09ff4ad53f506d5127c814"
+    }
+  },
+  "origin_law": {
+    "major_shock_reversal": "Stage119 fixed 5x flush, 2x flush range, opposite 12x reversal, 2x reversal range, dual-book price/velocity/acceleration direction; volume never supplies direction",
+    "ordinary_velocity_front": "all five 30/60/120/240/480m slopes share incumbent sign and the 30m velocity first flips opposite that incumbent",
+    "subshock": "excluded because the historical tape has no seconds-order identity",
+    "one_owner": "both origins feed one phase-front state and one eventual lifecycle; they are not separate strategies"
+  },
+  "epoch_law": {
+    "major_reset": "every fresh major-shock reversal closes any stale untraded front as SUPERSEDED_BY_MAJOR_SHOCK and starts a new epoch",
+    "ordinary_start": "ordinary origin may start only while no live front exists",
+    "fast_failure_release": "loss of new-direction 30m velocity before the first 30m slope cross terminates the untraded front immediately",
+    "recoil_failure_release": "after the fast slope cross, loss of the fast slope before velocity reacquisition terminates the front",
+    "contract_gap_raw_boundaries": "contract reset, genuine open-session gap, and exact V18 raw turn remain terminals"
+  },
+  "entry_morphology": {
+    "direction": "origin direction remains owned",
+    "fast_ownership": "30m velocity must remain in the origin direction until the 30m slope first crosses",
+    "propagation": "at entry the declared velocity breadth and slope breadth must be present on a completed 5m state",
+    "persistence": "the complete entry predicate must survive one or two consecutive completed 5m states",
+    "extreme_retention": "major-shock epochs must not reclaim the opposite CL or MCL reversal extreme before entry",
+    "diagnostics_only": [
+      "ordered first velocity and slope arrival times",
+      "slope zero-cross ETA contraction",
+      "ATR level, velocity, and acceleration",
+      "coherence and conviction",
+      "origin-to-entry latency",
+      "first recoil and reacquisition geometry"
+    ]
+  },
+  "position_arbitration_for_future_economics": {
+    "flat": "a qualifying front may schedule one next-open entry",
+    "same_direction_stage112": "attach evidence only; never duplicate or reset cost basis",
+    "opposite_stage112_ordinary_or_minute_proxy": "abstain; historical proxy authority may not interrupt an existing Stage112 owner",
+    "opposite_stage112_authentic_seconds_major_shock": "future live handoff may occur only after Stage114 AUTHORITY_BOUND plus the same completed-5m propagation",
+    "risk": "raw-loss cap, weekly flat, roll, data gap, and opposite authentic authority remain unconditional"
+  },
+  "declared_count_cells": {
+    "velocity_breadth": [4, 5],
+    "slope_breadth": [1, 2],
+    "persistence_bars": [1, 2],
+    "total": 8
+  },
+  "count_gate": {
+    "minimum_complete_fronts": 30,
+    "minimum_each_direction": 10,
+    "minimum_each_year": 10,
+    "minimum_each_year_direction": 2,
+    "both_gth_and_rth": true,
+    "minimum_major_shock_fronts": 4,
+    "minimum_ordinary_fronts": 20,
+    "minimum_failed_fast_controls": 5,
+    "minimum_tradeable_candidates": 20,
+    "minimum_tradeable_candidates_each_direction": 5,
+    "minimum_tradeable_candidates_each_year": 5,
+    "cadence_capacity": "tradeable candidate count must be sufficient in principle to lift Stage112 above 200 trades per year after overlap"
+  },
+  "known_incident": {
+    "role": "design specimen only outside historical count tape",
+    "required": "fresh Stage114 UP authority at 2026-08-06T05:30:38Z resets the failed 03:50 ordinary front and becomes tradeable by the 05:35 or 05:45 completed propagation state",
+    "negative_control": "the 01:25 UP impulse has no major-shock epoch and cannot inherit the later 05:30 authority"
+  },
+  "invariants": {
+    "no_outcome_access": true,
+    "no_news_direction": true,
+    "no_stage112_change": true,
+    "no_xsp_or_gold_change": true,
+    "no_market_orders": true,
+    "submitted_orders": 0
+  }
+}

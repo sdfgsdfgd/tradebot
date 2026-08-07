@@ -1,0 +1,36 @@
+{
+  "schema": "mcl.phase-front-raw-confirmation-stage125-development-preregistration.v1",
+  "registered_at_utc": "2026-08-07T17:28:00+00:00",
+  "authority": "one_adaptive_full_history_development_replay_no_unseen_claim_no_orders_no_capital",
+  "hypothesis": "A qualified cross-book phase front supplies V18's missing maturation. At its same-direction raw turn, admit raw-direction continuation at the next open and suppress only the redundant paired maturation; thereafter retain the exact Stage-112 lifecycle and risk envelope.",
+  "one_policy_no_sweep": {
+    "signals": "exact 101 Stage-125 count events",
+    "flat_at_raw": "schedule one V18 continuation for next open",
+    "same_direction_position_at_raw": "retain without a fill",
+    "opposite_position_at_raw": "preserve Stage-112 raw flatten and do not same-open reverse",
+    "paired_maturation": "ignore only the maturation carrying the exact confirmed raw signal timestamp",
+    "subsequent_lifecycle": "byte-identical Stage-112 V18 shock arbitration profit memory raw turns loss cap weekly flat roll and gaps",
+    "new_exit_threshold": false,
+    "new_magnitude_threshold": false,
+    "threshold_sweep": false
+  },
+  "frozen_inputs": {
+    "count_pass": {"path": "backtests/mcl/mcl_phase_front_raw_confirmation_stage125_count_pass.json", "sha256": "d59bc441001c22a214f7855df5e9f3c398dded908cba4c148b1f0ec3d326d910"},
+    "count_result": {"path_on_q": "/var/tmp/mcl-stage125-phase-front-raw-confirmation-count.json", "sha256": "872a98f3d2bc3afe4a7b6e810248571ecc5a144f12b8a97b95f05d0d5f3fc3bc"},
+    "count_evaluator": {"path_on_q": "/var/tmp/mcl_stage125_phase_front_raw_confirmation_count.py", "sha256": "68496bb030ea647f2b499cfb3b82419d25bfae559374e87afd471c3f9f7074ed"},
+    "stage112_reference": {"path_on_q": "/var/tmp/mcl-stage112-full-live-risk-parity.json", "sha256": "bb0f40f42f22f5888ade3719ace3b9f95813f8fb3575ecfa06682353d90ac2df"},
+    "dated_hydration_manifest": {"path": "db/MCL/dated/hydration_manifest.json", "sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55"}
+  },
+  "development_gate": {
+    "exact_disabled_stage112_parity": true,
+    "full_and_each_year_primary_and_stressed_positive": true,
+    "pnl_dd_improvement_at_least_3pct_in_most_available_one_year_periods": true,
+    "full_pnl_dd_above_stage112": true,
+    "trade_count_above_stage112_and_annualized_at_least_200": true,
+    "both_directions_and_all_origins_primary_positive": true,
+    "worst_trade_not_below_stage112": true,
+    "no_new_drawdown_or_tail_regression_without_material_compensation": true
+  },
+  "known_2026_08_06_incident_is_outside_historical_tape_and_must_be_replayed_separately": true,
+  "submitted_orders": 0
+}

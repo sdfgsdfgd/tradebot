@@ -1,0 +1,33 @@
+{
+  "schema": "mcl.propagation-motion-stage122-development-rejection.v1",
+  "authority": "adaptive_full_history_development_rejection_no_unseen_claim_no_orders_no_capital",
+  "preregistration": {
+    "path": "backtests/mcl/mcl_propagation_motion_stage122_development_preregistration.json",
+    "sha256": "d152855c9fb196c5e66492d7d09339072b28c6d81bfd5d4e52f2aae5e3be7aec"
+  },
+  "evaluator": {
+    "path_on_q": "/var/tmp/mcl_stage122_propagation_motion_development.py",
+    "sha256": "f9081a00795673645dd3a2ddbe544cf864755616b9a7884d471b19adef1e1c80"
+  },
+  "result": {
+    "path_on_q": "/var/tmp/mcl-stage122-propagation-motion-development.json",
+    "sha256": "f9632c0bd0951bcdab5604996815f0915b59bb82e6f8eec31b4ca072ba2b2a32",
+    "ledger_sha256": "80fd23d53713b93c3287a8e487431b1f62f469f8f762233b505f097718a73cb8",
+    "stage112_exact_parity": true,
+    "trades": 447,
+    "annualized_trades": 223.6530821917808,
+    "primary_net": 3770.309999999997,
+    "stress_net": 2876.3099999999977,
+    "intrabar_drawdown": 611.1599999999999,
+    "pnl_dd": 6.169104653445903,
+    "full_pnl_dd_improvement_pct": -5.557542830199047,
+    "yearly_pnl_dd_improvement_pct": {"year_1": -2.54303683659729, "year_2": -6.421949844378327},
+    "bridge_primary_net": -172.680000000002,
+    "bridge_stress_net": -290.68000000000194,
+    "verdict": "ADAPTIVE_DEVELOPMENT_REJECT"
+  },
+  "decision": "Reject the ordinary propagation-motion bridge even under the prospective 3-percent-in-most-years amendment. Do not retune its recoil, stall, or threshold law from exposed outcomes.",
+  "retained_finding": "Ordinary cross-book phase fronts may remain permission or maturation evidence, but they have not earned independent entry authority. Authentic Stage-114 major-shock epochs remain a categorically separate prospective lane.",
+  "live_stage112_changed": false,
+  "submitted_orders": 0
+}

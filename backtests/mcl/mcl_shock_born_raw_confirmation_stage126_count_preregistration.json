@@ -1,0 +1,44 @@
+{
+  "schema": "mcl.shock-born-raw-confirmation-stage126-count-preregistration.v1",
+  "authority": "outcome_sealed_count_only_no_orders_no_capital",
+  "hypothesis": "A major reversal shock may retain one dormant directional epoch after normalization. The epoch becomes tradeable only when the same direction later earns native raw confirmation while both contracts retain the reversal extreme; ordinary phase fronts never receive this privilege.",
+  "frozen_inputs": {
+    "stage119_major_reversal_anchors": {
+      "path_on_q": "/var/tmp/mcl-stage119-reversal-bridge-count.json",
+      "sha256": "4c98221f93c613277cc7805995811dba06ae1ee1ec09ff4ad53f506d5127c814"
+    },
+    "stage125_raw_confirmations": {
+      "path_on_q": "/var/tmp/mcl-stage125-phase-front-raw-confirmation-count.json",
+      "sha256": "872a98f3d2bc3afe4a7b6e810248571ecc5a144f12b8a97b95f05d0d5f3fc3bc"
+    },
+    "stage121_cross_book_owner": {
+      "path_on_q": "/var/tmp/mcl_stage121_cross_book_phase_front_count.py",
+      "sha256": "32f109a26f5d6cae2d3aed1396060677831a441d07ac1edacfe83a0da9958d18"
+    },
+    "dated_hydration_manifest": {
+      "path": "db/MCL/dated/hydration_manifest.json",
+      "sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55"
+    }
+  },
+  "frozen_law": {
+    "epoch_open": "existing Stage119 major anchor: prior flush volume >=5x and range >=2x, opposite reversal volume >=12x and range >=2x",
+    "epoch_reset": "the next major anchor or contract boundary replaces the epoch",
+    "structural_survival": "both CL and MCL must never breach the reversal bar extreme against the epoch direction",
+    "confirmation": "consume once at the first Stage125 strict native raw confirmation; same direction emits, opposite direction revokes",
+    "ordinary_fronts": "never eligible without a live major-shock epoch",
+    "time_limit": "none; structural invalidation, authoritative contradiction, or contract reset owns expiry"
+  },
+  "count_gate": {
+    "minimum_events": 6,
+    "maximum_events": 24,
+    "minimum_each_direction": 2,
+    "minimum_each_year": 2,
+    "both_GTH_and_RTH": true
+  },
+  "incident_contract": {
+    "must_capture_after_count_pass": "2026-08-06 UP epoch may confirm at the 06:40 raw turn and schedule the 06:41 next-open entry",
+    "must_reject": "the 2026-08-06 01:25 UP impulse has no preceding major reversal epoch"
+  },
+  "outcomes_exposed": false,
+  "submitted_orders": 0
+}

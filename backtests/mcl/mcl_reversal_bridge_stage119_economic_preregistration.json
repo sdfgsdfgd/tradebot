@@ -1,0 +1,114 @@
+{
+  "schema": "mcl.reversal-bridge-stage119-economic-preregistration.v1",
+  "registered_at_utc": "2026-08-07T16:02:34Z",
+  "authority": "frozen_two_year_selection_and_locked_challenge_no_orders_no_capital",
+  "objective": "test whether a fresh major flush-reversal epoch plus multiscale propagation can complement Stage 112 without loosening V18 or using volume as direction",
+  "known_incident": {
+    "role": "design_specimen_only_excluded_from_historical_selection_and_challenge",
+    "low_at_utc": "2026-08-06T05:31:00Z",
+    "stage114_authority_at_utc": "2026-08-06T05:30:38Z",
+    "direction": "up"
+  },
+  "frozen_inputs": {
+    "stage112_result": {
+      "path_on_q": "/var/tmp/mcl-stage112-full-live-risk-parity.json",
+      "sha256": "bb0f40f42f22f5888ade3719ace3b9f95813f8fb3575ecfa06682353d90ac2df",
+      "ledger_sha256": "e4d18b52dd6f791371722077c111bd717e4feb63654b4a9fc068b58c06b83aa7"
+    },
+    "count_evaluator": {
+      "path_on_q": "/var/tmp/mcl_stage119_reversal_bridge_count.py",
+      "sha256": "fbcd7634e51f5c23cab3d75e8bdf2f91358acdedab13d6ee96c9bf63140057a2"
+    },
+    "count_result": {
+      "path_on_q": "/var/tmp/mcl-stage119-reversal-bridge-count.json",
+      "sha256": "4c98221f93c613277cc7805995811dba06ae1ee1ec09ff4ad53f506d5127c814"
+    }
+  },
+  "periods": {
+    "selection_year_1": [
+      "2024-08-04T00:00:00Z",
+      "2025-08-04T00:00:00Z"
+    ],
+    "locked_challenge_year_2": [
+      "2025-08-04T00:00:00Z",
+      "2026-08-04T00:00:00Z"
+    ]
+  },
+  "reversal_epoch_law": {
+    "flush": "completed minute strict direction d with volume at least 5x and dual-book range at least 2x",
+    "reversal": "next minute makes a same-edge extreme, one-minute direction, velocity, and acceleration all equal -d, volume at least 12x, dual-book range at least 2x, and strict direction is either -d or unresolved",
+    "reset": "the reversal starts a new epoch and never inherits an earlier ordinary phase-front failure",
+    "direction": "derived from dual-book price and velocity agreement only; volume has no directional vote",
+    "entry_clock": "first qualifying completed five-minute propagation close schedules the next one-minute open"
+  },
+  "declared_cells": {
+    "fixed": {
+      "flush_volume_multiple": 5.0,
+      "flush_range_multiple": 2.0,
+      "reversal_volume_multiple": 12.0,
+      "reversal_range_multiple": 2.0
+    },
+    "velocity_breadth": [
+      4,
+      5
+    ],
+    "slope_breadth": [
+      1,
+      2
+    ],
+    "maximum_confirmation_bars": [
+      1,
+      2,
+      3
+    ],
+    "exit_owner": [
+      "opposite_v18_raw_turn_or_central_risk_boundary",
+      "two_consecutive_fast_slope_and_velocity_failures_or_opposite_v18_raw_turn_or_central_risk_boundary"
+    ],
+    "total": 24
+  },
+  "ownership_law": {
+    "ordinary_v18_and_stage112_shock": "unchanged",
+    "same_direction_v18_raw_turn": "bridge remains owned; no mechanical flatten",
+    "same_direction_v18_maturation": "transfer bridge ownership to V18 only when admitted",
+    "opposite_v18_raw_turn": "flatten at next open",
+    "risk": "existing 300 USD raw-loss cap, Friday 16:53 ET flat, roll, and data-gap laws remain unconditional",
+    "execution": "one contract, next-open historical model, existing live accelerated LIMIT ladder only"
+  },
+  "selection_year_gate": {
+    "stage112_disabled_exact_ledger_parity": true,
+    "primary_and_stressed_net_positive": true,
+    "primary_net_not_below_stage112": true,
+    "primary_pnl_dd_at_least_5pct_above_stage112": true,
+    "intrabar_drawdown_not_above_stage112": true,
+    "trade_count_above_stage112": true,
+    "bridge_owner_primary_positive": true,
+    "both_full_book_directions_primary_positive": true,
+    "selection": "among passing cells choose the count-plateau medoid, then higher selection-year PnL/DD, then lower drawdown, then fewer degrees of freedom"
+  },
+  "locked_challenge_gate": {
+    "open_exactly_once_for_the_selected_cell": true,
+    "year_2_primary_and_stressed_net_positive": true,
+    "year_2_primary_net_not_below_stage112": true,
+    "year_2_primary_pnl_dd_at_least_5pct_above_stage112": true,
+    "year_2_intrabar_drawdown_not_above_stage112": true,
+    "full_primary_and_stressed_net_positive": true,
+    "full_primary_net_above_stage112": true,
+    "full_primary_pnl_dd_at_least_5pct_above_stage112": true,
+    "full_intrabar_drawdown_not_above_stage112": true,
+    "full_trade_count_above_stage112": true,
+    "annualized_trades_at_least": 200.0,
+    "both_directions_and_all_owners_primary_positive": true,
+    "worst_trade_not_below_stage112": true,
+    "known_incident_captured": "the selected cell must schedule the 2026-08-06 UP bridge no later than the 05:45 close / 05:46 next open",
+    "known_false_start_rejected": "the 2026-08-06 01:25 UP impulse must remain unadmitted because no major-shock reversal epoch exists"
+  },
+  "invariants": {
+    "no_news_direction": true,
+    "no_market_orders": true,
+    "no_sizing_change": true,
+    "no_live_authority": true,
+    "no_gold_or_xsp_change": true,
+    "submitted_orders": 0
+  }
+}

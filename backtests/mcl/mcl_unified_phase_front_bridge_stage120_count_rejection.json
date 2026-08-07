@@ -1,0 +1,29 @@
+{
+  "schema": "mcl.unified-phase-front-bridge-stage120-count-rejection.v1",
+  "generated_at_utc": "2026-08-07T16:38:00Z",
+  "authority": "historical_count_and_morphology_only_no_outcomes_no_orders_no_capital",
+  "preregistration": {
+    "path": "backtests/mcl/mcl_unified_phase_front_bridge_stage120_count_preregistration.json",
+    "sha256": "098b1f2913f85be9606244ff4cb1a92e8e0bea569ce02e236e88703a94d7f100"
+  },
+  "result": {
+    "path_on_q": "/var/tmp/mcl-stage120-unified-phase-front-count.json",
+    "sha256": "1acb10772c402defc7f9aa33befeaca8001885067fbb13670b0854cf883fd63c",
+    "evaluator_path_on_q": "/var/tmp/mcl_stage120_unified_phase_front_count.py",
+    "evaluator_sha256": "0c0d64fcf220e21cacaad440913902a7ee025f3003cd0ad7d854a9b668544e7c"
+  },
+  "identity": {
+    "decision_rows": 127889,
+    "major_anchors": 51,
+    "complete_fronts": 7037,
+    "failed_fast_controls": 4712,
+    "outcomes_exposed": false
+  },
+  "declared_cells": 8,
+  "passing_count_cells": 8,
+  "candidate_event_range": [694, 1960],
+  "decision": "REJECT_SINGLE_BOOK_ORDINARY_FRONT_SCHEMA_BEFORE_ECONOMICS",
+  "finding": "The Stage118 slow snapshot is CL-owned. Treating its fast velocity and slope front as full CL-MCL transport generated hundreds to thousands of ordinary oscillations. Count breadth was therefore false comfort, not tradeable specificity.",
+  "successor": "Require independent matched-MCL multiscale state, joint incumbent structure, joint fast-velocity ownership, both-book fast slope crosses, minimum breadth across books, ordered arrivals, and contracting zero-cross ETA before any economic replay.",
+  "submitted_orders": 0
+}

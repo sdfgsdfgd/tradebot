@@ -1,0 +1,25 @@
+{
+  "schema": "mcl.propagation-motion-stage122-count-receipt.v1",
+  "authority": "adaptive_morphology_count_only_no_outcomes_no_orders_no_capital",
+  "preregistration": {
+    "path": "backtests/mcl/mcl_propagation_motion_stage122_count_preregistration.json",
+    "sha256": "45d3fa0d6f5526e19e80e348aedf305943a73a12cf62775b712f26a057fbc139"
+  },
+  "evaluator": {
+    "path_on_q": "/var/tmp/mcl_stage122_propagation_motion_count.py",
+    "sha256": "ac33361fafa7e260a82a6a5940d83888d70346420217f64888ee2ceafdcccaf0"
+  },
+  "result": {
+    "path_on_q": "/var/tmp/mcl-stage122-propagation-motion-count.json",
+    "sha256": "0980c0a80fefb15545b350ff7be7ea76650a51ff6fc9f0a31a50c6466a136ff5",
+    "events": 71,
+    "directions": {"down": 43, "up": 28},
+    "years": {"year_1": 38, "year_2": 33},
+    "sessions": {"GTH": 53, "RTH": 18},
+    "slope_breadths": {"2": 19, "3": 31, "5": 21},
+    "count_pass": true
+  },
+  "interpretation": "Propagation motion has adequate adaptive morphology breadth. This receipt exposes no outcomes and grants no economic, live, order, or capital authority.",
+  "outcomes_exposed": false,
+  "submitted_orders": 0
+}

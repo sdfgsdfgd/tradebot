@@ -1,0 +1,48 @@
+{
+  "schema": "mcl.propagation-motion-stage122-count-preregistration.v1",
+  "registered_at_utc": "2026-08-07T17:06:45Z",
+  "authority": "adaptive_post_stage121_morphology_count_only_no_outcomes_no_orders_no_capital",
+  "contamination_disclosure": "Stage121 Year1 and Year2 aggregate outcomes and categorical landing anatomy were exposed before this mechanism was declared; Stage122 can prove breadth and development economics but cannot create new unseen crown evidence",
+  "predecessor_rejection": {
+    "path": "backtests/mcl/mcl_cross_book_phase_front_stage121_economic_rejection.json",
+    "sha256": "26ae15276eb254733b7c09c21784c2b88b91f874dfa2cd959bc71f2538cdb18e"
+  },
+  "frozen_count_source": {
+    "path_on_q": "/var/tmp/mcl-stage121-cross-book-phase-front-count.json",
+    "sha256": "51d9dbeee43c633edf5b0467ffb23137de492169a42710fb3c1c4b7c6af1e953"
+  },
+  "admission_law": {
+    "common": "independent CL/MCL 5-of-5 velocity alignment, ordered arrivals, two completed candidate bars, flat-only Stage112 arbitration",
+    "propagating_front": "joint slope breadth 2 or 3 and joint zero-cross ETA contraction on both declared Stage121 bars",
+    "full_lock": "joint slope breadth exactly 5 under the Stage121 no-ETA cell",
+    "penultimate_stall": "joint slope breadth exactly 4 is WAIT, never admission; authority resumes only through renewed contraction or 5-of-5 full lock",
+    "major_shock": "not represented by this historical ordinary-front owner; authentic Stage114 seconds authority remains a separate prospective lane"
+  },
+  "ownership_law": {
+    "post_cross_velocity_recoil": "loss by either fast velocity while both fast slopes remain aligned gets exactly one subsequent completed 5m bar to reacquire in both books; otherwise release",
+    "penultimate_stall_after_entry": "4-of-5 with non-contracting ETA gets exactly one subsequent completed 5m bar to reach full lock or resume contraction; otherwise release",
+    "hard_boundaries": "either fast slope loss, V18 raw turn, Stage112 shock handoff, raw-loss cap, weekly flat, roll, and gap remain absolute"
+  },
+  "count_gate": {
+    "minimum_events": 30,
+    "minimum_each_direction": 8,
+    "minimum_each_year": 10,
+    "minimum_each_year_direction": 3,
+    "both_gth_and_rth": true,
+    "maximum_events": 150,
+    "cadence_capacity": "enough flat-only non-overlapping opportunity to carry Stage112 composition above 200 trades per year"
+  },
+  "known_incident": {
+    "role": "separate authentic-seconds prospective proof",
+    "required": "2026-08-06 05:30:38 UP authority resets the stale front and schedules an entry by 05:46",
+    "negative_control": "01:25 remains unavailable without a major authority epoch"
+  },
+  "invariants": {
+    "one_categorical_law_no_sweep": true,
+    "no_outcomes_in_count": true,
+    "no_unseen_claim": true,
+    "no_stage112_live_change": true,
+    "no_xsp_or_gold_change": true,
+    "submitted_orders": 0
+  }
+}

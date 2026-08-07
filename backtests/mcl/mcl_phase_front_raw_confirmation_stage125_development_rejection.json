@@ -1,0 +1,46 @@
+{
+  "schema": "mcl.phase-front-raw-confirmation-stage125-development-rejection.v1",
+  "authority": "adaptive_development_rejection_no_orders_no_capital",
+  "preregistration": {
+    "path": "backtests/mcl/mcl_phase_front_raw_confirmation_stage125_development_preregistration.json",
+    "sha256": "0e3d5fd3cde146dffbb1157a72a03fcba02a602eb5b50d9e1992d8a18414d5a3"
+  },
+  "evaluator": {
+    "path_on_q": "/var/tmp/mcl_stage125_phase_front_raw_confirmation_development.py",
+    "sha256": "a77e9b1f53cca46c1cc0ea4a1631a60689ff8bda1ce77bc4d734d131896369c8"
+  },
+  "result": {
+    "path_on_q": "/var/tmp/mcl-stage125-phase-front-raw-confirmation-development.json",
+    "sha256": "a6487d01262b6ee99309e955737ab7035195fcb557140d9fe7f3ef451c627d83",
+    "ledger_sha256": "e41ef3b79f7673af98850ee313c6083c3d22cc625c7b2b6fd2989f3681505b03"
+  },
+  "exact_stage112_disabled_parity": {
+    "trades": "388/388",
+    "ledger_sha256": "e4d18b52dd6f791371722077c111bd717e4feb63654b4a9fc068b58c06b83aa7"
+  },
+  "candidate": {
+    "signals": 101,
+    "flat_admissions": 80,
+    "same_direction_retentions": 13,
+    "opposite_position_flat_only": 8,
+    "trades": 424,
+    "annualized_trades": 212.14520547945204,
+    "primary_net_usd": 4502.770000000008,
+    "stressed_net_usd": 3654.770000000008,
+    "primary_intrabar_drawdown_usd": 717.3999999999974,
+    "primary_pnl_dd": 6.276512405910265,
+    "full_pnl_dd_improvement_pct": -3.9132439194723423,
+    "year_1_pnl_dd_improvement_pct": -19.008451536043037,
+    "year_2_pnl_dd_improvement_pct": 24.209549562203225,
+    "worst_trade_usd": -333.5200000000011
+  },
+  "concentration": {
+    "year_2_largest_positive_month_share": 0.5201211511974765,
+    "best_trade_usd": 1744.4800000000005,
+    "best_trade_signal_utc": "2026-04-07T18:20:00+00:00",
+    "finding": "Higher net is dominated by one exceptional trade while Year 1 and full-campaign equity efficiency regress. The relaxed 3-percent-most-years gate still fails."
+  },
+  "verdict": "REJECT_BLANKET_ORDINARY_PHASE_FRONT_ADMISSION",
+  "live_stage112_changed": false,
+  "submitted_orders": 0
+}

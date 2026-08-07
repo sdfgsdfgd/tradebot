@@ -1,0 +1,46 @@
+{
+  "schema": "mcl.reversal-bridge-stage119-economic-rejection.v1",
+  "generated_at_utc": "2026-08-07T16:29:29Z",
+  "authority": "selection_year_rejection_locked_year_2_unopened_no_orders_no_capital",
+  "preregistration": {
+    "path": "backtests/mcl/mcl_reversal_bridge_stage119_economic_preregistration.json",
+    "sha256": "3ff9dc692c2897c2c5f61a3693746821bc1bc6f1085244f985083c82bc235fc7"
+  },
+  "result": {
+    "path_on_q": "/var/tmp/mcl-stage119-reversal-bridge-economics.json",
+    "sha256": "008fc2862896e4e4f043553f95e312523b0d1065b920a313f1cccfd677131044",
+    "evaluator_path_on_q": "/var/tmp/mcl_stage119_reversal_bridge_economics.py",
+    "evaluator_sha256": "36b695b466b16387bb16b76badfe2968c06e39e3dedb499b6cd1c08ee89da014"
+  },
+  "identity": {
+    "stage112_expected_trades": 388,
+    "stage112_actual_trades": 388,
+    "stage112_ledger_sha256": "e4d18b52dd6f791371722077c111bd717e4feb63654b4a9fc068b58c06b83aa7",
+    "exact_disabled_parity": true
+  },
+  "selection": {
+    "declared_cells": 24,
+    "passing_cells": 0,
+    "locked_year_2_exposed": false,
+    "best_key": "v5_s2_b2_raw",
+    "stage112_primary_net": 2009.969999999992,
+    "candidate_primary_net": 2073.889999999992,
+    "incremental_primary_net": 63.92,
+    "stage112_intrabar_drawdown": 592.6600000000004,
+    "candidate_intrabar_drawdown": 592.6600000000008,
+    "stage112_primary_pnl_dd": 3.391438598859364,
+    "candidate_primary_pnl_dd": 3.499291330611125,
+    "pnl_dd_improvement_pct": 3.180134603267671,
+    "required_improvement_pct": 5.0,
+    "bridge_origin_trades": 4,
+    "bridge_origin_primary_net": 88.92000000000012
+  },
+  "anatomy": {
+    "path_on_q": "/var/tmp/mcl-stage119-selection-anatomy.json",
+    "sha256": "e504f2056d962ed4a45513be206a02a7880e6dfb387202d8b51e70f4811b3113",
+    "finding": "Opposite-raw ownership made the sparse reversal bridge positive; the two-bar fast-failure exit destroyed value. The largest false reversal confirmed after ATR normalized and interrupted a valid V18 position. ATR-only filtering was rejected before economics because it collapsed breadth and could not reach 200 trades per year."
+  },
+  "decision": "REJECT_STAGE119_AS_CROWN_RETAIN_MAJOR_SHOCK_RESET_AND_OPPOSITE_RAW_OWNERSHIP",
+  "next_mechanism": "One unified phase-front bridge: fresh major-shock authority resets any stale epoch; failed fronts release immediately; major-shock and ordinary weak-turn origins share the same fast-ownership, slope-cross, lifecycle, risk, and LIMIT owners.",
+  "submitted_orders": 0
+}

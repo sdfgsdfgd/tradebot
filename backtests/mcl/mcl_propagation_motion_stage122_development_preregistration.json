@@ -1,0 +1,57 @@
+{
+  "schema": "mcl.propagation-motion-stage122-development-preregistration.v1",
+  "registered_at_utc": "2026-08-07T17:08:08Z",
+  "authority": "one_adaptive_full_history_development_replay_no_unseen_claim_no_orders_no_capital",
+  "contamination_disclosure": "both historical years were exposed during Stage121 rejection anatomy; this replay may falsify the mechanism or earn prospective incubation, but cannot crown or enter live",
+  "frozen_inputs": {
+    "stage122_count_preregistration": {
+      "path": "backtests/mcl/mcl_propagation_motion_stage122_count_preregistration.json",
+      "sha256": "45d3fa0d6f5526e19e80e348aedf305943a73a12cf62775b712f26a057fbc139"
+    },
+    "stage122_count_evaluator": {
+      "path_on_q": "/var/tmp/mcl_stage122_propagation_motion_count.py",
+      "sha256": "ac33361fafa7e260a82a6a5940d83888d70346420217f64888ee2ceafdcccaf0"
+    },
+    "stage122_count_result": {
+      "path_on_q": "/var/tmp/mcl-stage122-propagation-motion-count.json",
+      "sha256": "0980c0a80fefb15545b350ff7be7ea76650a51ff6fc9f0a31a50c6466a136ff5"
+    },
+    "stage121_lifecycle_evaluator": {
+      "path_on_q": "/var/tmp/mcl_stage121_cross_book_phase_front_economics.py",
+      "sha256": "a48851ef3c9beddc87877a9057d48ae713cba158b3adb5d5da49bf7a700de3a5"
+    },
+    "stage121_rejection": {
+      "path": "backtests/mcl/mcl_cross_book_phase_front_stage121_economic_rejection.json",
+      "sha256": "26ae15276eb254733b7c09c21784c2b88b91f874dfa2cd959bc71f2538cdb18e"
+    },
+    "stage112_reference": {
+      "path_on_q": "/var/tmp/mcl-stage112-full-live-risk-parity.json",
+      "sha256": "bb0f40f42f22f5888ade3719ace3b9f95813f8fb3575ecfa06682353d90ac2df"
+    }
+  },
+  "admission": "the exact 71-event Stage122 count ledger with flat-only Stage112 arbitration and next-minute-open MCL execution",
+  "release": {
+    "fast_slope_loss": "immediate next-open release if either book loses the fast slope",
+    "fast_velocity_recoil": "one subsequent completed 5m bar for both books to reacquire fast velocity, otherwise next-open release",
+    "penultimate_stall": "one subsequent completed 5m bar for a non-contracting 4-of-5 state to resume contraction or reach 5-of-5, otherwise next-open release",
+    "existing_boundaries": "V18 raw turn, Stage112 shock, loss cap, weekly flat, roll, and gap remain absolute"
+  },
+  "development_gate": {
+    "full_and_each_year_primary_stressed_positive": true,
+    "full_and_each_year_net_not_below_stage112": true,
+    "full_and_each_year_pnl_dd_improvement_pct_minimum": 3.0,
+    "full_and_each_year_drawdown_not_above_stage112": true,
+    "annualized_trades_minimum": 200.0,
+    "both_directions_and_all_origins_primary_positive": true,
+    "bridge_origin_primary_and_stressed_positive": true,
+    "worst_trade_not_below_stage112": true,
+    "known_incident_separate_prospective_proof_required": true
+  },
+  "invariants": {
+    "one_policy_no_sweep": true,
+    "no_crown_from_adaptive_history": true,
+    "no_stage112_live_change": true,
+    "no_xsp_or_gold_change": true,
+    "submitted_orders": 0
+  }
+}

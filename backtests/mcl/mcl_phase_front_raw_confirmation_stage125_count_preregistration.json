@@ -1,0 +1,26 @@
+{
+  "schema": "mcl.phase-front-raw-confirmation-stage125-count-preregistration.v1",
+  "registered_at_utc": "2026-08-07T17:24:00+00:00",
+  "authority": "adaptive_count_only_no_outcomes_no_orders_no_capital",
+  "hypothesis": "A cross-book phase front that survives to a same-direction V18 raw turn has already supplied maturation. When both books have no opposing slope, at most one neutral slope, and all five velocities aligned, the raw turn is continuation confirmation rather than magnitude-only exhaustion.",
+  "single_declared_law": {
+    "active_front_terminal": "V18_RAW_TURN",
+    "raw_direction_equals_front_direction": true,
+    "each_CL_and_MCL_slope_vector": "at_least_four_aligned_zero_opposing_at_most_one_neutral",
+    "each_CL_and_MCL_velocity_vector": "all_five_aligned",
+    "neutral_is_not_opposition": true,
+    "independent_entry_before_raw_turn": false,
+    "magnitude_threshold_change": false,
+    "threshold_sweep": false
+  },
+  "frozen_inputs": {
+    "stage124_rejection": {"path": "backtests/mcl/mcl_major_shock_topology_lock_stage124_count_rejection.json", "sha256": "0faca0b70536acdd96596eac83255a85773379784f9f1a45c54f8b9a0186ce24"},
+    "stage121_count": {"path_on_q": "/var/tmp/mcl-stage121-cross-book-phase-front-count.json", "sha256": "51d9dbeee43c633edf5b0467ffb23137de492169a42710fb3c1c4b7c6af1e953"},
+    "stage121_evaluator": {"path_on_q": "/var/tmp/mcl_stage121_cross_book_phase_front_count.py", "sha256": "32f109a26f5d6cae2d3aed1396060677831a441d07ac1edacfe83a0da9958d18"},
+    "stage119_count": {"path_on_q": "/var/tmp/mcl-stage119-reversal-bridge-count.json", "sha256": "4c98221f93c613277cc7805995811dba06ae1ee1ec09ff4ad53f506d5127c814"},
+    "dated_hydration_manifest": {"path": "db/MCL/dated/hydration_manifest.json", "sha256": "1085ce89502cc1c511d1887d137d30c9c37e54ded23e761afbdf8c46a2736d55"}
+  },
+  "count_gate": {"minimum_events": 12, "maximum_events": 160, "minimum_each_direction": 3, "minimum_each_year": 4, "minimum_each_year_direction": 1, "both_GTH_and_RTH": true},
+  "outcomes_exposed": false,
+  "submitted_orders": 0
+}

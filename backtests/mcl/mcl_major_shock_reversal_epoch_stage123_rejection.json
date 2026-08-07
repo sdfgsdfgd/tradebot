@@ -1,0 +1,11 @@
+{
+  "schema": "mcl.major-shock-reversal-epoch-stage123-rejection.v1",
+  "authority": "known_incident_causal_morphology_rejection_no_economic_replay_no_orders_no_capital",
+  "preregistration": {"path": "backtests/mcl/mcl_major_shock_reversal_epoch_stage123_preregistration.json", "sha256": "360c6559522a54d58c2f2d227bb838804fef9abb9dba321d1e037a07d89f6095"},
+  "evaluator": {"path_on_q": "/var/tmp/mcl_stage123_major_shock_reversal_epoch.py", "sha256": "7cc82cb00a17937bf256103251ca67985cb64386798d9ef0f9a349ee8f07148a"},
+  "result": {"path_on_q": "/var/tmp/mcl-stage123-major-shock-reversal-epoch.json", "sha256": "8d5e41b2f758dd86a62c1fbc9a742558539db0bc334b39244ad888866e375e09", "verdict": "STRICT_ORDERED_ETA_LAW_REJECTED", "incident_captured": false, "false_start_rejected": true},
+  "cause": "At 05:45 both books had two aligned slopes and four aligned velocities, but the 60-minute slope crossed before the 30-minute slope and median crossing ETA temporarily widened. The preregistered strict order and monotone-ETA clauses therefore fail.",
+  "adaptive_observation": "At the same 05:45 close, CL and MCL independently shared exactly the same UUDDD slope topology and UDUUU velocity topology while retaining the 74.57/74.58 epoch lows. This topology-lock distinction was not preregistered and grants no authority here.",
+  "live_stage112_changed": false,
+  "submitted_orders": 0
+}
