@@ -31,6 +31,7 @@ transcripts and routine test output do not belong here.
 | Annual frontier | Y1 `219 / +68.0848 / 6.4966` (`+29.39%` PnL/DD); Y2 `195 / +90.1283 / 6.4179` (`+45.23%`); Y3 `234 / +147.4024 / 8.7949` (`+4.19%`) |
 | Attribution | UP `+113.7100`; DOWN `+191.9056`; RTH `469 / +295.4100`; unchanged GTH `179 / +10.2056`; both directions and lanes positive |
 | Live boundary | Fresh immutable selection `e0f61f74…` is `CANARY_LIVE` through the existing RTH UPRO/SPXU cash transport. The positive historical GTH lane remains incumbent-v3 research behavior, not overnight cash order authority |
+| Opening readiness | P-009 is causally prewarmed before the bell from the completed `09:25/09:30 ET` full-session SPY 5m bars plus its rolling `75m` slow front. It may emit from completed opening minutes `5–7` and enter on the next native minute (`~09:36–09:38 ET`). Ordinary v3 remains the exact later fallback around `10:05/10:06`; RTH `close_eod` forces cash exposure flat at session end, never overnight |
 | Existing owner | One central dual-clock arbiter: incumbent v3 entry/exit/lifecycle remains on its exact completed-5m clock; only bridge-owned pre-v3 intervals use native opening-minute timing, with explicit handoff/release |
 | Existing seconds atlas | One content-addressed SPY/UPRO/SPXU tape and pure `1/3/5/10/15/30/45s` pressure atlas are frozen. P-009 generation `4c737948…` inherited exactly one outcome-blind treatment across succession; cohort `1/30`, no permission or outcome authority |
 | Closed shortcut | Broad historical pressure `ADMIT_NOW/WAIT/REVOKE` passed count first, then failed economics: combined `589` trades, `196.28/year`, `-$31.07` versus exact-latency baseline, and only one of three yearly PnL/DD slices improved |
@@ -450,6 +451,7 @@ gate after outcomes.
 | P-009 commissioning | Crown `e3d4b968…`, durable parity `6a81ea01…`, selection `e0f61f74…`, plan `5dc25036…`; installed central worker/timer match repository, what-if previews pass, broker flat/orderless, submitted `0` | `CANARY_LIVE`; RTH cash only, GTH execution still disabled, authentic graduation starts from the fresh run |
 | P-009 first natural GTH recurrence | Receipt `1fc7d8e7…`: timer `00:22Z` produced exact P-009 source `e5dc3c75…` plus transport `99943819…`: `flat_target`, no leg/position/order/fill/P&L/DD/breach, live type-1 books, broker flat/orderless, and pressure atlas still observation-only `1/30`; service exited `0` with installed-unit parity | `PASS_FIRST_NATURAL_GTH_RECURRENCE / GRADUATION_ACCUMULATE`. The profitability owner correctly reports `no_complete_session_due` with intact coverage—neither a fake pass nor quarantine. First lawful 24h evidence is `2026-08-07T21:49:55Z` |
 | P-009 Pressure Atlas overnight boundary | Four natural post-selection worker invocations through `02:52Z` each reported `source_candidates=0`, `appended=0`, and exact `FROZEN_ACCUMULATE 1/30`; ledger remained one row / `30099fdf…` | Correct isolation: the frozen Atlas admits fresh crowned RTH targets only. The observed GTH DOWN turn may inform the crown's 24/5 state but cannot manufacture an RTH pressure treatment, classifier, permission, outcome, or order. Wait for the next authentic RTH crown target |
+| P-009 first-RTH readiness audit | Installed source/units match repository byte-for-byte; the live owner fetches fresh uncached XSP/SPY native 1m RTH history, removes the forming bar, requires aligned fresh close clocks, and runs at `09:31–09:59 ET +3s`. Focused production proof: `195 passed` | No extra warmup service or state carry is needed. The first lawful bridge decision is the completed `09:35 ET` minute and the first possible LMT target is `09:36 ET`; the separate seconds pressure tape remains observation-only |
 
 ## 12. Decision journal
 
@@ -472,6 +474,7 @@ gate after outcomes.
 | PD-015 | P-009 live cash execution remains RTH-only through the single shared LMT/AUTO worker. Positive unchanged GTH research cannot create overnight order authority. Recent 10–84-session underperformance requires bounded live graduation, not de-coronation or retrospective edits |
 | PD-016 | Keep the content-addressed pressure recorder immutable and bound its session lifetime centrally in systemd: intentional `6h50m` timeout stays stopped until the next `09:20 ET` timer activation; only genuine exit status `1` restarts. This removes after-hours waste without changing evidence, signals, or live authority |
 | PD-017 | Separate P-009's live-selection profitability clock from each signal-session warmup anchor. Natural GTH may start a fresh observation segment while the immutable selection clock continues uninterrupted; neither clock may inherit predecessor economics, manufacture a complete session, or open GTH cash authority |
+| PD-018 | Opening prewarm is an input-history seam, not cross-day fast-state carry: reuse completed premarket SPY range/volume plus the rolling 75m front, then let current-session native XSP/SPY minutes own direction. Preserve ordinary v3's daily reset and exact 5m lifecycle; never warm it by replaying synthetic current-session bars |
 
 ## 13. Current execution sequence
 
@@ -503,11 +506,13 @@ gate after outcomes.
     succeeded shared-capital plan, outcome-blind pressure generation, LMT-only
     preview, restart proof, installed-unit parity, and zero-order broker proof
     bind P-009 to the existing central worker.
-11. `[ACTIVE / FIRST NATURAL RECURRENCE PASSED]` Natural GTH source/transport,
-    broker reconciliation, pressure accumulation, installed-unit identity, and
-    no-complete-session profitability semantics are exact. Continue authentic
-    `24h`, `48h`, and five-session after-cost reductions. Do not retune from the
-    disclosed recent weakness or synthesize an overnight cash path.
+11. `[ACTIVE / FIRST NATURAL RECURRENCE PASSED / FIRST RTH DUE]` Natural GTH
+    source/transport, broker reconciliation, pressure accumulation,
+    installed-unit identity, and no-complete-session profitability semantics are
+    exact. Opening prewarm and the `+3s` native-minute clock are production-ready;
+    observe the first authentic RTH session, then continue `24h`, `48h`, and
+    five-session after-cost reductions. Do not retune from the disclosed recent
+    weakness or synthesize an overnight cash path.
 
 ## Conclusion: XSP P-009 Dual-Clock Arbitration
 
