@@ -1126,6 +1126,34 @@ Prepend every future crown or challenger using this evidence order:
 
 ## Crown history — newest first
 
+### LC-002 · 2026-08-07 · Stage 76 graduation coverage succession
+
+- **Epoch-1 verdict:** immutable `24h QUARANTINE`, receipt `0cdb71d…`,
+  SHA-256 `890e6468…`. The reducer observed `287/288` due slots; the sole
+  missing slot was `2026-08-06T21:32:00Z`, when three natural invocations
+  failed closed because the selected 1OZ contract had no fresh streaming NBBO.
+  Runtime parity, identity, restart, attribution, capital stability, and risk
+  passed; zero fills/orders meant no profitability was inferred.
+- **Central repair:** commit `20a32f00…` persists a reconciled, flat,
+  no-pending-order checkpoint as `entry_market_data_unavailable` when entry
+  quotes are absent. A held position or pending order still hard-fails. The
+  repair changes no signal, selection, sizing, lifecycle, capital, or order
+  authority and cannot submit through an unavailable book.
+- **Fresh epoch:** immutable epoch `a82b7822…`, SHA-256 `60dec74c…`, starts at
+  the first natural post-registration slot `2026-08-07T02:27:00Z`; it chains
+  all three quarantined predecessor receipts without backfill, risk reset, or
+  inherited economics. Selection remains `62344ce2…` and capital plan remains
+  `5dc25036…`.
+- **First proof:** natural checkpoint `22e89cdd…` at
+  `02:27:00.772956Z` was `flat_no_target` on a fresh `4318.75/4319.00`
+  type-1 book with zero position/fills/net/DD/orders. Independent reductions at
+  cutoff `02:28:30Z` are byte-identical (`89a567f7…`) and correctly return
+  `HOLD`: every non-economic gate passes, execution is unobserved, and elapsed
+  time/eligible sessions remain incomplete. No coverage conflict remains.
+- **Next boundary:** earliest lawful epoch-2 `24h` evidence is
+  `2026-08-08T02:28:30Z`; then `48h` and five-session receipts remain required.
+  No trade, fill, session, or positive P&L may be manufactured to meet them.
+
 ### LC-001 · 2026-08-03 · Stage 76/77 one-contract live canary
 
 - **State:** `CANARY_LIVE_ARMED_FLAT_AWAITING_FRESH_STAGE76_ADMISSION`.
