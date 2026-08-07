@@ -1,0 +1,174 @@
+{
+  "schema": "live.portfolio-hawkeye.v1",
+  "observed_at_utc": "2026-08-07T15:27:09Z",
+  "authority": "read_only_causal_observation_and_incubator_reconciliation_no_signal_no_orders_no_capital",
+  "review_block": {
+    "review": 4,
+    "required": 6,
+    "scheduled_boundary_utc": "2026-08-07T15:23:10Z",
+    "review_started_at_utc": "2026-08-07T15:23:10Z",
+    "started_seconds_after_boundary": 0,
+    "settlement_completed_at_utc": "2026-08-07T15:27:09Z",
+    "missed_slots_backfilled": 0,
+    "status": "OBSERVATION_ONLY_4_OF_6"
+  },
+  "portfolio": {
+    "broker_capture": "read_only_at_review_start",
+    "available_funds_aud": 3261.50,
+    "excess_liquidity_aud": 3327.15,
+    "net_liquidation_aud": 3622.54,
+    "cash_balance_aud": 2119.39,
+    "cash_balance_usd": 289.0301,
+    "positions": [
+      {
+        "symbol": "SPXU",
+        "quantity": 23,
+        "average_cost": 33.7004316
+      }
+    ],
+    "open_orders": []
+  },
+  "xsp": {
+    "strategy_version": "xsp.opening-edge-v4-dual-clock-arbitration-p009.v1",
+    "live_target": {
+      "owner": "v3",
+      "direction": "down",
+      "symbol": "SPXU",
+      "quantity": 23,
+      "fill_price": 33.685,
+      "fill_time_utc": "2026-08-07T14:45:45.340852Z",
+      "boundary_bid": 33.56,
+      "boundary_ask": 33.57,
+      "boundary_open_mark_net_usd": -3.459926,
+      "peak_run_net_usd": 0.680074,
+      "realized_net_usd": 0.0,
+      "fills": 1,
+      "open_orders": 0,
+      "safety_breaches": []
+    },
+    "recoil_test": {
+      "decision_as_of_utc": "2026-08-07T15:20:00Z",
+      "slope_signs": "DUUU",
+      "velocity_signs": "DDDD",
+      "coherence": 0.25,
+      "conviction": 0.018369,
+      "direction_score": -0.073478,
+      "smoothed_direction_score": -0.044741,
+      "retrace_atr": 0.639876,
+      "atr_velocity_pct": -0.003012,
+      "atr_acceleration_pct": 0.005597,
+      "turn_event": null,
+      "interpretation": "the_prior_all_up_recoil_failed;_all_four_velocities_rolled_down_and_the_fast_slope_crossed_down_without_an_authentic_opposite_owner_handoff"
+    },
+    "pressure_atlas": {
+      "rows": 2,
+      "state": "ACCUMULATE_2_OF_30",
+      "sha256": "10c6ab4dcfb8e44d6a424b7575cfb094951fa23924b63aaddeb152f0ea58e084",
+      "order_authority": "none"
+    }
+  },
+  "mcl": {
+    "strategy_version": "mcl.two-speed-shock-arbiter.v112",
+    "position": 0,
+    "orders": 0,
+    "fills": 0,
+    "target_direction": null,
+    "latest_state": {
+      "decision_as_of_utc": "2026-08-07T15:22:00Z",
+      "trend_state": "up",
+      "abstain_reason": "weak_direction",
+      "slope_signs": "UUUUU",
+      "velocity_signs": "DUUUU",
+      "coherence": 1.0,
+      "conviction": 0.162838,
+      "direction_score": 0.153851,
+      "smoothed_direction_score": 0.102616,
+      "atr_ratio": 1.233647,
+      "atr_velocity_pct": -0.001398,
+      "atr_acceleration_pct": 0.009493,
+      "raw_direction": null,
+      "proposed_direction": null,
+      "admitted_direction": null
+    },
+    "deployment_timing_audit": {
+      "selection_started_at_utc": "2026-08-05T11:39:22.450404Z",
+      "down_raw_turn_at_utc": "2026-08-07T06:20:00Z",
+      "strategy_live_before_turn_seconds": 153638,
+      "raw_turn_slope_signs": "DDDDD",
+      "raw_turn_velocity_signs": "UUDDU",
+      "raw_turn_velocity_breadth": 2,
+      "raw_turn_parity_aligned": false,
+      "raw_turn_abstain_reason": "weak_direction",
+      "matured_alignment_at_utc": "2026-08-07T09:50:00Z",
+      "matured_slope_signs": "DDDDD",
+      "matured_velocity_signs": "DDDDD",
+      "matured_coherence": 1.0,
+      "matured_fresh_turn": false,
+      "conclusion": "not_a_deployment_or_order_miss;_the_live_owner_rejected_the_weak_raw_turn_then_had_no_midcycle_continuation_reacquisition_authority_after_full_maturation"
+    }
+  },
+  "gold": {
+    "strategy_version": "gold.1oz-regime-harmony-stage76.v1",
+    "state": "H4_UP_D1_DOWN_NO_TURN_NO_PROPOSAL",
+    "target_direction": null,
+    "position": 0,
+    "orders": 0,
+    "fills": 0
+  },
+  "news": {
+    "publication_id": "ed0d21b6798a60b98695d863100c6cbc9ec8925bc025de8f6d7eba525664d920",
+    "signal_as_of_utc": "2026-08-07T11:39:21Z",
+    "directions": {
+      "XSP": "down",
+      "MCL": "up",
+      "GC": "up"
+    },
+    "authority": "context_only"
+  },
+  "prospective_evidence": {
+    "xsp_pressure_atlas": {
+      "rows": 2,
+      "sha256": "10c6ab4dcfb8e44d6a424b7575cfb094951fa23924b63aaddeb152f0ea58e084"
+    },
+    "mcl_stage118_shock_waves": {
+      "rows": 5,
+      "candidate_cohort": "ACCUMULATE_1_OF_30",
+      "sha256": "056e852514d3b5568700cf47684e09f7c61affadcb6e4efc48abbcb9a48e51af"
+    },
+    "mcl_stage87_90_predictive_atlas": {
+      "rows": 11,
+      "sha256": "052cc3ab9a32f7f69c1f4a9ea2184bbf4a1fccf59d4b199da163232a8f5850fe"
+    }
+  },
+  "incubator": {
+    "retained_candidates": [
+      {
+        "rank": 1,
+        "candidate": "XSP_Pressure_Atlas",
+        "state": "ACCUMULATE_2_OF_30"
+      },
+      {
+        "rank": 2,
+        "candidate": "MCL_Stage118_Phase_Front_Subshock",
+        "state": "ACCUMULATE_1_OF_30"
+      }
+    ],
+    "selected_replay": null,
+    "replay_budget": {
+      "used": 0,
+      "available": 1,
+      "disposition": "LOCKED_UNTIL_REVIEW_6_OF_6"
+    }
+  },
+  "control_plane": {
+    "tradebot-live.target": "active",
+    "failed_units": 0
+  },
+  "invariants": {
+    "no_backfill": true,
+    "no_signal_or_threshold_change": true,
+    "no_replay_started": true,
+    "no_research_order_or_capital_authority": true
+  },
+  "next_hawkeye_boundary_utc": "2026-08-07T15:43:10Z"
+}
