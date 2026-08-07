@@ -1,0 +1,143 @@
+{
+  "schema": "mcl.stage116-volume-clock-audit-clarification.v1",
+  "authority": "read_only_append_only_evidence_clarification_no_episode_rewrite_no_outcomes_no_orders_no_capital",
+  "generated_at_utc": "2026-08-07T05:59:37.438245+00:00",
+  "source_revision": "47aa3885c876a417a293f737ff20ea4bdb90c1ea",
+  "bindings": {
+    "stage116_preregistration": {
+      "path": "backtests/mcl/mcl_subshock_ignition_recoil_reacceleration_stage116_preregistration.json",
+      "sha256": "2d081df5058a44ff736e0d26705a09b78f97c8b1b703a4ffd4d255f7d2920154"
+    },
+    "stage116_evidence_owner": {
+      "path": "tradebot/research/mcl_shock_evidence.py",
+      "sha256": "f435f744fb7db453230300685675122885e4277d0517cbb2f1ce15909088f803"
+    },
+    "stage116_result": {
+      "path_on_q": "/var/tmp/mcl-stage116-stage118-current-r7.json",
+      "sha256": "7501f80e4c09a3f01f60c44f1b4d351a2b33181fd56ae16f4bb480277fba2d32"
+    },
+    "diagnostic_evaluator": {
+      "path_on_q": "/var/tmp/mcl_stage116_volume_clock_diagnostic.py",
+      "sha256": "0f643416e74ac8d631152a17e3b5a611587c1d8b4423857120fe1bc330e3a5d6"
+    },
+    "diagnostic_result": {
+      "path_on_q": "/var/tmp/mcl-stage116-volume-clock-diagnostic.json",
+      "sha256": "0442bbf2585d0edd5b7f314c59255b56c370a5f1dd0cd8d31bb54437cb79d851"
+    },
+    "stage118_preregistration": {
+      "path": "backtests/mcl/mcl_multiscale_phase_front_stage118_preregistration.json",
+      "sha256": "7270c1e7b538213045000fac87bdfc4d89946e0b323f7d1b4413e4b756f6d564"
+    },
+    "stage118_evaluator": {
+      "path_on_q": "/var/tmp/mcl_stage118_multiscale_phase_front.py",
+      "sha256": "53cc0f208c757504d57d884ea706b940db83e2d137b60e705313c5b370abb8ed"
+    }
+  },
+  "bars_evidence": {
+    "authority": "authentic_shared_finalized_CL_MCL_broker_minutes_read_only",
+    "common_rows": 5999,
+    "first_common_close_utc": "2026-08-02T22:01:00+00:00",
+    "last_common_close_utc": "2026-08-07T05:59:00+00:00",
+    "sha256": "28dc29f4d32d6fd9966092818648387b8ffebb8c3c8bfeb9a4a037cebf86f839"
+  },
+  "root_cause": {
+    "old_projection": "episode-start-inclusive second receipts through terminal were bucketed by minute and compared with complete finalized broker minutes",
+    "defect": "a mid-minute episode deliberately excludes the pre-trigger receipt prefix, so its episode-owned suffix cannot be compared with the broker's complete trigger minute as if both covered the same interval",
+    "not_data_loss": true,
+    "not_signal_defect": true,
+    "not_stage112_runtime_defect": true
+  },
+  "projection_law": {
+    "episode_owned_suffix_volume": "retain the exact frozen episode-start through terminal receipts for morphology ownership",
+    "whole_receipt_minute_clock_comparison": "compare every receipt in each complete wall-clock minute with the corresponding finalized broker minute",
+    "remaining_small_differences": "preserve as IB TCP packet-receipt time versus finalized broker-minute boundary evidence; never reinterpret them as direction or missing data",
+    "frozen_episode_bytes": "unchanged"
+  },
+  "episodes": [
+    {
+      "episode_id": "7a8a1f6b9b985a5708dafce0a95241bafe2db603b377558ab306e5ad74df576b",
+      "started_at_utc": "2026-08-07T04:01:46+00:00",
+      "terminal_at_utc": "2026-08-07T04:06:41+00:00",
+      "episode_suffix_volume": 131.0,
+      "broker_complete_minute_volume": 191.0,
+      "old_apparent_difference": -60.0,
+      "omitted_pre_trigger_prefix": 59.0,
+      "whole_receipt_minute_volume": 190.0,
+      "whole_minute_difference": -1.0,
+      "trigger_minute": {
+        "start_utc": "2026-08-07T04:01:00+00:00",
+        "episode_suffix_volume": 31.0,
+        "whole_receipt_minute_volume": 90.0,
+        "broker_volume": 90.0
+      },
+      "whole_minute_differences": [0.0, 0.0, -1.0, 0.0, 0.0]
+    },
+    {
+      "episode_id": "29edbf1cde443d24d5217e65b842582657a0b1dd5c6cd3b1481c15cd72f3c735",
+      "started_at_utc": "2026-08-07T04:12:29+00:00",
+      "terminal_at_utc": "2026-08-07T04:21:42+00:00",
+      "episode_suffix_volume": 1158.0,
+      "broker_complete_minute_volume": 1289.0,
+      "old_apparent_difference": -131.0,
+      "omitted_pre_trigger_prefix": 121.0,
+      "whole_receipt_minute_volume": 1279.0,
+      "whole_minute_difference": -10.0,
+      "trigger_minute": {
+        "start_utc": "2026-08-07T04:12:00+00:00",
+        "episode_suffix_volume": 61.0,
+        "whole_receipt_minute_volume": 182.0,
+        "broker_volume": 182.0
+      },
+      "whole_minute_differences": [0.0, -1.0, 1.0, 0.0, -3.0, 3.0, 0.0, 0.0, -10.0]
+    },
+    {
+      "episode_id": "65aba29ec968089e02931779dbca33df9cf65603e3c320fe77428348b822d3fc",
+      "started_at_utc": "2026-08-07T04:30:59+00:00",
+      "terminal_at_utc": "2026-08-07T04:36:00+00:00",
+      "episode_suffix_volume": 562.0,
+      "broker_complete_minute_volume": 1174.0,
+      "old_apparent_difference": -612.0,
+      "omitted_pre_trigger_prefix": 649.0,
+      "whole_receipt_minute_volume": 1211.0,
+      "whole_minute_difference": 37.0,
+      "trigger_minute": {
+        "start_utc": "2026-08-07T04:30:00+00:00",
+        "episode_suffix_volume": 8.0,
+        "whole_receipt_minute_volume": 657.0,
+        "broker_volume": 620.0
+      },
+      "whole_minute_differences": [37.0, -1.0, 1.0, -1.0, 1.0, 0.0]
+    }
+  ],
+  "authority_consumption": {
+    "stage112_live": {
+      "volume_clock_audit_references": 0,
+      "signal_owner_sha256": "03d0c958dab724a9e1b8f36070a1cbbb8df700e4d37683ffd6977061d5b866b7",
+      "live_owner_sha256": "b54fd8b9a681ad796c6519e7587ad9ab3fa4ec0ddf4533ef0c0800351a498f05",
+      "transport_owner_sha256": "8b204647072bfe91ae2f29425c34c5c581c2305fa25022c4270360cab8a97add"
+    },
+    "stage118": {
+      "volume_clock_audit_references": 0,
+      "consumed_stage116_fields": [
+        "provisional_alignment.observed_at_utc",
+        "provisional_alignment.direction",
+        "provisional_alignment.record_id",
+        "episode_id",
+        "shape",
+        "maximum_volume_multiple",
+        "receipt_session"
+      ]
+    },
+    "direction_authority_changed": false,
+    "timing_authority_changed": false,
+    "threshold_changed": false,
+    "strategy_changed": false,
+    "selection_changed": false,
+    "service_or_timer_changed": false,
+    "capital_changed": false,
+    "order_authority_changed": false
+  },
+  "verdict": "PASS_APPEND_ONLY_CLOCK_CLARIFICATION_PRESERVE_FROZEN_EPISODES",
+  "outcomes_exposed": false,
+  "submitted_orders": 0
+}
