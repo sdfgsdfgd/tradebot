@@ -346,10 +346,10 @@ def test_committed_p009_pressure_successor_binds_the_live_run() -> None:
     generation, generation_sha = load_xsp_pressure_accumulator_generation()
 
     assert generation_sha == (
-        "d8f26874824be95c6e0eaa7532e31b1a7f8468602b454d4b700287ee05de0740"
+        "022ecc03ce88e3f0f1c8166de922fea610b74ac3c20f906d38aaec741b0c2360"
     )
     assert generation["generation_id"] == (
-        "4c737948773013297d8fd90f50a588f90e3fbbed7107e10958f4a528779ae82c"
+        "8a2b2eeb412e5eb8895c30d0f1b25b26467e99229cd8ef63ae0d37b88f7d94b5"
     )
     assert generation["selection_id"] == (
         "e0f61f74286e1d2b655e253633b0842cb47d41ad7b66fb4567eece3aa46d674b"

@@ -2,7 +2,7 @@
   "artifacts": {
     "crown_signal_clock_owner": {
       "path": "tradebot/research/xsp_live_transport.py",
-      "sha256": "32a2e7fb563818d8c855ab95fcd5e1f2b12370eff172132e1e0e134ca01c9016"
+      "sha256": "d9c066c2447ef41a5f09b17fd66f3ebfd16056edeeea53566f2c196530555b20"
     },
     "crown_signal_context_owner": {
       "path": "tradebot/research/xsp_context.py",
@@ -54,7 +54,7 @@
     "minimum_repeated_morphologies_each_candidate_family": 5
   },
   "eligible_start_utc": "2026-08-06T21:48:25.337314+00:00",
-  "generation_id": "4c737948773013297d8fd90f50a588f90e3fbbed7107e10958f4a528779ae82c",
+  "generation_id": "8a2b2eeb412e5eb8895c30d0f1b25b26467e99229cd8ef63ae0d37b88f7d94b5",
   "incumbent_strategy_version": "xsp.opening-edge-v4-dual-clock-arbitration-p009.v1",
   "inherited_treatment_ids": [
     "e93cebcaf418e3209c1c5749fbb59d00773effbe19567c8e3a448e34df83d9d8"
