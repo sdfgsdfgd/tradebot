@@ -14,6 +14,7 @@ from tradebot.backtest.models import BacktestResult, SpotTrade, SummaryStats
 from tradebot.client import BrokerOrderPreview
 from tradebot.live.capital import build_live_capital_plan
 from tradebot.research.gold_live_runtime import (
+    advance_gold_live_transport,
     execute_gold_transport_plan,
     gold_broker_snapshot,
     gold_live_contract,
@@ -509,6 +510,127 @@ def test_gold_plan_enters_only_a_fresh_post_selection_admission() -> None:
     )
     assert inherited["status"] == "HOLD"
     assert inherited["reason"] == "preselection_target_not_adopted"
+
+
+def test_gold_flat_quote_outage_persists_accounting_but_cannot_enter(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    selected_at = datetime(2026, 8, 3, 10, tzinfo=UTC)
+    selected = _selection(selected_at)
+    observed_at = selected_at + timedelta(minutes=7)
+    contract = gold_live_contract(selected)
+    ticker = SimpleNamespace(
+        contract=contract,
+        bid=float("nan"),
+        ask=float("nan"),
+        last=4109.25,
+        close=4109.0,
+        marketDataType=1,
+        tbTopQuoteUpdatedMono=None,
+    )
+
+    class Client:
+        async def ensure_ticker(self, _contract, *, owner: str):
+            assert owner == "gold-live-stage76"
+            return ticker
+
+    async def broker(_client):
+        return {
+            "account_id": "U123",
+            "account_type": "CASH",
+            "base_currency": "AUD",
+            "settled_cash_usd": 1318.05,
+            "equity_with_loan_aud": 2106.0,
+            "available_funds_aud": 2073.0,
+            "excess_liquidity_aud": 2078.0,
+            "initial_margin_aud": 33.0,
+            "maintenance_margin_aud": 29.0,
+            "gross_position_value_aud": 94.0,
+            "usd_to_aud": 1.427,
+            "positions": [],
+            "open_orders": [],
+        }
+
+    monkeypatch.setattr(
+        "tradebot.research.gold_live_runtime.gold_broker_snapshot", broker
+    )
+    ledger = LiveCalibrationLedger(tmp_path / "quote-outage.jsonl")
+    output = asyncio.run(
+        advance_gold_live_transport(
+            ledger,
+            client=Client(),
+            selection=selected,
+            source_checkpoint=_source(
+                observed_at - timedelta(minutes=1),
+                target=_target(observed_at - timedelta(minutes=2)),
+            ),
+            capital_plan={},
+            selection_file_sha256="a" * 64,
+            observed_at=observed_at,
+            quote_wait_seconds=0,
+        )
+    )
+
+    row = tuple(ledger.records())[-1]
+    assert output["status"] == "HOLD"
+    assert output["plan"]["reason"] == "entry_market_data_unavailable"
+    assert output["plan"]["leg"] is None
+    assert output["risk_state"]["position_from_fills"] == 0
+    assert output["submitted_orders"] == 0
+    assert row["evidence"]["phase"] == "STATE"
+    assert row["evidence"]["quote"]["health"]["eligible"] is False
+    assert row["evidence"]["submitted_orders"] == 0
+
+
+def test_gold_quote_outage_cannot_account_for_a_held_contract(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    selected_at = datetime(2026, 8, 3, 10, tzinfo=UTC)
+    selected = _selection(selected_at)
+    contract = gold_live_contract(selected)
+    ticker = SimpleNamespace(
+        contract=contract,
+        bid=float("nan"),
+        ask=float("nan"),
+        last=4109.25,
+        close=4109.0,
+        marketDataType=1,
+        tbTopQuoteUpdatedMono=None,
+    )
+
+    class Client:
+        async def ensure_ticker(self, _contract, *, owner: str):
+            return ticker
+
+    async def broker(_client):
+        return {
+            "account_id": "U123",
+            "positions": [
+                {
+                    "symbol": "1OZ",
+                    "con_id": selected["contract"]["con_id"],
+                    "quantity": 1.0,
+                }
+            ],
+            "open_orders": [],
+        }
+
+    monkeypatch.setattr(
+        "tradebot.research.gold_live_runtime.gold_broker_snapshot", broker
+    )
+    with pytest.raises(ValueError, match="lacks fresh streaming NBBO"):
+        asyncio.run(
+            advance_gold_live_transport(
+                LiveCalibrationLedger(tmp_path / "held-outage.jsonl"),
+                client=Client(),
+                selection=selected,
+                source_checkpoint=_source(selected_at),
+                capital_plan={},
+                selection_file_sha256="a" * 64,
+                observed_at=selected_at + timedelta(minutes=1),
+                quote_wait_seconds=0,
+            )
+        )
 
 
 def test_gold_plan_closes_and_reverses_without_waiting_for_rth() -> None:

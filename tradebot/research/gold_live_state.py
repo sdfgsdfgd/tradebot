@@ -189,6 +189,7 @@ def project_gold_transport_plan(
     open_orders: Sequence[Mapping[str, object]],
     risk_state: Mapping[str, object],
     observed_at: datetime,
+    entry_market_data_eligible: bool = True,
 ) -> dict[str, object]:
     selected = load_gold_live_selection_from_mapping(selection)
     now = _utc(observed_at)
@@ -204,6 +205,8 @@ def project_gold_transport_plan(
         or now < source_at
     ):
         raise ValueError("gold live source is invalid")
+    if not isinstance(entry_market_data_eligible, bool):
+        raise ValueError("gold entry market-data state is invalid")
     if open_orders:
         raise ValueError("gold plan requires a reconciled order-free broker state")
     held = _number(broker_position, name="gold broker position")
@@ -239,6 +242,9 @@ def project_gold_transport_plan(
         reason = (
             "close_before_reverse" if target_direction is not None else "signal_flat_exit"
         )
+    elif held_direction is None and not entry_market_data_eligible:
+        reason = "entry_market_data_unavailable"
+        desired_after_close = None
     elif held_direction is None and target_direction is not None:
         if target_time is None or target_time <= _utc(selected["selected_at_utc"]):
             reason = "preselection_target_not_adopted"

@@ -414,8 +414,6 @@ async def advance_gold_live_transport(
         if health.get("eligible") is True or time.monotonic() >= deadline:
             break
         await asyncio.sleep(0.1)
-    if health.get("eligible") is not True:
-        raise ValueError("gold selected contract lacks fresh streaming NBBO")
     if int(getattr(contract, "conId", 0) or 0) != int(
         selected["contract"]["con_id"]
     ):
@@ -433,6 +431,8 @@ async def advance_gold_live_transport(
     ]
     if len(pending) > 1:
         raise ValueError("gold selected run has multiple pending transitions")
+    if health.get("eligible") is not True and pending:
+        raise ValueError("gold selected contract lacks fresh streaming NBBO")
     open_orders = broker["open_orders"]
     assert isinstance(open_orders, Sequence)
     if pending:
@@ -484,7 +484,14 @@ async def advance_gold_live_transport(
         selected["contract"]["con_id"]
     ):
         raise ValueError("broker holds an unselected 1OZ contract")
-    liquidation = float(quote["bid"] if broker_position >= 0 else quote["ask"])
+    quote_eligible = health.get("eligible") is True
+    if not quote_eligible and broker_position != 0.0:
+        raise ValueError("gold selected contract lacks fresh streaming NBBO")
+    liquidation = (
+        float(quote["bid"] if broker_position >= 0 else quote["ask"])
+        if quote_eligible
+        else 0.0
+    )
     risk_state = gold_transport_risk_state(
         selection=selected,
         records=records,
@@ -509,6 +516,7 @@ async def advance_gold_live_transport(
         open_orders=[],
         risk_state=risk_state,
         observed_at=observed_at,
+        entry_market_data_eligible=quote_eligible,
     )
     preview = None
     if plan["status"] == "ACTIONABLE":

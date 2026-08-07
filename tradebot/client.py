@@ -7739,7 +7739,7 @@ class IBKRClient:
         await asyncio.sleep(float(_PROXY_ROUTE_SETTLE_SEC))
         if not self._proxy_tickers:
             return
-        for stage in range(len(_proxy_live_route_ladder(_now_et()))):
+        for stage in range(max(2, len(_proxy_live_route_ladder(_now_et())))):
             missing = self._proxy_symbols_needing_recovery()
             if not missing:
                 break
