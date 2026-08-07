@@ -35,6 +35,7 @@ from tradebot.research.gold_live_transport import (
     select_gold_live_transport,
     advance_gold_regime_harmony_source,
 )
+from tradebot.research.gold_profitability import gold_live_profitability_receipt
 from tradebot.research.gold_regime_harmony import (
     GOLD_REGIME_HARMONY_FULL10_LEDGER,
     GOLD_REGIME_HARMONY_FULL3_LEDGER,
@@ -580,6 +581,14 @@ def test_gold_flat_quote_outage_persists_accounting_but_cannot_enter(
     assert row["evidence"]["phase"] == "STATE"
     assert row["evidence"]["quote"]["health"]["eligible"] is False
     assert row["evidence"]["submitted_orders"] == 0
+    profitability = gold_live_profitability_receipt(
+        tuple(ledger.records()),
+        selection=selected,
+        as_of=observed_at + timedelta(seconds=90),
+    )
+    assert profitability["status"] == "ACTIVE"
+    assert profitability["reasons"] == []
+    assert profitability["clock"]["coverage_broken"] is False
 
 
 def test_gold_quote_outage_cannot_account_for_a_held_contract(
