@@ -1,0 +1,4 @@
+[Unit]
+Description=Control the isolated Tradebot live schedules and continuous owners
+Wants=tradebot-xsp-shadow.timer tradebot-xsp-pressure-tape.timer tradebot-gold-live.timer tradebot-gold-onset.timer tradebot-mcl-live.timer tradebot-mcl-turn-tape.service tradebot-mcl-predictive-onset-runtime.timer tradebot-news.timer tradebot-ib-gateway-tunnel.service
+PropagatesStopTo=tradebot-xsp-shadow.timer tradebot-xsp-pressure-tape.timer tradebot-gold-live.timer tradebot-gold-onset.timer tradebot-mcl-live.timer tradebot-mcl-turn-tape.service tradebot-mcl-predictive-onset-runtime.timer tradebot-news.timer

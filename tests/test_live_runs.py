@@ -400,6 +400,36 @@ def test_systemd_read_failure_becomes_unavailable_truth(monkeypatch) -> None:
     assert "timed out" in str(state["error"])
 
 
+def test_live_target_groups_owners_without_overriding_sleeve_controls() -> None:
+    target = (
+        Path(__file__).parents[1] / "deploy/systemd/tradebot-live.target"
+    ).read_text()
+    expected = {
+        "tradebot-xsp-shadow.timer",
+        "tradebot-xsp-pressure-tape.timer",
+        "tradebot-gold-live.timer",
+        "tradebot-gold-onset.timer",
+        "tradebot-mcl-live.timer",
+        "tradebot-mcl-turn-tape.service",
+        "tradebot-mcl-predictive-onset-runtime.timer",
+        "tradebot-news.timer",
+        "tradebot-ib-gateway-tunnel.service",
+    }
+    wants = next(line for line in target.splitlines() if line.startswith("Wants="))
+    stops = next(
+        line for line in target.splitlines() if line.startswith("PropagatesStopTo=")
+    )
+
+    assert set(wants.removeprefix("Wants=").split()) == expected
+    assert set(stops.removeprefix("PropagatesStopTo=").split()) == expected - {
+        "tradebot-ib-gateway-tunnel.service"
+    }
+    assert "[Install]" not in target
+    assert "Upholds=" not in target
+    assert "Requires=" not in target
+    assert "tradebot-mcl-narrative-prospective.service" not in target
+
+
 def test_unchanged_append_only_ledger_is_parsed_once(
     tmp_path: Path,
     monkeypatch,

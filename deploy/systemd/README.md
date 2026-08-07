@@ -51,6 +51,28 @@ q runs one isolated systemd failure domain per cadence and authority class:
   narrative companion;
 - `tradebot-ib-gateway-tunnel` is the shared localhost broker transport.
 
+`tradebot-live.target` is the additive control plane for those isolated owners.
+It is intentionally static: each champion's existing timer remains the source
+of boot persistence and the cockpit can still enable or disable one sleeve
+without the target resurrecting it at login. Install the target, then use it
+only for an explicit whole-runtime operation:
+
+```bash
+install -m 0644 deploy/systemd/tradebot-live.target ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user start tradebot-live.target
+systemctl --user status tradebot-live.target
+systemctl --user list-dependencies tradebot-live.target
+systemctl --user stop tradebot-live.target
+```
+
+Stopping or restarting the target disarms every grouped schedule and stops the
+continuous MCL tape. An already-running one-shot is allowed to reconcile and
+finish; the `StopWhenUnneeded` broker tunnel remains available until its final
+consumer exits. The target therefore never interrupts an in-flight account
+transaction. It changes no calendar, service log, strategy registry, broker
+authority, or `%t/tradebot-live-account.lock` serialization boundary.
+
 The old `tradebot-xsp-quotes`, `tradebot-mcl-predictive-onset`, and
 `tradebot-mcl-predictive-onset-stage114` pairs are retired. Do not install or
 enable them as part of the current runtime. Their repository templates remain

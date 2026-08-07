@@ -401,7 +401,7 @@ def test_systemd_budget_leaves_atomic_publication_grace() -> None:
         "install -m 0644 deploy/systemd/tradebot-news.{service,timer} "
         "~/.config/systemd/user/"
     ) in guide
-    producer = guide.index("tradebot-news.timer tradebot-xsp-quotes.timer")
+    producer = guide.index("tradebot-news.timer tradebot-xsp-pressure-tape.timer")
     manual_shadow = guide.index(
         "systemctl --user start tradebot-xsp-shadow.service"
     )
