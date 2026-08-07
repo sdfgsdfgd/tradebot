@@ -1,0 +1,66 @@
+{
+  "authority": "prospective_coverage_clock_only_cumulative_economics_unchanged",
+  "eligible_start_utc": "2026-08-07T08:00:00+00:00",
+  "epoch_id": "99260d0033cb844d69b41310c398259abcb9c1563593fb3eb6b3c6c058bc5012",
+  "invariants": {
+    "broker_or_timer_mutated": false,
+    "capital_plan_changed": false,
+    "missing_slots_backfilled": false,
+    "pre_epoch_economics_inherited": true,
+    "profitability_threshold_changed": false,
+    "runtime_risk_reset": false,
+    "strategy_selection_changed": false
+  },
+  "predecessor_receipts": [
+    {
+      "cutoff_utc": "2026-08-06T11:39:55+00:00",
+      "milestone": "24h",
+      "path": "backtests/mcl/mcl_stage112_live_graduation_24h_quarantine_20260806.json",
+      "receipt_id": "59edbecdb0dd43c070758ed68c51660fc0f7c04bc4f1463f93167d1e6bd5d351",
+      "sha256": "6c77a666132686164a230d4874386af31aea978961456661bcf9e4d3c2e7d622",
+      "verdict": "QUARANTINE"
+    }
+  ],
+  "preregistration": {
+    "path": "backtests/mcl/mcl_stage112_live_graduation_coverage_epoch_preregistration.json",
+    "sha256": "124a010f4ec1acf943b791755796fdd63deb9bef816a762effecf4e23e46a86a"
+  },
+  "registered_at_utc": "2026-08-07T07:18:00+00:00",
+  "schema": "live.futures-profitability-coverage-epoch.v1",
+  "selection": {
+    "path": "db/calibration/selections/8adead895d3bd460b460f832d725046a3ea34079525a80a1662004ade2c17c93.json",
+    "selection_id": "8adead895d3bd460b460f832d725046a3ea34079525a80a1662004ade2c17c93",
+    "sha256": "0d7057f9591b6de8379365935ba5724e50285a6cf26a59b77e6354faf91a1b9c"
+  },
+  "submitted_orders": 0,
+  "terminal_checkpoint": {
+    "broker_open_orders": [],
+    "broker_position": 0.0,
+    "checkpoint_id": "1d106e38c9d8c726a7fe618d3d56d8419f34ac1a28ffa882efc1968c1fc10bd1",
+    "evaluation_as_of_utc": "2026-08-07T07:17:33.374124+00:00",
+    "evidence_sha256": "ce8b7e040988f4b3d1f2de669c74a0b16f11fdf12170eafb39cc9e8c93a81442",
+    "recorded_at_utc": "2026-08-07T07:17:33.374124+00:00",
+    "risk_state": {
+      "attribution_complete": true,
+      "closed_trades": 0.0,
+      "drawdown_usd": 0.0,
+      "fill_count": 0.0,
+      "gross_wins_usd": 0.0,
+      "open_mark_cost_usd": 0.0,
+      "open_mark_gross_usd": 0.0,
+      "open_mark_net_usd": 0.0,
+      "peak_run_net_usd": 0.0,
+      "position_from_fills": 0.0,
+      "run_cost_usd": 0.0,
+      "run_gross_usd": 0.0,
+      "run_net_usd": 0.0,
+      "run_realized_cost_usd": 0.0,
+      "run_realized_gross_usd": 0.0,
+      "run_realized_net_usd": 0.0,
+      "safety_breaches": [],
+      "top_five_gross_wins_usd": 0.0,
+      "valid": true
+    },
+    "submitted_orders": 0
+  }
+}

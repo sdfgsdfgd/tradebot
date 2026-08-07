@@ -1,0 +1,50 @@
+{
+  "schema": "mcl.stage112-live-graduation-coverage-epoch-weekend-boundary-rejection.v1",
+  "authority": "preeligible_calendar_audit_only_no_strategy_no_broker_no_orders_no_capital",
+  "rejected_at_utc": "2026-08-07T07:30:00+00:00",
+  "rejected_preregistration": {
+    "path": "backtests/mcl/mcl_stage112_live_graduation_coverage_epoch_preregistration.json",
+    "sha256": "124a010f4ec1acf943b791755796fdd63deb9bef816a762effecf4e23e46a86a",
+    "eligible_start_utc": "2026-08-07T08:00:00+00:00"
+  },
+  "rejected_epoch": {
+    "path": "backtests/mcl/mcl_stage112_live_graduation_coverage_epoch_20260807.json",
+    "sha256": "4578780de06f1b3d6c86d93b256c64e624c62fd149c586945c96ff925f9653a1",
+    "epoch_id": "99260d0033cb844d69b41310c398259abcb9c1563593fb3eb6b3c6c058bc5012"
+  },
+  "preeligible_receipt": {
+    "path": "backtests/mcl/mcl_stage112_live_graduation_coverage_epoch_preeligible_20260807.json",
+    "sha256": "a891b6610c77116a56ab35a43bae3c2571cb6cd68c2a449b500d373dfab8b10b",
+    "verdict": "HOLD",
+    "reasons": [
+      "coverage_epoch_not_started",
+      "elapsed_time_incomplete",
+      "execution_not_observed"
+    ]
+  },
+  "defect": {
+    "kind": "closed_exact_milestone_boundary",
+    "24h_boundary_utc": "2026-08-08T08:00:00+00:00",
+    "24h_market_open": true,
+    "48h_boundary_utc": "2026-08-09T08:00:00+00:00",
+    "48h_market_open": false,
+    "five_session_boundary_utc": "2026-08-14T08:00:00+00:00",
+    "five_session_market_open": true,
+    "impact": "the exact 48h boundary could never own a reconciled risk checkpoint, so positive net and authentic fill evidence would be unavailable even if later trading were profitable"
+  },
+  "decision": {
+    "verdict": "REJECT_BEFORE_ELIGIBILITY",
+    "replacement_eligible_start_utc": "2026-08-09T22:00:00+00:00",
+    "law": "all exact 24h, 48h, and seven-day milestone boundaries must themselves be natural open MCL minutes"
+  },
+  "invariants": {
+    "rejected_clock_started": false,
+    "strategy_selection_changed": false,
+    "live_bound_owner_hashes_changed": false,
+    "broker_or_timer_mutated": false,
+    "missing_slots_backfilled": false,
+    "economics_reset": false,
+    "submitted_orders": 0
+  },
+  "submitted_orders": 0
+}

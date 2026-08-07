@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 from collections.abc import Mapping, Sequence
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from ..live.capital import load_live_capital_plan
@@ -27,7 +27,11 @@ from .mcl_live_transport import (
     MCL_LIVE_LEDGER_PATH,
     load_mcl_live_selection_from_mapping,
 )
-from .mcl_profitability import _spec, mcl_live_graduation_inputs
+from .mcl_profitability import (
+    _spec,
+    mcl_live_graduation_inputs,
+    mcl_market_open,
+)
 
 
 def _identity(
@@ -70,6 +74,21 @@ def build_mcl_profitability_coverage_epoch(
     repo_root: Path,
 ) -> dict[str, object]:
     selected, con_id = _identity(selection)
+    eligible = (
+        eligible_start_utc
+        if isinstance(eligible_start_utc, datetime)
+        else datetime.fromisoformat(
+            str(eligible_start_utc).replace("Z", "+00:00")
+        )
+    )
+    if eligible.tzinfo is None:
+        raise ValueError("MCL coverage epoch start must be timezone-aware")
+    eligible = eligible.astimezone(timezone.utc)
+    if any(
+        not mcl_market_open(eligible + timedelta(hours=hours))
+        for hours in (24, 48, 7 * 24)
+    ):
+        raise ValueError("MCL coverage epoch milestone boundary is closed")
     return build_futures_profitability_coverage_epoch(
         selection_id=str(selected["selection_id"]),
         selection_path=selection_path,

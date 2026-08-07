@@ -1,0 +1,76 @@
+{
+  "schema": "mcl.stage112-live-graduation-coverage-epoch-preregistration.v2",
+  "authority": "prospective_weekend_safe_evidence_clock_only_no_strategy_no_broker_no_orders_no_capital",
+  "registered_at_utc": "2026-08-07T07:30:00+00:00",
+  "eligible_start_utc": "2026-08-09T22:00:00+00:00",
+  "selection": {
+    "selection_id": "8adead895d3bd460b460f832d725046a3ea34079525a80a1662004ade2c17c93",
+    "path": "db/calibration/selections/8adead895d3bd460b460f832d725046a3ea34079525a80a1662004ade2c17c93.json",
+    "sha256": "0d7057f9591b6de8379365935ba5724e50285a6cf26a59b77e6354faf91a1b9c"
+  },
+  "predecessor_receipts": [
+    {
+      "milestone": "24h",
+      "cutoff_utc": "2026-08-06T11:39:55+00:00",
+      "path": "backtests/mcl/mcl_stage112_live_graduation_24h_quarantine_20260806.json",
+      "sha256": "6c77a666132686164a230d4874386af31aea978961456661bcf9e4d3c2e7d622",
+      "receipt_id": "59edbecdb0dd43c070758ed68c51660fc0f7c04bc4f1463f93167d1e6bd5d351",
+      "verdict": "QUARANTINE"
+    }
+  ],
+  "terminal_checkpoint": {
+    "selected_state_rows_at_registration": 2492,
+    "checkpoint_id": "69c735ed3afc6095fe75e447901901f8431a684a1121843d40a0e787a35b1be9",
+    "recorded_at_utc": "2026-08-07T07:29:10.835569+00:00",
+    "evaluation_as_of_utc": "2026-08-07T07:29:10.835569+00:00",
+    "position_from_fills": 0,
+    "fill_count": 0,
+    "closed_trades": 0,
+    "run_net_usd": 0.0,
+    "drawdown_usd": 0.0,
+    "safety_breaches": [],
+    "broker_positions": [],
+    "broker_open_orders": [],
+    "submitted_orders": 0
+  },
+  "incident": {
+    "missing_start_utc": "2026-08-05T15:01:00+00:00",
+    "missing_end_utc": "2026-08-05T15:19:00+00:00",
+    "missing_minutes": 19,
+    "cause": "ib_gateway_unreachable_main_client_id_retries_exhausted",
+    "backfilled": false
+  },
+  "milestone_boundaries": {
+    "24h_economic_window_end_utc": "2026-08-10T22:00:00+00:00",
+    "24h_evidence_as_of_utc": "2026-08-10T22:00:55+00:00",
+    "48h_economic_window_end_utc": "2026-08-11T22:00:00+00:00",
+    "48h_evidence_as_of_utc": "2026-08-11T22:00:55+00:00",
+    "five_session_economic_window_end_utc": "2026-08-16T22:00:00+00:00",
+    "five_session_evidence_as_of_utc": "2026-08-16T22:00:55+00:00",
+    "all_boundaries_natural_mcl_minutes": true
+  },
+  "frozen_law": {
+    "shared_owner": "tradebot/research/live_futures_profitability_epoch.py",
+    "mcl_adapter": "tradebot/research/mcl_profitability_epoch.py",
+    "coverage_start": "the exact Sunday 18:00 ET reopening minute, never a later convenient observation",
+    "boundary_admission": "24h, 48h, and seven-day milestone boundaries must all be natural open MCL minutes",
+    "economics": "all cumulative fills, gross, costs, net, wins, trades, and drawdown remain inherited from the original selected run",
+    "coverage": "only natural slots at or after eligible_start_utc determine fresh completeness",
+    "gaps": "the nineteen predecessor gaps remain immutable; any post-epoch missing or conflicting slot invalidates the successor prefix",
+    "selection_or_runtime_change": "forbidden"
+  },
+  "invariants": {
+    "strategy_selection_changed": false,
+    "signal_or_lifecycle_changed": false,
+    "execution_or_order_type_changed": false,
+    "risk_limit_changed": false,
+    "capital_plan_changed": false,
+    "broker_or_timer_mutated": false,
+    "missing_slots_backfilled": false,
+    "pre_epoch_economics_inherited": true,
+    "profitability_threshold_changed": false,
+    "live_bound_owner_hashes_changed": false,
+    "submitted_orders": 0
+  },
+  "submitted_orders": 0
+}

@@ -898,6 +898,19 @@ def test_mcl_coverage_epoch_rehashes_selection_receipts_and_terminal_state(
         eligible_start_utc=eligible,
         repo_root=tmp_path,
     )
+    with pytest.raises(
+        ValueError, match="MCL coverage epoch milestone boundary is closed"
+    ):
+        build_mcl_profitability_coverage_epoch(
+            selection=selected,
+            selection_path=selection_path,
+            records=(terminal,),
+            predecessor_receipt_paths=(predecessor_path,),
+            preregistration_path=preregistration_path,
+            registered_at_utc="2026-08-07T07:18:00+00:00",
+            eligible_start_utc="2026-08-07T08:00:00+00:00",
+            repo_root=tmp_path,
+        )
     epoch_path = tmp_path / "backtests/mcl/epoch.json"
     epoch_path.write_text(json.dumps(epoch), encoding="utf-8")
 
