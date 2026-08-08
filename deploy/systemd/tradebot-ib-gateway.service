@@ -21,3 +21,6 @@ TimeoutStopSec=90s
 PrivateTmp=false
 NoNewPrivileges=true
 UMask=0077
+
+[Install]
+WantedBy=default.target

@@ -1,6 +1,5 @@
 [Unit]
 Description=One exact MCL emergency-reduction recovery boundary
-PartOf=tradebot-live.target
 
 [Timer]
 OnCalendar=2026-08-09 18:00:05 America/New_York
@@ -10,4 +9,4 @@ Persistent=false
 Unit=tradebot-mcl-emergency-flatten.service
 
 [Install]
-WantedBy=tradebot-live.target
+WantedBy=timers.target

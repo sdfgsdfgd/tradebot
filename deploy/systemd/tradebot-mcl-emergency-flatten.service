@@ -3,7 +3,6 @@ Description=Flatten only the exact unsafe MCLU6 position after Sunday reopen
 Wants=network-online.target
 After=network-online.target tradebot-ib-gateway.service tradebot-ib-preflight.service
 Before=tradebot-mcl-live.service
-PartOf=tradebot-live.target
 OnFailure=tradebot-operator-alert@mcl-runtime-failed.service
 
 [Service]
@@ -20,6 +19,8 @@ ExecStartPre=/usr/bin/env python3 -m tradebot.live.ib_preflight require reductio
 ExecStartPre=-/usr/bin/rm -f %t/tradebot-mcl-emergency-flatten.ok
 ExecStart=/usr/bin/flock --exclusive --wait 180 %t/tradebot-live-account.lock %h/.local/share/tradebot/venv/bin/python /var/tmp/mcl_emergency_flatten.py
 ExecStartPost=/usr/bin/touch %t/tradebot-mcl-emergency-flatten.ok
+Restart=on-failure
+RestartSec=20s
 TimeoutStartSec=4min
 KillSignal=SIGTERM
 Nice=5

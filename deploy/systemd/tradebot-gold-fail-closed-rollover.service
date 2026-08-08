@@ -2,7 +2,6 @@
 Description=Publish the selected flat-first Gold rollover
 Wants=network-online.target
 After=network-online.target tradebot-ib-gateway.service tradebot-ib-preflight.service
-PartOf=tradebot-live.target
 OnFailure=tradebot-operator-alert@gold-runtime-failed.service
 
 [Service]

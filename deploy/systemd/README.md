@@ -172,7 +172,7 @@ Do not use an automated kill or restart as a migration primitive.
 On q, commission in this order:
 
 ```bash
-systemctl --user start tradebot-ib-gateway.service
+systemctl --user enable --now tradebot-ib-gateway.service
 systemctl --user status tradebot-ib-gateway.service --no-pager
 ```
 
@@ -201,6 +201,10 @@ Arm each selected strategy through the portfolio cockpit, not by enabling its
 individual timers by hand. An armed timer joins `tradebot-live.target`; an
 unarmed one does not. Stopping the target stops the grouped schedules and
 continuous support services but does not stop Gateway.
+
+One-shot recovery timers are enabled through `timers.target`, not
+`tradebot-live.target`. They therefore survive a strategy-bundle stop or
+restart while preserving their own fail-closed transaction and alert boundary.
 
 ## Sunday sequence
 

@@ -26,6 +26,7 @@ def test_gateway_is_q_native_self_healing_and_outside_strategy_lifecycle() -> No
     assert "RestartSec=15s" in service
     assert "StartLimitIntervalSec=5min" in service
     assert "StartLimitBurst=4" in service
+    assert "WantedBy=default.target" in service
     assert "KillMode=control-group" in service
     assert "OnFailure=tradebot-operator-alert@ib-gateway-exited.service" in service
     assert "PartOf=tradebot-ib-gateway.service" in login
@@ -121,10 +122,6 @@ def test_only_armed_strategy_bundle_timers_join_the_live_target() -> None:
         "tradebot-mcl-predictive-onset-runtime.timer",
         "tradebot-xsp-shadow.timer",
         "tradebot-xsp-pressure-tape.timer",
-        "tradebot-mcl-emergency-flatten.timer",
-        "tradebot-mcl-stage131-successor.timer",
-        "tradebot-gold-fail-closed-rollover.timer",
-        "tradebot-xsp-p009-fresh-rollover.timer",
     )
     for name in timers:
         timer = _unit(name)
@@ -159,7 +156,7 @@ def test_scheduled_recovery_flows_are_native_alerted_and_their_scripts_remain_ex
     for name, (alert, script) in cases.items():
         service = _unit(name)
         assert "After=network-online.target tradebot-ib-gateway.service" in service, name
-        assert "PartOf=tradebot-live.target" in service, name
+        assert "PartOf=tradebot-live.target" not in service, name
         assert f"OnFailure=tradebot-operator-alert@{alert}.service" in service, name
         assert script in service, name
 
@@ -168,9 +165,15 @@ def test_scheduled_recovery_flows_are_native_alerted_and_their_scripts_remain_ex
     assert "tradebot-live-account.lock" in emergency
     assert "mcl_emergency_flatten.py" in emergency
     assert "tradebot-mcl-emergency-flatten.ok" in emergency
+    assert "Restart=on-failure" in emergency
+    assert "RestartSec=20s" in emergency
 
     successor = _unit("tradebot-mcl-stage131-successor.service")
     assert "tradebot-mcl-emergency-flatten.ok" in successor
+    assert "Restart=on-failure" in successor
+    assert "RestartSec=30s" in successor
+    assert "StartLimitIntervalSec=30min" in successor
+    assert "StartLimitBurst=60" in successor
 
     for name in (
         "tradebot-mcl-emergency-flatten.timer",
@@ -179,8 +182,8 @@ def test_scheduled_recovery_flows_are_native_alerted_and_their_scripts_remain_ex
         "tradebot-xsp-p009-fresh-rollover.timer",
     ):
         timer = _unit(name)
-        assert "PartOf=tradebot-live.target" in timer, name
-        assert "WantedBy=tradebot-live.target" in timer, name
+        assert "PartOf=tradebot-live.target" not in timer, name
+        assert "WantedBy=timers.target" in timer, name
         assert "Persistent=false" in timer, name
 
 

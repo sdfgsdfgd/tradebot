@@ -1,6 +1,5 @@
 [Unit]
 Description=One selected flat-first XSP P-009 rollover boundary
-PartOf=tradebot-live.target
 
 [Timer]
 OnCalendar=2026-08-10 09:28:30 America/New_York
@@ -10,4 +9,4 @@ Persistent=false
 Unit=tradebot-xsp-p009-fresh-rollover.service
 
 [Install]
-WantedBy=tradebot-live.target
+WantedBy=timers.target
