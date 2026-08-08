@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import ast
 import csv
+import json
 import os
 from pathlib import Path
 import socket
@@ -51,6 +52,30 @@ IMPORT = "/usr/bin/import"
 TESSERACT = "/usr/bin/tesseract"
 ALERT_UNIT = "tradebot-operator-alert@ib-gateway-login-required.service"
 CONNECTED_TIMEOUT_SEC = 10 * 60
+
+
+def _publish_state(state: str, detail: str) -> None:
+    """Leave a small, private receipt for pre-open and incident inspection."""
+
+    target_value = os.environ.get("TRADEBOT_IB_LOGIN_RECEIPT", "").strip()
+    if not target_value:
+        return
+    target = Path(target_value)
+    target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    payload = {
+        "state": state,
+        "detail": detail,
+        "updated_at_epoch": time.time(),
+    }
+    with tempfile.NamedTemporaryFile(
+        mode="w", dir=target.parent, prefix=f".{target.name}.", delete=False
+    ) as handle:
+        json.dump(payload, handle, sort_keys=True)
+        handle.write("\n")
+        handle.flush()
+        os.fchmod(handle.fileno(), 0o600)
+        temporary = Path(handle.name)
+    os.replace(temporary, target)
 
 
 def _children(node: object) -> list[object]:
@@ -405,6 +430,7 @@ def _x11_login(*, credentials_stdin: bool) -> str:
             "second factor authentication" in current
             or "notification sent" in current
         ):
+            _publish_state("two_factor_required", "IBKR requested fingerprint/2FA")
             _alert()
             alerted = True
         if "invalid username" in current or "login failed" in current:
@@ -514,6 +540,7 @@ def login(*, credentials_stdin: bool = False) -> str:
             _hide_stale_login_frame(app)
             return "connected"
         if _second_factor(nodes) and not alerted:
+            _publish_state("two_factor_required", "IBKR requested fingerprint/2FA")
             _alert()
             alerted = True
             deadline = time.monotonic() + CONNECTED_TIMEOUT_SEC
@@ -530,8 +557,10 @@ def main() -> int:
     try:
         outcome = login(credentials_stdin=args.credentials_stdin)
     except Exception as exc:
+        _publish_state("failed", str(exc))
         print(f"IBKR semantic login failed: {exc}", file=sys.stderr)
         return 1
+    _publish_state("connected", outcome)
     print(f"IBKR semantic login outcome: {outcome}")
     return 0
 

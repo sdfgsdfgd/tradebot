@@ -14,6 +14,7 @@ import tempfile
 from collections.abc import Mapping, Sequence
 from datetime import datetime, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from ib_insync import Contract, IB
 
@@ -550,6 +551,206 @@ async def probe_ib_preflight(
     return reduce_ib_preflight(facts, checked_at_utc=checked)
 
 
+def _unit_liveness(unit: str) -> dict[str, str]:
+    """Read systemd state only; the sentinel never changes a runtime unit."""
+
+    result = subprocess.run(
+        [
+            "systemctl",
+            "--user",
+            "show",
+            unit,
+            "-p",
+            "LoadState",
+            "-p",
+            "UnitFileState",
+            "-p",
+            "ActiveState",
+            "-p",
+            "Result",
+            "-p",
+            "NextElapseUSecRealtime",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=5,
+    )
+    values = {
+        key: value
+        for line in result.stdout.splitlines()
+        if "=" in line
+        for key, value in (line.split("=", 1),)
+    }
+    return {
+        "unit": unit,
+        "available": str(values.get("LoadState") or "not-found"),
+        "enabled": str(values.get("UnitFileState") or "disabled"),
+        "active": str(values.get("ActiveState") or "unknown"),
+        "result": str(values.get("Result") or "unknown"),
+        "next": str(values.get("NextElapseUSecRealtime") or "n/a"),
+    }
+
+
+def _selected_runtime_bindings(plan: Mapping[str, object]) -> list[object]:
+    from .strategies import LIVE_STRATEGY_BINDINGS
+
+    selected = {
+        str(sleeve.get("strategy_id") or "")
+        for sleeve in plan.get("sleeves", ())
+        if isinstance(sleeve, Mapping)
+    }
+    return [binding for binding in LIVE_STRATEGY_BINDINGS if binding.strategy_id in selected]
+
+
+def _candidate_entry_window_open(binding: object, now: datetime) -> bool:
+    """Alert stale entry authority only while that candidate can actually enter."""
+
+    local = now.astimezone(ZoneInfo("America/New_York"))
+    weekday, minute = local.weekday(), local.hour * 60 + local.minute
+    strategy_id = str(getattr(binding, "strategy_id", ""))
+    if strategy_id.startswith("xsp."):
+        return weekday < 5 and (9 * 60 + 20) <= minute < (16 * 60 + 20)
+    if strategy_id.startswith(("mcl.", "gold.")):
+        if weekday == 6:
+            return minute >= 18 * 60
+        if weekday < 4:
+            return minute < 17 * 60 or minute >= 18 * 60
+        return weekday == 4 and minute < 17 * 60
+    return False
+
+
+def _login_state(path: Path) -> str:
+    try:
+        value = json.loads(path.read_text())
+    except (OSError, TypeError, ValueError):
+        return "unknown"
+    return str(value.get("state") or "unknown") if isinstance(value, Mapping) else "unknown"
+
+
+def _recent_decisive_ib_failure() -> bool:
+    try:
+        journal = subprocess.run(
+            ["journalctl", "--user", "--since", "-2 min", "--no-pager", "-o", "cat"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        ).stdout.casefold()
+    except (OSError, subprocess.SubprocessError):
+        return False
+    if "maximum number of account summary requests exceeded" in journal:
+        return True
+    if "client id already in use" in journal or "client-id" in journal and "exhausted" in journal:
+        return True
+    codes = [int(value) for value in re.findall(r"(?<!\d)(1100|1101|1102|1300|326|502|504)(?!\d)", journal)]
+    return 1300 in codes or 326 in codes or 502 in codes or 504 in codes or (
+        1100 in codes and max((index for index, code in enumerate(codes) if code == 1100), default=-1)
+        > max((index for index, code in enumerate(codes) if code in {1101, 1102}), default=-1)
+    )
+
+
+def ib_sentinel(
+    *,
+    repository_root: Path,
+    capital_plan_path: Path,
+    receipt_path: Path,
+    login_receipt_path: Path,
+    now: datetime | None = None,
+) -> dict[str, object]:
+    """Read only the active-candidate path and name a broken trading authority."""
+
+    observed = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    plan = load_live_capital_plan(capital_plan_path)
+    failures: list[dict[str, str]] = []
+    active: list[str] = []
+    for binding in _selected_runtime_bindings(plan):
+        timers = [_unit_liveness(unit) for unit in binding.runtime_timer_units]
+        services = [_unit_liveness(unit) for unit in binding.runtime_service_units]
+        engaged = any(
+            state["enabled"] == "enabled" or state["active"] == "active"
+            for state in timers
+        )
+        if not engaged:
+            continue
+        label = str(getattr(binding, "champion_symbol", "strategy")).casefold()
+        reason = f"{label}-runtime-failed" if label in {"xsp", "mcl"} else "gold-runtime-failed"
+        active.append(label)
+        for state in timers:
+            if state["enabled"] != "enabled" or state["active"] != "active":
+                failures.append({"reason": reason, "detail": f"timer_not_armed:{state['unit']}"})
+            elif state["next"] == "n/a":
+                failures.append({"reason": reason, "detail": f"timer_next_elapse_missing:{state['unit']}"})
+        for state in services:
+            if state["available"] != "loaded" or state["active"] == "failed" or state["result"] == "failed":
+                failures.append({"reason": reason, "detail": f"service_failed:{state['unit']}"})
+        if _candidate_entry_window_open(binding, observed):
+            decision = ib_preflight_decision("entry", path=receipt_path, now=observed)
+            if decision["ready"] is not True:
+                failures.append({"reason": reason, "detail": "entry_authority_unready"})
+
+    login_state = _login_state(login_receipt_path)
+    if login_state == "two_factor_required":
+        failures.append({"reason": "ib-gateway-login-required", "detail": login_state})
+    elif login_state == "failed":
+        failures.append({"reason": "ib-gateway-login-failed", "detail": login_state})
+
+    if active:
+        try:
+            with socket.create_connection(("127.0.0.1", 4001), timeout=1):
+                gateway_up = _unit_liveness("tradebot-ib-gateway.service")["active"] == "active"
+        except OSError:
+            gateway_up = False
+        if not gateway_up or _recent_decisive_ib_failure():
+            failures.append({"reason": "ib-runtime-failed", "detail": "gateway_or_decisive_ib_failure"})
+    unique = {(row["reason"], row["detail"]): row for row in failures}
+    return {
+        "schema": "live.ib-sentinel.v1",
+        "checked_at_utc": observed.isoformat(),
+        "active_candidates": sorted(set(active)),
+        "failures": [unique[key] for key in sorted(unique)],
+        "boundaries": dict(IB_PREFLIGHT_BOUNDARIES),
+    }
+
+
+def _publish_sentinel(path: Path, value: Mapping[str, object]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as handle:
+        temporary = Path(handle.name)
+        handle.write(json.dumps(dict(value), sort_keys=True).encode() + b"\n")
+        handle.flush()
+        os.fchmod(handle.fileno(), 0o600)
+    os.replace(temporary, path)
+
+
+def _alert_reasons(value: Mapping[str, object]) -> None:
+    failures = value.get("failures")
+    if not isinstance(failures, Sequence):
+        return
+    allowed = {
+        "gold-runtime-failed",
+        "mcl-runtime-failed",
+        "xsp-runtime-failed",
+        "ib-runtime-failed",
+        "ib-gateway-login-required",
+        "ib-gateway-login-failed",
+    }
+    for reason in sorted(
+        {
+            str(row.get("reason") or "")
+            for row in failures
+            if isinstance(row, Mapping) and str(row.get("reason") or "") in allowed
+        }
+    ):
+        subprocess.run(
+            ["systemctl", "--user", "--no-block", "start", f"tradebot-operator-alert@{reason}.service"],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=5,
+        )
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -568,6 +769,12 @@ def _parser() -> argparse.ArgumentParser:
     require = commands.add_parser("require")
     require.add_argument("mode", choices=("entry", "reduction"))
     require.add_argument("--receipt", type=Path)
+    sentinel = commands.add_parser("sentinel")
+    sentinel.add_argument("--repository-root", type=Path, default=Path.cwd())
+    sentinel.add_argument("--capital-plan", type=Path, required=True)
+    sentinel.add_argument("--receipt", type=Path, required=True)
+    sentinel.add_argument("--login-receipt", type=Path, required=True)
+    sentinel.add_argument("--output", type=Path, required=True)
     return parser
 
 
@@ -577,6 +784,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         decision = ib_preflight_decision(args.mode, path=args.receipt)
         print(json.dumps(decision, sort_keys=True))
         return 0 if decision["ready"] is True else 1
+    if args.command == "sentinel":
+        value = ib_sentinel(
+            repository_root=args.repository_root,
+            capital_plan_path=args.capital_plan,
+            receipt_path=args.receipt,
+            login_receipt_path=args.login_receipt,
+        )
+        _publish_sentinel(args.output, value)
+        _alert_reasons(value)
+        print(json.dumps(value, sort_keys=True))
+        return 0
     receipt = asyncio.run(
         probe_ib_preflight(
             repository_root=args.repository_root,

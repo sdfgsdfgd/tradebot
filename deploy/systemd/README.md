@@ -15,11 +15,18 @@ strategy timer tick.
   desktop keyring, prefers AT-SPI labels, and falls back to freshly OCR-derived
   field boxes. It never uses fixed desktop coordinates. Human fingerprint/2FA
   remains mandatory.
-- Only `tradebot-ib-gateway.timer` (Sunday `17:20 ET`) or an operator starts the
-  Gateway. Broker consumers use `After=` for ordering only; none pulls it in.
+- `tradebot-ib-gateway.timer` runs Sunday `17:20 ET` through a non-destructive
+  ensure unit: it starts an absent Gateway and always inspects an existing Java
+  login/2FA screen. Broker consumers use `After=` for ordering only; none pulls
+  the owner in; none pulls it in.
 - `tradebot-ib-preflight.service` performs one read-only broker reconciliation
   before futures and cash entry windows and atomically publishes
   `%t/tradebot-ib-preflight.json` with mode `0600`.
+- `tradebot-ib-sentinel.timer` reads only systemd state, the private login and
+  preflight receipts, and decisive recent IB errors every minute. It is silent
+  for wholly unarmed bundles and sends the Mac a candidate-specific alert for
+  an under-armed timer, failed owner/feed, missing next firing, stale entry
+  authority in a live window, or lost q-local broker authority.
 - Writable owners may start only with a current `reduction_ready` receipt. The
   shared broker client classifies every actual submission immediately before
   `placeOrder`: a bounded close uses reduction readiness; every flat-account
@@ -67,8 +74,7 @@ The repository launcher resolves the current Mutter Xauthority file at each
 start, validates single-file ownership, and fails closed if q has no
 unambiguous logged-in graphical session. Never hard-code the generated
 `.mutter-Xwaylandauth.*` suffix. It also refuses to launch while q port `4001`
-is already owned; during migration that listener is the Mac tunnel and proves
-the old transport has not been released.
+is already owned and refuses to start without the root-owned localhost firewall.
 
 On q, from the exact clean deployed revision:
 
@@ -77,10 +83,12 @@ mkdir -p ~/.config/systemd/user ~/.local/bin
 install -m 0755 \
   deploy/systemd/tradebot-ib-gateway-launch \
   deploy/systemd/tradebot-ib-gateway-login \
+  deploy/systemd/tradebot-cli \
   ~/.local/bin/
 install -m 0644 \
   deploy/systemd/tradebot-ib-gateway-login.service \
-  deploy/systemd/tradebot-{ib-gateway,ib-preflight}.{service,timer} \
+  deploy/systemd/tradebot-ib-gateway-ensure.service \
+  deploy/systemd/tradebot-{ib-gateway,ib-preflight,ib-sentinel}.{service,timer} \
   deploy/systemd/tradebot-operator-alert@.service \
   deploy/systemd/tradebot-live.target \
   deploy/systemd/tradebot-{gold-live,gold-onset}.{service,timer} \
@@ -103,13 +111,23 @@ On the Mac:
 
 ```bash
 mkdir -p ~/.local/bin
-install -m 0755 deploy/macos/tradebot-operator-alert ~/.local/bin/
+install -m 0755 deploy/macos/tradebot-operator-alert deploy/macos/tradebot ~/.local/bin/
 ```
 
 The alert accepts only the fixed conditions in the script, deduplicates
 each for fifteen minutes, shows a critical modal, and plays built-in sounds at
 the current macOS output volume. It never changes volume or mute state. q uses
 BatchMode SSH, so alert delivery can never block on a password prompt.
+
+Install the mandatory q loopback firewall before Gateway is permitted to run:
+
+```bash
+sudo install -d -m 0755 /etc/nftables.d
+sudo install -m 0600 deploy/systemd/tradebot-ib-loopback-firewall.nft /etc/nftables.d/
+sudo install -m 0644 deploy/systemd/tradebot-ib-loopback-firewall.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now tradebot-ib-loopback-firewall.service
+```
 
 No IBKR username or password belongs in this repository, a unit environment,
 the journal, or an automation command line. q's user manager cannot access its
@@ -132,8 +150,7 @@ Install the Python environment before arming anything:
 ~/.local/share/tradebot/venv/bin/pip check
 ```
 
-Do not install or enable `tradebot-ib-gateway-tunnel.service`,
-`tradebot-xsp-quotes.*`, `tradebot-mcl-predictive-onset.*`, or
+Do not install or enable `tradebot-xsp-quotes.*`, `tradebot-mcl-predictive-onset.*`, or
 `tradebot-mcl-predictive-onset-stage114.*` as current runtime units. They are
 retained only as rollback and historical evidence.
 
@@ -168,6 +185,7 @@ systemctl --user enable tradebot-live.target
 systemctl --user enable --now \
   tradebot-ib-gateway.timer \
   tradebot-ib-preflight.timer \
+  tradebot-ib-sentinel.timer \
   tradebot-news.timer
 ```
 
@@ -240,6 +258,6 @@ python3 -m tradebot.live.ib_preflight require entry --receipt "$XDG_RUNTIME_DIR/
 python3 -m tradebot.live.ib_preflight require reduction --receipt "$XDG_RUNTIME_DIR/tradebot-ib-preflight.json"
 ```
 
-The Mac tunnel remains a rollback transport only. Reverting to it is an
-explicit operator migration with broker truth reconciled first; it is never an
-automatic q failover.
+There is no Mac transport or SSH tunnel fallback. q is the single Gateway and
+runtime owner; a transport incident remains fail-closed until q-local broker
+truth is reconciled.

@@ -12,6 +12,11 @@ def test_operator_alert_accepts_only_fixed_reasons_without_mutating_volume() -> 
     assert "ib-gateway-login-required)" in script
     assert "ib-gateway-login-failed)" in script
     assert "ib-gateway-exited)" in script
+    assert "ib-runtime-failed)" in script
+    assert "gold-runtime-failed)" in script
+    assert "mcl-runtime-failed)" in script
+    assert "xsp-runtime-failed)" in script
+    assert "strategy-input-failed)" in script
     assert "exit 64" in script
     assert "set volume" not in script
     assert "afplay -v 1.0" in script

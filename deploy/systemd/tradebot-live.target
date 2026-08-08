@@ -1,5 +1,6 @@
 [Unit]
 Description=Control only the currently armed Tradebot strategy bundles
+After=tradebot-ib-gateway.service
 
 [Install]
 WantedBy=default.target

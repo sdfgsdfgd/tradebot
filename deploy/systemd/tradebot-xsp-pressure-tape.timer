@@ -6,7 +6,7 @@ PartOf=tradebot-live.target
 OnCalendar=Mon..Fri *-*-* 09:20:00 America/New_York
 AccuracySec=15s
 RandomizedDelaySec=0
-Persistent=true
+Persistent=false
 Unit=tradebot-xsp-pressure-tape.service
 
 [Install]

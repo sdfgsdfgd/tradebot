@@ -18,6 +18,10 @@ if [ ! -x "$gateway" ]; then
     echo "IB Gateway executable is unavailable" >&2
     exit 1
 fi
+if ! /usr/bin/systemctl is-active --quiet tradebot-ib-loopback-firewall.service; then
+    echo "IB Gateway launch refused: localhost-only firewall is inactive" >&2
+    exit 1
+fi
 if /usr/bin/ss -H -ltn 'sport = :4001' | /usr/bin/grep -q .; then
     echo "IB Gateway launch refused: q port 4001 is already owned" >&2
     exit 1

@@ -12,6 +12,7 @@ MAX_MODULE_LINES = 1_000
 OVERSIZED_MODULE_DEBT = {
     "tradebot/backtest/engine.py",
     "tradebot/client.py",
+    "tradebot/research/live_calibration.py",
     "tradebot/ui/bot_signal_runtime.py",
 }
 

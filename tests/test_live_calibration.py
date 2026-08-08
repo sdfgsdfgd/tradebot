@@ -2082,7 +2082,7 @@ def test_shadow_systemd_cadence_is_bounded_and_runtime_gated() -> None:
     selector = (root / "deploy/systemd/tradebot-xsp-select-live").read_text()
 
     assert (
-        "ExecCondition=/usr/bin/test -x %h/.local/share/tradebot/venv/bin/python"
+        "ExecStartPre=/usr/bin/test -x %h/.local/share/tradebot/venv/bin/python"
     ) in service
     assert (
         "ExecStart=/usr/bin/flock --exclusive --wait 180 "

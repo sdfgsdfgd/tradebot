@@ -29,7 +29,7 @@ MCL_NARRATIVE_LEDGER_PATH = (
 )
 MCL_NARRATIVE_GENERATION_PATH = (
     Path(__file__).resolve().parents[2]
-    / "backtests/mcl/mcl_narrative_experiment_generation_ib_control_plane_20260808.json"
+    / "backtests/mcl/mcl_narrative_experiment_generation_q_native_gateway_20260809.json"
 )
 MCL_NARRATIVE_CONFIG_FINGERPRINT = calibration_fingerprint(
     {

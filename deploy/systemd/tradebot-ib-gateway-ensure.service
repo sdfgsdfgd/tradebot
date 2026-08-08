@@ -1,0 +1,16 @@
+[Unit]
+Description=Ensure the q-native IB Gateway has an active semantic login handoff
+Wants=network-online.target
+After=network-online.target graphical-session.target
+OnFailure=tradebot-operator-alert@ib-gateway-login-failed.service
+
+[Service]
+Type=oneshot
+# start is intentionally non-destructive: it starts a stopped owner and is a
+# no-op for a healthy one.  The second line still inspects a live Java process
+# that is sitting at the Sunday login/2FA screen.
+ExecStart=/usr/bin/systemctl --user start tradebot-ib-gateway.service
+ExecStart=/usr/bin/systemctl --user --no-block start tradebot-ib-gateway-login.service
+TimeoutStartSec=30s
+NoNewPrivileges=true
+UMask=0077

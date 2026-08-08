@@ -12,8 +12,11 @@ def _unit(name: str) -> str:
 def test_gateway_is_q_native_self_healing_and_outside_strategy_lifecycle() -> None:
     service = _unit("tradebot-ib-gateway.service")
     login = _unit("tradebot-ib-gateway-login.service")
+    ensure = _unit("tradebot-ib-gateway-ensure.service")
     login_worker = _unit("tradebot-ib-gateway-login")
     timer = _unit("tradebot-ib-gateway.timer")
+    sentinel = _unit("tradebot-ib-sentinel.service")
+    sentinel_timer = _unit("tradebot-ib-sentinel.timer")
     launcher = _unit("tradebot-ib-gateway-launch")
 
     assert "ExecStart=%h/.local/bin/tradebot-ib-gateway-launch" in service
@@ -28,6 +31,7 @@ def test_gateway_is_q_native_self_healing_and_outside_strategy_lifecycle() -> No
     assert "PartOf=tradebot-ib-gateway.service" in login
     assert "OnFailure=tradebot-operator-alert@ib-gateway-login-failed.service" in login
     assert "ExecStart=%h/.local/bin/tradebot-ib-gateway-login" in login
+    assert "TRADEBOT_IB_LOGIN_RECEIPT=%t/tradebot-ib-gateway-login.json" in login
     assert "LoadCredential=" not in login
     assert '"/usr/bin/secret-tool"' in login_worker
     assert 'TESSERACT = "/usr/bin/tesseract"' in login_worker
@@ -35,8 +39,14 @@ def test_gateway_is_q_native_self_healing_and_outside_strategy_lifecycle() -> No
     assert '{"username", "password", "log", "in"}' in login_worker
     assert '"interactive brokers api server" in candidate_text' in login_worker
     assert '[XDOTOOL, "windowunmap", window]' in login_worker
+    assert '"two_factor_required", "IBKR requested fingerprint/2FA"' in login_worker
+    assert '"state": state' in login_worker
     assert "tradebot-live.target" not in service + timer
     assert "OnCalendar=Sun *-*-* 17:20:00 America/New_York" in timer
+    assert "Unit=tradebot-ib-gateway-ensure.service" in timer
+    assert "start tradebot-ib-gateway.service" in ensure
+    assert "start tradebot-ib-gateway-login.service" in ensure
+    assert "restart tradebot-ib-gateway.service" not in ensure
     assert "Persistent=false" in timer
     assert '.mutter-Xwaylandauth.*' in launcher
     assert '"$#" -ne 1' in launcher
@@ -45,6 +55,11 @@ def test_gateway_is_q_native_self_healing_and_outside_strategy_lifecycle() -> No
     assert "port 4001 is already owned" in launcher
     assert "1:--check) check_only=true" in launcher
     assert 'exec "$gateway"' in launcher
+    assert "tradebot-ib-loopback-firewall.service" in launcher
+    assert "tradebot.live.ib_preflight sentinel" in sentinel
+    assert "OnFailure=tradebot-operator-alert@ib-runtime-failed.service" in sentinel
+    assert "OnUnitActiveSec=1min" in sentinel_timer
+    assert "Persistent=false" in sentinel_timer
 
 
 def test_preflight_is_a_single_readonly_probe_before_both_entry_windows() -> None:
@@ -55,6 +70,8 @@ def test_preflight_is_a_single_readonly_probe_before_both_entry_windows() -> Non
     assert "Requires=tradebot-ib-gateway.service" not in service
     assert "Wants=tradebot-ib-gateway.service" not in service
     assert "OnFailure=tradebot-operator-alert@ib-preflight-failed.service" in service
+    assert "ConditionPathExists=" not in service
+    assert "ExecStartPre=/usr/bin/test -f" in service
     assert " -m tradebot.live.ib_preflight probe " in service
     assert "OnCalendar=Sun,Mon,Tue,Wed,Thu *-*-* 17:40:00 America/New_York" in timer
     assert "OnCalendar=Mon..Fri *-*-* 09:15:00 America/New_York" in timer
@@ -78,6 +95,7 @@ def test_every_current_broker_consumer_uses_the_native_gateway() -> None:
         assert "tradebot-ib-gateway-tunnel.service" not in service, name
         assert "Requires=tradebot-ib-gateway.service" not in service, name
         assert "Wants=tradebot-ib-gateway.service" not in service, name
+        assert "OnFailure=tradebot-operator-alert@" in service, name
 
 
 def test_writable_owners_require_reduction_readiness_before_starting() -> None:
@@ -109,5 +127,15 @@ def test_only_armed_strategy_bundle_timers_join_the_live_target() -> None:
         assert "WantedBy=tradebot-live.target" in timer, name
 
     target = _unit("tradebot-live.target")
-    assert "Wants=tradebot-" not in target
+    assert "Wants=" not in target
+    assert "After=tradebot-ib-gateway.service" in target
     assert "PropagatesStopTo=" not in target
+
+
+def test_gateway_loopback_firewall_is_a_root_owned_launch_precondition() -> None:
+    firewall = _unit("tradebot-ib-loopback-firewall.service")
+    rules = _unit("tradebot-ib-loopback-firewall.nft")
+
+    assert "ExecStartPre=-/usr/sbin/nft delete table inet tradebot_ib_gateway" in firewall
+    assert "WantedBy=multi-user.target" in firewall
+    assert 'iifname != "lo" tcp dport 4001 reject with tcp reset' in rules

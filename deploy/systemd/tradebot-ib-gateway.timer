@@ -1,12 +1,12 @@
 [Unit]
-Description=Open q-native IB Gateway before the Sunday futures preflight
+Description=Ensure q-native IB Gateway reaches the Sunday futures login handoff
 
 [Timer]
 OnCalendar=Sun *-*-* 17:20:00 America/New_York
 AccuracySec=15s
 RandomizedDelaySec=0
 Persistent=false
-Unit=tradebot-ib-gateway.service
+Unit=tradebot-ib-gateway-ensure.service
 
 [Install]
 WantedBy=timers.target

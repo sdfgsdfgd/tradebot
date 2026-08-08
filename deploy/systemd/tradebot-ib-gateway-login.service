@@ -9,6 +9,7 @@ OnFailure=tradebot-operator-alert@ib-gateway-login-failed.service
 Type=oneshot
 PassEnvironment=DISPLAY WAYLAND_DISPLAY XAUTHORITY XDG_RUNTIME_DIR DBUS_SESSION_BUS_ADDRESS
 ExecStart=%h/.local/bin/tradebot-ib-gateway-login
+Environment=TRADEBOT_IB_LOGIN_RECEIPT=%t/tradebot-ib-gateway-login.json
 TimeoutStartSec=12min
 PrivateTmp=false
 NoNewPrivileges=true

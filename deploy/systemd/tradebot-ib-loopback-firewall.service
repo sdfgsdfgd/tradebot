@@ -1,0 +1,13 @@
+[Unit]
+Description=Restrict Interactive Brokers Gateway API port to q localhost
+Before=network.target
+
+[Service]
+Type=oneshot
+ExecStartPre=-/usr/sbin/nft delete table inet tradebot_ib_gateway
+ExecStart=/usr/sbin/nft -f /etc/nftables.d/tradebot-ib-loopback-firewall.nft
+ExecStop=/usr/sbin/nft delete table inet tradebot_ib_gateway
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

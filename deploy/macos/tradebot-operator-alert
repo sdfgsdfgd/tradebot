@@ -19,6 +19,26 @@ case "$reason" in
     title="IB GATEWAY RESTARTS EXHAUSTED — TRADING LOCKED"
     message="The q-native IB Gateway exhausted four bounded automatic starts. It will not loop further. Inspect Gateway, positions, and orders before resetting the failed unit."
     ;;
+  ib-runtime-failed)
+    title="IBKR RUNTIME FAILURE — ENTRIES LOCKED"
+    message="An armed candidate lost q-local Gateway authority or hit a decisive IB connection/quota failure. Entries remain fail-closed; inspect the q sentinel receipt and Gateway journal."
+    ;;
+  gold-runtime-failed)
+    title="GOLD RUNTIME FAILED — TRADING LOCKED"
+    message="The active Gold owner or its onset feed failed. New Gold entries remain fail-closed; inspect its q journal and the fresh broker receipt."
+    ;;
+  mcl-runtime-failed)
+    title="MCL RUNTIME FAILED — TRADING LOCKED"
+    message="The active MCL owner or its supporting tape failed. New MCL entries remain fail-closed; inspect its q journal and the fresh broker receipt."
+    ;;
+  xsp-runtime-failed)
+    title="XSP RUNTIME FAILED — TRADING LOCKED"
+    message="The active XSP owner or its pressure tape failed. New XSP entries remain fail-closed; inspect its q journal and the fresh broker receipt."
+    ;;
+  strategy-input-failed)
+    title="STRATEGY INPUT FAILED — TRADING LOCKED"
+    message="A required live strategy input or research feed failed. Its dependent runtime remains fail-closed until the source and broker receipt are healthy."
+    ;;
   *)
     exit 64
     ;;

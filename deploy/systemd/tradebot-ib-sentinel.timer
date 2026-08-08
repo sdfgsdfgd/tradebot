@@ -1,0 +1,13 @@
+[Unit]
+Description=Check armed Tradebot candidates without touching broker state
+
+[Timer]
+OnBootSec=90s
+OnUnitActiveSec=1min
+AccuracySec=10s
+RandomizedDelaySec=0
+Persistent=false
+Unit=tradebot-ib-sentinel.service
+
+[Install]
+WantedBy=timers.target

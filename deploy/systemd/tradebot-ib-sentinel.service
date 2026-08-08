@@ -1,0 +1,19 @@
+[Unit]
+Description=Observe armed Tradebot candidates for broker and schedule authority loss
+After=network-online.target tradebot-ib-gateway.service
+OnFailure=tradebot-operator-alert@ib-runtime-failed.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/Desktop/py/tradebot
+Environment=PATH=%h/.local/share/tradebot/venv/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONUNBUFFERED=1
+Environment=IBKR_HOST=127.0.0.1
+Environment=IBKR_PORT=4001
+ExecStartPre=/usr/bin/test -x %h/.local/share/tradebot/venv/bin/python
+ExecStartPre=/usr/bin/test -f %h/Desktop/py/tradebot/db/calibration/live_capital_plan.json
+ExecStart=/usr/bin/env python3 -m tradebot.live.ib_preflight sentinel --repository-root %h/Desktop/py/tradebot --capital-plan %h/Desktop/py/tradebot/db/calibration/live_capital_plan.json --receipt %t/tradebot-ib-preflight.json --login-receipt %t/tradebot-ib-gateway-login.json --output %t/tradebot-ib-sentinel.json
+TimeoutStartSec=30s
+PrivateTmp=false
+NoNewPrivileges=true
+UMask=0077

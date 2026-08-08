@@ -1,0 +1,6 @@
+#!/bin/zsh
+set -euo pipefail
+
+# q owns the only trading runtime and its localhost-only Gateway.  Keep the
+# familiar Mac command as a terminal bridge, rather than a second local bot.
+exec ssh -tt q /home/x/.local/bin/tradebot "$@"

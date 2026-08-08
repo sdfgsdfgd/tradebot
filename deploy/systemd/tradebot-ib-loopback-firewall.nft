@@ -1,0 +1,6 @@
+table inet tradebot_ib_gateway {
+  chain input {
+    type filter hook input priority filter - 10; policy accept;
+    iifname != "lo" tcp dport 4001 reject with tcp reset
+  }
+}

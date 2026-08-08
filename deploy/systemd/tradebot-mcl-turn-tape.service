@@ -3,7 +3,7 @@ Description=Record prospective matched CL/MCL turn-authenticity microstructure
 Wants=network-online.target
 After=network-online.target tradebot-ib-gateway.service
 PartOf=tradebot-live.target
-ConditionPathExists=%h/Desktop/py/tradebot/backtests/mcl/mcl_turn_authenticity_microstructure_generation.json
+OnFailure=tradebot-operator-alert@mcl-runtime-failed.service
 StartLimitIntervalSec=30min
 StartLimitBurst=3
 
@@ -22,7 +22,8 @@ Environment=IBKR_CLIENT_ID_STATE_FILE=%t/tradebot-mcl-turn-tape-client-ids.json
 Environment=IBKR_READONLY=1
 Environment=IBKR_ACCOUNT_BOOTSTRAP=0
 Environment=MCL_TURN_TAPE_DIR=%h/.local/state/tradebot/research/mcl_turn_tape
-ExecCondition=/usr/bin/test -x %h/.local/share/tradebot/venv/bin/python
+ExecStartPre=/usr/bin/test -f %h/Desktop/py/tradebot/backtests/mcl/mcl_turn_authenticity_microstructure_generation.json
+ExecStartPre=/usr/bin/test -x %h/.local/share/tradebot/venv/bin/python
 ExecStart=/usr/bin/env python3 -m tradebot.research.mcl_turn_tape_session
 Restart=on-failure
 RestartSec=5min

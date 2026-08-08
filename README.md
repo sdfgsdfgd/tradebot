@@ -150,9 +150,9 @@ Machine source: `tests/ledgers/capability_contracts.json`. Every test file has o
 | --- | --- |
 | Deterministic | `python -m pytest -q` |
 | Ledger structure | `python -m pytest tests/test_capability_contracts.py -q` |
-| Explicit IB canary | `TRADEBOT_RUN_LIVE_IB_GATEWAY=1 python -m pytest -o addopts='' -m live tests/live/test_ib_gateway_tunnel.py -q` |
+| Explicit IB canary | `TRADEBOT_RUN_LIVE_IB_GATEWAY=1 python -m pytest -o addopts='' -m live tests/live/test_ib_gateway_local.py -q` |
 
-Live safety: the canary performs direct TCP inspection and disposable SSH forwarding to Mac `127.0.0.1:4001`; it preserves localhost-only `TrustedIPs` and submits no orders or market-data subscriptions.
+Live safety: run the canary on q. It proves the q-local Gateway, authenticated read-only protocol, three-client stack, root loopback firewall, and unchanged recovery scripts. It submits no orders, market-data subscriptions, account-summary requests, or Gateway mutations.
 
 ### MECC subsystem index
 
@@ -193,8 +193,7 @@ Live safety: the canary performs direct TCP inspection and disposable SSH forwar
 | `integration-replay` | `covered` | `integration.replay.backtest.simulation-accounting` | `backtest-simulation-accounting` |
 | `unit` | `covered` | `unit.research.optimization-calibration` | `research-optimization-calibration` |
 | `unit` | `planned` | `unit.verification.capability-ledger` | `verification-capability-evolution` |
-| `e2e-live` | `covered` | `e2e.live.ib-gateway-ssh-tunnel` | `broker-connectivity-account` |
-| `e2e-live` | `covered` | `e2e.live.ib-gateway-direct-transport` | `broker-connectivity-account` |
+| `e2e-live` | `covered` | `e2e.live.ib-gateway-q-local` | `broker-connectivity-account` |
 | `benchmark` | `planned` | `benchmark.future.live-backtest-drift-score` | `market-realism-parity` |
 | `unit` | `planned` | `unit.future.content-addressed-cache-provenance` | `backtest-data-cache` |
 | `integration-replay` | `planned` | `integration.replay.future.queue-latency-partial-fill-model` | `backtest-simulation-accounting` |
@@ -204,7 +203,7 @@ Live safety: the canary performs direct TCP inspection and disposable SSH forwar
 | `benchmark` | `planned` | `benchmark.future.online-regime-drift-calibration` | `signal-regime-intelligence` |
 | `unit` | `planned` | `unit.future.account-constraint-aware-sizing` | `policy-risk-sizing` |
 | `integration-replay` | `planned` | `integration.replay.future.causal-replay-journal` | `operator-ui-observability` |
-| `e2e-live` | `planned` | `e2e.live.future.tunnel-supervisor-failover` | `broker-connectivity-account` |
+| `e2e-live` | `planned` | `e2e.live.future.gateway-maintenance-window` | `broker-connectivity-account` |
 | `integration-replay` | `planned` | `integration.replay.future.corporate-actions-roll-adjustments` | `market-time-series-semantics` |
 | `unit` | `planned` | `unit.future.reproducible-runtime-manifest` | `runtime-configuration-state` |
 | `benchmark` | `planned` | `benchmark.future.current-market-canary-dashboard` | `verification-capability-evolution` |

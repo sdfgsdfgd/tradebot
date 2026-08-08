@@ -394,14 +394,14 @@ def test_systemd_budget_leaves_atomic_publication_grace() -> None:
     assert "IBKR_READONLY=0" not in mcl
     assert "MCL_NARRATIVE_LEDGER=%h/.local/state/tradebot/research/" in mcl
     assert "MCL_NARRATIVE_GENERATION=%h/Desktop/py/tradebot/backtests/mcl/" in mcl
-    assert "mcl_narrative_experiment_generation_ib_control_plane_20260808.json" in mcl
+    assert "mcl_narrative_experiment_generation_q_native_gateway_20260809.json" in mcl
     assert "python3 -m tradebot.research.mcl_narrative_lag_convexity" in mcl
     assert "tradebot-mcl-narrative-prospective.service" in guide
     assert "q owns one native IB Gateway" in guide
     assert "none pulls it in" in guide
     assert "Arm each selected strategy through the portfolio cockpit" in guide
-    assert "tradebot-ib-gateway-tunnel.service" in guide
-    assert "rollback transport only" in guide
+    assert "There is no Mac transport or SSH tunnel fallback." in guide
+    assert "Mac transport or SSH tunnel fallback" in guide
 
 
 def test_candidate_selection_has_no_topical_keyword_sieve() -> None:
@@ -980,7 +980,7 @@ def test_mcl_narrative_generation_binds_current_owners(tmp_path: Path) -> None:
     generation = load_mcl_narrative_generation()
 
     assert generation["generation_id"] == (
-        "f22e3a80c76c2ae3e5676954c22874ed3413b239ca3cbb8e7033236385fede54"
+        "7bf22ce3ce157d4cba2b0b5d5448cc2660b95d6bc01e6df59354017a668103bd"
     )
     assert generation["status"] == "ACTIVE_EMPTY_PREFIX"
 

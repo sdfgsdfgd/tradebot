@@ -95,7 +95,7 @@
     }
   ],
   "test_ownership": {
-    "tests/live/test_ib_gateway_tunnel.py": "broker-connectivity-account",
+    "tests/live/test_ib_gateway_local.py": "broker-connectivity-account",
     "tests/test_backtest_data_timezone.py": "backtest-data-cache",
     "tests/test_backtest_time_alignment.py": "market-time-series-semantics",
     "tests/test_backtest_trade_date_semantics.py": "market-time-series-semantics",
@@ -406,7 +406,8 @@
       "owner_surface": [
         "deploy/systemd/tradebot-ib-gateway.service",
         "deploy/systemd/tradebot-ib-gateway-launch",
-        "deploy/systemd/tradebot-ib-gateway-tunnel.service",
+        "deploy/systemd/tradebot-ib-gateway-ensure.service",
+        "deploy/systemd/tradebot-ib-loopback-firewall.service",
         "deploy/systemd/tradebot-ib-preflight.service",
         "tradebot/client.py",
         "tradebot/config.py",
@@ -444,8 +445,6 @@
         "deploy/systemd/tradebot-mcl-turn-tape.service",
         "deploy/systemd/tradebot-xsp-pressure-tape.service",
         "deploy/systemd/tradebot-xsp-pressure-tape.timer",
-        "deploy/systemd/tradebot-xsp-quotes.service",
-        "deploy/systemd/tradebot-xsp-quotes.timer",
         "tradebot/client.py",
         "tradebot/contract_identity.py",
         "tradebot/research/mcl_turn_tape.py",
@@ -662,55 +661,35 @@
       "next": "Split unit.verification.capability-ledger only when narrower evidence and oracles exist."
     },
     {
-      "id": "e2e.live.ib-gateway-ssh-tunnel",
+      "id": "e2e.live.ib-gateway-q-local",
       "subsystem": "broker-connectivity-account",
       "layer": "e2e-live",
       "phase": "broker-connectivity-account",
-      "capability": "A self-cleaning read-only canary proves q can reach the localhost-trusted Gateway and connect all three TradeBot clients.",
+      "capability": "A read-only q-local canary proves the canonical Gateway, loopback-only firewall, and all three TradeBot clients without a Mac transport.",
       "fixtures": [
         "current proof surfaces for broker-connectivity-account"
       ],
       "evidence": [
-        "tests/live/test_ib_gateway_tunnel.py::test_gateway_trust_is_localhost_only",
-        "tests/live/test_ib_gateway_tunnel.py::test_readonly_ib_protocol_through_ssh_tunnel",
-        "tests/live/test_ib_gateway_tunnel.py::test_tradebot_three_client_stack_through_ssh_tunnel"
+        "tests/live/test_ib_gateway_local.py::test_gateway_is_reachable_only_from_q_localhost",
+        "tests/live/test_ib_gateway_local.py::test_gateway_trust_and_firewall_are_exactly_localhost_only",
+        "tests/live/test_ib_gateway_local.py::test_readonly_ib_protocol_directly_on_q",
+        "tests/live/test_ib_gateway_local.py::test_tradebot_three_client_stack_directly_on_q",
+        "tests/live/test_ib_gateway_local.py::test_live_target_owns_only_schedules_and_old_tunnel_is_gone",
+        "tests/live/test_ib_gateway_local.py::test_recovery_scripts_remain_byte_identical"
       ],
       "owner_surface": [
-        "deploy/systemd/tradebot-ib-gateway-tunnel.service",
+        "deploy/systemd/tradebot-ib-gateway.service",
+        "deploy/systemd/tradebot-ib-loopback-firewall.service",
         "tradebot/client.py"
       ],
       "oracle": [
         "Gateway trust remains exactly localhost-only",
-        "the tunneled read-only IB session exposes a valid server version and managed account",
+        "the q-local read-only IB session exposes a valid server version and managed account",
         "TradeBot main, proxy, and index clients connect with three distinct client IDs",
-        "the canary removes its SSH tunnel and temporary client-ID state"
+        "the old tunnel is absent and temporary client-ID state is isolated"
       ],
       "status": "covered",
-      "next": "Evolve tunnel supervision only through the separate future failover contract."
-    },
-    {
-      "id": "e2e.live.ib-gateway-direct-transport",
-      "subsystem": "broker-connectivity-account",
-      "layer": "e2e-live",
-      "phase": "ibkr-direct-transport",
-      "capability": "q reaches the MacBook IB Gateway listener over direct LAN TCP without widening Gateway authorization.",
-      "fixtures": [
-        "q 192.168.1.4",
-        "MacBook 192.168.1.2",
-        "IB Gateway 4001"
-      ],
-      "evidence": [
-        "tests/live/test_ib_gateway_tunnel.py::test_direct_ib_gateway_transport_reachable"
-      ],
-      "owner_surface": [
-        "tradebot/client.py"
-      ],
-      "oracle": [
-        "q opens a TCP connection to the MacBook Gateway listener",
-        "the probe sends no IB order, market-data request, or Gateway mutation"
-      ],
-      "status": "covered",
-      "next": "Keep the direct transport probe non-mutating and retain the localhost authorization boundary."
+      "next": "Evolve maintenance verification only through the separate calendar-bound contract."
     },
     {
       "id": "benchmark.future.live-backtest-drift-score",
@@ -743,7 +722,7 @@
       "owner_surface": [
         "tradebot/backtest/engine.py",
         "tradebot/option_package.py",
-        "deploy/systemd/tradebot-ib-gateway-tunnel.service",
+        "deploy/systemd/tradebot-ib-gateway.service",
         "deploy/systemd/tradebot-gold-onset.service",
         "deploy/systemd/tradebot-gold-onset.timer",
         "deploy/systemd/tradebot-mcl-live.service",
@@ -980,13 +959,13 @@
       "next": "Design the smallest falsifiable TDD birth for integration.replay.future.causal-replay-journal."
     },
     {
-      "id": "e2e.live.future.tunnel-supervisor-failover",
+      "id": "e2e.live.future.gateway-maintenance-window",
       "subsystem": "broker-connectivity-account",
       "layer": "e2e-live",
       "phase": "future-capability",
-      "capability": "Supervise SSH forwarding, detect stale tunnels, rotate client IDs, and recover without widening Gateway trust.",
+      "capability": "Prove a Monday-Saturday native restart stays inside maintenance and a Sunday post-reset login produces the exact 2FA operator escalation.",
       "fixtures": [
-        "planned fixture for e2e.live.future.tunnel-supervisor-failover"
+        "planned fixture for e2e.live.future.gateway-maintenance-window"
       ],
       "evidence": [
         "README.md"
@@ -999,7 +978,7 @@
         "promotion requires executable evidence"
       ],
       "status": "planned",
-      "next": "Design the smallest falsifiable TDD birth for e2e.live.future.tunnel-supervisor-failover."
+      "next": "Design the smallest falsifiable TDD birth for e2e.live.future.gateway-maintenance-window."
     },
     {
       "id": "integration.replay.future.corporate-actions-roll-adjustments",

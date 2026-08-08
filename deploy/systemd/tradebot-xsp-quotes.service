@@ -1,7 +1,7 @@
 [Unit]
 Description=Record one restart-safe XSP option tape across the exchange session
-Wants=network-online.target tradebot-ib-gateway-tunnel.service
-After=network-online.target tradebot-ib-gateway-tunnel.service
+Wants=network-online.target
+After=network-online.target tradebot-ib-gateway.service
 ConditionPathExists=%h/Desktop/py/tradebot/tradebot/backtest/tools/record_quotes.py
 
 [Service]
