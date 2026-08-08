@@ -456,6 +456,7 @@ gate after outcomes.
 | P-009 first-RTH readiness audit | Installed source/units match repository byte-for-byte; the live owner fetches fresh uncached XSP/SPY native 1m RTH history, removes the forming bar, requires aligned fresh close clocks, and runs at `09:31–09:59 ET +3s`. Focused production proof: `195 passed` | No extra warmup service or state carry is needed. The first lawful bridge decision is the completed `09:35 ET` minute and the first possible LMT target is `09:36 ET`; the separate seconds pressure tape remains observation-only |
 | P-009 pre-open latency audit | `104` natural full-worker samples: `29.07–35.36s`, mean `31.67s`. Read-only native-minute transport: `2.11s`; full historical RTH source over a temporary production-sized `2,779`-row ledger: `18.69s`, `389/389` aligned completed XSP/SPY minutes, no target/order | Same-minute capacity passes and lock staggering gives XSP `:03` before MCL `:10`; however research `next-open` is not yet authentic live fill parity. Measure the first target's signal→source→plan→LMT→fill clocks and slippage before claiming it |
 | P-009 first live RTH graduation interruption | The first selected session is not valid alpha evidence. A naive-ET/UTC freshness defect plus a `NO_DATA` transport exception failed `17` opening invocations and disabled the intended `09:35–09:37 ET` bridge; commit `23a330a` repaired both before the first `09:58 ET` success. The later Gateway outage removed `15:32 ET` onward and the `15:57 ET` liquidation. The reducer also falsely conflicts adjacent one-minute marks inside five-minute tolerance windows | Preserve the strategy crown, reject this run for graduation, never backfill its `14` genuinely missing slots, canonicalize one nearest execution observation per profitability slot, and begin a fresh immutable P-009 run only after broker-flat proof on a natural timer boundary |
+| P-009 canonical profitability slots | Cutoff-bound q replay `cbfde2ec…` applies one clock law to session-completeness and cash-profitability reduction: select the nearest evaluation clock to each five-minute slot, prefer the earlier clock on an equal-distance tie, and conflict only differing states at that exact clock. The interrupted run changes `18 evaluated / 49 conflicts / 14 missing` to `67 / 0 / 14`; economics and `INVALID_EVIDENCE` remain exact | Evidence normalization only. It neither backfills the four opening nor ten Gateway-loss slots, nor alters strategy, fills, P&L, selection, execution, or services. The fresh run can now graduate honestly without laundering its predecessor |
 | P-009 flat-first recovery transaction | The incumbent remains `23 SPXU`, zero orders, and sell-only through its final natural `09:27 ET` recovery attempt. At `09:28:30 ET` the rollover takes the shared account lock and stops old admission before qualifying broker/ledger flatness | Held, stale, cash-short, publication-failed, or reconciliation-failed states leave XSP OFF. Only terminal flat plus direct reconciliation and idempotent successor proof may restart the unchanged P-009 timer; Gold/MCL selections are reloaded and preserved dynamically |
 
 ## 12. Decision journal
@@ -483,6 +484,7 @@ gate after outcomes.
 | PD-019 | Treat P-009's modeled next-minute open and live next-minute LMT as distinct clocks until an authentic target proves signal-to-fill latency. Current production work finishes inside the same minute, so preserve the canary and measure it; do not preemptively rewrite the owner or call a 30–40s landing exact-open parity |
 | PD-020 | The interrupted first live P-009 session cannot graduate and cannot reject alpha: its opening bridge was disabled by defects now fixed in `23a330a`, while Gateway loss later prevented liquidation. Start a fresh flat selection after recovery; repair only the profitability slot reducer, not P-009 thresholds or clocks |
 | PD-021 | The flat-first rollover is a run-identity transaction, not a strategy revision. The old P-009 owner retains reduction authority only; a fresh profitability clock begins only after broker and ledger are terminal-flat, and no missing predecessor slot may be backfilled |
+| PD-022 | Reduce XSP accounting slots from one canonical nearest evaluation clock, not every changing one-minute mark inside the tolerance window. Earlier wins equal-distance ties; only equal-clock economic disagreement conflicts. This is evidence identity, never signal or P&L authority |
 
 ## 13. Current execution sequence
 
@@ -514,12 +516,13 @@ gate after outcomes.
     succeeded shared-capital plan, outcome-blind pressure generation, LMT-only
     preview, restart proof, installed-unit parity, and zero-order broker proof
     bind P-009 to the existing central worker.
-11. `[INTERRUPTED / INVALID FIRST RTH / RECOVERY DUE]` Natural GTH identity and
+11. `[INTERRUPTED / REDUCER REPAIRED / RECOVERY DUE]` Natural GTH identity and
     the current repaired opening owner are exact, but the first selected RTH
     session cannot count: `17` opening invocations failed before repair and the
-    Gateway outage prevented the normal close. Flatten the residual sleeve,
-    canonicalize profitability slots without backfill, start one fresh immutable
-    run on a natural boundary, then restart `24h`, `48h`, and five-session proof.
+    Gateway outage prevented the normal close. Canonical reduction removes all
+    `49` false conflicts while preserving `14` true gaps and invalid status.
+    Flatten the residual sleeve, start one fresh immutable run on a natural
+    boundary, then restart `24h`, `48h`, and five-session proof.
 
 ## Conclusion: XSP P-009 Dual-Clock Arbitration
 

@@ -1239,6 +1239,123 @@ def test_profitability_clock_requires_exact_continuous_selected_coverage(
     assert not receipt["milestones"]["24h"]["passed"]
 
 
+def test_profitability_slot_selects_nearest_mark_without_neighbor_conflict(
+    tmp_path,
+) -> None:
+    from tradebot.engines.market import xsp_rth_evaluation_slots
+
+    ledger = LiveCalibrationLedger(tmp_path / "nearest-slot.jsonl")
+    policy = _profitability_policy()
+    day = date(2026, 7, 27)
+    _append_selected_session(
+        ledger,
+        policy=policy,
+        day=day,
+        cumulative_gross=0.0,
+        cumulative_costs=0.0,
+        closed_trades=0,
+        gross_wins=0.0,
+        top_five_wins=0.0,
+    )
+    slot = xsp_rth_evaluation_slots(day)[20]
+    exact = next(
+        row
+        for row in ledger.records()
+        if row.get("evaluation_as_of_utc") == slot.astimezone(timezone.utc).isoformat()
+    )
+    for offset, mark in ((-1, -1.0), (1, 1.0)):
+        evaluation_at = slot + timedelta(minutes=offset)
+        equity = dict(exact["evidence"]["selected_equity"])
+        equity.update(
+            {
+                "cumulative_gross_points": mark,
+                "cumulative_net_points": mark,
+                "cumulative_realized_net_points": 0.0,
+                "open_mark_points": mark,
+            }
+        )
+        ledger.checkpoint(
+            evaluation_as_of=evaluation_at,
+            strategy_id=policy.strategy_id,
+            strategy_version=policy.strategy_version,
+            trading_date=day.isoformat(),
+            session="RTH",
+            status="EVALUATED",
+            evidence={"selected_equity": equity},
+            recorded_at=evaluation_at,
+        )
+
+    receipt = ledger.xsp_profitability_receipt(
+        policy=policy,
+        as_of=datetime(2026, 7, 27, 16, 2, tzinfo=ET_ZONE),
+    )
+
+    assert receipt["sessions"][0]["conflict_slots"] == []
+    assert receipt["sessions"][0]["complete"] is True
+    assert receipt["economics"]["net_points"] == 2.5
+    assert ledger.complete_xsp_checkpoint_sessions(
+        strategy_id=policy.strategy_id,
+        strategy_version=policy.strategy_version,
+    ) == (day.isoformat(),)
+
+
+def test_profitability_slot_rejects_equal_clock_economic_disagreement(
+    tmp_path,
+) -> None:
+    from tradebot.engines.market import xsp_rth_evaluation_slots
+
+    ledger = LiveCalibrationLedger(tmp_path / "equal-clock-conflict.jsonl")
+    policy = _profitability_policy()
+    day = date(2026, 7, 27)
+    _append_selected_session(
+        ledger,
+        policy=policy,
+        day=day,
+        cumulative_gross=0.0,
+        cumulative_costs=0.0,
+        closed_trades=0,
+        gross_wins=0.0,
+        top_five_wins=0.0,
+    )
+    slot = xsp_rth_evaluation_slots(day)[20]
+    exact = next(
+        row
+        for row in ledger.records()
+        if row.get("evaluation_as_of_utc") == slot.astimezone(timezone.utc).isoformat()
+    )
+    equity = dict(exact["evidence"]["selected_equity"])
+    equity.update(
+        {
+            "cumulative_gross_points": 1.0,
+            "cumulative_net_points": 1.0,
+            "cumulative_realized_net_points": 0.0,
+            "open_mark_points": 1.0,
+        }
+    )
+    ledger.checkpoint(
+        evaluation_as_of=slot,
+        strategy_id=policy.strategy_id,
+        strategy_version=policy.strategy_version,
+        trading_date=day.isoformat(),
+        session="RTH",
+        status="EVALUATED",
+        evidence={"selected_equity": equity},
+        recorded_at=slot,
+    )
+
+    receipt = ledger.xsp_profitability_receipt(
+        policy=policy,
+        as_of=datetime(2026, 7, 27, 16, 2, tzinfo=ET_ZONE),
+    )
+
+    assert receipt["status"] == "INVALID_EVIDENCE"
+    assert receipt["sessions"][0]["conflict_slots"] == [slot.isoformat()]
+    assert ledger.complete_xsp_checkpoint_sessions(
+        strategy_id=policy.strategy_id,
+        strategy_version=policy.strategy_version,
+    ) == ()
+
+
 def test_profitability_clock_proves_only_reconciled_net_week(tmp_path) -> None:
     ledger = LiveCalibrationLedger(tmp_path / "calibration.jsonl")
     policy = _profitability_policy()

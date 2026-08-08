@@ -9,7 +9,7 @@ import math
 import os
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import Iterator, Mapping, Sequence
+from typing import Callable, Iterator, Mapping, Sequence, TypeVar
 
 from ..engines.market import (
     xsp_rth_cash_evaluation_slots,
@@ -33,6 +33,7 @@ LIVE_CALIBRATION_VERDICTS = {"PROMOTE", "HOLD", "REVISE", "QUARANTINE", "STOP"}
 LIVE_CALIBRATION_CHECKPOINT_STATUSES = {
     "CLOSED", "EVALUATED", "NO_DATA", "STALE_DATA", "UNSUPPORTED_SESSION",
 }
+_SlotCandidate = TypeVar("_SlotCandidate")
 _IDENTITY_FIELDS = {
     "strategy_id", "strategy_version", "decision_as_of_utc",
     "tape_fingerprint", "config_fingerprint", "capital_sleeve",
@@ -70,6 +71,41 @@ def _canonical(payload: object) -> bytes:
 
 def _digest(payload: object) -> str:
     return hashlib.sha256(_canonical(payload)).hexdigest()
+
+
+def _canonical_xsp_slot_candidate(
+    candidates: Sequence[_SlotCandidate],
+    *,
+    slot: datetime,
+    evaluation_at: Callable[[_SlotCandidate], datetime],
+    recorded_at: Callable[[_SlotCandidate], datetime],
+    signature: Callable[[_SlotCandidate], object],
+) -> tuple[_SlotCandidate | None, bool]:
+    """Select the nearest XSP clock; only equal-clock disagreement conflicts."""
+
+    if not candidates:
+        return None, False
+    clock = min(
+        {evaluation_at(candidate) for candidate in candidates},
+        key=lambda value: (abs((value - slot).total_seconds()), value),
+    )
+    nearest = [
+        candidate
+        for candidate in candidates
+        if evaluation_at(candidate) == clock
+    ]
+    if len({signature(candidate) for candidate in nearest}) != 1:
+        return None, True
+    return (
+        min(
+            nearest,
+            key=lambda candidate: (
+                abs((recorded_at(candidate) - slot).total_seconds()),
+                recorded_at(candidate),
+            ),
+        ),
+        False,
+    )
 
 
 def _record_address_valid(record: Mapping[str, object]) -> bool:
@@ -476,16 +512,26 @@ class LiveCalibrationLedger:
             for slot in slots:
                 slot_utc = slot.astimezone(timezone.utc)
                 candidates = [
-                    row
-                    for row, evaluation_at, recorded_at in rows
-                    if abs((evaluation_at - slot_utc).total_seconds()) <= slot_tolerance_seconds
-                    and abs((recorded_at - slot_utc).total_seconds()) <= slot_tolerance_seconds
+                    item
+                    for item in rows
+                    if abs((item[1] - slot_utc).total_seconds()) <= slot_tolerance_seconds
+                    and abs((item[2] - slot_utc).total_seconds()) <= slot_tolerance_seconds
                 ]
-                signatures = {
-                    (str(row.get("status")), _digest(row.get("evidence")))
-                    for row in candidates
-                }
-                if len(signatures) != 1 or next(iter(signatures))[0] != "EVALUATED":
+                chosen, conflict = _canonical_xsp_slot_candidate(
+                    candidates,
+                    slot=slot_utc,
+                    evaluation_at=lambda item: item[1],
+                    recorded_at=lambda item: item[2],
+                    signature=lambda item: (
+                        str(item[0].get("status")),
+                        _digest(item[0].get("evidence")),
+                    ),
+                )
+                if (
+                    conflict
+                    or chosen is None
+                    or chosen[0].get("status") != "EVALUATED"
+                ):
                     break
             else:
                 complete.append(trading_day.isoformat())
@@ -683,11 +729,20 @@ class LiveCalibrationLedger:
                 if not candidates:
                     missing_slots.append(slot.isoformat())
                     continue
-                signatures = {(str(item[0].get("status")), _digest(item[4])) for item in candidates}
-                if len(signatures) != 1:
+                chosen, conflict = _canonical_xsp_slot_candidate(
+                    candidates,
+                    slot=slot_utc,
+                    evaluation_at=lambda item: item[1],
+                    recorded_at=lambda item: item[2],
+                    signature=lambda item: (
+                        str(item[0].get("status")),
+                        _digest(item[4]),
+                    ),
+                )
+                if conflict:
                     conflict_slots.append(slot.isoformat())
                     continue
-                chosen = min(candidates, key=lambda item: (item[2], item[1]))
+                assert chosen is not None
                 if chosen[0].get("status") != "EVALUATED":
                     missing_slots.append(slot.isoformat())
                     continue
