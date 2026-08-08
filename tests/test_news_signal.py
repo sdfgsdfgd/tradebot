@@ -390,7 +390,7 @@ def test_systemd_budget_leaves_atomic_publication_grace() -> None:
     assert "OnSuccess=tradebot-mcl-narrative-prospective.service" in unit
     assert "OnFailure=tradebot-operator-alert@news-input-failed.service" in unit
     assert "ExecStartPost=/usr/bin/python3 -m tradebot.news --verify" in unit
-    assert "OnCalendar=Sun *-*-* 15:30:00 America/New_York" in timer
+    assert "OnCalendar=Sun *-*-* 15:20:00 America/New_York" in timer
     assert "OnCalendar=Mon..Fri *-*-* 00,04,08,12,16:15:00 America/New_York" in timer
     assert "OnCalendar=Mon..Thu *-*-* 20:15:00 America/New_York" in timer
     assert "OnCalendar=Mon..Fri *-*-* 20:15:00 America/New_York" not in timer

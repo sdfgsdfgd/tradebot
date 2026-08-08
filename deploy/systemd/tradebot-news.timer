@@ -2,7 +2,7 @@
 Description=Run the tradebot XSP/MCL/Gold news inference before relevant sessions
 
 [Timer]
-OnCalendar=Sun *-*-* 15:30:00 America/New_York
+OnCalendar=Sun *-*-* 15:20:00 America/New_York
 OnCalendar=Mon..Fri *-*-* 00,04,08,12,16:15:00 America/New_York
 OnCalendar=Mon..Thu *-*-* 20:15:00 America/New_York
 AccuracySec=15s

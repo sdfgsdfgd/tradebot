@@ -225,7 +225,7 @@ so quote/Gateway failures retry without publishing a chain of new runs.
 
 ## Sunday sequence
 
-1. `15:30 ET`: q starts one bounded XSP/MCL/Gold news inference. It may use
+1. `15:20 ET`: q starts one bounded XSP/MCL/Gold news inference. It may use
    up to one hour; a fresh publication is verified before success. One retry is
    allowed after five minutes; failed publication raises the Mac review alert
    without granting or revoking trade authority.
