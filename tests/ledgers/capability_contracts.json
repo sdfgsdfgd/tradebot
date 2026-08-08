@@ -105,6 +105,7 @@
     "tests/test_architecture_boundaries.py": "verification-capability-evolution",
     "tests/test_cache_fetch_mend.py": "backtest-data-cache",
     "tests/test_capability_contracts.py": "verification-capability-evolution",
+    "tests/test_cli_owner_guard.py": "broker-connectivity-account",
     "tests/test_client_market_data_fallbacks.py": "broker-connectivity-account",
     "tests/test_daily_climate_router.py": "signal-regime-intelligence",
     "tests/test_directional_impulse.py": "signal-regime-intelligence",
@@ -397,6 +398,7 @@
         "current proof surfaces for broker-connectivity-account"
       ],
       "evidence": [
+        "tests/test_cli_owner_guard.py",
         "tests/test_client_market_data_fallbacks.py",
         "tests/test_ib_preflight.py",
         "tests/test_ib_runtime_systemd.py",
@@ -404,6 +406,8 @@
         "tests/test_ui_pnl_truth.py"
       ],
       "owner_surface": [
+        "deploy/macos/tradebot",
+        "deploy/systemd/tradebot-cli",
         "deploy/systemd/tradebot-ib-gateway.service",
         "deploy/systemd/tradebot-ib-gateway-launch",
         "deploy/systemd/tradebot-ib-gateway-ensure.service",
@@ -411,7 +415,8 @@
         "deploy/systemd/tradebot-ib-preflight.service",
         "tradebot/client.py",
         "tradebot/config.py",
-        "tradebot/live/ib_preflight.py"
+        "tradebot/live/ib_preflight.py",
+        "tradebot/main.py"
       ],
       "oracle": [
         "all evidence assigned to broker-connectivity-account passes",

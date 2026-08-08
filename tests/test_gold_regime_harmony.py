@@ -14,6 +14,7 @@ import pytest
 from tradebot.backtest.models import BacktestResult, SpotTrade, SummaryStats
 from tradebot.client import BrokerOrderPreview
 from tradebot.live.capital import build_live_capital_plan
+from tradebot.research import gold_onset_cli
 from tradebot.research.gold_live_runtime import (
     _gold_price_for_ticker,
     advance_gold_live_transport,
@@ -23,7 +24,10 @@ from tradebot.research.gold_live_runtime import (
     gold_transport_order_ref,
 )
 from tradebot.research.gold_live_cli import _require_current_gold_runtime_parity
-from tradebot.research.gold_onset_cli import _unmanaged_stress
+from tradebot.research.gold_onset_cli import (
+    _gold_rollover_boundary,
+    _unmanaged_stress,
+)
 from tradebot.research.gold_live_state import (
     gold_transport_risk_state,
     project_gold_transport_plan,
@@ -484,6 +488,193 @@ def test_gold_rollover_stresses_only_unmanaged_positions() -> None:
             ]
         }
     ) == 92.74
+
+
+def test_gold_rollover_recovers_only_its_immediate_active_successor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    predecessor_id = "a" * 64
+    successor_id = "b" * 64
+    xsp_id = "c" * 64
+    mcl_id = "d" * 64
+    selections = {
+        "gold-1oz-stage76-margin": {"selection_id": predecessor_id},
+        "xsp-upro-spxu-rth-cash": {"selection_id": xsp_id},
+        "mcl-two-speed-auction-margin": {"selection_id": mcl_id},
+    }
+    paths = {}
+    for sleeve_id in selections:
+        path = tmp_path / "db/calibration/selections" / f"{sleeve_id}.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("{}\n")
+        paths[sleeve_id] = path
+    plan = {
+        "plan_id": "e" * 64,
+        "sleeves": [
+            {
+                "sleeve_id": sleeve_id,
+                "run_id": selection["selection_id"],
+                "selection_file_sha256": index * 64,
+            }
+            for sleeve_id, selection, index in zip(
+                selections,
+                selections.values(),
+                ("1", "2", "3"),
+                strict=True,
+            )
+        ],
+    }
+
+    monkeypatch.setattr(gold_onset_cli, "load_live_capital_plan", lambda _path: plan)
+
+    def allocated(_plan, *, sleeve_id, repository_root):
+        del _plan, repository_root
+        selection = selections[sleeve_id]
+        sleeve = next(row for row in plan["sleeves"] if row["sleeve_id"] == sleeve_id)
+        return selection, paths[sleeve_id], sleeve["selection_file_sha256"]
+
+    monkeypatch.setattr(gold_onset_cli, "load_allocated_live_selection", allocated)
+    intent_path = tmp_path / "state/intent.json"
+    intent, recovered = _gold_rollover_boundary(
+        capital_path=tmp_path / "capital.json",
+        intent_path=intent_path,
+        root=tmp_path,
+    )
+    assert recovered is None
+    assert intent["predecessor_selection_id"] == predecessor_id
+    assert intent_path.stat().st_mode & 0o777 == 0o600
+
+    selections["gold-1oz-stage76-margin"] = {
+        "selection_id": successor_id,
+        "allocation_successor": {
+            "predecessor_selection_id": predecessor_id,
+        },
+    }
+    plan["plan_id"] = "f" * 64
+    plan["sleeves"][0]["run_id"] = successor_id
+    generation = (
+        tmp_path
+        / "db/calibration/portfolio_generations"
+        / f"{plan['plan_id']}.json"
+    )
+    generation.parent.mkdir(parents=True, exist_ok=True)
+    generation.write_text("generation\n")
+    stability = tmp_path / "db/calibration/portfolio_capital_owner_stability.json"
+    stability.write_text("stability\n")
+    stability_sha = hashlib.sha256(stability.read_bytes()).hexdigest()
+    archive = (
+        tmp_path
+        / "db/calibration/portfolio_capital_stability"
+        / f"{stability_sha}.json"
+    )
+    archive.parent.mkdir(parents=True, exist_ok=True)
+    archive.write_bytes(stability.read_bytes())
+    validated = []
+    monkeypatch.setattr(
+        gold_onset_cli,
+        "load_gold_live_selection_from_mapping",
+        lambda selection: validated.append(selection) or selection,
+    )
+    gates = []
+    monkeypatch.setattr(
+        gold_onset_cli,
+        "portfolio_capital_owner_stability_gate",
+        lambda _path, **kwargs: gates.append(kwargs["sleeve_id"])
+        or {"status": "PASS"},
+    )
+
+    repeated_intent, recovered = _gold_rollover_boundary(
+        capital_path=tmp_path / "capital.json",
+        intent_path=intent_path,
+        root=tmp_path,
+    )
+
+    assert repeated_intent == intent
+    assert recovered["rollover"]["selection_id"] == successor_id
+    assert recovered["rollover"]["predecessor_selection_id"] == predecessor_id
+    assert recovered["rollover"]["recovered_after_interruption"] is True
+    assert recovered["rollover"]["retained_xsp_selection_id"] == xsp_id
+    assert recovered["rollover"]["retained_mcl_selection_id"] == mcl_id
+    assert recovered["rollover"]["submitted_orders"] == 0
+    assert validated == [selections["gold-1oz-stage76-margin"]]
+    assert set(gates) == set(selections)
+
+
+def test_gold_rollover_rejects_a_non_immediate_active_selection(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    plan = {
+        "plan_id": "a" * 64,
+        "sleeves": [
+            {
+                "sleeve_id": "gold-1oz-stage76-margin",
+                "run_id": "b" * 64,
+                "selection_file_sha256": "c" * 64,
+            }
+        ],
+    }
+    selection_path = tmp_path / "gold.json"
+    selection_path.write_text("{}\n")
+    selection = {"selection_id": "b" * 64}
+    monkeypatch.setattr(gold_onset_cli, "load_live_capital_plan", lambda _path: plan)
+    monkeypatch.setattr(
+        gold_onset_cli,
+        "load_allocated_live_selection",
+        lambda *_args, **_kwargs: (selection, selection_path, "c" * 64),
+    )
+    intent_path = tmp_path / "intent.json"
+    _gold_rollover_boundary(
+        capital_path=tmp_path / "capital.json",
+        intent_path=intent_path,
+        root=tmp_path,
+    )
+    selection.update(
+        {
+            "selection_id": "d" * 64,
+            "allocation_successor": {"predecessor_selection_id": "e" * 64},
+        }
+    )
+
+    with pytest.raises(ValueError, match="crossed the rollover boundary"):
+        _gold_rollover_boundary(
+            capital_path=tmp_path / "capital.json",
+            intent_path=intent_path,
+            root=tmp_path,
+        )
+
+
+def test_gold_rollover_recovery_returns_before_constructing_ib(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    recovered = {
+        "rollover": {
+            "selection_id": "a" * 64,
+            "submitted_orders": 0,
+            "verdict": "FRESH_FAIL_CLOSED_GOLD_RUN_SELECTED_FLAT",
+        }
+    }
+    monkeypatch.setattr(
+        gold_onset_cli,
+        "_gold_rollover_boundary",
+        lambda **_kwargs: ({"intent_id": "b" * 64}, recovered),
+    )
+
+    class ForbiddenIB:
+        def __init__(self) -> None:
+            raise AssertionError("recovery must not construct a broker client")
+
+    monkeypatch.setattr(gold_onset_cli, "IB", ForbiddenIB)
+    gold_onset_cli.main(
+        [
+            "--rollover-canary",
+            "--rollover-intent",
+            str(tmp_path / "intent.json"),
+        ]
+    )
+
+    assert json.loads(capsys.readouterr().out) == recovered
 
 
 def test_gold_selection_extends_xsp_cash_plan_as_exclusive_margin_overlay(

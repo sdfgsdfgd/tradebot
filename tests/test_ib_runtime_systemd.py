@@ -206,6 +206,7 @@ def test_scheduled_recovery_flows_are_native_alerted_and_restart_safe() -> None:
         assert "Persistent=false" in timer, name
 
     gold = _unit("tradebot-gold-fail-closed-rollover.service")
+    gold_worker = _unit("tradebot-gold-fail-closed-rollover")
     assert (
         "ExecStartPost=/usr/bin/systemctl --user enable --now tradebot-gold-live.timer"
         in gold
@@ -215,6 +216,9 @@ def test_scheduled_recovery_flows_are_native_alerted_and_restart_safe() -> None:
     assert "RestartSec=5min" in gold
     assert "StartLimitIntervalSec=6h" in gold
     assert "StartLimitBurst=72" in gold
+    assert '--rollover-intent "$intent"' in gold_worker
+    assert ".rollover.predecessor_selection_id == $expected" in gold_worker
+    assert ".rollover.rollover_intent_id == $intent_id" in gold_worker
 
 
 def test_gold_runtime_uses_the_official_24x7_maintenance_calendar() -> None:

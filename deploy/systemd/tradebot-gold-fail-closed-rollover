@@ -4,6 +4,7 @@ set -eu
 root=/home/x/Desktop/py/tradebot
 state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/tradebot/recovery/gold-fail-closed-rollover"
 receipt="$state_dir/selection.json"
+intent="$state_dir/intent.json"
 mkdir -p "$state_dir"
 chmod 700 "$state_dir"
 cd "$root"
@@ -23,21 +24,33 @@ if ! test -s "$receipt"; then
         IBKR_CLIENT_ID=3199 \
         IBKR_READONLY=1 \
         GOLD_ONSET_LEDGER=/home/x/.local/state/tradebot/research/gold_onset.jsonl \
-        python3 -m tradebot.research.gold_onset_cli --rollover-canary \
+        python3 -m tradebot.research.gold_onset_cli \
+            --rollover-canary \
+            --rollover-intent "$intent" \
         >"$temporary"
+    expected="$(jq -r .predecessor_selection_id "$intent")"
+    intent_id="$(jq -r .intent_id "$intent")"
     jq -e '
         .rollover.verdict == "FRESH_FAIL_CLOSED_GOLD_RUN_SELECTED_FLAT"
         and .rollover.submitted_orders == 0
         and (.rollover.selection_id | length) == 64
         and (.rollover.retained_xsp_selection_id | length) == 64
         and (.rollover.retained_mcl_selection_id | length) == 64
-    ' "$temporary" >/dev/null
+        and .rollover.predecessor_selection_id == $expected
+        and .rollover.rollover_intent_id == $intent_id
+    ' --arg expected "$expected" --arg intent_id "$intent_id" "$temporary" >/dev/null
     chmod 600 "$temporary"
     mv "$temporary" "$receipt"
     trap - EXIT HUP INT TERM
 fi
 
-jq -e '.rollover.verdict == "FRESH_FAIL_CLOSED_GOLD_RUN_SELECTED_FLAT"' "$receipt" >/dev/null
+expected="$(jq -r .predecessor_selection_id "$intent")"
+intent_id="$(jq -r .intent_id "$intent")"
+jq -e '
+    .rollover.verdict == "FRESH_FAIL_CLOSED_GOLD_RUN_SELECTED_FLAT"
+    and .rollover.predecessor_selection_id == $expected
+    and .rollover.rollover_intent_id == $intent_id
+' --arg expected "$expected" --arg intent_id "$intent_id" "$receipt" >/dev/null
 selected="$(jq -r .rollover.selection_id "$receipt")"
 active="$(jq -r '.sleeves[] | select(.sleeve_id == "gold-1oz-stage76-margin") | .run_id' db/calibration/live_capital_plan.json)"
 test "$selected" = "$active"

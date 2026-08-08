@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import os
 import re
+import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Iterable, Sequence
+from typing import Iterable, Mapping, Sequence
 
 from ib_insync import Contract, Future, IB, Stock
 
@@ -22,6 +24,10 @@ from ..live.capital_packages import (
     publish_immutable_live_selection,
 )
 from ..live.capital_stability import (
+    PORTFOLIO_CAPITAL_STABILITY_DIRECTORY,
+    PORTFOLIO_CAPITAL_STABILITY_PATH,
+    PORTFOLIO_PACKAGE_GENERATION_DIRECTORY,
+    portfolio_capital_owner_stability_gate,
     publish_portfolio_capital_owner_stability,
     publish_portfolio_package_generation,
 )
@@ -33,6 +39,7 @@ from .gold_live_transport import (
     advance_gold_regime_harmony_source,
     build_gold_portfolio_capital_plan,
     gold_selection_preview,
+    load_gold_live_selection_from_mapping,
     publish_gold_live_selection,
     reallocate_gold_live_transport,
     select_gold_live_transport,
@@ -68,6 +75,7 @@ CACHE_PATHS = {
     "tip_d1": (ROOT / "db/TIP/TIP_2015-07-01_2026-08-02_1day_rth.csv",),
 }
 _MONTH_CODES = set("FGHJKMNQUVXZ")
+_GOLD_ROLLOVER_INTENT_SCHEMA = "gold.1oz-fail-closed-rollover-intent.v1"
 
 
 def _aware(value: datetime) -> datetime:
@@ -263,12 +271,164 @@ def _unmanaged_stress(preview: dict[str, object]) -> float:
     )
 
 
+def _gold_rollover_boundary(
+    *,
+    capital_path: Path,
+    intent_path: Path,
+    root: Path,
+) -> tuple[dict[str, object], dict[str, object] | None]:
+    """Persist the predecessor before mutation or recover its active successor."""
+
+    plan = load_live_capital_plan(capital_path)
+    gold, gold_path, gold_sha = load_allocated_live_selection(
+        plan,
+        sleeve_id=GOLD_LIVE_CAPITAL_SLEEVE,
+        repository_root=root,
+    )
+    if intent_path.is_symlink():
+        raise ValueError("gold rollover intent must not be a symlink")
+    if intent_path.exists():
+        intent = json.loads(intent_path.read_text())
+    else:
+        body = {
+            "schema": _GOLD_ROLLOVER_INTENT_SCHEMA,
+            "registered_at_utc": datetime.now(timezone.utc).isoformat(),
+            "predecessor_plan_id": plan["plan_id"],
+            "predecessor_selection_id": gold["selection_id"],
+        }
+        intent = {
+            **body,
+            "intent_id": hashlib.sha256(
+                json.dumps(
+                    body,
+                    allow_nan=False,
+                    separators=(",", ":"),
+                    sort_keys=True,
+                ).encode()
+            ).hexdigest(),
+        }
+        payload = json.dumps(
+            intent, allow_nan=False, indent=2, sort_keys=True
+        ).encode() + b"\n"
+        intent_path.parent.mkdir(parents=True, exist_ok=True)
+        temporary: Path | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                dir=intent_path.parent, delete=False
+            ) as handle:
+                temporary = Path(handle.name)
+                handle.write(payload)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.chmod(temporary, 0o600)
+            os.replace(temporary, intent_path)
+            temporary = None
+        finally:
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
+    if not isinstance(intent, Mapping):
+        raise ValueError("gold rollover intent must be an object")
+    frozen = dict(intent)
+    intent_id = str(frozen.pop("intent_id", ""))
+    expected = str(frozen.get("predecessor_selection_id") or "")
+    if (
+        frozen.get("schema") != _GOLD_ROLLOVER_INTENT_SCHEMA
+        or set(frozen)
+        != {
+            "schema",
+            "registered_at_utc",
+            "predecessor_plan_id",
+            "predecessor_selection_id",
+        }
+        or not re.fullmatch(r"[0-9a-f]{64}", expected)
+        or not re.fullmatch(
+            r"[0-9a-f]{64}", str(frozen.get("predecessor_plan_id") or "")
+        )
+        or intent_id
+        != hashlib.sha256(
+            json.dumps(
+                frozen,
+                allow_nan=False,
+                separators=(",", ":"),
+                sort_keys=True,
+            ).encode()
+        ).hexdigest()
+    ):
+        raise ValueError("gold rollover intent identity is invalid")
+    if gold["selection_id"] == expected:
+        return dict(intent), None
+
+    successor = gold.get("allocation_successor")
+    if (
+        not isinstance(successor, Mapping)
+        or successor.get("predecessor_selection_id") != expected
+    ):
+        raise ValueError("active Gold selection crossed the rollover boundary")
+    load_gold_live_selection_from_mapping(gold)
+
+    root = root.resolve()
+    generation_path = (
+        PORTFOLIO_PACKAGE_GENERATION_DIRECTORY / f"{plan['plan_id']}.json"
+    )
+    generation_sha = hashlib.sha256(
+        (root / generation_path).read_bytes()
+    ).hexdigest()
+    current_stability = root / PORTFOLIO_CAPITAL_STABILITY_PATH
+    stability_payload = current_stability.read_bytes()
+    stability_sha = hashlib.sha256(stability_payload).hexdigest()
+    stability_path = (
+        PORTFOLIO_CAPITAL_STABILITY_DIRECTORY / f"{stability_sha}.json"
+    )
+    if (root / stability_path).read_bytes() != stability_payload:
+        raise ValueError("Gold rollover capital stability archive changed")
+    for sleeve in plan["sleeves"]:
+        decision = portfolio_capital_owner_stability_gate(
+            current_stability,
+            repo_root=root,
+            sleeve_id=str(sleeve["sleeve_id"]),
+            selection_id=str(sleeve["run_id"]),
+            selection_file_sha256=str(sleeve["selection_file_sha256"]),
+        )
+        if decision["status"] != "PASS":
+            raise ValueError("Gold rollover capital stability proof is invalid")
+    xsp, _xsp_path, _xsp_sha = load_allocated_live_selection(
+        plan,
+        sleeve_id=XSP_V3_TRANSPORT_CAPITAL_SLEEVE,
+        repository_root=root,
+    )
+    mcl, _mcl_path, _mcl_sha = load_allocated_live_selection(
+        plan,
+        sleeve_id=MCL_LIVE_CAPITAL_SLEEVE,
+        repository_root=root,
+    )
+    return dict(intent), {
+        "rollover": {
+            "predecessor_selection_id": expected,
+            "selection_id": gold["selection_id"],
+            "selection_path": gold_path.relative_to(root).as_posix(),
+            "selection_file_sha256": gold_sha,
+            "capital_plan_id": plan["plan_id"],
+            "portfolio_generation_path": generation_path.as_posix(),
+            "portfolio_generation_sha256": generation_sha,
+            "capital_stability_path": stability_path.as_posix(),
+            "capital_stability_sha256": stability_sha,
+            "retained_xsp_selection_id": xsp["selection_id"],
+            "retained_mcl_selection_id": mcl["selection_id"],
+            "rollover_intent_id": intent_id,
+            "recovered_after_interruption": True,
+            "submitted_orders": 0,
+            "verdict": "FRESH_FAIL_CLOSED_GOLD_RUN_SELECTED_FLAT",
+        }
+    }
+
+
 def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         description="Advance the causal gold onset and Stage-76 source owners."
     )
     parser.add_argument("--commission-canary", action="store_true")
     parser.add_argument("--rollover-canary", action="store_true")
+    parser.add_argument("--rollover-intent")
     parser.add_argument("--live-ledger", default=str(GOLD_LIVE_LEDGER_PATH))
     parser.add_argument("--selection", default=str(GOLD_LIVE_SELECTION_PATH))
     parser.add_argument(
@@ -277,6 +437,18 @@ def main(argv: Sequence[str] | None = None) -> None:
     args = parser.parse_args(argv)
     if args.commission_canary and args.rollover_canary:
         raise ValueError("gold canary commission and rollover are exclusive")
+    rollover_intent: dict[str, object] | None = None
+    if args.rollover_canary:
+        if not args.rollover_intent:
+            raise ValueError("gold rollover requires an immutable intent path")
+        rollover_intent, recovered = _gold_rollover_boundary(
+            capital_path=Path(args.capital_plan).expanduser(),
+            intent_path=Path(args.rollover_intent).expanduser(),
+            root=ROOT,
+        )
+        if recovered is not None:
+            print(json.dumps(recovered, indent=2, sort_keys=True, allow_nan=False))
+            return
     request_started_at = datetime.now(timezone.utc)
     ib = IB()
     ib.connect(
@@ -438,12 +610,15 @@ def main(argv: Sequence[str] | None = None) -> None:
                 "verdict": "CANARY_SELECTED_FLAT_AWAITING_FRESH_STAGE76_ADMISSION",
             }
         else:
+            assert rollover_intent is not None
             predecessor = load_live_capital_plan(capital_path)
             gold, _gold_path, _gold_sha = load_allocated_live_selection(
                 predecessor,
                 sleeve_id=GOLD_LIVE_CAPITAL_SLEEVE,
                 repository_root=ROOT,
             )
+            if gold["selection_id"] != rollover_intent["predecessor_selection_id"]:
+                raise ValueError("active Gold selection crossed the rollover boundary")
             selection = reallocate_gold_live_transport(
                 predecessor=gold,
                 records=tuple(live_ledger.records()),
@@ -512,6 +687,8 @@ def main(argv: Sequence[str] | None = None) -> None:
                 "capital_stability_sha256": stability_sha,
                 "retained_xsp_selection_id": xsp["selection_id"],
                 "retained_mcl_selection_id": mcl["selection_id"],
+                "rollover_intent_id": rollover_intent["intent_id"],
+                "recovered_after_interruption": False,
                 "submitted_orders": 0,
                 "verdict": "FRESH_FAIL_CLOSED_GOLD_RUN_SELECTED_FLAT",
             }
