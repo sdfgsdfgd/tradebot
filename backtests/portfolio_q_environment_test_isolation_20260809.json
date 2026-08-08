@@ -1,0 +1,47 @@
+{
+  "schema": "tradebot.portfolio-q-environment-test-isolation.v1",
+  "authority": "test_only_no_runtime_or_broker_authority",
+  "observed_at_utc": "2026-08-08T17:44:28Z",
+  "source_revision": "40816b7c9ca0fe71a12a4677066596657e77f49c",
+  "predecessor_receipt": {
+    "path": "backtests/portfolio_runtime_proof_reconciliation_20260809.json",
+    "sha256": "51193e1ac4bd866ef32b8ed3cf8b1ce6bc0a945986821c2021fa448ba7004ede"
+  },
+  "defect": {
+    "host": "q",
+    "failing_cases": 8,
+    "cause": "synthetic_xsp_v3_cli_tests_omitted_capital_plan_and_therefore_loaded_qs_real_live_capital_plan_which_correctly_rebound_the_selected_transport_to_p009",
+    "runtime_defect": false,
+    "strategy_defect": false
+  },
+  "repair": {
+    "production_files_changed": 0,
+    "test_files": {
+      "tests/test_live_calibration.py": "7e206ecf708950a3a5c9c4f925fe000b8f449b9025d511ba4d7aaaab2db5f568",
+      "tests/test_xsp_opening_edge_v3.py": "1053458139390036b089491308809754d7a3e0bc46db988c1ca2e852545f0ddb"
+    },
+    "law": "every_synthetic_v3_cli_invocation_names_an_explicit_temporary_missing_capital_plan_when_it_is_not_testing_allocation_binding"
+  },
+  "proof": {
+    "local_targeted_cases": 8,
+    "local_full_suite_selected": 1407,
+    "q_targeted_cases": 8,
+    "q_full_suite_selected": 1407,
+    "full_suite_deselected": 6,
+    "local_exit_code": 0,
+    "q_exit_code": 0,
+    "mac_q_test_file_hashes_equal": true
+  },
+  "boundaries": {
+    "broker_queried": false,
+    "position_mutated": false,
+    "order_constructed": false,
+    "submitted_orders": 0,
+    "service_or_timer_mutated": false,
+    "selection_mutated": false,
+    "capital_plan_mutated": false,
+    "profitability_clock_mutated": false,
+    "strategy_or_runtime_owner_mutated": false
+  },
+  "verdict": "PASS"
+}
