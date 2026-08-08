@@ -563,6 +563,8 @@ def test_shadow_cli_v3_accepts_safe_closed_noop_without_v2_execution_authority(
                     str(tmp_path / "missing-news.json"),
                     "--selected-transport",
                     str(tmp_path / "obsolete-v2-transport.json"),
+                    "--capital-plan",
+                    str(tmp_path / "missing-capital.json"),
                 )
             )
         )

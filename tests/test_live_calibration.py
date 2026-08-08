@@ -2843,6 +2843,8 @@ def test_shadow_cli_accepts_only_a_terminal_selected_v3_stale_noop(
                     str(tmp_path / "missing-news.json"),
                     "--selected-transport",
                     str(selected_path),
+                    "--capital-plan",
+                    str(tmp_path / "missing-capital.json"),
                 )
             )
         )
@@ -3174,6 +3176,8 @@ def test_shadow_cli_freezes_v3_transport_from_one_exact_preview(
                     str(tmp_path / "ledger.jsonl"),
                     "--selected-transport",
                     str(selected),
+                    "--capital-plan",
+                    str(tmp_path / "missing-capital.json"),
                     "--freeze-selected-transport",
                     "--transport-preview",
                     str(preview),
@@ -3267,6 +3271,8 @@ def test_shadow_cli_handoffs_v3_position_without_order_authority(
                     str(ledger),
                     "--selected-transport",
                     str(selected),
+                    "--capital-plan",
+                    str(tmp_path / "missing-capital.json"),
                     "--handoff-immediate-proceeds",
                     "--transport-immediate-proceeds-receipt",
                     str(capability),
@@ -3366,6 +3372,8 @@ def test_shadow_cli_rebases_terminal_v3_run_without_inherited_economics(
                     str(ledger),
                     "--selected-transport",
                     str(selected),
+                    "--capital-plan",
+                    str(tmp_path / "missing-capital.json"),
                     "--handoff-immediate-proceeds",
                     "--transport-cash-receipt",
                     str(cash),
