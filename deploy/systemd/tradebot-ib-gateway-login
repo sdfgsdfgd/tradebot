@@ -1,0 +1,540 @@
+#!/usr/bin/python3
+"""Log in to the visible q IBKR Gateway and hand 2FA to the operator."""
+
+from __future__ import annotations
+
+import argparse
+import ast
+import csv
+import os
+from pathlib import Path
+import socket
+import subprocess
+import sys
+import tempfile
+import time
+
+
+def _set_accessibility_bus() -> None:
+    if os.environ.get("AT_SPI_BUS_ADDRESS"):
+        return
+    result = subprocess.run(
+        [
+            "/usr/bin/gdbus",
+            "call",
+            "--session",
+            "--dest",
+            "org.a11y.Bus",
+            "--object-path",
+            "/org/a11y/bus",
+            "--method",
+            "org.a11y.Bus.GetAddress",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=5,
+    )
+    value = ast.literal_eval(result.stdout.strip())
+    if not isinstance(value, tuple) or len(value) != 1 or not value[0]:
+        raise RuntimeError("AT-SPI bus returned an invalid address")
+    os.environ["AT_SPI_BUS_ADDRESS"] = str(value[0])
+
+
+_set_accessibility_bus()
+import pyatspi
+
+
+APP_NAME = "IBKR Gateway"
+XDOTOOL = "/usr/bin/xdotool"
+IMPORT = "/usr/bin/import"
+TESSERACT = "/usr/bin/tesseract"
+ALERT_UNIT = "tradebot-operator-alert@ib-gateway-login-required.service"
+CONNECTED_TIMEOUT_SEC = 10 * 60
+
+
+def _children(node: object) -> list[object]:
+    try:
+        return [node.getChildAtIndex(index) for index in range(node.childCount)]
+    except Exception:
+        return []
+
+
+def _walk(node: object) -> list[object]:
+    found: list[object] = []
+    pending = [node]
+    while pending:
+        current = pending.pop()
+        found.append(current)
+        pending.extend(reversed(_children(current)))
+    return found
+
+
+def _name(node: object) -> str:
+    try:
+        return str(node.name or "").strip()
+    except Exception:
+        return ""
+
+
+def _role(node: object) -> str:
+    try:
+        return str(node.getRoleName() or "").strip().lower()
+    except Exception:
+        return ""
+
+
+def _state(node: object, state: object) -> bool:
+    try:
+        return bool(node.getState().contains(state))
+    except Exception:
+        return False
+
+
+def _visible(nodes: list[object], role: str, name: str) -> list[object]:
+    return [
+        node
+        for node in nodes
+        if _role(node) == role
+        and _name(node) == name
+        and _state(node, pyatspi.STATE_SHOWING)
+    ]
+
+
+def _one(nodes: list[object], role: str, name: str) -> object:
+    matches = _visible(nodes, role, name)
+    if len(matches) != 1:
+        raise RuntimeError(
+            f"expected one visible {role} named {name!r}, found {len(matches)}"
+        )
+    return matches[0]
+
+
+def _gateway_app(timeout_sec: float = 30.0) -> object:
+    deadline = time.monotonic() + timeout_sec
+    while time.monotonic() < deadline:
+        desktop = pyatspi.Registry.getDesktop(0)
+        matches = [child for child in _children(desktop) if _name(child) == APP_NAME]
+        if len(matches) == 1:
+            return matches[0]
+        if len(matches) > 1:
+            raise RuntimeError(f"multiple {APP_NAME} applications are visible")
+        time.sleep(0.25)
+    raise RuntimeError(f"{APP_NAME} accessibility application did not appear")
+
+
+def _connected(nodes: list[object]) -> bool:
+    names = {_name(node).casefold() for node in nodes if _name(node)}
+    return any("interactive brokers api server" in name for name in names) and any(
+        name == "connected" or name.endswith(": connected") for name in names
+    )
+
+
+def _second_factor(nodes: list[object]) -> bool:
+    names = {_name(node).casefold() for node in nodes if _name(node)}
+    return any("second factor authentication" in name for name in names) and any(
+        "notification sent" in name for name in names
+    )
+
+
+def _focus(node: object) -> None:
+    node.queryComponent().grabFocus()
+    deadline = time.monotonic() + 3.0
+    while time.monotonic() < deadline:
+        if _state(node, pyatspi.STATE_FOCUSED):
+            return
+        time.sleep(0.05)
+    raise RuntimeError(f"could not focus {_role(node)} {_name(node)!r}")
+
+
+def _type(node: object, value: str) -> None:
+    if not value:
+        raise RuntimeError(f"refusing empty {_name(node).lower()}")
+    _focus(node)
+    subprocess.run(
+        [XDOTOOL, "key", "--clearmodifiers", "ctrl+a", "BackSpace"],
+        check=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+    )
+    subprocess.run(
+        [XDOTOOL, "type", "--clearmodifiers", "--delay", "20", "--file", "-"],
+        input=value.encode(),
+        check=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+    )
+
+
+def _credentials(stdin: bool) -> tuple[str, str]:
+    if stdin:
+        username = sys.stdin.readline().rstrip("\n")
+        password = sys.stdin.readline().rstrip("\n")
+    else:
+        root_value = os.environ.get("CREDENTIALS_DIRECTORY", "").strip()
+        if root_value:
+            root = Path(root_value)
+            username = (root / "ibkr-username").read_text().rstrip("\n")
+            password = (root / "ibkr-password").read_text().rstrip("\n")
+        else:
+            def lookup(field: str) -> str:
+                return subprocess.run(
+                    [
+                        "/usr/bin/secret-tool",
+                        "lookup",
+                        "service",
+                        "tradebot-ib-gateway",
+                        "credential",
+                        field,
+                    ],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                ).stdout.rstrip("\n")
+
+            username = lookup("username")
+            password = lookup("password")
+    if not username or not password:
+        raise RuntimeError("IBKR credentials are empty")
+    return username, password
+
+
+def _alert() -> None:
+    subprocess.run(
+        ["/usr/bin/systemctl", "--user", "--no-block", "start", ALERT_UNIT],
+        check=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+    )
+
+
+def _port_accepting() -> bool:
+    try:
+        with socket.create_connection(("127.0.0.1", 4001), timeout=1):
+            return True
+    except OSError:
+        return False
+
+
+def _gateway_pid() -> int:
+    value = subprocess.run(
+        [
+            "/usr/bin/systemctl",
+            "--user",
+            "show",
+            "tradebot-ib-gateway.service",
+            "--property=MainPID",
+            "--value",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=5,
+    ).stdout.strip()
+    pid = int(value or 0)
+    if pid <= 0:
+        raise RuntimeError("canonical IB Gateway has no main PID")
+    return pid
+
+
+def _x11_windows(pid: int) -> list[str]:
+    result = subprocess.run(
+        [
+            XDOTOOL,
+            "search",
+            "--onlyvisible",
+            "--pid",
+            str(pid),
+            "--name",
+            f"^{APP_NAME}$",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout.split()
+
+
+def _x11_geometry(window: str) -> dict[str, int]:
+    raw = subprocess.run(
+        [XDOTOOL, "getwindowgeometry", "--shell", window],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    values = {
+        key: int(value)
+        for key, value in (
+            line.split("=", 1) for line in raw.splitlines() if "=" in line
+        )
+        if key in {"X", "Y", "WIDTH", "HEIGHT"}
+    }
+    if set(values) != {"X", "Y", "WIDTH", "HEIGHT"}:
+        raise RuntimeError("IB Gateway X11 geometry is incomplete")
+    return values
+
+
+def _ocr(window: str) -> tuple[str, dict[str, tuple[int, int, int, int]]]:
+    with tempfile.NamedTemporaryFile(suffix=".png") as image:
+        subprocess.run(
+            [IMPORT, "-window", window, image.name],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+        )
+        tsv = subprocess.run(
+            [TESSERACT, image.name, "stdout", "tsv"],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=15,
+        ).stdout
+    words: list[str] = []
+    boxes: dict[str, tuple[int, int, int, int]] = {}
+    for row in csv.DictReader(tsv.splitlines(), delimiter="\t"):
+        word = str(row.get("text") or "").strip()
+        normalized = word.casefold().strip("|:;,.![](){}")
+        if not normalized:
+            continue
+        words.append(normalized)
+        try:
+            box = tuple(int(row[key]) for key in ("left", "top", "width", "height"))
+        except (KeyError, TypeError, ValueError):
+            continue
+        if "username" in normalized:
+            boxes["username"] = box
+        elif normalized == "password":
+            boxes["password"] = box
+        elif normalized == "log":
+            boxes["log"] = box
+        elif normalized == "in":
+            boxes["in"] = box
+    return " ".join(words), boxes
+
+
+def _x11_type(window: str, box: tuple[int, int, int, int], value: str) -> None:
+    geometry = _x11_geometry(window)
+    left, top, width, height = box
+    x = geometry["X"] + left + width // 2
+    y = geometry["Y"] + top + height // 2
+    subprocess.run([XDOTOOL, "windowactivate", "--sync", window], check=True)
+    subprocess.run([XDOTOOL, "mousemove", str(x), str(y), "click", "1"], check=True)
+    subprocess.run(
+        [XDOTOOL, "key", "--clearmodifiers", "ctrl+a", "BackSpace"],
+        check=True,
+    )
+    subprocess.run(
+        [XDOTOOL, "type", "--clearmodifiers", "--delay", "20", "--file", "-"],
+        input=value.encode(),
+        check=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+    )
+
+
+def _x11_login(*, credentials_stdin: bool) -> str:
+    pid = _gateway_pid()
+    deadline = time.monotonic() + 2 * 60
+    window = ""
+    text = ""
+    boxes: dict[str, tuple[int, int, int, int]] = {}
+    while time.monotonic() < deadline:
+        if _port_accepting():
+            return "connected"
+        candidates = []
+        for candidate in _x11_windows(pid):
+            candidate_text, candidate_boxes = _ocr(candidate)
+            if {"username", "password", "log", "in"} <= set(candidate_boxes):
+                candidates.append((candidate, candidate_text, candidate_boxes))
+        if len(candidates) == 1:
+            window, text, boxes = candidates[0]
+            break
+        if len(candidates) > 1:
+            raise RuntimeError("multiple OCR-confirmed IB Gateway login frames are visible")
+        time.sleep(1)
+    if not window:
+        raise RuntimeError("OCR-confirmed IB Gateway login frame did not appear")
+    if "ib api" not in text or "live trading" not in text:
+        raise RuntimeError("IB Gateway login frame is not IB API live trading")
+
+    username, password = _credentials(credentials_stdin)
+    _x11_type(window, boxes["username"], username)
+    _x11_type(window, boxes["password"], password)
+    verified, ready = _ocr(window)
+    if username.casefold() not in verified or "password" in ready:
+        raise RuntimeError("OCR verification rejected populated IB Gateway fields")
+    log = boxes["log"]
+    enter = boxes["in"]
+    left = min(log[0], enter[0])
+    right = max(log[0] + log[2], enter[0] + enter[2])
+    top = min(log[1], enter[1])
+    bottom = max(log[1] + log[3], enter[1] + enter[3])
+    geometry = _x11_geometry(window)
+    subprocess.run([XDOTOOL, "windowactivate", "--sync", window], check=True)
+    subprocess.run(
+        [
+            XDOTOOL,
+            "mousemove",
+            str(geometry["X"] + (left + right) // 2),
+            str(geometry["Y"] + (top + bottom) // 2),
+            "click",
+            "1",
+        ],
+        check=True,
+    )
+
+    deadline = time.monotonic() + CONNECTED_TIMEOUT_SEC
+    alerted = False
+    while time.monotonic() < deadline:
+        if _port_accepting():
+            connected = False
+            for candidate in _x11_windows(pid):
+                if candidate == window:
+                    continue
+                candidate_text, _ = _ocr(candidate)
+                connected = connected or (
+                    "interactive brokers api server" in candidate_text
+                    and "connected" in candidate_text
+                )
+            if connected:
+                subprocess.run([XDOTOOL, "windowunmap", window], check=True)
+            return "connected"
+        current, _ = _ocr(window)
+        if not alerted and (
+            "second factor authentication" in current
+            or "notification sent" in current
+        ):
+            _alert()
+            alerted = True
+        if "invalid username" in current or "login failed" in current:
+            raise RuntimeError("IBKR rejected the stored login credentials")
+        time.sleep(1)
+    raise RuntimeError("IBKR did not become connected within ten minutes of login")
+
+
+def _hide_stale_login_frame(app: object) -> bool:
+    """Unmap only one semantically identified login frame after connection."""
+
+    frames = []
+    for frame in _children(app):
+        nodes = _walk(frame)
+        if (
+            _visible(nodes, "text", "Username")
+            and _visible(nodes, "password text", "Password")
+            and _visible(nodes, "button", "Log In")
+        ):
+            frames.append(frame)
+    if len(frames) != 1:
+        return False
+    try:
+        pid = int(app.get_process_id())
+        extents = frames[0].queryComponent().getExtents(pyatspi.DESKTOP_COORDS)
+        width, height = int(extents.width), int(extents.height)
+    except Exception:
+        return False
+    if pid <= 0 or width <= 0 or height <= 0:
+        return False
+
+    result = subprocess.run(
+        [XDOTOOL, "search", "--onlyvisible", "--pid", str(pid)],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    matches: list[str] = []
+    for window in result.stdout.split():
+        name = subprocess.run(
+            [XDOTOOL, "getwindowname", window],
+            check=False,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        geometry = subprocess.run(
+            [XDOTOOL, "getwindowgeometry", "--shell", window],
+            check=False,
+            capture_output=True,
+            text=True,
+        ).stdout
+        values = dict(
+            line.split("=", 1)
+            for line in geometry.splitlines()
+            if "=" in line
+        )
+        if (
+            name == APP_NAME
+            and values.get("WIDTH") == str(width)
+            and values.get("HEIGHT") == str(height)
+        ):
+            matches.append(window)
+    if len(matches) != 1:
+        return False
+    subprocess.run(
+        [XDOTOOL, "windowunmap", matches[0]],
+        check=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+    )
+    return True
+
+
+def login(*, credentials_stdin: bool = False) -> str:
+    if _port_accepting():
+        return "connected"
+    try:
+        app = _gateway_app(timeout_sec=10)
+    except RuntimeError:
+        return _x11_login(credentials_stdin=credentials_stdin)
+    nodes = _walk(app)
+    if _connected(nodes):
+        return "connected"
+
+    api = _one(nodes, "toggle button", "IB API")
+    if not _state(api, pyatspi.STATE_CHECKED):
+        api.queryAction().doAction(0)
+        time.sleep(0.25)
+
+    username, password = _credentials(credentials_stdin)
+    _type(_one(nodes, "text", "Username"), username)
+    _type(_one(nodes, "password text", "Password"), password)
+
+    button = _one(nodes, "button", "Log In")
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline and not _state(button, pyatspi.STATE_ENABLED):
+        time.sleep(0.1)
+    if not _state(button, pyatspi.STATE_ENABLED):
+        raise RuntimeError("Log In did not become enabled after credential entry")
+    button.queryAction().doAction(0)
+
+    deadline = time.monotonic() + 45.0
+    alerted = False
+    while time.monotonic() < deadline:
+        nodes = _walk(app)
+        if _connected(nodes):
+            _hide_stale_login_frame(app)
+            return "connected"
+        if _second_factor(nodes) and not alerted:
+            _alert()
+            alerted = True
+            deadline = time.monotonic() + CONNECTED_TIMEOUT_SEC
+        time.sleep(0.25)
+    if alerted:
+        raise RuntimeError("IBKR did not become connected within ten minutes of 2FA")
+    raise RuntimeError("IBKR produced neither a connected state nor a 2FA handoff")
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--credentials-stdin", action="store_true")
+    args = parser.parse_args()
+    try:
+        outcome = login(credentials_stdin=args.credentials_stdin)
+    except Exception as exc:
+        print(f"IBKR semantic login failed: {exc}", file=sys.stderr)
+        return 1
+    print(f"IBKR semantic login outcome: {outcome}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

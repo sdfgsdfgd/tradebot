@@ -7,9 +7,14 @@ strategy timer tick.
 
 ## Authority boundaries
 
-- `tradebot-ib-gateway.service` opens the q GUI session. It has `Restart=no`,
-  lives outside `tradebot-live.target`, and alerts the Mac when login/2FA is
-  required or the process fails.
+- `tradebot-ib-gateway.service` is the sole q GUI owner. It uses
+  `Restart=always` with a fifteen-second delay and a four-start/five-minute
+  limit, lives outside `tradebot-live.target`, and alerts the Mac only after
+  bounded restarts or semantic login fail.
+- `tradebot-ib-gateway-login.service` reads credentials from q's unlocked
+  desktop keyring, prefers AT-SPI labels, and falls back to freshly OCR-derived
+  field boxes. It never uses fixed desktop coordinates. Human fingerprint/2FA
+  remains mandatory.
 - Only `tradebot-ib-gateway.timer` (Sunday `17:20 ET`) or an operator starts the
   Gateway. Broker consumers use `After=` for ordering only; none pulls it in.
 - `tradebot-ib-preflight.service` performs one read-only broker reconciliation
@@ -69,8 +74,12 @@ On q, from the exact clean deployed revision:
 
 ```bash
 mkdir -p ~/.config/systemd/user ~/.local/bin
-install -m 0755 deploy/systemd/tradebot-ib-gateway-launch ~/.local/bin/
+install -m 0755 \
+  deploy/systemd/tradebot-ib-gateway-launch \
+  deploy/systemd/tradebot-ib-gateway-login \
+  ~/.local/bin/
 install -m 0644 \
+  deploy/systemd/tradebot-ib-gateway-login.service \
   deploy/systemd/tradebot-{ib-gateway,ib-preflight}.{service,timer} \
   deploy/systemd/tradebot-operator-alert@.service \
   deploy/systemd/tradebot-live.target \
@@ -97,17 +106,23 @@ mkdir -p ~/.local/bin
 install -m 0755 deploy/macos/tradebot-operator-alert ~/.local/bin/
 ```
 
-The alert accepts only the three fixed conditions in the script, deduplicates
+The alert accepts only the fixed conditions in the script, deduplicates
 each for fifteen minutes, shows a critical modal, and plays built-in sounds at
 the current macOS output volume. It never changes volume or mute state. q uses
 BatchMode SSH, so alert delivery can never block on a password prompt.
 
 No IBKR username or password belongs in this repository, a unit environment,
-the journal, or an automation command line. q has TPM2-backed systemd
-credentials available; provision a newly rotated secret there only after the
-first q-only GUI commissioning run establishes stable login controls. Human
-fingerprint/2FA remains mandatory. Until then, the Sunday alert requests the
-complete GUI login instead of pretending credential automation is safe.
+the journal, or an automation command line. q's user manager cannot access its
+TPM device, so the login worker uses the already-unlocked GNOME Secret Service:
+
+```bash
+sudo apt-get install libsecret-tools imagemagick tesseract-ocr
+secret-tool store --label='Tradebot IB Gateway username' service tradebot-ib-gateway credential username
+secret-tool store --label='Tradebot IB Gateway password' service tradebot-ib-gateway credential password
+```
+
+Both commands prompt without placing the value in shell history. Human
+fingerprint/2FA remains mandatory.
 
 Install the Python environment before arming anything:
 
@@ -136,7 +151,8 @@ systemctl --user start tradebot-ib-gateway.service
 systemctl --user status tradebot-ib-gateway.service --no-pager
 ```
 
-Complete the GUI login and human 2FA. Then run the read-only proof:
+The semantic worker fills the GUI login; complete human 2FA. Then run the
+read-only proof:
 
 ```bash
 systemctl --user start tradebot-ib-preflight.service
@@ -162,10 +178,10 @@ continuous support services but does not stop Gateway.
 
 ## Sunday sequence
 
-1. `17:20 ET`: q starts Gateway once and immediately sends the Mac login/2FA
-   alert.
-2. The operator completes IBKR login and fingerprint/2FA. No strategy is armed
-   merely because login succeeds.
+1. `17:20 ET`: q starts Gateway and its semantic login worker.
+2. q fills credentials from the desktop keyring, raises the Mac alert only
+   when IB requests fingerprint/2FA, and waits for an authenticated API port.
+   No strategy is armed merely because login succeeds.
 3. `17:40 ET`: preflight reconciles account, positions, open orders, selected
    contracts, connectivity, and armed bundle membership.
 4. A successful entry receipt permits the already-selected strategy schedules

@@ -9,16 +9,32 @@ def _unit(name: str) -> str:
     return (SYSTEMD / name).read_text()
 
 
-def test_gateway_is_q_native_operator_owned_and_outside_strategy_lifecycle() -> None:
+def test_gateway_is_q_native_self_healing_and_outside_strategy_lifecycle() -> None:
     service = _unit("tradebot-ib-gateway.service")
+    login = _unit("tradebot-ib-gateway-login.service")
+    login_worker = _unit("tradebot-ib-gateway-login")
     timer = _unit("tradebot-ib-gateway.timer")
     launcher = _unit("tradebot-ib-gateway-launch")
 
     assert "ExecStart=%h/.local/bin/tradebot-ib-gateway-launch" in service
     assert "PassEnvironment=DISPLAY WAYLAND_DISPLAY XAUTHORITY" in service
-    assert "ExecStartPost=/usr/bin/systemctl --user --no-block start tradebot-operator-alert@ib-gateway-login-required.service" in service
-    assert "Restart=no" in service
+    assert "ExecStartPost=/usr/bin/systemctl --user --no-block start tradebot-ib-gateway-login.service" in service
+    assert "Restart=always" in service
+    assert "RestartSec=15s" in service
+    assert "StartLimitIntervalSec=5min" in service
+    assert "StartLimitBurst=4" in service
+    assert "KillMode=control-group" in service
     assert "OnFailure=tradebot-operator-alert@ib-gateway-exited.service" in service
+    assert "PartOf=tradebot-ib-gateway.service" in login
+    assert "OnFailure=tradebot-operator-alert@ib-gateway-login-failed.service" in login
+    assert "ExecStart=%h/.local/bin/tradebot-ib-gateway-login" in login
+    assert "LoadCredential=" not in login
+    assert '"/usr/bin/secret-tool"' in login_worker
+    assert 'TESSERACT = "/usr/bin/tesseract"' in login_worker
+    assert 'IMPORT = "/usr/bin/import"' in login_worker
+    assert '{"username", "password", "log", "in"}' in login_worker
+    assert '"interactive brokers api server" in candidate_text' in login_worker
+    assert '[XDOTOOL, "windowunmap", window]' in login_worker
     assert "tradebot-live.target" not in service + timer
     assert "OnCalendar=Sun *-*-* 17:20:00 America/New_York" in timer
     assert "Persistent=false" in timer

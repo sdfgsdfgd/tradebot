@@ -1,0 +1,15 @@
+[Unit]
+Description=Semantically log in the canonical q-native IB Gateway
+Requires=tradebot-ib-gateway.service
+After=tradebot-ib-gateway.service graphical-session.target
+PartOf=tradebot-ib-gateway.service
+OnFailure=tradebot-operator-alert@ib-gateway-login-failed.service
+
+[Service]
+Type=oneshot
+PassEnvironment=DISPLAY WAYLAND_DISPLAY XAUTHORITY XDG_RUNTIME_DIR DBUS_SESSION_BUS_ADDRESS
+ExecStart=%h/.local/bin/tradebot-ib-gateway-login
+TimeoutStartSec=12min
+PrivateTmp=false
+NoNewPrivileges=true
+UMask=0077

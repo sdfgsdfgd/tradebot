@@ -1,18 +1,22 @@
 [Unit]
-Description=q-native Interactive Brokers Gateway (operator-restarted only)
+Description=Canonical self-healing q-native Interactive Brokers Gateway
 Wants=network-online.target
 After=network-online.target graphical-session.target
 OnFailure=tradebot-operator-alert@ib-gateway-exited.service
-ConditionFileIsExecutable=%h/.local/share/tradebot/ibgateway/ibgateway
-ConditionFileIsExecutable=%h/.local/bin/tradebot-ib-gateway-launch
+StartLimitIntervalSec=5min
+StartLimitBurst=4
 
 [Service]
 Type=simple
 PassEnvironment=DISPLAY WAYLAND_DISPLAY XAUTHORITY XDG_RUNTIME_DIR DBUS_SESSION_BUS_ADDRESS
+ExecStartPre=/usr/bin/test -x %h/.local/share/tradebot/ibgateway/ibgateway
+ExecStartPre=/usr/bin/test -x %h/.local/bin/tradebot-ib-gateway-launch
 ExecStart=%h/.local/bin/tradebot-ib-gateway-launch
-ExecStartPost=/usr/bin/systemctl --user --no-block start tradebot-operator-alert@ib-gateway-login-required.service
-Restart=no
+ExecStartPost=/usr/bin/systemctl --user --no-block start tradebot-ib-gateway-login.service
+Restart=always
+RestartSec=15s
 KillSignal=SIGTERM
+KillMode=control-group
 TimeoutStopSec=90s
 PrivateTmp=false
 NoNewPrivileges=true

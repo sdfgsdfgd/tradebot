@@ -9,11 +9,15 @@ case "$reason" in
     ;;
   ib-gateway-login-required)
     title="IBKR 2FA REQUIRED NOW"
-    message="q opened IB Gateway. Complete the IBKR login and fingerprint/2FA challenge; q will verify the expected account before arming entries."
+    message="q opened IB Gateway and entered the stored credentials. Complete the fingerprint/2FA challenge; q will verify the expected account before arming entries."
+    ;;
+  ib-gateway-login-failed)
+    title="IBKR LOGIN AUTOMATION FAILED — TRADING LOCKED"
+    message="q could not complete the semantic IB Gateway login handoff. Gateway may be showing a login error or inaccessible window. New entries remain fail-closed."
     ;;
   ib-gateway-exited)
-    title="IB GATEWAY EXITED — TRADING LOCKED"
-    message="The q-native IB Gateway exited. It was not restarted automatically. Inspect positions and orders before any operator restart."
+    title="IB GATEWAY RESTARTS EXHAUSTED — TRADING LOCKED"
+    message="The q-native IB Gateway exhausted four bounded automatic starts. It will not loop further. Inspect Gateway, positions, and orders before resetting the failed unit."
     ;;
   *)
     exit 64
