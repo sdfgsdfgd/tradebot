@@ -26,6 +26,7 @@ from .capital import load_live_capital_plan
 IB_PREFLIGHT_SCHEMA = "live.ib-preflight.v1"
 IB_PREFLIGHT_AUTHORITY = "read_only_broker_and_runtime_readiness"
 IB_PREFLIGHT_DEFAULT_MAX_AGE_SEC = 30 * 60 * 60
+IB_SENTINEL_WARMUP_GRACE_SEC = 30 * 60
 IB_PREFLIGHT_BOUNDARIES = {
     "broker_orders_submitted": 0,
     "broker_orders_cancelled": 0,
@@ -630,9 +631,9 @@ def _candidate_monitor_window_open(binding: object, now: datetime) -> bool:
     weekday, minute = local.weekday(), local.hour * 60 + local.minute
     strategy_id = str(getattr(binding, "strategy_id", ""))
     if strategy_id.startswith("xsp."):
-        return weekday < 5 and (9 * 60 + 15) <= minute < (9 * 60 + 20)
+        return weekday < 5 and (9 * 60) <= minute < (16 * 60 + 20)
     if strategy_id.startswith(("mcl.", "gold.")):
-        return weekday in {0, 1, 2, 3, 6} and minute >= (17 * 60 + 40)
+        return weekday in {0, 1, 2, 3, 6} and minute >= (17 * 60 + 30)
     return False
 
 
@@ -680,12 +681,55 @@ def _recent_decisive_ib_failure() -> bool:
     )
 
 
+def _warmup_grace(
+    failures: Sequence[Mapping[str, str]],
+    *,
+    state_path: Path,
+    observed: datetime,
+) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
+    """Escalate an unwarmed authority only after one continuous warm-up budget."""
+
+    try:
+        raw = json.loads(state_path.read_text())
+        prior = raw.get("first_unhealthy_epoch", {}) if isinstance(raw, Mapping) else {}
+    except (OSError, TypeError, ValueError):
+        prior = {}
+    prior = prior if isinstance(prior, Mapping) else {}
+    now_epoch = observed.timestamp()
+    current: dict[str, float] = {}
+    due: list[dict[str, object]] = []
+    pending: list[dict[str, object]] = []
+    for failure in failures:
+        reason, detail = str(failure["reason"]), str(failure["detail"])
+        key = f"{reason}:{detail}"
+        try:
+            first = float(prior.get(key, now_epoch))
+        except (TypeError, ValueError):
+            first = now_epoch
+        first = min(first, now_epoch)
+        current[key] = first
+        age_sec = max(0.0, now_epoch - first)
+        row: dict[str, object] = {
+            "reason": reason,
+            "detail": detail,
+            "first_unhealthy_at_utc": datetime.fromtimestamp(first, timezone.utc).isoformat(),
+            "age_sec": round(age_sec, 3),
+        }
+        if age_sec >= IB_SENTINEL_WARMUP_GRACE_SEC:
+            due.append(row)
+        else:
+            pending.append({**row, "grace_remaining_sec": round(IB_SENTINEL_WARMUP_GRACE_SEC - age_sec, 3)})
+    _publish_sentinel(state_path, {"first_unhealthy_epoch": current})
+    return due, pending
+
+
 def ib_sentinel(
     *,
     repository_root: Path,
     capital_plan_path: Path,
     receipt_path: Path,
     login_receipt_path: Path,
+    state_path: Path,
     now: datetime | None = None,
 ) -> dict[str, object]:
     """Read only the active-candidate path and name a broken trading authority."""
@@ -735,11 +779,21 @@ def ib_sentinel(
         if not gateway_up or _recent_decisive_ib_failure():
             failures.append({"reason": "ib-runtime-failed", "detail": "gateway_or_decisive_ib_failure"})
     unique = {(row["reason"], row["detail"]): row for row in failures}
+    immediate = [
+        row
+        for row in unique.values()
+        if row["reason"].startswith("ib-gateway-login")
+        or row["reason"] == "ib-runtime-failed"
+        or row["detail"].startswith(("timer_not_armed:", "timer_next_elapse_missing:"))
+    ]
+    warmable = [row for row in unique.values() if row not in immediate]
+    due, pending = _warmup_grace(warmable, state_path=state_path, observed=observed)
     return {
         "schema": "live.ib-sentinel.v1",
         "checked_at_utc": observed.isoformat(),
         "active_candidates": sorted(set(active)),
-        "failures": [unique[key] for key in sorted(unique)],
+        "failures": sorted([*immediate, *due], key=lambda row: (str(row["reason"]), str(row["detail"]))),
+        "pending_warmups": sorted(pending, key=lambda row: (str(row["reason"]), str(row["detail"]))),
         "boundaries": dict(IB_PREFLIGHT_BOUNDARIES),
     }
 
@@ -806,6 +860,7 @@ def _parser() -> argparse.ArgumentParser:
     sentinel.add_argument("--receipt", type=Path, required=True)
     sentinel.add_argument("--login-receipt", type=Path, required=True)
     sentinel.add_argument("--output", type=Path, required=True)
+    sentinel.add_argument("--state", type=Path, required=True)
     return parser
 
 
@@ -821,6 +876,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             capital_plan_path=args.capital_plan,
             receipt_path=args.receipt,
             login_receipt_path=args.login_receipt,
+            state_path=args.state,
         )
         _publish_sentinel(args.output, value)
         _alert_reasons(value)

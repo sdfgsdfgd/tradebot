@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
@@ -13,6 +14,7 @@ from tradebot.client import IBKRClient
 from tradebot.config import IBKRConfig
 from tradebot.live.ib_preflight import (
     gate_actionable_plan,
+    ib_sentinel,
     ib_preflight_decision,
     order_preflight_mode,
     publish_ib_preflight,
@@ -186,3 +188,120 @@ def test_broker_submission_boundary_enforces_the_configured_receipt(
     with pytest.raises(RuntimeError, match="blocked entry order"):
         asyncio.run(client.place_limit_order(contract, "BUY", 1, 20, False))
     assert len(broker.submitted) == 1
+
+
+def test_sentinel_ignores_retained_candidate_failure_outside_its_monitor_window(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    import tradebot.live.ib_preflight as preflight
+
+    binding = SimpleNamespace(
+        strategy_id="mcl.two-speed-shock-arbiter.v112",
+        champion_symbol="MCL",
+        runtime_timer_units=("tradebot-mcl-live.timer",),
+        runtime_service_units=("tradebot-mcl-live.service",),
+    )
+    monkeypatch.setattr(preflight, "load_live_capital_plan", lambda _path: {"sleeves": []})
+    monkeypatch.setattr(preflight, "_selected_runtime_bindings", lambda _plan: [binding])
+    monkeypatch.setattr(
+        preflight,
+        "_unit_liveness",
+        lambda unit: {
+            "unit": unit,
+            "available": "loaded",
+            "enabled": "enabled",
+            "active": "active" if unit.endswith(".timer") else "failed",
+            "result": "success" if unit.endswith(".timer") else "exit-code",
+            "next": "Mon 2026-08-10 08:00:10 AEST",
+        },
+    )
+
+    receipt = ib_sentinel(
+        repository_root=tmp_path,
+        capital_plan_path=tmp_path / "plan.json",
+        receipt_path=tmp_path / "preflight.json",
+        login_receipt_path=tmp_path / "login.json",
+        state_path=tmp_path / "state.json",
+        now=datetime(2026, 8, 8, 14, 0, tzinfo=timezone.utc),  # Saturday 10:00 ET
+    )
+
+    assert receipt["active_candidates"] == []
+    assert receipt["failures"] == []
+
+
+def test_sentinel_grants_a_continuous_thirty_minute_warmup_before_escalation(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    import tradebot.live.ib_preflight as preflight
+
+    binding = SimpleNamespace(
+        strategy_id="mcl.two-speed-shock-arbiter.v112",
+        champion_symbol="MCL",
+        runtime_timer_units=("tradebot-mcl-live.timer",),
+        runtime_service_units=("tradebot-mcl-live.service",),
+    )
+    monkeypatch.setattr(preflight, "load_live_capital_plan", lambda _path: {"sleeves": []})
+    monkeypatch.setattr(preflight, "_selected_runtime_bindings", lambda _plan: [binding])
+
+    def liveness(unit: str) -> dict[str, str]:
+        if unit.endswith(".timer"):
+            return {
+                "unit": unit,
+                "available": "loaded",
+                "enabled": "enabled",
+                "active": "active",
+                "result": "success",
+                "next": "Sun 2026-08-09 18:00:00 EDT",
+            }
+        return {
+            "unit": unit,
+            "available": "loaded",
+            "enabled": "enabled",
+            "active": "active" if unit == "tradebot-ib-gateway.service" else "inactive",
+            "result": "success",
+            "next": "n/a",
+        }
+
+    monkeypatch.setattr(preflight, "_unit_liveness", liveness)
+    monkeypatch.setattr(preflight.socket, "create_connection", lambda *_args, **_kwargs: contextlib.nullcontext())
+    monkeypatch.setattr(preflight, "_recent_decisive_ib_failure", lambda: False)
+
+    state_path = tmp_path / "sentinel-state.json"
+    arguments = {
+        "repository_root": tmp_path,
+        "capital_plan_path": tmp_path / "plan.json",
+        "receipt_path": tmp_path / "missing-preflight.json",
+        "login_receipt_path": tmp_path / "login.json",
+        "state_path": state_path,
+    }
+    first = ib_sentinel(
+        **arguments,
+        now=datetime(2026, 8, 9, 21, 30, tzinfo=timezone.utc),  # Sunday 17:30 ET
+    )
+    assert first["active_candidates"] == ["mcl"]
+    assert first["failures"] == []
+    assert first["pending_warmups"] == [
+        {
+            "reason": "mcl-runtime-failed",
+            "detail": "entry_authority_unready",
+            "first_unhealthy_at_utc": "2026-08-09T21:30:00+00:00",
+            "age_sec": 0.0,
+            "grace_remaining_sec": 1800.0,
+        }
+    ]
+
+    due = ib_sentinel(
+        **arguments,
+        now=datetime(2026, 8, 9, 22, 0, tzinfo=timezone.utc),  # Sunday 18:00 ET
+    )
+    assert due["pending_warmups"] == []
+    assert due["failures"] == [
+        {
+            "reason": "mcl-runtime-failed",
+            "detail": "entry_authority_unready",
+            "first_unhealthy_at_utc": "2026-08-09T21:30:00+00:00",
+            "age_sec": 1800.0,
+        }
+    ]

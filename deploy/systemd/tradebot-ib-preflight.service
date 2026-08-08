@@ -2,7 +2,6 @@
 Description=Publish one fail-closed IBKR account and runtime readiness receipt
 Wants=network-online.target
 After=network-online.target tradebot-ib-gateway.service
-OnFailure=tradebot-operator-alert@ib-preflight-failed.service
 
 [Service]
 Type=oneshot

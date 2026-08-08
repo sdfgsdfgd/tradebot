@@ -58,6 +58,7 @@ def test_gateway_is_q_native_self_healing_and_outside_strategy_lifecycle() -> No
     assert "tradebot-ib-loopback-firewall.service" in launcher
     assert "tradebot.live.ib_preflight sentinel" in sentinel
     assert "OnFailure=tradebot-operator-alert@ib-runtime-failed.service" in sentinel
+    assert "--state %t/tradebot-ib-sentinel-state.json" in sentinel
     assert "OnUnitActiveSec=1min" in sentinel_timer
     assert "Persistent=false" in sentinel_timer
 
@@ -69,7 +70,7 @@ def test_preflight_is_a_single_readonly_probe_before_both_entry_windows() -> Non
     assert "After=network-online.target tradebot-ib-gateway.service" in service
     assert "Requires=tradebot-ib-gateway.service" not in service
     assert "Wants=tradebot-ib-gateway.service" not in service
-    assert "OnFailure=tradebot-operator-alert@ib-preflight-failed.service" in service
+    assert "OnFailure=" not in service
     assert "ConditionPathExists=" not in service
     assert "ExecStartPre=/usr/bin/test -f" in service
     assert " -m tradebot.live.ib_preflight probe " in service

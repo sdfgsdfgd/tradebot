@@ -26,7 +26,9 @@ strategy timer tick.
   preflight receipts, and decisive recent IB errors every minute. It is silent
   for wholly unarmed bundles and sends the Mac a candidate-specific alert for
   an under-armed timer, failed owner/feed, missing next firing, stale entry
-  authority in a live window, or lost q-local broker authority.
+  authority in a live window, or lost q-local broker authority. Cache, quote,
+  and preflight warmth receive one continuous thirty-minute grace; Gateway,
+  2FA, missing schedules, and decisive in-session IB failures alert immediately.
 - Writable owners may start only with a current `reduction_ready` receipt. The
   shared broker client classifies every actual submission immediately before
   `placeOrder`: a bounded close uses reduction readiness; every flat-account
