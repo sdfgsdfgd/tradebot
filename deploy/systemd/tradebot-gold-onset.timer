@@ -1,5 +1,6 @@
 [Unit]
 Description=Record each newly completed 1OZ gold four-hour onset state
+PartOf=tradebot-live.target
 
 [Timer]
 OnCalendar=Mon..Fri *-*-* 00,04,08,12,16,20:07:00 UTC
@@ -9,4 +10,4 @@ Persistent=false
 Unit=tradebot-gold-onset.service
 
 [Install]
-WantedBy=timers.target
+WantedBy=tradebot-live.target

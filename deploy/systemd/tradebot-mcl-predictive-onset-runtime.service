@@ -1,7 +1,7 @@
 [Unit]
 Description=Accumulate current non-submitting MCL onset and authority-bound shock waves
-Wants=network-online.target tradebot-ib-gateway-tunnel.service
-After=network-online.target tradebot-ib-gateway-tunnel.service tradebot-mcl-turn-tape.service
+Wants=network-online.target
+After=network-online.target tradebot-ib-gateway.service tradebot-mcl-turn-tape.service
 ConditionPathExists=%h/Desktop/py/tradebot/db/calibration/mcl_predictive_onset_generation.json
 ConditionPathExists=%h/Desktop/py/tradebot/db/calibration/mcl_shock_wave_generation.json
 ConditionPathExists=%h/Desktop/py/tradebot/db/calibration/mcl_live_calibration.jsonl
@@ -21,6 +21,7 @@ Environment=IBKR_CLIENT_ID_POOL_START=3214
 Environment=IBKR_CLIENT_ID_POOL_END=3216
 Environment=IBKR_CLIENT_ID_STATE_FILE=%t/tradebot-mcl-predictive-client-ids.json
 Environment=IBKR_READONLY=1
+Environment=IBKR_ACCOUNT_BOOTSTRAP=0
 Environment=MCL_PREDICTIVE_LEDGER=%h/.local/state/tradebot/research/mcl_predictive_onset.jsonl
 Environment=MCL_SHOCK_WAVE_LEDGER=%h/.local/state/tradebot/research/mcl_shock_waves.jsonl
 Environment=MCL_STAGE131_COVERAGE=%h/.local/state/tradebot/research/mcl_shock_wave_coverage.json
@@ -31,8 +32,6 @@ ExecStartPre=/usr/bin/env python3 -m tradebot.research.mcl_shock_wave_generation
 ExecStart=/usr/bin/env python3 -m tradebot.research.mcl_predictive_accumulator --generation db/calibration/mcl_predictive_onset_generation.json
 ExecStart=/usr/bin/env python3 -m tradebot.research.mcl_shock_wave_accumulator --generation db/calibration/mcl_shock_wave_generation.json
 TimeoutStartSec=4min
-Restart=on-failure
-RestartSec=30s
 KillSignal=SIGTERM
 Nice=10
 IOSchedulingClass=idle

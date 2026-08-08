@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from ..spot.champions import discover_current_champions, load_champion_group
+from .core import build_core_pool, load_core_pool
 from .runs import (
     CommandRunner,
     GraduationValidator,
@@ -65,6 +66,7 @@ class LivePortfolioCockpit(LiveRunCockpit):
         graduation_directory: Path,
         graduation_validator: GraduationValidator,
         control_ledger_path: Path | None = None,
+        core_pool_path: Path | None = None,
         news_path: Path | None = None,
         unit_reader: UnitReader = read_systemd_user_unit,
         command_runner: CommandRunner = _run_systemctl,
@@ -81,6 +83,12 @@ class LivePortfolioCockpit(LiveRunCockpit):
         configured = control_ledger_path or Path("db/calibration/live_control.jsonl")
         self.control_ledger_path = (
             configured if configured.is_absolute() else self.repository_root / configured
+        )
+        configured_core = core_pool_path or Path("backtests/core/current.json")
+        self.core_pool_path = (
+            configured_core
+            if configured_core.is_absolute()
+            else self.repository_root / configured_core
         )
         self.news_path = (
             news_path or Path("~/.local/state/tradebot/news/latest.json")
@@ -111,7 +119,9 @@ class LivePortfolioCockpit(LiveRunCockpit):
     def _project_candidates(
         self,
         runs: Sequence[Mapping[str, object]],
+        core_profiles: Mapping[str, Mapping[str, object]] | None = None,
     ) -> list[dict[str, object]]:
+        core_profiles = core_profiles or {}
         run_by_strategy = {
             str(run.get("strategy_id") or ""): run
             for run in runs
@@ -165,6 +175,25 @@ class LivePortfolioCockpit(LiveRunCockpit):
                 if isinstance(graduation, Mapping)
                 else ""
             )
+            target = (
+                str(graduation.get("target") or "")
+                if isinstance(graduation, Mapping)
+                else ""
+            )
+            profile = core_profiles.get(
+                str(
+                    _identity(
+                        {
+                            "symbol": lane[0],
+                            "track": lane[1],
+                            "version": ref.version,
+                            "declaration_sha256": declaration_sha,
+                            "artifact_sha256": artifact_sha,
+                            "strategy_id": binding.strategy_id if binding is not None else None,
+                        }
+                    )
+                )
+            )
             if not machine:
                 stage = "RESEARCH_ONLY"
             elif any(reason.startswith("invalid_") or "identity" in reason for reason in reasons):
@@ -175,18 +204,24 @@ class LivePortfolioCockpit(LiveRunCockpit):
                 stage = "SELECTION_REQUIRED"
             elif run.get("valid") is not True:
                 stage = "QUARANTINED"
-            elif verdict == "PROMOTE":
-                stage = "PROMOTED"
+            elif verdict == "PROMOTE" and target == "24h":
+                stage = "PROVEN_24H"
+            elif verdict == "PROMOTE" and target == "48h":
+                stage = "PROVEN_48H"
+            elif verdict == "PROMOTE" and target == "five_session_week":
+                stage = "CORE" if profile is not None else "CORE_ELIGIBLE"
             elif verdict in {"REVISE", "QUARANTINE", "STOP"}:
                 stage = "QUARANTINED" if verdict == "QUARANTINE" else verdict
             else:
                 stage = "CANARY"
 
             if isinstance(run, Mapping) and run.get("valid") is True:
-                timer = run.get("timer")
-                running = (
+                bundle = run.get("runtime_bundle")
+                timers = bundle.get("timers") if isinstance(bundle, Mapping) else None
+                running = bool(timers) and all(
                     isinstance(timer, Mapping)
                     and timer.get("active_state") == "active"
+                    for timer in timers
                 )
                 controls = run.get("controls")
                 start = controls.get("START") if isinstance(controls, Mapping) else None
@@ -242,6 +277,7 @@ class LivePortfolioCockpit(LiveRunCockpit):
                     "run_id": run.get("run_id") if isinstance(run, Mapping) else None,
                     "run_state": run.get("state") if isinstance(run, Mapping) else None,
                     "graduation": dict(graduation) if isinstance(graduation, Mapping) else None,
+                    "core_profile_id": profile.get("profile_id") if profile is not None else None,
                     "controls": {"COMMISSION": commission},
                 }
             )
@@ -249,10 +285,30 @@ class LivePortfolioCockpit(LiveRunCockpit):
 
     def snapshot(self) -> dict[str, object]:
         selected = super().snapshot()
+        core_error: str | None = None
+        try:
+            core_pool = load_core_pool(self.core_pool_path)
+        except (OSError, TypeError, ValueError) as exc:
+            core_pool = build_core_pool()
+            core_error = str(exc)
+        core_profiles = {
+            str(profile["candidate"]["candidate_id"]): profile
+            for profile in core_pool["members"]
+            if isinstance(profile, Mapping) and isinstance(profile.get("candidate"), Mapping)
+        }
+        errors = list(selected.get("errors") or ())
+        if core_error is not None:
+            errors.append(f"invalid_core_pool:{core_error}")
         body = {
             **{key: value for key, value in selected.items() if key != "snapshot_id"},
             "schema": LIVE_PORTFOLIO_SCHEMA,
-            "candidates": self._project_candidates(selected.get("runs", ())),
+            "status": "QUARANTINED" if core_error is not None else selected.get("status"),
+            "errors": errors,
+            "core_pool": core_pool,
+            "candidates": self._project_candidates(
+                selected.get("runs", ()),
+                core_profiles,
+            ),
         }
         return {**body, "snapshot_id": _identity(body)}
 

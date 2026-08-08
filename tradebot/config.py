@@ -44,6 +44,7 @@ class IBKRConfig:
     connect_timeout_sec: float = DEFAULT_CONNECT_TIMEOUT_SEC
     client_id_quarantine_sec: float = DEFAULT_CLIENT_ID_QUARANTINE_SEC
     readonly: bool = False
+    account_bootstrap: bool = True
 
 
 def auxiliary_client_id(config: IBKRConfig, offset: int) -> int:
@@ -79,6 +80,16 @@ def load_config() -> IBKRConfig:
         pool_end = DEFAULT_CLIENT_ID_POOL_END
     client_id = int(os.getenv("IBKR_CLIENT_ID", str(pool_start)))
     proxy_client_id = int(os.getenv("IBKR_PROXY_CLIENT_ID", str(client_id + 1)))
+    readonly = os.getenv("IBKR_READONLY", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    account_bootstrap = (
+        os.getenv("IBKR_ACCOUNT_BOOTSTRAP", "1").strip().lower()
+        not in {"0", "false", "no", "off"}
+    )
     return IBKRConfig(
         host=os.getenv("IBKR_HOST", "127.0.0.1"),
         port=int(os.getenv("IBKR_PORT", "4001")),
@@ -163,6 +174,6 @@ def load_config() -> IBKRConfig:
                 )
             ),
         ),
-        readonly=os.getenv("IBKR_READONLY", "").strip().lower()
-        in {"1", "true", "yes", "on"},
+        readonly=readonly,
+        account_bootstrap=account_bootstrap or not readonly,
     )

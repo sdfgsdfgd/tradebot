@@ -1,0 +1,67 @@
+{
+  "schema": "mcl.narrative-experiment-generation.v1",
+  "created_at_utc": "2026-08-08T12:41:59Z",
+  "authority": "prospective_research_only",
+  "status": "ACTIVE_EMPTY_PREFIX",
+  "contract": {
+    "strategy_version": "mcl.narrative-lag-convexity-onset.v1",
+    "config_fingerprint": "26dc813415d86ef59810886e60360fe61e9fb8caa96bd05c9392b07fcb4ed5de",
+    "prospective_start_after_utc": "2026-07-31T19:16:52+00:00",
+    "forecast_schema": "mcl.narrative-lag-convexity-forecast.v1",
+    "ledger_schema": "live_calibration.v1",
+    "ledger_path": "~/.local/state/tradebot/research/mcl_narrative_lag_convexity.jsonl",
+    "maximum_completed_bar_age_seconds": 300,
+    "required_market_data_type": 1
+  },
+  "preregistrations": {
+    "primary": {
+      "path": "backtests/mcl/narrative_lag_convexity_preregistration.json",
+      "sha256": "c17a1a241a4aac9583fca229d548a1b4173861532e579079b950334f3ba66761"
+    },
+    "clock_repair": {
+      "path": "backtests/mcl/narrative_lag_convexity_clock_repair_preregistration.json",
+      "sha256": "4f2f4291308f398784a9a5d3c34445ae80b8332644cc6ae4bbba26c20bfe1777"
+    },
+    "event_accumulator": {
+      "path": "backtests/mcl/mcl_narrative_event_accumulator_preregistration.json",
+      "sha256": "8a08c6cf484d097144ce9de9cfb653443b0196c150d6d94ac0d97ba42082655f"
+    }
+  },
+  "owners": {
+    "accumulator": {
+      "path": "tradebot/research/mcl_narrative_lag_convexity.py",
+      "sha256": "48b9d299bc5b099724ae968ff13ac69633d495c059c67653671ffb7484fabc4a"
+    },
+    "publisher": {
+      "path": "tradebot/news/pipeline.py",
+      "sha256": "bcb682087e4957d98a26663144d100f2997ece11b30204687f72eb61ab3922df"
+    },
+    "publication_contract": {
+      "path": "tradebot/news/contract.py",
+      "sha256": "8f59b02ae8e65bcf23117f610d226f4a549bf708c53140af75dd718e4610a431"
+    },
+    "ledger": {
+      "path": "tradebot/research/live_calibration.py",
+      "sha256": "300a4a49efe0deaf1787e86ace899e028335b698765a305e1e910a21713bbb24"
+    },
+    "runner": {
+      "path": "deploy/systemd/tradebot-mcl-narrative-prospective.service",
+      "sha256": "350217e516ece26d720b8a9abf92703c539e04236e40b915f783eef93c03a7d4"
+    }
+  },
+  "boundaries": {
+    "news_direction_authority": false,
+    "instrument_authority": "none",
+    "order_authority": "none",
+    "submitted_orders": 0,
+    "foreign_unsettled_generation": "fail_closed",
+    "delayed_or_stale_market_data": "exclude_without_backfill"
+  },
+  "migration": {
+    "scope": "gateway_control_plane_only",
+    "forecast_contract_changed": false,
+    "prospective_clock_changed": false,
+    "ledger_changed": false,
+    "prior_generation": "backtests/mcl/mcl_narrative_experiment_generation.json"
+  }
+}

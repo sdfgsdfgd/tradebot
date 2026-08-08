@@ -1,8 +1,7 @@
 [Unit]
 Description=Advance the selected XSP dual-clock observer and cash transport
 Wants=network-online.target
-Requires=tradebot-ib-gateway-tunnel.service
-After=network-online.target tradebot-ib-gateway-tunnel.service
+After=network-online.target tradebot-ib-gateway.service
 ConditionPathExists=%h/Desktop/py/tradebot/tradebot/research/xsp_dual_clock.py
 
 [Service]
@@ -13,7 +12,11 @@ Environment=PYTHONUNBUFFERED=1
 Environment=IBKR_HOST=127.0.0.1
 Environment=IBKR_PORT=4001
 Environment=IBKR_READONLY=1
+Environment=IBKR_ACCOUNT_BOOTSTRAP=0
+Environment=TRADEBOT_IB_PREFLIGHT_RECEIPT=%t/tradebot-ib-preflight.json
+Environment=TRADEBOT_IB_PREFLIGHT_MAX_AGE_SEC=108000
 ExecCondition=/usr/bin/test -x %h/.local/share/tradebot/venv/bin/python
+ExecCondition=/usr/bin/env python3 -m tradebot.live.ib_preflight require reduction --receipt %t/tradebot-ib-preflight.json
 ExecStart=/usr/bin/flock --exclusive --wait 180 %t/tradebot-live-account.lock /usr/bin/env python3 -m tradebot.research.xsp_shadow --mode opening-edge-p009
 TimeoutStartSec=8min
 KillSignal=SIGTERM

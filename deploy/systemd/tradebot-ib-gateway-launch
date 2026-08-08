@@ -1,0 +1,50 @@
+#!/bin/sh
+set -eu
+
+check_only=false
+case "$#:${1:-}" in
+    0:) ;;
+    1:--check) check_only=true ;;
+    *)
+        echo "usage: tradebot-ib-gateway-launch [--check]" >&2
+        exit 64
+        ;;
+esac
+
+runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+gateway="$HOME/.local/share/tradebot/ibgateway/ibgateway"
+
+if [ ! -x "$gateway" ]; then
+    echo "IB Gateway executable is unavailable" >&2
+    exit 1
+fi
+if /usr/bin/ss -H -ltn 'sport = :4001' | /usr/bin/grep -q .; then
+    echo "IB Gateway launch refused: q port 4001 is already owned" >&2
+    exit 1
+fi
+
+if [ -z "${XAUTHORITY:-}" ]; then
+    set -- "$runtime_dir"/.mutter-Xwaylandauth.*
+    if [ "$#" -ne 1 ] || [ ! -f "$1" ]; then
+        echo "IB Gateway requires exactly one active Mutter Xauthority file" >&2
+        exit 1
+    fi
+    XAUTHORITY="$1"
+fi
+
+if [ "$(stat -c %u "$XAUTHORITY")" != "$(id -u)" ]; then
+    echo "IB Gateway Xauthority is not owned by the service user" >&2
+    exit 1
+fi
+
+export DISPLAY="${DISPLAY:-:0}"
+export XAUTHORITY
+export XDG_RUNTIME_DIR="$runtime_dir"
+export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=$runtime_dir/bus}"
+
+if [ "$check_only" = true ]; then
+    printf 'Gateway GUI environment ready: DISPLAY=%s XAUTHORITY=%s\n' "$DISPLAY" "$XAUTHORITY"
+    exit 0
+fi
+
+exec "$gateway"

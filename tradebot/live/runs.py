@@ -36,6 +36,16 @@ class LiveRunBinding:
     selection_validator: SelectionValidator
     champion_symbol: str = ""
     champion_track: str = ""
+    support_timer_units: tuple[str, ...] = ()
+    support_service_units: tuple[str, ...] = ()
+
+    @property
+    def runtime_timer_units(self) -> tuple[str, ...]:
+        return (self.timer_unit, *self.support_timer_units)
+
+    @property
+    def runtime_service_units(self) -> tuple[str, ...]:
+        return (self.service_unit, *self.support_service_units)
 
 
 def _canonical_json(value: object) -> bytes:
@@ -439,14 +449,29 @@ def _control_status(run: Mapping[str, object], action: str) -> dict[str, object]
         return {"status": "HOLD", "reasons": ["durable_run_invalid"]}
     service = run.get("service")
     timer = run.get("timer")
-    if not isinstance(service, Mapping) or not isinstance(timer, Mapping):
+    bundle = run.get("runtime_bundle")
+    timers = bundle.get("timers") if isinstance(bundle, Mapping) else None
+    services = bundle.get("services") if isinstance(bundle, Mapping) else None
+    if not isinstance(timers, Sequence) or isinstance(timers, (str, bytes)):
+        timers = [timer] if isinstance(timer, Mapping) else []
+    if not isinstance(services, Sequence) or isinstance(services, (str, bytes)):
+        services = [service] if isinstance(service, Mapping) else []
+    if (
+        not isinstance(service, Mapping)
+        or not isinstance(timer, Mapping)
+        or not timers
+        or not services
+        or any(not isinstance(unit, Mapping) for unit in (*timers, *services))
+    ):
         return {"status": "HOLD", "reasons": ["durable_owner_state_missing"]}
-    if service.get("available") is not True or timer.get("available") is not True:
+    if any(unit.get("available") is not True for unit in (*timers, *services)):
         return {"status": "HOLD", "reasons": ["durable_owner_unit_unavailable"]}
-    timer_active = timer.get("active_state") == "active"
+    active_timers = [unit.get("active_state") == "active" for unit in timers]
+    timer_active = all(active_timers)
+    any_timer_active = any(active_timers)
     if normalized == "START":
         if timer_active:
-            return {"status": "NOOP", "reasons": ["schedule_already_active"]}
+            return {"status": "NOOP", "reasons": ["runtime_bundle_already_active"]}
         positions = run.get("positions")
         pending = run.get("pending_order_refs")
         open_orders = run.get("open_orders")
@@ -473,8 +498,8 @@ def _control_status(run: Mapping[str, object], action: str) -> dict[str, object]
                 ["reconciliation_owner_must_resume"] if needs_reconciliation else []
             ),
         }
-    if not timer_active:
-        return {"status": "NOOP", "reasons": ["schedule_already_inactive"]}
+    if not any_timer_active:
+        return {"status": "NOOP", "reasons": ["runtime_bundle_already_inactive"]}
     reasons = []
     positions = run.get("positions")
     if not isinstance(positions, Mapping) or not _positions_flat(positions):
@@ -543,6 +568,16 @@ class LiveRunCockpit:
         service = (
             dict(self._unit_reader(binding.service_unit)) if binding is not None else None
         )
+        timers = (
+            [dict(self._unit_reader(unit)) for unit in binding.runtime_timer_units]
+            if binding is not None
+            else []
+        )
+        services = (
+            [dict(self._unit_reader(unit)) for unit in binding.runtime_service_units]
+            if binding is not None
+            else []
+        )
         run = {
             "sleeve_id": sleeve.get("sleeve_id"),
             "strategy_id": sleeve.get("strategy_id"),
@@ -553,6 +588,7 @@ class LiveRunCockpit:
             "errors": [message],
             "timer": timer,
             "service": service,
+            "runtime_bundle": {"timers": timers, "services": services},
             "positions": {},
             "open_orders": [],
             "pending_order_refs": [],
@@ -630,23 +666,31 @@ class LiveRunCockpit:
                 broker = dict(selected_broker)
             broker = broker or {}
             positions, open_orders = _owned_broker_state(sleeve, broker)
-            timer = dict(self._unit_reader(binding.timer_unit))
-            service = dict(self._unit_reader(binding.service_unit))
+            timers = [
+                dict(self._unit_reader(unit)) for unit in binding.runtime_timer_units
+            ]
+            services = [
+                dict(self._unit_reader(unit)) for unit in binding.runtime_service_units
+            ]
+            timer = timers[0]
+            service = services[0]
             pending = list(_pending_order_refs(records))
             unit_failure = (
-                timer.get("available") is not True
-                or service.get("available") is not True
-                or timer.get("active_state") == "failed"
-                or service.get("active_state") == "failed"
-                or timer.get("result") == "failed"
-                or service.get("result") == "failed"
+                any(unit.get("available") is not True for unit in (*timers, *services))
+                or any(unit.get("active_state") == "failed" for unit in (*timers, *services))
+                or any(unit.get("result") == "failed" for unit in (*timers, *services))
             )
-            timer_active = timer.get("active_state") == "active"
+            active_timers = [unit.get("active_state") == "active" for unit in timers]
+            timer_active = all(active_timers)
+            partial_bundle = any(active_timers) and not timer_active
+            orphan_support = not any(active_timers) and any(
+                unit.get("active_state") == "active" for unit in services[1:]
+            )
             service_active = service.get("active_state") == "active"
             flat = _positions_flat(positions)
             state = (
                 "BROKEN"
-                if unit_failure
+                if unit_failure or partial_bundle or orphan_support
                 else "UNSAFE_PAUSED"
                 if not timer_active and (not flat or pending or open_orders)
                 else "BUSY"
@@ -709,6 +753,7 @@ class LiveRunCockpit:
                 "allocation": allocation,
                 "timer": timer,
                 "service": service,
+                "runtime_bundle": {"timers": timers, "services": services},
                 "ledger_path": str(ledger_path.relative_to(self.repository_root)),
                 "ledger_rows": len(records),
                 "latest_recorded_at_utc": (
@@ -830,7 +875,7 @@ class LiveRunCockpit:
         return {**body, "snapshot_id": _identity(body)}
 
     def control(self, sleeve_id: str, action: str) -> dict[str, object]:
-        """Start or flat-safely pause one schedule; never submit a broker order."""
+        """Start or flat-safely pause one runtime bundle; never submit an order."""
 
         normalized = str(action or "").upper()
         before = self.snapshot()
@@ -847,41 +892,96 @@ class LiveRunCockpit:
             raise ValueError(", ".join(decision["reasons"]))
         if decision["status"] == "NOOP":
             return {"action": normalized, "decision": decision, "before": before, "after": before}
-        timer = run["timer"]
-        assert isinstance(timer, Mapping)
-        timer_unit = str(timer["unit"])
-        if normalized == "START":
-            self._command_runner(("enable", "--now", timer_unit))
-        elif normalized == "STOP":
-            self._command_runner(("disable", "--now", timer_unit))
-        else:
-            raise ValueError(", ".join(decision["reasons"]))
-        after = self.snapshot()
-        updated = next(
-            run
-            for run in after["runs"]
-            if isinstance(run, Mapping) and run.get("sleeve_id") == sleeve_id
-        )
-        updated_timer = updated.get("timer")
-        expected_active = normalized == "START"
-        actual_active = (
-            isinstance(updated_timer, Mapping)
-            and updated_timer.get("active_state") == "active"
-        )
-        if normalized == "STOP":
-            updated_positions = updated.get("positions")
-            updated_service = updated.get("service")
-            unsafe = (
-                not isinstance(updated_positions, Mapping)
-                or not _positions_flat(updated_positions)
-                or bool(updated.get("open_orders"))
-                or bool(updated.get("pending_order_refs"))
-                or not isinstance(updated_service, Mapping)
-                or updated_service.get("active_state") != "inactive"
+        binding = self.bindings[str(run.get("strategy_id") or "")]
+        bundle = run.get("runtime_bundle")
+        assert isinstance(bundle, Mapping)
+        timers = bundle.get("timers")
+        services = bundle.get("services")
+        assert isinstance(timers, Sequence) and isinstance(services, Sequence)
+        timer_was_active = {
+            str(unit["unit"]): unit.get("active_state") == "active"
+            for unit in timers
+            if isinstance(unit, Mapping)
+        }
+        support_was_active = {
+            str(unit["unit"]): unit.get("active_state") == "active"
+            for unit in services[1:]
+            if isinstance(unit, Mapping)
+        }
+        changed_timers: list[str] = []
+        stopped_support: list[str] = []
+        try:
+            for timer_unit in binding.runtime_timer_units:
+                active = timer_was_active[timer_unit]
+                if normalized == "START" and not active:
+                    self._command_runner(("enable", "--now", timer_unit))
+                    changed_timers.append(timer_unit)
+                elif normalized == "STOP" and active:
+                    self._command_runner(("disable", "--now", timer_unit))
+                    changed_timers.append(timer_unit)
+            if normalized == "STOP":
+                for service_unit in binding.support_service_units:
+                    if support_was_active[service_unit]:
+                        self._command_runner(("stop", service_unit))
+                        stopped_support.append(service_unit)
+            after = self.snapshot()
+            updated = next(
+                candidate
+                for candidate in after["runs"]
+                if isinstance(candidate, Mapping)
+                and candidate.get("sleeve_id") == sleeve_id
             )
-            if unsafe:
-                self._command_runner(("enable", "--now", timer_unit))
-                raise RuntimeError("durable run changed during pause; schedule restored")
-        if actual_active != expected_active:
-            raise RuntimeError("durable-run schedule state did not change as requested")
+            updated_bundle = updated.get("runtime_bundle")
+            updated_timers = (
+                updated_bundle.get("timers")
+                if isinstance(updated_bundle, Mapping)
+                else None
+            )
+            expected_active = normalized == "START"
+            actual_active = bool(updated_timers) and all(
+                isinstance(unit, Mapping)
+                and (unit.get("active_state") == "active") == expected_active
+                for unit in updated_timers
+            )
+            if normalized == "STOP":
+                updated_positions = updated.get("positions")
+                updated_service = updated.get("service")
+                updated_services = (
+                    updated_bundle.get("services")
+                    if isinstance(updated_bundle, Mapping)
+                    else None
+                )
+                unsafe = (
+                    not isinstance(updated_positions, Mapping)
+                    or not _positions_flat(updated_positions)
+                    or bool(updated.get("open_orders"))
+                    or bool(updated.get("pending_order_refs"))
+                    or not isinstance(updated_service, Mapping)
+                    or updated_service.get("active_state") != "inactive"
+                    or not isinstance(updated_services, Sequence)
+                    or any(
+                        isinstance(unit, Mapping)
+                        and unit.get("active_state") == "active"
+                        for unit in updated_services[1:]
+                    )
+                )
+                if unsafe:
+                    raise RuntimeError("durable run changed during bundle pause")
+            if not actual_active:
+                raise RuntimeError("durable runtime bundle did not change as requested")
+        except Exception as exc:
+            rollback_errors: list[str] = []
+            for service_unit in reversed(stopped_support):
+                try:
+                    self._command_runner(("start", service_unit))
+                except Exception as rollback_exc:
+                    rollback_errors.append(str(rollback_exc))
+            for timer_unit in reversed(changed_timers):
+                command = "enable" if timer_was_active[timer_unit] else "disable"
+                try:
+                    self._command_runner((command, "--now", timer_unit))
+                except Exception as rollback_exc:
+                    rollback_errors.append(str(rollback_exc))
+            detail = f"; rollback failed: {', '.join(rollback_errors)}" if rollback_errors else ""
+            raise RuntimeError(f"durable runtime bundle change failed: {exc}{detail}") from exc
         return {"action": normalized, "decision": decision, "before": before, "after": after}

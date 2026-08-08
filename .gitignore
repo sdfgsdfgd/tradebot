@@ -15,6 +15,11 @@ backtests/*
 !backtests/mnq/**
 !backtests/xsp/
 !backtests/xsp/**
+!backtests/mcl/
+backtests/mcl/*
+!backtests/mcl/mcl_narrative_experiment_generation_ib_control_plane_20260808.json
+!backtests/core/
+!backtests/core/**
 backtests/xsp/__pycache__/
 db/quotes/
 docs/todo/

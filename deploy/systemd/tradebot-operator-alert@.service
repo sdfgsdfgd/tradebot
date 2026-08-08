@@ -1,0 +1,11 @@
+[Unit]
+Description=Escalate Tradebot operator condition %i to the logged-in Mac
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/ssh -F /dev/null -i %h/.ssh/id_rsa -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=8 -o ConnectionAttempts=1 -o StrictHostKeyChecking=yes -o UserKnownHostsFile=%h/.ssh/known_hosts -o LogLevel=ERROR x@192.168.1.2 /Users/x/.local/bin/tradebot-operator-alert %i
+TimeoutStartSec=3min
+NoNewPrivileges=true
+UMask=0077

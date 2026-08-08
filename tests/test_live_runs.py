@@ -114,6 +114,7 @@ def _fixture(
     tmp_path: Path,
     *,
     phase: str = "STATE",
+    bundled: bool = False,
 ) -> tuple[LiveRunCockpit, dict[str, dict[str, object]], list[tuple[str, ...]]]:
     selection = {
         "selection_id": RUN_ID,
@@ -199,20 +200,35 @@ def _fixture(
         timer_unit="test.timer",
         service_unit="test.service",
         selection_validator=lambda value: dict(value),
+        support_timer_units=("test-support.timer",) if bundled else (),
+        support_service_units=("test-support.service",) if bundled else (),
     )
     states = {
         "test.timer": _unit("test.timer", active=True),
         "test.service": _unit("test.service", active=False, service=True),
     }
+    if bundled:
+        states.update(
+            {
+                "test-support.timer": _unit("test-support.timer", active=True),
+                "test-support.service": _unit(
+                    "test-support.service", active=True, service=True
+                ),
+            }
+        )
     calls: list[tuple[str, ...]] = []
 
     def command(arguments) -> None:
         args = tuple(arguments)
         calls.append(args)
         if args[:2] == ("disable", "--now"):
-            states["test.timer"] = _unit("test.timer", active=False)
+            states[args[2]] = _unit(args[2], active=False)
         elif args[:2] == ("enable", "--now"):
-            states["test.timer"] = _unit("test.timer", active=True)
+            states[args[2]] = _unit(args[2], active=True)
+        elif args[:1] == ("stop",):
+            states[args[1]] = _unit(args[1], active=False, service=True)
+        elif args[:1] == ("start",):
+            states[args[1]] = _unit(args[1], active=True, service=True)
 
     cockpit = LiveRunCockpit(
         repository_root=tmp_path,
@@ -375,6 +391,33 @@ def test_start_and_flat_stop_only_mutate_the_bound_timer(tmp_path: Path) -> None
     assert states["test.service"]["active_state"] == "inactive"
 
 
+def test_start_and_flat_stop_converge_the_whole_runtime_bundle(tmp_path: Path) -> None:
+    cockpit, states, calls = _fixture(tmp_path, bundled=True)
+
+    stopped = cockpit.control("test-cash", "STOP")
+
+    assert stopped["after"]["runs"][0]["state"] == "PAUSED"
+    assert calls == [
+        ("disable", "--now", "test.timer"),
+        ("disable", "--now", "test-support.timer"),
+        ("stop", "test-support.service"),
+    ]
+    assert all(
+        state["active_state"] == "inactive"
+        for unit, state in states.items()
+        if unit != "test.service"
+    )
+
+    started = cockpit.control("test-cash", "START")
+
+    assert started["after"]["runs"][0]["state"] == "RUNNING"
+    assert calls[-2:] == [
+        ("enable", "--now", "test.timer"),
+        ("enable", "--now", "test-support.timer"),
+    ]
+    assert states["test-support.service"]["active_state"] == "inactive"
+
+
 def test_replace_and_rebalance_require_immutable_successor_artifacts(
     tmp_path: Path,
 ) -> None:
@@ -400,33 +443,28 @@ def test_systemd_read_failure_becomes_unavailable_truth(monkeypatch) -> None:
     assert "timed out" in str(state["error"])
 
 
-def test_live_target_groups_owners_without_overriding_sleeve_controls() -> None:
+def test_live_target_contains_only_dynamically_armed_strategy_bundles() -> None:
     target = (
         Path(__file__).parents[1] / "deploy/systemd/tradebot-live.target"
     ).read_text()
-    expected = {
+    root = Path(__file__).parents[1] / "deploy/systemd"
+    activatable = {
         "tradebot-xsp-shadow.timer",
         "tradebot-xsp-pressure-tape.timer",
         "tradebot-gold-live.timer",
         "tradebot-gold-onset.timer",
         "tradebot-mcl-live.timer",
-        "tradebot-mcl-turn-tape.service",
+        "tradebot-mcl-turn-tape.timer",
         "tradebot-mcl-predictive-onset-runtime.timer",
-        "tradebot-news.timer",
-        "tradebot-ib-gateway-tunnel.service",
     }
-    wants = next(line for line in target.splitlines() if line.startswith("Wants="))
-    stops = next(
-        line for line in target.splitlines() if line.startswith("PropagatesStopTo=")
-    )
-
-    assert set(wants.removeprefix("Wants=").split()) == expected
-    assert set(stops.removeprefix("PropagatesStopTo=").split()) == expected - {
-        "tradebot-ib-gateway-tunnel.service"
-    }
-    assert "[Install]" not in target
-    assert "Upholds=" not in target
-    assert "Requires=" not in target
+    assert "Wants=" not in target
+    assert "PropagatesStopTo=" not in target
+    assert "WantedBy=default.target" in target
+    for unit in activatable:
+        text = (root / unit).read_text()
+        assert "PartOf=tradebot-live.target" in text
+        assert "WantedBy=tradebot-live.target" in text
+    assert "WantedBy=timers.target" in (root / "tradebot-news.timer").read_text()
     assert "tradebot-mcl-narrative-prospective.service" not in target
 
 

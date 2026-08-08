@@ -1,0 +1,11 @@
+{
+  "authority": "proven_strategy_identity_only_no_runtime_activation",
+  "boundaries": {
+    "capital_authority": "none",
+    "order_authority": "none",
+    "runtime_activation": "none"
+  },
+  "members": [],
+  "pool_id": "5711f010301665dc63c7aee055b97f88678dcdc96eca298c0e686bf8e257f239",
+  "schema": "live.core-strategy-pool.v1"
+}

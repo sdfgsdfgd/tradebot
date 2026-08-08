@@ -704,22 +704,63 @@ def test_readonly_config_reaches_all_ib_connections(monkeypatch) -> None:
     assert fake_ib.readonly == [True]
 
 
-def test_shadow_owns_an_on_demand_readonly_gateway_tunnel() -> None:
+def test_data_only_main_connection_skips_the_account_bootstrap(monkeypatch) -> None:
+    monkeypatch.setenv("IBKR_READONLY", "true")
+    monkeypatch.setenv("IBKR_ACCOUNT_BOOTSTRAP", "0")
+    config = load_config()
+    assert config.readonly is True
+    assert config.account_bootstrap is False
+
+    client = IBKRClient(config)
+
+    class _RawClient:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, int, int, float]] = []
+
+        async def connectAsync(self, host, port, client_id, timeout) -> None:
+            self.calls.append((str(host), int(port), int(client_id), float(timeout)))
+
+    class _Wrapper:
+        clientId = 0
+
+    class _FakeIB:
+        def __init__(self) -> None:
+            self.client = _RawClient()
+            self.wrapper = _Wrapper()
+
+        async def connectAsync(self, *_args, **_kwargs) -> None:
+            raise AssertionError("full IB account bootstrap must not run")
+
+    fake_ib = _FakeIB()
+    client._ib = fake_ib
+    asyncio.run(client._connect_ib(fake_ib, client_id=745))
+
+    assert fake_ib.wrapper.clientId == 745
+    assert fake_ib.client.calls == [
+        (config.host, config.port, 745, config.connect_timeout_sec)
+    ]
+
+
+def test_writable_connection_cannot_disable_account_bootstrap(monkeypatch) -> None:
+    monkeypatch.setenv("IBKR_READONLY", "0")
+    monkeypatch.setenv("IBKR_ACCOUNT_BOOTSTRAP", "0")
+
+    config = load_config()
+
+    assert config.readonly is False
+    assert config.account_bootstrap is True
+
+
+def test_shadow_uses_the_q_native_readonly_gateway() -> None:
     root = Path(__file__).resolve().parents[1]
     shadow = (root / "deploy/systemd/tradebot-xsp-shadow.service").read_text()
-    tunnel = (
-        root / "deploy/systemd/tradebot-ib-gateway-tunnel.service"
-    ).read_text()
 
-    assert "Requires=tradebot-ib-gateway-tunnel.service" in shadow
+    assert "After=network-online.target tradebot-ib-gateway.service" in shadow
+    assert "Requires=tradebot-ib-gateway.service" not in shadow
+    assert "Wants=tradebot-ib-gateway.service" not in shadow
+    assert "tradebot-ib-gateway-tunnel.service" not in shadow
     assert "Environment=IBKR_READONLY=1" in shadow
-    assert "StopWhenUnneeded=yes" in tunnel
-    assert "StartLimitIntervalSec=0" in tunnel
-    assert "RestartSec=30s" in tunnel
-    assert "ExitOnForwardFailure=yes" in tunnel
-    assert "ServerAliveInterval=15" in tunnel
-    assert "StrictHostKeyChecking=yes" in tunnel
-    assert "-L 127.0.0.1:4001:127.0.0.1:4001" in tunnel
+    assert "Environment=IBKR_ACCOUNT_BOOTSTRAP=0" in shadow
 
 
 def test_current_order_state_promotes_pending_to_submitted_when_open() -> None:
@@ -2397,6 +2438,10 @@ def test_proxy_ensure_respects_per_symbol_delayed_routes_without_reloading_healt
         contract.conId = index
         contracts[symbol] = contract
     client._proxy_contracts = contracts
+    monkeypatch.setattr(
+        "tradebot.client._now_et",
+        lambda: datetime(2026, 8, 6, 5, 0),
+    )
     monkeypatch.setattr("tradebot.client._session_flags", lambda _now: (True, False))
 
     asyncio.run(client._ensure_proxy_tickers())

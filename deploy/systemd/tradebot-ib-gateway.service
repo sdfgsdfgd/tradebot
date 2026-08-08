@@ -1,0 +1,19 @@
+[Unit]
+Description=q-native Interactive Brokers Gateway (operator-restarted only)
+Wants=network-online.target
+After=network-online.target graphical-session.target
+OnFailure=tradebot-operator-alert@ib-gateway-exited.service
+ConditionFileIsExecutable=%h/.local/share/tradebot/ibgateway/ibgateway
+ConditionFileIsExecutable=%h/.local/bin/tradebot-ib-gateway-launch
+
+[Service]
+Type=simple
+PassEnvironment=DISPLAY WAYLAND_DISPLAY XAUTHORITY XDG_RUNTIME_DIR DBUS_SESSION_BUS_ADDRESS
+ExecStart=%h/.local/bin/tradebot-ib-gateway-launch
+ExecStartPost=/usr/bin/systemctl --user --no-block start tradebot-operator-alert@ib-gateway-login-required.service
+Restart=no
+KillSignal=SIGTERM
+TimeoutStopSec=90s
+PrivateTmp=false
+NoNewPrivileges=true
+UMask=0077

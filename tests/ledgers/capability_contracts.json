@@ -113,12 +113,15 @@
     "tests/test_gold_onset.py": "market-realism-parity",
     "tests/test_gold_profitability.py": "market-realism-parity",
     "tests/test_gold_regime_harmony.py": "market-realism-parity",
+    "tests/test_ib_preflight.py": "broker-connectivity-account",
+    "tests/test_ib_runtime_systemd.py": "broker-connectivity-account",
     "tests/test_mcl_live.py": "market-realism-parity",
     "tests/test_live_signal_exit_continuum.py": "live-execution-orders",
     "tests/test_live_execution_registry.py": "live-execution-orders",
     "tests/test_live_calibration.py": "market-realism-parity",
     "tests/test_live_capital.py": "policy-risk-sizing",
     "tests/test_live_graduation.py": "market-realism-parity",
+    "tests/test_live_core.py": "runtime-configuration-state",
     "tests/test_live_portfolio.py": "runtime-configuration-state",
     "tests/test_live_traces.py": "operator-ui-observability",
     "tests/test_live_portfolio_packages.py": "policy-risk-sizing",
@@ -126,6 +129,7 @@
     "tests/test_mcl_shock_crest.py": "signal-regime-intelligence",
     "tests/test_mcl_two_speed_auction.py": "signal-regime-intelligence",
     "tests/test_mcl_turn_tape.py": "live-market-data-contracts",
+    "tests/test_mcl_turn_tape_session.py": "market-time-series-semantics",
     "tests/test_live_runs.py": "runtime-configuration-state",
     "tests/test_xsp_execution_dwell_validation.py": "market-realism-parity",
     "tests/test_xsp_execution_observer.py": "market-realism-parity",
@@ -146,6 +150,7 @@
     "tests/test_option_package_risk.py": "live-execution-orders",
     "tests/test_option_quote_capture.py": "live-market-data-contracts",
     "tests/test_option_quote_parity.py": "market-realism-parity",
+    "tests/test_operator_alert.py": "operator-ui-observability",
     "tests/test_option_search_qualification.py": "live-market-data-contracts",
     "tests/test_options_prepared_tape.py": "backtest-data-cache",
     "tests/test_order_admission_policy.py": "live-execution-orders",
@@ -196,6 +201,7 @@
       ],
       "evidence": [
         "tests/test_effective_filters_payload.py",
+        "tests/test_live_core.py",
         "tests/test_live_portfolio.py",
         "tests/test_live_runs.py"
       ],
@@ -206,6 +212,7 @@
         "tradebot/backtest/config_values.py",
         "tradebot/live/portfolio.py",
         "tradebot/live/portfolio_endpoint.py",
+        "tradebot/live/core.py",
         "tradebot/live/runs.py",
         "tradebot/live/strategies.py",
         "tradebot/spot/codec.py"
@@ -232,11 +239,13 @@
         "tests/test_backtest_trading_calendar.py",
         "tests/test_bar_utils.py",
         "tests/test_engine_time_semantics.py",
+        "tests/test_mcl_turn_tape_session.py",
         "tests/test_realtime_chart_data.py",
         "tests/test_time_utils_modes.py"
       ],
       "owner_surface": [
         "tradebot/chart_data/realtime.py",
+        "tradebot/research/mcl_turn_tape_session.py",
         "tradebot/engines/market.py",
         "tradebot/time_utils.py"
       ],
@@ -389,13 +398,19 @@
       ],
       "evidence": [
         "tests/test_client_market_data_fallbacks.py",
+        "tests/test_ib_preflight.py",
+        "tests/test_ib_runtime_systemd.py",
         "tests/test_ui_netliq_drift_estimation.py",
         "tests/test_ui_pnl_truth.py"
       ],
       "owner_surface": [
+        "deploy/systemd/tradebot-ib-gateway.service",
+        "deploy/systemd/tradebot-ib-gateway-launch",
         "deploy/systemd/tradebot-ib-gateway-tunnel.service",
+        "deploy/systemd/tradebot-ib-preflight.service",
         "tradebot/client.py",
-        "tradebot/config.py"
+        "tradebot/config.py",
+        "tradebot/live/ib_preflight.py"
       ],
       "oracle": [
         "all evidence assigned to broker-connectivity-account passes",
@@ -492,6 +507,7 @@
         "current proof surfaces for operator-ui-observability"
       ],
       "evidence": [
+        "tests/test_operator_alert.py",
         "tests/test_readme_retrievers.py",
         "tests/test_ui_bot_stream_refresh.py",
         "tests/test_live_traces.py",
@@ -503,6 +519,8 @@
         "tests/test_ui_quote_status_line.py"
       ],
       "owner_surface": [
+        "deploy/macos/tradebot-operator-alert",
+        "deploy/systemd/tradebot-operator-alert@.service",
         "tradebot/ui/app.py",
         "tradebot/ui/bot_screen/config.py",
         "tradebot/ui/bot_screen/formatting.py",

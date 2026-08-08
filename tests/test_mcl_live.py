@@ -874,7 +874,7 @@ def test_mcl_live_worker_is_shared_locked_limit_only_and_maintenance_aware() -> 
     assert "MCL_STAGE131_COVERAGE=" in service
     assert "MCL_SHOCK_WAVE_LEDGER=" in service
     assert "tradebot.research.mcl_live_cli" in service
-    assert "Restart=on-failure" in service
+    assert "Restart=on-failure" not in service
     assert "Sun *-*-* 18..23:*:10 America/New_York" in timer
     assert "Mon..Thu *-*-* 00..16:*:10 America/New_York" in timer
     assert "Mon..Thu *-*-* 18..23:*:10 America/New_York" in timer

@@ -1,0 +1,12 @@
+[Unit]
+Description=Open q-native IB Gateway before the Sunday futures preflight
+
+[Timer]
+OnCalendar=Sun *-*-* 17:20:00 America/New_York
+AccuracySec=15s
+RandomizedDelaySec=0
+Persistent=false
+Unit=tradebot-ib-gateway.service
+
+[Install]
+WantedBy=timers.target

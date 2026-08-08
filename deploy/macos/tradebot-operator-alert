@@ -1,0 +1,41 @@
+#!/bin/zsh
+set -euo pipefail
+
+reason="${1:-}"
+case "$reason" in
+  ib-preflight-failed)
+    title="IBKR NOT READY — TRADING LOCKED"
+    message="The q preflight could not prove Gateway login, account, farm, quote, or runtime readiness. New entries remain fail-closed. Open IB Gateway and complete 2FA, then rerun the preflight."
+    ;;
+  ib-gateway-login-required)
+    title="IBKR 2FA REQUIRED NOW"
+    message="q opened IB Gateway. Complete the IBKR login and fingerprint/2FA challenge; q will verify the expected account before arming entries."
+    ;;
+  ib-gateway-exited)
+    title="IB GATEWAY EXITED — TRADING LOCKED"
+    message="The q-native IB Gateway exited. It was not restarted automatically. Inspect positions and orders before any operator restart."
+    ;;
+  *)
+    exit 64
+    ;;
+esac
+
+cache="$HOME/Library/Caches/tradebot/operator-alert-$reason"
+mkdir -p "${cache:h}"
+now="$(date +%s)"
+last=0
+[[ -f "$cache" ]] && last="$(stat -f %m "$cache" 2>/dev/null || print 0)"
+(( now - last < 900 )) && exit 0
+: >| "$cache"
+
+(
+  for sound in Submarine Sosumi Submarine; do
+    /usr/bin/afplay -v 1.0 "/System/Library/Sounds/$sound.aiff"
+  done
+) &
+
+/usr/bin/osascript - "$title" "$message" <<'APPLESCRIPT'
+on run argv
+  display alert (item 1 of argv) message (item 2 of argv) as critical buttons {"Acknowledge"} default button "Acknowledge"
+end run
+APPLESCRIPT

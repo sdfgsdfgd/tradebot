@@ -384,39 +384,24 @@ def test_systemd_budget_leaves_atomic_publication_grace() -> None:
     assert "TimeoutStartSec=16min" in unit
     assert "StartLimitIntervalSec=2h" in unit
     assert "StartLimitBurst=31" in unit
-    assert "Restart=on-failure" in unit
-    assert "RestartSec=30s" in unit
+    assert "Restart=on-failure" not in unit
     assert "OnSuccess=tradebot-mcl-narrative-prospective.service" in unit
-    assert "Requires=tradebot-ib-gateway-tunnel.service" in mcl
+    assert "After=tradebot-news.service tradebot-ib-gateway.service" in mcl
+    assert "Requires=tradebot-ib-gateway.service" not in mcl
+    assert "Wants=tradebot-ib-gateway.service" not in mcl
+    assert "tradebot-ib-gateway-tunnel.service" not in mcl
     assert "IBKR_READONLY=1" in mcl
     assert "IBKR_READONLY=0" not in mcl
     assert "MCL_NARRATIVE_LEDGER=%h/.local/state/tradebot/research/" in mcl
     assert "MCL_NARRATIVE_GENERATION=%h/Desktop/py/tradebot/backtests/mcl/" in mcl
-    assert "mcl_narrative_experiment_generation.json" in mcl
+    assert "mcl_narrative_experiment_generation_ib_control_plane_20260808.json" in mcl
     assert "python3 -m tradebot.research.mcl_narrative_lag_convexity" in mcl
     assert "tradebot-mcl-narrative-prospective.service" in guide
-    assert "systemctl --user stop tradebot-news.timer" in guide
-    assert 'test "$news_state" = inactive || test "$news_state" = failed' in guide
-    assert (
-        "install -m 0644 deploy/systemd/tradebot-news.{service,timer} "
-        "~/.config/systemd/user/"
-    ) in guide
-    producer = guide.index("tradebot-news.timer tradebot-xsp-pressure-tape.timer")
-    manual_shadow = guide.index(
-        "systemctl --user start tradebot-xsp-shadow.service"
-    )
-    shadow_timer = guide.index(
-        "systemctl --user enable --now tradebot-xsp-shadow.timer"
-    )
-    assert producer < manual_shadow < shadow_timer
-    assert (
-        "cmp -s deploy/systemd/tradebot-news.service "
-        "~/.config/systemd/user/tradebot-news.service"
-    ) in guide
-    assert "git diff --quiet origin/main -- deploy/systemd/tradebot-news.service" not in guide
-    assert guide.index("cmp -s deploy/systemd/tradebot-news.service") < guide.index(
-        "git restore --source=HEAD --worktree deploy/systemd/tradebot-news.service"
-    )
+    assert "q owns one native IB Gateway" in guide
+    assert "none pulls it in" in guide
+    assert "Arm each selected strategy through the portfolio cockpit" in guide
+    assert "tradebot-ib-gateway-tunnel.service" in guide
+    assert "rollback transport only" in guide
 
 
 def test_candidate_selection_has_no_topical_keyword_sieve() -> None:
@@ -995,7 +980,7 @@ def test_mcl_narrative_generation_binds_current_owners(tmp_path: Path) -> None:
     generation = load_mcl_narrative_generation()
 
     assert generation["generation_id"] == (
-        "2c4c543aef726c50bbabcb422e0b59c391685ecfb561e6b22cd23ab2910e3c32"
+        "f22e3a80c76c2ae3e5676954c22874ed3413b239ca3cbb8e7033236385fede54"
     )
     assert generation["status"] == "ACTIVE_EMPTY_PREFIX"
 

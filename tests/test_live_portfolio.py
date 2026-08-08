@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from tradebot.live.capital import build_live_capital_plan
+from tradebot.live.core import build_core_profile
 from tradebot.live.portfolio import (
     LIVE_CONTROL_REQUEST_SCHEMA,
     LIVE_CONTROL_RECEIPT_SCHEMA,
@@ -260,6 +261,56 @@ def test_catalog_distinguishes_machine_crown_from_readme_provenance(
     assert candidates[("LEGACY", "LF")]["stage"] == "RESEARCH_ONLY"
     assert candidates[("LEGACY", "LF")]["controls"]["COMMISSION"]["status"] == "HOLD"
     assert "legacy_readme_declaration_is_research_only" in candidates[("LEGACY", "LF")]["reasons"]
+
+
+def test_candidate_progression_keeps_24h_48h_and_core_authority_distinct(
+    tmp_path: Path,
+) -> None:
+    owner, _commands = _portfolio(tmp_path)
+    run = owner.snapshot()["runs"][0]
+
+    for target, expected in (("24h", "PROVEN_24H"), ("48h", "PROVEN_48H")):
+        staged = deepcopy(run)
+        staged["graduation"] = {
+            "verdict": "PROMOTE",
+            "target": target,
+            "receipt_id": "d" * 64,
+            "cutoff_utc": CUTOFF.isoformat(),
+            "reasons": [],
+        }
+        candidate = next(
+            row
+            for row in owner._project_candidates((staged,))
+            if row["symbol"] == "TEST"
+        )
+        assert candidate["stage"] == expected
+
+    final_run = deepcopy(run)
+    final_run["graduation"] = {
+        "verdict": "PROMOTE",
+        "target": "five_session_week",
+        "receipt_id": "e" * 64,
+        "cutoff_utc": CUTOFF.isoformat(),
+        "reasons": [],
+    }
+    eligible = next(
+        row
+        for row in owner._project_candidates((final_run,))
+        if row["symbol"] == "TEST"
+    )
+    assert eligible["stage"] == "CORE_ELIGIBLE"
+
+    profile = build_core_profile(eligible, final_run["graduation"])
+    member = next(
+        row
+        for row in owner._project_candidates(
+            (final_run,),
+            {str(eligible["candidate_id"]): profile},
+        )
+        if row["symbol"] == "TEST"
+    )
+    assert member["stage"] == "CORE"
+    assert member["core_profile_id"] == profile["profile_id"]
 
 
 def test_candidate_commission_never_creates_a_second_order_owner(tmp_path: Path) -> None:

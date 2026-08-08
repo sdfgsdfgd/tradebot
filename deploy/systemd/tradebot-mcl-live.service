@@ -1,8 +1,7 @@
 [Unit]
 Description=Reconcile the selected MCL V18 bounded live canary
 Wants=network-online.target
-Requires=tradebot-ib-gateway-tunnel.service
-After=network-online.target tradebot-ib-gateway-tunnel.service
+After=network-online.target tradebot-ib-gateway.service
 ConditionPathExists=%h/Desktop/py/tradebot/db/calibration/live_capital_plan.json
 StartLimitIntervalSec=60s
 StartLimitBurst=3
@@ -18,11 +17,12 @@ Environment=IBKR_CLIENT_ID=3208
 Environment=IBKR_READONLY=0
 Environment=MCL_SHOCK_WAVE_LEDGER=%h/.local/state/tradebot/research/mcl_shock_waves.jsonl
 Environment=MCL_STAGE131_COVERAGE=%h/.local/state/tradebot/research/mcl_shock_wave_coverage.json
+Environment=TRADEBOT_IB_PREFLIGHT_RECEIPT=%t/tradebot-ib-preflight.json
+Environment=TRADEBOT_IB_PREFLIGHT_MAX_AGE_SEC=108000
 ExecCondition=/usr/bin/test -x %h/.local/share/tradebot/venv/bin/python
+ExecCondition=/usr/bin/env python3 -m tradebot.live.ib_preflight require reduction --receipt %t/tradebot-ib-preflight.json
 ExecStart=/usr/bin/flock --exclusive --wait 180 %t/tradebot-live-account.lock /usr/bin/env python3 -m tradebot.research.mcl_live_cli
 TimeoutStartSec=8min
-Restart=on-failure
-RestartSec=5s
 KillSignal=SIGTERM
 Nice=5
 IOSchedulingClass=best-effort

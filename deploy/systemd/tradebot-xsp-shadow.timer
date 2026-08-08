@@ -1,5 +1,6 @@
 [Unit]
 Description=Advance XSP after each completed GTH bar and every RTH minute
+PartOf=tradebot-live.target
 
 [Timer]
 OnCalendar=Sun *-*-* 20:22/5:00 America/New_York
@@ -17,4 +18,4 @@ Persistent=false
 Unit=tradebot-xsp-shadow.service
 
 [Install]
-WantedBy=timers.target
+WantedBy=tradebot-live.target

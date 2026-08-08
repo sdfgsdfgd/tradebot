@@ -1,0 +1,14 @@
+[Unit]
+Description=Run the prospective MCL turn tape only inside each futures session
+PartOf=tradebot-live.target
+
+[Timer]
+OnActiveSec=1s
+OnCalendar=Sun,Mon,Tue,Wed,Thu *-*-* 17:55:00 America/New_York
+AccuracySec=10s
+RandomizedDelaySec=0
+Persistent=false
+Unit=tradebot-mcl-turn-tape.service
+
+[Install]
+WantedBy=tradebot-live.target

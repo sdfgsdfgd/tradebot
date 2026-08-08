@@ -1,10 +1,10 @@
 [Unit]
 Description=Record prospective matched CL/MCL turn-authenticity microstructure
 Wants=network-online.target
-Requires=tradebot-ib-gateway-tunnel.service
-After=network-online.target tradebot-ib-gateway-tunnel.service
+After=network-online.target tradebot-ib-gateway.service
+PartOf=tradebot-live.target
 ConditionPathExists=%h/Desktop/py/tradebot/backtests/mcl/mcl_turn_authenticity_microstructure_generation.json
-StartLimitIntervalSec=60s
+StartLimitIntervalSec=30min
 StartLimitBurst=3
 
 [Service]
@@ -20,11 +20,12 @@ Environment=IBKR_CLIENT_ID_POOL_START=3211
 Environment=IBKR_CLIENT_ID_POOL_END=3213
 Environment=IBKR_CLIENT_ID_STATE_FILE=%t/tradebot-mcl-turn-tape-client-ids.json
 Environment=IBKR_READONLY=1
+Environment=IBKR_ACCOUNT_BOOTSTRAP=0
 Environment=MCL_TURN_TAPE_DIR=%h/.local/state/tradebot/research/mcl_turn_tape
 ExecCondition=/usr/bin/test -x %h/.local/share/tradebot/venv/bin/python
-ExecStart=/usr/bin/env python3 -m tradebot.research.mcl_turn_tape --generation backtests/mcl/mcl_turn_authenticity_microstructure_generation.json
+ExecStart=/usr/bin/env python3 -m tradebot.research.mcl_turn_tape_session
 Restart=on-failure
-RestartSec=10s
+RestartSec=5min
 TimeoutStopSec=30s
 KillSignal=SIGTERM
 Nice=5
@@ -32,6 +33,3 @@ IOSchedulingClass=best-effort
 PrivateTmp=true
 NoNewPrivileges=true
 UMask=0077
-
-[Install]
-WantedBy=default.target

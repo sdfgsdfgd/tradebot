@@ -40,6 +40,8 @@ LIVE_STRATEGY_BINDINGS = (
         selection_validator=load_xsp_v3_transport_selection_from_mapping,
         champion_symbol="XSP",
         champion_track="LF",
+        support_timer_units=("tradebot-xsp-pressure-tape.timer",),
+        support_service_units=("tradebot-xsp-pressure-tape.service",),
     ),
     LiveRunBinding(
         strategy_id=GOLD_REGIME_HARMONY_VERSION,
@@ -51,6 +53,8 @@ LIVE_STRATEGY_BINDINGS = (
         selection_validator=load_gold_live_selection_from_mapping,
         champion_symbol="1OZ",
         champion_track="LF",
+        support_timer_units=("tradebot-gold-onset.timer",),
+        support_service_units=("tradebot-gold-onset.service",),
     ),
     LiveRunBinding(
         strategy_id=MCL_TWO_SPEED_SHOCK_VERSION,
@@ -62,6 +66,14 @@ LIVE_STRATEGY_BINDINGS = (
         selection_validator=load_mcl_live_selection_from_mapping,
         champion_symbol="MCL",
         champion_track="HF",
+        support_timer_units=(
+            "tradebot-mcl-turn-tape.timer",
+            "tradebot-mcl-predictive-onset-runtime.timer",
+        ),
+        support_service_units=(
+            "tradebot-mcl-turn-tape.service",
+            "tradebot-mcl-predictive-onset-runtime.service",
+        ),
     ),
 )
 

@@ -1,0 +1,13 @@
+[Unit]
+Description=Probe IBKR before each futures and equity entry session
+
+[Timer]
+OnCalendar=Sun,Mon,Tue,Wed,Thu *-*-* 17:40:00 America/New_York
+OnCalendar=Mon..Fri *-*-* 09:15:00 America/New_York
+AccuracySec=15s
+RandomizedDelaySec=0
+Persistent=false
+Unit=tradebot-ib-preflight.service
+
+[Install]
+WantedBy=timers.target

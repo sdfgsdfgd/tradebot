@@ -283,14 +283,17 @@ class IBKRClient:
         if key > 0 and key in self._fast_connect_probe_client_ids:
             self._fast_connect_probe_client_ids.discard(key)
             timeout = min(timeout, float(_CLIENT_ID_FAST_PROBE_TIMEOUT_SEC))
-        auxiliary_client = getattr(ib, "client", None) if ib is not self._ib else None
-        if auxiliary_client is not None and hasattr(auxiliary_client, "connectAsync"):
-            # Proxy/index roles need only the API handshake. IB.connectAsync also
+        handshake_only = ib is not self._ib or (
+            self._config.readonly and not self._config.account_bootstrap
+        )
+        raw_client = getattr(ib, "client", None) if handshake_only else None
+        if raw_client is not None and hasattr(raw_client, "connectAsync"):
+            # Data-only roles need only the API handshake. IB.connectAsync also
             # downloads positions, accounts, executions and orders on every socket.
             wrapper = getattr(ib, "wrapper", None)
             if wrapper is not None:
                 wrapper.clientId = int(client_id)
-            await auxiliary_client.connectAsync(
+            await raw_client.connectAsync(
                 self._config.host,
                 self._config.port,
                 int(client_id),
@@ -2103,6 +2106,14 @@ class IBKRClient:
             order_ref,
         )
         self._require_limit_order(order, context="place_limit_order")
+        from .live.ib_preflight import ib_preflight_configured, require_order_preflight
+
+        if ib_preflight_configured():
+            require_order_preflight(
+                position=self._position_for_order_contract(order_contract),
+                action=str(order.action),
+                quantity=float(order.totalQuantity),
+            )
         return self._ib.placeOrder(order_contract, order)
 
     async def modify_limit_order(self, trade: Trade, limit_price: float) -> Trade:
@@ -2116,7 +2127,34 @@ class IBKRClient:
             pass
         order.lmtPrice = self._normalize_limit_price_increment(trade.contract, float(limit_price))
         self._require_limit_order(order, context="modify_limit_order")
+        from .live.ib_preflight import ib_preflight_configured, require_order_preflight
+
+        if ib_preflight_configured():
+            status = getattr(trade, "orderStatus", None)
+            remaining = float(getattr(status, "remaining", 0.0) or 0.0)
+            require_order_preflight(
+                position=self._position_for_order_contract(trade.contract),
+                action=str(order.action),
+                quantity=remaining if remaining > 0 else float(order.totalQuantity),
+            )
         return self._ib.placeOrder(trade.contract, order)
+
+    def _position_for_order_contract(self, contract: Contract) -> float:
+        """Return current synchronized position for one exact broker contract."""
+
+        con_id = int(getattr(contract, "conId", 0) or 0)
+        if con_id <= 0:
+            raise RuntimeError("IB preflight cannot classify an unqualified order contract")
+        account = self._resolve_account(self._config.account)
+        try:
+            positions = self._ib.positions(account)
+        except Exception as exc:
+            raise RuntimeError("IB preflight cannot read synchronized positions") from exc
+        return sum(
+            float(row.position)
+            for row in positions
+            if int(getattr(row.contract, "conId", 0) or 0) == con_id
+        )
 
     def open_trades_for_conids(self, con_ids: Iterable[int]) -> list[Trade]:
         if not self._ib.isConnected():

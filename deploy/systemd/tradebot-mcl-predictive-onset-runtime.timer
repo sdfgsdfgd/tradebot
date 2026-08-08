@@ -1,5 +1,6 @@
 [Unit]
 Description=Settle newly complete current MCL predictive treatments
+PartOf=tradebot-live.target
 
 [Timer]
 OnCalendar=Sun *-*-* 18..23:0/5:45 America/New_York
@@ -12,4 +13,4 @@ Persistent=false
 Unit=tradebot-mcl-predictive-onset-runtime.service
 
 [Install]
-WantedBy=timers.target
+WantedBy=tradebot-live.target

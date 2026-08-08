@@ -1,12 +1,16 @@
 [Unit]
 Description=Reconcile the selected 1OZ Stage-76 canary every five minutes
+PartOf=tradebot-live.target
 
 [Timer]
-OnCalendar=*-*-* *:02/5:00
+OnCalendar=Sun *-*-* 18..23:02/5:00 America/New_York
+OnCalendar=Mon..Thu *-*-* 00..16:02/5:00 America/New_York
+OnCalendar=Mon..Thu *-*-* 18..23:02/5:00 America/New_York
+OnCalendar=Fri *-*-* 00..16:02/5:00 America/New_York
 AccuracySec=10s
 RandomizedDelaySec=0
 Persistent=false
 Unit=tradebot-gold-live.service
 
 [Install]
-WantedBy=timers.target
+WantedBy=tradebot-live.target
