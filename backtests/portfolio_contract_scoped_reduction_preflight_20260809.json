@@ -1,0 +1,78 @@
+{
+  "schema": "tradebot.contract-scoped-reduction-preflight.v1",
+  "recorded_at_utc": "2026-08-08T15:51:45Z",
+  "authority": "read_only_broker_and_runtime_reduction_scope_no_orders_no_strategy_economics",
+  "commits": {
+    "repair": "f6ae543c6b14bb0d629aea04daa82e60d7c32ee9",
+    "integrated_q_head": "fd8bd3845976675129cd58fb5276edba423da9b1"
+  },
+  "defect": {
+    "pre_repair_receipt_id": "1394d4b3f6493b7b3547d98ecb92b3182f9a84879341de57e133536adf4890cb",
+    "position_contracts_omitted_exchange": true,
+    "ib_error": 321,
+    "cross_contract_block": "one unquoted or closed holding made aggregate reduction readiness false for every sleeve",
+    "monday_risk": "the exact MCL emergency flatten and XSP incumbent reduction would have failed their service preflight before their own fresh-quote guards"
+  },
+  "repair": {
+    "held_contracts_qualified_by_con_id": true,
+    "receipt_retains_conservative_aggregate": true,
+    "receipt_adds_tamper_evident_per_contract_readiness": true,
+    "broker_order_boundary_uses_exact_order_con_id": true,
+    "service_scopes": {
+      "gold": [753716608],
+      "mcl": [661016525],
+      "xsp": [61228752, 828937771]
+    }
+  },
+  "authentic_q_proof": {
+    "checked_at_utc": "2026-08-08T15:50:25.951723+00:00",
+    "receipt_id": "c196203a0f144a53a3bc7fe6ecb02e496c3dbbf9c9ba95d747a6e41083d8c272",
+    "positions": [
+      {"con_id": 828937771, "quantity": 23.0, "symbol": "SPXU"},
+      {"con_id": 898708983, "quantity": 1.0, "symbol": "SPCX"},
+      {"con_id": 661016525, "quantity": 1.0, "symbol": "MCL"}
+    ],
+    "reduction_quotes": {
+      "661016525": true,
+      "828937771": true,
+      "898708983": false
+    },
+    "aggregate_reduction_ready": false,
+    "scoped_decisions": {
+      "gold": {"ready": true, "con_ids": [753716608]},
+      "mcl": {"ready": true, "con_ids": [661016525]},
+      "xsp": {"ready": true, "con_ids": [61228752, 828937771]}
+    },
+    "broker_orders_submitted": 0,
+    "broker_orders_cancelled": 0,
+    "gateway_restarted": false,
+    "runtime_units_mutated_by_probe": false
+  },
+  "deployment": {
+    "installed_units_match_repository": true,
+    "systemd_verify": true,
+    "gateway_remained_active_with_zero_restarts": true,
+    "mcl_live_and_predictive_remain_disabled": true,
+    "gold_live_remains_disabled": true,
+    "xsp_incumbent_reduction_timer_remains_enabled": true,
+    "focused_q_tests": "19 passed",
+    "focused_mac_tests": "15 passed"
+  },
+  "source_sha256": {
+    "tradebot/live/ib_preflight.py": "cbe8c32b2350e34bb85379e6f50bd3e1da624311139d691303c08aec46c44216",
+    "tradebot/client.py": "1576d44e86799ed257c1b600e9d3770631abc4d77bcfab37b7969d13b9fbef19",
+    "deploy/systemd/tradebot-mcl-emergency-flatten.service": "ecb5852af156582ca4bb5bbbd3d5e7b4b5e24b7cedb2bc1df7e136ea02475531",
+    "deploy/systemd/tradebot-mcl-live.service": "2368d33c04a155df18ff8d37288c8270bd5ee3a03d10e6559a5162c0706a214f",
+    "deploy/systemd/tradebot-gold-live.service": "5c0682d7afe01dd0622f962c7c2242d17362f6aa587a2f7b31ad6c120f57d32e",
+    "deploy/systemd/tradebot-xsp-shadow.service": "8f630ca705df48a8702745e84af473735c998b6eef2df56428ef718a2cb73244"
+  },
+  "boundaries": {
+    "strategy_or_threshold_changed": false,
+    "selection_or_capital_changed": false,
+    "timer_activation_changed": false,
+    "position_or_order_changed": false,
+    "economics_changed": false,
+    "submitted_orders": 0
+  },
+  "status": "PASS_DEPLOYED_RECOVERY_PENDING_NATURAL_BOUNDARIES"
+}
