@@ -1,0 +1,23 @@
+[Unit]
+Description=Commission the selected MCL Stage-131 flat successor
+Wants=network-online.target
+After=network-online.target tradebot-ib-gateway.service tradebot-ib-preflight.service tradebot-mcl-emergency-flatten.service
+PartOf=tradebot-live.target
+OnFailure=tradebot-operator-alert@mcl-runtime-failed.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/Desktop/py/tradebot
+Environment=PATH=%h/.local/share/tradebot/venv/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONUNBUFFERED=1
+ExecStartPre=/usr/bin/test -x %h/Desktop/py/tradebot/deploy/systemd/tradebot-mcl-stage131-successor
+ExecStartPre=/usr/bin/test -f %t/tradebot-mcl-emergency-flatten.ok
+ExecStartPre=/bin/sh -ec 'test "$(systemctl --user show tradebot-mcl-emergency-flatten.service -p Result --value)" = success'
+ExecStart=%h/Desktop/py/tradebot/deploy/systemd/tradebot-mcl-stage131-successor
+TimeoutStartSec=10min
+KillSignal=SIGTERM
+Nice=5
+IOSchedulingClass=best-effort
+PrivateTmp=false
+NoNewPrivileges=true
+UMask=0077

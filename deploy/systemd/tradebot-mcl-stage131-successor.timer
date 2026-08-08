@@ -1,0 +1,13 @@
+[Unit]
+Description=One selected MCL Stage-131 successor boundary
+PartOf=tradebot-live.target
+
+[Timer]
+OnCalendar=2026-08-09 18:04:05 America/New_York
+AccuracySec=1s
+RandomizedDelaySec=0
+Persistent=false
+Unit=tradebot-mcl-stage131-successor.service
+
+[Install]
+WantedBy=tradebot-live.target

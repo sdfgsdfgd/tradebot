@@ -1,0 +1,29 @@
+[Unit]
+Description=Flatten only the exact unsafe MCLU6 position after Sunday reopen
+Wants=network-online.target
+After=network-online.target tradebot-ib-gateway.service tradebot-ib-preflight.service
+Before=tradebot-mcl-live.service
+PartOf=tradebot-live.target
+OnFailure=tradebot-operator-alert@mcl-runtime-failed.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/Desktop/py/tradebot
+Environment=PATH=%h/.local/share/tradebot/venv/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONUNBUFFERED=1
+Environment=TRADEBOT_IB_PREFLIGHT_RECEIPT=%t/tradebot-ib-preflight.json
+Environment=TRADEBOT_IB_PREFLIGHT_MAX_AGE_SEC=108000
+ExecStartPre=/usr/bin/test -f %h/Desktop/py/tradebot/db/calibration/live_capital_plan.json
+ExecStartPre=/usr/bin/test -r /var/tmp/mcl_emergency_flatten.py
+ExecStartPre=/usr/bin/test -x %h/.local/share/tradebot/venv/bin/python
+ExecStartPre=/usr/bin/env python3 -m tradebot.live.ib_preflight require reduction --receipt %t/tradebot-ib-preflight.json
+ExecStartPre=-/usr/bin/rm -f %t/tradebot-mcl-emergency-flatten.ok
+ExecStart=/usr/bin/flock --exclusive --wait 180 %t/tradebot-live-account.lock %h/.local/share/tradebot/venv/bin/python /var/tmp/mcl_emergency_flatten.py
+ExecStartPost=/usr/bin/touch %t/tradebot-mcl-emergency-flatten.ok
+TimeoutStartSec=4min
+KillSignal=SIGTERM
+Nice=5
+IOSchedulingClass=best-effort
+PrivateTmp=false
+NoNewPrivileges=true
+UMask=0077

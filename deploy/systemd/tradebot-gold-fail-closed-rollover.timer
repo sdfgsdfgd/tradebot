@@ -1,0 +1,13 @@
+[Unit]
+Description=One selected flat-first Gold rollover boundary
+PartOf=tradebot-live.target
+
+[Timer]
+OnCalendar=2026-08-09 20:12:00 America/New_York
+AccuracySec=5s
+RandomizedDelaySec=0
+Persistent=false
+Unit=tradebot-gold-fail-closed-rollover.service
+
+[Install]
+WantedBy=tradebot-live.target

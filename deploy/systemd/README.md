@@ -38,6 +38,11 @@ strategy timer tick.
   probe restarts Gateway, changes a runtime, submits an order, or cancels one.
 - `tradebot-live.target` controls only timers belonging to currently armed
   strategy bundles. It contains no static strategy dependencies.
+- The four scheduled one-shot recovery flows are repository-owned units, not
+  anonymous `systemd-run` jobs. Their pinned `/var/tmp` scripts remain
+  byte-identical; the MCL emergency path additionally takes the shared account
+  lock and requires the current reduction receipt before it can submit its one
+  exact, held-position reduction. Each failure is candidate-specific on the Mac.
 - Core membership records a proven strategy identity only. It grants no
   capital, runtime, or order authority.
 
@@ -95,6 +100,7 @@ install -m 0644 \
   deploy/systemd/tradebot-live.target \
   deploy/systemd/tradebot-{gold-live,gold-onset}.{service,timer} \
   deploy/systemd/tradebot-{mcl-live,mcl-turn-tape,mcl-predictive-onset-runtime}.{service,timer} \
+  deploy/systemd/tradebot-{mcl-emergency-flatten,mcl-stage131-successor,gold-fail-closed-rollover,xsp-p009-fresh-rollover}.{service,timer} \
   deploy/systemd/tradebot-mcl-narrative-prospective.service \
   deploy/systemd/tradebot-news.{service,timer} \
   deploy/systemd/tradebot-{xsp-shadow,xsp-pressure-tape}.{service,timer} \

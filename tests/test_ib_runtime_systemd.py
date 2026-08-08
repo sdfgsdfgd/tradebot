@@ -121,6 +121,10 @@ def test_only_armed_strategy_bundle_timers_join_the_live_target() -> None:
         "tradebot-mcl-predictive-onset-runtime.timer",
         "tradebot-xsp-shadow.timer",
         "tradebot-xsp-pressure-tape.timer",
+        "tradebot-mcl-emergency-flatten.timer",
+        "tradebot-mcl-stage131-successor.timer",
+        "tradebot-gold-fail-closed-rollover.timer",
+        "tradebot-xsp-p009-fresh-rollover.timer",
     )
     for name in timers:
         timer = _unit(name)
@@ -131,6 +135,53 @@ def test_only_armed_strategy_bundle_timers_join_the_live_target() -> None:
     assert "Wants=" not in target
     assert "After=tradebot-ib-gateway.service" in target
     assert "PropagatesStopTo=" not in target
+
+
+def test_scheduled_recovery_flows_are_native_alerted_and_their_scripts_remain_external() -> None:
+    cases = {
+        "tradebot-mcl-emergency-flatten.service": (
+            "mcl-runtime-failed",
+            "/var/tmp/mcl_emergency_flatten.py",
+        ),
+        "tradebot-mcl-stage131-successor.service": (
+            "mcl-runtime-failed",
+            "tradebot-mcl-stage131-successor",
+        ),
+        "tradebot-gold-fail-closed-rollover.service": (
+            "gold-runtime-failed",
+            "/var/tmp/tradebot_gold_fail_closed_rollover.sh",
+        ),
+        "tradebot-xsp-p009-fresh-rollover.service": (
+            "xsp-runtime-failed",
+            "/var/tmp/tradebot_xsp_p009_fresh_rollover.sh",
+        ),
+    }
+    for name, (alert, script) in cases.items():
+        service = _unit(name)
+        assert "After=network-online.target tradebot-ib-gateway.service" in service, name
+        assert "PartOf=tradebot-live.target" in service, name
+        assert f"OnFailure=tradebot-operator-alert@{alert}.service" in service, name
+        assert script in service, name
+
+    emergency = _unit("tradebot-mcl-emergency-flatten.service")
+    assert "ib_preflight require reduction" in emergency
+    assert "tradebot-live-account.lock" in emergency
+    assert "mcl_emergency_flatten.py" in emergency
+    assert "tradebot-mcl-emergency-flatten.ok" in emergency
+
+    successor = _unit("tradebot-mcl-stage131-successor.service")
+    assert "tradebot-mcl-emergency-flatten.ok" in successor
+
+    for name in (
+        "tradebot-mcl-emergency-flatten.timer",
+        "tradebot-mcl-stage131-successor.timer",
+        "tradebot-gold-fail-closed-rollover.timer",
+        "tradebot-xsp-p009-fresh-rollover.timer",
+    ):
+        timer = _unit(name)
+        assert "PartOf=tradebot-live.target" in timer, name
+        assert "WantedBy=tradebot-live.target" in timer, name
+        assert "Persistent=false" in timer, name
 
 
 def test_gateway_loopback_firewall_is_a_root_owned_launch_precondition() -> None:
