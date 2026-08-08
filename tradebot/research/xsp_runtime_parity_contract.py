@@ -12,7 +12,7 @@ XSP_P009_RUNTIME_PARITY_SCHEMA = (
 )
 XSP_P009_RUNTIME_PARITY_PATH = Path(
     "backtests/xsp/opening_edge_v4_dual_clock_arbitration_p009_"
-    "current_runtime_parity_ib_control_plane_20260808.json"
+    "current_runtime_parity_q_native_gateway_20260809.json"
 )
 _XSP_RUNTIME_OWNER_PATHS = {
     "frozen_crown_artifact_sha256": (
