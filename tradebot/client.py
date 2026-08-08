@@ -2113,6 +2113,7 @@ class IBKRClient:
                 position=self._position_for_order_contract(order_contract),
                 action=str(order.action),
                 quantity=float(order.totalQuantity),
+                con_id=int(order_contract.conId),
             )
         return self._ib.placeOrder(order_contract, order)
 
@@ -2136,6 +2137,7 @@ class IBKRClient:
                 position=self._position_for_order_contract(trade.contract),
                 action=str(order.action),
                 quantity=remaining if remaining > 0 else float(order.totalQuantity),
+                con_id=int(trade.contract.conId),
             )
         return self._ib.placeOrder(trade.contract, order)
 

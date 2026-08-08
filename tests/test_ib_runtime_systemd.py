@@ -101,15 +101,17 @@ def test_every_current_broker_consumer_uses_the_native_gateway() -> None:
 
 
 def test_writable_owners_require_reduction_readiness_before_starting() -> None:
-    for name in (
-        "tradebot-gold-live.service",
-        "tradebot-mcl-live.service",
-        "tradebot-xsp-shadow.service",
-    ):
+    scopes = {
+        "tradebot-gold-live.service": (753716608,),
+        "tradebot-mcl-live.service": (661016525,),
+        "tradebot-xsp-shadow.service": (61228752, 828937771),
+    }
+    for name, con_ids in scopes.items():
         service = _unit(name)
         assert "TRADEBOT_IB_PREFLIGHT_RECEIPT=%t/tradebot-ib-preflight.json" in service
         assert "TRADEBOT_IB_PREFLIGHT_MAX_AGE_SEC=108000" in service
         assert "ib_preflight require reduction" in service
+        assert all(f"--con-id {con_id}" in service for con_id in con_ids)
         assert "Restart=on-failure" not in service
 
 
@@ -162,6 +164,7 @@ def test_scheduled_recovery_flows_are_native_alerted_and_their_scripts_remain_ex
 
     emergency = _unit("tradebot-mcl-emergency-flatten.service")
     assert "ib_preflight require reduction" in emergency
+    assert "--con-id 661016525" in emergency
     assert "tradebot-live-account.lock" in emergency
     assert "mcl_emergency_flatten.py" in emergency
     assert "tradebot-mcl-emergency-flatten.ok" in emergency
