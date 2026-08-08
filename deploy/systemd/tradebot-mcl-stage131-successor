@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root="${TRADEBOT_ROOT:-$HOME/Desktop/py/tradebot}"
+python_bin="${TRADEBOT_PYTHON:-$HOME/.local/share/tradebot/venv/bin/python}"
+runtime_dir="${XDG_RUNTIME_DIR:?XDG_RUNTIME_DIR is required}"
+state_dir="${TRADEBOT_STATE_DIR:-$HOME/.local/state/tradebot/research}"
+receipt_dir="$state_dir/mcl_stage131_successor"
+commission_receipt="$receipt_dir/commission.json"
+observe_receipt="$receipt_dir/observe.json"
+lock_path="$runtime_dir/tradebot-live-account.lock"
+
+mkdir -p "$receipt_dir"
+cd "$root"
+
+# The predecessor and its read-only observer remain quarantined throughout the
+# transaction. This does not alter any XSP or Gold service.
+systemctl --user stop \
+  tradebot-mcl-live.timer \
+  tradebot-mcl-live.service \
+  tradebot-mcl-predictive-weekend-resume.timer \
+  tradebot-mcl-predictive-onset-runtime.timer \
+  tradebot-mcl-predictive-onset-runtime.service
+
+if [[ ! -s "$commission_receipt" ]]; then
+  pending="$(mktemp "$receipt_dir/.commission.XXXXXX")"
+  trap 'rm -f "${pending:-}" "${observed:-}"' EXIT
+  flock --exclusive --wait 180 "$lock_path" \
+    "$python_bin" -m tradebot.research.mcl_live_cli --commission >"$pending"
+  jq -e '
+    .schema == "mcl.two-speed-auction-live-commissioning.v1" and
+    .submitted_orders == 0 and
+    .order_authority == "armed_only_after_observe_only_restart_proof" and
+    (.stage131_runtime_binding_sha256 | type == "string" and length == 64)
+  ' "$pending" >/dev/null
+  mv "$pending" "$commission_receipt"
+fi
+
+# Publish current-generation observer coverage before projecting the selected
+# worker. A completed successful oneshot is inactive with Result=success.
+systemctl --user start tradebot-mcl-predictive-onset-runtime.service
+[[ "$(systemctl --user show tradebot-mcl-predictive-onset-runtime.service -p Result --value)" == "success" ]]
+[[ "$(systemctl --user show tradebot-mcl-predictive-onset-runtime.service -p ExecMainStatus --value)" == "0" ]]
+
+observed="$(mktemp "$receipt_dir/.observe.XXXXXX")"
+trap 'rm -f "${pending:-}" "${observed:-}"' EXIT
+flock --exclusive --wait 180 "$lock_path" \
+  "$python_bin" -m tradebot.research.mcl_live_cli --observe-only >"$observed"
+jq -e --arg selection_id "$(jq -r .selection_id "$commission_receipt")" '
+  .selection_id == $selection_id and
+  .status == "HOLD" and
+  .submitted_orders == 0 and
+  .plan.leg == null and
+  .risk_state.position_from_fills == 0 and
+  .risk_state.fill_count == 0 and
+  .risk_state.closed_trades == 0 and
+  .risk_state.safety_breaches == []
+' "$observed" >/dev/null
+mv "$observed" "$observe_receipt"
+
+systemctl --user start \
+  tradebot-mcl-predictive-onset-runtime.timer \
+  tradebot-mcl-live.timer
+
+jq -n \
+  --arg selection_id "$(jq -r .selection_id "$commission_receipt")" \
+  --arg commission_receipt "$commission_receipt" \
+  --arg observe_receipt "$observe_receipt" \
+  '{
+    schema: "mcl.stage131-flat-successor-transaction.v1",
+    status: "COMMISSIONED_AND_ARMED",
+    selection_id: $selection_id,
+    commission_receipt: $commission_receipt,
+    observe_receipt: $observe_receipt,
+    submitted_orders: 0
+  }'

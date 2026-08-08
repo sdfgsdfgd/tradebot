@@ -23,7 +23,7 @@ from .mcl_shock_arbiter import MCL_TWO_SPEED_SHOCK_VERSION
 MCL_LIVE_SOURCE_AUTHORITY_FRESH = "fresh_finalized"
 MCL_LIVE_SOURCE_AUTHORITY_REOPEN = "maintenance_reopen_reconciliation_only"
 MCL_LIVE_REOPEN_BINDING_PATH = Path(
-    "backtests/mcl/mcl_stage112_maintenance_reopen_runtime_binding.json"
+    "backtests/mcl/mcl_stage131_maintenance_reopen_runtime_binding.json"
 )
 
 
@@ -43,7 +43,7 @@ def bind_mcl_maintenance_reopen_selection(
         selected["strategy_version"] != MCL_TWO_SPEED_SHOCK_VERSION
         or not isinstance(binding, Mapping)
         or binding.get("schema")
-        != "mcl.stage112-maintenance-reopen-runtime-binding.v1"
+        != "mcl.stage131-maintenance-reopen-runtime-binding.v1"
         or binding.get("strategy_version") != MCL_TWO_SPEED_SHOCK_VERSION
         or binding.get("verdict") != "PASS"
         or binding.get("submitted_orders") != 0

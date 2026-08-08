@@ -47,6 +47,12 @@ from .mcl_live_reopen import (
     MCL_LIVE_SOURCE_AUTHORITY_REOPEN,
     refresh_mcl_live_source,
 )
+from .mcl_stage131 import (
+    MCL_STAGE131_BLOCKING_ACTIONS,
+    MCL_STAGE131_HOLD_REASONS,
+    project_mcl_stage131_entry_guard,
+    validate_mcl_stage131_entry_guard,
+)
 from .mcl_two_speed_auction import (
     MCL_TWO_SPEED_AUCTION_MULTIPLIER,
 )
@@ -347,6 +353,7 @@ def project_mcl_transport_plan(
     risk_state: Mapping[str, object],
     consumed_admissions: set[str],
     observed_at: datetime,
+    entry_guard: Mapping[str, object] | None = None,
 ) -> dict[str, object]:
     selected = load_mcl_live_selection_from_mapping(selection)
     now = _utc(observed_at)
@@ -391,6 +398,16 @@ def project_mcl_transport_plan(
             or not _is_sha(admission_id)
         ):
             raise ValueError("MCL source target identity is invalid")
+    guard = (
+        validate_mcl_stage131_entry_guard(
+            entry_guard,
+            selection_id=str(selected["selection_id"]),
+            source_checkpoint_id=str(source_checkpoint["checkpoint_id"]),
+            admission_event_id=admission_id,
+        )
+        if entry_guard is not None
+        else None
+    )
     held_direction = 1 if held > 0 else -1 if held < 0 else None
     breaches = risk_state.get("safety_breaches")
     exit_triggers = risk_state.get("exit_triggers", [])
@@ -427,6 +444,13 @@ def project_mcl_transport_plan(
             if target_direction is not None
             else "maintenance_reopen_reconciliation_only"
         )
+    elif (
+        held_direction is None
+        and target_direction is not None
+        and guard is not None
+        and guard["action"] in MCL_STAGE131_BLOCKING_ACTIONS
+    ):
+        reason = MCL_STAGE131_HOLD_REASONS[str(guard["action"])]
     elif held_direction is None and target_direction is not None:
         assert target_at is not None and admission_id is not None
         due_at = target_at + timedelta(minutes=1)
@@ -480,6 +504,8 @@ def project_mcl_transport_plan(
         "capital_admission": None,
         "order_authority": MCL_LIVE_ORDER_AUTHORITY,
     }
+    if guard is not None:
+        body["stage131_guard"] = guard
     transition = {
         key: body[key]
         for key in (
@@ -496,6 +522,8 @@ def project_mcl_transport_plan(
             "leg",
         )
     }
+    if guard is not None:
+        transition["stage131_guard"] = guard
     return {**body, "transition_id": _identity(transition)}
 
 
@@ -721,6 +749,7 @@ async def advance_mcl_live_transport(
     selection_file_sha256: str,
     observed_at: datetime,
     observe_only: bool = False,
+    stage131_context: Mapping[str, object] | None = None,
 ) -> dict[str, object]:
     """Refresh exact V18 state, reconcile, and execute only fresh selected intent."""
 
@@ -816,6 +845,9 @@ async def advance_mcl_live_transport(
             records, selection_id=str(selected["selection_id"])
         ),
         observed_at=now,
+        entry_guard=project_mcl_stage131_entry_guard(
+            source, context=stage131_context
+        ),
     )
     preview = None
     if plan["status"] == "ACTIONABLE":

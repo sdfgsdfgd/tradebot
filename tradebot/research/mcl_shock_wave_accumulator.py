@@ -52,6 +52,11 @@ from .mcl_shock_evidence import (
     project_mcl_shock_cross_scale,
     project_mcl_shock_news,
 )
+from .mcl_stage131 import (
+    MCL_STAGE131_COVERAGE_PATH,
+    build_mcl_stage131_coverage,
+    publish_mcl_stage131_coverage,
+)
 from .mcl_shock_waves import (
     MCL_SHOCK_WAVE_VERSION,
     MclAuthorityBoundShockWaveEngine,
@@ -520,6 +525,7 @@ def advance_mcl_shock_wave_accumulator(
     bars: Mapping[str, Mapping[datetime, OhlcvBar]],
     news: Sequence[Mapping[str, object]],
     observed_at: datetime,
+    coverage_path: Path | None = None,
 ) -> dict[str, object]:
     now = _utc(observed_at)
     if (
@@ -573,6 +579,22 @@ def advance_mcl_shock_wave_accumulator(
         prior[episode_id] = episode
         appended += 1
     episodes = mcl_shock_wave_episodes(tuple(ledger.records()))
+    coverage = (
+        publish_mcl_stage131_coverage(
+            coverage_path,
+            build_mcl_stage131_coverage(
+                generation=generation,
+                selection=selection,
+                rows=rows,
+                bars=bars,
+                complete_episodes=complete,
+                open_episode=open_episode,
+                recorded_at=now,
+            ),
+        )
+        if coverage_path is not None
+        else None
+    )
     return {
         "appended": appended,
         "eligible_start_utc": eligible.isoformat(),
@@ -584,6 +606,7 @@ def advance_mcl_shock_wave_accumulator(
         ),
         "complete_episodes_in_prefix": len(complete),
         "open_episode": open_episode,
+        "coverage_state_id": coverage["state_id"] if coverage is not None else None,
         "cohort": mcl_shock_wave_cohort(episodes, generation["cohort_gate"]),
     }
 
@@ -613,6 +636,13 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
         "--news-history-dir",
         type=Path,
         default=Path(os.environ.get("MCL_NEWS_HISTORY_DIR", MCL_SHOCK_NEWS_DIR)),
+    )
+    parser.add_argument(
+        "--stage131-coverage",
+        type=Path,
+        default=Path(
+            os.environ.get("MCL_STAGE131_COVERAGE", MCL_STAGE131_COVERAGE_PATH)
+        ),
     )
     args = parser.parse_args(argv)
     generation = load_mcl_shock_wave_generation(args.generation)
@@ -649,6 +679,7 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
             "maximum_volume_multiple": 0.0,
             "complete_episodes_in_prefix": 0,
             "open_episode": None,
+            "coverage_state_id": None,
             "cohort": mcl_shock_wave_cohort(
                 mcl_shock_wave_episodes(tuple(ledger.records())),
                 generation["cohort_gate"],
@@ -680,6 +711,7 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
             bars=bars,
             news=snapshots,
             observed_at=now,
+            coverage_path=args.stage131_coverage,
         )
     print(
         json.dumps(

@@ -849,6 +849,7 @@ def test_stage114_runtime_service_uses_one_validated_generation_pointer() -> Non
     assert "mcl_authority_bound_shock_waves_stage114_preregistration" not in service
     assert "-m tradebot.research.mcl_predictive_accumulator" in service
     assert "-m tradebot.research.mcl_shock_wave_accumulator" in service
+    assert "MCL_STAGE131_COVERAGE=" in service
     assert "IBKR_READONLY=1" in service
     assert "Unit=tradebot-mcl-predictive-onset-runtime.service" in timer
 

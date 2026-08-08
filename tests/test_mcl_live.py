@@ -22,6 +22,13 @@ from tradebot.research.mcl_live_reopen import (
     bind_mcl_maintenance_reopen_selection,
     refresh_mcl_live_source,
 )
+from tradebot.research.mcl_stage131 import (
+    MCL_STAGE131_BINDING_KEY,
+    bind_mcl_stage131_selection,
+    build_mcl_stage131_coverage,
+    project_mcl_stage131_entry_guard,
+    publish_mcl_stage131_coverage,
+)
 from tradebot.research.mcl_live_transport import (
     MCL_LIVE_EXECUTION_VERSION,
     MCL_LIVE_SOURCE_SCHEMA,
@@ -95,11 +102,14 @@ def _preview() -> dict[str, object]:
 
 
 def _selection():
-    return bind_mcl_maintenance_reopen_selection(
-        build_mcl_live_selection(
+    return bind_mcl_stage131_selection(
+        bind_mcl_maintenance_reopen_selection(
+            build_mcl_live_selection(
+                repository_root=ROOT,
+                preview=_preview(),
+                selected_at=AT + timedelta(seconds=1),
+            ),
             repository_root=ROOT,
-            preview=_preview(),
-            selected_at=AT + timedelta(seconds=1),
         ),
         repository_root=ROOT,
     )
@@ -382,6 +392,195 @@ def _source_checkpoint(
     }
 
 
+def _stage131_fixture(selected):
+    raw_at = AT + timedelta(minutes=5)
+    target_at = raw_at + timedelta(minutes=5)
+    raw = {
+        "event_id": "3" * 64,
+        "observed_at_utc": raw_at.isoformat(),
+        "signal_at_utc": raw_at.isoformat(),
+        "direction": -1,
+        "owner": "v18",
+        "decision": {"phase": "RAW_TURN", "raw_direction": -1},
+    }
+    target = {
+        "event_id": "4" * 64,
+        "observed_at_utc": target_at.isoformat(),
+        "signal_at_utc": raw_at.isoformat(),
+        "direction": 1,
+        "route": "failed_auction",
+        "owner": "v18",
+        "decision": {
+            "phase": "MATURATION",
+            "raw_direction": -1,
+            "admitted_direction": 1,
+        },
+    }
+    contract_key = str(selected["contracts"]["MCL"]["expiry"])[:6]
+    generation_id = "5" * 64
+    identity = {
+        "generation_id": generation_id,
+        "selection_id": selected["selection_id"],
+        "contract_key": contract_key,
+        "started_at_utc": (raw_at - timedelta(minutes=20)).isoformat(),
+        "first_record_id": "6" * 64,
+    }
+    episode = {
+        "episode_id": hashlib.sha256(
+            json.dumps(identity, separators=(",", ":"), sort_keys=True).encode()
+        ).hexdigest(),
+        "identity": identity,
+        "terminal_at_utc": raw_at.isoformat(),
+        "terminal_authority_direction": -1,
+        "authority_waves": [{"direction": -1}],
+        "terminal": {"reasons": ["stage112_v18_raw_turn"]},
+    }
+    source = {
+        "contract_month": contract_key,
+        "latest_common_close_utc": target_at.isoformat(),
+        "last_raw_turn": raw,
+        "target": target,
+    }
+    checkpoint = {
+        "checkpoint_id": "7" * 64,
+        "strategy_version": MCL_LIVE_SOURCE_VERSION,
+        "recorded_at_utc": (target_at + timedelta(seconds=5)).isoformat(),
+        "status": "EVALUATED",
+        "evidence": {
+            "schema": MCL_LIVE_SOURCE_SCHEMA,
+            "selection_id": selected["selection_id"],
+            "source": source,
+            "last_raw_turn": raw,
+            "target": target,
+        },
+    }
+    stamp = raw_at
+    bars = {
+        symbol: {stamp: OhlcvBar(stamp, 77.0, 77.1, 76.9, 77.0, 100)}
+        for symbol in ("CL", "MCL")
+    }
+    coverage = build_mcl_stage131_coverage(
+        generation={
+            "generation_id": generation_id,
+            "selection_id": selected["selection_id"],
+            "strategy_version": MCL_TWO_SPEED_SHOCK_VERSION,
+        },
+        selection=selected,
+        rows=[{"_time": stamp}],
+        bars=bars,
+        complete_episodes=[episode],
+        open_episode=None,
+        recorded_at=stamp + timedelta(seconds=45),
+    )
+    context = {
+        "generation_id": generation_id,
+        "selection_id": selected["selection_id"],
+        "coverage": coverage,
+        "episodes": [episode],
+    }
+    return checkpoint, context, target_at
+
+
+def test_mcl_stage131_is_selection_bound_and_coverage_is_atomic(tmp_path: Path) -> None:
+    selected = _selection()
+    checkpoint, context, _target_at = _stage131_fixture(selected)
+    path = tmp_path / "coverage.json"
+
+    published = publish_mcl_stage131_coverage(path, context["coverage"])
+
+    assert MCL_STAGE131_BINDING_KEY in selected["evidence"]
+    assert json.loads(path.read_text()) == published
+    assert published["complete_episode_ids"] == [
+        context["episodes"][0]["episode_id"]
+    ]
+    assert checkpoint["evidence"]["target"]["direction"] == 1
+
+
+def test_mcl_stage131_vetoes_only_flat_entry_and_never_weakens_exit() -> None:
+    selected = _selection()
+    source, context, target_at = _stage131_fixture(selected)
+    guard = project_mcl_stage131_entry_guard(source, context=context)
+
+    held = project_mcl_transport_plan(
+        selection=selected,
+        source_checkpoint=source,
+        source_authority=MCL_LIVE_SOURCE_AUTHORITY_FRESH,
+        broker_position=-1,
+        risk_state={"safety_breaches": []},
+        consumed_admissions=set(),
+        observed_at=target_at + timedelta(minutes=1, seconds=5),
+        entry_guard=guard,
+    )
+    flat = project_mcl_transport_plan(
+        selection=selected,
+        source_checkpoint=source,
+        source_authority=MCL_LIVE_SOURCE_AUTHORITY_FRESH,
+        broker_position=0,
+        risk_state={"safety_breaches": []},
+        consumed_admissions=set(),
+        observed_at=target_at + timedelta(minutes=1, seconds=5),
+        entry_guard=guard,
+    )
+
+    assert guard["action"] == "VETO_OPPOSITE_EXACT_EPOCH"
+    assert flat["status"] == "HOLD"
+    assert flat["reason"] == "stage131_veto_opposite_exact_epoch"
+    assert flat["target_direction"] == 1
+    assert flat["leg"] is None
+    assert held["status"] == "ACTIONABLE"
+    assert held["reason"] == "raw_turn_or_source_flatten"
+    assert held["leg"]["action"] == "BUY"
+    assert held["leg"]["initial_mode"] == "CROSS"
+
+
+def test_mcl_stage131_missing_defers_but_proven_absence_preserves_clock() -> None:
+    selected = _selection()
+    source, context, target_at = _stage131_fixture(selected)
+    missing = project_mcl_stage131_entry_guard(
+        source, context={**context, "coverage": None}
+    )
+    absent_coverage = {
+        **context["coverage"],
+        "complete_episode_ids": [],
+        "complete_episode_set_sha256": hashlib.sha256(b"[]").hexdigest(),
+    }
+    body = dict(absent_coverage)
+    body.pop("state_id")
+    absent_coverage["state_id"] = hashlib.sha256(
+        json.dumps(body, separators=(",", ":"), sort_keys=True).encode()
+    ).hexdigest()
+    absent = project_mcl_stage131_entry_guard(
+        source, context={**context, "coverage": absent_coverage, "episodes": []}
+    )
+
+    deferred = project_mcl_transport_plan(
+        selection=selected,
+        source_checkpoint=source,
+        source_authority=MCL_LIVE_SOURCE_AUTHORITY_FRESH,
+        broker_position=0,
+        risk_state={"safety_breaches": []},
+        consumed_admissions=set(),
+        observed_at=target_at + timedelta(minutes=1, seconds=5),
+        entry_guard=missing,
+    )
+    allowed = project_mcl_transport_plan(
+        selection=selected,
+        source_checkpoint=source,
+        source_authority=MCL_LIVE_SOURCE_AUTHORITY_FRESH,
+        broker_position=0,
+        risk_state={"safety_breaches": []},
+        consumed_admissions=set(),
+        observed_at=target_at + timedelta(minutes=1, seconds=5),
+        entry_guard=absent,
+    )
+
+    assert missing["action"] == "DEFER_COVERAGE_MISSING"
+    assert deferred["reason"] == "stage131_coverage_missing"
+    assert absent["action"] == "ALLOW_COVERAGE_PROVEN"
+    assert allowed["reason"] == "fresh_source_admission"
+    assert allowed["leg"]["action"] == "BUY"
+
+
 def test_mcl_plan_waits_for_next_minute_and_consumes_each_admission_once() -> None:
     selected = _selection()
     event_at = datetime.fromisoformat(selected["selected_at_utc"]) + timedelta(minutes=5)
@@ -649,6 +848,8 @@ def test_mcl_live_worker_is_shared_locked_limit_only_and_maintenance_aware() -> 
     assert "%t/tradebot-live-account.lock" in service
     assert "/usr/bin/flock --exclusive --wait 180" in service
     assert "Environment=IBKR_READONLY=0" in service
+    assert "MCL_STAGE131_COVERAGE=" in service
+    assert "MCL_SHOCK_WAVE_LEDGER=" in service
     assert "tradebot.research.mcl_live_cli" in service
     assert "Restart=on-failure" in service
     assert "Sun *-*-* 18..23:*:10 America/New_York" in timer

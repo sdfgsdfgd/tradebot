@@ -1,0 +1,44 @@
+{
+  "schema": "mcl.stage131-maintenance-reopen-runtime-binding.v1",
+  "recorded_at_utc": "2026-08-08T11:55:00+00:00",
+  "authority": "selected_runtime_reconciliation_binding_no_orders_no_capital",
+  "strategy_version": "mcl.two-speed-shock-arbiter.v112",
+  "source_shadow_path": "backtests/mcl/mcl_v18_shock_stage112_live_source_shadow.json",
+  "source_shadow_sha256": "d3d5f2e42245b913512aa30b19bf7433d42b16d1697980359f66093242d54f72",
+  "owners": {
+    "transport_path": "tradebot/research/mcl_live_transport.py",
+    "transport_sha256": "8b204647072bfe91ae2f29425c34c5c581c2305fa25022c4270360cab8a97add",
+    "reopen_path": "tradebot/research/mcl_live_reopen.py",
+    "reopen_sha256": "57901b02293908bca3bc605d4daf88c4983f4234395253eb45e5ad15277d83fc",
+    "live_path": "tradebot/research/mcl_live.py",
+    "live_sha256": "630a41325fb70626e52af26ef0aeafd1e3bb8d5ff58afd09d0ea4ef87c302e93",
+    "profitability_path": "tradebot/research/mcl_profitability.py",
+    "profitability_sha256": "1f1119d3e6ca678f856c0e4e20a2704fd43a07ef6e65be2373edac8f8db39e71",
+    "cli_path": "tradebot/research/mcl_live_cli.py",
+    "cli_sha256": "ecec94d4242b56844a5848e61618bbcad96c272e528ac33c86724ce6f0e2f178"
+  },
+  "law": {
+    "scope": "Sunday through Thursday exactly 18:00 ET",
+    "reconciliation_source": "exact identity-valid prior 16:59 ET finalized source; Friday 16:59 ET at Sunday reopen",
+    "entry_authority": "none",
+    "incumbent_authority": "hold or flatten under unchanged source identity and risk priority",
+    "next_minute": "strict fresh finalized 18:01 ET source required",
+    "general_stale_fallback": false
+  },
+  "gates": {
+    "stage112_source_and_lifecycle_unchanged": true,
+    "weekday_exact_prior_only": true,
+    "sunday_exact_friday_prior_only": true,
+    "dst_start_exact": true,
+    "dst_end_exact": true,
+    "adjacent_and_closed_boundaries_strict": true,
+    "fresh_admission_unchanged": true,
+    "reopen_entry_locked": true,
+    "risk_reduction_preserved": true,
+    "incumbent_hold_preserved": true,
+    "stage131_entry_guard_cannot_weaken_reconciliation": true,
+    "submitted_orders_zero": true
+  },
+  "verdict": "PASS",
+  "submitted_orders": 0
+}

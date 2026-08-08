@@ -23,6 +23,7 @@ Environment=IBKR_CLIENT_ID_STATE_FILE=%t/tradebot-mcl-predictive-client-ids.json
 Environment=IBKR_READONLY=1
 Environment=MCL_PREDICTIVE_LEDGER=%h/.local/state/tradebot/research/mcl_predictive_onset.jsonl
 Environment=MCL_SHOCK_WAVE_LEDGER=%h/.local/state/tradebot/research/mcl_shock_waves.jsonl
+Environment=MCL_STAGE131_COVERAGE=%h/.local/state/tradebot/research/mcl_shock_wave_coverage.json
 Environment=MCL_TURN_TAPE_DIR=%h/.local/state/tradebot/research/mcl_turn_tape
 Environment=MCL_NEWS_HISTORY_DIR=%h/.local/state/tradebot/news/history
 ExecCondition=/usr/bin/test -x %h/.local/share/tradebot/venv/bin/python

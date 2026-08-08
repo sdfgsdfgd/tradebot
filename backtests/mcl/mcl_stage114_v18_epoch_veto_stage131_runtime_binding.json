@@ -1,0 +1,77 @@
+{
+  "schema": "mcl.stage131-runtime-binding.v1",
+  "recorded_at_utc": "2026-08-08T11:55:00+00:00",
+  "strategy_version": "mcl.two-speed-shock-arbiter.v112",
+  "authority": "entry_only_exact_epoch_safety_veto_no_direction_no_orders_no_capital",
+  "owners": {
+    "guard": {
+      "path": "tradebot/research/mcl_stage131.py",
+      "sha256": "06493c95719e91595d22c976cab2d6014f429ca9a759737d8e54233cbe0536bf"
+    },
+    "live": {
+      "path": "tradebot/research/mcl_live.py",
+      "sha256": "630a41325fb70626e52af26ef0aeafd1e3bb8d5ff58afd09d0ea4ef87c302e93"
+    },
+    "cli": {
+      "path": "tradebot/research/mcl_live_cli.py",
+      "sha256": "ecec94d4242b56844a5848e61618bbcad96c272e528ac33c86724ce6f0e2f178"
+    },
+    "wave_accumulator": {
+      "path": "tradebot/research/mcl_shock_wave_accumulator.py",
+      "sha256": "2475328849d9b4ad4a147a080ecffbbae5ffcdf7eab03bf77b3bbd8357e3b9ef"
+    },
+    "wave_generation": {
+      "path": "tradebot/research/mcl_shock_wave_generation.py",
+      "sha256": "0691df80eb85bc83f995c24a194be413cbd5eb93af95498571b1487b60f15d93"
+    },
+    "profitability": {
+      "path": "tradebot/research/mcl_profitability.py",
+      "sha256": "1f1119d3e6ca678f856c0e4e20a2704fd43a07ef6e65be2373edac8f8db39e71"
+    }
+  },
+  "evidence": {
+    "preregistration": {
+      "path": "backtests/mcl/mcl_stage114_v18_epoch_veto_stage131_preregistration.json",
+      "sha256": "ed0d49557af8415d0df4c176d30366aafc3d31d6afd758fdb714c5f1183be9e4"
+    },
+    "exact_epoch_contract": {
+      "path": "backtests/mcl/mcl_stage114_v18_epoch_veto_stage131_contract_result.json",
+      "sha256": "20eda57c1dbe049f297756b33f1912974a6f7b05352246fea9055a10e14cc093"
+    },
+    "coverage_race": {
+      "path": "backtests/mcl/mcl_stage114_v18_epoch_veto_stage131_coverage_race_result.json",
+      "sha256": "0361613978a3a8c60f09165b19fadee6df33e758d93d9a53690da9ff02042190"
+    },
+    "safety_parity": {
+      "path": "backtests/mcl/mcl_stage114_v18_epoch_veto_stage131_safety_parity_settlement.json",
+      "sha256": "60cf92c351111de4603b371f968cd262b69254b317e3b88b8a4245829a3b518e"
+    },
+    "durable_runtime": {
+      "path": "backtests/mcl/mcl_stage131_durable_runtime_proof.json",
+      "sha256": "9cb8f4e291b3991fa1776e90a68243bd13ea353c61c97add75a10bf4c4edd88b"
+    }
+  },
+  "law": {
+    "eligible_target": "one V18 failed_auction maturation opposite an exact terminal Stage-114 raw-turn epoch",
+    "observer_effect": "veto exact match, prove absence, or defer until existing admission age expires",
+    "existing_position_effect": "none; all incumbent flatten and risk authority remains unconditional",
+    "entry_authority": "none",
+    "direction_authority": "none",
+    "sizing_authority": "none",
+    "capital_authority": "none",
+    "market_orders_allowed": false
+  },
+  "gates": {
+    "disabled_stage112_388_trade_hash_exact": true,
+    "one_authentic_incident_intervention": true,
+    "coverage_missing_lagged_or_mismatched_defers": true,
+    "proven_absence_preserves_existing_clock": true,
+    "observer_cannot_create_target": true,
+    "held_position_exit_priority_unchanged": true,
+    "raw_loss_weekly_flat_restart_and_limit_paths_unchanged": true,
+    "stage130_same_direction_alpha_excluded": true,
+    "submitted_orders_zero": true
+  },
+  "verdict": "PASS",
+  "submitted_orders": 0
+}

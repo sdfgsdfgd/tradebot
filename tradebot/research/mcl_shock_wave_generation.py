@@ -160,6 +160,9 @@ def build_mcl_shock_wave_successor_generation(
             "wave_accumulator_owner": _artifact(
                 root, "tradebot/research/mcl_shock_wave_accumulator.py"
             ),
+            "stage131_guard_owner": _artifact(
+                root, "tradebot/research/mcl_stage131.py"
+            ),
             "successor_predictive_service": _artifact(
                 root, MCL_SHOCK_WAVE_RUNTIME_SERVICE_PATH
             ),
@@ -228,6 +231,7 @@ def validate_mcl_shock_wave_successor_generation(
         "successor_generation_owner",
         "successor_predictive_service",
         "successor_predictive_timer",
+        "stage131_guard_owner",
     }
     if (
         not isinstance(episode_ids, Sequence)

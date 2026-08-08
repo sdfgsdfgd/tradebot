@@ -16,6 +16,8 @@ Environment=IBKR_HOST=127.0.0.1
 Environment=IBKR_PORT=4001
 Environment=IBKR_CLIENT_ID=3208
 Environment=IBKR_READONLY=0
+Environment=MCL_SHOCK_WAVE_LEDGER=%h/.local/state/tradebot/research/mcl_shock_waves.jsonl
+Environment=MCL_STAGE131_COVERAGE=%h/.local/state/tradebot/research/mcl_shock_wave_coverage.json
 ExecCondition=/usr/bin/test -x %h/.local/share/tradebot/venv/bin/python
 ExecStart=/usr/bin/flock --exclusive --wait 180 %t/tradebot-live-account.lock /usr/bin/env python3 -m tradebot.research.mcl_live_cli
 TimeoutStartSec=8min

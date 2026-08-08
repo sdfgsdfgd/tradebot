@@ -1,0 +1,39 @@
+{
+  "schema": "mcl.stage131-durable-runtime-proof-receipt.v1",
+  "recorded_at_utc": "2026-08-08T12:02:00+00:00",
+  "authority": "read_only_authentic_incident_runtime_projection_no_orders_no_capital",
+  "selection_id": "8adead895d3bd460b460f832d725046a3ea34079525a80a1662004ade2c17c93",
+  "generation_id": "e01e06c86ca2c94564c201409595055498cdb223505d538442ccd23bd70fda98",
+  "inputs": {
+    "live_ledger_sha256": "451f942e6130ce27d0e9bf6929ac73401eda8f7cb408fbcee382e6c777d6709a",
+    "wave_ledger_sha256": "38c3178f22426921bc8dd2fd6a31f38f92887bbe7c57fd3a418a6441ea7f866c",
+    "selection_sha256": "0d7057f9591b6de8379365935ba5724e50285a6cf26a59b77e6354faf91a1b9c",
+    "generation_sha256": "cbcea20de62a06dbecf055f7e5164c1effd64dd14530035a92ce8c74b8b18ec7"
+  },
+  "evaluator": {
+    "path": "/tmp/mcl_stage131_durable_runtime_proof.py",
+    "sha256": "271c37a10d79e80e54e96535b03f8a5e70ac2599eef2ecfd5fbe1720423b02d9"
+  },
+  "full_result": {
+    "path": "/tmp/mcl-stage131-durable-runtime-proof.json",
+    "sha256": "cd99ee202c69c68dcb2adfd60b0ecf021d912f5123fd99409f2f1640286252bf"
+  },
+  "known_incident": {
+    "source_checkpoint_id": "531d7f9ce024a0f02008209036292191ccc68a3abad4703943949f20760b51bd",
+    "guard_action": "VETO_OPPOSITE_EXACT_EPOCH",
+    "flat_plan_reason": "stage131_veto_opposite_exact_epoch",
+    "target_remains_auditable": true,
+    "submitted_orders": 0
+  },
+  "controls": {
+    "held_position_exit_reason": "raw_turn_or_source_flatten",
+    "held_position_exit_mode": "CROSS_RELENTLESS_LIMIT",
+    "proven_absence_reason": "fresh_source_admission",
+    "missing_coverage_action": "DEFER_COVERAGE_MISSING",
+    "observer_cannot_create_target": true
+  },
+  "assertions_passed": 8,
+  "assertions_total": 8,
+  "verdict": "PASS",
+  "submitted_orders": 0
+}

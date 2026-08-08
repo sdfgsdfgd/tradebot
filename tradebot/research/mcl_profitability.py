@@ -291,10 +291,14 @@ def mcl_runtime_parity_graduation_gate(
     lifecycle = artifacts.get("lifecycle_parity", {})
     source = artifacts.get("source_shadow", {})
     reopen = artifacts.get("maintenance_reopen_runtime", {})
+    stage131 = artifacts.get("stage131_epoch_veto", {})
     result = lifecycle.get("result") if isinstance(lifecycle, Mapping) else None
     owners = lifecycle.get("owners") if isinstance(lifecycle, Mapping) else None
     source_owners = source.get("owners") if isinstance(source, Mapping) else None
     reopen_owners = reopen.get("owners") if isinstance(reopen, Mapping) else None
+    stage131_owners = (
+        stage131.get("owners") if isinstance(stage131, Mapping) else None
+    )
     v18_path = root / "tradebot/research/mcl_two_speed_auction.py"
     minute_shock_path = root / "tradebot/research/mcl_minute_shock.py"
     arbiter_path = root / "tradebot/research/mcl_shock_arbiter.py"
@@ -303,6 +307,9 @@ def mcl_runtime_parity_graduation_gate(
     live_path = root / "tradebot/research/mcl_live.py"
     profitability_path = root / "tradebot/research/mcl_profitability.py"
     cli_path = root / "tradebot/research/mcl_live_cli.py"
+    stage131_path = root / "tradebot/research/mcl_stage131.py"
+    wave_accumulator_path = root / "tradebot/research/mcl_shock_wave_accumulator.py"
+    wave_generation_path = root / "tradebot/research/mcl_shock_wave_generation.py"
     if (
         selected.get("strategy_version") != MCL_TWO_SPEED_SHOCK_VERSION
         or crown.get("strategy_version") != MCL_TWO_SPEED_SHOCK_VERSION
@@ -346,7 +353,7 @@ def mcl_runtime_parity_graduation_gate(
     if (
         not isinstance(reopen_owners, Mapping)
         or reopen.get("schema")
-        != "mcl.stage112-maintenance-reopen-runtime-binding.v1"
+        != "mcl.stage131-maintenance-reopen-runtime-binding.v1"
         or reopen.get("strategy_version") != MCL_TWO_SPEED_SHOCK_VERSION
         or reopen.get("verdict") != "PASS"
         or not all(reopen.get("gates", {}).values())
@@ -361,6 +368,36 @@ def mcl_runtime_parity_graduation_gate(
         or reopen.get("submitted_orders") != 0
     ):
         reasons.append("runtime_maintenance_reopen_invalid")
+    if (
+        not isinstance(stage131_owners, Mapping)
+        or any(
+            not isinstance(stage131_owners.get(name), Mapping)
+            for name in (
+                "guard",
+                "live",
+                "cli",
+                "wave_accumulator",
+                "wave_generation",
+                "profitability",
+            )
+        )
+        or stage131.get("schema") != "mcl.stage131-runtime-binding.v1"
+        or stage131.get("strategy_version") != MCL_TWO_SPEED_SHOCK_VERSION
+        or stage131.get("verdict") != "PASS"
+        or not all(stage131.get("gates", {}).values())
+        or stage131_owners["guard"].get("sha256")
+        != _sha256(stage131_path)
+        or stage131_owners["live"].get("sha256") != _sha256(live_path)
+        or stage131_owners["cli"].get("sha256") != _sha256(cli_path)
+        or stage131_owners["wave_accumulator"].get("sha256")
+        != _sha256(wave_accumulator_path)
+        or stage131_owners["wave_generation"].get("sha256")
+        != _sha256(wave_generation_path)
+        or stage131_owners["profitability"].get("sha256")
+        != _sha256(profitability_path)
+        or stage131.get("submitted_orders") != 0
+    ):
+        reasons.append("runtime_stage131_veto_invalid")
     return _gate(
         "INVALID" if reasons else "PASS",
         reasons,
@@ -371,6 +408,9 @@ def mcl_runtime_parity_graduation_gate(
             "maintenance_reopen_sha256": evidence.get(
                 "maintenance_reopen_runtime", {}
             ).get("sha256"),
+            "stage131_veto_sha256": evidence.get("stage131_epoch_veto", {}).get(
+                "sha256"
+            ),
             "v18_owner_sha256": _sha256(v18_path),
             "minute_shock_owner_sha256": _sha256(minute_shock_path),
             "arbiter_owner_sha256": _sha256(arbiter_path),
@@ -379,6 +419,7 @@ def mcl_runtime_parity_graduation_gate(
             "live_owner_sha256": _sha256(live_path),
             "profitability_owner_sha256": _sha256(profitability_path),
             "cli_owner_sha256": _sha256(cli_path),
+            "stage131_owner_sha256": _sha256(stage131_path),
             "trades": result.get("actual_trades") if isinstance(result, Mapping) else None,
         },
     )

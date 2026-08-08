@@ -744,6 +744,7 @@
         "tradebot/research/mcl_live.py",
         "tradebot/research/mcl_live_cli.py",
         "tradebot/research/mcl_live_reopen.py",
+        "tradebot/research/mcl_stage131.py",
         "tradebot/research/mcl_live_transport.py",
         "tradebot/research/mcl_profitability.py",
         "tradebot/research/xsp_capital_stability.py",

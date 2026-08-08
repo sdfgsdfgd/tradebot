@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Sequence
@@ -32,6 +33,12 @@ from .mcl_live import (
     advance_mcl_live_transport,
 )
 from .mcl_live_reopen import bind_mcl_maintenance_reopen_selection
+from .mcl_stage131 import (
+    MCL_STAGE131_BINDING_KEY,
+    MCL_STAGE131_COVERAGE_PATH,
+    bind_mcl_stage131_selection,
+    load_mcl_stage131_context,
+)
 from .mcl_live_transport import (
     MCL_LIVE_CAPITAL_SLEEVE,
     MCL_LIVE_EXECUTION_VERSION,
@@ -57,6 +64,7 @@ from .mcl_shock_wave_accumulator import (
     mcl_shock_wave_episodes,
 )
 from .mcl_shock_wave_generation import (
+    MCL_SHOCK_WAVE_RUNTIME_GENERATION_PATH,
     build_mcl_shock_wave_successor_generation,
     publish_mcl_shock_wave_generation,
 )
@@ -88,11 +96,14 @@ async def _commission(
     preview = await capture_mcl_commissioning_preview(
         client, repository_root=repository_root, observed_at=now
     )
-    selected = bind_mcl_maintenance_reopen_selection(
-        build_mcl_live_selection(
+    selected = bind_mcl_stage131_selection(
+        bind_mcl_maintenance_reopen_selection(
+            build_mcl_live_selection(
+                repository_root=repository_root,
+                preview=preview,
+                selected_at=datetime.now(timezone.utc),
+            ),
             repository_root=repository_root,
-            preview=preview,
-            selected_at=datetime.now(timezone.utc),
         ),
         repository_root=repository_root,
     )
@@ -207,6 +218,9 @@ async def _commission(
         "shock_wave_inherited_episodes": wave["inherited_prefix"][
             "episode_count"
         ],
+        "stage131_runtime_binding_sha256": selected["evidence"][
+            MCL_STAGE131_BINDING_KEY
+        ]["sha256"],
         "supersedes_plan_id": predecessor["plan_id"],
         "preview_fingerprint": selected["allocation_successor"][
             "broker_preview_fingerprint"
@@ -237,6 +251,25 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
     )
     parser.add_argument("--commission", action="store_true")
     parser.add_argument("--observe-only", action="store_true")
+    parser.add_argument(
+        "--stage131-coverage",
+        type=Path,
+        default=Path(
+            os.environ.get("MCL_STAGE131_COVERAGE", MCL_STAGE131_COVERAGE_PATH)
+        ),
+    )
+    parser.add_argument(
+        "--shock-wave-generation",
+        type=Path,
+        default=MCL_SHOCK_WAVE_RUNTIME_GENERATION_PATH,
+    )
+    parser.add_argument(
+        "--shock-wave-ledger",
+        type=Path,
+        default=Path(
+            os.environ.get("MCL_SHOCK_WAVE_LEDGER", MCL_SHOCK_WAVE_LEDGER_PATH)
+        ),
+    )
     parser.add_argument(
         "--graduation-target", choices=("24h", "48h", "five-session")
     )
@@ -331,6 +364,13 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
                 selection_file_sha256=selection_sha,
                 observed_at=datetime.now(timezone.utc),
                 observe_only=args.observe_only,
+                stage131_context=load_mcl_stage131_context(
+                    selected,
+                    repository_root=root,
+                    generation_path=args.shock_wave_generation,
+                    coverage_path=args.stage131_coverage,
+                    wave_ledger_path=args.shock_wave_ledger,
+                ),
             )
     finally:
         await client.disconnect()
