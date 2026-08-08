@@ -11,6 +11,7 @@ Environment=PATH=%h/.local/share/tradebot/venv/bin:/usr/local/bin:/usr/bin:/bin
 Environment=PYTHONUNBUFFERED=1
 ExecStartPre=/usr/bin/test -x /var/tmp/tradebot_gold_fail_closed_rollover.sh
 ExecStart=/var/tmp/tradebot_gold_fail_closed_rollover.sh
+ExecStartPost=/usr/bin/systemctl --user enable tradebot-gold-live.timer
 TimeoutStartSec=12min
 Nice=5
 IOSchedulingClass=best-effort

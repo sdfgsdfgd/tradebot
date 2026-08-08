@@ -205,6 +205,8 @@ continuous support services but does not stop Gateway.
 One-shot recovery timers are enabled through `timers.target`, not
 `tradebot-live.target`. They therefore survive a strategy-bundle stop or
 restart while preserving their own fail-closed transaction and alert boundary.
+An explicitly quarantined strategy timer stays disabled across reboot; its
+successful successor transaction starts and re-enables it atomically.
 
 ## Sunday sequence
 

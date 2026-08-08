@@ -170,6 +170,11 @@ def test_scheduled_recovery_flows_are_native_alerted_and_their_scripts_remain_ex
 
     successor = _unit("tradebot-mcl-stage131-successor.service")
     assert "tradebot-mcl-emergency-flatten.ok" in successor
+    assert (
+        "ExecStartPost=/usr/bin/systemctl --user enable "
+        "tradebot-mcl-predictive-onset-runtime.timer tradebot-mcl-live.timer"
+        in successor
+    )
     assert "Restart=on-failure" in successor
     assert "RestartSec=30s" in successor
     assert "StartLimitIntervalSec=30min" in successor
@@ -185,6 +190,12 @@ def test_scheduled_recovery_flows_are_native_alerted_and_their_scripts_remain_ex
         assert "PartOf=tradebot-live.target" not in timer, name
         assert "WantedBy=timers.target" in timer, name
         assert "Persistent=false" in timer, name
+
+    gold = _unit("tradebot-gold-fail-closed-rollover.service")
+    assert (
+        "ExecStartPost=/usr/bin/systemctl --user enable tradebot-gold-live.timer"
+        in gold
+    )
 
 
 def test_gateway_loopback_firewall_is_a_root_owned_launch_precondition() -> None:
