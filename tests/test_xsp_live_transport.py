@@ -54,6 +54,13 @@ from tradebot.research.xsp_dual_clock import (
     XSP_DUAL_CLOCK_SOURCE_VERSION,
     XSP_DUAL_CLOCK_VERSION,
 )
+from tradebot.research.xsp_live_rollover import (
+    _account_resources,
+    _publish_pressure_generation,
+    build_xsp_pressure_generation_successor,
+    inspect_xsp_p009_rollover_boundary,
+    publish_xsp_p009_rollover,
+)
 from tradebot.engines.execution import execution_policy_contract
 from tradebot.engines.market import (
     xsp_rth_cash_evaluation_slots,
@@ -1434,6 +1441,299 @@ def test_p009_live_commissioning_receipt_binds_fresh_flat_lmt_successor() -> Non
     assert receipt["post_deployment_broker_verification"]["account_positions"] == []
     assert receipt["post_deployment_broker_verification"]["open_orders"] == []
     assert receipt["submitted_orders"] == 0
+
+
+def test_p009_rollover_rebinds_only_the_outcome_blind_pressure_prefix() -> None:
+    root = Path(__file__).resolve().parents[1]
+    path = root / (
+        "backtests/xsp/"
+        "opening_edge_v4_dual_clock_p009_pressure_atlas_"
+        "accumulation_generation.json"
+    )
+    current = json.loads(path.read_text())
+    successor = build_xsp_pressure_generation_successor(
+        current=current,
+        current_sha256=sha256(path.read_bytes()).hexdigest(),
+        current_archive_path=(
+            "db/calibration/xsp_pressure_generations/"
+            f"{current['generation_id']}.json"
+        ),
+        selection={
+            "selection_id": "f" * 64,
+            "strategy_version": XSP_DUAL_CLOCK_VERSION,
+            "source_strategy_version": XSP_DUAL_CLOCK_SOURCE_VERSION,
+        },
+        inherited_treatment_ids=("1" * 64, "2" * 64),
+        registered_at_utc=OBSERVED_AT,
+    )
+
+    assert successor["selection_id"] == "f" * 64
+    assert successor["predecessor_generation_id"] == current["generation_id"]
+    assert successor["eligible_start_utc"] == OBSERVED_AT.isoformat()
+    assert successor["inherited_treatment_ids"] == ["1" * 64, "2" * 64]
+    assert successor["artifacts"]["predecessor_generation"]["sha256"] == (
+        sha256(path.read_bytes()).hexdigest()
+    )
+    assert successor["outcomes_open"] is False
+    assert successor["permission_open"] is False
+    assert successor["order_authority"] == "none"
+    assert successor["submitted_orders"] == 0
+    assert len(successor["generation_id"]) == 64
+
+
+def test_p009_rollover_account_snapshot_stresses_only_unowned_positions() -> None:
+    resources = _account_resources(
+        {
+            "account_id": "DU123456",
+            "account_type": "CASH",
+            "settled_cash_usd": 900.0,
+            "account_resources": {
+                "base_currency": "AUD",
+                "available_funds_base_cents": 362_800,
+                "excess_liquidity_base_cents": 362_800,
+                "usd_to_base_rate_ppm": 1_420_000,
+            },
+            "account_positions": [
+                {
+                    "symbol": "SPXU",
+                    "quantity": 0,
+                    "market_value_base_cents": 0,
+                },
+                {
+                    "symbol": "MCL",
+                    "quantity": 1,
+                    "market_value_base_cents": 109_000,
+                },
+                {
+                    "symbol": "SPCX",
+                    "quantity": 1,
+                    "market_value_base_cents": 9_888,
+                },
+            ],
+        }
+    )
+
+    assert resources == {
+        "account_id": "DU123456",
+        "account_type": "CASH",
+        "base_currency": "AUD",
+        "settled_cash_usd": 900.0,
+        "available_funds_base": 3_628.0,
+        "excess_liquidity_base": 3_628.0,
+        "usd_to_base_rate": 1.42,
+        "unmanaged_position_stress_base": 98.88,
+    }
+
+
+def test_p009_rollover_publishes_a_rehashable_pressure_generation(
+    tmp_path: Path,
+) -> None:
+    from tradebot.research.xsp_pressure_accumulator import (
+        load_xsp_pressure_accumulator_generation,
+    )
+
+    root = Path(__file__).resolve().parents[1]
+    relative = Path(
+        "backtests/xsp/"
+        "opening_edge_v4_dual_clock_p009_pressure_atlas_"
+        "accumulation_generation.json"
+    )
+    current = json.loads((root / relative).read_text())
+    for artifact in current["artifacts"].values():
+        source = root / artifact["path"]
+        target = tmp_path / artifact["path"]
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(source.read_bytes())
+    current_path = tmp_path / relative
+    current_path.parent.mkdir(parents=True, exist_ok=True)
+    current_path.write_bytes((root / relative).read_bytes())
+
+    successor, successor_path, successor_sha = _publish_pressure_generation(
+        repository_root=tmp_path,
+        selection={
+            "selection_id": "f" * 64,
+            "strategy_version": XSP_DUAL_CLOCK_VERSION,
+            "source_strategy_version": XSP_DUAL_CLOCK_SOURCE_VERSION,
+        },
+        treatment_ids=("1" * 64, "2" * 64),
+        registered_at_utc=OBSERVED_AT,
+        current_path=relative,
+    )
+    validated, digest = load_xsp_pressure_accumulator_generation(
+        current_path, root=tmp_path
+    )
+
+    assert validated == successor
+    assert digest == successor_sha
+    assert (tmp_path / successor_path).is_file()
+    predecessor = (
+        tmp_path
+        / "db/calibration/xsp_pressure_generations"
+        / f"{current['generation_id']}.json"
+    )
+    assert predecessor.read_bytes() == (root / relative).read_bytes()
+
+
+def test_p009_rollover_publishes_one_flat_successor_generation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from tradebot.research import xsp_live_rollover as rollover
+
+    predecessor = {
+        "selection_id": "a" * 64,
+        "allocation_successor": {"package_id": "xsp-usd-800"},
+    }
+    selected = {
+        "selection_id": "b" * 64,
+        "risk": {"starting_cash_identity_usd": 800.0},
+    }
+    gold = {"selection_id": "c" * 64}
+    mcl = {"selection_id": "d" * 64}
+    old_plan = {"plan_id": "e" * 64}
+    new_plan = {"plan_id": "f" * 64}
+    calls: list[str] = []
+
+    class Ledger:
+        def __init__(self, _path: Path) -> None:
+            pass
+
+        def records(self) -> tuple[object, ...]:
+            return ()
+
+    def allocated(_plan, *, sleeve_id, repository_root):
+        path = repository_root / "db/calibration/selections" / f"{sleeve_id}.json"
+        if sleeve_id == rollover.XSP_V3_TRANSPORT_CAPITAL_SLEEVE:
+            return predecessor, path, "1" * 64
+        if sleeve_id == rollover.GOLD_LIVE_CAPITAL_SLEEVE:
+            return gold, path, "2" * 64
+        return mcl, path, "3" * 64
+
+    monkeypatch.setattr(rollover, "load_live_capital_plan", lambda _path: old_plan)
+    monkeypatch.setattr(rollover, "load_allocated_live_selection", allocated)
+    monkeypatch.setattr(rollover, "LiveCalibrationLedger", Ledger)
+    monkeypatch.setattr(
+        rollover,
+        "reallocate_xsp_v3_transport",
+        lambda **_kwargs: selected,
+    )
+    monkeypatch.setattr(rollover, "xsp_p009_crown_binding", lambda _root: {})
+    monkeypatch.setattr(
+        rollover,
+        "publish_immutable_live_selection",
+        lambda _root, _selection: (
+            "db/calibration/selections/b.json",
+            "4" * 64,
+        ),
+    )
+    monkeypatch.setattr(
+        rollover,
+        "build_xsp_gold_mcl_portfolio_package_plan",
+        lambda **_kwargs: new_plan,
+    )
+    monkeypatch.setattr(
+        rollover,
+        "publish_portfolio_package_generation",
+        lambda _root, _plan: (
+            calls.append("generation")
+            or "db/calibration/portfolio_generations/f.json",
+            "5" * 64,
+        ),
+    )
+    monkeypatch.setattr(
+        rollover,
+        "_publish_pressure_generation",
+        lambda **_kwargs: (
+            calls.append("pressure") or {"generation_id": "6" * 64},
+            "db/calibration/xsp_pressure_generations/6.json",
+            "7" * 64,
+        ),
+    )
+    monkeypatch.setattr(
+        rollover,
+        "publish_live_capital_plan",
+        lambda _path, _plan: calls.append("plan"),
+    )
+    monkeypatch.setattr(
+        rollover,
+        "publish_portfolio_capital_owner_stability",
+        lambda *_args, **_kwargs: (
+            calls.append("stability")
+            or "db/calibration/portfolio_capital_stability/8.json",
+            "8" * 64,
+        ),
+    )
+    monkeypatch.setattr(rollover, "xsp_pressure_treatments", lambda _rows: [])
+    monkeypatch.setattr(
+        rollover,
+        "_account_resources",
+        lambda _broker: {"account_id": "DU123456"},
+    )
+
+    output = publish_xsp_p009_rollover(
+        repository_root=tmp_path,
+        capital_plan_path=tmp_path / "capital.json",
+        ledger_path=tmp_path / "xsp.jsonl",
+        pressure_ledger_path=tmp_path / "pressure.jsonl",
+        preview={},
+        broker_snapshot={},
+        selected_at_utc=OBSERVED_AT,
+        expected_predecessor_selection_id="a" * 64,
+    )
+
+    assert calls == ["generation", "pressure", "plan", "stability"]
+    assert output["status"] == "ROLLED_OVER"
+    assert output["predecessor_selection_id"] == "a" * 64
+    assert output["selection_id"] == "b" * 64
+    assert output["retained_gold_selection_id"] == "c" * 64
+    assert output["retained_mcl_selection_id"] == "d" * 64
+    assert output["submitted_orders"] == 0
+
+
+def test_p009_rollover_preflight_stops_only_after_broker_flat(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tradebot.research import xsp_live_rollover as rollover
+
+    selection = {"selection_id": "a" * 64}
+    held = inspect_xsp_p009_rollover_boundary(
+        selection=selection,
+        records=(),
+        broker_snapshot={
+            "positions": {"UPRO": 0, "SPXU": 23},
+            "open_orders": [],
+        },
+        observed_at=OBSERVED_AT,
+        expected_predecessor_selection_id="a" * 64,
+    )
+    assert held["status"] == "INCUMBENT_HELD"
+    assert held["incumbent_timer_may_remain_active"] is True
+
+    monkeypatch.setattr(
+        rollover,
+        "xsp_transport_risk_state",
+        lambda **_kwargs: {
+            "holdings_from_fills": {"UPRO": 0.0, "SPXU": 0.0},
+            "pending_settlement_usd": 0,
+            "safety_breaches": [],
+            "fill_count": 2,
+            "closed_trades": 1,
+        },
+    )
+    monkeypatch.setattr(rollover, "_pending_order_refs", lambda *_args, **_kwargs: [])
+    ready = inspect_xsp_p009_rollover_boundary(
+        selection=selection,
+        records=(),
+        broker_snapshot={
+            "positions": {"UPRO": 0, "SPXU": 0},
+            "open_orders": [],
+        },
+        observed_at=OBSERVED_AT,
+        expected_predecessor_selection_id="a" * 64,
+    )
+    assert ready["status"] == "TERMINAL_FLAT_READY"
+    assert ready["broker_flat"] is True
+    assert ready["ledger_flat"] is True
+    assert ready["incumbent_timer_may_remain_active"] is False
 
 
 @pytest.mark.parametrize(

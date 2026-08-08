@@ -1,0 +1,101 @@
+{
+  "schema": "xsp.opening-edge-v4-p009-flat-first-rollover-preregistration.v1",
+  "authority": "weekend_live_recovery_and_fresh_graduation_run_only",
+  "status": "PREPARED_NOT_EXECUTED",
+  "registered_at_utc": "2026-08-08T11:18:59+00:00",
+  "strategy_version": "xsp.opening-edge-v4-dual-clock-arbitration-p009.v1",
+  "source_strategy_version": "xsp.opening-edge-v4-dual-clock-source-p009.v1",
+  "expected_predecessor_selection_id": "e0f61f74286e1d2b655e253633b0842cb47d41ad7b66fb4567eece3aa46d674b",
+  "fixed_package_id": "xsp-usd-800",
+  "known_interruption": {
+    "path": "backtests/xsp/opening_edge_v4_p009_first_session_graduation_interruption_20260808.json",
+    "sha256": "ffcbeca781d1f8362d23212506bdde362b6532669b789e367cee7686597b9ee1",
+    "classification": "first_RTH_session_invalid_for_graduation_not_alpha_rejection",
+    "residual_position": "23_SPXU",
+    "cause": "gateway_outage_removed_the_normal_15:57_ET_liquidation"
+  },
+  "frozen_authority": {
+    "crown": {
+      "path": "backtests/xsp/opening_edge_v4_dual_clock_arbitration_p009_crown.json",
+      "sha256": "e3d4b968ce5692da2aad1e6ed041c609b4df7be020a80bde5a3605a32111a449"
+    },
+    "runtime_parity": {
+      "path": "backtests/xsp/opening_edge_v4_dual_clock_arbitration_p009_current_runtime_parity_fail_closed_20260808.json",
+      "sha256": "9c137263373b8a0c891502dad53fcb696bb32d3010da1fe9a8366f7c8312194b"
+    },
+    "package_curve": {
+      "path": "backtests/xsp/opening_edge_v3_portfolio_package_curve_20260803.json",
+      "sha256": "4e7097d96024d1fb4e41e5b4e1c69dd1cc027f1ce65af521d8d1ba9371a59c03"
+    },
+    "pressure_generation": {
+      "path": "backtests/xsp/opening_edge_v4_dual_clock_p009_pressure_atlas_accumulation_generation.json",
+      "sha256": "022ecc03ce88e3f0f1c8166de922fea610b74ac3c20f906d38aaec741b0c2360"
+    }
+  },
+  "transaction_owner": {
+    "path": "tradebot/research/xsp_live_rollover.py",
+    "sha256": "bd3e53613f7adffca64fc44ddc0cc0eed58066b61541d6c259e2833b6f6143ed",
+    "module_lines": 664,
+    "runtime_owner_changed": false
+  },
+  "natural_recovery": {
+    "existing_owner_retains_liquidation_authority": true,
+    "outside_RTH_sell_only": true,
+    "blind_or_custom_flatten_order": false,
+    "first_fresh_premarket_book_may_reduce": true,
+    "candidate_rollover_at_utc": "2026-08-10T13:28:30+00:00",
+    "candidate_rollover_at_et": "2026-08-10T09:28:30-04:00",
+    "reason": "after_the_final_09:27_ET_natural_reduction_attempt_and_before_the_09:31_ET_RTH_admission_boundary"
+  },
+  "hard_preconditions": [
+    "the active XSP selection is exactly the expected interrupted P009 run",
+    "the selected-run fill ledger is terminal flat with no pending transition",
+    "broker UPRO and SPXU positions are both zero",
+    "broker UPRO and SPXU open orders are both zero",
+    "fresh live UPRO and SPXU books support nontransmitting what-if previews",
+    "fresh cash-account resources still fit the fixed xsp-usd-800 package",
+    "the immutable P009 crown and package curve rehash exactly"
+  ],
+  "atomic_outputs": [
+    "one fresh baseline-free P009 cash selection",
+    "one superseding three-sleeve capital plan retaining the current Gold and MCL selections",
+    "one content-addressed portfolio generation",
+    "one matching capital-owner stability proof",
+    "one outcome-blind pressure generation inheriting treatment identities but no position PnL or outcomes"
+  ],
+  "restart_and_failure_law": {
+    "shared_account_lock_required": true,
+    "incumbent_retains_reduction_authority_through_09_27_ET": true,
+    "timer_stopped_at_final_pre_RTH_cutoff_before_broker_preflight": true,
+    "post_switch_direct_reconciliation_required": true,
+    "idempotent_second_rollover_must_report": "ALREADY_ROLLED_OVER",
+    "any_failure_at_or_after_final_cutoff_leaves_XSP_timer_off": true,
+    "held_or_unqualified_predecessor_may_not_cross_into_09_31_ET_admission": true,
+    "preselection_target_inheritance": false,
+    "backfill": false
+  },
+  "proof": {
+    "focused_tests_passed": 57,
+    "cross_contract_and_architecture_tests_passed": 219,
+    "read_only_broker_preflight_classifies_held_vs_terminal_flat": true,
+    "pressure_successor_rehashes": true,
+    "capital_publication_order": [
+      "immutable_selection",
+      "portfolio_generation",
+      "pressure_generation",
+      "capital_plan",
+      "capital_stability"
+    ],
+    "Gold_selection_semantics_changed": false,
+    "MCL_selection_semantics_changed": false,
+    "P009_runtime_owner_semantics_changed": false
+  },
+  "boundaries": {
+    "broker_queried": false,
+    "live_selection_mutated": false,
+    "capital_plan_mutated": false,
+    "service_or_timer_mutated": false,
+    "profitability_clock_started": false,
+    "submitted_orders": 0
+  }
+}
