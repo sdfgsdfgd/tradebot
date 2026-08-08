@@ -583,6 +583,26 @@ def test_xsp_p009_runtime_proof_rehashes_every_live_owner() -> None:
     assert runtime["reasons"] == []
 
 
+def test_xsp_p009_runtime_proof_rejects_unproven_economic_result(
+    tmp_path: Path,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    proof = json.loads((repo_root / XSP_P009_RUNTIME_PARITY_PATH).read_text())
+    proof["expected"]["full_combined_trades"] = 649
+    proof["actual"]["full_combined_trades"] = 649
+    path = tmp_path / "runtime.json"
+    path.write_text(json.dumps(proof))
+
+    runtime = xsp_runtime_parity_graduation_gate(
+        path,
+        repo_root=repo_root,
+        strategy_id="xsp.opening-edge-v4-dual-clock-arbitration-p009.v1",
+    )
+
+    assert runtime["status"] == "INVALID"
+    assert "runtime_parity_crown_result_mismatch" in runtime["reasons"]
+
+
 def _state_evidence() -> dict[str, object]:
     risk = {
         "valid": True,

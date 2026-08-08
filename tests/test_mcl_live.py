@@ -63,41 +63,47 @@ AT = datetime(2026, 8, 4, 8, 31, 21, tzinfo=timezone.utc)
 
 
 def _preview() -> dict[str, object]:
-    old = json.loads(
-        (ROOT / "backtests/mcl/mcl_v18_live_commissioning_preview_post_funding.json").read_text()
-    )
     generation = json.loads(
         (ROOT / "backtests/mcl/mcl_turn_authenticity_microstructure_generation.json").read_text()
     )
-    broker = old["broker"]
     return {
         "schema": "mcl.v18-live-commissioning-preview.v2",
         "observed_at_utc": AT.isoformat(),
         "authority": "fresh_nontransmitting_what_if_only",
         "strategy_version": MCL_TWO_SPEED_SHOCK_VERSION,
         "broker": {
-            "observed_at_utc": broker["observed_at_utc"],
-            "account_id": broker["account_id"],
+            "observed_at_utc": AT.isoformat(),
+            "account_id": "DU123456",
             "account_type": "CASH",
             "base_currency": "AUD",
-            "settled_cash_usd": broker["settled_cash_usd"],
-            "equity_with_loan_base": broker["equity_with_loan_aud"],
-            "available_funds_base": broker["available_funds_aud"],
-            "excess_liquidity_base": broker["excess_liquidity_aud"],
-            "initial_margin_base": broker["initial_margin_aud"],
-            "maintenance_margin_base": broker["maintenance_margin_aud"],
-            "gross_position_value_base": broker["gross_position_value_aud"],
-            "usd_to_base_rate": broker["usd_to_aud"],
-            "positions": broker["positions"],
+            "settled_cash_usd": 1000.0,
+            "equity_with_loan_base": 5000.0,
+            "available_funds_base": 4000.0,
+            "excess_liquidity_base": 4000.0,
+            "initial_margin_base": 0.0,
+            "maintenance_margin_base": 0.0,
+            "gross_position_value_base": 0.0,
+            "usd_to_base_rate": 1.5,
+            "positions": [],
             "open_orders": [],
         },
         "contracts": generation["contracts"],
-        "quote": old["quote"],
         "source": {
             "strategy_version": MCL_TWO_SPEED_SHOCK_VERSION,
             "submitted_orders": 0,
         },
-        "what_if": old["what_if"],
+        "what_if": [
+            {
+                "action": action,
+                "status": "PreSubmitted",
+                "commission": 0.76,
+                "commission_currency": "USD",
+                "init_margin_change": 2686.70,
+                "maintenance_margin_change": 2149.36,
+                "warning_text": "",
+            }
+            for action in ("BUY", "SELL")
+        ],
         "submitted_orders": 0,
     }
 

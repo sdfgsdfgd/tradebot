@@ -259,7 +259,7 @@ def test_pressure_service_is_bounded_readonly_and_uses_no_tick_by_tick() -> None
     assert "RuntimeMaxSec=6h50m" in service
     assert "-m tradebot.research.xsp_pressure_tape" in service
     assert "09:20:00 America/New_York" in timer
-    assert "Persistent=true" in timer
+    assert "Persistent=false" in timer
     assert "reqTickByTickData" not in source
     assert "place_limit_order" not in source
     assert "preview_limit_order" not in source

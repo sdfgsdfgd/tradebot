@@ -1,0 +1,69 @@
+{
+  "schema": "tradebot.portfolio-runtime-proof-reconciliation.v1",
+  "authority": "repository_only_no_broker_no_runtime_mutation",
+  "observed_at_utc": "2026-08-08T17:37:20Z",
+  "source_revision": "c88cd50c09778202514fbeb327492b13d54404a9",
+  "scope": {
+    "xsp": "supersede_only_the_migrated_control_plane_runtime_parity_receipt_and_bind_reported_p009_economics_to_the_immutable_crown_and_durable_replay",
+    "mcl": "replace_ignored_live_broker_fixture_dependency_with_deterministic_sanitized_test_evidence_and_read_immutable_generation_predecessors_as_immutable",
+    "gold": "unchanged_flat_first_rollover_and_fail_closed_runtime_identity",
+    "systemd": "align_tests_with_current_fail_closed_preflight_count_and_nonpersistent_opening_tape_calendar"
+  },
+  "xsp_runtime_parity": {
+    "path": "backtests/xsp/opening_edge_v4_dual_clock_arbitration_p009_current_runtime_parity_recovery_control_plane_20260809.json",
+    "sha256": "c9c82b7a792991834e4d3020c683da080453ae3b8db372effdde70476170da22",
+    "graduation_gate": "PASS",
+    "reasons": [],
+    "combined_trades": 648,
+    "rth_trades": 469,
+    "combined_ledger_sha256": "53d2682ba9afc077c790d4817898732bd22c2f38173d1e5e2b58f9ddadec0268",
+    "rth_ledger_sha256": "3aa102fc2ef15c3d39fbe884d952e95dc32af77a4098a895af163a188e77d715",
+    "economics_recomputed": false,
+    "historical_strategy_owner_changed": false
+  },
+  "corrected_stale_proofs": [
+    {
+      "surface": "mcl_live_test_fixture",
+      "prior_defect": "depended_on_a_gitignored_live_broker_preview_that_is_not_part_of_a_clean_clone",
+      "repair": "deterministic_sanitized_broker_and_what_if_fixture_with_the_same_frozen_margin_contract"
+    },
+    {
+      "surface": "mcl_stage113_generation_rehash",
+      "prior_defect": "rehash_attempted_an_immutable_predecessor_against_the_current_migrated_service",
+      "repair": "load_the_content_addressed_immutable_predecessor"
+    },
+    {
+      "surface": "mcl_stage114_service_contract",
+      "prior_defect": "expected_one_preflight_after_the_current_fail_closed_runtime_added_five",
+      "repair": "assert_all_five_and_the_generation_validation_owner"
+    },
+    {
+      "surface": "xsp_pressure_tape_calendar",
+      "prior_defect": "expected_persistent_timer_replay_that_would_capture_a_late_and_contaminated_opening_tape",
+      "repair": "assert_nonpersistent_natural_opening_only"
+    }
+  ],
+  "proof": {
+    "focused_runtime_and_tamper_tests": 3,
+    "control_plane_capability_and_architecture_tests": 121,
+    "strategy_runtime_and_graduation_tests": 172,
+    "full_suite_selected_tests": 1407,
+    "full_suite_deselected_tests": 6,
+    "full_suite_exit_code": 0,
+    "ruff": "PASS",
+    "json_validation": "PASS",
+    "git_diff_check": "PASS"
+  },
+  "boundaries": {
+    "broker_queried": false,
+    "position_mutated": false,
+    "order_constructed": false,
+    "submitted_orders": 0,
+    "service_or_timer_mutated": false,
+    "selection_mutated": false,
+    "capital_plan_mutated": false,
+    "profitability_clock_mutated": false,
+    "strategy_economics_mutated": false
+  },
+  "verdict": "PASS"
+}

@@ -15,7 +15,6 @@ from tradebot.research.mcl_shock_accumulator import (
     MCL_SHOCK_ACCUMULATOR_VERSION,
     MCL_SHOCK_GENERATION_PATH,
     _minute_resets,
-    load_mcl_shock_generation,
     mcl_shock_cohort,
     mcl_shock_episodes,
     replay_mcl_shock_episodes,
@@ -724,8 +723,8 @@ def test_shock_episode_ledger_is_content_addressed_and_idempotent(
 
 
 def test_stage113_generation_and_service_remain_immutable() -> None:
-    generation = load_mcl_shock_generation(MCL_SHOCK_GENERATION_PATH)
     root = Path(__file__).resolve().parents[1]
+    generation = _load_immutable_predecessor(MCL_SHOCK_GENERATION_PATH, root)
     service = (
         root / "deploy/systemd/tradebot-mcl-predictive-onset.service"
     ).read_text()
@@ -844,7 +843,11 @@ def test_stage114_runtime_service_uses_one_validated_generation_pointer() -> Non
     ).read_text()
 
     assert service.count("ExecStart=") == 2
-    assert service.count("ExecStartPre=") == 1
+    assert service.count("ExecStartPre=") == 5
+    assert (
+        "ExecStartPre=/usr/bin/env python3 -m "
+        "tradebot.research.mcl_shock_wave_generation"
+    ) in service
     assert service.count("db/calibration/mcl_shock_wave_generation.json") == 3
     assert "mcl_authority_bound_shock_waves_stage114_preregistration" not in service
     assert "-m tradebot.research.mcl_predictive_accumulator" in service

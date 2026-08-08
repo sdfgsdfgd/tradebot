@@ -24,6 +24,7 @@ from .xsp_capital_stability import (
 from .xsp_runtime_parity_contract import (
     XSP_P009_RUNTIME_PARITY_SCHEMA,
     XSP_RUNTIME_PARITY_SCHEMA,
+    xsp_p009_result_provenance_valid,
     xsp_runtime_parity_owner_paths,
 )
 
@@ -323,6 +324,12 @@ def xsp_runtime_parity_graduation_gate(
         )
     ):
         reasons.append("runtime_parity_strategy_mismatch")
+    if p009 and not xsp_p009_result_provenance_valid(
+        repository_root=repo_root,
+        actual=actual,
+        inputs=inputs,
+    ):
+        reasons.append("runtime_parity_crown_result_mismatch")
     if (
         not isinstance(safety, Mapping)
         or safety.get("broker_queried") is not False

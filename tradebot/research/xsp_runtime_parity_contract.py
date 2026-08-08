@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from collections.abc import Mapping
 from pathlib import Path
 
@@ -12,7 +14,7 @@ XSP_P009_RUNTIME_PARITY_SCHEMA = (
 )
 XSP_P009_RUNTIME_PARITY_PATH = Path(
     "backtests/xsp/opening_edge_v4_dual_clock_arbitration_p009_"
-    "current_runtime_parity_q_native_gateway_20260809.json"
+    "current_runtime_parity_recovery_control_plane_20260809.json"
 )
 _XSP_RUNTIME_OWNER_PATHS = {
     "frozen_crown_artifact_sha256": (
@@ -79,3 +81,53 @@ def xsp_runtime_parity_owner_paths(schema: object) -> Mapping[str, str]:
     if schema == XSP_P009_RUNTIME_PARITY_SCHEMA:
         return _XSP_P009_RUNTIME_OWNER_PATHS
     return _XSP_RUNTIME_OWNER_PATHS
+
+
+def xsp_p009_result_provenance_valid(
+    *,
+    repository_root: Path,
+    actual: object,
+    inputs: object,
+) -> bool:
+    """Bind reported P-009 economics to its crown and durable replay."""
+    try:
+        root = repository_root.resolve()
+        crown = json.loads(
+            (root / _XSP_P009_RUNTIME_OWNER_PATHS["frozen_crown_artifact_sha256"])
+            .read_text()
+        )
+        candidate = crown["candidate"]
+        durable_ref = crown["proofs"]["durable_owner_parity"]
+        durable_relative = Path(str(durable_ref["path"]))
+        durable_path = (root / durable_relative).resolve()
+        if durable_relative.is_absolute() or root not in durable_path.parents:
+            return False
+        durable_raw = durable_path.read_bytes()
+        durable = json.loads(durable_raw)
+    except (KeyError, OSError, json.JSONDecodeError, TypeError, ValueError):
+        return False
+    return bool(
+        isinstance(actual, Mapping)
+        and isinstance(inputs, Mapping)
+        and isinstance(candidate, Mapping)
+        and isinstance(durable_ref, Mapping)
+        and isinstance(durable, Mapping)
+        and hashlib.sha256(durable_raw).hexdigest() == durable_ref.get("sha256")
+        and durable.get("exact_parity") is True
+        and durable.get("submitted_orders") == 0
+        and durable.get("durable_owner_sha256")
+        == inputs.get("durable_owner_sha256")
+        and candidate.get("trades") == actual.get("full_combined_trades")
+        and candidate.get("full_rth_trades") == actual.get("full_rth_trades")
+        and candidate.get("full_combined_ledger_sha256")
+        == actual.get("full_combined_ledger_sha256")
+        and candidate.get("full_rth_ledger_sha256")
+        == actual.get("full_rth_ledger_sha256")
+        and durable.get("full_combined_trade_count")
+        == actual.get("full_combined_trades")
+        and durable.get("full_rth_trade_count") == actual.get("full_rth_trades")
+        and durable.get("full_combined_ledger_sha256")
+        == actual.get("full_combined_ledger_sha256")
+        and durable.get("full_rth_ledger_sha256")
+        == actual.get("full_rth_ledger_sha256")
+    )
