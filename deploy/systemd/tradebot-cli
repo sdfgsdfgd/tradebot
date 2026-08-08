@@ -1,4 +1,30 @@
 #!/bin/sh
 set -eu
 cd "$HOME/Desktop/py/tradebot"
-exec "$HOME/.local/share/tradebot/venv/bin/python" -m tradebot "$@"
+
+usage() {
+    printf '%s\n' 'usage: tradebot [--status]'
+}
+
+case "${1-}" in
+    --status)
+        [ "$#" -eq 1 ] || { usage >&2; exit 64; }
+        exec "$HOME/.local/share/tradebot/venv/bin/python" -m tradebot.live.ib_preflight status
+        ;;
+    --help|-h)
+        [ "$#" -eq 1 ] || { usage >&2; exit 64; }
+        usage
+        ;;
+    "")
+        if [ ! -t 0 ] || [ ! -t 1 ]; then
+            printf '%s\n' 'tradebot TUI requires an interactive terminal; use tradebot --status for automation.' >&2
+            exit 2
+        fi
+        IBKR_HOST=127.0.0.1 IBKR_PORT=4001 \
+            exec "$HOME/.local/share/tradebot/venv/bin/python" -m tradebot
+        ;;
+    *)
+        usage >&2
+        exit 64
+        ;;
+esac

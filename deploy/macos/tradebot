@@ -3,4 +3,36 @@ set -euo pipefail
 
 # q owns the only trading runtime and its localhost-only Gateway.  Keep the
 # familiar Mac command as a terminal bridge, rather than a second local bot.
-exec ssh -t q /home/x/.local/bin/tradebot "$@"
+usage() {
+  print 'usage: tradebot [--status]'
+}
+
+case "${1-}" in
+  --status)
+    (( $# == 1 )) || { usage >&2; exit 64; }
+    ssh -T -o BatchMode=yes -o ConnectTimeout=5 -o ConnectionAttempts=1 -o LogLevel=ERROR \
+      q /home/x/.local/bin/tradebot --status || {
+      print 'tradebot: q control plane is unavailable; no alternate Gateway was attempted.' >&2
+      exit 69
+    }
+    ;;
+  --help|-h)
+    (( $# == 1 )) || { usage >&2; exit 64; }
+    usage
+    ;;
+  '')
+    if [[ ! -t 0 || ! -t 1 ]]; then
+      print 'tradebot TUI requires an interactive terminal; use tradebot --status for automation.' >&2
+      exit 2
+    fi
+    ssh -tt -o BatchMode=yes -o ConnectTimeout=5 -o ConnectionAttempts=1 -o LogLevel=ERROR \
+      q /home/x/.local/bin/tradebot || {
+      print 'tradebot: q owner command stopped or is unavailable; no alternate Gateway was attempted.' >&2
+      exit 69
+    }
+    ;;
+  *)
+    usage >&2
+    exit 64
+    ;;
+esac

@@ -27,6 +27,9 @@ IB_PREFLIGHT_SCHEMA = "live.ib-preflight.v1"
 IB_PREFLIGHT_AUTHORITY = "read_only_broker_and_runtime_readiness"
 IB_PREFLIGHT_DEFAULT_MAX_AGE_SEC = 30 * 60 * 60
 IB_SENTINEL_WARMUP_GRACE_SEC = 30 * 60
+IB_RUNTIME_STATUS_SCHEMA = "live.ib-runtime-status.v1"
+IB_GATEWAY_HOST = "127.0.0.1"
+IB_GATEWAY_PORT = 4001
 IB_PREFLIGHT_BOUNDARIES = {
     "broker_orders_submitted": 0,
     "broker_orders_cancelled": 0,
@@ -594,6 +597,119 @@ def _unit_liveness(unit: str) -> dict[str, str]:
     }
 
 
+def _runtime_directory() -> Path:
+    configured = os.getenv("XDG_RUNTIME_DIR", "").strip()
+    return Path(configured) if configured else Path(f"/run/user/{os.getuid()}")
+
+
+def _runtime_receipt(path: Path, *keys: str) -> dict[str, object]:
+    try:
+        value = json.loads(path.read_text())
+    except (OSError, TypeError, ValueError):
+        value = None
+    if not isinstance(value, Mapping):
+        return {"path": str(path), "available": False}
+    return {
+        "path": str(path),
+        "available": True,
+        **{key: value.get(key) for key in keys if key in value},
+    }
+
+
+def _gateway_tcp_accepting() -> bool:
+    try:
+        with socket.create_connection((IB_GATEWAY_HOST, IB_GATEWAY_PORT), timeout=1):
+            return True
+    except OSError:
+        return False
+
+
+def _process_client_ids(pid: str) -> list[int]:
+    try:
+        values = Path(f"/proc/{pid}/environ").read_bytes().split(b"\0")
+    except OSError:
+        return []
+    identifiers: list[int] = []
+    for value in values:
+        key, separator, raw = value.partition(b"=")
+        if separator and key in {b"IBKR_CLIENT_ID", b"IBKR_PROXY_CLIENT_ID"}:
+            try:
+                identifiers.append(int(raw))
+            except ValueError:
+                continue
+    return sorted(set(identifiers))
+
+
+def _gateway_api_clients() -> list[dict[str, object]]:
+    """Report q-local API consumers without asking IBKR for account or market data."""
+
+    try:
+        output = subprocess.run(
+            ["ss", "-H", "-tnp"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        ).stdout
+    except (OSError, subprocess.SubprocessError):
+        return []
+    clients: list[dict[str, object]] = []
+    for line in output.splitlines():
+        match = re.search(
+            r"\s127\.0\.0\.1:\d+\s+127\.0\.0\.1:4001\s+users:\(\(\"([^\"]+)\",pid=(\d+)",
+            line,
+        )
+        if match is None:
+            continue
+        process, pid = match.groups()
+        clients.append(
+            {
+                "pid": int(pid),
+                "process": process,
+                "declared_client_ids": _process_client_ids(pid),
+            }
+        )
+    return sorted(clients, key=lambda value: int(value["pid"]))
+
+
+def ib_runtime_status(*, runtime_dir: Path | None = None) -> dict[str, object]:
+    """Read q's one-owner broker control plane without creating an IB API client."""
+
+    directory = runtime_dir or _runtime_directory()
+    preflight_path = directory / "tradebot-ib-preflight.json"
+    return {
+        "schema": IB_RUNTIME_STATUS_SCHEMA,
+        "authority": "read_only_q_control_plane_status",
+        "broker_owner": {
+            "scope": "q-local-only",
+            "host": IB_GATEWAY_HOST,
+            "port": IB_GATEWAY_PORT,
+            "gateway_fallback": "disabled",
+        },
+        "gateway": {
+            "service": _unit_liveness("tradebot-ib-gateway.service"),
+            "tcp_accepting": _gateway_tcp_accepting(),
+        },
+        "semantic_login": _runtime_receipt(
+            directory / "tradebot-ib-gateway-login.json", "state", "detail", "updated_at_epoch"
+        ),
+        "preflight": {
+            "path": str(preflight_path),
+            "entry": ib_preflight_decision("entry", path=preflight_path),
+            "reduction": ib_preflight_decision("reduction", path=preflight_path),
+        },
+        "sentinel": _runtime_receipt(
+            directory / "tradebot-ib-sentinel.json",
+            "checked_at_utc",
+            "active_candidates",
+            "failures",
+            "pending_warmups",
+        ),
+        "api_clients": _gateway_api_clients(),
+        "boundaries": dict(IB_PREFLIGHT_BOUNDARIES),
+    }
+
+
 def _selected_runtime_bindings(plan: Mapping[str, object]) -> list[object]:
     from .strategies import LIVE_STRATEGY_BINDINGS
 
@@ -861,6 +977,8 @@ def _parser() -> argparse.ArgumentParser:
     sentinel.add_argument("--login-receipt", type=Path, required=True)
     sentinel.add_argument("--output", type=Path, required=True)
     sentinel.add_argument("--state", type=Path, required=True)
+    status = commands.add_parser("status")
+    status.add_argument("--runtime-dir", type=Path, default=None)
     return parser
 
 
@@ -881,6 +999,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         _publish_sentinel(args.output, value)
         _alert_reasons(value)
         print(json.dumps(value, sort_keys=True))
+        return 0
+    if args.command == "status":
+        print(json.dumps(ib_runtime_status(runtime_dir=args.runtime_dir), sort_keys=True))
         return 0
     receipt = asyncio.run(
         probe_ib_preflight(
