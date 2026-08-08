@@ -1,0 +1,66 @@
+{
+  "schema": "mcl.stage131-successor-transaction-harness.v1",
+  "recorded_at_utc": "2026-08-08T12:29:40Z",
+  "authority": "local_process_and_cross_transaction_proof_no_broker_no_orders_no_capital",
+  "owner": {
+    "path": "deploy/systemd/tradebot-mcl-stage131-successor",
+    "sha256": "31cb800d9cbfceb813dd0c36367cb2be086ff1c471a39b15b485e2ec2932eccb"
+  },
+  "scenarios": {
+    "clean_repeated_invocation": {
+      "runs": 2,
+      "commissions": 1,
+      "commission_receipt_present": true,
+      "observe_receipt_present": true,
+      "timers_started_after_proof": true,
+      "status": "PASS"
+    },
+    "commission_failure": {
+      "exit_status": 42,
+      "commission_receipt_present": false,
+      "predictive_service_started": false,
+      "live_or_predictive_timer_started": false,
+      "status": "PASS_FAIL_CLOSED"
+    },
+    "observe_failure_after_commission": {
+      "exit_status": 43,
+      "commissions": 1,
+      "commission_receipt_present": true,
+      "observe_receipt_present": false,
+      "live_or_predictive_timer_started": false,
+      "status": "PASS_FAIL_CLOSED"
+    },
+    "observe_retry": {
+      "commissions_after_retry": 1,
+      "observe_receipt_present": true,
+      "timers_started_after_proof": true,
+      "status": "PASS_IDEMPOTENT"
+    }
+  },
+  "cross_transaction": {
+    "gold_owner_path": "tradebot/research/gold_onset_cli.py",
+    "gold_owner_sha256": "5d1793d64c186d85e2ebd4fead6e3a50631e57101e0cb7979182343ae37b3476",
+    "mcl_owner_path": "tradebot/research/mcl_live_cli.py",
+    "mcl_owner_sha256": "ecec94d4242b56844a5848e61618bbcad96c272e528ac33c86724ce6f0e2f178",
+    "law": "each successor reloads the current capital plan under the shared account lock and preserves the then-current other two sleeve identities",
+    "mcl_then_gold_ordering_safe": true,
+    "hard_bound_predecessor_mcl_selection": false
+  },
+  "scheduled_q_boundary": {
+    "timer": "tradebot-mcl-stage131-successor.timer",
+    "due_at_utc": "2026-08-09T22:04:05Z",
+    "due_at_aest": "2026-08-10T08:04:05+10:00",
+    "service_restart": "on-failure_every_30_seconds",
+    "start_limit": "60_attempts_per_30_minutes",
+    "predecessor_capital_plan_id": "5dc2503640627b39b57b33ba9c0810c2ad9e1f778b937f241abd4ff571f2c8ea",
+    "state": "ACTIVE_WAITING"
+  },
+  "boundaries": {
+    "broker_queried": false,
+    "selection_mutated": false,
+    "capital_plan_mutated": false,
+    "service_or_timer_mutated_by_harness": false,
+    "submitted_orders": 0
+  },
+  "verdict": "PASS"
+}
