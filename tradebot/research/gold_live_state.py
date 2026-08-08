@@ -202,6 +202,7 @@ def project_gold_transport_plan(
         or not isinstance(evidence, Mapping)
         or evidence.get("schema")
         != "gold.1oz-regime-harmony-source-checkpoint.v1"
+        or evidence.get("source_usable") is not True
         or now < source_at
     ):
         raise ValueError("gold live source is invalid")

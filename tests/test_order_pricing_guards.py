@@ -18,6 +18,7 @@ from tradebot.engines.execution import (
     _limit_price_for_mode,
     _sanitize_nbbo,
     _tick_size,
+    quote_health,
 )
 from tradebot.ui.common import (
     _quote_health,
@@ -67,6 +68,42 @@ def test_quote_health_detects_one_sided_quote() -> None:
     assert out["has_one_sided"] is True
     assert out["has_nbbo"] is False
     assert out["has_actionable"] is False
+
+
+def test_quote_health_opt_in_size_and_spread_are_fail_closed() -> None:
+    default = quote_health(
+        bid=4409.5,
+        ask=4412.0,
+        last=4410.0,
+        market_data_type=1,
+        require_live=True,
+        require_nbbo=True,
+    )
+    common = {
+        "bid": 4409.5,
+        "ask": 4411.25,
+        "last": 4410.0,
+        "market_data_type": 1,
+        "max_spread": 2.0,
+        "require_live": True,
+        "require_nbbo": True,
+        "require_positive_size": True,
+    }
+
+    healthy = quote_health(**common, bid_size=1, ask_size=2)
+    empty = quote_health(**common, bid_size=0, ask_size=0)
+    wide = quote_health(
+        **{**common, "ask": 4412.0},
+        bid_size=1,
+        ask_size=1,
+    )
+
+    assert default["eligible"] is True
+    assert "spread" not in default
+    assert "has_positive_size" not in default
+    assert healthy["eligible"] is True
+    assert empty["reasons"] == ("positive_top_size_required",)
+    assert wide["reasons"] == ("spread_above_maximum",)
 
 
 def test_execution_quote_staleness_preserves_unknown_age_and_enforces_known_age() -> None:

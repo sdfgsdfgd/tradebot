@@ -1,0 +1,72 @@
+{
+  "schema": "xsp.opening-edge-v4-dual-clock-p009-current-runtime-parity-audit.v1",
+  "authority": "offline_exact_dual_clock_historical_and_runtime_parity_only",
+  "observed_at_utc": "2026-08-08T10:32:57Z",
+  "source_revision": "c815c8613c3de40f7ce84aa7d23c0de0be609d77",
+  "strategy_id": "xsp.opening-edge-v4-dual-clock-arbitration-p009.v1",
+  "candidate": "Opening Edge v4 - P-009 Dual-Clock Arbitration",
+  "inputs": {
+    "frozen_crown_artifact_sha256": "e3d4b968ce5692da2aad1e6ed041c609b4df7be020a80bde5a3605a32111a449",
+    "durable_owner_sha256": "be2fea1a28c4f005133b302bd985d65fd623d7093b02bfaca771b340014dea3f",
+    "production_source_owner_sha256": "e442068e82bff2cbdfe969b9954538dc7483d56a4bdafed38d6ab172091235c8",
+    "production_source_adapter_sha256": "b92a8f2053a7ba5b8481286c6c701393c80afa90dec100e60e5324b71f07072b",
+    "production_minute_context_sha256": "671b055c8379c2a29a45e74e995c94b456f41420b72f85fdffdbf77dd895f4cf",
+    "production_run_start_owner_sha256": "4359cdb04aca688efc87c7c0028feba1fc3e52a46cf21dee583cc974c96bcd62",
+    "production_state_owner_sha256": "643b6a04478e598fe7fbdc2d5aa6deabe6935761b3fa83cf487a9fdd16a265bc",
+    "production_tape_owner_sha256": "ad2532194ada0701d5b528acbe06c5e01fbbb8ad8e146c9e99cf7c0db9bad027",
+    "execution_context_owner_sha256": "e21ccfa8a2259bf9826a27cc9fc192d5c83be0c9a783eb8227da8c55ec43ac47",
+    "execution_observer_owner_sha256": "6b9bbaa11ba5cd9b6318268936bd318da95a26acb84e379ef51cfe6b2c5d2e5c",
+    "transport_plan_owner_sha256": "d9c066c2447ef41a5f09b17fd66f3ebfd16056edeeea53566f2c196530555b20",
+    "transport_runtime_owner_sha256": "11776c517237cc21fca5201dcd1b10811964e77cf304576bd157851214b7471d",
+    "transport_selection_owner_sha256": "951e415aebe19f6213dd74532f960f19f9d55cb2cff2b2ae05192e95d96d6f36",
+    "transport_allocation_owner_sha256": "a652246708fd407658d0bc7b76824e27a1bc3d5e9e582b6559af25fb06b3a383",
+    "transport_risk_owner_sha256": "265a35d1b8b7d365afa045b80aafeecfe3cf0322860c6ee57a26ea3647ee4863",
+    "transport_state_owner_sha256": "759486b88f1fee04bcbd440191d9896f6be49f9b1ef9a91a4266b397932bcf30",
+    "live_cli_owner_sha256": "96e1056f6ce07a867debb56ff753e7ee370d24b743f80f23cd55f5fa4bba1437",
+    "pressure_accumulator_owner_sha256": "0d7af0eac7bcf4d7cd10910de4c88a6757a7c3fbef7918cd5502641992976f77",
+    "profitability_adapter_sha256": "ec434c83c644153d4d8a7a3349e60c9b4ef51faca373187b49d4aa388a94ccdb",
+    "runtime_parity_contract_sha256": "aa4bb3c97fc349373271774c8c7bbf24b669e08e0c5dfb10466584632ab22e63",
+    "live_registry_owner_sha256": "a4a10e57749a58d35676ea18b277387acf65185d914f1aec20eba6023d7f65c6",
+    "shared_execution_policy_sha256": "16a520b57cbec60b0892544a8abbca667d62aafec7a771ea99ef848913016cb8",
+    "shared_live_execution_sha256": "ebc6d7823dc1b910382e388fd1642ea2febf00adeedbf65c1262236353d5bddc",
+    "service_unit_sha256": "4be2bebba812c761ff8f0e6fc28a398f36eb5a35ccaaa2f1206b278c1d0f7aa7",
+    "timer_unit_sha256": "695b691526d1e33d9e33fb7c043479278be308e97134b606e1d3bd01e8ecb7da"
+  },
+  "expected": {
+    "full_combined_trades": 648,
+    "full_rth_trades": 469,
+    "full_combined_ledger_sha256": "53d2682ba9afc077c790d4817898732bd22c2f38173d1e5e2b58f9ddadec0268",
+    "full_rth_ledger_sha256": "3aa102fc2ef15c3d39fbe884d952e95dc32af77a4098a895af163a188e77d715"
+  },
+  "actual": {
+    "full_combined_trades": 648,
+    "full_rth_trades": 469,
+    "full_combined_ledger_sha256": "53d2682ba9afc077c790d4817898732bd22c2f38173d1e5e2b58f9ddadec0268",
+    "full_rth_ledger_sha256": "3aa102fc2ef15c3d39fbe884d952e95dc32af77a4098a895af163a188e77d715"
+  },
+  "checks": {
+    "disabled_v3_parity": true,
+    "emission_identity_parity": true,
+    "full_combined_trade_count_equal": true,
+    "full_combined_ledger_equal": true,
+    "full_rth_trade_count_equal": true,
+    "full_rth_ledger_equal": true,
+    "bridge_v3_handoff_parity": true,
+    "source_target_identity_bound": true,
+    "selection_crown_binding_exact": true,
+    "selected_strategy_attribution_exact": true,
+    "limit_only_shared_execution_unchanged": true,
+    "ordinary_v3_ladder_unchanged": true,
+    "xsp_and_mcl_default_quote_semantics_unchanged": true,
+    "gold_fail_closed_opt_ins_are_product_scoped": true
+  },
+  "passes": true,
+  "safety": {
+    "broker_queried": false,
+    "service_or_timer_mutated": false,
+    "selection_mutated": false,
+    "order_authority": "none",
+    "submitted_orders": 0,
+    "profitability_clock_mutated": false
+  }
+}

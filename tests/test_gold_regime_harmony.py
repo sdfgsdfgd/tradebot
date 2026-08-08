@@ -4,6 +4,7 @@ import ast
 import asyncio
 import hashlib
 import json
+import time
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
@@ -14,12 +15,14 @@ from tradebot.backtest.models import BacktestResult, SpotTrade, SummaryStats
 from tradebot.client import BrokerOrderPreview
 from tradebot.live.capital import build_live_capital_plan
 from tradebot.research.gold_live_runtime import (
+    _gold_price_for_ticker,
     advance_gold_live_transport,
     execute_gold_transport_plan,
     gold_broker_snapshot,
     gold_live_contract,
     gold_transport_order_ref,
 )
+from tradebot.research.gold_onset_cli import _unmanaged_stress
 from tradebot.research.gold_live_state import (
     gold_transport_risk_state,
     project_gold_transport_plan,
@@ -28,6 +31,7 @@ from tradebot.research.gold_live_transport import (
     GOLD_LIVE_EXECUTION_VERSION,
     GOLD_LIVE_PACKAGE_SELECTION_SCHEMA,
     GOLD_LIVE_SELECTION_SCHEMA,
+    GOLD_RUNTIME_PARITY_PATH,
     build_gold_portfolio_capital_plan,
     load_gold_live_selection_from_mapping,
     publish_gold_live_selection,
@@ -165,6 +169,7 @@ def test_gold_live_source_consumes_canonical_exchange_parity(
         LiveCalibrationLedger(tmp_path / "source.jsonl"),
         tape=tape,
         onset_context={
+            "source_usable": True,
             "exchange_parity": pair,
             "signal": {
                 "usable": True,
@@ -184,6 +189,26 @@ def test_gold_live_source_consumes_canonical_exchange_parity(
         == decision_bar.isoformat()
     )
 
+    rejected = advance_gold_regime_harmony_source(
+        LiveCalibrationLedger(tmp_path / "rejected-source.jsonl"),
+        tape=tape,
+        onset_context={
+            "source_usable": False,
+            "exchange_parity": pair,
+            "signal": {
+                "usable": True,
+                "decision_bar_end_utc": decision_bar.isoformat(),
+            },
+            "macro": {"usable": True},
+            "news": {"authority": "attribution_only"},
+            "source_points": {},
+            "timing_parity": {"usable": False},
+        },
+        observed_at=now,
+    )
+    assert rejected["checkpoint"]["status"] == "NO_DATA"
+    assert rejected["target"] is None
+
 
 def test_gold_hard_state_identity_uses_completed_state_birth() -> None:
     owner = GoldHardRegimeOwner(_daily_context())
@@ -194,7 +219,7 @@ def test_gold_hard_state_identity_uses_completed_state_birth() -> None:
 
 
 def test_gold_runtime_parity_receipt_binds_crown_owner_and_holds_live() -> None:
-    path = ROOT / "backtests/gold/one_oz_regime_harmony_runtime_parity_20260803.json"
+    path = ROOT / GOLD_RUNTIME_PARITY_PATH
     receipt = json.loads(path.read_text())
     crown = load_gold_regime_harmony_crown(root=ROOT)
 
@@ -269,6 +294,7 @@ def _source(
             "macro_context": {"usable": True},
             "fundamental_pressure": {"authority": "attribution_only"},
             "contract_pair": {"usable": True},
+            "source_usable": True,
         },
     }
 
@@ -285,7 +311,9 @@ def _preview(observed_at: datetime) -> dict[str, object]:
             "market_data_type": 1,
             "age_seconds": 0.1,
             "bid": 4109.2,
+            "bid_size": 1,
             "ask": 4109.5,
+            "ask_size": 1,
         },
         "one_oz": {
             "local_symbol": "1OZZ6",
@@ -295,7 +323,9 @@ def _preview(observed_at: datetime) -> dict[str, object]:
             "market_data_type": 1,
             "age_seconds": 0.1,
             "bid": 4109.25,
+            "bid_size": 1,
             "ask": 4109.5,
+            "ask_size": 1,
         },
     }
     what_if = [
@@ -389,10 +419,12 @@ def test_gold_package_successor_removes_only_the_account_mutex() -> None:
     selected = reallocate_gold_live_transport(
         predecessor=predecessor,
         records=(),
+        source_checkpoint=_source(successor_at - timedelta(seconds=10)),
         preview=_preview(successor_at - timedelta(seconds=5)),
         selected_at_utc=successor_at,
         stress_receipt_path=ROOT
         / "backtests/gold/one_oz_stage76_open_position_stress_20260803.json",
+        root=ROOT,
     )
 
     assert selected["schema"] == GOLD_LIVE_PACKAGE_SELECTION_SCHEMA
@@ -403,11 +435,29 @@ def test_gold_package_successor_removes_only_the_account_mutex() -> None:
     assert selected["allocation_successor"]["predecessor_selection_id"] == (
         predecessor["selection_id"]
     )
+    assert selected["evidence"]["source_recorded_at_utc"] == (
+        successor_at - timedelta(seconds=10)
+    ).isoformat()
+    assert selected["evidence"]["runtime_parity"]["path"] == (
+        GOLD_RUNTIME_PARITY_PATH.as_posix()
+    )
     assert load_gold_live_selection_from_mapping(selected) == selected
 
     selected["risk"]["max_open_position_stress_usd"] = 255.0
     with pytest.raises(ValueError, match="invalid"):
         load_gold_live_selection_from_mapping(selected)
+
+
+def test_gold_rollover_stresses_only_unmanaged_positions() -> None:
+    assert _unmanaged_stress(
+        {
+            "positions": [
+                {"symbol": "SPXU", "market_value_base": 800.0},
+                {"symbol": "MCL", "market_value_base": 77_000.0},
+                {"symbol": "SPCX", "market_value_base": -92.74},
+            ]
+        }
+    ) == 92.74
 
 
 def test_gold_selection_extends_xsp_cash_plan_as_exclusive_margin_overlay(
@@ -513,7 +563,7 @@ def test_gold_plan_enters_only_a_fresh_post_selection_admission() -> None:
     assert inherited["reason"] == "preselection_target_not_adopted"
 
 
-def test_gold_flat_quote_outage_persists_accounting_but_cannot_enter(
+def test_gold_flat_wide_book_persists_accounting_but_cannot_enter(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     selected_at = datetime(2026, 8, 3, 10, tzinfo=UTC)
@@ -522,12 +572,14 @@ def test_gold_flat_quote_outage_persists_accounting_but_cannot_enter(
     contract = gold_live_contract(selected)
     ticker = SimpleNamespace(
         contract=contract,
-        bid=float("nan"),
-        ask=float("nan"),
+        bid=4109.25,
+        bidSize=1,
+        ask=4112.0,
+        askSize=1,
         last=4109.25,
         close=4109.0,
         marketDataType=1,
-        tbTopQuoteUpdatedMono=None,
+        tbTopQuoteUpdatedMono=time.monotonic(),
     )
 
     class Client:
@@ -579,7 +631,11 @@ def test_gold_flat_quote_outage_persists_accounting_but_cannot_enter(
     assert output["risk_state"]["position_from_fills"] == 0
     assert output["submitted_orders"] == 0
     assert row["evidence"]["phase"] == "STATE"
-    assert row["evidence"]["quote"]["health"]["eligible"] is False
+    assert row["evidence"]["quote"]["health"]["eligible"] is True
+    assert row["evidence"]["quote"]["entry_health"]["eligible"] is False
+    assert row["evidence"]["quote"]["entry_health"]["reasons"] == [
+        "spread_above_maximum"
+    ]
     assert row["evidence"]["submitted_orders"] == 0
     profitability = gold_live_profitability_receipt(
         tuple(ledger.records()),
@@ -655,6 +711,7 @@ def test_gold_plan_closes_and_reverses_without_waiting_for_rth() -> None:
         open_orders=(),
         risk_state=_risk(),
         observed_at=at + timedelta(minutes=1),
+        entry_market_data_eligible=False,
     )
 
     assert plan["status"] == "ACTIONABLE"
@@ -662,6 +719,37 @@ def test_gold_plan_closes_and_reverses_without_waiting_for_rth() -> None:
     assert plan["leg"]["action"] == "SELL"
     assert plan["desired_after_close"] == "down"
     assert plan["execution_state_context"]["news"]["authority"] == "attribution_only"
+
+
+def test_gold_entry_pricing_rests_when_the_book_widens_but_exit_still_crosses() -> None:
+    contract = SimpleNamespace(secType="FUT", minTick=0.25)
+    ticker = SimpleNamespace(
+        bid=4409.5,
+        bidSize=1,
+        ask=4412.0,
+        askSize=1,
+        last=4410.0,
+        close=4410.0,
+        marketDataType=1,
+    )
+    entry = _gold_price_for_ticker(
+        contract,
+        ticker,
+        entry=True,
+        resting_price=4410.25,
+    )
+    exit_price = _gold_price_for_ticker(contract, ticker, entry=False)
+
+    assert entry("CROSS", "BUY") == 4410.25
+    assert entry(
+        "CROSS",
+        "BUY",
+        bid=ticker.bid,
+        ask=ticker.ask,
+        last=ticker.last,
+        ticker=ticker,
+    ) is None
+    assert exit_price("CROSS", "SELL") == ticker.bid
 
 
 def _fill_record(
@@ -894,7 +982,15 @@ def test_gold_execution_is_one_order_and_restart_adopts_terminal_fill(
     )
     plan["capital_admission"] = {"status": "ALLOW"}
     contract = gold_live_contract(selected)
-    ticker = SimpleNamespace(bid=4109.25, ask=4109.5, last=4109.25, close=4109.0)
+    ticker = SimpleNamespace(
+        bid=4109.25,
+        bidSize=1,
+        ask=4109.5,
+        askSize=1,
+        last=4109.25,
+        close=4109.0,
+        marketDataType=1,
+    )
     ledger = LiveCalibrationLedger(tmp_path / "gold.jsonl")
     client = _GoldExecutionClient(contract)
 
@@ -959,9 +1055,12 @@ def test_gold_execution_rejects_cancelled_zero_fill(tmp_path: Path) -> None:
                 contract=contract,
                 ticker=SimpleNamespace(
                     bid=4109.25,
+                    bidSize=1,
                     ask=4109.5,
+                    askSize=1,
                     last=4109.25,
                     close=4109.0,
+                    marketDataType=1,
                 ),
                 observed_at=source_at + timedelta(minutes=1),
             )

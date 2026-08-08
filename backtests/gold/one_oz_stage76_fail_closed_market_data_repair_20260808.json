@@ -1,0 +1,140 @@
+{
+  "schema": "gold.one-oz-stage76-fail-closed-market-data-repair.v1",
+  "authority": "implementation_and_nontransmitting_parity_only_fresh_live_successor_required",
+  "created_at_utc": "2026-08-08T10:46:42Z",
+  "defect": {
+    "observed_at_utc": "2026-08-08T06:20:03.976635+00:00",
+    "contract_month": "2026-10",
+    "gc": {
+      "local_symbol": "GCV6",
+      "bid": -1.0,
+      "bid_size": 0.0,
+      "ask": -1.0,
+      "ask_size": 0.0,
+      "market_data_type": 1
+    },
+    "one_oz": {
+      "local_symbol": "1OZV6",
+      "bid": 4373.0,
+      "bid_size": 10.0,
+      "ask": 4374.75,
+      "ask_size": 10.0,
+      "market_data_type": 1
+    },
+    "prior_classification": "exchange_pair_usable_despite_invalid_gc_book",
+    "independent_timing_result": "source_bar_timing_mismatch",
+    "economic_effect": "none_no_target_no_fill_no_order"
+  },
+  "repair": {
+    "shared_quote_classifier": "optional_positive_top_size_and_maximum_spread_policy_preserves_default_semantics",
+    "gold_source": "live_non_crossed_nbbo_positive_sizes_max_2_usd_spread_and_causal_age_required",
+    "gold_entry": "same_strict_gold_book_policy_required_before_new_risk",
+    "resting_entry": "freeze_existing_limit_when_book_becomes_wide_or_unusable_never_chase_wider",
+    "held_exit": "ordinary_actionable_book_and_unconditional_risk_reduction_authority_preserved",
+    "selection": "fresh_source_and_preview_rehashed_against_current_runtime_parity",
+    "graduation": "new_successor_run_started_at_utc_is_the_clean_clock_no_predecessor_backfill"
+  },
+  "historical_parity": {
+    "three_year": {
+      "trades": 73,
+      "net_pnl": 3103.52,
+      "profit_factor": 3.9914887464,
+      "max_drawdown": 690.07,
+      "ledger_sha256": "c3add7cde287718b895de70936aa9aeab18b465bd6e68d3b8140c262650a3733"
+    },
+    "ten_year": {
+      "trades": 257,
+      "net_pnl": 3227.82,
+      "profit_factor": 2.1891248688,
+      "max_drawdown": 690.07,
+      "ledger_sha256": "f5c212b19b9c5b6f697f01b6162a2f4382d8503afa4ebaa3844add45326a35a5"
+    },
+    "prospective_prefix": {
+      "closed_trades": 261,
+      "target_direction": null,
+      "ledger_sha256": "1ccaebb76cef60e5aae9643c72275a6d216be27ac29ea7b6ba3223ecc1b9396b",
+      "state_sha256": "d6fd0cdcb646ef7cebb41e238078af41e86990399f9260f72469a15a91d3f012"
+    }
+  },
+  "parity": {
+    "gold_runtime": {
+      "path": "backtests/gold/one_oz_regime_harmony_runtime_parity_fail_closed_20260808.json",
+      "sha256": "9d9a6ebda0c7c1b93fb89805a588ee60e617622db76855f1ea2783125bb9bdb3",
+      "verdict": "SIGNAL_RUNTIME_PARITY_PASS_LIVE_TRANSPORT_HOLD"
+    },
+    "xsp_p009_current_runtime": {
+      "path": "backtests/xsp/opening_edge_v4_dual_clock_arbitration_p009_current_runtime_parity_fail_closed_20260808.json",
+      "sha256": "9c137263373b8a0c891502dad53fcb696bb32d3010da1fe9a8366f7c8312194b",
+      "trades": 648,
+      "ordered_ledger_sha256": "53d2682ba9afc077c790d4817898732bd22c2f38173d1e5e2b58f9ddadec0268",
+      "verdict": "PASS"
+    }
+  },
+  "proof": {
+    "production_lint_and_compile": "PASS",
+    "core_and_shared_regression": {
+      "passed": 303,
+      "failed": 0
+    },
+    "execution_and_ui_compatibility": {
+      "passed": 59,
+      "failed": 0
+    },
+    "gold_transport_module_lines": 1000,
+    "submitted_orders": 0
+  },
+  "predeployment_live_boundary": {
+    "observed_at_utc": "2026-08-08T10:37:00.796325+00:00",
+    "gold_position": 0.0,
+    "gold_fills": 0,
+    "gold_closed_trades": 0,
+    "gold_net_usd": 0.0,
+    "gold_drawdown_usd": 0.0,
+    "gold_open_orders": 0,
+    "gold_submitted_orders": 0,
+    "gold_safety_breaches": [],
+    "gold_live_timer": "inactive",
+    "gold_onset_timer": "active",
+    "xsp_and_mcl_authority_mutated": false
+  },
+  "deployment": {
+    "next_natural_source_utc": "2026-08-10T00:07:00Z",
+    "planned_rollover_utc": "2026-08-10T00:12:00Z",
+    "transaction": "fresh_gold_selection_then_three_sleeve_generation_and_stability_then_atomic_capital_plan_switch",
+    "resume_condition": "rollover_command_success_only",
+    "failure_state": "old_gold_selection_retained_gold_live_timer_stays_inactive",
+    "new_graduation_clock": "fresh_successor_run_started_at_utc",
+    "predecessor_coverage_backfilled": false
+  },
+  "owners": {
+    "shared_quote_classifier": {
+      "path": "tradebot/engines/execution.py",
+      "sha256": "16a520b57cbec60b0892544a8abbca667d62aafec7a771ea99ef848913016cb8"
+    },
+    "gold_context": {
+      "path": "tradebot/research/gold_context.py",
+      "sha256": "beb286c8a223251dd62570bc80a76ae60b2724f51de4596abeb1d4c5b11cd8a9"
+    },
+    "gold_onset": {
+      "path": "tradebot/research/gold_onset.py",
+      "sha256": "4524c4d0ea7dbba677073ae8c7b7b405baaaee04ad7327ecf3a6613906756daa"
+    },
+    "gold_source_and_selection": {
+      "path": "tradebot/research/gold_live_transport.py",
+      "sha256": "6e00f77de72d68408f82f118078205c6accd98c5ca909fb17c2fa910b4279b8a"
+    },
+    "gold_plan": {
+      "path": "tradebot/research/gold_live_state.py",
+      "sha256": "b437db0945d41cac9b78b5cc4eec88d011738ac8f2aca03a51e9e1657436dbf8"
+    },
+    "gold_execution": {
+      "path": "tradebot/research/gold_live_runtime.py",
+      "sha256": "61573d36a9f6ff0bd7ff7003ee92dbdc2630d72e415f7f479bde9b05d5f5c765"
+    },
+    "gold_rollover": {
+      "path": "tradebot/research/gold_onset_cli.py",
+      "sha256": "5d1793d64c186d85e2ebd4fead6e3a50631e57101e0cb7979182343ae37b3476"
+    }
+  },
+  "verdict": "IMPLEMENTED_PARITY_PASS_LIVE_PAUSED_FRESH_ROLLOVER_REQUIRED"
+}

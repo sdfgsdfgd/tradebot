@@ -1,0 +1,148 @@
+{
+  "authority": "immutable_signal_and_fail_closed_runtime_parity_only_no_selection_no_capital_no_orders",
+  "context_parity": {
+    "daily_hard_direction_and_age_exact": true,
+    "daily_rows_compared": 2858,
+    "h4_fast_slope_spread_velocity_acceleration_and_atr_exact": true,
+    "h4_rows_compared": 19892,
+    "macro_5_21_63_direction_velocity_acceleration_exact": true,
+    "macro_rows_compared": 2698
+  },
+  "created_at_utc": "2026-08-08T10:29:44Z",
+  "crown": {
+    "artifact_path": "backtests/gold/one_oz_regime_harmony_stage76_77.json",
+    "artifact_sha256": "9720399570921c377fb987146618d00c9a928e625a93b836db998af6ea67c282",
+    "declaration_path": "backtests/gold/current-lf.json",
+    "declaration_sha256": "6b449d807980043c5f90afb93ecdb1398cf4a11e48e9b040fd831cd15a6b2d8e",
+    "strategy_key": "one-oz-regime-harmony-stage76-77",
+    "strategy_version": "gold.1oz-regime-harmony-stage76.v1"
+  },
+  "frozen_tape": {
+    "inputs": {
+      "db/TIP/TIP_2015-07-01_2026-08-02_1day_rth.csv": "9efb96f1808cd89db9c160e67b5a87cb040d2db53a1ea5ef0afd6e22d3d20936",
+      "db/UUP/UUP_2015-07-01_2026-08-02_1day_rth.csv": "fc56c00ec241115c973f6e05d59465f226d6bab09943b7b61560da0dea7de9a7",
+      "db/XAUUSD/XAUUSD_2015-07-01_2016-06-30_1day_full24.csv": "4a6cfbbc2896e3657b8e13172ae9b36ac1962f5a9eef9169258d501482919f96",
+      "db/XAUUSD/XAUUSD_2015-07-01_2016-06-30_1hour_full24.csv": "6f95b158662fe6209facc8a045288aaf58aa8fb38d7a453d74e2a1d27d559160",
+      "db/XAUUSD/XAUUSD_2015-07-01_2016-06-30_4hours_full24.csv": "ac71fcf10b58b53caad5f1843d7916285ba1209b09da5983eee56f240c24ce04",
+      "db/XAUUSD/XAUUSD_2016-01-01_2026-08-02_1day_full24.csv": "82cb02d362e033530dc6a2b8535b59831bb277037339d57add41b5f7a5829fbe",
+      "db/XAUUSD/XAUUSD_2016-01-01_2026-08-02_4hours_full24.csv": "12a6c2d8a3110b4896d41a10959285a643cf5aaf1981ed5c39e5a4026ebc76a6",
+      "db/XAUUSD/XAUUSD_2016-07-01_2026-08-02_1hour_full24.csv": "14636d5906f5e089f44c862dee2953db170c252e399c653ee53648628b8b652a"
+    },
+    "last_completed_h4_utc": "2026-08-01T00:00:00+00:00",
+    "normalized_rows": {
+      "common_macro_states": 2698,
+      "tip_d1": 2764,
+      "uup_d1": 2763,
+      "xauusd_d1": 2858,
+      "xauusd_h1": 65402,
+      "xauusd_h4": 19892
+    }
+  },
+  "gates": {
+    "cold_replay_and_restart_identity": "PASS",
+    "cross_contract_default_semantics": "PASS",
+    "entry_spread_and_positive_size": "PASS",
+    "fail_closed_source_quote_and_timing": "PASS",
+    "flat_current_prefix": "PASS",
+    "fresh_nontransmitting_broker_preview": "HOLD",
+    "full_ten_year_ledger": "PASS",
+    "full_three_year_ledger": "PASS",
+    "held_exit_authority_preserved": "PASS",
+    "immutable_selection_and_capital_sleeve": "HOLD",
+    "live_24h": "NOT_STARTED",
+    "live_48h": "NOT_STARTED",
+    "live_five_sessions": "NOT_STARTED",
+    "machine_crown_identity": "PASS",
+    "native_1oz_margin_and_cash": "HOLD",
+    "native_restart_and_reconciliation": "HOLD",
+    "resting_limit_wide_book_freeze": "PASS",
+    "shared_context_math": "PASS"
+  },
+  "historical_parity": {
+    "full_ten_year": {
+      "converged": true,
+      "end": "2026-06-30",
+      "full_cycle_surrenders": 22,
+      "iterations": 4,
+      "ledger_sha256": "f5c212b19b9c5b6f697f01b6162a2f4382d8503afa4ebaa3844add45326a35a5",
+      "max_drawdown": 690.07,
+      "net_pnl": 3227.82,
+      "profit_factor": 2.1891248688,
+      "stage7_seed_ledger_sha256": "de1fd2a0ff4124e23d0c3870ee95f88e4dc2b0c8f94077e0c5c12db3a1862171",
+      "start": "2016-07-01",
+      "trades": 257,
+      "winner_exhaustion_vetoes": 14
+    },
+    "full_three_year": {
+      "converged": true,
+      "end": "2026-06-30",
+      "full_cycle_surrenders": 8,
+      "iterations": 2,
+      "ledger_sha256": "c3add7cde287718b895de70936aa9aeab18b465bd6e68d3b8140c262650a3733",
+      "max_drawdown": 690.07,
+      "net_pnl": 3103.52,
+      "profit_factor": 3.9914887464,
+      "start": "2023-07-01",
+      "trades": 73,
+      "winner_exhaustion_vetoes": 2
+    }
+  },
+  "owners": {
+    "live_cli_owner": {
+      "path": "tradebot/research/gold_live_cli.py",
+      "sha256": "3fc1c67c6444957a5e30d159b8722392f812e821632fbaa9250264522402979a"
+    },
+    "live_execution_owner": {
+      "path": "tradebot/research/gold_live_runtime.py",
+      "sha256": "61573d36a9f6ff0bd7ff7003ee92dbdc2630d72e415f7f479bde9b05d5f5c765"
+    },
+    "live_plan_owner": {
+      "path": "tradebot/research/gold_live_state.py",
+      "sha256": "b437db0945d41cac9b78b5cc4eec88d011738ac8f2aca03a51e9e1657436dbf8"
+    },
+    "live_source_selection_owner": {
+      "path": "tradebot/research/gold_live_transport.py",
+      "sha256": "6e00f77de72d68408f82f118078205c6accd98c5ca909fb17c2fa910b4279b8a"
+    },
+    "prospective_onset_adapter": {
+      "path": "tradebot/research/gold_onset.py",
+      "sha256": "4524c4d0ea7dbba677073ae8c7b7b405baaaee04ad7327ecf3a6613906756daa"
+    },
+    "runtime_parity_contract": {
+      "path": "tradebot/research/gold_runtime_parity_contract.py",
+      "sha256": "6edfd219cb34912ca40e2d33c0c63311b47661745ca28f441e40483333f16e37"
+    },
+    "shared_completed_bar_context": {
+      "path": "tradebot/research/gold_context.py",
+      "sha256": "beb286c8a223251dd62570bc80a76ae60b2724f51de4596abeb1d4c5b11cd8a9"
+    },
+    "shared_quote_classifier": {
+      "path": "tradebot/engines/execution.py",
+      "sha256": "16a520b57cbec60b0892544a8abbca667d62aafec7a771ea99ef848913016cb8"
+    },
+    "stage76_replay": {
+      "path": "tradebot/research/gold_regime_harmony.py",
+      "sha256": "d1be0d4aaf1bb498596d449af4667382f62aff490983811d6c3e4cd52f50fd9a"
+    }
+  },
+  "prospective_prefix": {
+    "broker_position": "not_consulted",
+    "closed_trades": 261,
+    "cold_replay_equal": true,
+    "cold_replays": 2,
+    "converged": true,
+    "cutoff": "2026-08-02",
+    "final_session_complete": false,
+    "first_iterations": 4,
+    "ledger_sha256": "1ccaebb76cef60e5aae9643c72275a6d216be27ac29ea7b6ba3223ecc1b9396b",
+    "order_authority": "none",
+    "second_iterations": 4,
+    "start": "2016-07-01",
+    "state_sha256": "d6fd0cdcb646ef7cebb41e238078af41e86990399f9260f72469a15a91d3f012",
+    "submitted_orders": 0,
+    "synthetic_midcycle_entry_authority": "none",
+    "target_direction": null
+  },
+  "schema": "gold.1oz-regime-harmony-runtime-parity.v2",
+  "verdict": "SIGNAL_RUNTIME_PARITY_PASS_LIVE_TRANSPORT_HOLD"
+}

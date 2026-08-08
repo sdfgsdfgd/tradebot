@@ -49,6 +49,7 @@ from .xsp_opening_edge_v3 import (
     xsp_opening_edge_p009_run_start,
 )
 from .xsp_dual_clock import XSP_DUAL_CLOCK_VERSION
+from .xsp_runtime_parity_contract import XSP_P009_RUNTIME_PARITY_PATH
 from .xsp_execution_observer import (
     advance_xsp_v2_etf_execution_observer,
 )
@@ -144,11 +145,7 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--graduation-cutoff")
     parser.add_argument(
         "--graduation-runtime-parity",
-        default=(
-            "backtests/xsp/"
-            "opening_edge_v4_dual_clock_arbitration_p009_"
-            "current_runtime_parity_audit.json"
-        ),
+        default=XSP_P009_RUNTIME_PARITY_PATH.as_posix(),
     )
     parser.add_argument(
         "--graduation-capital-stability",

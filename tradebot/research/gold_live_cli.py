@@ -28,6 +28,7 @@ from .gold_live_transport import (
     GOLD_LIVE_CAPITAL_SLEEVE,
     GOLD_LIVE_LEDGER_PATH,
     GOLD_LIVE_SELECTION_PATH,
+    GOLD_RUNTIME_PARITY_PATH,
     load_gold_live_selection,
 )
 from .live_calibration import LiveCalibrationLedger
@@ -53,10 +54,7 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--graduation-cutoff")
     parser.add_argument(
         "--graduation-runtime-parity",
-        default=(
-            "backtests/gold/"
-            "one_oz_regime_harmony_runtime_parity_20260803.json"
-        ),
+        default=GOLD_RUNTIME_PARITY_PATH.as_posix(),
     )
     parser.add_argument(
         "--graduation-capital-stability",

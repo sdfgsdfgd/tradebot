@@ -1,6 +1,6 @@
 # 1OZ Gold Leaderboard
 
-Updated: 2026-08-03 AEST / 2026-08-03 ET
+Updated: 2026-08-08 AEST / 2026-08-08 ET
 
 This is the durable gold crown registry, exact research lineage, evidence
 ledger, failure boundary, and ongoing sharpening journal. New crown records
@@ -24,7 +24,7 @@ An historical crown cannot grant the second authority.
 | Rank | Track | Crown | Identity | Version | State |
 |---:|---|---|---|---:|---|
 | 1 | H4/D1 regime harmony, native dated `1OZ` transport | **1OZ Gold Regime Harmony — Stage 76/77** | `gold.1oz-regime-harmony-stage76-77-crown.v1` | 1 | Frozen historical research crown; prospective onset tape active |
-| — | Operational canary | **Stage 76/77 one-contract canary** | selection `62344ce2…` / plan `b4a920b3…` | 1 | `CANARY_LIVE`, selected flat; first 24h judgment `HOLD`, awaiting fresh Stage-76 admission and authentic profitability |
+| — | Operational canary | **Stage 76/77 one-contract canary** | selection `62344ce2…` / plan `5dc25036…` | 1 | `CANARY_PAUSED`, flat; fail-closed successor and fresh graduation clock due at Monday's natural source boundary |
 
 Machine pointer: `backtests/gold/current-lf.json`, bound to immutable artifact
 `backtests/gold/one_oz_regime_harmony_stage76_77.json` with SHA-256
@@ -1125,6 +1125,27 @@ Prepend every future crown or challenger using this evidence order:
 ---
 
 ## Crown history — newest first
+
+### LC-003 · 2026-08-08 · Fail-closed market-data succession
+
+- **Observed defect:** the weekend source paired a valid `1OZV6` book with a
+  GC `-1/-1`, zero-size sentinel and called the pair usable. It produced no
+  target, order, fill, or P&L, but could not remain an entry authority.
+- **Central repair:** Gold source and new-entry books now require live,
+  two-sided, non-crossed, positively sized, causally fresh NBBO with spread at
+  most `$2`. A resting entry freezes on a degraded book; held exits retain
+  unconditional reduction authority. Shared XSP/MCL defaults are unchanged.
+- **Parity:** exact Gold economics remain `73 / +$3,103.52 / PF 3.991 / DD
+  $690.07` over three years and `257 / +$3,227.82 / PF 2.189 / DD $690.07`
+  over ten years. Current P-009 remains exact at `648` trades; `362` relevant
+  downstream tests pass.
+- **Live boundary:** Gold is flat with zero fills, orders, net, drawdown, or
+  breach. Live execution is paused while the observer remains active. The
+  first fresh successor after Monday's `00:07Z` source starts a clean
+  graduation clock from its own `run_started_at_utc`; predecessor gaps are not
+  inherited or backfilled.
+- **Receipt:**
+  `one_oz_stage76_fail_closed_market_data_repair_20260808.json`.
 
 ### LC-002 · 2026-08-07 · Stage 76 graduation coverage succession
 

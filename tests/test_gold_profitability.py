@@ -29,6 +29,7 @@ from tradebot.research.gold_profitability import (
     load_gold_profitability_coverage_epoch,
 )
 from tradebot.research.gold_regime_harmony import GOLD_REGIME_HARMONY_VERSION
+from tradebot.research.gold_live_transport import GOLD_RUNTIME_PARITY_PATH
 from tradebot.research.live_graduation import evidence_sha256, reduce_live_graduation
 from tradebot.research.live_futures_profitability import (
     FUTURES_PROFITABILITY_COVERAGE_EPOCH_SCHEMA,
@@ -46,7 +47,7 @@ XSP_ID = "b" * 64
 
 
 def _selection() -> dict[str, object]:
-    parity_path = ROOT / "backtests/gold/one_oz_regime_harmony_runtime_parity_20260803.json"
+    parity_path = ROOT / GOLD_RUNTIME_PARITY_PATH
     parity = json.loads(parity_path.read_text())
     return {
         "selection_id": GOLD_ID,
@@ -561,7 +562,7 @@ def test_runtime_parity_rehashes_selected_crown_and_owners(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_selection(monkeypatch)
-    path = ROOT / "backtests/gold/one_oz_regime_harmony_runtime_parity_20260803.json"
+    path = ROOT / GOLD_RUNTIME_PARITY_PATH
     passed = gold_runtime_parity_graduation_gate(
         path, repo_root=ROOT, selection=_selection()
     )
@@ -674,7 +675,7 @@ def test_gold_projection_reuses_shared_reducer_and_portfolio_manifest(
         cutoff_utc=cutoff,
         profitability_receipt=profitability,
         runtime_parity_path=ROOT
-        / "backtests/gold/one_oz_regime_harmony_runtime_parity_20260803.json",
+        / GOLD_RUNTIME_PARITY_PATH,
         capital_owner_stability_path=manifest,
         repo_root=ROOT,
     )

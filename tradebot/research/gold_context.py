@@ -9,10 +9,35 @@ from collections import deque
 from collections.abc import Mapping, Sequence
 from datetime import datetime, timezone
 
+from ..engines.execution import quote_health
 from ..engines.signals import EmaDecisionEngine
 
 
+GOLD_BOOK_MAX_SPREAD_USD = 2.0
 GOLD_MACRO_HORIZONS = (5, 21, 63)
+
+
+def gold_book_health(
+    row: Mapping[str, object], *, max_age_seconds: float | None
+) -> dict[str, object]:
+    """Apply the one strict Gold entry/source book policy."""
+
+    return quote_health(
+        bid=row.get("bid"),
+        ask=row.get("ask"),
+        last=row.get("last"),
+        close=row.get("close"),
+        bid_size=row.get("bid_size"),
+        ask_size=row.get("ask_size"),
+        market_data_type=row.get("market_data_type"),
+        age_sec=row.get("age_seconds"),
+        max_age_sec=max_age_seconds,
+        max_spread=GOLD_BOOK_MAX_SPREAD_USD,
+        require_live=True,
+        require_nbbo=True,
+        require_age=max_age_seconds is not None,
+        require_positive_size=True,
+    )
 
 
 def gold_utc(value: object) -> datetime:

@@ -52,12 +52,16 @@ def quote_health(
     ask: float | None,
     last: float | None,
     close: float | None = None,
+    bid_size: float | None = None,
+    ask_size: float | None = None,
     market_data_type: object = None,
     age_sec: float | None = None,
     max_age_sec: float | None = None,
+    max_spread: float | None = None,
     require_live: bool = False,
     require_nbbo: bool = False,
     require_age: bool = False,
+    require_positive_size: bool = False,
 ) -> dict[str, object]:
     """Classify one quote identically for capture, replay, UI, and execution."""
     clean_bid, clean_ask, clean_last = _sanitize_nbbo(bid, ask, last)
@@ -67,6 +71,10 @@ def quote_health(
     has_nbbo = has_bid and has_ask and clean_bid <= clean_ask
     has_last = clean_last is not None
     actionable = has_nbbo or has_last
+    clean_bid_size = _quote_num_actionable(bid_size)
+    clean_ask_size = _quote_num_actionable(ask_size)
+    has_positive_size = clean_bid_size is not None and clean_ask_size is not None
+    spread = clean_ask - clean_bid if has_nbbo else None
     try:
         md_type = int(market_data_type) if market_data_type is not None else None
     except (TypeError, ValueError):
@@ -79,6 +87,12 @@ def quote_health(
         max_age = max(0.0, float(max_age_sec)) if max_age_sec is not None else None
     except (TypeError, ValueError):
         max_age = None
+    try:
+        spread_limit = (
+            max(0.0, float(max_spread)) if max_spread is not None else None
+        )
+    except (TypeError, ValueError):
+        spread_limit = None
     stale = (not actionable) or (
         age is not None and max_age is not None and age >= max_age
     )
@@ -93,7 +107,11 @@ def quote_health(
         reasons.append("age_unknown")
     if require_live and md_type != 1:
         reasons.append("streaming_live_required")
-    return {
+    if require_positive_size and not has_positive_size:
+        reasons.append("positive_top_size_required")
+    if spread is not None and spread_limit is not None and spread > spread_limit:
+        reasons.append("spread_above_maximum")
+    payload = {
         "has_bid": has_bid,
         "has_ask": has_ask,
         "has_nbbo": has_nbbo,
@@ -111,6 +129,22 @@ def quote_health(
         "eligible": not reasons,
         "reasons": tuple(reasons),
     }
+    if (
+        bid_size is not None
+        or ask_size is not None
+        or max_spread is not None
+        or require_positive_size
+    ):
+        payload.update(
+            {
+                "bid_size": clean_bid_size,
+                "ask_size": clean_ask_size,
+                "has_positive_size": has_positive_size,
+                "spread": spread,
+                "max_spread": spread_limit,
+            }
+        )
+    return payload
 
 
 def _sanitize_nbbo_extremes(

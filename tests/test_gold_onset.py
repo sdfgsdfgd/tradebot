@@ -107,7 +107,9 @@ def test_gold_pair_requires_live_liquid_shared_month() -> None:
             "expiry": expiry,
             "market_data_type": 1,
             "bid": bid,
+            "bid_size": 1,
             "ask": ask,
+            "ask_size": 1,
             "volume": volume,
             "time": now,
         }
@@ -128,6 +130,35 @@ def test_gold_pair_requires_live_liquid_shared_month() -> None:
     assert selected["one_oz"]["local_symbol"] == "1OZZ6"
     assert selected["basis_usd"] == pytest.approx(0.075)
     assert any(row["local_symbol"] == "GCQ6" for row in selected["rejected"])
+
+
+def test_gold_pair_rejects_ib_sentinel_and_zero_top_size() -> None:
+    now = datetime(2026, 8, 8, 6, 17, tzinfo=UTC)
+    rows = [
+        {
+            "symbol": symbol,
+            "local_symbol": local,
+            "expiry": expiry,
+            "market_data_type": 1,
+            "bid": bid,
+            "bid_size": size,
+            "ask": ask,
+            "ask_size": size,
+            "volume": 1000,
+            "time": now,
+        }
+        for symbol, local, expiry, bid, ask, size in (
+            ("GC", "GCZ6", "20261229", -1.0, -1.0, 0),
+            ("1OZ", "1OZZ6", "20261125", 4409.5, 4411.25, 1),
+        )
+    ]
+
+    selected = select_gold_contract_pair(rows, observed_at=now)
+
+    assert selected["usable"] is False
+    rejected = next(row for row in selected["rejected"] if row["symbol"] == "GC")
+    assert "no_actionable_quote" in rejected["reasons"]
+    assert "positive_top_size_required" in rejected["reasons"]
 
 
 def test_gold_signal_reconstructs_stage12_hard_gate() -> None:
@@ -170,7 +201,9 @@ def test_gold_onset_context_is_canonical_json() -> None:
             "con_id": con_id,
             "market_data_type": 1,
             "bid": 100.0,
+            "bid_size": 1,
             "ask": 100.25,
+            "ask_size": 1,
             "volume": 1000,
             "time": now,
         }
@@ -196,6 +229,23 @@ def test_gold_onset_context_is_canonical_json() -> None:
     assert context["signal"]["daily"]["end"].endswith("+00:00")
     assert context["signal"]["h4"]["authority"] == "attribution_only"
     assert "time" not in context["exchange_parity"]["gc"]
+    assert context["source_usable"] is True
+
+    stale = build_gold_onset_context(
+        xau_h4=h4,
+        xau_daily=daily,
+        uup_daily=(),
+        tip_daily=(),
+        quotes=quotes,
+        news_history=(),
+        source_points={
+            **source_points,
+            "GC": {**source_points["GC"], "age_seconds": 3601.0},
+        },
+        observed_at=now,
+    )
+    assert stale["timing_parity"]["usable"] is False
+    assert stale["source_usable"] is False
 
 
 def test_gold_stage22_waits_then_matures_only_while_up(monkeypatch) -> None:
@@ -266,6 +316,7 @@ def _context(decision_at: datetime) -> dict[str, object]:
         },
         "source_closes": {"XAUUSD": 100.0, "GC": 100.0, "1OZ": 100.0},
         "timing_parity": {"usable": True},
+        "source_usable": True,
         "counterfactual_directions": {"stage_12": "up", "stage_22": None},
         "total_cross_asset_neutral_short": False,
         "slow_financing_neutral_short": False,

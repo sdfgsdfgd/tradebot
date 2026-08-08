@@ -19,6 +19,11 @@ from .gold_live_transport import (
     GOLD_REGIME_HARMONY_VERSION,
     load_gold_live_selection_from_mapping,
 )
+from .gold_runtime_parity_contract import (
+    GOLD_RUNTIME_PARITY_AUTHORITY,
+    GOLD_RUNTIME_PARITY_REQUIRED_GATES,
+    GOLD_RUNTIME_PARITY_SCHEMA,
+)
 from .live_graduation import live_calibration_logical_prefix
 from .live_futures_profitability import (
     FuturesProfitabilitySpec,
@@ -34,7 +39,6 @@ from .live_futures_profitability_epoch import (
 
 
 GOLD_LIVE_PROFITABILITY_SCHEMA = "gold.live-profitability.v1"
-GOLD_RUNTIME_PARITY_SCHEMA = "gold.1oz-regime-harmony-runtime-parity.v1"
 GOLD_TIMER_MINUTES = frozenset(range(2, 60, 5))
 CHICAGO = ZoneInfo("America/Chicago")
 
@@ -227,8 +231,7 @@ def gold_runtime_parity_graduation_gate(
     selected_crown = frozen.get("crown") if isinstance(frozen, Mapping) else None
     if (
         proof.get("schema") != GOLD_RUNTIME_PARITY_SCHEMA
-        or proof.get("authority")
-        != "immutable_signal_runtime_parity_only_no_selection_no_capital_no_orders"
+        or proof.get("authority") != GOLD_RUNTIME_PARITY_AUTHORITY
         or not isinstance(frozen_runtime, Mapping)
         or frozen_runtime.get("sha256") != digest
         or not isinstance(crown, Mapping)
@@ -300,15 +303,9 @@ def gold_runtime_parity_graduation_gate(
     ):
         reasons.append("runtime_cold_restart_parity_invalid")
     gates = proof.get("gates")
-    required = (
-        "machine_crown_identity",
-        "shared_context_math",
-        "full_three_year_ledger",
-        "full_ten_year_ledger",
-        "cold_replay_and_restart_identity",
-        "flat_current_prefix",
-    )
-    if not isinstance(gates, Mapping) or any(gates.get(key) != "PASS" for key in required):
+    if not isinstance(gates, Mapping) or any(
+        gates.get(key) != "PASS" for key in GOLD_RUNTIME_PARITY_REQUIRED_GATES
+    ):
         reasons.append("runtime_signal_gates_invalid")
     return _gate(
         "INVALID" if reasons else "PASS",

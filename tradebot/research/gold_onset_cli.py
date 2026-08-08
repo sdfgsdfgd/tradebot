@@ -17,13 +17,24 @@ from ..chart_data.history import normalize_bars_to_close, read_cache
 from ..chart_data.series import OhlcvBar
 from ..news.contract import load_news_history
 from ..live.capital import load_live_capital_plan, publish_live_capital_plan
+from ..live.capital_packages import (
+    load_allocated_live_selection,
+    publish_immutable_live_selection,
+)
+from ..live.capital_stability import (
+    publish_portfolio_capital_owner_stability,
+    publish_portfolio_package_generation,
+)
 from .gold_live_transport import (
+    GOLD_LIVE_CAPITAL_SLEEVE,
     GOLD_LIVE_LEDGER_PATH,
+    GOLD_OPEN_POSITION_STRESS_PATH,
     GOLD_LIVE_SELECTION_PATH,
     advance_gold_regime_harmony_source,
     build_gold_portfolio_capital_plan,
     gold_selection_preview,
     publish_gold_live_selection,
+    reallocate_gold_live_transport,
     select_gold_live_transport,
 )
 from .gold_onset import (
@@ -34,6 +45,9 @@ from .gold_onset import (
 )
 from .gold_regime_harmony import GoldRegimeHarmonyTape
 from .live_calibration import LiveCalibrationLedger
+from .live_portfolio_packages import build_xsp_gold_mcl_portfolio_package_plan
+from .mcl_live_transport import MCL_LIVE_CAPITAL_SLEEVE
+from .xsp_live_transport import XSP_V3_TRANSPORT_CAPITAL_SLEEVE
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -236,17 +250,33 @@ def _news_history(path: Path) -> list[dict[str, object]]:
     ]
 
 
+def _unmanaged_stress(preview: dict[str, object]) -> float:
+    positions = preview.get("positions")
+    if not isinstance(positions, list):
+        raise ValueError("gold rollover preview has no broker positions")
+    owned = {"UPRO", "SPXU", "1OZ", "MCL"}
+    return sum(
+        abs(float(row["market_value_base"]))
+        for row in positions
+        if isinstance(row, dict)
+        and str(row.get("symbol") or "").upper() not in owned
+    )
+
+
 def main(argv: Sequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         description="Advance the causal gold onset and Stage-76 source owners."
     )
     parser.add_argument("--commission-canary", action="store_true")
+    parser.add_argument("--rollover-canary", action="store_true")
     parser.add_argument("--live-ledger", default=str(GOLD_LIVE_LEDGER_PATH))
     parser.add_argument("--selection", default=str(GOLD_LIVE_SELECTION_PATH))
     parser.add_argument(
         "--capital-plan", default="db/calibration/live_capital_plan.json"
     )
     args = parser.parse_args(argv)
+    if args.commission_canary and args.rollover_canary:
+        raise ValueError("gold canary commission and rollover are exclusive")
     request_started_at = datetime.now(timezone.utc)
     ib = IB()
     ib.connect(
@@ -356,10 +386,10 @@ def main(argv: Sequence[str] | None = None) -> None:
         observed_at=observed_at,
     )
     output["stage76_source"] = source
-    if args.commission_canary:
+    if args.commission_canary or args.rollover_canary:
         selection_path = Path(args.selection).expanduser()
         capital_path = Path(args.capital_plan).expanduser()
-        if selection_path.exists():
+        if args.commission_canary and selection_path.exists():
             raise ValueError("gold canary selection already exists")
         preview_ib = IB()
         preview_ib.connect(
@@ -385,26 +415,106 @@ def main(argv: Sequence[str] | None = None) -> None:
             )
         finally:
             preview_ib.disconnect()
-        selection = select_gold_live_transport(
-            source_checkpoint=source["checkpoint"],
-            preview=preview,
-            selected_at_utc=datetime.now(timezone.utc),
-            root=ROOT,
-        )
-        publish_gold_live_selection(selection_path, selection)
-        capital = build_gold_portfolio_capital_plan(
-            selection,
-            selection_path=selection_path,
-            current_plan=load_live_capital_plan(capital_path),
-        )
-        publish_live_capital_plan(capital_path, capital)
-        output["commissioning"] = {
-            "selection_id": selection["selection_id"],
-            "capital_plan_id": capital["plan_id"],
-            "order_authority": selection["order_authority"],
-            "submitted_orders": 0,
-            "verdict": "CANARY_SELECTED_FLAT_AWAITING_FRESH_STAGE76_ADMISSION",
-        }
+        selected_at = datetime.now(timezone.utc)
+        if args.commission_canary:
+            selection = select_gold_live_transport(
+                source_checkpoint=source["checkpoint"],
+                preview=preview,
+                selected_at_utc=selected_at,
+                root=ROOT,
+            )
+            publish_gold_live_selection(selection_path, selection)
+            capital = build_gold_portfolio_capital_plan(
+                selection,
+                selection_path=selection_path,
+                current_plan=load_live_capital_plan(capital_path),
+            )
+            publish_live_capital_plan(capital_path, capital)
+            output["commissioning"] = {
+                "selection_id": selection["selection_id"],
+                "capital_plan_id": capital["plan_id"],
+                "order_authority": selection["order_authority"],
+                "submitted_orders": 0,
+                "verdict": "CANARY_SELECTED_FLAT_AWAITING_FRESH_STAGE76_ADMISSION",
+            }
+        else:
+            predecessor = load_live_capital_plan(capital_path)
+            gold, _gold_path, _gold_sha = load_allocated_live_selection(
+                predecessor,
+                sleeve_id=GOLD_LIVE_CAPITAL_SLEEVE,
+                repository_root=ROOT,
+            )
+            selection = reallocate_gold_live_transport(
+                predecessor=gold,
+                records=tuple(live_ledger.records()),
+                source_checkpoint=source["checkpoint"],
+                preview=preview,
+                selected_at_utc=selected_at,
+                stress_receipt_path=ROOT / GOLD_OPEN_POSITION_STRESS_PATH,
+                root=ROOT,
+            )
+            gold_path, gold_sha = publish_immutable_live_selection(ROOT, selection)
+            xsp, xsp_path, xsp_sha = load_allocated_live_selection(
+                predecessor,
+                sleeve_id=XSP_V3_TRANSPORT_CAPITAL_SLEEVE,
+                repository_root=ROOT,
+            )
+            mcl, mcl_path, mcl_sha = load_allocated_live_selection(
+                predecessor,
+                sleeve_id=MCL_LIVE_CAPITAL_SLEEVE,
+                repository_root=ROOT,
+            )
+            account = preview["account_values"]
+            assert isinstance(account, dict)
+            capital = build_xsp_gold_mcl_portfolio_package_plan(
+                xsp_selection=xsp,
+                gold_selection=selection,
+                mcl_selection=mcl,
+                xsp_selection_path=xsp_path.relative_to(ROOT).as_posix(),
+                xsp_selection_file_sha256=xsp_sha,
+                gold_selection_path=gold_path,
+                gold_selection_file_sha256=gold_sha,
+                mcl_selection_path=mcl_path.relative_to(ROOT).as_posix(),
+                mcl_selection_file_sha256=mcl_sha,
+                account_resources={
+                    "account_id": preview["account_id"],
+                    "account_type": preview["account_type"],
+                    "base_currency": preview["base_currency"],
+                    "settled_cash_usd": account["settled_cash_usd"],
+                    "available_funds_base": account["available_funds_aud"],
+                    "excess_liquidity_base": account["excess_liquidity_aud"],
+                    "usd_to_base_rate": account["usd_to_aud"],
+                    "unmanaged_position_stress_base": _unmanaged_stress(preview),
+                },
+                repository_root=ROOT,
+                created_at_utc=selected_at,
+                supersedes_plan_id=str(predecessor["plan_id"]),
+            )
+            generation_path, generation_sha = publish_portfolio_package_generation(
+                ROOT, capital
+            )
+            stability_path, stability_sha = publish_portfolio_capital_owner_stability(
+                ROOT,
+                generation_path=generation_path,
+                generation_sha256=generation_sha,
+                observed_at_utc=selected_at,
+            )
+            publish_live_capital_plan(capital_path, capital)
+            output["rollover"] = {
+                "predecessor_selection_id": gold["selection_id"],
+                "selection_id": selection["selection_id"],
+                "selection_path": gold_path,
+                "selection_file_sha256": gold_sha,
+                "capital_plan_id": capital["plan_id"],
+                "portfolio_generation_path": generation_path,
+                "portfolio_generation_sha256": generation_sha,
+                "capital_stability_path": stability_path,
+                "capital_stability_sha256": stability_sha,
+                "retained_xsp_selection_id": xsp["selection_id"],
+                "retained_mcl_selection_id": mcl["selection_id"],
+                "submitted_orders": 0,
+                "verdict": "FRESH_FAIL_CLOSED_GOLD_RUN_SELECTED_FLAT",
+            }
     print(json.dumps(output, indent=2, sort_keys=True, allow_nan=False))
 
 

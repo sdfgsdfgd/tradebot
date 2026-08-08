@@ -1,0 +1,97 @@
+{
+  "schema": "xsp.opening-edge-v4-p009-first-session-graduation-interruption.v1",
+  "authority": "cutoff_bound_read_only_live_evidence_classification_no_backfill_no_orders",
+  "observed_at_utc": "2026-08-08T08:45:33+00:00",
+  "selection": {
+    "selection_id": "e0f61f74286e1d2b655e253633b0842cb47d41ad7b66fb4567eece3aa46d674b",
+    "selection_file_sha256": "c60e4f8bfa190fe99c59572d9173b53ed8dab8447d42e9b1d05f21184843ae75",
+    "selected_at_utc": "2026-08-06T21:48:25.337314+00:00",
+    "strategy_id": "xsp.opening-edge-v4-dual-clock-arbitration-p009.v1",
+    "execution_version": "xsp.opening-edge-v3-upro-spxu-live-execution.v1"
+  },
+  "first_rth_session": {
+    "trading_date": "2026-08-07",
+    "expected_cash_slots": 81,
+    "evaluated_slots_under_current_reducer": 18,
+    "missing_slots": 14,
+    "conflict_slots": 49,
+    "complete": false,
+    "graduation_eligible": false
+  },
+  "causal_failures": {
+    "opening_runtime": {
+      "interval_utc": [
+        "2026-08-07T13:31:00+00:00",
+        "2026-08-07T13:47:59+00:00"
+      ],
+      "failed_invocations": 17,
+      "cause": "native_RTH_minute_bars_were_naive_ET_but_freshness_was_interpreted_as_UTC;_NO_DATA_then_reached_a_transport_contract_that_required_paired_equity",
+      "effect": "09:35_to_09:37_ET_bridge_window_was_not_live_executable",
+      "repair_commit": "23a330a44ec694c9d91d330d4b83eae83396c6b1",
+      "repair_deployed_before_first_successful_checkpoint_utc": "2026-08-07T13:58:19.316169+00:00",
+      "current_focused_proof": "86_passed"
+    },
+    "closing_runtime": {
+      "last_execution_checkpoint_utc": "2026-08-07T19:26:03.505385+00:00",
+      "scheduled_liquidation_et": "15:57:00",
+      "cause": "IB_Gateway_API_outage_with_TCC_delaying_GUI_recovery",
+      "effect": "15:32_ET_onward_coverage_and_the_normal_15:57_ET_liquidation_were_unavailable",
+      "open_position": {
+        "symbol": "SPXU",
+        "quantity": 23
+      }
+    },
+    "coverage_reducer": {
+      "cause": "the_XSP_reducer_treats_changing_one_minute_marks_inside_each_plus_or_minus_90_second_five_minute_slot_as_conflicting_signatures",
+      "effect": "49_false_conflict_slots_even_inside_the_valid_monotonic_execution_prefix",
+      "required_repair": "select_one_canonical_nearest_execution_observation_per_slot_then_conflict_only_equal_clock_duplicates;_never_fill_the_14_genuinely_missing_slots"
+    }
+  },
+  "last_reconciled_execution_state": {
+    "recorded_at_utc": "2026-08-07T19:26:03.505385+00:00",
+    "fill_count": 1,
+    "closed_trades": 0,
+    "cumulative_realized_net_usd": 0.0,
+    "open_mark_net_usd": -2.539926000000059,
+    "peak_run_net_usd": 3.900073999999882,
+    "drawdown_usd": 6.439999999999941,
+    "commission_usd": 0.354926,
+    "safety_breaches": []
+  },
+  "read_only_reductions": {
+    "preeligible_graduation_receipt": {
+      "path_on_q": "/var/tmp/xsp-p009-live-graduation-24h-20260807.json",
+      "sha256": "a03bcb2df1bfcfc97334dd3e945abb96fe8d9e7cd497a4954d90ba7f26426631",
+      "receipt_id": "3d997e0ed0feb735e8ca727b12aa9ad8d9f70f7f7843f8972bfe97a96744338d",
+      "verdict": "QUARANTINE",
+      "reasons": [
+        "restart:restart_checkpoint_late",
+        "profitability:incomplete_session_coverage"
+      ]
+    },
+    "profitability_anatomy": {
+      "path_on_q": "/var/tmp/xsp-p009-profitability-24h-20260807.json",
+      "sha256": "1b5ca54e4027fe5f1d1586f9a57c2c33b4e9264d4acb1d6750b331aa6d9c3020",
+      "status": "INVALID_EVIDENCE",
+      "reason": "incomplete_session_coverage",
+      "first_cash_slot_utc": "2026-08-07T13:37:00+00:00",
+      "first_24h_evidence_deadline_utc": "2026-08-08T13:38:30+00:00"
+    }
+  },
+  "decision": {
+    "classification": "FIRST_SESSION_INVALID_NOT_AN_ALPHA_REJECTION",
+    "current_selection_may_not_graduate": true,
+    "fresh_successor_boundary": "after_the_23_SPXU_position_is_flat_and_zero_open_orders_are_verified,_start_one_new_immutable_P009_selection_on_a_natural_timer_boundary",
+    "inherit_broken_session": false,
+    "backfill_missing_slots": false,
+    "retune_strategy": false
+  },
+  "boundaries": {
+    "broker_queried_by_reducers": false,
+    "selection_mutated": false,
+    "capital_plan_mutated": false,
+    "service_or_timer_mutated": false,
+    "strategy_mutated": false,
+    "submitted_orders": 0
+  }
+}

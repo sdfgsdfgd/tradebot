@@ -18,13 +18,17 @@ from ..live.capital import (
     build_live_capital_plan_v2,
     validate_live_capital_plan,
 )
-from .gold_context import gold_utc
+from .gold_context import gold_book_health, gold_utc
 from .gold_regime_harmony import (
     GOLD_REGIME_HARMONY_SOURCE_START,
     GOLD_REGIME_HARMONY_VERSION,
     GoldRegimeHarmonyReplay,
     GoldRegimeHarmonyTape,
     load_gold_regime_harmony_crown,
+)
+from .gold_runtime_parity_contract import (
+    GOLD_RUNTIME_PARITY_PATH as GOLD_RUNTIME_PARITY_PATH,
+    load_gold_runtime_parity,
 )
 from .live_calibration import LiveCalibrationLedger, calibration_fingerprint
 
@@ -33,7 +37,7 @@ GOLD_REGIME_HARMONY_SOURCE_VERSION = "gold.1oz-regime-harmony-source.v1"
 GOLD_LIVE_SELECTION_SCHEMA = "gold.1oz-regime-harmony-selected-run.v1"
 GOLD_LIVE_PACKAGE_SELECTION_SCHEMA = "gold.1oz-regime-harmony-selected-run.v2"
 GOLD_LIVE_SELECTION_SCHEMAS = frozenset(
-    {GOLD_LIVE_SELECTION_SCHEMA, GOLD_LIVE_PACKAGE_SELECTION_SCHEMA}
+    (GOLD_LIVE_SELECTION_SCHEMA, GOLD_LIVE_PACKAGE_SELECTION_SCHEMA)
 )
 GOLD_LIVE_PLAN_SCHEMA = "gold.1oz-regime-harmony-transport-plan.v1"
 GOLD_LIVE_EXECUTION_VERSION = "gold.1oz-regime-harmony-live-execution.v1"
@@ -50,9 +54,6 @@ GOLD_LIVE_SOURCE_MAX_AGE_SECONDS = 10 * 60.0
 GOLD_LIVE_QUOTE_MAX_AGE_SECONDS = 10.0
 GOLD_LIVE_SELECTION_PATH = Path("db/calibration/gold_selected_live_transport.json")
 GOLD_LIVE_LEDGER_PATH = Path("db/calibration/gold_live_calibration.jsonl")
-GOLD_RUNTIME_PARITY_PATH = Path(
-    "backtests/gold/one_oz_regime_harmony_runtime_parity_20260803.json"
-)
 GOLD_OPEN_POSITION_STRESS_PATH = Path(
     "backtests/gold/one_oz_stage76_open_position_stress_20260803.json"
 )
@@ -162,6 +163,7 @@ def advance_gold_regime_harmony_source(
         decision_bar = None
     usable = bool(
         converged
+        and onset_context.get("source_usable") is True
         and isinstance(pair, Mapping)
         and pair.get("usable") is True
         and isinstance(signal, Mapping)
@@ -169,7 +171,8 @@ def advance_gold_regime_harmony_source(
         and decision_bar is not None
         and decision_bar <= now
     )
-    target = _open_target(result)
+    owner_target = _open_target(result)
+    target = owner_target if usable else None
     state = owner.state_payload(result)
     evidence = {
         "schema": "gold.1oz-regime-harmony-source-checkpoint.v1",
@@ -178,6 +181,7 @@ def advance_gold_regime_harmony_source(
             decision_bar.isoformat() if decision_bar is not None else None
         ),
         "target": target,
+        "unusable_source_target": owner_target if not usable else None,
         "owner_state": state,
         "converged": converged,
         "convergence": convergence,
@@ -193,6 +197,8 @@ def advance_gold_regime_harmony_source(
         "fundamental_pressure": onset_context.get("news"),
         "contract_pair": dict(pair) if isinstance(pair, Mapping) else None,
         "source_points": onset_context.get("source_points"),
+        "timing_parity": onset_context.get("timing_parity"),
+        "source_usable": onset_context.get("source_usable") is True,
         "synthetic_midcycle_entry_authority": "none",
         "order_authority": "none",
         "submitted_orders": 0,
@@ -373,35 +379,6 @@ def gold_selection_preview(
     }
 
 
-def _load_runtime_parity(root: Path) -> dict[str, object]:
-    path = root / GOLD_RUNTIME_PARITY_PATH
-    receipt = json.loads(path.read_text())
-    owners = receipt.get("owners")
-    if (
-        receipt.get("verdict")
-        != "SIGNAL_RUNTIME_PARITY_PASS_LIVE_TRANSPORT_HOLD"
-        or not isinstance(owners, Mapping)
-        or any(
-            receipt.get("gates", {}).get(gate) != "PASS"
-            for gate in (
-                "machine_crown_identity",
-                "shared_context_math",
-                "full_three_year_ledger",
-                "full_ten_year_ledger",
-                "cold_replay_and_restart_identity",
-                "flat_current_prefix",
-            )
-        )
-        or any(
-            _sha256(root / str(row.get("path") or "")) != row.get("sha256")
-            for row in owners.values()
-            if isinstance(row, Mapping)
-        )
-    ):
-        raise ValueError("gold runtime parity receipt is invalid")
-    return {"path": GOLD_RUNTIME_PARITY_PATH.as_posix(), "sha256": _sha256(path)}
-
-
 def select_gold_live_transport(
     *,
     source_checkpoint: Mapping[str, object],
@@ -431,6 +408,7 @@ def select_gold_live_transport(
         or not isinstance(evidence, Mapping)
         or evidence.get("schema")
         != "gold.1oz-regime-harmony-source-checkpoint.v1"
+        or evidence.get("source_usable") is not True
         or evidence.get("target") is not None
         or evidence.get("synthetic_midcycle_entry_authority") != "none"
         or not 0 <= (selected_at - source_at).total_seconds() <= GOLD_LIVE_SOURCE_MAX_AGE_SECONDS
@@ -448,9 +426,10 @@ def select_gold_live_transport(
         or not isinstance(contract, Mapping)
         or int(one.get("con_id") or 0) != int(contract.get("con_id") or 0)
         or any(
-            row.get("market_data_type") != 1
-            or _number(row.get("age_seconds"), name="quote age")
-            > GOLD_LIVE_QUOTE_MAX_AGE_SECONDS
+            not gold_book_health(
+                row,
+                max_age_seconds=GOLD_LIVE_QUOTE_MAX_AGE_SECONDS,
+            )["eligible"]
             for row in (one, gc)
         )
         or not isinstance(what_if, Sequence)
@@ -489,7 +468,7 @@ def select_gold_live_transport(
     ):
         raise ValueError("gold broker what-if exceeds the canary boundary")
     crown = load_gold_regime_harmony_crown(root=base)
-    parity = _load_runtime_parity(base)
+    parity = load_gold_runtime_parity(base)
     artifact = json.loads((base / str(crown["artifact_path"])).read_text())
     native = artifact.get("native_transport")
     if (
@@ -707,16 +686,25 @@ def reallocate_gold_live_transport(
     *,
     predecessor: Mapping[str, object],
     records: Sequence[Mapping[str, object]],
+    source_checkpoint: Mapping[str, object],
     preview: Mapping[str, object],
     selected_at_utc: datetime,
     stress_receipt_path: Path,
+    root: Path | None = None,
 ) -> dict[str, object]:
-    """Freeze one clean Gold run without the retired account-wide mutex."""
-
+    """Freeze one clean Gold run from fresh source and broker truth."""
     from .gold_live_state import gold_transport_risk_state
 
     prior = load_gold_live_selection_from_mapping(predecessor)
+    base = (root or Path(__file__).resolve().parents[2]).resolve()
     selected_at = _utc(selected_at_utc)
+    source_at = _utc(source_checkpoint.get("recorded_at_utc"))
+    source_evidence = source_checkpoint.get("evidence")
+    source_owner = (
+        source_evidence.get("owner_state")
+        if isinstance(source_evidence, Mapping)
+        else None
+    )
     preview_at = _utc(preview.get("observed_at_utc"))
     pair = preview.get("pair")
     one = pair.get("one_oz") if isinstance(pair, Mapping) else None
@@ -745,7 +733,22 @@ def reallocate_gold_live_transport(
         ) if isinstance(one, Mapping) else 0,
     )
     if (
-        preview.get("schema") != "gold.1oz-selection-preview.v1"
+        source_checkpoint.get("kind") != "checkpoint"
+        or source_checkpoint.get("strategy_version")
+        != GOLD_REGIME_HARMONY_SOURCE_VERSION
+        or source_checkpoint.get("status") != "EVALUATED"
+        or not isinstance(source_evidence, Mapping)
+        or source_evidence.get("schema")
+        != "gold.1oz-regime-harmony-source-checkpoint.v1"
+        or source_evidence.get("source_usable") is not True
+        or source_evidence.get("target") is not None
+        or source_evidence.get("synthetic_midcycle_entry_authority") != "none"
+        or not isinstance(source_owner, Mapping)
+        or not _sha256_identity(source_owner.get("state_sha256"))
+        or not 0
+        <= (selected_at - source_at).total_seconds()
+        <= GOLD_LIVE_SOURCE_MAX_AGE_SECONDS
+        or preview.get("schema") != "gold.1oz-selection-preview.v1"
         or preview.get("authority") != "fresh_nontransmitting_what_if_only"
         or preview.get("submitted_orders") != 0
         or preview.get("account_id") != prior["broker_at_selection"]["account_id"]
@@ -758,6 +761,13 @@ def reallocate_gold_live_transport(
         or not isinstance(gc, Mapping)
         or not isinstance(contract, Mapping)
         or int(contract.get("con_id") or 0) != int(one.get("con_id") or 0)
+        or any(
+            not gold_book_health(
+                row,
+                max_age_seconds=GOLD_LIVE_QUOTE_MAX_AGE_SECONDS,
+            )["eligible"]
+            for row in (one, gc)
+        )
         or not isinstance(what_if, Sequence)
         or isinstance(what_if, (str, bytes))
         or len(what_if) != 2
@@ -815,11 +825,19 @@ def reallocate_gold_live_transport(
         "broker_preview_fingerprint": _identity(preview),
     }
     evidence = json.loads(json.dumps(prior["evidence"]))
-    evidence["open_position_stress"] = {
-        "path": GOLD_OPEN_POSITION_STRESS_PATH.as_posix(),
-        "sha256": _sha256(stress_receipt_path),
-        "max_single_position_mae_usd": 256.16,
-    }
+    evidence.update(
+        {
+            "runtime_parity": load_gold_runtime_parity(base),
+            "source_checkpoint_id": source_checkpoint["checkpoint_id"],
+            "source_recorded_at_utc": source_checkpoint["recorded_at_utc"],
+            "source_state_sha256": source_owner["state_sha256"],
+            "open_position_stress": {
+                "path": GOLD_OPEN_POSITION_STRESS_PATH.as_posix(),
+                "sha256": _sha256(stress_receipt_path),
+                "max_single_position_mae_usd": 256.16,
+            },
+        }
+    )
     prior_risk = prior["risk"]
     body = {
         **{

@@ -15,6 +15,7 @@ from ..news.contract import (
     select_news_snapshot_at,
 )
 from .gold_context import (
+    gold_book_health,
     gold_bar_time as _bar_time,
     gold_bar_value as _bar_value,
     gold_complete_bars as _complete_bars,
@@ -328,20 +329,24 @@ def select_gold_contract_pair(
             reasons.append("unsupported_symbol")
         if month is None:
             reasons.append("unknown_contract_month")
-        if int(row.get("market_data_type") or 0) != 1:
-            reasons.append("not_live")
-        if bid is None or ask is None or ask < bid:
-            reasons.append("invalid_book")
-        spread = ask - bid if bid is not None and ask is not None else None
-        if spread is not None and spread > 2.0:
-            reasons.append("spread_above_2_usd")
+        age = (now - stamp).total_seconds() if stamp is not None else None
+        health = gold_book_health(
+            {**row, "age_seconds": age},
+            max_age_seconds=30.0,
+        )
+        reasons.extend(str(reason) for reason in health["reasons"])
+        if age is not None and age < 0:
+            reasons.append("future_quote")
         if volume is None or volume < 100:
             reasons.append("volume_below_100")
-        age = (now - stamp).total_seconds() if stamp is not None else None
-        if age is None or age < 0 or age > 30:
-            reasons.append("stale_quote")
         if reasons:
-            rejected.append({"symbol": symbol, "local_symbol": row.get("local_symbol"), "reasons": reasons})
+            rejected.append(
+                {
+                    "symbol": symbol,
+                    "local_symbol": row.get("local_symbol"),
+                    "reasons": list(dict.fromkeys(reasons)),
+                }
+            )
             continue
         assert month is not None and bid is not None and ask is not None and volume is not None and stamp is not None
         candidates[(month, symbol)] = {
@@ -352,12 +357,12 @@ def select_gold_contract_pair(
             "market_data_type": 1,
             "contract_month": month,
             "bid": bid,
-            "bid_size": _finite(row.get("bid_size")),
+            "bid_size": health["bid_size"],
             "ask": ask,
-            "ask_size": _finite(row.get("ask_size")),
+            "ask_size": health["ask_size"],
             "last": _finite(row.get("last")),
             "mid": (bid + ask) / 2.0,
-            "spread": spread,
+            "spread": health["spread"],
             "volume": volume,
             "observed_at_utc": stamp.isoformat(),
             "age_seconds": age,
@@ -438,6 +443,11 @@ def build_gold_onset_context(
         and 0.0 <= float(point["age_seconds"]) <= point_limits[symbol]
         for symbol, point in points.items()
     )
+    source_usable = bool(
+        signal.get("usable") is True
+        and pair.get("usable") is True
+        and parity_usable
+    )
     return {
         "schema": "gold.1oz-prospective-onset-context.v2",
         "authority": "prospective_research_only",
@@ -455,6 +465,7 @@ def build_gold_onset_context(
             "maximum_age_seconds": point_limits,
             "reason": None if parity_usable else "source_bar_timing_mismatch",
         },
+        "source_usable": source_usable,
         "counterfactual_directions": directions,
         "total_cross_asset_neutral_short": bool(
             macro.get("total_direction_neutral")
@@ -535,7 +546,10 @@ def advance_gold_onset_tape(
 
     now = _utc(observed_at)
     signal = context.get("signal")
-    if not isinstance(signal, Mapping) or not signal.get("usable"):
+    if (
+        not isinstance(signal, Mapping)
+        or context.get("source_usable") is not True
+    ):
         checkpoint = ledger.checkpoint(
             evaluation_as_of=now,
             strategy_id="NO_TRADE",

@@ -20,6 +20,7 @@ from ..live.order_evidence import (
     execute_single_contract_limit_order,
     execution_price_for_ticker,
 )
+from .gold_context import GOLD_BOOK_MAX_SPREAD_USD
 from .gold_live_transport import (
     GOLD_LIVE_CAPITAL_SLEEVE,
     GOLD_LIVE_EXECUTION_SCHEMA,
@@ -40,6 +41,43 @@ from .live_calibration import LiveCalibrationLedger
 
 
 GOLD_LIVE_ORDER_REF_PREFIX = "GOLD76"
+
+
+def _gold_price_for_ticker(
+    contract: object,
+    ticker: object,
+    *,
+    entry: bool,
+    resting_price: float | None = None,
+):
+    base = execution_price_for_ticker(contract, ticker)
+    if not entry:
+        return base
+
+    def price(mode: str, action: str, **kwargs: object) -> float | None:
+        active = kwargs.get("ticker") or ticker
+        bid = kwargs.get("bid")
+        ask = kwargs.get("ask")
+        last = kwargs.get("last")
+        health = quote_health(
+            bid=bid if bid is not None else getattr(active, "bid", None),
+            ask=ask if ask is not None else getattr(active, "ask", None),
+            last=last if last is not None else getattr(active, "last", None),
+            bid_size=getattr(active, "bidSize", None),
+            ask_size=getattr(active, "askSize", None),
+            market_data_type=getattr(active, "marketDataType", None),
+            max_spread=GOLD_BOOK_MAX_SPREAD_USD,
+            require_live=True,
+            require_nbbo=True,
+            require_positive_size=True,
+        )
+        if kwargs.get("quote_stale") is True:
+            return None
+        if health["eligible"] is not True:
+            return resting_price if not kwargs else None
+        return base(mode, action, **kwargs)
+
+    return price
 
 
 def _number(value: object, *, name: str) -> float:
@@ -76,6 +114,7 @@ def latest_gold_source_checkpoint(
             and isinstance(evidence, Mapping)
             and evidence.get("schema")
             == "gold.1oz-regime-harmony-source-checkpoint.v1"
+            and evidence.get("source_usable") is True
         ):
             return dict(record)
     raise ValueError("gold Stage-76 source has no executable checkpoint")
@@ -327,7 +366,24 @@ async def execute_gold_transport_plan(
     latest = _latest_execution_by_ref(
         records, selection_id=str(selected["selection_id"])
     ).get(order_ref)
-    price_for_mode = execution_price_for_ticker(contract, ticker)
+    latest_evidence = latest.get("evidence") if isinstance(latest, Mapping) else None
+    latest_order = (
+        latest_evidence.get("broker_order")
+        if isinstance(latest_evidence, Mapping)
+        else None
+    )
+    resting_price = (
+        _number(latest_order.get("limit_price"), name="gold resting LIMIT")
+        if isinstance(latest_order, Mapping)
+        and latest_order.get("limit_price") is not None
+        else None
+    )
+    price_for_mode = _gold_price_for_ticker(
+        contract,
+        ticker,
+        entry=plan.get("held_direction") is None,
+        resting_price=resting_price,
+    )
     action = str(leg["action"])
 
     def checkpoint(**kwargs: object) -> Mapping[str, object]:
@@ -376,9 +432,20 @@ async def advance_gold_live_transport(
     if broker["account_id"] != selected["broker_at_selection"]["account_id"]:
         raise ValueError("gold selected broker account changed")
     contract = gold_live_contract(selected)
+    gold_positions = [
+        row
+        for row in broker["positions"]
+        if isinstance(row, Mapping) and row.get("symbol") == "1OZ"
+    ]
+    if len(gold_positions) > 1:
+        raise ValueError("broker holds multiple 1OZ contract identities")
+    broker_position = (
+        float(gold_positions[0]["quantity"]) if gold_positions else 0.0
+    )
     ticker = await client.ensure_ticker(contract, owner="gold-live-stage76")
     deadline = time.monotonic() + quote_wait_seconds
     health = {}
+    entry_health = {}
     quote = {}
     while True:
         captured = contract_from_ticker(
@@ -403,15 +470,45 @@ async def advance_gold_live_transport(
             require_nbbo=True,
             require_age=True,
         )
+        entry_health = quote_health(
+            bid=captured.bid,
+            ask=captured.ask,
+            last=captured.last,
+            close=captured.close,
+            bid_size=captured.bid_size,
+            ask_size=captured.ask_size,
+            market_data_type=captured.market_data_type,
+            age_sec=age,
+            max_age_sec=10.0,
+            max_spread=GOLD_BOOK_MAX_SPREAD_USD,
+            require_live=True,
+            require_nbbo=True,
+            require_age=True,
+            require_positive_size=True,
+        )
         quote = {
             "bid": captured.bid,
+            "bid_size": captured.bid_size,
             "ask": captured.ask,
+            "ask_size": captured.ask_size,
             "last": captured.last,
             "age_seconds": age,
             "market_data_type": captured.market_data_type,
             "health": health,
+            "entry_health": entry_health,
         }
-        if health.get("eligible") is True or time.monotonic() >= deadline:
+        source_evidence = source_checkpoint.get("evidence")
+        entry_due = bool(
+            broker_position == 0.0
+            and isinstance(source_evidence, Mapping)
+            and isinstance(source_evidence.get("target"), Mapping)
+        )
+        ready = (
+            entry_health.get("eligible") is True
+            if entry_due
+            else health.get("eligible") is True
+        )
+        if ready or time.monotonic() >= deadline:
             break
         await asyncio.sleep(0.1)
     if int(getattr(contract, "conId", 0) or 0) != int(
@@ -470,21 +567,12 @@ async def advance_gold_live_transport(
             "submitted_orders": execution["submitted_orders"],
         }
 
-    gold_positions = [
-        row
-        for row in broker["positions"]
-        if isinstance(row, Mapping) and row.get("symbol") == "1OZ"
-    ]
-    if len(gold_positions) > 1:
-        raise ValueError("broker holds multiple 1OZ contract identities")
-    broker_position = (
-        float(gold_positions[0]["quantity"]) if gold_positions else 0.0
-    )
     if gold_positions and int(gold_positions[0]["con_id"]) != int(
         selected["contract"]["con_id"]
     ):
         raise ValueError("broker holds an unselected 1OZ contract")
     quote_eligible = health.get("eligible") is True
+    entry_quote_eligible = entry_health.get("eligible") is True
     if not quote_eligible and broker_position != 0.0:
         raise ValueError("gold selected contract lacks fresh streaming NBBO")
     liquidation = (
@@ -516,13 +604,17 @@ async def advance_gold_live_transport(
         open_orders=[],
         risk_state=risk_state,
         observed_at=observed_at,
-        entry_market_data_eligible=quote_eligible,
+        entry_market_data_eligible=entry_quote_eligible,
     )
     preview = None
     if plan["status"] == "ACTIONABLE":
         leg = plan["leg"]
         assert isinstance(leg, Mapping)
-        price_for_mode = execution_price_for_ticker(contract, ticker)
+        price_for_mode = _gold_price_for_ticker(
+            contract,
+            ticker,
+            entry=plan.get("held_direction") is None,
+        )
         price = price_for_mode(str(leg["initial_mode"]), str(leg["action"]))
         if price is None:
             raise ValueError("gold capital preview has no executable price")

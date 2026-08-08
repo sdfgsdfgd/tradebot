@@ -3,11 +3,16 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from pathlib import Path
 
 
 XSP_RUNTIME_PARITY_SCHEMA = "xsp.opening-edge-v3-current-runtime-parity-audit.v1"
 XSP_P009_RUNTIME_PARITY_SCHEMA = (
     "xsp.opening-edge-v4-dual-clock-p009-current-runtime-parity-audit.v1"
+)
+XSP_P009_RUNTIME_PARITY_PATH = Path(
+    "backtests/xsp/opening_edge_v4_dual_clock_arbitration_p009_"
+    "current_runtime_parity_fail_closed_20260808.json"
 )
 _XSP_RUNTIME_OWNER_PATHS = {
     "frozen_crown_artifact_sha256": (
