@@ -391,6 +391,88 @@ def test_gold_monitor_window_matches_the_official_1oz_maintenance_clock() -> Non
     )
 
 
+def test_sentinel_reports_planned_gold_recovery_without_false_failure(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    import tradebot.live.ib_preflight as preflight
+
+    strategy_id = "gold.1oz-regime-harmony-stage76.v1"
+    binding = SimpleNamespace(
+        strategy_id=strategy_id,
+        champion_symbol="1OZ",
+        timer_unit="tradebot-gold-live.timer",
+        runtime_timer_units=(
+            "tradebot-gold-live.timer",
+            "tradebot-gold-onset.timer",
+        ),
+        runtime_service_units=(
+            "tradebot-gold-live.service",
+            "tradebot-gold-onset.service",
+        ),
+        recovery_timer_unit="tradebot-gold-fail-closed-rollover.timer",
+        recovery_managed_timer_units=("tradebot-gold-live.timer",),
+    )
+    plan = {"sleeves": [{"sleeve_id": "gold", "strategy_id": strategy_id}]}
+    monkeypatch.setattr(preflight, "load_live_capital_plan", lambda _path: plan)
+    monkeypatch.setattr(preflight, "_selected_runtime_bindings", lambda _plan: [binding])
+    monkeypatch.setattr(
+        preflight,
+        "_contract_specs",
+        lambda *_args, **_kwargs: [{"con_id": 753716608}],
+    )
+
+    def liveness(unit: str) -> dict[str, str]:
+        timer = unit.endswith(".timer")
+        disabled = unit == "tradebot-gold-live.timer"
+        gateway = unit == "tradebot-ib-gateway.service"
+        return {
+            "unit": unit,
+            "available": "loaded",
+            "enabled": "disabled" if disabled else "enabled" if timer else "static",
+            "active": "active" if gateway or timer and not disabled else "inactive",
+            "result": "success",
+            "next": "n/a" if disabled or not timer else "Mon 2026-08-10 10:12:00 AEST",
+        }
+
+    monkeypatch.setattr(preflight, "_unit_liveness", liveness)
+    monkeypatch.setattr(
+        preflight,
+        "ib_preflight_decision",
+        lambda *_args, **_kwargs: {
+            "ready": False,
+            "reasons": ["runtime_member_not_armed:tradebot-gold-live.timer"],
+        },
+    )
+    monkeypatch.setattr(
+        preflight.socket,
+        "create_connection",
+        lambda *_args, **_kwargs: contextlib.nullcontext(),
+    )
+    monkeypatch.setattr(preflight, "_recent_decisive_ib_failure", lambda: False)
+
+    receipt = ib_sentinel(
+        repository_root=tmp_path,
+        capital_plan_path=tmp_path / "plan.json",
+        receipt_path=tmp_path / "preflight.json",
+        login_receipt_path=tmp_path / "login.json",
+        state_path=tmp_path / "state.json",
+        now=datetime(2026, 8, 8, 14, 0, tzinfo=timezone.utc),
+    )
+
+    assert receipt["active_candidates"] == ["1oz"]
+    assert receipt["planned_recoveries"] == [
+        {
+            "candidate": "1oz",
+            "timer": "tradebot-gold-fail-closed-rollover.timer",
+            "next": "Mon 2026-08-10 10:12:00 AEST",
+            "managed_timers": ["tradebot-gold-live.timer"],
+        }
+    ]
+    assert receipt["failures"] == []
+    assert receipt["pending_warmups"] == []
+
+
 def test_sentinel_grants_a_continuous_thirty_minute_warmup_before_escalation(
     tmp_path,
     monkeypatch,

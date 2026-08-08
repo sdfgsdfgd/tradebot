@@ -680,9 +680,23 @@ def ib_sentinel(
     plan = load_live_capital_plan(capital_plan_path)
     failures: list[dict[str, str]] = []
     active: list[str] = []
+    planned_recoveries: list[dict[str, object]] = []
     for binding in _selected_runtime_bindings(plan):
         timers = [_unit_liveness(unit) for unit in binding.runtime_timer_units]
         services = [_unit_liveness(unit) for unit in binding.runtime_service_units]
+        recovery_unit = str(getattr(binding, "recovery_timer_unit", ""))
+        recovery = _unit_liveness(recovery_unit) if recovery_unit else None
+        recovery_armed = bool(
+            recovery
+            and recovery["enabled"] == "enabled"
+            and recovery["active"] == "active"
+            and recovery["next"] != "n/a"
+        )
+        recovery_managed = (
+            set(getattr(binding, "recovery_managed_timer_units", ()))
+            if recovery_armed
+            else set()
+        )
         engaged = any(
             state["enabled"] == "enabled" or state["active"] == "active"
             for state in timers
@@ -694,7 +708,18 @@ def ib_sentinel(
         label = str(getattr(binding, "champion_symbol", "strategy")).casefold()
         reason = f"{label}-runtime-failed" if label in {"xsp", "mcl"} else "gold-runtime-failed"
         active.append(label)
+        if recovery_armed and recovery is not None:
+            planned_recoveries.append(
+                {
+                    "candidate": label,
+                    "timer": recovery_unit,
+                    "next": recovery["next"],
+                    "managed_timers": sorted(recovery_managed),
+                }
+            )
         for state in timers:
+            if state["unit"] in recovery_managed:
+                continue
             if state["enabled"] != "enabled" or state["active"] != "active":
                 failures.append({"reason": reason, "detail": f"timer_not_armed:{state['unit']}"})
             elif state["next"] == "n/a":
@@ -726,7 +751,11 @@ def ib_sentinel(
             now=observed,
             con_ids=con_ids or None,
         )
-        if decision["ready"] is not True:
+        expected_reasons = {
+            f"runtime_member_not_armed:{unit}" for unit in recovery_managed
+        }
+        unexpected_reasons = set(map(str, decision.get("reasons", ()))) - expected_reasons
+        if decision["ready"] is not True and unexpected_reasons:
             failures.append({"reason": reason, "detail": "entry_authority_unready"})
 
     login_state = _login_state(login_receipt_path)
@@ -757,6 +786,10 @@ def ib_sentinel(
         "schema": "live.ib-sentinel.v1",
         "checked_at_utc": observed.isoformat(),
         "active_candidates": sorted(set(active)),
+        "planned_recoveries": sorted(
+            planned_recoveries,
+            key=lambda row: (str(row["candidate"]), str(row["timer"])),
+        ),
         "failures": sorted([*immediate, *due], key=lambda row: (str(row["reason"]), str(row["detail"]))),
         "pending_warmups": sorted(pending, key=lambda row: (str(row["reason"]), str(row["detail"]))),
         "boundaries": dict(IB_PREFLIGHT_BOUNDARIES),

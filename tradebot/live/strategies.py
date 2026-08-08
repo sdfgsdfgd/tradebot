@@ -55,6 +55,8 @@ LIVE_STRATEGY_BINDINGS = (
         champion_track="LF",
         support_timer_units=("tradebot-gold-onset.timer",),
         support_service_units=("tradebot-gold-onset.service",),
+        recovery_timer_unit="tradebot-gold-fail-closed-rollover.timer",
+        recovery_managed_timer_units=("tradebot-gold-live.timer",),
     ),
     LiveRunBinding(
         strategy_id=MCL_TWO_SPEED_SHOCK_VERSION,
@@ -73,6 +75,11 @@ LIVE_STRATEGY_BINDINGS = (
         support_service_units=(
             "tradebot-mcl-turn-tape.service",
             "tradebot-mcl-predictive-onset-runtime.service",
+        ),
+        recovery_timer_unit="tradebot-mcl-stage131-successor.timer",
+        recovery_managed_timer_units=(
+            "tradebot-mcl-live.timer",
+            "tradebot-mcl-predictive-onset-runtime.timer",
         ),
     ),
 )
