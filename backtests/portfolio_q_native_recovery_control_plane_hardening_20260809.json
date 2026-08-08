@@ -1,0 +1,114 @@
+{
+  "schema": "tradebot.q-native-recovery-control-plane-hardening.v1",
+  "recorded_at_utc": "2026-08-08T15:27:21Z",
+  "authority": "operational_systemd_and_read_only_broker_no_orders_no_strategy_economics",
+  "commits": {
+    "recovery_ownership": "d0be10f51818b43d0b8f646a1a7e218d07e52e88",
+    "successor_reenable": "388dc472552f955fb794f5644a2cf5e992cc2642"
+  },
+  "gates": {
+    "gateway_boot_enabled": true,
+    "gateway_process_unchanged_during_deploy": true,
+    "recovery_timers_independent_of_live_target": true,
+    "mcl_flatten_retries_every_20_seconds": true,
+    "stage131_retries_60_times_per_30_minutes": true,
+    "quarantined_predecessors_reboot_safe": true,
+    "successful_successors_reenable_ordinary_timers": true,
+    "installed_units_match_repository": true,
+    "systemd_verify": true,
+    "mac_alert_transport": true,
+    "news_history_contract": true,
+    "all_pass": true
+  },
+  "unit_hashes": {
+    "gateway": "178adc2680ba95ab1f98cb69e0ee32ca9c28184c6b3b99ade9d9e6cade069181",
+    "mcl_emergency_service": "4041ec1eb0209999bfdf6ec868f649992c6b8dd0bcc3dd4db763823f24c34f7e",
+    "mcl_emergency_timer": "3fbb1031368b170bf261bd7d5ca535278a463dc185872ce84538be4f6381e3e0",
+    "mcl_successor_service": "8cb24f402ea5c46ac2f783c850242d6b9a583fc868faeab90825b4ee8484948b",
+    "mcl_successor_timer": "bf09501c7ec925b8d1ae8febf0ab77ea7a7d23004c16228e0cf0f5c073d9b585",
+    "gold_rollover_service": "e55d4e9fabb0d829f910ae58b15a3f7cfed4e410d441121e8ec8df4e08e83a16",
+    "gold_rollover_timer": "d9481de0b3578e267dd25a6ad7ec19fc5269e6ab6e54e8fecf5fb918e6bf788c",
+    "xsp_rollover_service": "da8b03ab5fd2d5bcda3bfa18102c62b9ff1b3940e12912dc5ae90e39649a097c",
+    "xsp_rollover_timer": "eda359ccaa8881041c6b1437a372692df33ccecdfd68466535fd55ac0bf873d4",
+    "news_service": "8841847c6d00f4a5698a86fc81707a8dbdced33fd41ab7d80214844b56e96cae",
+    "mcl_narrative_service": "5573c3c24c23db8b894414a5a782952af8810b25c24f2bbb7a230089b2abe2aa",
+    "operator_alert_service": "430d7cff088d016c2cd633be584d7f78534567297644388bae2cd309f01d1913"
+  },
+  "runtime": {
+    "gateway_pid": 1026785,
+    "gateway_port": 4001,
+    "gateway_api_authenticated": true,
+    "positions": {
+      "SPXU": 23,
+      "SPCX": 1,
+      "MCL": 1
+    },
+    "open_orders": 0,
+    "quarantined_timers": {
+      "tradebot-mcl-live.timer": "inactive_disabled",
+      "tradebot-mcl-predictive-onset-runtime.timer": "inactive_disabled",
+      "tradebot-gold-live.timer": "inactive_disabled"
+    },
+    "preserved_timers": [
+      "tradebot-gold-onset.timer",
+      "tradebot-mcl-turn-tape.timer",
+      "tradebot-xsp-shadow.timer",
+      "tradebot-xsp-pressure-tape.timer",
+      "tradebot-news.timer",
+      "tradebot-ib-sentinel.timer"
+    ],
+    "recovery_deadlines_aest": {
+      "mcl_flatten": "2026-08-10T08:00:05+10:00",
+      "mcl_stage131": "2026-08-10T08:04:05+10:00",
+      "gold_rollover": "2026-08-10T10:12:00+10:00",
+      "xsp_rollover": "2026-08-10T23:28:30+10:00"
+    }
+  },
+  "preflight": {
+    "receipt_id": "30870a29b68f29d69e0ceab06695ae54a88d0ae855c549a12e49a517c03db889",
+    "entry_ready": false,
+    "entry_reason": "three_predecessor_timers_intentionally_quarantined",
+    "reduction_ready": false,
+    "reduction_reason": "weekend_held_position_quote_not_ready",
+    "broker_orders_submitted": 0,
+    "runtime_units_mutated_by_probe": false
+  },
+  "news": {
+    "history_files": 2,
+    "history_rows": 84,
+    "schema_v3_rows": 14,
+    "schema_v4_rows": 70,
+    "latest_publication_id": "3b0768b1c02d52282d99e77a851971b1bec7b57a373f6f305cc4d8b9ccd6026f",
+    "latest_matches_history_tail": true,
+    "production_contract_load": true,
+    "latest_assets": [
+      "GC",
+      "MCL",
+      "XSP"
+    ],
+    "focused_tests": "44_pass",
+    "mac_alert_transport_probe_exit": 64,
+    "alert_was_displayed": false
+  },
+  "test_evidence": {
+    "control_plane_focused": "8_pass",
+    "selected_cross_cutting": "217_pass_30_preexisting_missing_ignored_fixture",
+    "systemd_analyze_verify": "pass"
+  },
+  "timer_policy": {
+    "law": "leave_timers_enabled_and_use_calendar_gating;_manual_weekend_pausing_is_forbidden",
+    "quarantine_exception": "disabled_until_atomic_successor_reenables",
+    "gold_weekend": "preserve_valid_1OZ_session_clock",
+    "recovery": "independent_dormant_until_exact_boundary_then_retire_after_verified_success"
+  },
+  "boundaries": {
+    "strategy_logic_mutated": false,
+    "selection_mutated": false,
+    "capital_mutated": false,
+    "gateway_restarted": false,
+    "worker_restarted": false,
+    "orders_cancelled": 0,
+    "orders_submitted": 0
+  },
+  "verdict": "PASS_DEPLOYED_RECOVERY_PENDING_NATURAL_BOUNDARIES"
+}
