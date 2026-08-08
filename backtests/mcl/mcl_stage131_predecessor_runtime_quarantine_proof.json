@@ -1,0 +1,38 @@
+{
+  "schema": "mcl.stage131-predecessor-runtime-quarantine-proof.v1",
+  "recorded_at_utc": "2026-08-08T12:35:37Z",
+  "authority": "read_only_current_plan_and_runtime_identity_proof_no_broker_no_orders_no_capital",
+  "deployment_commit": "a40a0323100a8bacc16a9effcea97c4b32fb29d6",
+  "predecessor": {
+    "selection_id": "8adead895d3bd460b460f832d725046a3ea34079525a80a1662004ade2c17c93",
+    "stage131_binding_present": false,
+    "runtime_result": "FAIL_CLOSED",
+    "reason": "selected MCL runtime requires immutable Stage-131 binding"
+  },
+  "successor": {
+    "runtime_binding_path": "backtests/mcl/mcl_stage114_v18_epoch_veto_stage131_runtime_binding.json",
+    "runtime_binding_sha256": "576d18fe911694d5f841e1221a955d20be3dd357f0377f6da24b86d016d838f5",
+    "guard_path": "tradebot/research/mcl_stage131.py",
+    "guard_sha256": "df9322dcd85786c5d91cbf6423be93fd14f3914e8895453b10749f4a3d8e75af",
+    "binding_verdict": "PASS",
+    "submitted_orders": 0
+  },
+  "proof": {
+    "local_focused_tests": 122,
+    "local_focused_tests_passed": 122,
+    "q_current_plan_loaded": true,
+    "q_predecessor_rejected_before_generation_or_coverage_access": true,
+    "q_successor_binding_validated": true,
+    "q_head_matches_origin": true,
+    "unified_target_restart_can_reach_order_projection_on_predecessor": false
+  },
+  "boundaries": {
+    "broker_queried": false,
+    "selection_mutated": false,
+    "capital_plan_mutated": false,
+    "service_or_timer_mutated": false,
+    "other_agent_systemd_work_touched": false,
+    "submitted_orders": 0
+  },
+  "verdict": "PASS_FAIL_CLOSED"
+}
