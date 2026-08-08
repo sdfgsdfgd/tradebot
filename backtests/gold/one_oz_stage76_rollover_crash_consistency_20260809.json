@@ -1,0 +1,81 @@
+{
+  "schema": "gold.1oz-stage76-rollover-crash-consistency.v1",
+  "recorded_at_utc": "2026-08-08T17:10:01+00:00",
+  "authority": "exactly_once_flat_selection_recovery_only_no_signal_no_order_no_capital_expansion",
+  "status": "DEPLOYED_INTENT_ARMED_AWAITING_NATURAL_MONDAY_ROLLOVER",
+  "source_commit": "d9159ea199b70ddbe0badad2b999c81bfe851f3f",
+  "owners": {
+    "rollover_cli": {
+      "path": "tradebot/research/gold_onset_cli.py",
+      "sha256": "b4bc125dd41c33478b450867514ddebdf4d6cb99f957f0b742d7fd38ca2ae27a"
+    },
+    "rollover_worker": {
+      "path": "deploy/systemd/tradebot-gold-fail-closed-rollover",
+      "sha256": "7e8d97b887768ab5f19d55d82874b9072e827c3535b184b311631d153b1c604b"
+    },
+    "runtime_parity_receipt": {
+      "path": "backtests/gold/one_oz_regime_harmony_runtime_parity_predecessor_quarantine_20260808.json",
+      "sha256": "6b91ce3b6303be80a9df8a5516624dcd87dca87c3dc578ec072c5bfc8cdc0920"
+    }
+  },
+  "transaction_law": {
+    "before_any_broker_query_or_mutation": "atomically persist a mode-0600 content-addressed predecessor intent",
+    "normal_boundary": "the active Gold selection must equal the intended predecessor",
+    "recovery_boundary": "the active Gold selection must be the predecessor's one immediate allocation successor",
+    "recovery_proof": "rehash the current capital plan, every XSP/Gold/MCL sleeve file, the exact portfolio generation, and its immutable capital-stability proof",
+    "recovery_effect": "reconstruct the same wrapper receipt without an IB client, a second selection, a second capital plan, or an order",
+    "unrelated_selection_change": "fail closed",
+    "postcondition": "one flat_no_target Gold reconciliation with zero fills, orders, and safety breaches before enabling the ordinary timer"
+  },
+  "failure_injection": {
+    "immediate_successor_after_interruption": "PASS_RECOVERED_WITHOUT_BROKER",
+    "non_immediate_successor": "PASS_REJECTED",
+    "intent_file_mode": "0600",
+    "all_three_sleeve_stability_gates": "PASS",
+    "wrapper_predecessor_and_intent_identity": "PASS",
+    "submitted_orders": 0
+  },
+  "proof": {
+    "focused_tests": 100,
+    "focused_failures": 0,
+    "warning": "one third-party eventkit deprecation warning",
+    "full_suite_boundary": {
+      "status": "PREEXISTING_NON_GOLD_BASELINE_RED",
+      "missing_local_mcl_commissioning_artifact_tests": 30,
+      "migration_overtaken_xsp_mcl_assertions": 4,
+      "gold_rollover_failures": 0
+    }
+  },
+  "authentic_q": {
+    "head_and_origin": "d9159ea199b70ddbe0badad2b999c81bfe851f3f",
+    "live_capital_plan_sha256": "06dec8eec40e5707bcb178d2930d747e518c4c9f71a82f7e9c8de77ef23eed6e",
+    "intent_path": "/home/x/.local/state/tradebot/recovery/gold-fail-closed-rollover/intent.json",
+    "intent_sha256": "030e096e2966406f5c9502f8e0d6b758b49e873ea319c10c3307bfa5e9732564",
+    "intent_id": "88c171e10f8f1688d09d95fe8be7ce7766edab2168a6d406e33d74cf118a7110",
+    "predecessor_plan_id": "5dc2503640627b39b57b33ba9c0810c2ad9e1f778b937f241abd4ff571f2c8ea",
+    "predecessor_selection_id": "62344ce21bf7c6f01095abab14b6ca8ef79c9806abb35294859fc9574a5f7574",
+    "selection_receipt_exists": false,
+    "gold_live_timer": "disabled_inactive",
+    "gold_onset_timer": "enabled_waiting_2026-08-10T10:07:00+10:00",
+    "gold_rollover_timer": "enabled_waiting_2026-08-10T10:12:00+10:00",
+    "gateway": "active_running_zero_restarts"
+  },
+  "economics": {
+    "stage76_signal_or_threshold_changed": false,
+    "selection_or_capital_changed": false,
+    "broker_queried_by_intent_arm": false,
+    "service_or_timer_mutated_by_intent_arm": false,
+    "submitted_orders": 0
+  },
+  "hawkeye": {
+    "mode": "WEEKEND_EXEMPT",
+    "last_review": "2026-08-07T19:12:00+00:00",
+    "block": "3/6",
+    "replay_budget": "1/1",
+    "candidates": [
+      "XSP Atlas",
+      "queued outcome-blind MCL bridge"
+    ],
+    "next_boundary": "first natural Monday boundary"
+  }
+}
