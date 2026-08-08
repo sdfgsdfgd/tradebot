@@ -621,6 +621,21 @@ def _candidate_entry_window_open(binding: object, now: datetime) -> bool:
     return False
 
 
+def _candidate_monitor_window_open(binding: object, now: datetime) -> bool:
+    """Include the bounded pre-open warm-up, never an inactive weekend."""
+
+    if _candidate_entry_window_open(binding, now):
+        return True
+    local = now.astimezone(ZoneInfo("America/New_York"))
+    weekday, minute = local.weekday(), local.hour * 60 + local.minute
+    strategy_id = str(getattr(binding, "strategy_id", ""))
+    if strategy_id.startswith("xsp."):
+        return weekday < 5 and (9 * 60 + 15) <= minute < (9 * 60 + 20)
+    if strategy_id.startswith(("mcl.", "gold.")):
+        return weekday in {0, 1, 2, 3, 6} and minute >= (17 * 60 + 40)
+    return False
+
+
 def _login_state(path: Path) -> str:
     try:
         value = json.loads(path.read_text())
@@ -630,9 +645,22 @@ def _login_state(path: Path) -> str:
 
 
 def _recent_decisive_ib_failure() -> bool:
+    units = (
+        "tradebot-ib-gateway.service",
+        "tradebot-gold-live.service",
+        "tradebot-gold-onset.service",
+        "tradebot-mcl-live.service",
+        "tradebot-mcl-turn-tape.service",
+        "tradebot-mcl-predictive-onset-runtime.service",
+        "tradebot-xsp-shadow.service",
+        "tradebot-xsp-pressure-tape.service",
+    )
     try:
+        command = ["journalctl", "--user", "--since", "-2 min", "--no-pager", "-o", "cat"]
+        for unit in units:
+            command.extend(("-u", unit))
         journal = subprocess.run(
-            ["journalctl", "--user", "--since", "-2 min", "--no-pager", "-o", "cat"],
+            command,
             check=False,
             capture_output=True,
             text=True,
@@ -644,8 +672,9 @@ def _recent_decisive_ib_failure() -> bool:
         return True
     if "client id already in use" in journal or "client-id" in journal and "exhausted" in journal:
         return True
-    codes = [int(value) for value in re.findall(r"(?<!\d)(1100|1101|1102|1300|326|502|504)(?!\d)", journal)]
-    return 1300 in codes or 326 in codes or 502 in codes or 504 in codes or (
+    codes = [int(value) for value in re.findall(r"(?<!\d)(1100|1101|1102|1300|326)(?!\d)", journal)]
+    transport_error = re.search(r"(?:ibkr|ib api|ib error).{0,80}\b(?:502|504)\b", journal)
+    return 1300 in codes or 326 in codes or transport_error is not None or (
         1100 in codes and max((index for index, code in enumerate(codes) if code == 1100), default=-1)
         > max((index for index, code in enumerate(codes) if code in {1101, 1102}), default=-1)
     )
@@ -674,6 +703,8 @@ def ib_sentinel(
         )
         if not engaged:
             continue
+        if not _candidate_monitor_window_open(binding, observed):
+            continue
         label = str(getattr(binding, "champion_symbol", "strategy")).casefold()
         reason = f"{label}-runtime-failed" if label in {"xsp", "mcl"} else "gold-runtime-failed"
         active.append(label)
@@ -685,10 +716,9 @@ def ib_sentinel(
         for state in services:
             if state["available"] != "loaded" or state["active"] == "failed" or state["result"] == "failed":
                 failures.append({"reason": reason, "detail": f"service_failed:{state['unit']}"})
-        if _candidate_entry_window_open(binding, observed):
-            decision = ib_preflight_decision("entry", path=receipt_path, now=observed)
-            if decision["ready"] is not True:
-                failures.append({"reason": reason, "detail": "entry_authority_unready"})
+        decision = ib_preflight_decision("entry", path=receipt_path, now=observed)
+        if decision["ready"] is not True:
+            failures.append({"reason": reason, "detail": "entry_authority_unready"})
 
     login_state = _login_state(login_receipt_path)
     if login_state == "two_factor_required":
