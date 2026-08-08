@@ -104,11 +104,22 @@ install -m 0644 \
   deploy/systemd/tradebot-{mcl-live,mcl-turn-tape,mcl-predictive-onset-runtime}.{service,timer} \
   deploy/systemd/tradebot-{mcl-emergency-flatten,mcl-stage131-successor,gold-fail-closed-rollover,xsp-p009-fresh-rollover}.{service,timer} \
   deploy/systemd/tradebot-mcl-narrative-prospective.service \
-  deploy/systemd/tradebot-{news,journal-prune}.{service,timer} \
+  deploy/systemd/tradebot-news.{service,timer} \
   deploy/systemd/tradebot-{xsp-shadow,xsp-pressure-tape}.{service,timer} \
   ~/.config/systemd/user/
 systemctl --user daemon-reload
 systemd-analyze --user verify ~/.config/systemd/user/tradebot-*.{service,timer,target}
+```
+
+Journal retention is deliberately root-owned: only the system journal can
+rotate and vacuum its files. It keeps four weeks of ordinary q service logs;
+it never touches the durable news state, signal history, research ledger, or
+event/memory files under `~/.local/state/tradebot` and `~/.codex`.
+
+```bash
+sudo install -m 0644 deploy/systemd/tradebot-journal-prune.{service,timer} /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now tradebot-journal-prune.timer
 ```
 
 Then validate GUI discovery without launching Gateway:
@@ -196,8 +207,7 @@ systemctl --user enable --now \
   tradebot-ib-gateway.timer \
   tradebot-ib-preflight.timer \
   tradebot-ib-sentinel.timer \
-  tradebot-news.timer \
-  tradebot-journal-prune.timer
+  tradebot-news.timer
 ```
 
 Arm each selected strategy through the portfolio cockpit, not by enabling its

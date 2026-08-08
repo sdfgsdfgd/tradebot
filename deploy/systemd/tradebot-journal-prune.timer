@@ -1,5 +1,5 @@
 [Unit]
-Description=Prune q user journals before the Sunday pre-open sequence
+Description=Prune q system journals before the Sunday pre-open sequence
 
 [Timer]
 OnCalendar=Sun *-*-* 14:30:00 America/New_York

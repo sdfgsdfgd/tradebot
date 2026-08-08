@@ -374,7 +374,9 @@ def test_asset_observation_rejects_future_or_incompatible_state() -> None:
 def test_systemd_budget_leaves_atomic_publication_grace() -> None:
     deploy = Path(__file__).parents[1] / "deploy/systemd"
     unit = (deploy / "tradebot-news.service").read_text()
+    timer = (deploy / "tradebot-news.timer").read_text()
     mcl = (deploy / "tradebot-mcl-narrative-prospective.service").read_text()
+    journal = (deploy / "tradebot-journal-prune.service").read_text()
     guide = (deploy / "README.md").read_text()
 
     assert "--timeout-sec 3600" in unit
@@ -386,7 +388,16 @@ def test_systemd_budget_leaves_atomic_publication_grace() -> None:
     assert "StartLimitBurst=2" in unit
     assert "Restart=on-failure" in unit
     assert "OnSuccess=tradebot-mcl-narrative-prospective.service" in unit
+    assert "OnFailure=tradebot-operator-alert@news-input-failed.service" in unit
+    assert "ExecStartPost=/usr/bin/python3 -m tradebot.news --verify" in unit
+    assert "OnCalendar=Sun *-*-* 15:30:00 America/New_York" in timer
+    assert "OnCalendar=Mon..Fri *-*-* 00,04,08,12,16:15:00 America/New_York" in timer
+    assert "OnCalendar=Mon..Thu *-*-* 20:15:00 America/New_York" in timer
+    assert "OnCalendar=Mon..Fri *-*-* 20:15:00 America/New_York" not in timer
+    assert "AccuracySec=15s" in timer
+    assert "RandomizedDelaySec=0" in timer
     assert "After=tradebot-news.service tradebot-ib-gateway.service" in mcl
+    assert "OnFailure=tradebot-operator-alert@mcl-narrative-followup-failed.service" in mcl
     assert "Requires=tradebot-ib-gateway.service" not in mcl
     assert "Wants=tradebot-ib-gateway.service" not in mcl
     assert "tradebot-ib-gateway-tunnel.service" not in mcl
@@ -396,6 +407,13 @@ def test_systemd_budget_leaves_atomic_publication_grace() -> None:
     assert "MCL_NARRATIVE_GENERATION=%h/Desktop/py/tradebot/backtests/mcl/" in mcl
     assert "mcl_narrative_experiment_generation_q_news_contract_20260809.json" in mcl
     assert "python3 -m tradebot.research.mcl_narrative_lag_convexity" in mcl
+    assert "ExecStart=/usr/bin/journalctl --rotate --vacuum-time=4weeks" in journal
+    assert "--user" not in journal
+    assert "TimeoutStartSec=10min" in journal
+    assert "PrivateTmp" not in journal
+    assert "NoNewPrivileges" not in journal
+    assert "tradebot-{news,journal-prune}.{service,timer}" not in guide
+    assert "sudo systemctl enable --now tradebot-journal-prune.timer" in guide
     assert "tradebot-mcl-narrative-prospective.service" in guide
     assert "q owns one native IB Gateway" in guide
     assert "none pulls it in" in guide
