@@ -17,7 +17,7 @@ Environment=TRADEBOT_IB_PREFLIGHT_RECEIPT=%t/tradebot-ib-preflight.json
 Environment=TRADEBOT_IB_PREFLIGHT_MAX_AGE_SEC=108000
 ExecStartPre=/usr/bin/test -f %h/Desktop/py/tradebot/tradebot/research/xsp_dual_clock.py
 ExecStartPre=/usr/bin/test -x %h/.local/share/tradebot/venv/bin/python
-ExecStartPre=/usr/bin/env python3 -m tradebot.live.ib_preflight require reduction --receipt %t/tradebot-ib-preflight.json
+ExecStartPre=/usr/bin/env python3 -m tradebot.live.ib_preflight require reduction --con-id 61228752 --con-id 828937771 --receipt %t/tradebot-ib-preflight.json
 ExecStart=/usr/bin/flock --exclusive --wait 180 %t/tradebot-live-account.lock /usr/bin/env python3 -m tradebot.research.xsp_shadow --mode opening-edge-p009
 TimeoutStartSec=8min
 KillSignal=SIGTERM

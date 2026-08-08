@@ -207,13 +207,24 @@ def ib_preflight_decision(
     *,
     path: Path | None = None,
     now: datetime | None = None,
+    con_ids: Sequence[int] | None = None,
 ) -> dict[str, object]:
     normalized = str(mode).strip().lower()
     if normalized not in {"entry", "reduction"}:
         raise ValueError("IB preflight mode must be entry or reduction")
+    requested_ids = sorted({int(value) for value in con_ids or ()})
+    if any(value <= 0 for value in requested_ids):
+        raise ValueError("IB preflight contract IDs must be positive")
+    if normalized != "reduction" and requested_ids:
+        raise ValueError("IB preflight contract scope is reduction-only")
     configured = _configured_receipt_path(path)
     if configured is None:
-        return {"configured": False, "ready": True, "reasons": []}
+        return {
+            "configured": False,
+            "ready": True,
+            "reasons": [],
+            **({"con_ids": requested_ids} if requested_ids else {}),
+        }
     try:
         max_age = float(
             os.getenv(
@@ -225,11 +236,37 @@ def ib_preflight_decision(
         verdict = receipt["verdict"]
         assert isinstance(verdict, Mapping)
         reasons = list(verdict[f"{normalized}_reasons"])
+        if requested_ids:
+            reasons = [reason for reason in reasons if reason != "held_position_quote_not_ready"]
+            facts = receipt.get("facts")
+            broker = facts.get("broker") if isinstance(facts, Mapping) else None
+            positions = broker.get("positions") if isinstance(broker, Mapping) else None
+            readiness = broker.get("reduction_quotes") if isinstance(broker, Mapping) else None
+            if (
+                not isinstance(positions, Sequence)
+                or isinstance(positions, (str, bytes))
+                or not isinstance(readiness, Mapping)
+            ):
+                reasons.append("held_position_quote_scope_unavailable")
+            else:
+                held_ids = {
+                    int(position.get("con_id", 0) or 0)
+                    for position in positions
+                    if isinstance(position, Mapping)
+                    and abs(float(position.get("quantity", 0.0) or 0.0)) > 1e-9
+                }
+                reasons.extend(
+                    f"held_position_quote_not_ready:{con_id}"
+                    for con_id in requested_ids
+                    if con_id in held_ids and readiness.get(str(con_id)) is not True
+                )
+            reasons = sorted(set(reasons))
         return {
             "configured": True,
-            "ready": verdict[f"{normalized}_ready"] is True,
+            "ready": not reasons,
             "reasons": reasons,
             "receipt_id": receipt["receipt_id"],
+            **({"con_ids": requested_ids} if requested_ids else {}),
         }
     except (OSError, TypeError, ValueError, KeyError) as exc:
         return {
@@ -260,8 +297,12 @@ def gate_actionable_plan(
     }
 
 
-def require_reduction_preflight(path: Path | None = None) -> None:
-    decision = ib_preflight_decision("reduction", path=path)
+def require_reduction_preflight(
+    path: Path | None = None,
+    *,
+    con_ids: Sequence[int] | None = None,
+) -> None:
+    decision = ib_preflight_decision("reduction", path=path, con_ids=con_ids)
     if decision["ready"] is not True:
         raise RuntimeError(", ".join(str(reason) for reason in decision["reasons"]))
 
@@ -290,6 +331,7 @@ def require_order_preflight(
     action: str,
     quantity: float,
     path: Path | None = None,
+    con_id: int | None = None,
 ) -> dict[str, object]:
     """Require the appropriate receipt immediately before broker submission."""
 
@@ -298,7 +340,11 @@ def require_order_preflight(
         action=action,
         quantity=quantity,
     )
-    decision = ib_preflight_decision(mode, path=path)
+    decision = ib_preflight_decision(
+        mode,
+        path=path,
+        con_ids=(int(con_id),) if mode == "reduction" and con_id is not None else None,
+    )
     if decision["ready"] is not True:
         reasons = ", ".join(str(reason) for reason in decision["reasons"])
         raise RuntimeError(f"IB preflight blocked {mode} order: {reasons}")
@@ -404,6 +450,16 @@ def _price_ready(ticker: object) -> bool:
     )
 
 
+async def _contract_price_ready(ib: IB, contract: Contract) -> bool:
+    """Probe one qualified contract without coupling unrelated holdings."""
+
+    try:
+        tickers = await asyncio.wait_for(ib.reqTickersAsync(contract), timeout=15)
+    except (OSError, RuntimeError, asyncio.TimeoutError, ValueError):
+        return False
+    return len(tickers) == 1 and _price_ready(tickers[0])
+
+
 async def probe_ib_preflight(
     *,
     repository_root: Path,
@@ -439,6 +495,7 @@ async def probe_ib_preflight(
         {**spec, "healthy": False} for spec in _contract_specs(plan, root)
     ]
     reduction_quote_ready = False
+    reduction_quotes: dict[str, bool] = {}
     try:
         client_id = int(os.getenv("IBKR_PREFLIGHT_CLIENT_ID", "3997"))
         await ib.connectAsync(
@@ -506,18 +563,40 @@ async def probe_ib_preflight(
             }
             for row in capabilities
         ]
-        held_contracts = [row.contract for row in raw_positions if abs(float(row.position)) > 1e-9]
-        if held_contracts:
-            try:
-                tickers = await asyncio.wait_for(
-                    ib.reqTickersAsync(*held_contracts),
-                    timeout=15,
-                )
-                reduction_quote_ready = len(tickers) == len(held_contracts) and all(
-                    _price_ready(ticker) for ticker in tickers
-                )
-            except (OSError, RuntimeError, asyncio.TimeoutError, ValueError):
-                pass
+        held_ids = sorted(
+            {
+                int(row.contract.conId or 0)
+                for row in raw_positions
+                if abs(float(row.position)) > 1e-9
+            }
+        )
+        held_probes = [Contract(conId=con_id) for con_id in held_ids if con_id > 0]
+        held_qualified = (
+            list(await asyncio.wait_for(ib.qualifyContractsAsync(*held_probes), timeout=15))
+            if held_probes
+            else []
+        )
+        held_by_id = {
+            int(contract.conId or 0): contract
+            for contract in held_qualified
+            if int(contract.conId or 0) > 0
+        }
+        qualified_held_ids = sorted(held_by_id)
+        held_readiness = dict(
+            zip(
+                qualified_held_ids,
+                await asyncio.gather(
+                    *(_contract_price_ready(ib, held_by_id[con_id]) for con_id in qualified_held_ids)
+                ),
+                strict=True,
+            )
+        )
+        reduction_quotes = {
+            str(con_id): held_readiness.get(con_id, False)
+            for con_id in held_ids
+        }
+        if held_ids:
+            reduction_quote_ready = all(reduction_quotes.values())
         else:
             reduction_quote_ready = True
     except (OSError, RuntimeError, asyncio.TimeoutError, ValueError):
@@ -544,6 +623,7 @@ async def probe_ib_preflight(
             "positions": positions,
             "open_orders": open_orders,
             "reduction_quote_ready": reduction_quote_ready,
+            "reduction_quotes": reduction_quotes,
         },
         "capabilities": capabilities,
         "connectivity": _connectivity_facts(),
@@ -973,6 +1053,7 @@ def _parser() -> argparse.ArgumentParser:
     require = commands.add_parser("require")
     require.add_argument("mode", choices=("entry", "reduction"))
     require.add_argument("--receipt", type=Path)
+    require.add_argument("--con-id", type=int, action="append")
     sentinel = commands.add_parser("sentinel")
     sentinel.add_argument("--repository-root", type=Path, default=Path.cwd())
     sentinel.add_argument("--capital-plan", type=Path, required=True)
@@ -988,7 +1069,13 @@ def _parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     if args.command == "require":
-        decision = ib_preflight_decision(args.mode, path=args.receipt)
+        if args.mode != "reduction" and args.con_id:
+            raise SystemExit("--con-id is valid only for reduction readiness")
+        decision = ib_preflight_decision(
+            args.mode,
+            path=args.receipt,
+            con_ids=args.con_id,
+        )
         print(json.dumps(decision, sort_keys=True))
         return 0 if decision["ready"] is True else 1
     if args.command == "sentinel":

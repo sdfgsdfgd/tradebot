@@ -38,6 +38,7 @@ def _facts() -> dict[str, object]:
             "positions_fresh": True,
             "open_orders_fresh": True,
             "reduction_quote_ready": True,
+            "reduction_quotes": {},
             "positions": [],
             "open_orders": [],
         },
@@ -89,6 +90,54 @@ def test_preflight_fails_both_paths_without_fresh_account_truth() -> None:
         "broker_open_orders_not_fresh",
         "held_position_quote_not_ready",
     ]
+
+
+def test_reduction_readiness_is_scoped_to_requested_held_contracts(
+    tmp_path,
+) -> None:
+    facts = _facts()
+    facts["broker"].update(
+        {
+            "positions": [
+                {"con_id": 661016525, "quantity": 1.0},
+                {"con_id": 828937771, "quantity": 23.0},
+                {"con_id": 898708983, "quantity": 1.0},
+            ],
+            "reduction_quote_ready": False,
+            "reduction_quotes": {
+                "661016525": True,
+                "828937771": False,
+                "898708983": False,
+            },
+        }
+    )
+    path = tmp_path / "preflight.json"
+    publish_ib_preflight(path, reduce_ib_preflight(facts, checked_at_utc=NOW))
+
+    assert ib_preflight_decision("reduction", path=path)["ready"] is False
+    assert ib_preflight_decision(
+        "reduction",
+        path=path,
+        con_ids=(661016525,),
+    ) == {
+        "configured": True,
+        "ready": True,
+        "reasons": [],
+        "receipt_id": json.loads(path.read_text())["receipt_id"],
+        "con_ids": [661016525],
+    }
+    blocked = ib_preflight_decision(
+        "reduction",
+        path=path,
+        con_ids=(61228752, 828937771),
+    )
+    assert blocked["ready"] is False
+    assert blocked["reasons"] == ["held_position_quote_not_ready:828937771"]
+    assert ib_preflight_decision(
+        "reduction",
+        path=path,
+        con_ids=(61228752,),
+    )["ready"] is True
 
 
 def test_configured_preflight_is_fresh_tamper_evident_and_gates_only_entry(
@@ -143,6 +192,19 @@ def test_broker_submission_boundary_enforces_the_configured_receipt(
 ) -> None:
     facts = _facts()
     facts["runtime"]["missing_members"] = ["tradebot-mcl-live.timer"]
+    facts["broker"].update(
+        {
+            "positions": [
+                {"con_id": 828937771, "quantity": 2.0},
+                {"con_id": 661016525, "quantity": 1.0},
+            ],
+            "reduction_quote_ready": False,
+            "reduction_quotes": {
+                "828937771": True,
+                "661016525": False,
+            },
+        }
+    )
     path = tmp_path / "preflight.json"
     publish_ib_preflight(path, reduce_ib_preflight(facts, checked_at_utc=NOW))
     monkeypatch.setenv("TRADEBOT_IB_PREFLIGHT_RECEIPT", str(path))

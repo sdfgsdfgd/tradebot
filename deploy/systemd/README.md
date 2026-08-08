@@ -259,8 +259,10 @@ committed preregistrations remain byte-identical.
 - Connectivity flap: one unpaired `1100` or three losses in ten minutes closes
   entry authority. A later successful probe is required; elapsed time alone
   does not reopen it.
-- Existing position: a fresh reduction receipt permits only bounded
-  position-reducing orders. It never permits a reversal or increase.
+- Existing position: a fresh contract-scoped reduction receipt prevents an
+  unrelated closed holding from blocking the open instrument. The broker
+  boundary still permits only bounded position reduction, never reversal or
+  increase.
 
 Useful inspection commands:
 
@@ -269,7 +271,7 @@ systemctl --user status tradebot-ib-gateway.service tradebot-ib-preflight.servic
 systemctl --user list-timers 'tradebot-*' --all
 journalctl --user -u tradebot-ib-gateway.service -u tradebot-ib-preflight.service -n 200 --no-pager
 python3 -m tradebot.live.ib_preflight require entry --receipt "$XDG_RUNTIME_DIR/tradebot-ib-preflight.json"
-python3 -m tradebot.live.ib_preflight require reduction --receipt "$XDG_RUNTIME_DIR/tradebot-ib-preflight.json"
+python3 -m tradebot.live.ib_preflight require reduction --con-id 661016525 --receipt "$XDG_RUNTIME_DIR/tradebot-ib-preflight.json"
 ```
 
 There is no Mac transport or SSH tunnel fallback. q is the single Gateway and

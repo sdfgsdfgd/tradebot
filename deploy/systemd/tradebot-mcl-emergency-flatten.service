@@ -15,7 +15,7 @@ Environment=TRADEBOT_IB_PREFLIGHT_MAX_AGE_SEC=108000
 ExecStartPre=/usr/bin/test -f %h/Desktop/py/tradebot/db/calibration/live_capital_plan.json
 ExecStartPre=/usr/bin/test -r /var/tmp/mcl_emergency_flatten.py
 ExecStartPre=/usr/bin/test -x %h/.local/share/tradebot/venv/bin/python
-ExecStartPre=/usr/bin/env python3 -m tradebot.live.ib_preflight require reduction --receipt %t/tradebot-ib-preflight.json
+ExecStartPre=/usr/bin/env python3 -m tradebot.live.ib_preflight require reduction --con-id 661016525 --receipt %t/tradebot-ib-preflight.json
 ExecStartPre=-/usr/bin/rm -f %t/tradebot-mcl-emergency-flatten.ok
 ExecStart=/usr/bin/flock --exclusive --wait 180 %t/tradebot-live-account.lock %h/.local/share/tradebot/venv/bin/python /var/tmp/mcl_emergency_flatten.py
 ExecStartPost=/usr/bin/touch %t/tradebot-mcl-emergency-flatten.ok
