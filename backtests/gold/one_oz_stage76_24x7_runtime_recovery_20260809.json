@@ -1,0 +1,115 @@
+{
+  "schema": "gold.one-oz-stage76-24x7-runtime-recovery.v1",
+  "recorded_at_utc": "2026-08-08T16:41:38Z",
+  "authority": "runtime_calendar_preflight_recovery_and_observation_only_no_strategy_no_threshold_no_orders",
+  "official_contract_clock": {
+    "effective_date": "2026-07-24",
+    "product": "CME 1-Ounce Gold futures",
+    "source": "https://www.cmegroup.com/articles/faqs/faq-1-oz-gold-futures.html",
+    "source_notice": "https://www.cmegroup.com/content/dam/cmegroup/notices/ser/2026/06/ser-9766.pdf",
+    "law": "24x7 except Mon-Fri 16:00-16:02 CT and Saturday 02:00-04:00 CT maintenance"
+  },
+  "interrupted_epoch": {
+    "due_slots": 288,
+    "evaluated_slots": 203,
+    "missing_slots": 85,
+    "gateway_outage_slots": 19,
+    "obsolete_timer_calendar_slots": 66,
+    "fills": 0,
+    "net_usd": 0.0,
+    "drawdown_usd": 0.0,
+    "receipt": {
+      "path": "backtests/gold/one_oz_stage76_interruption_target_reconstruction_20260809.json",
+      "sha256": "bbc38406d6ecbd54b7dc6940cdd966e6a0ee0d61c06664985910962a35f53ec0"
+    },
+    "exact_stage76_reconstruction": {
+      "decision_boundaries_utc": [
+        "2026-08-07T16:00:00+00:00",
+        "2026-08-07T20:00:00+00:00",
+        "2026-08-08T00:00:00+00:00",
+        "2026-08-08T04:00:00+00:00"
+      ],
+      "lawful_targets": 0,
+      "missed_orders": 0,
+      "verdict": "CONTINUITY_DEFECT_PREVENTABLE_BUT_NO_LAWFUL_GOLD_TARGET_WAS_MISSED"
+    }
+  },
+  "repair": {
+    "runtime_commit": "de1f460cefd66bfe927667315d1e449fb1196baf",
+    "integrated_news_commit": "60913612f0cbc0e5691126241704b60e820a5436",
+    "planned_recovery_sentinel_commit": "9ec56116174a6b5ce6524a18073a1174062ee672",
+    "timer": "official 1OZ 24x7 schedule with only the published maintenance exclusions",
+    "preflight": "contract and sleeve scoped entry/reduction gates retain a conservative account aggregate",
+    "rollover": "one durable idempotent flat-first selection transaction; retry every five minutes until success",
+    "identity": "the quarantined predecessor is never relabeled; the repaired runtime receives a fresh immutable selection",
+    "sentinel": "an armed recovery timer suppresses only the disabled timers it owns; feed, quote, Gateway, and unrelated runtime failures remain alertable"
+  },
+  "source_sha256": {
+    "tradebot/live/ib_preflight.py": "35c9712c2e84e1767228de9e29f40888231330fe348632fbf7aa46a1ce053960",
+    "tradebot/live/ib_preflight_contract.py": "944b8c56569a8caaa8224ed4e969aafaf8509bf883aa76a6783ce7a56cc4c708",
+    "tradebot/live/runs.py": "121a844bc79321d9a2a93334766181ff25a840df684d8cf58f087e6204069313",
+    "tradebot/live/strategies.py": "c2bf2048b1a9561f929aa2ce495000329d66e44f14e20819ab99e47fa299c2e6",
+    "deploy/systemd/tradebot-gold-live.service": "69d7669661996a4f6b437ff9d33e26f6ca157a6ff0797404e41f289ff7c6281e",
+    "deploy/systemd/tradebot-gold-live.timer": "34cd90b9626a6cc996062c97ceba787b0bb4b5da1bfca16fe05ee6e4d1124edb",
+    "deploy/systemd/tradebot-gold-fail-closed-rollover": "0718242ab6c2689fc486acba1789f206a4eeebfc0b05898ea441c4ee94a7c3ef",
+    "deploy/systemd/tradebot-gold-fail-closed-rollover.service": "9bccc89d0c2467d087913809688fcc46b2a6aca61a2978be1f9f230ec2dbecbe",
+    "deploy/systemd/tradebot-ib-preflight.timer": "571adadba8548afd165617cfb9684ee0b3604da597da93939f06fd5a568016da"
+  },
+  "authentic_q_proof": {
+    "repository_head": "9ec56116174a6b5ce6524a18073a1174062ee672",
+    "installed_gold_units_match_repository": true,
+    "systemd_verify": true,
+    "gateway_api_authenticated": true,
+    "gateway_restarts": 0,
+    "gold_broker_position": 0,
+    "gold_open_orders": 0,
+    "gold_scoped_reduction_ready": true,
+    "gold_entry_ready_while_quarantined": false,
+    "gold_entry_block_reason": "runtime_member_not_armed:tradebot-gold-live.timer",
+    "sentinel_natural_recurrence": {
+      "checked_at_utc": "2026-08-08T16:41:37.964250+00:00",
+      "active_candidates": [
+        "1oz"
+      ],
+      "failures": [],
+      "pending_warmups": [],
+      "planned_recovery_timer": "tradebot-gold-fail-closed-rollover.timer",
+      "planned_recovery_next": "2026-08-10T10:12:00+10:00"
+    },
+    "tests": {
+      "gold_preflight_runtime_architecture": "94 passed",
+      "combined_gold_news_runtime": "133 passed",
+      "planned_recovery_sentinel": "131 passed"
+    }
+  },
+  "activation_boundary": {
+    "gold_live_timer_now": "disabled_inactive",
+    "gold_onset_timer": "enabled_waiting",
+    "fresh_source_due": "2026-08-10T10:07:00+10:00",
+    "flat_first_rollover_due": "2026-08-10T10:12:00+10:00",
+    "retry_law": "on failure retry every five minutes, maximum 72 attempts per six hours",
+    "success_law": "enable Gold live only after a fresh selection, exact capital-plan identity, one flat_no_target reconciliation, zero fills, zero orders, and zero breaches"
+  },
+  "historical_edge_unchanged": {
+    "three_year_trades": 73,
+    "three_year_net_usd": 3103.52,
+    "three_year_profit_factor": 3.9914887464,
+    "three_year_drawdown_usd": 690.07,
+    "three_year_ledger_sha256": "c3add7cde287718b895de70936aa9aeab18b465bd6e68d3b8140c262650a3733",
+    "ten_year_trades": 257,
+    "ten_year_net_usd": 3227.82,
+    "ten_year_profit_factor": 2.1891248688,
+    "ten_year_drawdown_usd": 690.07,
+    "ten_year_ledger_sha256": "f5c212b19b9c5b6f697f01b6162a2f4382d8503afa4ebaa3844add45326a35a5"
+  },
+  "boundaries": {
+    "strategy_or_threshold_changed": false,
+    "historical_economics_changed": false,
+    "predecessor_evidence_backfilled": false,
+    "selection_changed_before_fresh_source": false,
+    "capital_changed": false,
+    "broker_orders_submitted": 0,
+    "broker_orders_cancelled": 0
+  },
+  "status": "DEPLOYED_ARMED_AWAITING_FIRST_LAWFUL_FRESH_ROLLOVER"
+}
