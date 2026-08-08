@@ -574,6 +574,8 @@ def _unit_liveness(unit: str) -> dict[str, str]:
             "-p",
             "Result",
             "-p",
+            "NRestarts",
+            "-p",
             "NextElapseUSecRealtime",
         ],
         check=False,
@@ -593,6 +595,7 @@ def _unit_liveness(unit: str) -> dict[str, str]:
         "enabled": str(values.get("UnitFileState") or "disabled"),
         "active": str(values.get("ActiveState") or "unknown"),
         "result": str(values.get("Result") or "unknown"),
+        "restarts": str(values.get("NRestarts") or "0"),
         "next": str(values.get("NextElapseUSecRealtime") or "n/a"),
     }
 
