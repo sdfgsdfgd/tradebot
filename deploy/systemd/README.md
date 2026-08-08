@@ -39,10 +39,11 @@ strategy timer tick.
 - `tradebot-live.target` controls only timers belonging to currently armed
   strategy bundles. It contains no static strategy dependencies.
 - The four scheduled one-shot recovery flows are repository-owned units, not
-  anonymous `systemd-run` jobs. Their pinned `/var/tmp` scripts remain
-  byte-identical; the MCL emergency path additionally takes the shared account
-  lock and requires the current reduction receipt before it can submit its one
-  exact, held-position reduction. Each failure is candidate-specific on the Mac.
+  anonymous `systemd-run` jobs. Gold and the MCL successor use durable
+  repository workers; incident-only MCL/XSP scripts remain pinned. The MCL
+  emergency path additionally takes the shared account lock and requires the
+  current reduction receipt before its one exact held-position reduction.
+  Each failure is candidate-specific on the Mac.
 - Core membership records a proven strategy identity only. It grants no
   capital, runtime, or order authority.
 
@@ -60,7 +61,7 @@ partial systemd change:
 | Bundle | Primary owner | Support owners | Calendar |
 | --- | --- | --- | --- |
 | XSP P-009 | `xsp-shadow` | `xsp-pressure-tape` | Cash/GTH observations, weekdays only |
-| Gold Stage 76 | `gold-live` | `gold-onset` | Sunday-Friday, excluding the daily `17:00-18:00 ET` maintenance break |
+| Gold Stage 76 | `gold-live` | `gold-onset` | 1OZ 24/7; weekdays exclude `16:00-16:02 CT`, Saturday excludes `02:00-04:00 CT` |
 | MCL Stage 112 | `mcl-live` | `mcl-turn-tape`, `mcl-predictive-onset-runtime` | Sunday `18:00 ET` through Friday `17:00 ET`, excluding daily maintenance |
 
 The MCL tape is a bounded session process started at `17:55 ET` Sunday-Thursday;
@@ -91,6 +92,7 @@ install -m 0755 \
   deploy/systemd/tradebot-ib-gateway-launch \
   deploy/systemd/tradebot-ib-gateway-login \
   ~/.local/bin/
+chmod 0755 deploy/systemd/tradebot-{gold-fail-closed-rollover,mcl-stage131-successor}
 install -m 0755 deploy/systemd/tradebot-cli ~/.local/bin/tradebot
 install -m 0644 \
   deploy/systemd/tradebot-ib-gateway-login.service \
@@ -206,7 +208,9 @@ One-shot recovery timers are enabled through `timers.target`, not
 `tradebot-live.target`. They therefore survive a strategy-bundle stop or
 restart while preserving their own fail-closed transaction and alert boundary.
 An explicitly quarantined strategy timer stays disabled across reboot; its
-successful successor transaction starts and re-enables it atomically.
+successful successor transaction starts and re-enables it atomically. Gold's
+flat-first transaction persists its selected successor before reconciliation,
+so quote/Gateway failures retry without publishing a chain of new runs.
 
 ## Sunday sequence
 
@@ -260,9 +264,11 @@ committed preregistrations remain byte-identical.
   entry authority. A later successful probe is required; elapsed time alone
   does not reopen it.
 - Existing position: a fresh contract-scoped reduction receipt prevents an
-  unrelated closed holding from blocking the open instrument. The broker
-  boundary still permits only bounded position reduction, never reversal or
-  increase.
+  unrelated closed holding from blocking the open instrument. Gold resolves
+  its current selected sleeve after each contract roll; unchanged XSP/MCL units
+  retain their pinned current contracts. Entry is scoped to the exact current
+  contract and bundle at the final broker boundary. Reduction still permits
+  only bounded position reduction, never reversal or increase.
 
 Useful inspection commands:
 
@@ -271,7 +277,7 @@ systemctl --user status tradebot-ib-gateway.service tradebot-ib-preflight.servic
 systemctl --user list-timers 'tradebot-*' --all
 journalctl --user -u tradebot-ib-gateway.service -u tradebot-ib-preflight.service -n 200 --no-pager
 python3 -m tradebot.live.ib_preflight require entry --receipt "$XDG_RUNTIME_DIR/tradebot-ib-preflight.json"
-python3 -m tradebot.live.ib_preflight require reduction --con-id 661016525 --receipt "$XDG_RUNTIME_DIR/tradebot-ib-preflight.json"
+python3 -m tradebot.live.ib_preflight require reduction --sleeve-id gold-1oz-stage76-margin --repository-root "$PWD" --capital-plan db/calibration/live_capital_plan.json --receipt "$XDG_RUNTIME_DIR/tradebot-ib-preflight.json"
 ```
 
 There is no Mac transport or SSH tunnel fallback. q is the single Gateway and

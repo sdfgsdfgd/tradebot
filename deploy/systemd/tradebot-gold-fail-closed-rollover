@@ -1,0 +1,54 @@
+#!/bin/sh
+set -eu
+
+root=/home/x/Desktop/py/tradebot
+state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/tradebot/recovery/gold-fail-closed-rollover"
+receipt="$state_dir/selection.json"
+mkdir -p "$state_dir"
+chmod 700 "$state_dir"
+cd "$root"
+
+if ! test -s "$receipt"; then
+    temporary="$(mktemp "$state_dir/selection.XXXXXX")"
+    trap 'rm -f "$temporary"' EXIT HUP INT TERM
+    /usr/bin/flock \
+        --exclusive \
+        --wait 180 \
+        /run/user/1000/tradebot-live-account.lock \
+        /usr/bin/env \
+        PATH=/home/x/.local/share/tradebot/venv/bin:/usr/local/bin:/usr/bin:/bin \
+        PYTHONUNBUFFERED=1 \
+        IBKR_HOST=127.0.0.1 \
+        IBKR_PORT=4001 \
+        IBKR_CLIENT_ID=3199 \
+        IBKR_READONLY=1 \
+        GOLD_ONSET_LEDGER=/home/x/.local/state/tradebot/research/gold_onset.jsonl \
+        python3 -m tradebot.research.gold_onset_cli --rollover-canary \
+        >"$temporary"
+    jq -e '
+        .rollover.verdict == "FRESH_FAIL_CLOSED_GOLD_RUN_SELECTED_FLAT"
+        and .rollover.submitted_orders == 0
+        and (.rollover.selection_id | length) == 64
+        and (.rollover.retained_xsp_selection_id | length) == 64
+        and (.rollover.retained_mcl_selection_id | length) == 64
+    ' "$temporary" >/dev/null
+    chmod 600 "$temporary"
+    mv "$temporary" "$receipt"
+    trap - EXIT HUP INT TERM
+fi
+
+jq -e '.rollover.verdict == "FRESH_FAIL_CLOSED_GOLD_RUN_SELECTED_FLAT"' "$receipt" >/dev/null
+selected="$(jq -r .rollover.selection_id "$receipt")"
+active="$(jq -r '.sleeves[] | select(.sleeve_id == "gold-1oz-stage76-margin") | .run_id' db/calibration/live_capital_plan.json)"
+test "$selected" = "$active"
+
+systemctl --user start tradebot-gold-live.service
+tail -1 db/calibration/gold_live_calibration.jsonl | jq -e --arg selected "$selected" '
+    .status == "EVALUATED"
+    and .evidence.selection_id == $selected
+    and .evidence.plan.reason == "flat_no_target"
+    and .evidence.risk_state.position_from_fills == 0
+    and .evidence.risk_state.fill_count == 0
+    and .evidence.submitted_orders == 0
+    and (.evidence.risk_state.safety_breaches | length) == 0
+' >/dev/null

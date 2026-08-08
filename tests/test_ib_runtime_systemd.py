@@ -75,7 +75,7 @@ def test_preflight_is_a_single_readonly_probe_before_both_entry_windows() -> Non
     assert "ConditionPathExists=" not in service
     assert "ExecStartPre=/usr/bin/test -f" in service
     assert " -m tradebot.live.ib_preflight probe " in service
-    assert "OnCalendar=Sun,Mon,Tue,Wed,Thu *-*-* 17:40:00 America/New_York" in timer
+    assert "OnCalendar=*-*-* 17:40:00 America/New_York" in timer
     assert "OnCalendar=Mon..Fri *-*-* 09:15:00 America/New_York" in timer
     assert "Persistent=false" in timer
 
@@ -102,16 +102,27 @@ def test_every_current_broker_consumer_uses_the_native_gateway() -> None:
 
 def test_writable_owners_require_reduction_readiness_before_starting() -> None:
     scopes = {
-        "tradebot-gold-live.service": (753716608,),
-        "tradebot-mcl-live.service": (661016525,),
-        "tradebot-xsp-shadow.service": (61228752, 828937771),
+        "tradebot-gold-live.service": ("sleeve", "gold-1oz-stage76-margin"),
+        "tradebot-mcl-live.service": ("contracts", "661016525"),
+        "tradebot-xsp-shadow.service": (
+            "contracts",
+            "61228752 --con-id 828937771",
+        ),
     }
-    for name, con_ids in scopes.items():
+    for name, (scope, value) in scopes.items():
         service = _unit(name)
         assert "TRADEBOT_IB_PREFLIGHT_RECEIPT=%t/tradebot-ib-preflight.json" in service
         assert "TRADEBOT_IB_PREFLIGHT_MAX_AGE_SEC=108000" in service
         assert "ib_preflight require reduction" in service
-        assert all(f"--con-id {con_id}" in service for con_id in con_ids)
+        if scope == "sleeve":
+            assert f"--sleeve-id {value}" in service
+            assert "--repository-root %h/Desktop/py/tradebot" in service
+            assert (
+                "--capital-plan %h/Desktop/py/tradebot/"
+                "db/calibration/live_capital_plan.json"
+            ) in service
+        else:
+            assert f"--con-id {value}" in service
         assert "Restart=on-failure" not in service
 
 
@@ -136,7 +147,7 @@ def test_only_armed_strategy_bundle_timers_join_the_live_target() -> None:
     assert "PropagatesStopTo=" not in target
 
 
-def test_scheduled_recovery_flows_are_native_alerted_and_their_scripts_remain_external() -> None:
+def test_scheduled_recovery_flows_are_native_alerted_and_restart_safe() -> None:
     cases = {
         "tradebot-mcl-emergency-flatten.service": (
             "mcl-runtime-failed",
@@ -148,7 +159,7 @@ def test_scheduled_recovery_flows_are_native_alerted_and_their_scripts_remain_ex
         ),
         "tradebot-gold-fail-closed-rollover.service": (
             "gold-runtime-failed",
-            "/var/tmp/tradebot_gold_fail_closed_rollover.sh",
+            "tradebot-gold-fail-closed-rollover",
         ),
         "tradebot-xsp-p009-fresh-rollover.service": (
             "xsp-runtime-failed",
@@ -196,9 +207,24 @@ def test_scheduled_recovery_flows_are_native_alerted_and_their_scripts_remain_ex
 
     gold = _unit("tradebot-gold-fail-closed-rollover.service")
     assert (
-        "ExecStartPost=/usr/bin/systemctl --user enable tradebot-gold-live.timer"
+        "ExecStartPost=/usr/bin/systemctl --user enable --now tradebot-gold-live.timer"
         in gold
     )
+    assert "ExecStartPost=-/usr/bin/systemctl --user start tradebot-ib-preflight.service" in gold
+    assert "Restart=on-failure" in gold
+    assert "RestartSec=5min" in gold
+    assert "StartLimitIntervalSec=6h" in gold
+    assert "StartLimitBurst=72" in gold
+
+
+def test_gold_runtime_uses_the_official_24x7_maintenance_calendar() -> None:
+    timer = _unit("tradebot-gold-live.timer")
+
+    assert "Mon..Fri *-*-* 00..23:02/5:00 America/Chicago" in timer
+    assert "Sat *-*-* 00..01:02/5:00 America/Chicago" in timer
+    assert "Sat *-*-* 04..23:02/5:00 America/Chicago" in timer
+    assert "Sun *-*-* 00..23:02/5:00 America/Chicago" in timer
+    assert "America/New_York" not in timer
 
 
 def test_gateway_loopback_firewall_is_a_root_owned_launch_precondition() -> None:
