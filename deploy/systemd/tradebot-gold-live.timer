@@ -1,12 +1,12 @@
 [Unit]
-Description=Reconcile the selected 1OZ Stage-76 canary every five minutes
+Description=Reconcile the selected 24/7 1OZ Stage-76 canary every five minutes
 PartOf=tradebot-live.target
 
 [Timer]
-OnCalendar=Sun *-*-* 18..23:02/5:00 America/New_York
-OnCalendar=Mon..Thu *-*-* 00..16:02/5:00 America/New_York
-OnCalendar=Mon..Thu *-*-* 18..23:02/5:00 America/New_York
-OnCalendar=Fri *-*-* 00..16:02/5:00 America/New_York
+OnCalendar=Mon..Fri *-*-* 00..23:02/5:00 America/Chicago
+OnCalendar=Sat *-*-* 00..01:02/5:00 America/Chicago
+OnCalendar=Sat *-*-* 04..23:02/5:00 America/Chicago
+OnCalendar=Sun *-*-* 00..23:02/5:00 America/Chicago
 AccuracySec=10s
 RandomizedDelaySec=0
 Persistent=false

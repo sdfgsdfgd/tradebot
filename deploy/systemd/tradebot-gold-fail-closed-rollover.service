@@ -3,15 +3,20 @@ Description=Publish the selected flat-first Gold rollover
 Wants=network-online.target
 After=network-online.target tradebot-ib-gateway.service tradebot-ib-preflight.service
 OnFailure=tradebot-operator-alert@gold-runtime-failed.service
+StartLimitIntervalSec=6h
+StartLimitBurst=72
 
 [Service]
 Type=oneshot
 WorkingDirectory=%h/Desktop/py/tradebot
 Environment=PATH=%h/.local/share/tradebot/venv/bin:/usr/local/bin:/usr/bin:/bin
 Environment=PYTHONUNBUFFERED=1
-ExecStartPre=/usr/bin/test -x /var/tmp/tradebot_gold_fail_closed_rollover.sh
-ExecStart=/var/tmp/tradebot_gold_fail_closed_rollover.sh
-ExecStartPost=/usr/bin/systemctl --user enable tradebot-gold-live.timer
+ExecStartPre=/usr/bin/test -x %h/Desktop/py/tradebot/deploy/systemd/tradebot-gold-fail-closed-rollover
+ExecStart=%h/Desktop/py/tradebot/deploy/systemd/tradebot-gold-fail-closed-rollover
+ExecStartPost=/usr/bin/systemctl --user enable --now tradebot-gold-live.timer
+ExecStartPost=-/usr/bin/systemctl --user start tradebot-ib-preflight.service
+Restart=on-failure
+RestartSec=5min
 TimeoutStartSec=12min
 Nice=5
 IOSchedulingClass=best-effort

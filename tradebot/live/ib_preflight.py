@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import hashlib
 import json
 import math
 import os
@@ -23,338 +22,54 @@ from ..config import load_config
 from .capital import load_live_capital_plan
 
 
-IB_PREFLIGHT_SCHEMA = "live.ib-preflight.v1"
-IB_PREFLIGHT_AUTHORITY = "read_only_broker_and_runtime_readiness"
-IB_PREFLIGHT_DEFAULT_MAX_AGE_SEC = 30 * 60 * 60
+from .ib_preflight_contract import (
+    IB_PREFLIGHT_BOUNDARIES,
+    gate_actionable_plan,
+    ib_preflight_configured,
+    ib_preflight_decision,
+    load_ib_preflight,
+    order_preflight_mode,
+    publish_ib_preflight,
+    reduce_ib_preflight,
+    require_order_preflight,
+    require_reduction_preflight,
+    validate_ib_preflight,
+)
+
+
+__all__ = (
+    "IB_PREFLIGHT_BOUNDARIES",
+    "gate_actionable_plan",
+    "ib_preflight_configured",
+    "ib_preflight_decision",
+    "ib_sentinel",
+    "load_ib_preflight",
+    "order_preflight_mode",
+    "publish_ib_preflight",
+    "reduce_ib_preflight",
+    "require_order_preflight",
+    "require_reduction_preflight",
+    "validate_ib_preflight",
+)
+
+
 IB_SENTINEL_WARMUP_GRACE_SEC = 30 * 60
 IB_RUNTIME_STATUS_SCHEMA = "live.ib-runtime-status.v1"
 IB_GATEWAY_HOST = "127.0.0.1"
 IB_GATEWAY_PORT = 4001
-IB_PREFLIGHT_BOUNDARIES = {
-    "broker_orders_submitted": 0,
-    "broker_orders_cancelled": 0,
-    "gateway_restarted": False,
-    "runtime_units_mutated": False,
-}
 
-
-def _canonical(value: object) -> bytes:
-    return json.dumps(
-        value,
-        allow_nan=False,
-        separators=(",", ":"),
-        sort_keys=True,
-    ).encode()
-
-
-def _identity(value: object) -> str:
-    return hashlib.sha256(_canonical(value)).hexdigest()
-
-
-def _aware_utc(value: datetime | str) -> datetime:
-    parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00")) if isinstance(value, str) else value
-    if parsed.tzinfo is None:
-        raise ValueError("IB preflight timestamp must be timezone-aware")
-    return parsed.astimezone(timezone.utc)
-
-
-def reduce_ib_preflight(
-    facts: Mapping[str, object],
-    *,
-    checked_at_utc: datetime | str,
-) -> dict[str, object]:
-    """Reduce read-only facts into distinct entry and reduction readiness."""
-
-    checked = _aware_utc(checked_at_utc)
-    gateway = facts.get("gateway")
-    broker = facts.get("broker")
-    connectivity = facts.get("connectivity")
-    runtime = facts.get("runtime")
-    capabilities = facts.get("capabilities")
-    if (
-        not isinstance(gateway, Mapping)
-        or not isinstance(broker, Mapping)
-        or not isinstance(connectivity, Mapping)
-        or not isinstance(runtime, Mapping)
-        or not isinstance(capabilities, Sequence)
-        or isinstance(capabilities, (str, bytes))
-        or any(not isinstance(capability, Mapping) for capability in capabilities)
-    ):
-        raise ValueError("IB preflight facts are incomplete")
-
-    shared: list[str] = []
-    if gateway.get("port_accepting") is not True:
-        shared.append("gateway_port_unavailable")
-    if gateway.get("api_authenticated") is not True:
-        shared.append("broker_api_not_authenticated")
-    if gateway.get("expected_account_returned") is not True:
-        shared.append("expected_account_not_returned")
-    if broker.get("positions_fresh") is not True:
-        shared.append("broker_positions_not_fresh")
-    if broker.get("open_orders_fresh") is not True:
-        shared.append("broker_open_orders_not_fresh")
-
-    reduction_reasons = list(shared)
-    if broker.get("reduction_quote_ready") is not True:
-        reduction_reasons.append("held_position_quote_not_ready")
-
-    entry_reasons = list(shared)
-    if not capabilities:
-        entry_reasons.append("required_capabilities_missing")
-    entry_reasons.extend(
-        f"required_capability_unhealthy:{capability.get('label')}"
-        for capability in capabilities
-        if capability.get("healthy") is not True
-    )
-    if connectivity.get("unpaired_1100") is True:
-        entry_reasons.append("connectivity_loss_unpaired")
-    if connectivity.get("losses_10m", 0) >= 3:
-        entry_reasons.append("connectivity_flap_storm")
-    missing_members = runtime.get("missing_members")
-    if not isinstance(missing_members, Sequence) or isinstance(missing_members, (str, bytes)):
-        entry_reasons.append("runtime_membership_unknown")
-    else:
-        entry_reasons.extend(f"runtime_member_not_armed:{unit}" for unit in missing_members)
-
-    entry_reasons = sorted(set(entry_reasons))
-    reduction_reasons = sorted(set(reduction_reasons))
-    body = {
-        "schema": IB_PREFLIGHT_SCHEMA,
-        "authority": IB_PREFLIGHT_AUTHORITY,
-        "checked_at_utc": checked.isoformat(),
-        "facts": dict(facts),
-        "verdict": {
-            "entry_ready": not entry_reasons,
-            "reduction_ready": not reduction_reasons,
-            "entry_reasons": entry_reasons,
-            "reduction_reasons": reduction_reasons,
-        },
-        "boundaries": dict(IB_PREFLIGHT_BOUNDARIES),
-    }
-    return {**body, "receipt_id": _identity(body)}
-
-
-def validate_ib_preflight(value: Mapping[str, object]) -> dict[str, object]:
-    frozen = dict(value)
-    receipt_id = str(frozen.pop("receipt_id", ""))
-    if (
-        frozen.get("schema") != IB_PREFLIGHT_SCHEMA
-        or frozen.get("authority") != IB_PREFLIGHT_AUTHORITY
-        or frozen.get("boundaries") != IB_PREFLIGHT_BOUNDARIES
-        or not isinstance(frozen.get("facts"), Mapping)
-        or not isinstance(frozen.get("verdict"), Mapping)
-        or receipt_id != _identity(frozen)
-    ):
-        raise ValueError("invalid IB preflight receipt")
-    rebuilt = reduce_ib_preflight(
-        frozen["facts"],
-        checked_at_utc=str(frozen["checked_at_utc"]),
-    )
-    if rebuilt != value:
-        raise ValueError("IB preflight receipt is not canonical")
-    return dict(value)
-
-
-def publish_ib_preflight(path: Path, receipt: Mapping[str, object]) -> None:
-    frozen = validate_ib_preflight(receipt)
-    payload = json.dumps(frozen, allow_nan=False, indent=2, sort_keys=True).encode() + b"\n"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary: Path | None = None
-    try:
-        with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as handle:
-            temporary = Path(handle.name)
-            handle.write(payload)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.chmod(temporary, 0o600)
-        os.replace(temporary, path)
-        temporary = None
-    finally:
-        if temporary is not None:
-            temporary.unlink(missing_ok=True)
-
-
-def load_ib_preflight(
-    path: Path,
-    *,
-    now: datetime | None = None,
-    max_age_sec: float = IB_PREFLIGHT_DEFAULT_MAX_AGE_SEC,
-) -> dict[str, object]:
-    value = json.loads(path.read_text())
-    if not isinstance(value, Mapping):
-        raise ValueError("IB preflight receipt must be one JSON object")
-    receipt = validate_ib_preflight(value)
-    observed = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
-    age = (observed - _aware_utc(str(receipt["checked_at_utc"]))).total_seconds()
-    if age < -60 or age > max(1.0, float(max_age_sec)):
-        raise ValueError("IB preflight receipt is stale")
-    return receipt
-
-
-def _configured_receipt_path(path: Path | None = None) -> Path | None:
-    if path is not None:
-        return path
-    raw = os.getenv("TRADEBOT_IB_PREFLIGHT_RECEIPT", "").strip()
-    return Path(raw).expanduser() if raw else None
-
-
-def ib_preflight_configured(path: Path | None = None) -> bool:
-    return _configured_receipt_path(path) is not None
-
-
-def ib_preflight_decision(
-    mode: str,
-    *,
-    path: Path | None = None,
-    now: datetime | None = None,
-    con_ids: Sequence[int] | None = None,
-) -> dict[str, object]:
-    normalized = str(mode).strip().lower()
-    if normalized not in {"entry", "reduction"}:
-        raise ValueError("IB preflight mode must be entry or reduction")
-    requested_ids = sorted({int(value) for value in con_ids or ()})
-    if any(value <= 0 for value in requested_ids):
-        raise ValueError("IB preflight contract IDs must be positive")
-    if normalized != "reduction" and requested_ids:
-        raise ValueError("IB preflight contract scope is reduction-only")
-    configured = _configured_receipt_path(path)
-    if configured is None:
-        return {
-            "configured": False,
-            "ready": True,
-            "reasons": [],
-            **({"con_ids": requested_ids} if requested_ids else {}),
-        }
-    try:
-        max_age = float(
-            os.getenv(
-                "TRADEBOT_IB_PREFLIGHT_MAX_AGE_SEC",
-                str(IB_PREFLIGHT_DEFAULT_MAX_AGE_SEC),
-            )
-        )
-        receipt = load_ib_preflight(configured, now=now, max_age_sec=max_age)
-        verdict = receipt["verdict"]
-        assert isinstance(verdict, Mapping)
-        reasons = list(verdict[f"{normalized}_reasons"])
-        if requested_ids:
-            reasons = [reason for reason in reasons if reason != "held_position_quote_not_ready"]
-            facts = receipt.get("facts")
-            broker = facts.get("broker") if isinstance(facts, Mapping) else None
-            positions = broker.get("positions") if isinstance(broker, Mapping) else None
-            readiness = broker.get("reduction_quotes") if isinstance(broker, Mapping) else None
-            if (
-                not isinstance(positions, Sequence)
-                or isinstance(positions, (str, bytes))
-                or not isinstance(readiness, Mapping)
-            ):
-                reasons.append("held_position_quote_scope_unavailable")
-            else:
-                held_ids = {
-                    int(position.get("con_id", 0) or 0)
-                    for position in positions
-                    if isinstance(position, Mapping)
-                    and abs(float(position.get("quantity", 0.0) or 0.0)) > 1e-9
-                }
-                reasons.extend(
-                    f"held_position_quote_not_ready:{con_id}"
-                    for con_id in requested_ids
-                    if con_id in held_ids and readiness.get(str(con_id)) is not True
-                )
-            reasons = sorted(set(reasons))
-        return {
-            "configured": True,
-            "ready": not reasons,
-            "reasons": reasons,
-            "receipt_id": receipt["receipt_id"],
-            **({"con_ids": requested_ids} if requested_ids else {}),
-        }
-    except (OSError, TypeError, ValueError, KeyError) as exc:
-        return {
-            "configured": True,
-            "ready": False,
-            "reasons": [f"ib_preflight_unavailable:{exc}"],
-        }
-
-
-def gate_actionable_plan(
+def _contract_specs(
     plan: Mapping[str, object],
+    root: Path,
     *,
-    reduction: bool,
-    path: Path | None = None,
-) -> dict[str, object]:
-    if plan.get("status") != "ACTIONABLE":
-        return dict(plan)
-    mode = "reduction" if reduction else "entry"
-    decision = ib_preflight_decision(mode, path=path)
-    if decision["ready"] is True:
-        return dict(plan)
-    return {
-        **dict(plan),
-        "status": "HOLD",
-        "reason": f"ib_preflight_{mode}_not_ready",
-        "leg": None,
-        "ib_preflight": decision,
-    }
-
-
-def require_reduction_preflight(
-    path: Path | None = None,
-    *,
-    con_ids: Sequence[int] | None = None,
-) -> None:
-    decision = ib_preflight_decision("reduction", path=path, con_ids=con_ids)
-    if decision["ready"] is not True:
-        raise RuntimeError(", ".join(str(reason) for reason in decision["reasons"]))
-
-
-def order_preflight_mode(*, position: float, action: str, quantity: float) -> str:
-    """Classify an exact single-contract order against current broker position."""
-
-    side = str(action or "").strip().upper()
-    try:
-        held = float(position)
-        size = float(quantity)
-    except (TypeError, ValueError) as exc:
-        raise ValueError("order preflight position and quantity must be numeric") from exc
-    if not math.isfinite(held) or not math.isfinite(size) or size <= 0:
-        raise ValueError("order preflight position and quantity must be finite")
-    reduction = (
-        (held > 0 and side == "SELL" and size <= held + 1e-9)
-        or (held < 0 and side == "BUY" and size <= abs(held) + 1e-9)
-    )
-    return "reduction" if reduction else "entry"
-
-
-def require_order_preflight(
-    *,
-    position: float,
-    action: str,
-    quantity: float,
-    path: Path | None = None,
-    con_id: int | None = None,
-) -> dict[str, object]:
-    """Require the appropriate receipt immediately before broker submission."""
-
-    mode = order_preflight_mode(
-        position=position,
-        action=action,
-        quantity=quantity,
-    )
-    decision = ib_preflight_decision(
-        mode,
-        path=path,
-        con_ids=(int(con_id),) if mode == "reduction" and con_id is not None else None,
-    )
-    if decision["ready"] is not True:
-        reasons = ", ".join(str(reason) for reason in decision["reasons"])
-        raise RuntimeError(f"IB preflight blocked {mode} order: {reasons}")
-    return {**decision, "mode": mode}
-
-
-def _contract_specs(plan: Mapping[str, object], root: Path) -> list[dict[str, object]]:
+    sleeve_id: str | None = None,
+) -> list[dict[str, object]]:
     specs: dict[int, dict[str, object]] = {}
     for sleeve in plan.get("sleeves", ()):
         if not isinstance(sleeve, Mapping):
+            continue
+        current_sleeve = str(sleeve.get("sleeve_id") or "")
+        if sleeve_id is not None and current_sleeve != sleeve_id:
             continue
         relative = Path(str(sleeve.get("selection_path") or ""))
         path = (root / relative).resolve()
@@ -379,23 +94,38 @@ def _contract_specs(plan: Mapping[str, object], root: Path) -> list[dict[str, ob
                 continue
             con_id = int(candidate.get("con_id", candidate.get("conId", 0)) or 0)
             if con_id > 0:
-                specs[con_id] = {"label": label.upper(), "con_id": con_id}
+                specs[con_id] = {
+                    "label": label.upper(),
+                    "con_id": con_id,
+                    "sleeve_id": current_sleeve,
+                    "strategy_id": str(sleeve.get("strategy_id") or ""),
+                }
     return [specs[key] for key in sorted(specs)]
 
 
-def _required_runtime_members(plan: Mapping[str, object]) -> list[str]:
+def _runtime_members_by_sleeve(
+    plan: Mapping[str, object],
+) -> dict[str, list[str]]:
     from .strategies import LIVE_STRATEGY_BINDINGS
 
     bindings = {binding.strategy_id: binding for binding in LIVE_STRATEGY_BINDINGS}
-    members = {
-        unit
+    return {
+        str(sleeve.get("sleeve_id") or ""): sorted(binding.runtime_timer_units)
         for sleeve in plan.get("sleeves", ())
         if isinstance(sleeve, Mapping)
         for binding in (bindings.get(str(sleeve.get("strategy_id") or "")),)
-        if binding is not None
-        for unit in binding.runtime_timer_units
+        if binding is not None and str(sleeve.get("sleeve_id") or "")
     }
-    return sorted(members)
+
+
+def _required_runtime_members(plan: Mapping[str, object]) -> list[str]:
+    return sorted(
+        {
+            unit
+            for members in _runtime_members_by_sleeve(plan).values()
+            for unit in members
+        }
+    )
 
 
 def _unit_armed(unit: str) -> bool:
@@ -605,7 +335,10 @@ async def probe_ib_preflight(
         if ib.isConnected():
             ib.disconnect()
 
-    expected_members = _required_runtime_members(plan)
+    members_by_sleeve = _runtime_members_by_sleeve(plan)
+    expected_members = sorted(
+        {unit for members in members_by_sleeve.values() for unit in members}
+    )
     armed_members = [unit for unit in expected_members if _unit_armed(unit)]
     facts = {
         "gateway": {
@@ -631,6 +364,7 @@ async def probe_ib_preflight(
             "expected_members": expected_members,
             "armed_members": armed_members,
             "missing_members": sorted(set(expected_members) - set(armed_members)),
+            "members_by_sleeve": members_by_sleeve,
         },
     }
     return reduce_ib_preflight(facts, checked_at_utc=checked)
@@ -807,12 +541,19 @@ def _selected_runtime_bindings(plan: Mapping[str, object]) -> list[object]:
 def _candidate_entry_window_open(binding: object, now: datetime) -> bool:
     """Alert stale entry authority only while that candidate can actually enter."""
 
+    strategy_id = str(getattr(binding, "strategy_id", ""))
+    if strategy_id.startswith("gold."):
+        local = now.astimezone(ZoneInfo("America/Chicago"))
+        weekday, minute = local.weekday(), local.hour * 60 + local.minute
+        return not (
+            weekday == 5 and 2 * 60 <= minute < 4 * 60
+            or weekday < 5 and 16 * 60 <= minute < 16 * 60 + 2
+        )
     local = now.astimezone(ZoneInfo("America/New_York"))
     weekday, minute = local.weekday(), local.hour * 60 + local.minute
-    strategy_id = str(getattr(binding, "strategy_id", ""))
     if strategy_id.startswith("xsp."):
         return weekday < 5 and (9 * 60 + 20) <= minute < (16 * 60 + 20)
-    if strategy_id.startswith(("mcl.", "gold.")):
+    if strategy_id.startswith("mcl."):
         if weekday == 6:
             return minute >= 18 * 60
         if weekday < 4:
@@ -826,12 +567,14 @@ def _candidate_monitor_window_open(binding: object, now: datetime) -> bool:
 
     if _candidate_entry_window_open(binding, now):
         return True
+    strategy_id = str(getattr(binding, "strategy_id", ""))
+    if strategy_id.startswith("gold."):
+        return False
     local = now.astimezone(ZoneInfo("America/New_York"))
     weekday, minute = local.weekday(), local.hour * 60 + local.minute
-    strategy_id = str(getattr(binding, "strategy_id", ""))
     if strategy_id.startswith("xsp."):
         return weekday < 5 and (9 * 60) <= minute < (16 * 60 + 20)
-    if strategy_id.startswith(("mcl.", "gold.")):
+    if strategy_id.startswith("mcl."):
         return weekday in {0, 1, 2, 3, 6} and minute >= (17 * 60 + 30)
     return False
 
@@ -959,7 +702,30 @@ def ib_sentinel(
         for state in services:
             if state["available"] != "loaded" or state["active"] == "failed" or state["result"] == "failed":
                 failures.append({"reason": reason, "detail": f"service_failed:{state['unit']}"})
-        decision = ib_preflight_decision("entry", path=receipt_path, now=observed)
+        strategy_id = str(getattr(binding, "strategy_id", ""))
+        sleeve_ids = [
+            str(sleeve.get("sleeve_id") or "")
+            for sleeve in plan.get("sleeves", ())
+            if isinstance(sleeve, Mapping)
+            and sleeve.get("strategy_id") == strategy_id
+        ]
+        con_ids = sorted(
+            {
+                int(spec["con_id"])
+                for sleeve_id in sleeve_ids
+                for spec in _contract_specs(
+                    plan,
+                    repository_root.resolve(),
+                    sleeve_id=sleeve_id,
+                )
+            }
+        )
+        decision = ib_preflight_decision(
+            "entry",
+            path=receipt_path,
+            now=observed,
+            con_ids=con_ids or None,
+        )
         if decision["ready"] is not True:
             failures.append({"reason": reason, "detail": "entry_authority_unready"})
 
@@ -1054,6 +820,13 @@ def _parser() -> argparse.ArgumentParser:
     require.add_argument("mode", choices=("entry", "reduction"))
     require.add_argument("--receipt", type=Path)
     require.add_argument("--con-id", type=int, action="append")
+    require.add_argument("--repository-root", type=Path, default=Path.cwd())
+    require.add_argument(
+        "--capital-plan",
+        type=Path,
+        default=Path("db/calibration/live_capital_plan.json"),
+    )
+    require.add_argument("--sleeve-id")
     sentinel = commands.add_parser("sentinel")
     sentinel.add_argument("--repository-root", type=Path, default=Path.cwd())
     sentinel.add_argument("--capital-plan", type=Path, required=True)
@@ -1069,12 +842,25 @@ def _parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     if args.command == "require":
-        if args.mode != "reduction" and args.con_id:
-            raise SystemExit("--con-id is valid only for reduction readiness")
+        if args.con_id and args.sleeve_id:
+            raise SystemExit("--con-id and --sleeve-id are mutually exclusive")
+        con_ids = list(args.con_id or ())
+        if args.sleeve_id:
+            plan = load_live_capital_plan(args.capital_plan)
+            con_ids = [
+                int(spec["con_id"])
+                for spec in _contract_specs(
+                    plan,
+                    args.repository_root.resolve(),
+                    sleeve_id=str(args.sleeve_id),
+                )
+            ]
+            if not con_ids:
+                raise SystemExit("selected sleeve has no executable contracts")
         decision = ib_preflight_decision(
             args.mode,
             path=args.receipt,
-            con_ids=args.con_id,
+            con_ids=con_ids,
         )
         print(json.dumps(decision, sort_keys=True))
         return 0 if decision["ready"] is True else 1

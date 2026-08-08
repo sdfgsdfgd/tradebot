@@ -43,7 +43,13 @@ def _facts() -> dict[str, object]:
             "open_orders": [],
         },
         "capabilities": [
-            {"label": "MCL", "con_id": 661016525, "healthy": True},
+            {
+                "label": "MCL",
+                "con_id": 661016525,
+                "healthy": True,
+                "sleeve_id": "mcl-two-speed-auction-margin",
+                "strategy_id": "mcl.two-speed-shock-arbiter.v112",
+            },
         ],
         "connectivity": {
             "losses_10m": 0,
@@ -54,6 +60,9 @@ def _facts() -> dict[str, object]:
             "expected_members": ["tradebot-mcl-live.timer"],
             "armed_members": ["tradebot-mcl-live.timer"],
             "missing_members": [],
+            "members_by_sleeve": {
+                "mcl-two-speed-auction-margin": ["tradebot-mcl-live.timer"],
+            },
         },
     }
 
@@ -138,6 +147,67 @@ def test_reduction_readiness_is_scoped_to_requested_held_contracts(
         path=path,
         con_ids=(61228752,),
     )["ready"] is True
+
+
+def test_entry_readiness_is_scoped_to_the_selected_contract_and_bundle(
+    tmp_path,
+) -> None:
+    facts = _facts()
+    facts["capabilities"].extend(
+        [
+            {
+                "label": "1OZ",
+                "con_id": 753716623,
+                "healthy": True,
+                "sleeve_id": "gold-1oz-stage76-margin",
+                "strategy_id": "gold.1oz-regime-harmony-stage76.v1",
+            },
+        ]
+    )
+    facts["capabilities"][0]["healthy"] = False
+    facts["runtime"].update(
+        {
+            "expected_members": [
+                "tradebot-gold-live.timer",
+                "tradebot-mcl-live.timer",
+            ],
+            "armed_members": ["tradebot-gold-live.timer"],
+            "missing_members": ["tradebot-mcl-live.timer"],
+            "members_by_sleeve": {
+                "gold-1oz-stage76-margin": ["tradebot-gold-live.timer"],
+                "mcl-two-speed-auction-margin": ["tradebot-mcl-live.timer"],
+            },
+        }
+    )
+    path = tmp_path / "preflight.json"
+    publish_ib_preflight(path, reduce_ib_preflight(facts, checked_at_utc=NOW))
+
+    assert ib_preflight_decision("entry", path=path)["ready"] is False
+    assert ib_preflight_decision(
+        "entry",
+        path=path,
+        con_ids=(753716623,),
+    )["ready"] is True
+    blocked = ib_preflight_decision(
+        "entry",
+        path=path,
+        con_ids=(661016525,),
+    )
+    assert blocked["ready"] is False
+    assert blocked["reasons"] == [
+        "required_capability_unhealthy:MCL",
+        "runtime_member_not_armed:tradebot-mcl-live.timer",
+    ]
+    unavailable = ib_preflight_decision(
+        "entry",
+        path=path,
+        con_ids=(999999999,),
+    )
+    assert unavailable["ready"] is False
+    assert unavailable["reasons"] == [
+        "required_capability_scope_unavailable:999999999",
+        "runtime_scope_unavailable",
+    ]
 
 
 def test_configured_preflight_is_fresh_tamper_evident_and_gates_only_entry(
@@ -290,6 +360,35 @@ def test_sentinel_ignores_retained_candidate_failure_outside_its_monitor_window(
 
     assert receipt["active_candidates"] == []
     assert receipt["failures"] == []
+
+
+def test_gold_monitor_window_matches_the_official_1oz_maintenance_clock() -> None:
+    import tradebot.live.ib_preflight as preflight
+
+    binding = SimpleNamespace(
+        strategy_id="gold.1oz-regime-harmony-stage76.v1",
+    )
+
+    assert preflight._candidate_monitor_window_open(
+        binding,
+        datetime(2026, 8, 8, 6, 20, tzinfo=timezone.utc),
+    )
+    assert not preflight._candidate_monitor_window_open(
+        binding,
+        datetime(2026, 8, 8, 7, 30, tzinfo=timezone.utc),
+    )
+    assert preflight._candidate_monitor_window_open(
+        binding,
+        datetime(2026, 8, 8, 9, 1, tzinfo=timezone.utc),
+    )
+    assert not preflight._candidate_monitor_window_open(
+        binding,
+        datetime(2026, 8, 10, 21, 1, tzinfo=timezone.utc),
+    )
+    assert preflight._candidate_monitor_window_open(
+        binding,
+        datetime(2026, 8, 10, 21, 2, tzinfo=timezone.utc),
+    )
 
 
 def test_sentinel_grants_a_continuous_thirty_minute_warmup_before_escalation(

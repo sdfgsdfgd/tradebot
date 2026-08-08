@@ -1,0 +1,106 @@
+{
+  "schema": "gold.one-oz-stage76-interruption-target-reconstruction.v1",
+  "authority": "read_only_causal_signal_reconstruction_no_backfill_no_selection_no_capital_no_orders",
+  "created_at_utc": "2026-08-08T16:24:32Z",
+  "source_revision": "9ca0005853f681a4d2c0d506fe6827efc6444ab9",
+  "interrupted_coverage": {
+    "selection_id": "62344ce21bf7c6f01095abab14b6ca8ef79c9806abb35294859fc9574a5f7574",
+    "coverage_started_at_utc": "2026-08-07T02:27:00+00:00",
+    "cutoff_utc": "2026-08-08T02:28:30+00:00",
+    "due_slots": 288,
+    "evaluated_slots": 203,
+    "missing_slots": 85,
+    "last_evaluated_at_utc": "2026-08-07T19:22:00.815817+00:00",
+    "missing_breakdown": {
+      "gateway_outage_while_old_timer_was_eligible": 19,
+      "stale_non_24x7_timer_calendar": 66
+    },
+    "fills": 0,
+    "closed_trades": 0,
+    "net_usd": 0.0,
+    "maximum_drawdown_usd": 0.0
+  },
+  "causal_boundaries": [
+    {
+      "cutoff_utc": "2026-08-07T16:00:00+00:00",
+      "raw_direction": "up",
+      "proposed_direction": null,
+      "daily_hard_direction": "down",
+      "daily_hard_age": 152,
+      "stage12_admitted_direction": null,
+      "stage22_admitted_direction": null,
+      "target_direction": null
+    },
+    {
+      "cutoff_utc": "2026-08-07T20:00:00+00:00",
+      "raw_direction": "up",
+      "proposed_direction": null,
+      "daily_hard_direction": "down",
+      "daily_hard_age": 152,
+      "stage12_admitted_direction": null,
+      "stage22_admitted_direction": null,
+      "target_direction": null
+    },
+    {
+      "cutoff_utc": "2026-08-08T00:00:00+00:00",
+      "raw_direction": "up",
+      "proposed_direction": null,
+      "daily_hard_direction": "up",
+      "daily_hard_age": 1,
+      "stage12_admitted_direction": null,
+      "stage22_admitted_direction": null,
+      "target_direction": null
+    },
+    {
+      "cutoff_utc": "2026-08-08T04:00:00+00:00",
+      "latest_completed_decision_bar_utc": "2026-08-08T00:00:00+00:00",
+      "raw_direction": "up",
+      "proposed_direction": null,
+      "daily_hard_direction": "up",
+      "daily_hard_age": 1,
+      "stage12_admitted_direction": null,
+      "stage22_admitted_direction": null,
+      "target_direction": null
+    }
+  ],
+  "historical_owner_identity": {
+    "three_year": {
+      "trades": 73,
+      "net_usd": 3103.52,
+      "profit_factor": 3.9914887464,
+      "max_drawdown_usd": 690.07,
+      "ledger_sha256": "c3add7cde287718b895de70936aa9aeab18b465bd6e68d3b8140c262650a3733"
+    },
+    "ten_year": {
+      "trades": 257,
+      "net_usd": 3227.82,
+      "profit_factor": 2.1891248688,
+      "max_drawdown_usd": 690.07,
+      "ledger_sha256": "f5c212b19b9c5b6f697f01b6162a2f4382d8503afa4ebaa3844add45326a35a5"
+    }
+  },
+  "reconstruction": {
+    "path_on_q": "/var/tmp/gold_interruption_signal_reconstruction.py",
+    "sha256": "9fa6751deb9d4b1752f9e8c9ef6805e3ef52bf19ff9604a82f0b5fcfed4fa5ca",
+    "result_path_on_q": "/var/tmp/gold-interruption-signal-reconstruction-20260809.json",
+    "result_sha256": "68a3070e061b4ab87761820ba74134f2ab4f4e8cc3bed58090b9f830572ab56f",
+    "gold_onset_sha256": "4524c4d0ea7dbba677073ae8c7b7b405baaaee04ad7327ecf3a6613906756daa",
+    "gold_onset_cli_sha256": "5d1793d64c186d85e2ebd4fead6e3a50631e57101e0cb7979182343ae37b3476",
+    "gold_regime_harmony_sha256": "d1be0d4aaf1bb498596d449af4667382f62aff490983811d6c3e4cd52f50fd9a"
+  },
+  "verdict": "CONTINUITY_DEFECT_PREVENTABLE_BUT_NO_LAWFUL_GOLD_TARGET_WAS_MISSED",
+  "interpretation": {
+    "graduation": "The interrupted epoch is permanently invalid evidence and cannot be backfilled.",
+    "economics": "Every completed Stage-76 decision boundary through the interruption remained targetless; continuous infrastructure would have recorded HOLD checkpoints, not a trade.",
+    "repair": "Correct the 1OZ clock and recovery path, then begin one fresh immutable run without changing Stage-76 signal thresholds."
+  },
+  "boundaries": {
+    "broker_queried_read_only": true,
+    "outcome_backfill": false,
+    "strategy_mutated": false,
+    "selection_mutated": false,
+    "capital_mutated": false,
+    "service_or_timer_mutated": false,
+    "submitted_orders": 0
+  }
+}
