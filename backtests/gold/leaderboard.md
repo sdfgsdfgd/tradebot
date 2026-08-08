@@ -1145,7 +1145,10 @@ Prepend every future crown or challenger using this evidence order:
   graduation clock from its own `run_started_at_utc`; predecessor gaps are not
   inherited or backfilled.
 - **Receipt:**
-  `one_oz_stage76_fail_closed_market_data_repair_20260808.json`.
+  `one_oz_stage76_fail_closed_market_data_repair_20260808.json`. Commit
+  `06d4915…` is deployed on q; transient schedule receipt
+  `one_oz_stage76_fail_closed_rollover_schedule_20260808.json` binds the
+  Monday `00:12Z` migration and fail-safe resume.
 
 ### LC-002 · 2026-08-07 · Stage 76 graduation coverage succession
 
