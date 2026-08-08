@@ -34,7 +34,7 @@
     },
     "publisher": {
       "path": "tradebot/news/pipeline.py",
-      "sha256": "e6c93067de66e003f5351fc8bf5da243466bd378d4938448be617aec082c961c"
+      "sha256": "5d11e58976eb242eebf760922ede61b8491752e1ffc22533731f25cb146ec41a"
     },
     "publication_contract": {
       "path": "tradebot/news/contract.py",

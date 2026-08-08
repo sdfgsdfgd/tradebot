@@ -51,8 +51,7 @@ DEFAULT_MEMORY_PATH = Path("~/.codex/trade-research.md").expanduser()
 DEFAULT_EVENTS_PATH = Path("~/.codex/trade-events.jsonl").expanduser()
 DEFAULT_MODEL = "gpt-5.6-sol"
 DEFAULT_MAX_ARTICLES = 128
-# Codex research can legitimately take tens of minutes; the systemd unit keeps
-# a small outer grace for cleanup and post-publication verification.
+# Codex research may take tens of minutes; systemd retains a small outer grace.
 DEFAULT_TIMEOUT_SEC = 60 * 60
 DEFAULT_FETCH_TIMEOUT_SEC = 30
 MAX_RESPONSE_BYTES = 3_000_000
@@ -533,11 +532,7 @@ def _load_state(path: Path) -> dict[str, object]:
     return state
 
 
-def verify_published(
-    *,
-    data_dir: Path,
-    now: datetime | None = None,
-) -> dict[str, object]:
+def verify_published(*, data_dir: Path, now: datetime | None = None) -> dict[str, object]:
     """Prove the currently published XSP/MCL/GC context is intact and fresh."""
 
     observed_at = (now or datetime.now(timezone.utc)).replace(microsecond=0)
@@ -564,10 +559,7 @@ def verify_published(
         "status": "fresh",
         "as_of_utc": _utc_iso(observed_at),
         "latest": str(latest_path),
-        "signals": {
-            symbol: observation.as_payload()
-            for symbol, observation in observations.items()
-        },
+        "signals": {symbol: item.as_payload() for symbol, item in observations.items()},
     }
 
 def _write_json_atomic(path: Path, value: dict[str, object]) -> None:
@@ -977,9 +969,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--timeout-sec", type=int, default=DEFAULT_TIMEOUT_SEC)
     parser.add_argument(
-        "--verify",
-        action="store_true",
-        help="validate the current publication without fetching news or invoking Codex",
+        "--verify", action="store_true", help="validate the current publication only"
     )
     return parser
 

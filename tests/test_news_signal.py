@@ -997,7 +997,7 @@ def test_mcl_narrative_generation_binds_current_owners(tmp_path: Path) -> None:
     generation = load_mcl_narrative_generation()
 
     assert generation["generation_id"] == (
-        "1f463fee41a5d978fb91f635c6ac49ba898d99991603f1279f762034907fd913"
+        "6ac75895e0fb002b26ae5c58075fa2d2b34a294a6a5f7d541f89a8a8cdd83c53"
     )
     assert generation["status"] == "ACTIVE_EMPTY_PREFIX"
 

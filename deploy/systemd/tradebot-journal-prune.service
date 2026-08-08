@@ -7,6 +7,6 @@ ExecStart=/usr/bin/journalctl --user --rotate --vacuum-time=4weeks
 TimeoutStartSec=2min
 Nice=19
 IOSchedulingClass=idle
-PrivateTmp=true
+PrivateTmp=false
 NoNewPrivileges=true
 UMask=0077
