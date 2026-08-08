@@ -1,0 +1,163 @@
+{
+  "schema": "mcl.stage114-v18-one-epoch-veto-stage131-preregistration.v1",
+  "authority": "incident_derived_safety_contract_only_no_entry_no_order_no_capital_no_economic_selection",
+  "registered_at_utc": "2026-08-08T06:49:56+00:00",
+  "purpose": "Allow one causally complete Stage-114 authority wave to suppress only the opposite V18 maturation paired to the exact raw-turn epoch that terminated that wave.",
+  "incumbent": {
+    "strategy_version": "mcl.two-speed-shock-arbiter.v112",
+    "selection_id": "8adead895d3bd460b460f832d725046a3ea34079525a80a1662004ade2c17c93",
+    "selection_path_on_q": "db/calibration/selections/8adead895d3bd460b460f832d725046a3ea34079525a80a1662004ade2c17c93.json",
+    "selection_sha256": "0d7057f9591b6de8379365935ba5724e50285a6cf26a59b77e6354faf91a1b9c",
+    "crown_path": "backtests/mcl/mcl_v18_shock_stage112_executable_crown.json",
+    "crown_sha256": "c1e7aad0391a6a4ab1cd6cf2065af023d2c36058e411a464dae939599b0dd63f"
+  },
+  "known_incident": {
+    "contract_key": "202608",
+    "stage114": {
+      "ledger_path_on_q": "/home/x/.local/state/tradebot/research/mcl_shock_waves.jsonl",
+      "ledger_prefix_sha256_at_audit": "38c3178f22426921bc8dd2fd6a31f38f92887bbe7c57fd3a418a6441ea7f866c",
+      "checkpoint_id": "2ef863e7b856977c9964eaf9c52684c6976e9db386daa0d39f7d4adf4ca72b74",
+      "episode_id": "f518b68e7e5399b99d77d1fce0f671f94ad09d9540ae7b48d146f2ae3470d695",
+      "episode_sha256": "4d7211ff2cf18c422fb1cb9b00cc4d394fe2a85a7beba58365d1911506d559d4",
+      "generation_id": "e01e06c86ca2c94564c201409595055498cdb223505d538442ccd23bd70fda98",
+      "started_at_utc": "2026-08-07T17:33:26+00:00",
+      "authority_bound_at_utc": "2026-08-07T17:33:33+00:00",
+      "recorded_at_utc": "2026-08-07T19:20:50.046622+00:00",
+      "terminal_at_utc": "2026-08-07T19:20:00+00:00",
+      "terminal_reason": "stage112_v18_raw_turn",
+      "terminal_authority_direction": -1,
+      "maximum_level": "REGIME_20X_PLUS",
+      "maximum_volume_multiple": 37.422222222222224,
+      "outcomes_exposed": false,
+      "submitted_orders": 0
+    },
+    "v18_raw_turn": {
+      "source_checkpoint_id": "5ea054d5766e4e40a2f3c8996d9393b0d720514eafb1ba6fd59f2ce0b60e3973",
+      "event_id": "782adc555dbd6a45bf0cffefaeac1838ea832b83da1da84d7928803ba92e3bb2",
+      "observed_at_utc": "2026-08-07T19:20:00+00:00",
+      "raw_direction": -1,
+      "raw_parity_ticks": 17
+    },
+    "v18_maturation": {
+      "source_checkpoint_id": "531d7f9ce024a0f02008209036292191ccc68a3abad4703943949f20760b51bd",
+      "event_id": "0099ec77869ce260a00ab7a060756abbfdbd3c1b42ffb6c3111791fb6d26dc93",
+      "observed_at_utc": "2026-08-07T19:25:00+00:00",
+      "admitted_direction": 1,
+      "raw_direction": -1,
+      "route": "failed_auction"
+    },
+    "live_execution": {
+      "source_checkpoint_id": "530226e66e0f6508db6a32976187386df0639adc7564d05423efffc89fd6ba05",
+      "submitted_checkpoint_id": "b169231e104d42d510641ccf33476fd1e8fb0463ef240521ab9a2fa734519270",
+      "terminal_checkpoint_id": "d58a291c20666685b930becae0cb047722780c84320cceb60834f09ab5b298ad",
+      "transition_id": "859c42b15009a6bd9de0f8004f335e3d4dbd2baad8be7024d5fca3fa1559fec8",
+      "order_id": 75,
+      "perm_id": 66737516,
+      "execution_id": "000100f5.6a751bc8.01.01",
+      "fill_at_utc": "2026-08-07T19:27:03.050336+00:00",
+      "action": "BUY",
+      "quantity": 1,
+      "fill_price": 76.93,
+      "commission_usd": 0.76
+    },
+    "causal_ordering": {
+      "wave_terminal_precedes_maturation_seconds": 300,
+      "wave_record_precedes_maturation_source_seconds": 292.490284,
+      "maturation_precedes_fill_seconds": 123.050336
+    }
+  },
+  "prospective_census_at_freeze": {
+    "current_selection_complete_stage114_episodes": 7,
+    "episodes_terminated_by_v18_raw_turn": 2,
+    "raw_turn_terminal_with_opposite_v18_maturation": 1,
+    "raw_turn_terminal_without_opposite_v18_maturation": 1,
+    "known_incident_is_the_only_observed_intervention": true
+  },
+  "coverage_contract": {
+    "state": "one atomically replaced, content-addressed observer watermark",
+    "must_bind": [
+      "Stage-114 generation ID",
+      "live selection ID",
+      "contract key",
+      "latest completed CL/MCL bar evaluated",
+      "latest turn-tape bucket evaluated",
+      "complete episode IDs and identity hash",
+      "open-episode identity without direction or trading authority"
+    ],
+    "matching_episode": "veto the exact opposite V18 maturation",
+    "proven_coverage_without_matching_episode": "preserve Stage-112 behavior",
+    "missing_stale_or_identity_mismatched_coverage": "defer the maturation until coverage is proven and the ordinary admission-age law expires it if proof never arrives"
+  },
+  "exact_veto_key": [
+    "selection_id",
+    "contract_key",
+    "Stage-114 terminal_at_utc",
+    "terminal reason stage112_v18_raw_turn",
+    "terminal authority direction",
+    "V18 raw-turn event_id and raw direction",
+    "V18 maturation event_id and signal_at_utc",
+    "opposite maturation direction"
+  ],
+  "one_epoch_law": {
+    "eligible_target_owner": "v18",
+    "eligible_target_route": "failed_auction",
+    "effect": "target becomes null for the matched maturation event only",
+    "consumption": "the veto identity is persisted and idempotent across restart",
+    "expiry": "the next raw turn, contract roll, generation succession, or selection succession",
+    "direction_authority": "none",
+    "same_direction_entry_authority": "none",
+    "sizing_authority": "none",
+    "capital_authority": "none",
+    "order_authority": "none"
+  },
+  "stage130_separation": {
+    "candidate": "MCL_NATIVE_CYCLE_RAW_CONFIRMATION",
+    "purpose": "independently test whether native-cycle maturity earns a same-direction entry",
+    "may_influence_stage131_veto": false,
+    "may_use_stage131_safety_result_as_entry_economics": false,
+    "current_authority": "count_first_candidate_no_replay_no_live_authority"
+  },
+  "required_proof": {
+    "identity": [
+      "tampered episode rejected",
+      "wrong selection rejected",
+      "wrong contract rejected",
+      "wrong raw-turn timestamp rejected",
+      "wrong raw direction rejected",
+      "same-direction maturation unchanged",
+      "non-failed-auction route unchanged"
+    ],
+    "coverage": [
+      "observer ahead or equal permits deterministic decision",
+      "observer lag defers without consuming admission",
+      "observer failure never means no shock",
+      "late valid coverage can release an unvetoed target only inside the existing admission-age window",
+      "restart reproduces the same watermark and veto identity"
+    ],
+    "parity": [
+      "Stage-131 disabled reproduces all 388 Stage-112 trades and ledger hash",
+      "ordinary V18 and completed-minute shock paths remain exact",
+      "known incident target and order are suppressed",
+      "no Stage-114 episode can create a target"
+    ],
+    "live": [
+      "fresh immutable selection from a flat order-free broker boundary",
+      "MCL-only LMT architecture",
+      "raw-loss cap, weekly flat, roll, gap, and restart risk reduction unchanged",
+      "shared capital and account lock unchanged",
+      "nontransmitting commissioning before timer activation"
+    ]
+  },
+  "economic_boundary": {
+    "stage131": "safety-veto opportunity cost and tails must be reported honestly; sparse prospective evidence cannot be relabeled as a full-history alpha backtest",
+    "stage130": "separate count and economic replay only under the Hawkeye-selected candidate budget",
+    "mcl_successor_gate": "most available one-year periods must improve PnL/DD by at least the user-authorized 3 percent while trade count, yearly directionality, drawdown, tails, and executable safety remain acceptable"
+  },
+  "live_boundary": {
+    "current_stage112_execution": "quarantined",
+    "current_selection_rewritten": false,
+    "runtime_code_changed": false,
+    "new_selection_created": false,
+    "submitted_orders": 0
+  }
+}

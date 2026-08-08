@@ -1,0 +1,45 @@
+{
+  "schema": "mcl.stage131-exact-epoch-veto-contract-result.v1",
+  "authority": "read_only_identity_contract_no_outcomes_no_orders_no_capital",
+  "preregistration": {
+    "path": "backtests/mcl/mcl_stage114_v18_epoch_veto_stage131_preregistration.json",
+    "sha256": "ed0d49557af8415d0df4c176d30366aafc3d31d6afd758fdb714c5f1183be9e4"
+  },
+  "evaluator": {
+    "path_on_mac": "/tmp/mcl_stage131_epoch_veto_contract.py",
+    "path_on_q": "/var/tmp/mcl_stage131_epoch_veto_contract.py",
+    "sha256": "85757ecba333d2440e83f39abfc96887d632efcd01132fc00adfd82c5aa42804"
+  },
+  "inputs": {
+    "selection_id": "8adead895d3bd460b460f832d725046a3ea34079525a80a1662004ade2c17c93",
+    "wave_ledger_path_on_q": "/home/x/.local/state/tradebot/research/mcl_shock_waves.jsonl",
+    "wave_ledger_sha256": "38c3178f22426921bc8dd2fd6a31f38f92887bbe7c57fd3a418a6441ea7f866c",
+    "live_ledger_path_on_q": "/home/x/Desktop/py/tradebot/db/calibration/mcl_live_calibration.jsonl",
+    "live_ledger_sha256": "451f942e6130ce27d0e9bf6929ac73401eda8f7cb408fbcee382e6c777d6709a"
+  },
+  "result": {
+    "complete_stage114_episodes": 7,
+    "raw_turn_terminal_episodes": 2,
+    "interventions": 1,
+    "match": {
+      "veto_id": "d98809443df118bfea46142008a1fd57066b0fbcad490b4943c629b0132adfe5",
+      "episode_id": "f518b68e7e5399b99d77d1fce0f671f94ad09d9540ae7b48d146f2ae3470d695",
+      "raw_event_id": "782adc555dbd6a45bf0cffefaeac1838ea832b83da1da84d7928803ba92e3bb2",
+      "maturation_event_id": "0099ec77869ce260a00ab7a060756abbfdbd3c1b42ffb6c3111791fb6d26dc93",
+      "contract_key": "202608",
+      "terminal_at_utc": "2026-08-07T19:20:00+00:00",
+      "terminal_direction": -1
+    },
+    "negative_controls": {
+      "tampered_episode_rejected": true,
+      "wrong_selection_no_veto": true,
+      "wrong_contract_no_veto": true,
+      "wrong_timestamp_no_veto": true,
+      "same_direction_no_veto": true,
+      "non_failed_auction_no_veto": true
+    }
+  },
+  "interpretation": "The exact safety contract identifies one and only one authentic current-selection intervention. It does not establish entry alpha, historical opportunity cost, or live authority.",
+  "outcomes_exposed": false,
+  "submitted_orders": 0
+}

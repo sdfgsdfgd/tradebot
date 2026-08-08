@@ -1,0 +1,57 @@
+{
+  "assertions": {
+    "all_coverage_proofs_pass": true,
+    "disabled_ledger_hash_exact": true,
+    "disabled_trade_count_exact": true,
+    "historical_risk_events_unchanged": true,
+    "incident_fill_exact": true,
+    "incident_is_single_broker_order": true,
+    "prospective_census_exact": true,
+    "stage114_has_no_order_authority": true,
+    "stage131_matching_projection_holds": true,
+    "stage131_prevents_incident_order": true
+  },
+  "authority": "safety_settlement_only_no_orders_no_capital_no_alpha_claim",
+  "disabled_historical_parity": {
+    "annualized_trades": 194.41658584730763,
+    "intrabar_drawdown_usd": 603.6299999999974,
+    "ledger_sha256": "e4d18b52dd6f791371722077c111bd717e4feb63654b4a9fc068b58c06b83aa7",
+    "pnl_to_drawdown": 6.532130609810673,
+    "primary_net_usd": 3942.9899999999993,
+    "raw_loss_cap_events": 8,
+    "stressed_net_usd": 3166.99,
+    "trades": 388,
+    "weekly_flat_events": 16
+  },
+  "known_incident": {
+    "actual_action": "BUY",
+    "actual_fill_price": 76.93,
+    "actual_opening_commission_usd": 0.76,
+    "actual_quantity": 1.0,
+    "order_ref": "MCLV18-859c42b15009a6bd9de0f800",
+    "prevented_filled_contracts": 1,
+    "prevented_unique_orders": 1,
+    "stage131_action": "VETO_OPPOSITE_EXACT_EPOCH",
+    "stage131_plan_status": "HOLD",
+    "transition_id": "859c42b15009a6bd9de0f8004f335e3d4dbd2baad8be7024d5fca3fa1559fec8"
+  },
+  "opportunity_cost": {
+    "historical_campaign_delta_usd": 0.0,
+    "historical_campaign_reason": "Stage-114 is prospective and begins after the frozen Stage-112 campaign; no historical trade is silently relabeled",
+    "realized_usd": null,
+    "reason": "the authentic incident position remains open over the weekend, so its final counterfactual economics are not settled"
+  },
+  "outcomes_exposed": true,
+  "prospective_scope": {
+    "complete_stage114_episodes": 7,
+    "opposite_maturation_interventions": 1,
+    "other_observed_raw_turn_terminal_changes": 0,
+    "raw_turn_terminal_episodes": 2
+  },
+  "schema": "mcl.stage131-safety-parity-settlement.v1",
+  "submitted_orders": 0,
+  "tail_claim": {
+    "not_proved": "no full-history Stage-114 tail or alpha estimate exists from seven prospective episodes",
+    "proved": "one exact unsafe opposite-shock order and fill would be prevented"
+  }
+}

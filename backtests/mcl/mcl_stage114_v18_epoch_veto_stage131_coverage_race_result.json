@@ -1,0 +1,79 @@
+{
+  "assertions": {
+    "corrupt_state_rejected": true,
+    "defer_does_not_consume": true,
+    "duplicate_decision_idempotent": true,
+    "duplicate_source_idempotent": true,
+    "identity_mismatch_defers": true,
+    "lagged_coverage_defers": true,
+    "late_release_expires": true,
+    "matching_coverage_vetoes": true,
+    "missing_coverage_defers": true,
+    "observer_cannot_create_target": true,
+    "ordinary_next_minute_clock_preserved": true,
+    "proven_absence_allows": true,
+    "restart_state_identity_exact": true,
+    "timely_release_uses_existing_entry_law": true,
+    "veto_has_no_order": true
+  },
+  "authentic_incident_episode_id": "f518b68e7e5399b99d77d1fce0f671f94ad09d9540ae7b48d146f2ae3470d695",
+  "authentic_incident_source_checkpoint_id": "531d7f9ce024a0f02008209036292191ccc68a3abad4703943949f20760b51bd",
+  "coverage_state": {
+    "authority": "coverage_only_no_direction_no_orders_no_capital",
+    "complete_episode_ids": [
+      "f518b68e7e5399b99d77d1fce0f671f94ad09d9540ae7b48d146f2ae3470d695"
+    ],
+    "complete_episode_set_sha256": "39ed49813b17efd9cf0c296967802ff07fd02a02293977af922ee2d80554340b",
+    "contract_key": "202608",
+    "evaluated_completed_bar_through_utc": "2026-08-07T19:20:00+00:00",
+    "evaluated_turn_tape_through_utc": "2026-08-07T19:20:00+00:00",
+    "generation_id": "e01e06c86ca2c94564c201409595055498cdb223505d538442ccd23bd70fda98",
+    "open_episode_id": null,
+    "recorded_at_utc": "2026-08-07T19:21:21+00:00",
+    "schema": "mcl.stage114-observer-coverage.v1",
+    "selection_id": "8adead895d3bd460b460f832d725046a3ea34079525a80a1662004ade2c17c93",
+    "state_id": "2256f05fddab06d0876ccc7254ebea249678e27bb4c12e46fc83be336f56b622",
+    "submitted_orders": 0
+  },
+  "generation_id": "e01e06c86ca2c94564c201409595055498cdb223505d538442ccd23bd70fda98",
+  "ordinary_unvetoed_clock": {
+    "early": "next_minute_entry_not_due",
+    "guard": "ALLOW_COVERAGE_PROVEN",
+    "late": "entry_source_stale",
+    "timely": "fresh_source_admission"
+  },
+  "outcomes_exposed": false,
+  "scenarios": {
+    "lagged": {
+      "decision": "DEFER_COVERAGE_LAG",
+      "decision_id": "d0809c0b5df764669350ba6a5e0c4d2b41f293ce63e526f199dc694157fc50d8",
+      "plan_reason": "flat_no_target",
+      "plan_status": "HOLD",
+      "plan_transition_id": "893e648a5ec49bbe39c88a8b735c4ad2a6294a715df005827b69d25d5b77d5c4"
+    },
+    "matching": {
+      "decision": "VETO_OPPOSITE_EXACT_EPOCH",
+      "decision_id": "240ea54aba42baa85ea53d08dec7d2fb40ad374180a88a059cb32fda4ebba847",
+      "plan_reason": "flat_no_target",
+      "plan_status": "HOLD",
+      "plan_transition_id": "84a70f5e192e5bff87d203d14d1efa63065b1bb760e3eb3196efd985c179afa5"
+    },
+    "missing": {
+      "decision": "DEFER_COVERAGE_MISSING",
+      "decision_id": "603630caae1e53829a849df4357bd0c8be3d8af3b6469d5338a224ef298d6077",
+      "plan_reason": "flat_no_target",
+      "plan_status": "HOLD",
+      "plan_transition_id": "ffa0aa48f4c9527ebaa80b0f1d28126c6772113f3cb69f73b00541db4dcd67a7"
+    },
+    "wrong_identity": {
+      "decision": "DEFER_COVERAGE_IDENTITY_MISMATCH",
+      "decision_id": "5c451195e13a1fc6dbcaac1d7da6fa19dc9cb6e6db116f71a4890619f4aa9a89",
+      "plan_reason": "flat_no_target",
+      "plan_status": "HOLD",
+      "plan_transition_id": "60c125e2425a674304b45238751c13fda0845e0d50864cf12a6485ecb01de667"
+    }
+  },
+  "schema": "mcl.stage131-observer-coverage-race-result.v1",
+  "selection_id": "8adead895d3bd460b460f832d725046a3ea34079525a80a1662004ade2c17c93",
+  "submitted_orders": 0
+}
