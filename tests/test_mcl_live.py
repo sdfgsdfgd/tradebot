@@ -26,6 +26,7 @@ from tradebot.research.mcl_stage131 import (
     MCL_STAGE131_BINDING_KEY,
     bind_mcl_stage131_selection,
     build_mcl_stage131_coverage,
+    load_mcl_stage131_context,
     project_mcl_stage131_entry_guard,
     publish_mcl_stage131_coverage,
 )
@@ -494,6 +495,28 @@ def test_mcl_stage131_is_selection_bound_and_coverage_is_atomic(tmp_path: Path) 
         context["episodes"][0]["episode_id"]
     ]
     assert checkpoint["evidence"]["target"]["direction"] == 1
+
+
+def test_mcl_runtime_rejects_a_pre_stage131_selection(tmp_path: Path) -> None:
+    selected = bind_mcl_maintenance_reopen_selection(
+        build_mcl_live_selection(
+            repository_root=ROOT,
+            preview=_preview(),
+            selected_at=AT + timedelta(seconds=1),
+        ),
+        repository_root=ROOT,
+    )
+
+    with pytest.raises(
+        ValueError, match="requires immutable Stage-131 binding"
+    ):
+        load_mcl_stage131_context(
+            selected,
+            repository_root=ROOT,
+            generation_path=tmp_path / "generation.json",
+            coverage_path=tmp_path / "coverage.json",
+            wave_ledger_path=tmp_path / "waves.jsonl",
+        )
 
 
 def test_mcl_stage131_vetoes_only_flat_entry_and_never_weakens_exit() -> None:

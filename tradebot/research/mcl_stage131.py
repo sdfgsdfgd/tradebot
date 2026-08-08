@@ -257,11 +257,11 @@ def load_mcl_stage131_context(
     generation_path: Path,
     coverage_path: Path = MCL_STAGE131_COVERAGE_PATH,
     wave_ledger_path: Path,
-) -> dict[str, object] | None:
+) -> dict[str, object]:
     selected = load_mcl_live_selection_from_mapping(selection)
     binding = selected["evidence"].get(MCL_STAGE131_BINDING_KEY)
     if binding is None:
-        return None
+        raise ValueError("selected MCL runtime requires immutable Stage-131 binding")
     root = repository_root.resolve()
     if (
         not isinstance(binding, Mapping)
