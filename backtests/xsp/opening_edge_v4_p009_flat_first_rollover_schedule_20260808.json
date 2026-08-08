@@ -1,0 +1,89 @@
+{
+  "schema": "xsp.opening-edge-v4-p009-flat-first-rollover-schedule.v1",
+  "authority": "weekend_live_recovery_schedule_only",
+  "status": "ARMED_WAITING_FOR_NATURAL_PRE_RTH_BOUNDARY",
+  "recorded_at_utc": "2026-08-08T11:34:23+00:00",
+  "repository": {
+    "commit": "12a3710c0ce8c41e2ba1026ef43005989bf246d0",
+    "mac_origin_q_synchronized": true,
+    "q_unrelated_preserved_changes": [
+      "q_mcl_reversal_bridge.md",
+      "q_pivot.md"
+    ]
+  },
+  "predecessor": {
+    "selection_id": "e0f61f74286e1d2b655e253633b0842cb47d41ad7b66fb4567eece3aa46d674b",
+    "strategy_version": "xsp.opening-edge-v4-dual-clock-arbitration-p009.v1",
+    "fixed_package_id": "xsp-usd-800",
+    "status": "INCUMBENT_HELD",
+    "residual_position": "23_SPXU",
+    "submitted_orders": 0
+  },
+  "preflight": {
+    "path_on_q": "/var/tmp/xsp-p009-fresh-rollover-weekend-preflight.json",
+    "sha256": "7a3933a909f67e442d166512e52902126210585550404c4698078033fcc8e01b",
+    "broker_flat": false,
+    "ledger_flat": null,
+    "incumbent_timer_may_remain_active": true,
+    "reason": "the_existing_owner_retains_sell_only_recovery_authority_until_the_final_pre_RTH_cutoff"
+  },
+  "transaction": {
+    "owner": "tradebot/research/xsp_live_rollover.py",
+    "owner_sha256": "bd3e53613f7adffca64fc44ddc0cc0eed58066b61541d6c259e2833b6f6143ed",
+    "script_path_on_q": "/var/tmp/tradebot_xsp_p009_fresh_rollover.sh",
+    "script_sha256": "9695e7b5234fddd7b12280065498c68a549dcf13399aa4a9e4dbf18d3798b791",
+    "timer": "tradebot-xsp-p009-fresh-rollover.timer",
+    "scheduled_at_utc": "2026-08-10T13:28:30+00:00",
+    "scheduled_at_et": "2026-08-10T09:28:30-04:00",
+    "scheduled_at_aest": "2026-08-10T23:28:30+10:00",
+    "timer_state": "active_waiting",
+    "shared_account_lock": true,
+    "submitted_orders": 0
+  },
+  "cutoff_law": {
+    "last_incumbent_natural_reduction_boundary_et": "09:27:00",
+    "first_fresh_RTH_execution_boundary_et": "09:31:03",
+    "timer_stops_before_preflight": true,
+    "held_or_unqualified_at_cutoff": "leave_XSP_off_without_custom_or_blind_order",
+    "terminal_flat_at_cutoff": "publish_fresh_selection_and_all_dependent_generations",
+    "success_proof": "direct_flat_reconciliation_then_idempotent_ALREADY_ROLLED_OVER",
+    "restart_only_after_exact_active_sleeve_identity": true,
+    "backfill": false
+  },
+  "isolation": {
+    "Gold_current_selection_id": "62344ce21bf7c6f01095abab14b6ca8ef79c9806abb35294859fc9574a5f7574",
+    "MCL_current_selection_id": "8adead895d3bd460b460f832d725046a3ea34079525a80a1662004ade2c17c93",
+    "Gold_rollover_timer": "active_waiting_2026-08-10T00:12:00Z",
+    "MCL_emergency_flatten_timer": "active_waiting_2026-08-09T22:00:05Z",
+    "MCL_live_timer": "inactive_quarantined",
+    "unrelated_SPCX_untouched": true
+  },
+  "proof": {
+    "focused_tests": "57_passed",
+    "cross_contract_and_architecture_tests": "219_passed",
+    "P009_runtime_owner_changed": false,
+    "P009_historical_parity": "648_trades_unchanged",
+    "Gold_semantics_changed": false,
+    "MCL_semantics_changed": false,
+    "broker_preflight_read_only": true
+  },
+  "post_execution_capture": {
+    "required": true,
+    "artifacts": [
+      "new_XSP_selection",
+      "superseding_three_sleeve_capital_plan",
+      "portfolio_generation_and_stability",
+      "content_addressed_and_current_pressure_generation",
+      "direct_and_idempotent_reconciliation_outputs"
+    ],
+    "rule": "capture_and_push_the_generated_provenance_before_further_XSP_research"
+  },
+  "boundaries": {
+    "selection_mutated_now": false,
+    "capital_plan_mutated_now": false,
+    "position_or_order_mutated_now": false,
+    "profitability_clock_started_now": false,
+    "timer_mutated_now": true,
+    "submitted_orders": 0
+  }
+}
