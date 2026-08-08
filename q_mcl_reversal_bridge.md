@@ -186,6 +186,59 @@ or weaken the stability gates.
 
 ## Current decision
 
+### Stage 131 — observer-covered one-epoch safety veto
+
+Friday's first authentic `20x+` control exposed a live ownership contradiction:
+Stage 114 carried a `37.422x` DOWN authority wave from `17:33:33Z` to the exact
+`19:20Z` V18 raw-turn boundary, yet Stage 112 matured that same raw epoch into
+an UP `failed_auction` and filled `+1 MCL @ 76.93` at `19:27:03Z`. Stage 114
+did not cause the order; its seconds lane is still observation-only and Stage
+112's trader does not consume it.
+
+The frozen Stage-131 contract is therefore protection-only:
+
+- an atomic, content-addressed Stage-114 coverage watermark must prove that the
+  observer evaluated through the raw-turn boundary;
+- selection, contract, generation, terminal timestamp/reason/direction, raw
+  event, and maturation event must match exactly;
+- the matching opposite V18 `failed_auction` is vetoed once;
+- proven coverage with no matching wave preserves Stage 112;
+- stale or missing coverage defers the maturation and never means “no shock”;
+- Stage 114 gains no direction, entry, sizing, capital, or order authority.
+
+The prospective census is narrow: seven complete current-selection Stage-114
+episodes, two raw-turn terminals, and only Friday's episode had an opposite V18
+maturation. Receipt
+`backtests/mcl/mcl_stage114_v18_epoch_veto_stage131_preregistration.json`
+(`ed0d4955...`) freezes this boundary before implementation. Stage 130 remains
+the independent count-first same-direction entry candidate and may not borrow
+Stage-131 safety evidence as alpha.
+
+The authentic coverage/race model then passed `15/15` frozen assertions. Exact
+coverage vetoes; missing, lagged, or identity-mismatched coverage only defers;
+HOLD never consumes the admission; proven absence releases through the existing
+next-minute clock; release after `120s` expires; restart and duplicate invocation
+are identity-exact; corrupt coverage fails closed; and Stage 114 cannot create a
+target. Receipt
+`backtests/mcl/mcl_stage114_v18_epoch_veto_stage131_coverage_race_result.json`
+(`03616139...`) exposes no outcomes and submits no orders.
+
+The safety settlement passes `10/10` further assertions. Disabled Stage 131 is
+exactly the `388`-trade Stage-112 ledger (`e4d18b52...`), retaining
+`+$3,942.99`, `$603.63` DD, `6.532` PnL/DD, eight loss-cap exits, and sixteen
+weekly flats. Across seven authentic prospective waves it changes only the one
+incident, suppressing one unique BUY and one filled MCL contract; the other
+raw-turn terminal is unchanged. The position remains open, so final opportunity
+cost is deliberately unsettled and no seven-episode cohort is mislabeled as a
+historical alpha/tail backtest. Receipt
+`backtests/mcl/mcl_stage114_v18_epoch_veto_stage131_safety_parity_settlement.json`
+(`60cf92c3...`).
+
+Live Stage 112 remains quarantined. A repaired live path requires exact
+disabled `388/388` parity, incident suppression, observer lag/failure/restart
+proof, honest opportunity-cost reporting, a fresh flat immutable selection,
+and nontransmitting LMT commissioning.
+
 No historical successor beats Stage 112 reliably, even at the user-approved
 3% most-years hurdle. Stage 112 remains the live crown. The research branch is
 closed against duration or threshold rescue. Retain `SHOCK_BORN_RAW_CONFIRMATION`
@@ -205,3 +258,67 @@ and UP/DOWN `+$24.36/+$365.44`. The known Aug-6 pivot's repaired front was
 about `170m` old. This is outcome-exposed mechanism evidence only. Queue one
 count-first `NATIVE_CYCLE_RAW_CONFIRMATION` candidate; do not replay it before
 the next Hawkeye `6/6` selection gate.
+
+Stage 130 subsequently passed count breadth across neighboring
+`45-165m / 60-180m / 75-195m` bands and produced impressive but formally
+rejected economics in the frozen `60-180m` center: `392` trades,
+`+$5,286.66`, `$555.71` DD, `9.513` PnL/DD (`+45.64%`), and positive route
+books in both years and directions. It still missed the `400`-trade and
+`>200/year` gates (`196.13/year`), while its largest winner supplied `53.63%`
+of route gains versus the frozen `50%` ceiling. No threshold was rescued.
+
+The post-economic known-control settlement then falsified Stage 130 as the
+live incident repair. The earlier `~170m` shorthand mixed an ordinary-front
+diagnostic with the exact shock epoch and is superseded:
+
+- Aug-6 authority bound UP at `05:30:38Z` and reached raw UP at `06:40Z`,
+  but topology was CL `UUU0U/UUUUU` versus MCL `UUUDU/UUUUU`. MCL's still
+  opposing 240m slope violates the frozen no-opposing-slope source law, so no
+  Stage-130 probation or entry exists; it also cannot meet the pre-existing
+  `05:46Z` incident deadline.
+- Aug-7 Stage-114 authority remained DOWN for `106.45m`, but the corresponding
+  Stage-121 phase front terminated at `17:50Z` on `JOINT_RECOIL_FAILURE`, well
+  before the `19:20Z` raw turn. Substituting shock-wave age for active-front age
+  would be a new mechanism, so Stage 130 schedules no DOWN entry.
+
+Receipt
+`backtests/mcl/mcl_native_cycle_raw_confirmation_stage130_known_controls_rejection.json`
+(`28a96669...` q result) preserves the rejection. Stage 130 remains useful
+developmental morphology, not a crown, incident fix, or live owner. Stage 131
+remains independently valid: it may veto the exact unsafe opposite maturation,
+but it may never manufacture the desired same-direction trade. Any early
+reversal or persistent-wave-memory entry successor must wait for a future
+Hawkeye selection block rather than recursively rescuing this one.
+
+## Weekend recovery freshness repair
+
+The first transient recovery was safely disarmed before it fired. It began at
+Sunday `17:58 ET` and current closed-market proof returned `type-1` but
+`-1/-1`, zero-sized quotes, so it would not actually have submitted; however,
+its contract did not explicitly prove positive sizes or tick freshness. The
+replacement is armed for `2026-08-09 18:00:05 ET` and may submit only one
+marketable `SELL 1 MCLU6 LMT` after exact `conId=661016525`, `+1` position,
+zero MCL orders, live type-1 data, positive sizes, and a tick no older than
+three seconds all agree. MCL live remains quarantined; SPXU, SPCX, Gold,
+signals, capital, and entry authority are untouched. Receipt
+`backtests/mcl/mcl_stage112_weekend_recovery_fresh_quote_repair_20260808.json`
+binds script `89799993...`, focused guard proof, calendar conversion, and zero
+submitted orders.
+
+## Current deployment boundary
+
+Stage 131 is extracted, parity-proven, pushed, and scheduled as a fresh
+flat-first successor after the exact MCL-only recovery. The current predecessor
+selection `8adead895...` has no Stage-131 binding and is now rejected before
+generation loading, source projection, or order construction—even if the
+unified systemd target is restarted. The successor requires atomic Stage-114
+coverage, a flat/orderless broker, zero-fill observe-only reconciliation, and
+the unchanged accelerated LMT route before either MCL timer may start.
+
+Read-only broker truth at `2026-08-08T12:39:15Z` remains `+1 MCLU6`, `23 SPXU`,
+unrelated `+1 SPCX`, and zero orders. The MCL flatten retries every `20s` until
+an exact fresh type-1 NBBO permits `SELL 1 MCLU6 LMT`; the Stage-131 successor
+then retries every `30s`. Stage 130 remains rejected alpha morphology and may
+not be used to manufacture the missing `$74 -> $78` entry.
+
+**Status:** `STAGE131_PROTECTION_PROVEN / PREDECESSOR_FAIL_CLOSED / EXACT_FLATTEN_AND_FRESH_SUCCESSOR_ARMED / STAGE130_REJECTED`.

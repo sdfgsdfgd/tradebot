@@ -455,6 +455,8 @@ gate after outcomes.
 | P-009 Pressure Atlas overnight boundary | Four natural post-selection worker invocations through `02:52Z` each reported `source_candidates=0`, `appended=0`, and exact `FROZEN_ACCUMULATE 1/30`; ledger remained one row / `30099fdf…` | Correct isolation: the frozen Atlas admits fresh crowned RTH targets only. The observed GTH DOWN turn may inform the crown's 24/5 state but cannot manufacture an RTH pressure treatment, classifier, permission, outcome, or order. Wait for the next authentic RTH crown target |
 | P-009 first-RTH readiness audit | Installed source/units match repository byte-for-byte; the live owner fetches fresh uncached XSP/SPY native 1m RTH history, removes the forming bar, requires aligned fresh close clocks, and runs at `09:31–09:59 ET +3s`. Focused production proof: `195 passed` | No extra warmup service or state carry is needed. The first lawful bridge decision is the completed `09:35 ET` minute and the first possible LMT target is `09:36 ET`; the separate seconds pressure tape remains observation-only |
 | P-009 pre-open latency audit | `104` natural full-worker samples: `29.07–35.36s`, mean `31.67s`. Read-only native-minute transport: `2.11s`; full historical RTH source over a temporary production-sized `2,779`-row ledger: `18.69s`, `389/389` aligned completed XSP/SPY minutes, no target/order | Same-minute capacity passes and lock staggering gives XSP `:03` before MCL `:10`; however research `next-open` is not yet authentic live fill parity. Measure the first target's signal→source→plan→LMT→fill clocks and slippage before claiming it |
+| P-009 first live RTH graduation interruption | The first selected session is not valid alpha evidence. A naive-ET/UTC freshness defect plus a `NO_DATA` transport exception failed `17` opening invocations and disabled the intended `09:35–09:37 ET` bridge; commit `23a330a` repaired both before the first `09:58 ET` success. The later Gateway outage removed `15:32 ET` onward and the `15:57 ET` liquidation. The reducer also falsely conflicts adjacent one-minute marks inside five-minute tolerance windows | Preserve the strategy crown, reject this run for graduation, never backfill its `14` genuinely missing slots, canonicalize one nearest execution observation per profitability slot, and begin a fresh immutable P-009 run only after broker-flat proof on a natural timer boundary |
+| P-009 flat-first recovery transaction | The incumbent remains `23 SPXU`, zero orders, and sell-only through its final natural `09:27 ET` recovery attempt. At `09:28:30 ET` the rollover takes the shared account lock and stops old admission before qualifying broker/ledger flatness | Held, stale, cash-short, publication-failed, or reconciliation-failed states leave XSP OFF. Only terminal flat plus direct reconciliation and idempotent successor proof may restart the unchanged P-009 timer; Gold/MCL selections are reloaded and preserved dynamically |
 
 ## 12. Decision journal
 
@@ -479,6 +481,8 @@ gate after outcomes.
 | PD-017 | Separate P-009's live-selection profitability clock from each signal-session warmup anchor. Natural GTH may start a fresh observation segment while the immutable selection clock continues uninterrupted; neither clock may inherit predecessor economics, manufacture a complete session, or open GTH cash authority |
 | PD-018 | Opening prewarm is an input-history seam, not cross-day fast-state carry: reuse completed premarket SPY range/volume plus the rolling 75m front, then let current-session native XSP/SPY minutes own direction. Preserve ordinary v3's daily reset and exact 5m lifecycle; never warm it by replaying synthetic current-session bars |
 | PD-019 | Treat P-009's modeled next-minute open and live next-minute LMT as distinct clocks until an authentic target proves signal-to-fill latency. Current production work finishes inside the same minute, so preserve the canary and measure it; do not preemptively rewrite the owner or call a 30–40s landing exact-open parity |
+| PD-020 | The interrupted first live P-009 session cannot graduate and cannot reject alpha: its opening bridge was disabled by defects now fixed in `23a330a`, while Gateway loss later prevented liquidation. Start a fresh flat selection after recovery; repair only the profitability slot reducer, not P-009 thresholds or clocks |
+| PD-021 | The flat-first rollover is a run-identity transaction, not a strategy revision. The old P-009 owner retains reduction authority only; a fresh profitability clock begins only after broker and ledger are terminal-flat, and no missing predecessor slot may be backfilled |
 
 ## 13. Current execution sequence
 
@@ -510,17 +514,16 @@ gate after outcomes.
     succeeded shared-capital plan, outcome-blind pressure generation, LMT-only
     preview, restart proof, installed-unit parity, and zero-order broker proof
     bind P-009 to the existing central worker.
-11. `[ACTIVE / FIRST NATURAL RECURRENCE PASSED / FIRST RTH DUE]` Natural GTH
-    source/transport, broker reconciliation, pressure accumulation,
-    installed-unit identity, and no-complete-session profitability semantics are
-    exact. Opening prewarm and the `+3s` native-minute clock are production-ready;
-    observe the first authentic RTH session, then continue `24h`, `48h`, and
-    five-session after-cost reductions. Do not retune from the disclosed recent
-    weakness or synthesize an overnight cash path.
+11. `[INTERRUPTED / INVALID FIRST RTH / RECOVERY DUE]` Natural GTH identity and
+    the current repaired opening owner are exact, but the first selected RTH
+    session cannot count: `17` opening invocations failed before repair and the
+    Gateway outage prevented the normal close. Flatten the residual sleeve,
+    canonicalize profitability slots without backfill, start one fresh immutable
+    run on a natural boundary, then restart `24h`, `48h`, and five-session proof.
 
 ## Conclusion: XSP P-009 Dual-Clock Arbitration
 
-**Status:** `CROWNED / CANARY_LIVE / FIRST_NATURAL_GTH_RECURRENCE_PASS / LMT_ONLY / RTH_CASH_ONLY / GRADUATION_ACCUMULATE`.
+**Status:** `CROWNED / CANARY_QUARANTINED_FOR_RECOVERY / FIRST_RTH_INVALID / LMT_ONLY / RTH_CASH_ONLY / FRESH_GRADUATION_RUN_REQUIRED`.
 
 The decisive insight is:
 
