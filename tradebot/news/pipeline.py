@@ -1,6 +1,7 @@
 """One-fetch, one-Codex-run news signal for XSP, MCL, and GC."""
 from __future__ import annotations
 
+from collections import deque
 import argparse
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -20,6 +21,7 @@ from urllib.request import Request, urlopen
 
 from .contract import (
     EMPTY_MEMORY,
+    ASSET_SYMBOLS,
     MAX_ACTIVE_EVENTS,
     SCHEMA,
     SCORE_COMPONENT_LIMITS,  # noqa: F401 - retained module compatibility
@@ -34,6 +36,7 @@ from .contract import (
     canonical_url,
     load_events,
     output_schema,
+    observe_news_signal,
     publication_id,
     validate_analysis,
     validate_memory_markdown,
@@ -48,11 +51,12 @@ DEFAULT_MEMORY_PATH = Path("~/.codex/trade-research.md").expanduser()
 DEFAULT_EVENTS_PATH = Path("~/.codex/trade-events.jsonl").expanduser()
 DEFAULT_MODEL = "gpt-5.6-sol"
 DEFAULT_MAX_ARTICLES = 128
-# Keep discovery independently tight while leaving a measured fourteen-minute
-# research window and publication grace beneath the service wall.
-DEFAULT_TIMEOUT_SEC = 14 * 60
+# Codex research can legitimately take tens of minutes; the systemd unit keeps
+# a small outer grace for cleanup and post-publication verification.
+DEFAULT_TIMEOUT_SEC = 60 * 60
 DEFAULT_FETCH_TIMEOUT_SEC = 30
 MAX_RESPONSE_BYTES = 3_000_000
+MAX_CODEX_STDERR_BYTES = 64_000
 MAX_SEEN = 5_000
 HISTORY_RETENTION_MONTHS = 13
 
@@ -405,6 +409,8 @@ def invoke_codex(
         except (OSError, subprocess.TimeoutExpired) as exc:
             raise NewsError(f"Codex invocation failed: {exc}") from exc
         refused = threading.Event()
+        stderr_tail: deque[str] = deque()
+        stderr_size = 0
         stdout: list[str] = []
 
         def stream_stdout() -> None:
@@ -412,10 +418,23 @@ def invoke_codex(
             for chunk in iter(lambda: process.stdout.read(65_536), ""):
                 stdout.append(chunk)
 
+        def report_stderr_tail() -> None:
+            tail = "".join(stderr_tail).strip()
+            if tail:
+                print(
+                    f"tradebot-news: Codex stderr tail ({len(tail.encode())} bytes):\n{tail}",
+                    file=sys.stderr,
+                    flush=True,
+                )
+
         def stream_stderr() -> None:
+            nonlocal stderr_size
             assert process.stderr is not None
             for line in process.stderr:
-                print(line, end="", file=sys.stderr, flush=True)
+                stderr_tail.append(line)
+                stderr_size += len(line.encode())
+                while stderr_size > MAX_CODEX_STDERR_BYTES and stderr_tail:
+                    stderr_size -= len(stderr_tail.popleft().encode())
                 if (
                     '"source":"concurrency_limit"' in line
                     or "biscuit_baker_service_me_circuit_open" in line
@@ -440,6 +459,7 @@ def invoke_codex(
         except (OSError, subprocess.TimeoutExpired) as exc:
             process.kill()
             process.wait()
+            report_stderr_tail()
             raise NewsError(f"Codex invocation failed: {exc}") from exc
         finally:
             for reader in readers:
@@ -450,6 +470,7 @@ def invoke_codex(
                 if refused.is_set()
                 else "stderr was streamed"
             )
+            report_stderr_tail()
             raise NewsError(f"Codex exited {returncode}; {reason}")
         try:
             analysis = json.loads("".join(stdout))
@@ -511,6 +532,43 @@ def _load_state(path: Path) -> dict[str, object]:
         raise NewsError("news state last fetch is invalid")
     return state
 
+
+def verify_published(
+    *,
+    data_dir: Path,
+    now: datetime | None = None,
+) -> dict[str, object]:
+    """Prove the currently published XSP/MCL/GC context is intact and fresh."""
+
+    observed_at = (now or datetime.now(timezone.utc)).replace(microsecond=0)
+    latest_path = data_dir / "latest.json"
+    latest = _load_json(latest_path, required=True)
+    if (
+        latest.get("schema") != SCHEMA
+        or latest.get("score_version") != SCORE_VERSION
+        or latest.get("publication_id") != publication_id(latest)
+    ):
+        raise NewsError("published news signal identity is invalid")
+    observations = {
+        symbol: observe_news_signal(latest, symbol=symbol, as_of=observed_at)
+        for symbol in ASSET_SYMBOLS
+    }
+    unusable = [
+        f"{symbol}={observation.reason}"
+        for symbol, observation in observations.items()
+        if not observation.usable
+    ]
+    if unusable:
+        raise NewsError(f"published news signal is not fresh: {', '.join(unusable)}")
+    return {
+        "status": "fresh",
+        "as_of_utc": _utc_iso(observed_at),
+        "latest": str(latest_path),
+        "signals": {
+            symbol: observation.as_payload()
+            for symbol, observation in observations.items()
+        },
+    }
 
 def _write_json_atomic(path: Path, value: dict[str, object]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -918,21 +976,30 @@ def _parser() -> argparse.ArgumentParser:
         default=Path(os.getenv("TRADEBOT_NEWS_EVENTS", str(DEFAULT_EVENTS_PATH))).expanduser(),
     )
     parser.add_argument("--timeout-sec", type=int, default=DEFAULT_TIMEOUT_SEC)
+    parser.add_argument(
+        "--verify",
+        action="store_true",
+        help="validate the current publication without fetching news or invoking Codex",
+    )
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
-        result = run_once(
-            data_dir=args.data_dir,
-            source_url=args.source_url,
-            max_articles=args.max_articles,
-            codex=args.codex,
-            model=args.model,
-            timeout_sec=args.timeout_sec,
-            memory_path=args.memory,
-            events_path=args.events,
+        result = (
+            verify_published(data_dir=args.data_dir)
+            if args.verify
+            else run_once(
+                data_dir=args.data_dir,
+                source_url=args.source_url,
+                max_articles=args.max_articles,
+                codex=args.codex,
+                model=args.model,
+                timeout_sec=args.timeout_sec,
+                memory_path=args.memory,
+                events_path=args.events,
+            )
         )
     except (NewsError, ValueError) as exc:
         print(f"tradebot-news: {exc}", file=sys.stderr)

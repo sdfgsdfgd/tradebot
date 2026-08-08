@@ -102,7 +102,7 @@ install -m 0644 \
   deploy/systemd/tradebot-{mcl-live,mcl-turn-tape,mcl-predictive-onset-runtime}.{service,timer} \
   deploy/systemd/tradebot-{mcl-emergency-flatten,mcl-stage131-successor,gold-fail-closed-rollover,xsp-p009-fresh-rollover}.{service,timer} \
   deploy/systemd/tradebot-mcl-narrative-prospective.service \
-  deploy/systemd/tradebot-news.{service,timer} \
+  deploy/systemd/tradebot-{news,journal-prune}.{service,timer} \
   deploy/systemd/tradebot-{xsp-shadow,xsp-pressure-tape}.{service,timer} \
   ~/.config/systemd/user/
 systemctl --user daemon-reload
@@ -194,7 +194,8 @@ systemctl --user enable --now \
   tradebot-ib-gateway.timer \
   tradebot-ib-preflight.timer \
   tradebot-ib-sentinel.timer \
-  tradebot-news.timer
+  tradebot-news.timer \
+  tradebot-journal-prune.timer
 ```
 
 Arm each selected strategy through the portfolio cockpit, not by enabling its
@@ -210,16 +211,20 @@ successful successor transaction starts and re-enables it atomically.
 
 ## Sunday sequence
 
-1. `17:20 ET`: q starts Gateway and its semantic login worker.
-2. q fills credentials from the desktop keyring, raises the Mac alert only
+1. `15:30 ET`: q starts one bounded XSP/MCL/Gold news inference. It may use
+   up to one hour; a fresh publication is verified before success. One retry is
+   allowed after five minutes; failed publication raises the Mac review alert
+   without granting or revoking trade authority.
+2. `17:20 ET`: q starts Gateway and its semantic login worker.
+3. q fills credentials from the desktop keyring, raises the Mac alert only
    when IB requests fingerprint/2FA, and waits for an authenticated API port.
    No strategy is armed merely because login succeeds.
-3. `17:40 ET`: preflight reconciles account, positions, open orders, selected
+4. `17:40 ET`: preflight reconciles account, positions, open orders, selected
    contracts, connectivity, and armed bundle membership.
-4. A successful entry receipt permits the already-selected strategy schedules
+5. A successful entry receipt permits the already-selected strategy schedules
    to reach the shared last-mile order gate. Failure leaves entries closed and
    raises the Mac alert.
-5. `17:55 ET`: the bounded MCL tape starts; futures execution begins no earlier
+6. `17:55 ET`: the bounded MCL tape starts; futures execution begins no earlier
    than the exchange session boundary.
 
 If 2FA is missed, attend to the GUI and rerun only preflight. Do not restart a

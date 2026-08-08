@@ -377,14 +377,14 @@ def test_systemd_budget_leaves_atomic_publication_grace() -> None:
     mcl = (deploy / "tradebot-mcl-narrative-prospective.service").read_text()
     guide = (deploy / "README.md").read_text()
 
-    assert "--timeout-sec" not in unit
+    assert "--timeout-sec 3600" in unit
     assert DEFAULT_FETCH_TIMEOUT_SEC == 30
-    assert DEFAULT_TIMEOUT_SEC == 840
+    assert DEFAULT_TIMEOUT_SEC == 3600
     assert "--codex %h/.local/bin/codex" in unit
-    assert "TimeoutStartSec=16min" in unit
+    assert "TimeoutStartSec=65min" in unit
     assert "StartLimitIntervalSec=2h" in unit
-    assert "StartLimitBurst=31" in unit
-    assert "Restart=on-failure" not in unit
+    assert "StartLimitBurst=2" in unit
+    assert "Restart=on-failure" in unit
     assert "OnSuccess=tradebot-mcl-narrative-prospective.service" in unit
     assert "After=tradebot-news.service tradebot-ib-gateway.service" in mcl
     assert "Requires=tradebot-ib-gateway.service" not in mcl
@@ -394,7 +394,7 @@ def test_systemd_budget_leaves_atomic_publication_grace() -> None:
     assert "IBKR_READONLY=0" not in mcl
     assert "MCL_NARRATIVE_LEDGER=%h/.local/state/tradebot/research/" in mcl
     assert "MCL_NARRATIVE_GENERATION=%h/Desktop/py/tradebot/backtests/mcl/" in mcl
-    assert "mcl_narrative_experiment_generation_q_native_gateway_20260809.json" in mcl
+    assert "mcl_narrative_experiment_generation_q_news_contract_20260809.json" in mcl
     assert "python3 -m tradebot.research.mcl_narrative_lag_convexity" in mcl
     assert "tradebot-mcl-narrative-prospective.service" in guide
     assert "q owns one native IB Gateway" in guide
@@ -403,6 +403,23 @@ def test_systemd_budget_leaves_atomic_publication_grace() -> None:
     assert "There is no Mac transport or SSH tunnel fallback." in guide
     assert "Mac transport or SSH tunnel fallback" in guide
 
+
+def test_published_verifier_requires_current_valid_signal(tmp_path: Path) -> None:
+    def grader(_prompt: str, _schema: dict, **_kwargs) -> tuple[dict, dict]:
+        return _analysis([article.url for article in parse_finviz_news(_html(), observed_at=NOW)]), {"version": "test"}
+
+    run_once(
+        data_dir=tmp_path,
+        now=NOW,
+        fetcher=lambda *_args, **_kwargs: _html(),
+        grader=grader,
+    )
+
+    verified = news.verify_published(data_dir=tmp_path, now=NOW + timedelta(minutes=1))
+    assert verified["status"] == "fresh"
+    assert set(verified["signals"]) == {"XSP", "MCL", "GC"}
+    with pytest.raises(NewsError, match="not fresh"):
+        news.verify_published(data_dir=tmp_path, now=NOW + timedelta(hours=25))
 
 def test_candidate_selection_has_no_topical_keyword_sieve() -> None:
     articles = parse_finviz_news(_html(), observed_at=NOW)
@@ -980,7 +997,7 @@ def test_mcl_narrative_generation_binds_current_owners(tmp_path: Path) -> None:
     generation = load_mcl_narrative_generation()
 
     assert generation["generation_id"] == (
-        "7bf22ce3ce157d4cba2b0b5d5448cc2660b95d6bc01e6df59354017a668103bd"
+        "1f463fee41a5d978fb91f635c6ac49ba898d99991603f1279f762034907fd913"
     )
     assert generation["status"] == "ACTIVE_EMPTY_PREFIX"
 

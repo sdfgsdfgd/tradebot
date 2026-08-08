@@ -7,7 +7,7 @@ from .contract import (
     observe_news_signal,
     select_news_snapshot_at,
 )
-from .pipeline import main, run_once
+from .pipeline import main, run_once, verify_published
 
 __all__ = (
     "NewsError",
@@ -17,4 +17,5 @@ __all__ = (
     "observe_news_signal",
     "run_once",
     "select_news_snapshot_at",
+    "verify_published",
 )

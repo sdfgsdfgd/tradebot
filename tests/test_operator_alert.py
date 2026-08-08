@@ -16,6 +16,8 @@ def test_operator_alert_accepts_only_fixed_reasons_without_mutating_volume() -> 
     assert "gold-runtime-failed)" in script
     assert "mcl-runtime-failed)" in script
     assert "xsp-runtime-failed)" in script
+    assert "news-input-failed)" in script
+    assert "mcl-narrative-followup-failed)" in script
     assert "strategy-input-failed)" in script
     assert "exit 64" in script
     assert "set volume" not in script

@@ -1,19 +1,22 @@
 [Unit]
-Description=Tradebot one-shot XSP/MCL news inference
+Description=Tradebot one-shot XSP/MCL/Gold news inference
 Wants=network-online.target
 After=network-online.target
 OnSuccess=tradebot-mcl-narrative-prospective.service
-OnFailure=tradebot-operator-alert@strategy-input-failed.service
+OnFailure=tradebot-operator-alert@news-input-failed.service
 StartLimitIntervalSec=2h
-StartLimitBurst=31
+StartLimitBurst=2
 
 [Service]
 Type=oneshot
 WorkingDirectory=%h/Desktop/py/tradebot
 Environment=PATH=/usr/local/bin:/usr/bin:/bin
 Environment=PYTHONUNBUFFERED=1
-ExecStart=/usr/bin/python3 -m tradebot.news --codex %h/.local/bin/codex --model gpt-5.6-sol --data-dir %h/.local/state/tradebot/news --memory %h/.codex/trade-research.md --events %h/.codex/trade-events.jsonl
-TimeoutStartSec=16min
+ExecStart=/usr/bin/python3 -m tradebot.news --codex %h/.local/bin/codex --model gpt-5.6-sol --timeout-sec 3600 --data-dir %h/.local/state/tradebot/news --memory %h/.codex/trade-research.md --events %h/.codex/trade-events.jsonl
+ExecStartPost=/usr/bin/python3 -m tradebot.news --verify --data-dir %h/.local/state/tradebot/news
+TimeoutStartSec=65min
+Restart=on-failure
+RestartSec=5min
 Nice=10
 IOSchedulingClass=idle
 PrivateTmp=true

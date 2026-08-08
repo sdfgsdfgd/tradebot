@@ -35,6 +35,14 @@ case "$reason" in
     title="XSP RUNTIME FAILED — TRADING LOCKED"
     message="The active XSP owner or its pressure tape failed. New XSP entries remain fail-closed; inspect its q journal and the fresh broker receipt."
     ;;
+  news-input-failed)
+    title="NEWS INPUT FAILED — PRE-OPEN REVIEW"
+    message="q could not publish and verify fresh XSP/MCL/Gold news context. News cannot submit orders or independently lock entries, but its research context is degraded. Inspect the q news receipt before the next active session."
+    ;;
+  mcl-narrative-followup-failed)
+    title="MCL NEWS FOLLOW-UP FAILED — RESEARCH DEGRADED"
+    message="The read-only prospective MCL narrative evidence pass did not finish. It cannot submit orders or independently lock MCL, but its research evidence is incomplete. Inspect the q journal and receipt."
+    ;;
   strategy-input-failed)
     title="STRATEGY INPUT FAILED — TRADING LOCKED"
     message="A required live strategy input or research feed failed. Its dependent runtime remains fail-closed until the source and broker receipt are healthy."

@@ -1,0 +1,12 @@
+[Unit]
+Description=Prune q user journals before the Sunday pre-open sequence
+
+[Timer]
+OnCalendar=Sun *-*-* 14:30:00 America/New_York
+AccuracySec=15s
+RandomizedDelaySec=0
+Persistent=false
+Unit=tradebot-journal-prune.service
+
+[Install]
+WantedBy=timers.target

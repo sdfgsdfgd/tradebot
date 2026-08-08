@@ -1,7 +1,7 @@
 [Unit]
 Description=Freeze and settle prospective MCL narrative-price assimilation evidence
 After=tradebot-news.service tradebot-ib-gateway.service
-OnFailure=tradebot-operator-alert@mcl-runtime-failed.service
+OnFailure=tradebot-operator-alert@mcl-narrative-followup-failed.service
 
 [Service]
 Type=oneshot
@@ -14,9 +14,9 @@ Environment=IBKR_CLIENT_ID=3194
 Environment=IBKR_READONLY=1
 Environment=IBKR_ACCOUNT_BOOTSTRAP=0
 Environment=MCL_NARRATIVE_LEDGER=%h/.local/state/tradebot/research/mcl_narrative_lag_convexity.jsonl
-Environment=MCL_NARRATIVE_GENERATION=%h/Desktop/py/tradebot/backtests/mcl/mcl_narrative_experiment_generation_q_native_gateway_20260809.json
+Environment=MCL_NARRATIVE_GENERATION=%h/Desktop/py/tradebot/backtests/mcl/mcl_narrative_experiment_generation_q_news_contract_20260809.json
 ExecStartPre=/usr/bin/test -f %h/Desktop/py/tradebot/tradebot/research/mcl_narrative_lag_convexity.py
-ExecStartPre=/usr/bin/test -f %h/Desktop/py/tradebot/backtests/mcl/mcl_narrative_experiment_generation_q_native_gateway_20260809.json
+ExecStartPre=/usr/bin/test -f %h/Desktop/py/tradebot/backtests/mcl/mcl_narrative_experiment_generation_q_news_contract_20260809.json
 ExecStartPre=/usr/bin/test -x %h/.local/share/tradebot/venv/bin/python
 ExecStart=/usr/bin/env python3 -m tradebot.research.mcl_narrative_lag_convexity
 TimeoutStartSec=3min

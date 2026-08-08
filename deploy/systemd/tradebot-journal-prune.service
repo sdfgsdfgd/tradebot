@@ -1,0 +1,12 @@
+[Unit]
+Description=Retain only four weeks of q user journal records
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/journalctl --user --rotate --vacuum-time=4weeks
+TimeoutStartSec=2min
+Nice=19
+IOSchedulingClass=idle
+PrivateTmp=true
+NoNewPrivileges=true
+UMask=0077
