@@ -83,8 +83,8 @@ mkdir -p ~/.config/systemd/user ~/.local/bin
 install -m 0755 \
   deploy/systemd/tradebot-ib-gateway-launch \
   deploy/systemd/tradebot-ib-gateway-login \
-  deploy/systemd/tradebot-cli \
   ~/.local/bin/
+install -m 0755 deploy/systemd/tradebot-cli ~/.local/bin/tradebot
 install -m 0644 \
   deploy/systemd/tradebot-ib-gateway-login.service \
   deploy/systemd/tradebot-ib-gateway-ensure.service \

@@ -1,3 +1,4 @@
 #!/bin/sh
 set -eu
+cd "$HOME/Desktop/py/tradebot"
 exec "$HOME/.local/share/tradebot/venv/bin/python" -m tradebot "$@"
