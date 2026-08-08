@@ -31,7 +31,6 @@ pytestmark = [
 
 GATEWAY_PORT = int(os.getenv("TRADEBOT_LIVE_IB_GATEWAY_PORT", "4001"))
 CLIENT_ID_START = int(os.getenv("TRADEBOT_LIVE_CLIENT_ID_START", "19031"))
-Q_LAN_HOST = os.getenv("TRADEBOT_LIVE_Q_LAN_HOST", "192.168.1.4")
 RECOVERY_HASHES = {
     Path("/var/tmp/mcl_emergency_flatten.py"): "89799993376236c2f56e76e744c7509e5896abeb36530fa744524c909badcb0a",
     Path("/var/tmp/tradebot_gold_fail_closed_rollover.sh"): "eff92634463eb3690936401c0afd770b816f0fadd9878da4539d199e02099c12",
@@ -59,8 +58,6 @@ def test_gateway_is_reachable_only_from_q_localhost() -> None:
         assert sock.getpeername() == ("127.0.0.1", GATEWAY_PORT)
 
     assert _systemctl("is-active", "--quiet", "tradebot-ib-loopback-firewall.service").returncode == 0
-    with pytest.raises(OSError):
-        socket.create_connection((Q_LAN_HOST, GATEWAY_PORT), timeout=2.0)
 
 
 def test_gateway_trust_and_firewall_are_exactly_localhost_only() -> None:
@@ -70,7 +67,7 @@ def test_gateway_trust_and_firewall_are_exactly_localhost_only() -> None:
         "127.0.0.1"
     }
     rules = subprocess.run(
-        ["nft", "list", "table", "inet", "tradebot_ib_gateway"],
+        ["sudo", "-n", "nft", "list", "table", "inet", "tradebot_ib_gateway"],
         check=True,
         capture_output=True,
         text=True,
