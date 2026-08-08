@@ -83,7 +83,7 @@ The experimental XSP/MCL/GC news signal is an independent one-shot command:
 python -m tradebot.news
 ```
 
-It writes `db/news/latest.json`, monthly 13-month audit history, bounded
+It writes `db/news/latest.json`, monthly append-only audit history, bounded
 `state.json`, and atomically curated `~/.codex/trade-research.md` plus
 `~/.codex/trade-events.jsonl`, then exits. The Markdown retains compact
 historical calibration anchors, active umbrella regimes, and causal priors.

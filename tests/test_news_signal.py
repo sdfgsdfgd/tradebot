@@ -405,7 +405,7 @@ def test_systemd_budget_leaves_atomic_publication_grace() -> None:
     assert "IBKR_READONLY=0" not in mcl
     assert "MCL_NARRATIVE_LEDGER=%h/.local/state/tradebot/research/" in mcl
     assert "MCL_NARRATIVE_GENERATION=%h/Desktop/py/tradebot/backtests/mcl/" in mcl
-    assert "mcl_narrative_experiment_generation_q_news_contract_20260809.json" in mcl
+    assert "mcl_narrative_experiment_generation_q_permanent_news_history_20260809.json" in mcl
     assert "python3 -m tradebot.research.mcl_narrative_lag_convexity" in mcl
     assert "ExecStart=/usr/bin/journalctl --rotate --vacuum-time=4weeks" in journal
     assert "--user" not in journal
@@ -872,6 +872,24 @@ def test_run_once_publishes_then_refreshes_without_second_codex_session(tmp_path
     assert len((tmp_path / "history" / "2026-07.jsonl").read_text().splitlines()) == 1
 
 
+def test_run_once_keeps_all_monthly_signal_history(tmp_path: Path) -> None:
+    archived = tmp_path / "history" / "2000-01.jsonl"
+    archived.parent.mkdir(parents=True)
+    archived.write_text('{"historical":true}\n', encoding="utf-8")
+
+    run_once(
+        data_dir=tmp_path,
+        now=NOW,
+        fetcher=lambda *_args, **_kwargs: _html(),
+        grader=lambda _prompt, _schema, **_kwargs: (
+            _analysis([article.url for article in parse_finviz_news(_html(), observed_at=NOW)]),
+            {"version": "test"},
+        ),
+    )
+
+    assert archived.read_text(encoding="utf-8") == '{"historical":true}\n'
+
+
 def test_run_once_normalizes_runtime_clock_to_schema_precision(
     tmp_path: Path,
 ) -> None:
@@ -1015,7 +1033,7 @@ def test_mcl_narrative_generation_binds_current_owners(tmp_path: Path) -> None:
     generation = load_mcl_narrative_generation()
 
     assert generation["generation_id"] == (
-        "6ac75895e0fb002b26ae5c58075fa2d2b34a294a6a5f7d541f89a8a8cdd83c53"
+        "4bc7461b48abe44e9903ec829340e9f8b9958e0c1096313b8ac748e2dae8ae48"
     )
     assert generation["status"] == "ACTIVE_EMPTY_PREFIX"
 

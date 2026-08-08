@@ -57,7 +57,6 @@ DEFAULT_FETCH_TIMEOUT_SEC = 30
 MAX_RESPONSE_BYTES = 3_000_000
 MAX_CODEX_STDERR_BYTES = 64_000
 MAX_SEEN = 5_000
-HISTORY_RETENTION_MONTHS = 13
 
 SOURCE_DOMAINS = {
     "reuters.com": "Reuters", "bloomberg.com": "Bloomberg", "wsj.com": "Wall Street Journal",
@@ -627,15 +626,6 @@ def _append_history(
             os.fsync(handle.fileno())
         finally:
             fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
-    current_month = as_of.year * 12 + as_of.month - 1
-    oldest_month = current_month - HISTORY_RETENTION_MONTHS + 1
-    for candidate in history_dir.glob("????-??.jsonl"):
-        try:
-            year, month = (int(part) for part in candidate.stem.split("-"))
-        except ValueError:
-            continue
-        if 1 <= month <= 12 and year * 12 + month - 1 < oldest_month:
-            candidate.unlink()
 
 
 def _finish_pending_publication(
