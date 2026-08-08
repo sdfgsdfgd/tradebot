@@ -9,9 +9,10 @@ from pathlib import Path
 
 
 GOLD_RUNTIME_PARITY_PATH = Path(
-    "backtests/gold/one_oz_regime_harmony_runtime_parity_fail_closed_20260808.json"
+    "backtests/gold/one_oz_regime_harmony_runtime_parity_predecessor_"
+    "quarantine_20260808.json"
 )
-GOLD_RUNTIME_PARITY_SCHEMA = "gold.1oz-regime-harmony-runtime-parity.v2"
+GOLD_RUNTIME_PARITY_SCHEMA = "gold.1oz-regime-harmony-runtime-parity.v3"
 GOLD_RUNTIME_PARITY_AUTHORITY = (
     "immutable_signal_and_fail_closed_runtime_parity_only_"
     "no_selection_no_capital_no_orders"
@@ -28,6 +29,7 @@ GOLD_RUNTIME_PARITY_REQUIRED_GATES = (
     "resting_limit_wide_book_freeze",
     "held_exit_authority_preserved",
     "cross_contract_default_semantics",
+    "predecessor_selection_runtime_quarantine",
 )
 
 

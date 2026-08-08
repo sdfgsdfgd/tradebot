@@ -8,7 +8,7 @@ import hashlib
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Sequence
+from typing import Mapping, Sequence
 
 from ..client import IBKRClient
 from ..config import auxiliary_client_config, load_config
@@ -24,6 +24,7 @@ from .gold_profitability import (
     gold_live_profitability_receipt,
     load_gold_profitability_coverage_epoch,
 )
+from .gold_runtime_parity_contract import load_gold_runtime_parity
 from .gold_live_transport import (
     GOLD_LIVE_CAPITAL_SLEEVE,
     GOLD_LIVE_LEDGER_PATH,
@@ -37,6 +38,21 @@ from .live_graduation import (
     publish_live_graduation_receipt,
     reduce_live_graduation,
 )
+
+
+def _require_current_gold_runtime_parity(
+    selection: Mapping[str, object], *, repository_root: Path
+) -> dict[str, str]:
+    evidence = selection.get("evidence")
+    expected = load_gold_runtime_parity(repository_root)
+    if (
+        not isinstance(evidence, Mapping)
+        or evidence.get("runtime_parity") != expected
+    ):
+        raise ValueError(
+            "selected Gold live runtime requires current fail-closed parity binding"
+        )
+    return expected
 
 
 async def _main_async(argv: Sequence[str] | None = None) -> int:
@@ -63,6 +79,7 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--graduation-output")
     parser.add_argument("--graduation-coverage-epoch")
     args = parser.parse_args(argv)
+    root = Path(__file__).resolve().parents[2]
     selection_path = Path(args.selection).expanduser()
     capital_path = Path(args.capital_plan).expanduser()
     capital_plan = load_live_capital_plan(capital_path)
@@ -70,7 +87,7 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
         _, selection_path, _ = load_allocated_live_selection(
             capital_plan,
             sleeve_id=GOLD_LIVE_CAPITAL_SLEEVE,
-            repository_root=Path(__file__).resolve().parents[2],
+            repository_root=root,
         )
     ledger = LiveCalibrationLedger(Path(args.ledger).expanduser())
     selection = load_gold_live_selection(selection_path)
@@ -96,7 +113,6 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
         _, graduation_records = live_calibration_logical_prefix(
             records, cutoff_utc=cutoff
         )
-        root = Path(__file__).resolve().parents[2]
         coverage_epoch = (
             load_gold_profitability_coverage_epoch(
                 Path(args.graduation_coverage_epoch).expanduser(),
@@ -137,6 +153,7 @@ async def _main_async(argv: Sequence[str] | None = None) -> int:
         )
         print(json.dumps(receipt, indent=2, sort_keys=True, allow_nan=False))
         return 2 if receipt["verdict"] in {"QUARANTINE", "STOP"} else 0
+    _require_current_gold_runtime_parity(selection, repository_root=root)
     source = latest_gold_source_checkpoint(records)
     config = auxiliary_client_config(load_config(), 92)
     if config.readonly:

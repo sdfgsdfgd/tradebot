@@ -22,6 +22,7 @@ from tradebot.research.gold_live_runtime import (
     gold_live_contract,
     gold_transport_order_ref,
 )
+from tradebot.research.gold_live_cli import _require_current_gold_runtime_parity
 from tradebot.research.gold_onset_cli import _unmanaged_stress
 from tradebot.research.gold_live_state import (
     gold_transport_risk_state,
@@ -238,6 +239,31 @@ def test_gold_runtime_parity_receipt_binds_crown_owner_and_holds_live() -> None:
     assert receipt["gates"]["native_1oz_margin_and_cash"] == "HOLD"
     assert receipt["gates"]["live_24h"] == "NOT_STARTED"
     assert receipt["verdict"] == "SIGNAL_RUNTIME_PARITY_PASS_LIVE_TRANSPORT_HOLD"
+
+
+def test_gold_live_runtime_rejects_the_pre_fail_closed_selection() -> None:
+    selected = _selection(datetime(2026, 8, 8, 12, tzinfo=UTC))
+
+    assert _require_current_gold_runtime_parity(
+        selected, repository_root=ROOT
+    ) == selected["evidence"]["runtime_parity"]
+
+    predecessor = json.loads(json.dumps(selected))
+    predecessor["evidence"]["runtime_parity"] = {
+        "path": (
+            "backtests/gold/"
+            "one_oz_regime_harmony_runtime_parity_fail_closed_20260808.json"
+        ),
+        "sha256": (
+            "9d9a6ebda0c7c1b93fb89805a588ee60e617622db76855f1ea2783125bb9bdb3"
+        ),
+    }
+    with pytest.raises(
+        ValueError, match="requires current fail-closed parity binding"
+    ):
+        _require_current_gold_runtime_parity(
+            predecessor, repository_root=ROOT
+        )
 
 
 def test_gold_signal_owner_has_no_broker_or_live_order_dependency() -> None:
