@@ -38,6 +38,8 @@ class LiveRunBinding:
     champion_track: str = ""
     support_timer_units: tuple[str, ...] = ()
     support_service_units: tuple[str, ...] = ()
+    recovery_timer_unit: str = ""
+    recovery_managed_timer_units: tuple[str, ...] = ()
 
     @property
     def runtime_timer_units(self) -> tuple[str, ...]:
